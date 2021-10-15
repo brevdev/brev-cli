@@ -1,4 +1,4 @@
-module github.com/golang-templates/seed
+module github.com/brevdev/brev-cli
 
 go 1.16
 
