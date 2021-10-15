@@ -20,10 +20,10 @@ release:
 dockers:
   -
     image_templates:
-    - "docker.pkg.github.com/golang-templates/seed/{{ .ProjectName }}:latest"
-    - "docker.pkg.github.com/golang-templates/seed/{{ .ProjectName }}:{{ .Major }}"
-    - "docker.pkg.github.com/golang-templates/seed/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}"
-    - "docker.pkg.github.com/golang-templates/seed/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:latest"
+    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}"
+    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}"
+    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
     build_flag_templates:
     - "--pull"
     - "--label=org.opencontainers.image.created={{.Date}}"

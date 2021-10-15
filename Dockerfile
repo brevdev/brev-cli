@@ -1,3 +1,3 @@
 FROM scratch
-COPY seed /
-ENTRYPOINT ["/seed"]
+COPY brev-cli /
+ENTRYPOINT ["/brev-cli"]
