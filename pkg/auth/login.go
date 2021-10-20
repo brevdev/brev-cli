@@ -59,64 +59,64 @@ type CotterOauthToken struct {
 //go:embed success.html
 var successHTML embed.FS
 
-// Login performs a full round trip to Cotter:
-//   1. Generate a code verifier
-//   2. Open the Brev+Cotter auth URL in the default browser
-//   3. Start a local web server awaiting a redirect to localhost
-//   4. Capture the Cotter token upon redirect
-//   5. Write the Cotter token to a file in the hidden brev directory
-func login(t *terminal.Terminal) error {
-	cotterCodeVerifier := generateCodeVerifier()
+// // Login performs a full round trip to Cotter:
+// //   1. Generate a code verifier
+// //   2. Open the Brev+Cotter auth URL in the default browser
+// //   3. Start a local web server awaiting a redirect to localhost
+// //   4. Capture the Cotter token upon redirect
+// //   5. Write the Cotter token to a file in the hidden brev directory
+// func login(t *terminal.Terminal) error {
+// 	cotterCodeVerifier := generateCodeVerifier()
 
-	cotterURL, err := buildCotterAuthURL(cotterCodeVerifier)
-	if err != nil {
-		t.Errprint(err, "Failed to construct auth URL")
-		return err
-	}
+// 	cotterURL, err := buildCotterAuthURL(cotterCodeVerifier)
+// 	if err != nil {
+// 		t.Errprint(err, "Failed to construct auth URL")
+// 		return err
+// 	}
 
-	// TODO: pretty print URL?
-	t.Print(cotterURL)
+// 	// TODO: pretty print URL?
+// 	t.Print(cotterURL)
 
-	err = openInDefaultBrowser(cotterURL)
-	if err != nil {
-		t.Errprint(err, "Failed to open default browser")
-		return err
-	}
+// 	err = openInDefaultBrowser(cotterURL)
+// 	if err != nil {
+// 		t.Errprint(err, "Failed to open default browser")
+// 		return err
+// 	}
 
-	token, err := captureCotterToken(cotterCodeVerifier)
-	if err != nil {
-		t.Errprint(err, "Failed to capture auth token")
-		return err
-	}
+// 	token, err := captureCotterToken(cotterCodeVerifier)
+// 	if err != nil {
+// 		t.Errprint(err, "Failed to capture auth token")
+// 		return err
+// 	}
 
-	err = writeTokenToBrevConfigFile(token)
-	if err != nil {
-		t.Errprint(err, "Failed to write auth token to file")
-		return err
-	}
+// 	err = WriteTokenToBrevConfigFile(token)
+// 	if err != nil {
+// 		t.Errprint(err, "Failed to write auth token to file")
+// 		return err
+// 	}
 
-	t.Vprint(
-		t.Green("\nYou're authenticated!\n") +
-			t.Yellow("\tbrev init") + t.Green(" to make a new project or\n") +
-			t.Yellow("\tbrev clone") + t.Green(" to clone your existing project"))
+// 	t.Vprint(
+// 		t.Green("\nYou're authenticated!\n") +
+// 			t.Yellow("\tbrev init") + t.Green(" to make a new project or\n") +
+// 			t.Yellow("\tbrev clone") + t.Green(" to clone your existing project"))
 
-	return nil
-}
+// 	return nil
+// }
 
-func LoginAndInitialize(t *terminal.Terminal) error {
+// func LoginAndInitialize(t *terminal.Terminal) error {
 
-	err := login(t)
-	if err != nil {
-		return err
-	}
+// 	err := login(t)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	err = initializeActiveProjectsFile(t)
-	if err != nil {
-		return err
-	}
+// 	err = initializeActiveProjectsFile(t)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func initializeActiveProjectsFile(t *terminal.Terminal) error {
 	home, err := os.UserHomeDir()
@@ -297,7 +297,14 @@ func captureCotterToken(codeVerifier string) (*CotterOauthToken, error) {
 	return token, nil
 }
 
-func writeTokenToBrevConfigFile(token *CotterOauthToken) error {
+type Credentials struct {
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+func WriteTokenToBrevConfigFile(token *Credentials) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return err
