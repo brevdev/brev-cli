@@ -1,0 +1,1478 @@
+---
+swagger: "2.0"
+info:
+  description: "Brev REST API."
+  version: "0.1.0"
+  title: "Brev API"
+  contact:
+    name: "brev.dev"
+    url: "https://brev.dev"
+    email: "support@brev.dev"
+paths:
+  /api/cani:
+    get:
+      tags:
+      - "users"
+      summary: "Get cani"
+      description: "test whether or not the current user may perform the requested\
+        \ action on the requested object"
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/CanI"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/health:
+    get:
+      summary: "Health check"
+      description: "Returns the status of the API server"
+      produces:
+      - "application/json"
+      parameters: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/HealthCheck"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/me:
+    get:
+      tags:
+      - "users"
+      summary: "Get me"
+      description: "get the current logged-in user"
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/User"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/organizations:
+    get:
+      tags:
+      - "organizations"
+      summary: "Lists organizations"
+      description: "Lists organizations the context user has permission to view."
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Organization"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+      - "organizations"
+      summary: "Creates an organization"
+      description: "Creates a new organization. The user initiating the request will\
+        \ become the administrator."
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "message"
+        description: "Organization payload"
+        required: true
+        schema:
+          $ref: "#/definitions/OrganizationRequest"
+        x-exportParamName: "Message"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/Organization"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/organizations/{id}:
+    get:
+      tags:
+      - "organizations"
+      summary: "Get an organization"
+      description: "get organization by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/Organization"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    put:
+      tags:
+      - "organizations"
+      summary: "Modifies an organization"
+      description: "modifies an organization to match the request object"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - in: "body"
+        name: "message"
+        description: "Organization payload"
+        required: true
+        schema:
+          $ref: "#/definitions/OrganizationRequest"
+        x-exportParamName: "Message"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/Organization"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+      - "organizations"
+      summary: "Deletes an organization"
+      description: "deletes the organization matching the given ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/Organization"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/organizations/{id}/role_attachments:
+    get:
+      tags:
+      - "organizations"
+      summary: "Lists an organization's role attachments"
+      description: "lists all role attachments for the organization matching the given\
+        \ ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleAttachmentJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    put:
+      tags:
+      - "organizations"
+      summary: "Modifies an organization's role attachments"
+      description: "replaces the role attachments of an organization for a given subject"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - in: "body"
+        name: "message"
+        description: "Organization role attachment payload"
+        required: true
+        schema:
+          $ref: "#/definitions/OrganizationRoleAttachmentRequest"
+        x-exportParamName: "Message"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleAttachmentJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/organizations/{id}/role_attachments/{subjectID}:
+    delete:
+      tags:
+      - "organizations"
+      summary: "Deletes an organization role attachment"
+      description: "deletes the organization role attachment matching the provided\
+        \ subject ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - name: "subjectID"
+        in: "path"
+        description: "Subject ID"
+        required: true
+        type: "string"
+        x-exportParamName: "SubjectID"
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleAttachmentJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/organizations/{id}/users:
+    get:
+      tags:
+      - "organizations"
+      summary: "Lists a the users attached to the given organization"
+      description: "lists all users for the organization matching the given ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/WorkspaceUserJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/organizations/{id}/workspaces:
+    get:
+      tags:
+      - "organizations"
+      summary: "Lists an organization's workspaces"
+      description: "lists all workspaces for the organization matching the given ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/Workspace"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+      - "organizations"
+      summary: "Creates a workspace"
+      description: "Creates a new workspace in the given organization"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Organization ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - in: "body"
+        name: "message"
+        description: "Workspace payload"
+        required: true
+        schema:
+          $ref: "#/definitions/CreateWorkspaceRequest"
+        x-exportParamName: "Message"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/Workspace"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/roles:
+    get:
+      tags:
+      - "roles"
+      summary: "List roles"
+      description: "Retrieve all roles"
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/roles/{id}:
+    get:
+      tags:
+      - "roles"
+      summary: "Get a role"
+      description: "get role by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Role ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/RoleJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/token/login:
+    post:
+      tags:
+      - "token"
+      summary: "Login"
+      description: "log into the API, generating a pair of JWT tokens on success"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "payload"
+        description: "Login request"
+        required: true
+        schema:
+          $ref: "#/definitions/LoginRequest"
+        x-exportParamName: "Payload"
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/Token"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/token/logout:
+    post:
+      tags:
+      - "token"
+      summary: "Logout"
+      description: "Invalidates the context user session"
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/Message"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/token/refresh:
+    post:
+      tags:
+      - "token"
+      summary: "Refresh auth tokens"
+      description: "generates a new pair of JWT tokens using the provided refresh\
+        \ token"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "payload"
+        description: "Refresh token request"
+        required: true
+        schema:
+          $ref: "#/definitions/RefreshTokenRequest"
+        x-exportParamName: "Payload"
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/Token"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/users:
+    get:
+      tags:
+      - "users"
+      summary: "List users"
+      description: "Retrieve all users"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "username"
+        in: "query"
+        description: "User search by username"
+        required: false
+        type: "string"
+        x-exportParamName: "Username"
+        x-optionalDataType: "String"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/User"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    post:
+      tags:
+      - "public"
+      summary: "Creates a user"
+      description: "Creates a new user in the system"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "Identity"
+        in: "header"
+        description: "Identity Token"
+        required: true
+        type: "string"
+        x-exportParamName: "Identity"
+      responses:
+        "201":
+          description: "Created"
+          schema:
+            $ref: "#/definitions/User"
+        "401":
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/users/{id}:
+    get:
+      tags:
+      - "users"
+      summary: "Get a user"
+      description: "get user by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "User ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/User"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    put:
+      tags:
+      - "users"
+      summary: "Modify a user"
+      description: "modify user identified by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "User ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - in: "body"
+        name: "payload"
+        description: "User request"
+        required: true
+        schema:
+          $ref: "#/definitions/ModifyUserRequest"
+        x-exportParamName: "Payload"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/User"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+      - "users"
+      summary: "Delete a user"
+      description: "delete user identified by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "User ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/User"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/version:
+    get:
+      summary: "Version"
+      description: "Returns the version of the API server"
+      produces:
+      - "application/json"
+      parameters: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/Version"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspace_groups:
+    get:
+      tags:
+      - "workspace_groups"
+      summary: "Lists workspace groups"
+      description: "lists workspace groups the context user has permission to view."
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/WorkspaceGroup"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspace_groups/{id}:
+    get:
+      tags:
+      - "workspace_groups"
+      summary: "Get a workspace group"
+      description: "get workspace group by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace Group ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/WorkspaceGroup"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspace_templates:
+    get:
+      tags:
+      - "workspace_templates"
+      summary: "Lists workspace templates"
+      description: "lists workspace templates the context user has permission to view."
+      produces:
+      - "application/json"
+      parameters: []
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/WorkspaceTemplate"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspace_templates/{id}:
+    get:
+      tags:
+      - "workspace_templates"
+      summary: "Get a workspace template"
+      description: "get workspace template by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace Template ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/WorkspaceTemplate"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspaces/{id}:
+    get:
+      tags:
+      - "workspaces"
+      summary: "Get a workspace"
+      description: "get a workspace by ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            $ref: "#/definitions/Workspace"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    put:
+      tags:
+      - "workspaces"
+      summary: "Modifies a workspace"
+      description: "modifies a workspace to match the request object"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - in: "body"
+        name: "message"
+        description: "Workspace payload"
+        required: true
+        schema:
+          $ref: "#/definitions/ModifyWorkspaceRequest"
+        x-exportParamName: "Message"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/Workspace"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    delete:
+      tags:
+      - "workspaces"
+      summary: "Deletes a workspace"
+      description: "deletes a workspace matching the given ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/Workspace"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspaces/{id}/restart: {}
+  /api/workspaces/{id}/role_attachments:
+    get:
+      tags:
+      - "workspaces"
+      summary: "Lists a workspace's role attachments"
+      description: "lists all role attachments for the workspace matching the given\
+        \ ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleAttachmentJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+    put:
+      tags:
+      - "workspaces"
+      summary: "Modifies a workspace's role attachments"
+      description: "modifies the role attachment of a workspace for a given subject"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      - in: "body"
+        name: "message"
+        description: "Workspace role attachment payload"
+        required: true
+        schema:
+          $ref: "#/definitions/WorkspaceRoleAttachmentRequest"
+        x-exportParamName: "Message"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleAttachmentJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspaces/{id}/role_attachments/{subjectID}:
+    delete:
+      tags:
+      - "workspaces"
+      summary: "Deletes a workspace role attachment"
+      description: "deletes the role attachment matching the provided subject ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/RoleAttachmentJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspaces/{id}/start:
+    put:
+      tags:
+      - "workspaces"
+      summary: "Starts a workspace"
+      description: "Starts a workspace"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "202":
+          description: "Accepted"
+          schema:
+            $ref: "#/definitions/Workspace"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+  /api/workspaces/{id}/users:
+    get:
+      tags:
+      - "workspaces"
+      summary: "Lists a the users attached to the given workspace"
+      description: "lists all users for the workspace matching the given ID"
+      produces:
+      - "application/json"
+      parameters:
+      - name: "id"
+        in: "path"
+        description: "Workspace ID"
+        required: true
+        type: "string"
+        x-exportParamName: "Id"
+      security:
+      - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "OK"
+          schema:
+            type: "array"
+            items:
+              $ref: "#/definitions/WorkspaceUserJSON"
+        default:
+          description: "Error"
+          schema:
+            $ref: "#/definitions/ErrorResponse"
+securityDefinitions:
+  ApiKeyAuth:
+    type: "apiKey"
+    name: "Authorization"
+    in: "header"
+definitions:
+  CanI:
+    type: "object"
+    properties:
+      result:
+        type: "boolean"
+    example:
+      result: true
+  CreateWorkspaceRequest:
+    type: "object"
+    required:
+    - "name"
+    - "workspaceClassId"
+    - "workspaceGroupId"
+    - "workspaceTemplateId"
+    properties:
+      gitRepo:
+        type: "string"
+      isStoppable:
+        type: "boolean"
+      name:
+        type: "string"
+      version:
+        type: "string"
+      workspaceClassId:
+        type: "string"
+      workspaceGroupId:
+        type: "string"
+      workspaceTemplateId:
+        type: "string"
+    example:
+      workspaceClassId: "workspaceClassId"
+      workspaceTemplateId: "workspaceTemplateId"
+      isStoppable: true
+      name: "name"
+      gitRepo: "gitRepo"
+      version: "version"
+      workspaceGroupId: "workspaceGroupId"
+  Error:
+    type: "object"
+    properties:
+      actual:
+        type: "string"
+      condition:
+        type: "string"
+      field:
+        type: "string"
+      message:
+        type: "string"
+      type:
+        type: "string"
+  ErrorResponse:
+    type: "object"
+    properties:
+      errors:
+        type: "array"
+        items:
+          $ref: "#/definitions/Error"
+  HealthCheck:
+    type: "object"
+    properties:
+      status:
+        type: "string"
+    example:
+      status: "status"
+  LoginRequest:
+    type: "object"
+    required:
+    - "password"
+    - "username"
+    properties:
+      password:
+        type: "string"
+      username:
+        type: "string"
+    example:
+      password: "password"
+      username: "username"
+  Message:
+    type: "object"
+    properties:
+      message:
+        type: "string"
+    example:
+      message: "message"
+  ModifyUserRequest:
+    type: "object"
+    required:
+    - "email"
+    - "name"
+    - "username"
+    properties:
+      baseWorkspaceRepo:
+        type: "string"
+      email:
+        type: "string"
+      name:
+        type: "string"
+      username:
+        type: "string"
+  ModifyWorkspaceRequest:
+    type: "object"
+    properties:
+      isStoppable:
+        type: "boolean"
+      name:
+        type: "string"
+      workspaceClassId:
+        type: "string"
+    example:
+      workspaceClassId: "workspaceClassId"
+      isStoppable: true
+      name: "name"
+  Organization:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      name:
+        type: "string"
+      slug:
+        type: "string"
+    example:
+      name: "name"
+      id: "id"
+      slug: "slug"
+  OrganizationRequest:
+    type: "object"
+    required:
+    - "name"
+    properties:
+      name:
+        type: "string"
+    example:
+      name: "name"
+  OrganizationRoleAttachmentRequest:
+    type: "object"
+    required:
+    - "role"
+    - "subject"
+    properties:
+      role:
+        type: "string"
+      subject:
+        type: "string"
+    example:
+      role: "role"
+      subject: "subject"
+  RefreshTokenRequest:
+    type: "object"
+    required:
+    - "refresh_token"
+    properties:
+      refresh_token:
+        type: "string"
+    example:
+      refresh_token: "refresh_token"
+  RoleAttachmentJSON:
+    type: "object"
+    properties:
+      object:
+        type: "string"
+      role:
+        $ref: "#/definitions/RoleJSON"
+      subject:
+        type: "string"
+    example:
+      role:
+        id: "id"
+        actions:
+        - "actions"
+        - "actions"
+      subject: "subject"
+      object: "object"
+  RoleJSON:
+    type: "object"
+    properties:
+      actions:
+        type: "array"
+        items:
+          type: "string"
+      id:
+        type: "string"
+    example:
+      id: "id"
+      actions:
+      - "actions"
+      - "actions"
+  Token:
+    type: "object"
+    properties:
+      access_token:
+        type: "string"
+      refresh_token:
+        type: "string"
+    example:
+      access_token: "access_token"
+      refresh_token: "refresh_token"
+  User:
+    type: "object"
+    properties:
+      baseWorkspaceRepo:
+        type: "string"
+      email:
+        type: "string"
+      externalAuthId:
+        type: "string"
+      id:
+        type: "string"
+      name:
+        type: "string"
+      publicKey:
+        type: "string"
+      roleAttachments:
+        type: "array"
+        items:
+          $ref: "#/definitions/RoleAttachmentJSON"
+      username:
+        type: "string"
+      workspacePassword:
+        type: "string"
+    example:
+      roleAttachments:
+      - role:
+          id: "id"
+          actions:
+          - "actions"
+          - "actions"
+        subject: "subject"
+        object: "object"
+      - role:
+          id: "id"
+          actions:
+          - "actions"
+          - "actions"
+        subject: "subject"
+        object: "object"
+      workspacePassword: "workspacePassword"
+      externalAuthId: "externalAuthId"
+      name: "name"
+      id: "id"
+      publicKey: "publicKey"
+      baseWorkspaceRepo: "baseWorkspaceRepo"
+      email: "email"
+      username: "username"
+  Version:
+    type: "object"
+    properties:
+      version:
+        type: "string"
+    example:
+      version: "version"
+  Workspace:
+    type: "object"
+    properties:
+      createdAt:
+        type: "string"
+      createdByUserId:
+        type: "string"
+      dns:
+        type: "string"
+      gitRepo:
+        type: "string"
+      healthStatus:
+        type: "string"
+      id:
+        type: "string"
+      isStoppable:
+        type: "boolean"
+      lastOnlineAt:
+        type: "string"
+      name:
+        type: "string"
+      organizationId:
+        type: "string"
+      password:
+        type: "string"
+      status:
+        type: "string"
+      statusMessage:
+        type: "string"
+      updatedAt:
+        type: "string"
+      version:
+        type: "string"
+      workspaceClassId:
+        type: "string"
+      workspaceGroupId:
+        type: "string"
+      workspaceTemplate:
+        $ref: "#/definitions/WorkspaceTemplate"
+    example:
+      createdByUserId: "createdByUserId"
+      dns: "dns"
+      version: "version"
+      statusMessage: "statusMessage"
+      workspaceGroupId: "workspaceGroupId"
+      organizationId: "organizationId"
+      createdAt: "createdAt"
+      workspaceClassId: "workspaceClassId"
+      password: "password"
+      isStoppable: true
+      healthStatus: "healthStatus"
+      lastOnlineAt: "lastOnlineAt"
+      name: "name"
+      workspaceTemplate:
+        image: "image"
+        public: true
+        port: 0
+        name: "name"
+        id: "id"
+        type: "type"
+        registryUri: "registryUri"
+      id: "id"
+      gitRepo: "gitRepo"
+      status: "status"
+      updatedAt: "updatedAt"
+  WorkspaceGroup:
+    type: "object"
+    properties:
+      baseDns:
+        type: "string"
+      id:
+        type: "string"
+      name:
+        type: "string"
+      platform:
+        type: "string"
+      platformId:
+        type: "string"
+      platformRegion:
+        type: "string"
+      status:
+        type: "string"
+      workspaces:
+        type: "array"
+        items:
+          $ref: "#/definitions/Workspace"
+    example:
+      baseDns: "baseDns"
+      name: "name"
+      id: "id"
+      platformId: "platformId"
+      workspaces:
+      - createdByUserId: "createdByUserId"
+        dns: "dns"
+        version: "version"
+        statusMessage: "statusMessage"
+        workspaceGroupId: "workspaceGroupId"
+        organizationId: "organizationId"
+        createdAt: "createdAt"
+        workspaceClassId: "workspaceClassId"
+        password: "password"
+        isStoppable: true
+        healthStatus: "healthStatus"
+        lastOnlineAt: "lastOnlineAt"
+        name: "name"
+        workspaceTemplate:
+          image: "image"
+          public: true
+          port: 0
+          name: "name"
+          id: "id"
+          type: "type"
+          registryUri: "registryUri"
+        id: "id"
+        gitRepo: "gitRepo"
+        status: "status"
+        updatedAt: "updatedAt"
+      - createdByUserId: "createdByUserId"
+        dns: "dns"
+        version: "version"
+        statusMessage: "statusMessage"
+        workspaceGroupId: "workspaceGroupId"
+        organizationId: "organizationId"
+        createdAt: "createdAt"
+        workspaceClassId: "workspaceClassId"
+        password: "password"
+        isStoppable: true
+        healthStatus: "healthStatus"
+        lastOnlineAt: "lastOnlineAt"
+        name: "name"
+        workspaceTemplate:
+          image: "image"
+          public: true
+          port: 0
+          name: "name"
+          id: "id"
+          type: "type"
+          registryUri: "registryUri"
+        id: "id"
+        gitRepo: "gitRepo"
+        status: "status"
+        updatedAt: "updatedAt"
+      platform: "platform"
+      platformRegion: "platformRegion"
+      status: "status"
+  WorkspaceRoleAttachmentRequest:
+    type: "object"
+    required:
+    - "role"
+    - "subject"
+    properties:
+      role:
+        type: "string"
+      subject:
+        type: "string"
+    example:
+      role: "role"
+      subject: "subject"
+  WorkspaceTemplate:
+    type: "object"
+    properties:
+      id:
+        type: "string"
+      image:
+        type: "string"
+      name:
+        type: "string"
+      port:
+        type: "integer"
+      public:
+        type: "boolean"
+      registryUri:
+        type: "string"
+      type:
+        type: "string"
+    example:
+      image: "image"
+      public: true
+      port: 0
+      name: "name"
+      id: "id"
+      type: "type"
+      registryUri: "registryUri"
+  WorkspaceUserJSON:
+    type: "object"
+    properties:
+      role:
+        $ref: "#/definitions/RoleJSON"
+      user:
+        $ref: "#/definitions/User"
+    example:
+      role:
+        id: "id"
+        actions:
+        - "actions"
+        - "actions"
+      user:
+        roleAttachments:
+        - role:
+            id: "id"
+            actions:
+            - "actions"
+            - "actions"
+          subject: "subject"
+          object: "object"
+        - role:
+            id: "id"
+            actions:
+            - "actions"
+            - "actions"
+          subject: "subject"
+          object: "object"
+        workspacePassword: "workspacePassword"
+        externalAuthId: "externalAuthId"
+        name: "name"
+        id: "id"
+        publicKey: "publicKey"
+        baseWorkspaceRepo: "baseWorkspaceRepo"
+        email: "email"
+        username: "username"
