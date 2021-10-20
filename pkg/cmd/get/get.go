@@ -9,14 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
-
-
 )
 
-var  sshLong = "dsfsdfds"
+var sshLong = "dsfsdfds"
 
 var sshExample = "dsfsdfsfd"
-var GetCommandArgFuncMap =   map[string]func(){"workspace": workspace.Get, "bar": 2}
 
 type SshOptions struct{}
 
@@ -29,16 +26,16 @@ func NewCmdGet() *cobra.Command {
 		Short:                 "Get a resource by its identifer",
 		Long:                  sshLong,
 		Example:               sshExample,
-		Args: func(cmd *cobra.Command, args []string) error {
-			if len(args) <1{
-				return fmt.Errorf("not enough args")
-			} else {
-				return nil
-			}
+		// Args: func(cmd *cobra.Command, args []string) error {
+		// 	if len(args) <1{
+		// 		return fmt.Errorf("not enough args")
+		// 	} else {
+		// 		return nil
+		// 	}
 
-		},
-		//Args: cobra.MinimumNArgs(1),
-		// ValidArgsFunction:     util.ResourceNameCompletionFunc(f, "pod"),
+		// },
+		Args: cobra.MinimumNArgs(1),
+		// ValidArgsFunction: util.ResourceNameCompletionFunc(f, "pod"),
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(cmd, args))
 			cmdutil.CheckErr(opts.Validate(cmd, args))
@@ -65,7 +62,7 @@ func (o *SshOptions) RunSSH(cmd *cobra.Command, args []string) error {
 
 	portforward.RunPortForwardFromCommand(
 		"workspaceNamespace", // TODO find me with info from args(?)
-		"workspacePodName", // TODO findme
+		"workspacePodName",   // TODO findme
 		[]string{"22", "2022", "2222"},
 		"keyfileString",
 		"certfileString",
