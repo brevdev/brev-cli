@@ -9,13 +9,6 @@ import (
 )
 
 const (
-	cotterEndpoint        = "https://js.cotter.app/app"
-	cotterBackendEndpoint = "https://www.cotter.app/api/v0"
-	cotterTokenEndpoint   = "https://www.cotter.app/api/v0/token"
-	cotterJwksEndpoint    = "https://www.cotter.app/api/v0/token/jwks"
-	localPort             = "8395"
-	localEndpoint         = "http://localhost:" + localPort
-
 	brevCredentialsFile      = "credentials.json"
 	globalActiveProjectsFile = "active_projects.json"
 )
