@@ -4,6 +4,8 @@ package ssh
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/portforward"
+
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -56,5 +58,12 @@ func (o *SshOptions) RunSSH(cmd *cobra.Command, args []string) error {
 	for _, arg := range args {
 		fmt.Println(arg)
 	}
+	portforward.RunPortForwardFromCommand(
+		"workspaceNamespace", // TODO find me with info from args(?)
+		"workspacePodName", // TODO findme
+		[]string{"22", "2022", "2222"},
+		"keyfileString",
+		"certfileString",
+	)
 	return nil
 }
