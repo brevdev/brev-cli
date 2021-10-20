@@ -9,13 +9,20 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
+
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 const (
-	audiencePath           = "/api/v2/"
-	waitThresholdInSeconds = 3
+	brevCredentialsFile      = "credentials.json"
+	globalActiveProjectsFile = "active_projects.json"
+	audiencePath             = "/api/v2/"
+	waitThresholdInSeconds   = 3
 	// namespace used to set/get values from the keychain
 	SecretsNamespace = "auth0-cli"
 )
@@ -176,7 +183,6 @@ func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
 	// TODO if status code > 399 handle errors
 	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
 
-
 	return res, nil
 }
 
@@ -204,4 +210,91 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 		}
 	}
 	return "", "", fmt.Errorf("audience not found for %s", audiencePath)
+}
+
+type OauthToken struct {
+	AccessToken  string `json:"access_token"`
+	AuthMethod   string `json:"auth_method"`
+	ExpiresIn    int    `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+func initializeActiveProjectsFile(t *terminal.Terminal) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	brevActiveProjectsFile := home + "/" + files.GetBrevDirectory() + "/" + globalActiveProjectsFile
+	exists, err := files.Exists(brevActiveProjectsFile, false)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		err = files.OverwriteJSON(brevActiveProjectsFile, []string{})
+		if err != nil {
+			t.Errprint(err, "Failed to initialize active projects file. Just run this and try again: echo '[]' > ~/.brev/active_projects.json ")
+			return err
+		}
+	}
+
+	return nil
+}
+
+// GetToken reads the previously-persisted token from the filesystem,
+// returning nil for a token if it does not exist
+func GetToken() (*OauthToken, error) {
+	token, err := getTokenFromBrevConfigFile()
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+type Credentials struct {
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+func WriteTokenToBrevConfigFile(token *Credentials) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
+	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
+
+	err = files.OverwriteJSON(brevCredentialsFile, token)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getTokenFromBrevConfigFile() (*OauthToken, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+
+	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
+	exists, err := files.Exists(brevCredentialsFile, false)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, &brev_errors.CredentialsFileNotFound{}
+	}
+
+	var token OauthToken
+	err = files.ReadJSON(brevCredentialsFile, &token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &token, nil
 }
