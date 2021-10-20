@@ -23,6 +23,15 @@ func NewCmdSSH() *cobra.Command {
 		Short:                 "enable a local ssh tunnel",
 		Long:                  sshLong,
 		Example:               sshExample,
+		// Args: func(cmd *cobra.Command, args []string) error {
+		// 	if len(args) <1{
+		// 		return fmt.Errorf("not enough args")
+		// 	} else {
+		// 		return nil
+		// 	}
+
+		// },
+		Args: cobra.MinimumNArgs(1),
 		// ValidArgsFunction:     util.ResourceNameCompletionFunc(f, "pod"),
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(cmd, args))
@@ -34,13 +43,18 @@ func NewCmdSSH() *cobra.Command {
 }
 
 func (o *SshOptions) Complete(cmd *cobra.Command, args []string) error {
-	return fmt.Errorf("not implemented")
+	// return fmt.Errorf("not implemented")
+	return nil
 }
 
 func (o *SshOptions) Validate(cmd *cobra.Command, args []string) error {
-	return fmt.Errorf("not implemented")
+	// return fmt.Errorf("not implemented")
+	return nil
 }
 
 func (o *SshOptions) RunSSH(cmd *cobra.Command, args []string) error {
-	return fmt.Errorf("not implemented")
+	for _, arg := range args {
+		fmt.Println(arg)
+	}
+	return nil
 }
