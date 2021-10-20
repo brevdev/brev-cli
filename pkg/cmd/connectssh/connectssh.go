@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/portforward"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -22,7 +23,7 @@ type ConnectSSHOptions struct {
 	CertFile  string
 }
 
-func NewCmdConnectSSH() *cobra.Command {
+func NewCmdConnectSSH(t *terminal.Terminal) *cobra.Command {
 	opts := ConnectSSHOptions{}
 
 	cmd := &cobra.Command{
