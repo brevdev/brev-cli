@@ -173,6 +173,9 @@ func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
 	if err != nil {
 		return State{}, fmt.Errorf("cannot decode response: %w", err)
 	}
+	// TODO if status code > 399 handle errors
+	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
+
 
 	return res, nil
 }
