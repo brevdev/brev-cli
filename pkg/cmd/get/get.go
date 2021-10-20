@@ -22,6 +22,21 @@ func getOrgs() []brev_api.Organization {
 	return orgs
 }
 
+func getWorkspaces(orgID string) []brev_api.Workspace {
+	
+		// orgID := getOrgID(orgName)
+	
+		token, _ := auth.GetToken()
+		brevAgent := brev_api.Agent{
+			Key: token,
+		}
+	
+		workspaces, _ := brevAgent.GetWorkspaces(orgID)
+	
+		return workspaces
+	}
+	
+
 func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 	// opts := SshOptions{}
 
@@ -45,6 +60,7 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 		}}
 
 	cmd.AddCommand(newCmdOrg(t))
+	cmd.AddCommand(newCmdWorkspace(t))
 
 	return cmd
 }
@@ -53,10 +69,10 @@ func newCmdOrg(t *terminal.Terminal) *cobra.Command {
 	var name string
 
 	cmd := &cobra.Command{
-		Use:     "organizations",
-		Short:   "List your Brev organizations.",
-		Long:    "List your Brev organizations.",
-		Example: `  brev get organizations`,
+		Use:     "orgs",
+		Short:   "List your Brev orgs.",
+		Long:    "List your Brev orgs.",
+		Example: `  brev get orgs`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return listOrgs(t)
 		},
@@ -71,6 +87,46 @@ func listOrgs(t *terminal.Terminal) error {
 	orgs := getOrgs()
 	for _, v := range orgs {
 		t.Vprint(v.Name + " id:" + t.Yellow(v.Id))
+	}
+	return nil
+}
+
+func newCmdWorkspace(t *terminal.Terminal) *cobra.Command {
+	var name string
+
+	cmd := &cobra.Command{
+		Use:     "workspace",
+		Short:   "List your Brev workspaces.",
+		Long:    "List your Brev workspaces.",
+		Example: `  brev get workspaces`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return listWorkspaces(t)
+		},
+	}
+
+	cmd.Flags().StringVarP(&name, "name", "n", "", "name of the endpoint")
+
+	return cmd
+}
+
+func listWorkspaces(t *terminal.Terminal) error {
+	orgs := getOrgs()
+	// var workspaces map[string]interface{};
+
+	for _, v := range orgs {
+
+		ws := getWorkspaces(v.Id)
+
+		if len(ws) == 0 {
+			t.Vprint("0 Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.Id))
+		} else {
+			t.Vprint("Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.Id)+":")
+		}
+
+		for _,w := range ws {
+			t.Vprint("\t"+w.Name + " id: " +t.Yellow(w.Id))
+		}
+
 	}
 	return nil
 }
