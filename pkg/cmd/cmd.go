@@ -32,7 +32,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	}
 
 	cmds.AddCommand(connectssh.NewCmdConnectSSH(t))
-	cmds.AddCommand(login.NewCmdLogin(t))
+	cmds.AddCommand(login.NewCmdLogin())
 	cmds.AddCommand(get.NewCmdGet(t))
 
 	return cmds

@@ -38,7 +38,7 @@ func NewCmdLogin() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(cmd, args))
 			cmdutil.CheckErr(opts.Validate(cmd, args))
-			cmdutil.CheckErr(opts.RunSSH(cmd, args))
+			cmdutil.CheckErr(opts.RunLogin(cmd, args))
 		},
 	}
 	return cmd
@@ -74,7 +74,8 @@ type tenant struct {
 	ClientSecret string `json:"client_secret"`
 }
 
-func (o *SshOptions) login(cmd *cobra.Command, args []string) (tenant, error) {
+
+func (o *SshOptions) RunLogin(cmd *cobra.Command, args []string) (error) {
 	ctx := context.Background()
 	authenticator := auth.Authenticator{
 		Audience:           "foo",
@@ -84,7 +85,7 @@ func (o *SshOptions) login(cmd *cobra.Command, args []string) (tenant, error) {
 	}
 	state, err := authenticator.Start(ctx)
 	if err != nil {
-		return tenant{}, fmt.Errorf("Could not start the authentication process: %w.", err)
+		return  fmt.Errorf("Could not start the authentication process: %w.", err)
 	}
 
 	// todo color library
@@ -105,49 +106,18 @@ func (o *SshOptions) login(cmd *cobra.Command, args []string) (tenant, error) {
 	res, err = authenticator.Wait(ctx, state)
 
 	if err != nil {
-		return tenant{}, fmt.Errorf("login error: %w", err)
+		return  fmt.Errorf("login error: %w", err)
 	}
 
 	fmt.Print("\n")
 	fmt.Println("Successfully logged in.")
 	fmt.Println("Tenant: %s\n", res.Domain)
-
-	// store the refresh token
-	secretsStore := &auth.Keyring{}
-	err = secretsStore.Set(auth.SecretsNamespace, res.Domain, res.RefreshToken)
-	if err != nil {
-		// log the error but move on
-		fmt.Println("Could not store the refresh token locally, please expect to login again once your access token expired. See https://github.com/auth0/auth0-cli/blob/main/KNOWN-ISSUES.md.")
-	}
-
-	t := tenant{
-		Name:        res.Tenant,
-		Domain:      res.Domain,
+	creds := &auth.Credentials{
 		AccessToken: res.AccessToken,
-		ExpiresAt: time.Now().Add(
-			time.Duration(res.ExpiresIn) * time.Second,
-		),
-		Scopes: auth.RequiredScopes(),
+		RefreshToken: res.RefreshToken,
+		ExpiresIn: int(res.ExpiresIn),
 	}
-	err = cli.addTenant(t)
-	if err != nil {
-		return tenant{}, fmt.Errorf("Could not add tenant to config: %w", err)
-	}
-
-	if err := checkInstallID(cli); err != nil {
-		return tenant{}, fmt.Errorf("Could not update config: %w", err)
-	}
-
-	if cli.config.DefaultTenant != res.Domain {
-		promptText := fmt.Sprintf("Your default tenant is %s. Do you want to change it to %s?", cli.config.DefaultTenant, res.Domain)
-		if confirmed := prompt.Confirm(promptText); !confirmed {
-			return tenant{}, nil
-		}
-		cli.config.DefaultTenant = res.Domain
-		if err := cli.persistConfig(); err != nil {
-			cli.renderer.Warnf("Could not set the default tenant, please try 'auth0 tenants use %s': %w", res.Domain, err)
-		}
-	}
-
-	return t, nil
+	// store the refresh token
+	auth.WriteTokenToBrevConfigFile(creds)
+	return nil
 }
