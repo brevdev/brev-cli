@@ -16,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/pkg/browser"
 )
 
 const (
@@ -297,4 +298,58 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 	}
 
 	return &token, nil
+}
+
+func Login() error {
+	ctx := context.Background()
+
+	token, _ := GetToken()
+	if token != nil {
+		fmt.Println("already logged in, log out with:\n\n\tbrev logout\n")
+		return nil
+	}
+
+	// TODO env vars
+	authenticator := Authenticator{
+		Audience:           "https://brevdev.us.auth0.com/api/v2/",
+		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+	}
+	state, err := authenticator.Start(ctx)
+	if err != nil {
+		return fmt.Errorf("Could not start the authentication process: %w.", err)
+	}
+
+	// todo color library
+	// fmt.Printf("Your Device Confirmation code is: %s\n\n", ansi.Bold(state.UserCode))
+	// cli.renderer.Infof("%s to open the browser to log in or %s to quit...", ansi.Green("Press Enter"), ansi.Red("^C"))
+	// fmt.Scanln()
+	fmt.Println("Your Devicce Confirmation Code is %s", state.UserCode)
+
+	err = browser.OpenURL(state.VerificationURI)
+
+	if err != nil {
+		fmt.Println("please open: %s", state.VerificationURI)
+	}
+
+	fmt.Println("waiting for auth to complete")
+	var res Result
+
+	res, err = authenticator.Wait(ctx, state)
+
+	if err != nil {
+		return fmt.Errorf("login error: %w", err)
+	}
+
+	fmt.Print("\n")
+	fmt.Println("Successfully logged in.")
+	creds := &Credentials{
+		AccessToken:  res.AccessToken,
+		RefreshToken: res.RefreshToken,
+		ExpiresIn:    int(res.ExpiresIn),
+	}
+	// store the refresh token
+	WriteTokenToBrevConfigFile(creds)
+	return nil
 }
