@@ -7,10 +7,9 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/auth0/auth0-cli/internal/ansi"
 
+	"github.com/pkg/browser"
 	"github.com/spf13/cobra"
-		"github.com/pkg/browser"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -55,6 +54,11 @@ func (o *SshOptions) Validate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+type app struct {
+	FirstRuns map[string]bool `json:"first_runs"`
+}
+
+
 // tenant is the cli's concept of an auth0 tenant. The fields are tailor fit
 // specifically for interacting with the management API.
 type tenant struct {
@@ -87,33 +91,33 @@ func (o *SshOptions) login(cmd *cobra.Command, args []string) (tenant, error) {
 	// fmt.Printf("Your Device Confirmation code is: %s\n\n", ansi.Bold(state.UserCode))
 	// cli.renderer.Infof("%s to open the browser to log in or %s to quit...", ansi.Green("Press Enter"), ansi.Red("^C"))
 	// fmt.Scanln()
+	fmt.Println("Your Devicce Confirmation Code is %s", state.UserCode)
 
 	err = browser.OpenURL(state.VerificationURI)
 
 	if err != nil {
-		cli.renderer.Warnf("Couldn't open the URL, please do it manually: %s.", state.VerificationURI)
+		fmt.Println("please open: %s", state.VerificationURI)
 	}
 
+	fmt.Println("waiting for auth to complete")
 	var res auth.Result
-	err = ansi.Spinner("Waiting for login to complete in browser", func() error {
-		res, err = cli.authenticator.Wait(ctx, state)
-		return err
-	})
+
+	res, err = authenticator.Wait(ctx, state)
 
 	if err != nil {
 		return tenant{}, fmt.Errorf("login error: %w", err)
 	}
 
 	fmt.Print("\n")
-	cli.renderer.Infof("Successfully logged in.")
-	cli.renderer.Infof("Tenant: %s\n", res.Domain)
+	fmt.Println("Successfully logged in.")
+	fmt.Println("Tenant: %s\n", res.Domain)
 
 	// store the refresh token
 	secretsStore := &auth.Keyring{}
 	err = secretsStore.Set(auth.SecretsNamespace, res.Domain, res.RefreshToken)
 	if err != nil {
 		// log the error but move on
-		cli.renderer.Warnf("Could not store the refresh token locally, please expect to login again once your access token expired. See https://github.com/auth0/auth0-cli/blob/main/KNOWN-ISSUES.md.")
+		fmt.Println("Could not store the refresh token locally, please expect to login again once your access token expired. See https://github.com/auth0/auth0-cli/blob/main/KNOWN-ISSUES.md.")
 	}
 
 	t := tenant{
