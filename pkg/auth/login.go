@@ -43,13 +43,8 @@ func initializeActiveProjectsFile(t *terminal.Terminal) error {
 	return nil
 }
 
-// GetToken reads the previously-persisted token from the filesystem but may issue a round
-// trip request to Cotter if the token is determined to have expired:
-//   1. Read the Cotter token from the hidden brev directory
-//   2. Determine if the token is valid
-//   3. If valid, return
-//   4. If invalid, issue a refresh request to Cotter
-//   5. Write the refreshed Cotter token to a file in the hidden brev directory
+// GetToken reads the previously-persisted token from the filesystem,
+// returning nil for a token if it does not exist
 func GetToken() (*OauthToken, error) {
 	token, err := getTokenFromBrevConfigFile()
 	if err != nil {
