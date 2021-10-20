@@ -14,10 +14,10 @@ var sshLong = ""
 
 var sshExample = ""
 
-type SshOptions struct{}
+type SSHOptions struct{}
 
 func NewCmdSSH() *cobra.Command {
-	opts := SshOptions{}
+	opts := SSHOptions{}
 
 	cmd := &cobra.Command{
 		Use:                   "ssh TYPE/NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
@@ -44,23 +44,23 @@ func NewCmdSSH() *cobra.Command {
 	return cmd
 }
 
-func (o *SshOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *SSHOptions) Complete(cmd *cobra.Command, args []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *SshOptions) Validate(cmd *cobra.Command, args []string) error {
+func (o *SSHOptions) Validate(cmd *cobra.Command, args []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *SshOptions) RunSSH(cmd *cobra.Command, args []string) error {
+func (o *SSHOptions) RunSSH(cmd *cobra.Command, args []string) error {
 	for _, arg := range args {
 		fmt.Println(arg)
 	}
 	portforward.RunPortForwardFromCommand(
 		"workspaceNamespace", // TODO find me with info from args(?)
-		"workspacePodName", // TODO findme
+		"workspacePodName",   // TODO findme
 		[]string{"22", "2022", "2222"},
 		"keyfileString",
 		"certfileString",
