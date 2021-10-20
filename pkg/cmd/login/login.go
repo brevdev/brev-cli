@@ -78,6 +78,12 @@ type tenant struct {
 func (o *SshOptions) RunLogin(cmd *cobra.Command, args []string) (error) {
 	ctx := context.Background()
 
+	token, _ := auth.GetToken()
+	if token != nil {
+		fmt.Println("already logged in, log out with:\n\n\tbrev logout\n\n")
+		return nil
+	}
+
 	// TODO env vars
 	authenticator := auth.Authenticator{
 		Audience:           "https://brevdev.us.auth0.com/api/v2/",
