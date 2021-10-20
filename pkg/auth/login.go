@@ -103,7 +103,7 @@ func login(t *terminal.Terminal) error {
 	return nil
 }
 
-func loginAndInitialize(t *terminal.Terminal) error {
+func LoginAndInitialize(t *terminal.Terminal) error {
 
 	err := login(t)
 	if err != nil {

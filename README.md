@@ -14,7 +14,7 @@
 `Watch` this repository to get notified about new releases, issues, etc.
 
 ## Build
-
+make build
 ### Terminal
 
 - `make` - execute the build pipeline.
