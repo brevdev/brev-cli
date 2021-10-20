@@ -9,7 +9,7 @@ import (
 )
 
 type Agent struct {
-	Key *auth.CotterOauthToken
+	Key *auth.OauthToken
 }
 
 func brevAlphaEndpoint(resource string) string {
