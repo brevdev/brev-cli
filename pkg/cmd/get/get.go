@@ -36,21 +36,41 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return nil
-		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			
-			orgs := getOrgs()
-			// var orgNames []string
-			for _, v := range orgs {
-				// orgNames = append(orgNames, v.Name)
-				t.Vprint(v.Name)
 
-			}
-			t.Vprint(t.Green("heeyyy"))
-			// open(t, orgName, proj)
-			return nil
+			// _, err = brev_api.CheckOutsideBrevErrorMessage(t)
+			return err
+		},
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			return []string{}, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveDefault
+		}}
+
+	cmd.AddCommand(newCmdOrg(t))
+
+	return cmd
+}
+
+func newCmdOrg(t *terminal.Terminal) *cobra.Command {
+	var name string
+
+	cmd := &cobra.Command{
+		Use:     "organizations",
+		Short:   "List your Brev organizations.",
+		Long:    "List your Brev organizations.",
+		Example: `  brev get organizations`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return listOrgs(t)
 		},
 	}
+
+	cmd.Flags().StringVarP(&name, "name", "n", "", "name of the endpoint")
+
 	return cmd
+}
+
+func listOrgs(t *terminal.Terminal) error {
+	orgs := getOrgs()
+	for _, v := range orgs {
+		t.Vprint(v.Name + " id:" + t.Yellow(v.Id))
+	}
+	return nil
 }
