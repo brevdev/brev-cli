@@ -77,11 +77,13 @@ type tenant struct {
 
 func (o *SshOptions) RunLogin(cmd *cobra.Command, args []string) (error) {
 	ctx := context.Background()
+
+	// TODO env vars
 	authenticator := auth.Authenticator{
-		Audience:           "foo",
-		ClientID:           "Bar",
-		DeviceCodeEndpoint: "bar",
-		OauthTokenEndpoint: "fadsf",
+		Audience:           "https://brevdev.us.auth0.com/api/v2/",
+		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
 	}
 	state, err := authenticator.Start(ctx)
 	if err != nil {
