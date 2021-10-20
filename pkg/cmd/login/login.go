@@ -2,8 +2,6 @@
 package login
 
 import (
-	"time"
-
 	"github.com/brevdev/brev-cli/pkg/auth"
 
 	"github.com/spf13/cobra"
@@ -49,25 +47,6 @@ func (o *SshOptions) Complete(cmd *cobra.Command, args []string) error {
 func (o *SshOptions) Validate(cmd *cobra.Command, args []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
-}
-
-type app struct {
-	FirstRuns map[string]bool `json:"first_runs"`
-}
-
-// tenant is the cli's concept of an auth0 tenant. The fields are tailor fit
-// specifically for interacting with the management API.
-type tenant struct {
-	Name         string         `json:"name"`
-	Domain       string         `json:"domain"`
-	AccessToken  string         `json:"access_token,omitempty"`
-	Scopes       []string       `json:"scopes,omitempty"`
-	ExpiresAt    time.Time      `json:"expires_at"`
-	Apps         map[string]app `json:"apps,omitempty"`
-	DefaultAppID string         `json:"default_app_id,omitempty"`
-
-	ClientID     string `json:"client_id"`
-	ClientSecret string `json:"client_secret"`
 }
 
 func (o *SshOptions) RunLogin(cmd *cobra.Command, args []string) error {
