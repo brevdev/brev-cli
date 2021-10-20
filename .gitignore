@@ -38,3 +38,6 @@ dist/
 # env files that usually contain secrets or local config
 .env
 .envrc
+
+# binary
+brev-cli
