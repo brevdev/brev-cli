@@ -11,9 +11,8 @@ import (
 )
 
 func getOrgs() []brev_api.Organization {
-	
 	token, _ := auth.GetToken()
-	brevAgent := brev_api.Agent{
+	brevAgent := brev_api.Client{
 		Key: token,
 	}
 
@@ -26,11 +25,11 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 	var orgName string
 
 	cmd := &cobra.Command{
-		Use:         "set",
+		Use: "set",
 		// Annotations: map[string]string{"project": ""},
-		Short:       "Set active org",
-		Long:        "Set your organization to view, open, create workspaces etc",
-		Example:     `brev set --org [org_id]`,
+		Short:   "Set active org",
+		Long:    "Set your organization to view, open, create workspaces etc",
+		Example: `brev set --org [org_id]`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -41,32 +40,29 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 			return err
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			
 			set(t, orgName)
 			return nil
-		}}
+		},
+	}
 
-		cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name")
-		cmd.MarkFlagRequired("org")
-		cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			
-			orgs := getOrgs()
-			
-			var orgNames []string
-			for _, v := range orgs {
-				orgNames = append(orgNames, v.Name)
-			}
-	
-			return orgNames, cobra.ShellCompDirectiveNoSpace
-		})
-		
+	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name")
+	cmd.MarkFlagRequired("org")
+	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		orgs := getOrgs()
+
+		var orgNames []string
+		for _, v := range orgs {
+			orgNames = append(orgNames, v.Name)
+		}
+
+		return orgNames, cobra.ShellCompDirectiveNoSpace
+	})
 
 	return cmd
 }
 
 func set(t *terminal.Terminal, orgName string) error {
-	
-	t.Vprint("You wanna set the org to: "+ orgName);
-	
+	t.Vprint("You wanna set the org to: " + orgName)
+
 	return nil
 }

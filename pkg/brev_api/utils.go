@@ -8,7 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 )
 
-type Agent struct {
+type Client struct {
 	Key *auth.OauthToken
 }
 

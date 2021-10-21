@@ -13,8 +13,8 @@ type Organizations struct {
 }
 
 
-func (a *Agent) GetOrgs() ([]Organization, error) {
-	
+func (a *Client) GetOrgs() ([]Organization, error) {
+
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/organizations"),
@@ -29,7 +29,7 @@ func (a *Agent) GetOrgs() ([]Organization, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var payload []Organization
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
