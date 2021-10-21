@@ -8,14 +8,7 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-
-
 type LoginOptions struct{}
-
-var (
-	BrevAuthDomain = "https://brev.dev/oauth/device/code"
-	BrevClientID   = "foo"
-)
 
 func NewCmdLogin() *cobra.Command {
 	opts := LoginOptions{}
