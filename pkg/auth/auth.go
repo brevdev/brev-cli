@@ -85,7 +85,6 @@ type Credentials struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-
 type OauthToken struct {
 	AccessToken  string `json:"access_token"`
 	AuthMethod   string `json:"auth_method"`
@@ -229,8 +228,6 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	return "", "", fmt.Errorf("audience not found for %s", audiencePath)
 }
 
-
-
 func initializeActiveProjectsFile(t *terminal.Terminal) error {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -260,9 +257,18 @@ func GetToken() (*OauthToken, error) {
 	if err != nil {
 		return nil, err
 	}
+	if token != nil { // we have not logged in yet
+		// TODO make this a prompt instead of auto going to login
+		// step
+		Login()
+		// now that we have logged in, the file should contain the token
+		token, err = getTokenFromBrevConfigFile()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return token, nil
 }
-
 
 func WriteTokenToBrevConfigFile(token *Credentials) error {
 	home, err := os.UserHomeDir()
@@ -307,12 +313,6 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 func Login() error {
 	ctx := context.Background() // TODO is this where I belong? probably not
 
-	token, _ := GetToken()
-	if token != nil {
-		fmt.Println("already logged in, log out with:\n\n\tbrev logout\n")
-		return nil
-	}
-
 	// TODO env vars
 	authenticator := Authenticator{
 		Audience:           "https://brevdev.us.auth0.com/api/v2/",
@@ -329,7 +329,8 @@ func Login() error {
 	// fmt.Printf("Your Device Confirmation code is: %s\n\n", ansi.Bold(state.UserCode))
 	// cli.renderer.Infof("%s to open the browser to log in or %s to quit...", ansi.Green("Press Enter"), ansi.Red("^C"))
 	// fmt.Scanln()
-	fmt.Println("Your Devicce Confirmation Code is %s", state.UserCode)
+	// TODO make this stand out! its important
+	fmt.Println("Your Device Confirmation Code is %s", state.UserCode)
 
 	err = browser.OpenURL(state.VerificationURI)
 
