@@ -1,3 +1,15 @@
+# completion
+Figured we'd move this to a different part of the readme, but just wanted to add it in 
+
+```
+brev completion zsh > "${fpath[1]}/\_brev"
+
+brev completion bash > /usr/local/etc/bash_completion.d/brev
+```
+Run the completion command from the executable. It'll likely be `./brev-cli completion zsh...`
+
+You'll need the cli to be called `./brev` but otherwise it works
+
 # Brev CLI
 
 [![Keep a Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-%23E05735)](CHANGELOG.md)
