@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/connectssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/get"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
+	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +22,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	t := terminal.New()
 
 	cmds := &cobra.Command{
-		Use:   "brev",
+		Use:   "brev-cli",
 		Short: "brev client for managing workspaces",
 		Long: `
       brev client for managing workspaces
@@ -34,6 +35,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	cmds.AddCommand(connectssh.NewCmdConnectSSH(t))
 	cmds.AddCommand(login.NewCmdLogin())
 	cmds.AddCommand(get.NewCmdGet(t))
+	cmds.AddCommand(set.NewCmdSet(t))
 
 	return cmds
 }
