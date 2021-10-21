@@ -78,6 +78,22 @@ type State struct {
 	Interval        int    `json:"interval"`
 }
 
+type Credentials struct {
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+
+type OauthToken struct {
+	AccessToken  string `json:"access_token"`
+	AuthMethod   string `json:"auth_method"`
+	ExpiresIn    int    `json:"expires_in"`
+	IDToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 // RequiredScopes returns the scopes used for login.
 func RequiredScopes() []string { return requiredScopes }
 
@@ -213,13 +229,7 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	return "", "", fmt.Errorf("audience not found for %s", audiencePath)
 }
 
-type OauthToken struct {
-	AccessToken  string `json:"access_token"`
-	AuthMethod   string `json:"auth_method"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-}
+
 
 func initializeActiveProjectsFile(t *terminal.Terminal) error {
 	home, err := os.UserHomeDir()
@@ -253,12 +263,6 @@ func GetToken() (*OauthToken, error) {
 	return token, nil
 }
 
-type Credentials struct {
-	AccessToken  string `json:"access_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-}
 
 func WriteTokenToBrevConfigFile(token *Credentials) error {
 	home, err := os.UserHomeDir()
@@ -301,7 +305,7 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 }
 
 func Login() error {
-	ctx := context.Background()
+	ctx := context.Background() // TODO is this where I belong? probably not
 
 	token, _ := GetToken()
 	if token != nil {
