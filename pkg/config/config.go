@@ -4,6 +4,7 @@ type configs struct{}
 
 var config configs
 
+// TODO add auth0 stuff here instead of being hardcoded in pkg/auth/auth.go
 // Below vars are exposed to the build-layer (Makefile) so that they be overridden at build time.
 var (
 	Version         = "unknown"
