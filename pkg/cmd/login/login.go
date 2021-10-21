@@ -8,11 +8,9 @@ import (
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-var sshLong = "dsfsdfds"
 
-var sshExample = "dsfsdfsfd"
 
-type SshOptions struct{}
+type LoginOptions struct{}
 
 var (
 	BrevAuthDomain = "https://brev.dev/oauth/device/code"
@@ -20,7 +18,7 @@ var (
 )
 
 func NewCmdLogin() *cobra.Command {
-	opts := SshOptions{}
+	opts := LoginOptions{}
 
 	cmd := &cobra.Command{
 		Use:                   "login",
@@ -39,16 +37,16 @@ func NewCmdLogin() *cobra.Command {
 	return cmd
 }
 
-func (o *SshOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *LoginOptions) Complete(cmd *cobra.Command, args []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *SshOptions) Validate(cmd *cobra.Command, args []string) error {
+func (o *LoginOptions) Validate(cmd *cobra.Command, args []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *SshOptions) RunLogin(cmd *cobra.Command, args []string) error {
+func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
 	return auth.Login()
 }
