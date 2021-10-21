@@ -24,8 +24,8 @@ type Workspace struct {
     GitRepo string `json:"gitRepo"`;
 }
 
-func (a *Agent) GetWorkspaces(orgID string) ([]Workspace, error) {
-	
+func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
+
 	// t := terminal.New()
 
 	request := requests.RESTRequest{
@@ -45,7 +45,7 @@ func (a *Agent) GetWorkspaces(orgID string) ([]Workspace, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var payload []Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
@@ -55,8 +55,8 @@ func (a *Agent) GetWorkspaces(orgID string) ([]Workspace, error) {
 	return payload, nil
 }
 
-func (a *Agent) GetWorkspace(wsID string) (*Workspace, error) {
-	
+func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
+
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/workspaces/" + wsID),
@@ -72,7 +72,7 @@ func (a *Agent) GetWorkspace(wsID string) (*Workspace, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
@@ -82,8 +82,8 @@ func (a *Agent) GetWorkspace(wsID string) (*Workspace, error) {
 	return &payload, nil
 }
 
-func (a *Agent) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
-	
+func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
+
 	request := &requests.RESTRequest{
 		Method:   "POST",
 		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
@@ -106,7 +106,7 @@ func (a *Agent) CreateWorkspace(orgID string, name string, gitrepo string) (*Wor
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
