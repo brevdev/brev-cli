@@ -28,6 +28,15 @@ func (e *CredentialsFileNotFound) Directive() string {
 func (e *CredentialsFileNotFound) Error() string {
 	return "credentials file not found"
 }
+type ActiveOrgFileNotFound struct{}
+
+func (e *ActiveOrgFileNotFound) Directive() string {
+	return "run `brev set`"
+}
+
+func (e *ActiveOrgFileNotFound) Error() string {
+	return "active org is not set"
+}
 
 type LocalProjectFileNotFound struct{}
 
