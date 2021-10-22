@@ -16,6 +16,8 @@ const (
 	activeProjectsFile = "active_projects.json"
 	projectsFile       = "projects.json"
 	endpointsFile      = "endpoints.json"
+	// This might be better as a context.json??
+	activeOrgFile      = "active_org.json"
 )
 
 func GetBrevDirectory() string {
@@ -30,6 +32,9 @@ func GetProjectsFile() string {
 }
 func GetEndpointsFile() string {
 	return endpointsFile
+}
+func GetActiveOrgFile() string {
+	return activeOrgFile
 }
 
 func GetHomeDir() string {
@@ -51,6 +56,11 @@ func GetLocalBrevDir() string {
 	return fmt.Sprintf("%s/%s", cwd, brevDirectory)
 }
 
+func GetActiveOrgsPath() string {
+	rootDir := GetHomeDir()
+
+	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, activeOrgFile)
+}
 func GetEndpointsPath() string {
 	cwd, _ := os.Getwd()
 	return fmt.Sprintf("%s/%s/%s", cwd, brevDirectory, endpointsFile)

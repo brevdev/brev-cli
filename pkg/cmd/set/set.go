@@ -4,7 +4,9 @@ package set
 import (
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -40,8 +42,9 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 			return err
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			set(t, orgName)
-			return nil
+			err := set(t, orgName)
+			return err
+			// return nil
 		},
 	}
 
@@ -63,15 +66,20 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 
 func set(t *terminal.Terminal, orgName string) error {
 
-	orgs := getOrgs()
-			
-	// var orgNames []string
+	orgs := getOrgs()		
+
 	for _, v := range orgs {
-		t.Vprint(v.Name)
-		// orgNames = append(orgNames, v.Name)
+		if (v.Name == orgName) {
+
+			path := files.GetActiveOrgsPath()
+
+			files.OverwriteJSON(path, v)
+			
+			t.Vprint("Organization "+ t.Green("orgName") + " is now active.")
+
+			return nil
+		}
 	}
 	
-	t.Vprint("You wanna set the org to: "+ orgName);
-	
-	return nil
+	return &brev_errors.InvalidOrganizationError{}
 }

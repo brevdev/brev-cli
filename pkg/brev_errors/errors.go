@@ -88,3 +88,13 @@ func (e *CotterServerError) Directive() string {
 func (e *CotterServerError) Error() string {
 	return "internal error reported by auth server"
 }
+
+type InvalidOrganizationError struct{}
+
+func (e *InvalidOrganizationError) Directive() string {
+	return "please use a valid organization."
+}
+
+func (e *InvalidOrganizationError) Error() string {
+	return "invalid organization"
+}
