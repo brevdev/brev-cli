@@ -26,8 +26,6 @@ type Workspace struct {
 
 func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 
-	// t := terminal.New()
-
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
@@ -38,8 +36,6 @@ func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 			{"Authorization", "Bearer " + a.Key.AccessToken},
 		},
 	}
-
-	// t.Vprint(t.Green(brevEndpoint("/api/organizations/" + orgID + "/workspaces")))
 
 	response, err := request.SubmitStrict()
 	if err != nil {
