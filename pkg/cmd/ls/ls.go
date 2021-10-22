@@ -9,11 +9,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func getOrgs() []brev_api.Organization {
+func getWorkspaces(orgID string) []brev_api.Workspace {
 	client, _ := brev_api.NewClient()
-	orgs, _ := client.GetOrgs()
+	// wss = workspaces, is that a bad name?
+	wss, _ := client.GetWorkspaces(orgID)
 
-	return orgs
+	return wss
 }
 
 func NewCmdLs(t *terminal.Terminal) *cobra.Command {
@@ -48,8 +49,14 @@ func ls(t *terminal.Terminal) error {
 	if err != nil {
 		return err
 	}
+	
+	wss := getWorkspaces(activeorg.Id)
 
-	t.Vprint(activeorg.Name)
+	t.Vprintf("%d Workspaces in Org "+ t.Yellow(activeorg.Name) +"\n", len(wss))
+	for _, v := range wss {
+		t.Vprint("\t• " + v.Name + " id:" + v.Id )
+		t.Vprint("\t\t" + v.Dns)
+	}
 
 	return nil
 }
