@@ -33,3 +33,24 @@ func (a *Client) GetMe() (*User, error) {
 
 	return &payload, nil
 }
+
+func (a *Client) GetMeSSHPrivKey() (*string, error) {
+	request := requests.RESTRequest{
+		Method:   "GET",
+		Endpoint: brevEndpoint("/api/me/sshprivkey"),
+		QueryParams: []requests.QueryParam{
+			{"utm_source", "cli"},
+		},
+		Headers: []requests.Header{
+			{"Authorization", "Bearer " + a.Key.AccessToken},
+		},
+	}
+	response, err := request.SubmitStrict()
+	if err != nil {
+		return nil, err
+	}
+	sshPrivKey := string(response.Payload)
+
+
+	return &sshPrivKey, nil
+}
