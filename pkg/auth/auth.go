@@ -257,10 +257,13 @@ func GetToken() (*OauthToken, error) {
 	if err != nil {
 		return nil, err
 	}
-	if token != nil { // we have not logged in yet
+	if token == nil { // we have not logged in yet
 		// TODO make this a prompt instead of auto going to login
 		// step
-		Login()
+		err = Login()
+		if err != nil {
+			return nil, err
+		}
 		// now that we have logged in, the file should contain the token
 		token, err = getTokenFromBrevConfigFile()
 		if err != nil {

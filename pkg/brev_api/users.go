@@ -9,7 +9,7 @@ type User struct {
 
 }
 
-func (a *Agent) GetMe() (*User, error) {
+func (a *Client) GetMe() (*User, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/me"),
