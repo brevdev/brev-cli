@@ -2,7 +2,6 @@
 package set
 
 import (
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -11,12 +10,8 @@ import (
 )
 
 func getOrgs() []brev_api.Organization {
-	token, _ := auth.GetToken()
-	brevAgent := brev_api.Client{
-		Key: token,
-	}
-
-	orgs, _ := brevAgent.GetOrgs()
+	client, _ := brev_api.NewClient()
+	orgs, _ := client.GetOrgs()
 
 	return orgs
 }
@@ -62,16 +57,7 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 }
 
 func set(t *terminal.Terminal, orgName string) error {
+	t.Vprint("You wanna set the org to: " + orgName)
 
-	orgs := getOrgs()
-			
-	// var orgNames []string
-	for _, v := range orgs {
-		t.Vprint(v.Name)
-		// orgNames = append(orgNames, v.Name)
-	}
-	
-	t.Vprint("You wanna set the org to: "+ orgName);
-	
 	return nil
 }
