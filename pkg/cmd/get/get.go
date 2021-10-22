@@ -4,6 +4,7 @@ package get
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +29,14 @@ func getMe() brev_api.User {
 	client, _ := brev_api.NewClient()
 	user, _ := client.GetMe()
 	return *user
+}
+
+func getSSHPrivKey() (*string, error) {
+	client, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.GetMeSSHPrivKey()
 }
 
 func NewCmdGet(t *terminal.Terminal) *cobra.Command {
@@ -56,6 +65,7 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 	cmd.AddCommand(newCmdOrg(t))
 	cmd.AddCommand(newCmdWorkspace(t))
 	cmd.AddCommand(newCmdMe(t))
+	cmd.AddCommand(newCmdSSHPrivKey(t))
 
 	return cmd
 }
@@ -125,8 +135,8 @@ func listWorkspaces(t *terminal.Terminal) error {
 	}
 	return nil
 }
-func newCmdMe(t *terminal.Terminal) *cobra.Command {
 
+func newCmdMe(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "me",
 		Short: "return info about the current authenticated user",
@@ -137,6 +147,37 @@ func newCmdMe(t *terminal.Terminal) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			me := getMe()
 			t.Vprintf("User ID: %s", me.Id)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
+func newCmdSSHPrivKey(t *terminal.Terminal) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "sshprivkey",
+		Short:   "get your ssh privatekey",
+		Long:    "get your ssh privatekey and print it to stdout",
+		Example: `brev get sshprivkey`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			sshPrivKey, err := getSSHPrivKey()
+			// TODO move me back into api client and propagate error out
+			switch err := err.(type) {
+			case *requests.RESTResponseError:
+				switch err.ResponseStatusCode {
+				case 404:
+					// TODO error exit code
+					t.Eprint("Create an account on https://console.brev.dev")
+					return nil
+				}
+			}
+			if sshPrivKey == nil {
+				// TODO error exit code
+				t.Eprint("Error getting sshPrivKey")
+				return nil
+			}
+			t.Vprintf(*sshPrivKey)
 			return nil
 		},
 	}
