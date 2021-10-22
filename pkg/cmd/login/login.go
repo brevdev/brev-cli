@@ -2,7 +2,7 @@
 package login
 
 import (
-	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/brev_api"
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -41,5 +41,5 @@ func (o *LoginOptions) Validate(cmd *cobra.Command, args []string) error {
 }
 
 func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
-	return auth.Login()
+	return brev_api.Login() // TODO a little hacky?
 }

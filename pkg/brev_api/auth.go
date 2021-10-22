@@ -1,5 +1,5 @@
 //go:generate mockgen -source auth.go -destination mock/auth.go -package mock
-package auth
+package brev_api
 
 import (
 	"context"
@@ -269,6 +269,7 @@ func GetToken() (*OauthToken, error) {
 		if err != nil {
 			return nil, err
 		}
+
 	}
 	return token, nil
 }
