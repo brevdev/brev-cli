@@ -69,7 +69,7 @@ func set(t *terminal.Terminal, orgName string) error {
 
 			files.OverwriteJSON(path, v)
 			
-			t.Vprint("Organization "+ t.Green("orgName") + " is now active.")
+			t.Vprint("Organization "+ t.Green(v.Name) + " is now active.")
 
 			return nil
 		}
