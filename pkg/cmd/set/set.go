@@ -60,8 +60,6 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 }
 
 func set(t *terminal.Terminal, orgName string) error {
-	t.Vprint("You wanna set the org to: " + orgName)
-
 	orgs := getOrgs()		
 
 	for _, v := range orgs {
