@@ -1,15 +1,34 @@
 package brev_api
 
 import (
+	"fmt"
 	"os/exec"
 	"runtime"
 
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 )
+func NewClient()(*Client, error){
+	// get token and use it to create a client
+	token, err := GetToken()
+	if err != nil {
+		return nil, err
+	}
+	client := Client{
+		Key: token,
+	}
+	// make sure the token we have is associated with a valid user
+	user, err := client.GetMe()
+	if err != nil {
+		return nil, err
+	}
+	if user != nil{
+		return &client, nil
+	}
+	return nil, fmt.Errorf("error creating client")
 
+}
 type Client struct {
-	Key *auth.OauthToken
+	Key *OauthToken
 }
 
 func brevAlphaEndpoint(resource string) string {

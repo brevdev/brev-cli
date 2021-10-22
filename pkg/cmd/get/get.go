@@ -2,22 +2,15 @@
 package get
 
 import (
-
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-
 	"github.com/spf13/cobra"
 )
 
 func getOrgs() []brev_api.Organization {
-	token, _ := auth.GetToken()
-	brevAgent := brev_api.Client{
-		Key: token,
-	}
-
-	orgs, _ := brevAgent.GetOrgs()
+	client, _ := brev_api.NewClient()
+	orgs, _ := client.GetOrgs()
 
 	return orgs
 }
@@ -25,21 +18,14 @@ func getOrgs() []brev_api.Organization {
 func getWorkspaces(orgID string) []brev_api.Workspace {
 	// orgID := getOrgID(orgName)
 
-	token, _ := auth.GetToken()
-	brevAgent := brev_api.Client{
-		Key: token,
-	}
-
-	workspaces, _ := brevAgent.GetWorkspaces(orgID)
+	client, _ := brev_api.NewClient()
+	workspaces, _ := client.GetWorkspaces(orgID)
 
 	return workspaces
 }
 
 func getMe() brev_api.User {
-	token, _ := auth.GetToken()
-	client := brev_api.Client{
-		Key: token,
-	}
+	client, _ := brev_api.NewClient()
 	user, _ := client.GetMe()
 	return *user
 }
@@ -142,16 +128,16 @@ func listWorkspaces(t *terminal.Terminal) error {
 func newCmdMe(t *terminal.Terminal) *cobra.Command {
 
 	cmd := &cobra.Command{
-		Use:     "me",
-		Short:   "return info about the current authenticated user",
-		Long:    "return info about the current authenticated user",
+		Use:   "me",
+		Short: "return info about the current authenticated user",
+		Long:  "return info about the current authenticated user",
 		Example: `brev get me
 
 		User ID: c0wj3ro`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-				me := getMe()
-				t.Vprintf("User ID: %s", me.Id)
-				return nil
+			me := getMe()
+			t.Vprintf("User ID: %s", me.Id)
+			return nil
 		},
 	}
 
