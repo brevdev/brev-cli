@@ -10,6 +10,8 @@ builds:
     - windows
   goarch:
     - amd64
+  binary: brev
+
 archives:
 - format_overrides:
     - goos: windows

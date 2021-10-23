@@ -63,6 +63,9 @@ build: install
 	$(call print-target)
 	goreleaser --snapshot --skip-publish --rm-dist
 
+fast-build:
+	go build -o brev 
+
 .PHONY: release
 release: ## goreleaser --rm-dist
 release: install
