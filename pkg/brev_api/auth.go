@@ -1,4 +1,3 @@
-//go:generate mockgen -source auth.go -destination mock/auth.go -package mock
 package brev_api
 
 import (
