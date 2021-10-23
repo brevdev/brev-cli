@@ -5,12 +5,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/connectssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/get"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
+	"github.com/brevdev/brev-cli/pkg/cmd/ssh"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -34,7 +34,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 		Run: runHelp,
 	}
 
-	cmds.AddCommand(connectssh.NewCmdConnectSSH(t))
+	cmds.AddCommand(ssh.NewCmdSSH(t))
 	cmds.AddCommand(login.NewCmdLogin())
 	cmds.AddCommand(get.NewCmdGet(t))
 	cmds.AddCommand(set.NewCmdSet(t))
