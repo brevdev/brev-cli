@@ -6,7 +6,7 @@ brev completion zsh > "${fpath[1]}/\_brev"
 
 brev completion bash > /usr/local/etc/bash_completion.d/brev
 ```
-Run the completion command from the executable. It'll likely be `./brev-cli completion zsh...`
+Run the completion command from the executable. It'll likely be `./brev completion zsh...`
 
 You'll need the cli to be called `./brev` but otherwise it works
 
