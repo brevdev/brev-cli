@@ -11,6 +11,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/ssh"
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -22,6 +23,8 @@ func NewDefaultBrevCommand() *cobra.Command {
 
 func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	t := terminal.New()
+	var printVersion bool
+
 
 	cmds := &cobra.Command{
 		Use:   "brev-cli",
@@ -32,16 +35,35 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
       Find more information at:
             https://brev.dev`,
 		Run: runHelp,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if printVersion {
+				v, err := version.BuildVersionString(t)
+				if err != nil {
+					t.Errprint(err, "Failed to determine version")
+					return err
+				}
+				t.Vprint(v)
+				return nil
+			} else {
+				return cmd.Usage()
+			}
+		},
 	}
 
-	cmds.AddCommand(ssh.NewCmdSSH(t))
-	cmds.AddCommand(login.NewCmdLogin())
-	cmds.AddCommand(get.NewCmdGet(t))
-	cmds.AddCommand(set.NewCmdSet(t))
-	cmds.AddCommand(ls.NewCmdLs(t))
-	cmds.AddCommand(logout.NewCmdLogout())
+	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
+
+	createCmdTree(cmds, t)
 
 	return cmds
+}
+
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
+	cmd.AddCommand(ssh.NewCmdSSH(t))
+	cmd.AddCommand(login.NewCmdLogin())
+	cmd.AddCommand(get.NewCmdGet(t))
+	cmd.AddCommand(set.NewCmdSet(t))
+	cmd.AddCommand(ls.NewCmdLs(t))
+	cmd.AddCommand(logout.NewCmdLogout())
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
