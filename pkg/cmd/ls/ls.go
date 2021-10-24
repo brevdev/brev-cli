@@ -1,4 +1,4 @@
-// Package set is for the set command
+// Package ls lists workspaces in the current org
 package ls
 
 import (
@@ -50,12 +50,12 @@ func ls(t *terminal.Terminal) error {
 		return err
 	}
 
-	wss := getWorkspaces(activeorg.Id)
+	wss := getWorkspaces(activeorg.ID)
 
 	t.Vprintf("%d Workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(wss))
 	for _, v := range wss {
-		t.Vprint("\t• " + v.Name + " id:" + v.Id)
-		t.Vprint("\t\t" + v.Dns)
+		t.Vprint("\t• " + v.Name + " id:" + v.ID)
+		t.Vprint("\t\t" + v.DNS)
 	}
 
 	return nil
