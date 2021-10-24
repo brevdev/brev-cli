@@ -28,6 +28,7 @@ func (e *CredentialsFileNotFound) Directive() string {
 func (e *CredentialsFileNotFound) Error() string {
 	return "credentials file not found"
 }
+
 type ActiveOrgFileNotFound struct{}
 
 func (e *ActiveOrgFileNotFound) Directive() string {

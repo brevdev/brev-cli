@@ -17,7 +17,7 @@ const (
 	projectsFile       = "projects.json"
 	endpointsFile      = "endpoints.json"
 	// This might be better as a context.json??
-	activeOrgFile      = "active_org.json"
+	activeOrgFile = "active_org.json"
 )
 
 func GetBrevDirectory() string {

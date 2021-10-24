@@ -7,7 +7,8 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/config"
 )
-func NewClient()(*Client, error){
+
+func NewClient() (*Client, error) {
 	// get token and use it to create a client
 	token, err := GetToken()
 	if err != nil {
@@ -21,12 +22,13 @@ func NewClient()(*Client, error){
 	if err != nil {
 		return nil, err
 	}
-	if user != nil{
+	if user != nil {
 		return &client, nil
 	}
 	return nil, fmt.Errorf("error creating client")
 
 }
+
 type Client struct {
 	Key *OauthToken
 }
@@ -58,7 +60,6 @@ func brevEndpoint(resource string) string {
 	fmt.Println(modulesResponse)
 */
 
-
 func IsInProjectDirectory() (bool, error) {
 	return false, nil
 }
@@ -74,18 +75,18 @@ func StringInList(a string, list []string) bool {
 
 // open opens the specified URL in the default browser of the user.
 func OpenBrowser(url string) error {
-    var cmd string
-    var args []string
+	var cmd string
+	var args []string
 
-    switch runtime.GOOS {
-    case "windows":
-        cmd = "cmd"
-        args = []string{"/c", "start"}
-    case "darwin":
-        cmd = "open"
-    default: // "linux", "freebsd", "openbsd", "netbsd"
-        cmd = "xdg-open"
-    }
-    args = append(args, url)
-    return exec.Command(cmd, args...).Start()
+	switch runtime.GOOS {
+	case "windows":
+		cmd = "cmd"
+		args = []string{"/c", "start"}
+	case "darwin":
+		cmd = "open"
+	default: // "linux", "freebsd", "openbsd", "netbsd"
+		cmd = "xdg-open"
+	}
+	args = append(args, url)
+	return exec.Command(cmd, args...).Start()
 }

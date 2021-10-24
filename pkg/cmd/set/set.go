@@ -60,20 +60,20 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 }
 
 func set(t *terminal.Terminal, orgName string) error {
-	orgs := getOrgs()		
+	orgs := getOrgs()
 
 	for _, v := range orgs {
-		if (v.Name == orgName) {
+		if v.Name == orgName {
 
 			path := files.GetActiveOrgsPath()
 
 			files.OverwriteJSON(path, v)
-			
-			t.Vprint("Organization "+ t.Green(v.Name) + " is now active.")
+
+			t.Vprint("Organization " + t.Green(v.Name) + " is now active.")
 
 			return nil
 		}
 	}
-	
+
 	return &brev_errors.InvalidOrganizationError{}
 }

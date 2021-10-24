@@ -13,14 +13,14 @@ import (
 )
 
 func getWorkspaces() []string {
-// func getWorkspaces(orgID string) []brev_api.Workspace {
+	// func getWorkspaces(orgID string) []brev_api.Workspace {
 	activeorg, err := brev_api.GetActiveOrgContext()
 
 	if err != nil {
 		return nil
 		// return err
 	}
-	
+
 	client, _ := brev_api.NewClient()
 	// wss = workspaces, is that a bad name?
 	wss, _ := client.GetWorkspaces(activeorg.Id)

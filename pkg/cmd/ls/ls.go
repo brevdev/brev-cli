@@ -49,12 +49,12 @@ func ls(t *terminal.Terminal) error {
 	if err != nil {
 		return err
 	}
-	
+
 	wss := getWorkspaces(activeorg.Id)
 
-	t.Vprintf("%d Workspaces in Org "+ t.Yellow(activeorg.Name) +"\n", len(wss))
+	t.Vprintf("%d Workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(wss))
 	for _, v := range wss {
-		t.Vprint("\t• " + v.Name + " id:" + v.Id )
+		t.Vprint("\t• " + v.Name + " id:" + v.Id)
 		t.Vprint("\t\t" + v.Dns)
 	}
 
