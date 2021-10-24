@@ -14,17 +14,15 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/files"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/pkg/browser"
 )
 
 const (
 	brevCredentialsFile      = "credentials.json"
-	globalActiveProjectsFile = "active_projects.json"
 	audiencePath             = "/api/v2/"
 	waitThresholdInSeconds   = 3
-	// namespace used to set/get values from the keychain
-	SecretsNamespace = "auth0-cli"
+	// namespace used to set/get values from the keychain.
+	SecretsNamespace         = "auth0-cli"
 )
 
 var requiredScopes = []string{
@@ -179,7 +177,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 	}
 }
 
-func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
+func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	data := url.Values{
 		"client_id": {a.ClientID},
 		"scope":     {strings.Join(requiredScopes, " ")},
@@ -227,28 +225,6 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	return "", "", fmt.Errorf("audience not found for %s", audiencePath)
 }
 
-func initializeActiveProjectsFile(t *terminal.Terminal) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	brevActiveProjectsFile := home + "/" + files.GetBrevDirectory() + "/" + globalActiveProjectsFile
-	exists, err := files.Exists(brevActiveProjectsFile, false)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		err = files.OverwriteJSON(brevActiveProjectsFile, []string{})
-		if err != nil {
-			t.Errprint(err, "Failed to initialize active projects file. Just run this and try again: echo '[]' > ~/.brev/active_projects.json ")
-			return err
-		}
-	}
-
-	return nil
-}
-
 // GetToken reads the previously-persisted token from the filesystem,
 // returning nil for a token if it does not exist
 func GetToken() (*OauthToken, error) {
@@ -268,10 +244,10 @@ func GetToken() (*OauthToken, error) {
 		if err != nil {
 			return nil, err
 		}
-
 	}
 	return token, nil
 }
+
 func getBrevCredentialsFile() (*string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -295,7 +271,6 @@ func WriteTokenToBrevConfigFile(token *Credentials) error {
 }
 
 func getTokenFromBrevConfigFile() (*OauthToken, error) {
-
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
 		return nil, err
@@ -330,7 +305,7 @@ func Login() error {
 	}
 	state, err := authenticator.Start(ctx)
 	if err != nil {
-		return fmt.Errorf("Could not start the authentication process: %w.", err)
+		return fmt.Errorf("could not start the authentication process: %w", err)
 	}
 
 	// todo color library
@@ -338,12 +313,12 @@ func Login() error {
 	// cli.renderer.Infof("%s to open the browser to log in or %s to quit...", ansi.Green("Press Enter"), ansi.Red("^C"))
 	// fmt.Scanln()
 	// TODO make this stand out! its important
-	fmt.Println("Your Device Confirmation Code is %s", state.UserCode)
+	fmt.Println("Your Device Confirmation Code is", state.UserCode)
 
 	err = browser.OpenURL(state.VerificationURI)
 
 	if err != nil {
-		fmt.Println("please open: %s", state.VerificationURI)
+		fmt.Println("please open: ", state.VerificationURI)
 	}
 
 	fmt.Println("waiting for auth to complete")
@@ -363,7 +338,11 @@ func Login() error {
 		ExpiresIn:    int(res.ExpiresIn),
 	}
 	// store the refresh token
-	WriteTokenToBrevConfigFile(creds)
+	err = WriteTokenToBrevConfigFile(creds)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 func Logout() error {

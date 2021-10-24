@@ -23,7 +23,7 @@ func getWorkspaces() []string {
 
 	client, _ := brev_api.NewClient()
 	// wss = workspaces, is that a bad name?
-	wss, _ := client.GetWorkspaces(activeorg.Id)
+	wss, _ := client.GetWorkspaces(activeorg.ID)
 
 	ws_names := []string{}
 	for _, v := range wss {

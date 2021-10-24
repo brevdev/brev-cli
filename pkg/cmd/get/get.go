@@ -91,7 +91,7 @@ func newCmdOrg(t *terminal.Terminal) *cobra.Command {
 func listOrgs(t *terminal.Terminal) error {
 	orgs := getOrgs()
 	for _, v := range orgs {
-		t.Vprint(v.Name + " id:" + t.Yellow(v.Id))
+		t.Vprint(v.Name + " id:" + t.Yellow(v.ID))
 	}
 	return nil
 }
@@ -119,19 +119,17 @@ func listWorkspaces(t *terminal.Terminal) error {
 	// var workspaces map[string]interface{};
 
 	for _, v := range orgs {
-
-		ws := getWorkspaces(v.Id)
+		ws := getWorkspaces(v.ID)
 
 		if len(ws) == 0 {
-			t.Vprint("0 Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.Id))
+			t.Vprint("0 Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.ID))
 		} else {
-			t.Vprint("Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.Id) + ":")
+			t.Vprint("Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.ID) + ":")
 		}
 
 		for _, w := range ws {
-			t.Vprint("\t" + w.Name + " id: " + t.Yellow(w.Id))
+			t.Vprint("\t" + w.Name + " id: " + t.Yellow(w.ID))
 		}
-
 	}
 	return nil
 }

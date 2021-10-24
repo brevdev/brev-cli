@@ -1,3 +1,4 @@
+// Package terminal is for terminal outputting
 package terminal
 
 import (
@@ -16,6 +17,7 @@ type ProgressBar struct {
 	Bar            *progressbar.ProgressBar
 	CurrPercentage int
 }
+
 type Terminal struct {
 	out     io.Writer
 	verbose io.Writer
@@ -52,7 +54,7 @@ func (t *Terminal) Print(a string) {
 }
 
 func (t *Terminal) Printf(format string, a ...interface{}) {
-	fmt.Fprintf(t.out, format, a)
+	fmt.Fprintf(t.out, format, a...)
 }
 
 func (t *Terminal) Vprint(a string) {
@@ -60,7 +62,7 @@ func (t *Terminal) Vprint(a string) {
 }
 
 func (t *Terminal) Vprintf(format string, a ...interface{}) {
-	fmt.Fprintf(t.verbose, format, a)
+	fmt.Fprintf(t.verbose, format, a...)
 }
 
 func (t *Terminal) Eprint(a string) {
@@ -68,7 +70,7 @@ func (t *Terminal) Eprint(a string) {
 }
 
 func (t *Terminal) Eprintf(format string, a ...interface{}) {
-	fmt.Fprintf(t.err, format, a)
+	fmt.Fprintf(t.err, format, a...)
 }
 
 func (t *Terminal) Errprint(err error, a string) {
@@ -93,7 +95,7 @@ func (t *Terminal) Errprintf(err error, format string, a ...interface{}) {
 
 type silentWriter struct{}
 
-func (w silentWriter) Write(p []byte) (n int, err error) {
+func (w silentWriter) Write(_ []byte) (n int, err error) {
 	return 0, nil
 }
 
