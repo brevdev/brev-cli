@@ -12,15 +12,14 @@ type Organization struct {
 }
 
 func (a *Client) GetOrgs() ([]Organization, error) {
-
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/organizations"),
 		QueryParams: []requests.QueryParam{
-			{"utm_source", "cli"},
+			{Key: "utm_source", Value: "cli"},
 		},
 		Headers: []requests.Header{
-			{"Authorization", "Bearer " + a.Key.AccessToken},
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
 		},
 	}
 	response, err := request.SubmitStrict()
@@ -38,7 +37,6 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 }
 
 func GetActiveOrgContext() (*Organization, error) {
-
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
 	exists, err := files.Exists(brevActiveOrgsFile, false)
 	if err != nil {
