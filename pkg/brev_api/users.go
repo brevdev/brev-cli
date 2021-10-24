@@ -5,8 +5,7 @@ import (
 )
 
 type User struct {
-	Id         string   `json:"id"`
-
+	Id string `json:"id"`
 }
 
 func (a *Client) GetMe() (*User, error) {
@@ -50,7 +49,6 @@ func (a *Client) GetMeSSHPrivKey() (*string, error) {
 		return nil, err
 	}
 	sshPrivKey := string(response.Payload)
-
 
 	return &sshPrivKey, nil
 }

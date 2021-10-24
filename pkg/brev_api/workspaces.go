@@ -5,23 +5,23 @@ import (
 )
 
 type RequestCreateWorkspace struct {
-	Name       string   `json:"name"`
-    WorkspaceGroupId string `json:"workspaceGroupId"`
-    WorkspaceClassId string `json:"workspaceClassId"`
-    GitRepo string `json:"gitRepo"`;
+	Name                string `json:"name"`
+	WorkspaceGroupId    string `json:"workspaceGroupId"`
+	WorkspaceClassId    string `json:"workspaceClassId"`
+	GitRepo             string `json:"gitRepo"`
 	WorkspaceTemplateId string `json:"workspaceTemplateId"`
 }
 type Workspace struct {
-	Id         string   `json:"id"`
-	Name       string   `json:"name"`
-    WorkspaceGroupId string `json:"workspaceGroupId"`
-    OrganizationId string `json:"organizationId"`
-    WorkspaceClassId string `json:"workspaceClassId"`
-    CreatedByUserId string `json:"createdByUserId"`
-    Dns string `json:"dns"`
-	Status string `json:"status"`
-    Password string `json:"password"`
-    GitRepo string `json:"gitRepo"`;
+	Id               string `json:"id"`
+	Name             string `json:"name"`
+	WorkspaceGroupId string `json:"workspaceGroupId"`
+	OrganizationId   string `json:"organizationId"`
+	WorkspaceClassId string `json:"workspaceClassId"`
+	CreatedByUserId  string `json:"createdByUserId"`
+	Dns              string `json:"dns"`
+	Status           string `json:"status"`
+	Password         string `json:"password"`
+	GitRepo          string `json:"gitRepo"`
 }
 
 func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
@@ -90,10 +90,10 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 			{"Authorization", "Bearer " + a.Key.AccessToken},
 		},
 		Payload: RequestCreateWorkspace{
-			Name: name,
-			WorkspaceGroupId: "k8s.brevstack.com",
-			WorkspaceClassId: "2x8",
-			GitRepo: gitrepo,
+			Name:                name,
+			WorkspaceGroupId:    "k8s.brevstack.com",
+			WorkspaceClassId:    "2x8",
+			GitRepo:             gitrepo,
 			WorkspaceTemplateId: "4nbb4lg2s", // default ubuntu template
 		},
 	}

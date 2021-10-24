@@ -273,18 +273,18 @@ func GetToken() (*OauthToken, error) {
 	}
 	return token, nil
 }
-func getBrevCredentialsFile() (*string,error) {
+func getBrevCredentialsFile() (*string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-	brevCredentialsFile:= home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
+	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
 	return &brevCredentialsFile, nil
 }
 
 func WriteTokenToBrevConfigFile(token *Credentials) error {
 	brevCredentialsFile, err := getBrevCredentialsFile()
-	if err != nil{
+	if err != nil {
 		return err
 	}
 	err = files.OverwriteJSON(*brevCredentialsFile, token)
@@ -297,8 +297,8 @@ func WriteTokenToBrevConfigFile(token *Credentials) error {
 
 func getTokenFromBrevConfigFile() (*OauthToken, error) {
 
-	brevCredentialsFile, err:= getBrevCredentialsFile()
-		if err != nil {
+	brevCredentialsFile, err := getBrevCredentialsFile()
+	if err != nil {
 		return nil, err
 	}
 
@@ -369,7 +369,7 @@ func Login() error {
 }
 func Logout() error {
 	brevCredentialsFile, err := getBrevCredentialsFile()
-		if err != nil {
+	if err != nil {
 		return err
 	}
 	return files.DeleteFile(*brevCredentialsFile)
