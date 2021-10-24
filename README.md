@@ -1,3 +1,19 @@
+## Distribute to Homebrew
+
+Step 1: bump version (see top of Makefile)
+
+Step 2: create homebrew distribution
+```
+> make dist-homebrew
+```
+
+Step 3: create GitHub release
+
+Step 4: upload resultant tar.gz to GitHub release
+
+Step 5: copy sha256 (output from step 2) and use it in a new update to https://github.com/brevdev/homebrew-tap
+
+
 # completion
 Figured we'd move this to a different part of the readme, but just wanted to add it in 
 
