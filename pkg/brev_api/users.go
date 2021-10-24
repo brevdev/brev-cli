@@ -13,10 +13,10 @@ func (a *Client) GetMe() (*User, error) {
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/me"),
 		QueryParams: []requests.QueryParam{
-			{"utm_source", "cli"},
+			{Key: "utm_source", Value: "cli"},
 		},
 		Headers: []requests.Header{
-			{"Authorization", "Bearer " + a.Key.AccessToken},
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
 		},
 	}
 	response, err := request.SubmitStrict()
@@ -38,10 +38,10 @@ func (a *Client) GetMeSSHPrivKey() (*string, error) {
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/me/sshprivkey"),
 		QueryParams: []requests.QueryParam{
-			{"utm_source", "cli"},
+			{Key: "utm_source", Value: "cli"},
 		},
 		Headers: []requests.Header{
-			{"Authorization", "Bearer " + a.Key.AccessToken},
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
 		},
 	}
 	response, err := request.SubmitStrict()

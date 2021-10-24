@@ -30,10 +30,10 @@ func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
 		QueryParams: []requests.QueryParam{
-			{"utm_source", "cli"},
+			{Key: "utm_source", Value: "cli"},
 		},
 		Headers: []requests.Header{
-			{"Authorization", "Bearer " + a.Key.AccessToken},
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
 		},
 	}
 
@@ -57,10 +57,10 @@ func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/workspaces/" + wsID),
 		QueryParams: []requests.QueryParam{
-			{"utm_source", "cli"},
+			{Key: "utm_source", Value: "cli"},
 		},
 		Headers: []requests.Header{
-			{"Authorization", "Bearer " + a.Key.AccessToken},
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
 		},
 	}
 
@@ -84,10 +84,10 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 		Method:   "POST",
 		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
 		QueryParams: []requests.QueryParam{
-			{"utm_source", "cli"},
+			{Key: "utm_source", Value: "cli"},
 		},
 		Headers: []requests.Header{
-			{"Authorization", "Bearer " + a.Key.AccessToken},
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
 		},
 		Payload: RequestCreateWorkspace{
 			Name:                name,

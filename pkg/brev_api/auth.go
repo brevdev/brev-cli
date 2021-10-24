@@ -18,11 +18,11 @@ import (
 )
 
 const (
-	brevCredentialsFile      = "credentials.json"
-	audiencePath             = "/api/v2/"
-	waitThresholdInSeconds   = 3
+	brevCredentialsFile    = "credentials.json"
+	audiencePath           = "/api/v2/"
+	waitThresholdInSeconds = 3
 	// namespace used to set/get values from the keychain.
-	SecretsNamespace         = "auth0-cli"
+	SecretsNamespace = "auth0-cli"
 )
 
 var requiredScopes = []string{
