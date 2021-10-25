@@ -110,7 +110,7 @@ func write_caches(t *terminal.Terminal) error {
 	return nil
 }
 
-func get_org_cache_data() ([]brev_api.Organization,error) {
+func Get_org_cache_data() ([]brev_api.Organization,error) {
 	var orgCache []brev_api.Organization
 	path := files.GetOrgCacheFilePath()
 	err := files.ReadJSON(path, &orgCache)
@@ -120,7 +120,7 @@ func get_org_cache_data() ([]brev_api.Organization,error) {
 	return orgCache, nil
 }
 
-func get_ws_cache_data() ([]CacheableWorkspace,error) {
+func Get_ws_cache_data() ([]CacheableWorkspace,error) {
 	var wsCache []CacheableWorkspace
 	path := files.GetWorkspacesCacheFilePath()
 	err := files.ReadJSON(path, &wsCache)
@@ -143,12 +143,12 @@ func refresh(t *terminal.Terminal) error {
 
 	
 	
-	orgs, err := get_org_cache_data()
+	orgs, err := Get_org_cache_data()
 	if err != nil {
 		return err
 	}
 	
-	wss, err := get_ws_cache_data()
+	wss, err := Get_ws_cache_data()
 	if err != nil {
 		return err
 	}
