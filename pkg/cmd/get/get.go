@@ -2,8 +2,6 @@
 package get
 
 import (
-	"os"
-
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -173,18 +171,8 @@ func newCmdMePrivateKeys(t *terminal.Terminal) *cobra.Command {
 					return nil
 				}
 			}
-
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return err
-			}
-
-			certFilePath := home + "/" + files.GetBrevDirectory() + "/" + files.GetKubeCertFileName()
-			files.OverwriteString(certFilePath, mePrivateKeys.Cert)
-
-			sshPrivateKeyFilePath := home + "/" + files.GetBrevDirectory() + "/" + files.GetKubeCertFileName()
-			files.OverwriteString(sshPrivateKeyFilePath, mePrivateKeys.SSHPrivateKey)
-
+			files.OverwriteString(files.GetCertFilePath(), mePrivateKeys.Cert)
+			files.OverwriteString(files.GetSSHPrivateKeyFilePath(), mePrivateKeys.SSHPrivateKey)
 			return nil
 		},
 	}
