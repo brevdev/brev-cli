@@ -88,8 +88,6 @@ func (o *SSHOptions) RunSSH() error {
 		o.Namespace,
 		o.PodName,
 		[]string{o.Port},
-		o.KeyFile,
-		o.CertFile,
 	)
 	return nil
 }
