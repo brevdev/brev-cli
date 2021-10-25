@@ -1,5 +1,5 @@
-// Package ssh is for the ssh command
-package ssh
+// Package link is for the ssh command
+package link
 
 import (
 	"fmt"
@@ -33,11 +33,11 @@ func getWorkspaces() []string {
 	return ws_names
 }
 
-var sshLong = "Enable a local ssh tunnel, setup private key auth, and give connection string"
+var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give connection string"
 
-var sshExample = "brev ssh <ws_name>"
+var sshLinkExample = "brev link <ws_name>"
 
-type SSHOptions struct {
+type SSHLinkOptions struct {
 	Namespace string
 	PodName   string
 	Port      string
@@ -45,15 +45,15 @@ type SSHOptions struct {
 	CertFile  string
 }
 
-func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
-	opts := SSHOptions{}
+func NewCmdSSHLink(t *terminal.Terminal) *cobra.Command {
+	opts := SSHLinkOptions{}
 
 	cmd := &cobra.Command{
-		Use:                   "ssh",
+		Use:                   "link",
 		DisableFlagsInUseLine: true,
-		Short:                 "Enable a local ssh tunnel, setup private key auth, and give connection string",
-		Long:                  sshLong,
-		Example:               sshExample,
+		Short:                 "Enable a local ssh link tunnel, setup private key auth, and give connection string",
+		Long:                  sshLinkLong,
+		Example:               sshLinkExample,
 		Args:                  cobra.MinimumNArgs(1),
 		ValidArgs:             getWorkspaces(),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -65,7 +65,7 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func (o *SSHOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *SSHLinkOptions) Complete(cmd *cobra.Command, args []string) error {
 	for _, arg := range args {
 		fmt.Println(arg)
 	}
@@ -79,11 +79,11 @@ func (o *SSHOptions) Complete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (o *SSHOptions) Validate() error {
+func (o *SSHLinkOptions) Validate() error {
 	return nil
 }
 
-func (o *SSHOptions) RunSSH() error {
+func (o *SSHLinkOptions) RunSSH() error {
 	portforward.RunPortForwardFromCommand(
 		o.Namespace,
 		o.PodName,
