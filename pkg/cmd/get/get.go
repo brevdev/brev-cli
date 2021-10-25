@@ -68,7 +68,7 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 	cmd.AddCommand(newCmdOrg(t))
 	cmd.AddCommand(newCmdWorkspace(t))
 	cmd.AddCommand(newCmdMe(t))
-	cmd.AddCommand(newCmdSSHPrivKey(t))
+	cmd.AddCommand(newCmdMePrivateKeys(t))
 
 	return cmd
 }
@@ -155,7 +155,7 @@ func newCmdMe(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func newCmdSSHPrivKey(t *terminal.Terminal) *cobra.Command {
+func newCmdMePrivateKeys(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sshprivkey",
 		Short:   "get your ssh privatekey",
