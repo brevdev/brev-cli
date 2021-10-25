@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -16,23 +17,40 @@ import (
 )
 
 func getWorkspaces() []string {
-	// func getWorkspaces(orgID string) []brev_api.Workspace {
+	// // func getWorkspaces(orgID string) []brev_api.Workspace {
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return nil
 		// return err
 	}
 
-	client, _ := brev_api.NewClient()
-	// wss = workspaces, is that a bad name?
-	wss, _ := client.GetWorkspaces(activeorg.ID)
-
-	ws_names := []string{}
-	for _, v := range wss {
-		ws_names = append(ws_names, v.Name)
+	ws_cache,err := refresh.Get_ws_cache_data()
+	if err != nil {
+		return nil
+		// return err
 	}
+	for _, v := range ws_cache {
+		if v.OrgID == activeorg.ID {
+			var workspace_names []string;
+			for _, w := range v.Workspaces {
+				workspace_names = append(workspace_names, w.Name)
+			}
+			return workspace_names
+			// get a list of jsut the names
+		}
+	}
+	return nil
 
-	return ws_names
+	// client, _ := brev_api.NewClient()
+	// // wss = workspaces, is that a bad name?
+	// wss, _ := client.GetWorkspaces(activeorg.ID)
+
+	// ws_names := []string{}
+	// for _, v := range wss {
+	// 	ws_names = append(ws_names, v.Name)
+	// }
+
+	// return ws_names
 }
 
 var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give connection string"
