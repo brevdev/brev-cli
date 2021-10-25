@@ -11,6 +11,7 @@ type RequestCreateWorkspace struct {
 	GitRepo             string `json:"gitRepo"`
 	WorkspaceTemplateID string `json:"workspaceTemplateId"`
 }
+
 type Workspace struct {
 	ID               string `json:"id"`
 	Name             string `json:"name"`

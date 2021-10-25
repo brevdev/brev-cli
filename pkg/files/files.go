@@ -18,6 +18,8 @@ const (
 	endpointsFile      = "endpoints.json"
 	// This might be better as a context.json??
 	activeOrgFile         = "active_org.json"
+	orgCacheFile          = "org_cache.json"
+	workspaceCacheFile    = "workspace_cache.json"
 	kubeCertFileName      = "brev.crt"
 	sshPrivateKeyFileName = "brev.pem"
 )
@@ -29,14 +31,25 @@ func GetBrevDirectory() string {
 func GetActiveProjectFile() string {
 	return activeProjectsFile
 }
+
 func GetProjectsFile() string {
 	return projectsFile
 }
+
 func GetEndpointsFile() string {
 	return endpointsFile
 }
+
 func GetActiveOrgFile() string {
 	return activeOrgFile
+}
+
+func GetOrgCacheFile() string {
+	return orgCacheFile
+}
+
+func GetWorkspaceCacheFile() string {
+	return workspaceCacheFile
 }
 
 func GetKubeCertFileName() string {
@@ -66,11 +79,24 @@ func GetLocalBrevDir() string {
 	return fmt.Sprintf("%s/%s", cwd, brevDirectory)
 }
 
+func GetWorkspacesCacheFilePath() string {
+	rootDir := GetHomeDir()
+
+	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, workspaceCacheFile)
+}
+
+func GetOrgCacheFilePath() string {
+	rootDir := GetHomeDir()
+
+	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, orgCacheFile)
+}
+
 func GetActiveOrgsPath() string {
 	rootDir := GetHomeDir()
 
 	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, activeOrgFile)
 }
+
 func GetEndpointsPath() string {
 	cwd, _ := os.Getwd()
 	return fmt.Sprintf("%s/%s/%s", cwd, brevDirectory, endpointsFile)
