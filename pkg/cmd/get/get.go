@@ -2,8 +2,11 @@
 package get
 
 import (
+	"os"
+
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -31,12 +34,12 @@ func getMe() brev_api.User {
 	return *user
 }
 
-func getSSHPrivKey() (*string, error) {
+func getMePrivateKeys() (*brev_api.PrivateKeys, error) {
 	client, err := brev_api.NewClient()
 	if err != nil {
 		return nil, err
 	}
-	return client.GetMeSSHPrivKey()
+	return client.GetMePrivateKeys()
 }
 
 func NewCmdGet(t *terminal.Terminal) *cobra.Command {
@@ -159,7 +162,7 @@ func newCmdSSHPrivKey(t *terminal.Terminal) *cobra.Command {
 		Long:    "get your ssh privatekey and print it to stdout",
 		Example: `brev get sshprivkey`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			sshPrivKey, err := getSSHPrivKey()
+			mePrivateKeys, err := getMePrivateKeys()
 			// TODO move me back into api client and propagate error out
 			switch err := err.(type) {
 			case *requests.RESTResponseError:
@@ -170,12 +173,18 @@ func newCmdSSHPrivKey(t *terminal.Terminal) *cobra.Command {
 					return nil
 				}
 			}
-			if sshPrivKey == nil {
-				// TODO error exit code
-				t.Eprint("Error getting sshPrivKey")
-				return nil
+
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return err
 			}
-			t.Vprintf(*sshPrivKey)
+
+			certFilePath := home + "/" + files.GetBrevDirectory() + "/" + files.GetKubeCertFileName()
+			files.OverwriteString(certFilePath, mePrivateKeys.Cert)
+
+			sshPrivateKeyFilePath := home + "/" + files.GetBrevDirectory() + "/" + files.GetKubeCertFileName()
+			files.OverwriteString(sshPrivateKeyFilePath, mePrivateKeys.SSHPrivateKey)
+
 			return nil
 		},
 	}

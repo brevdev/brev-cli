@@ -17,7 +17,9 @@ const (
 	projectsFile       = "projects.json"
 	endpointsFile      = "endpoints.json"
 	// This might be better as a context.json??
-	activeOrgFile = "active_org.json"
+	activeOrgFile         = "active_org.json"
+	kubeCertFileName      = "brev.crt"
+	sshPrivateKeyFileName = "brev.pem"
 )
 
 func GetBrevDirectory() string {
@@ -35,6 +37,14 @@ func GetEndpointsFile() string {
 }
 func GetActiveOrgFile() string {
 	return activeOrgFile
+}
+
+func GetKubeCertFileName() string {
+	return kubeCertFileName
+}
+
+func GetSSHPrivateKeyFileName() string {
+	return sshPrivateKeyFileName
 }
 
 func GetHomeDir() string {

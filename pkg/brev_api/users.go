@@ -33,10 +33,15 @@ func (a *Client) GetMe() (*User, error) {
 	return &payload, nil
 }
 
-func (a *Client) GetMeSSHPrivKey() (*string, error) {
+type PrivateKeys struct {
+	Cert          string
+	SSHPrivateKey string
+}
+
+func (a *Client) GetMePrivateKeys() (*PrivateKeys, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/me/sshprivkey"),
+		Endpoint: brevEndpoint("/api/me/privatekeys"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
@@ -48,7 +53,11 @@ func (a *Client) GetMeSSHPrivKey() (*string, error) {
 	if err != nil {
 		return nil, err
 	}
-	sshPrivKey := string(response.Payload)
+	var payload PrivateKeys
+	err = response.UnmarshalPayload(&payload)
+	if err != nil {
+		return nil, err
+	}
 
-	return &sshPrivKey, nil
+	return &payload, nil
 }
