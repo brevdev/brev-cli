@@ -1,7 +1,7 @@
 BIN_NAME?=brev
 BIN_VERSION?=0.1.6
 
-GOCMD=GO
+GOCMD=go
 
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
