@@ -80,6 +80,16 @@ func GetProjectsPath() string {
 	return fmt.Sprintf("%s/%s/%s", cwd, brevDirectory, projectsFile)
 }
 
+func GetCertFilePath() string {
+	home, _ := os.UserHomeDir()
+	return home + "/" + GetBrevDirectory() + "/" + GetKubeCertFileName()
+}
+
+func GetSSHPrivateKeyFilePath() string {
+	home, _ := os.UserHomeDir()
+	return home + "/" + GetBrevDirectory() + "/" + GetKubeCertFileName()
+}
+
 func Exists(filepath string, isDir bool) (bool, error) {
 	info, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
