@@ -52,7 +52,10 @@ func ls(t *terminal.Terminal) error {
 		return err
 	}
 
-	wss := getWorkspaces(activeorg.ID)
+	wss, err := getWorkspaces(activeorg.ID)
+	if err != nil {
+		return err
+	}
 
 	t.Vprintf("%d Workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(wss))
 	for _, v := range wss {

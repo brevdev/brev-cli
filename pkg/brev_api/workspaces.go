@@ -28,7 +28,7 @@ type Workspace struct {
 func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
+		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
@@ -67,7 +67,7 @@ func (w WorkspaceMetaData) GetNamespaceName() string {
 func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/workspaces/" + wsID + "/metadata"),
+		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/metadata"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
@@ -93,7 +93,7 @@ func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
 func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/workspaces/" + wsID),
+		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
@@ -119,7 +119,7 @@ func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
 	request := &requests.RESTRequest{
 		Method:   "POST",
-		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
+		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},

@@ -48,12 +48,7 @@ type Client struct {
 	Key *OauthToken
 }
 
-func brevAlphaEndpoint(resource string) string {
-	baseEndpoint := config.GetBrevALPHAAPIEndpoint()
-	return baseEndpoint + "/_api/" + resource
-}
-
-func brevEndpoint(resource string) string {
+func buildBrevEndpoint(resource string) string {
 	baseEndpoint := config.GetBrevAPIEndpoint()
 	return baseEndpoint + resource
 }

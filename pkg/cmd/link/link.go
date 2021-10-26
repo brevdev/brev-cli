@@ -19,25 +19,6 @@ var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give c
 var sshLinkExample = "brev link <ws_name>"
 
 func NewCmdLink() *cobra.Command {
-	workspaceNames, err := completions.CompletionHelpers{}.GetWorkspaceNames()
-	if err != nil {
-		panic(err)
-	}
-
-	k8sClientConfig, err := NewRemoteK8sClientConfig()
-	if err != nil {
-		panic(err)
-	}
-	k8sClient := k8s.NewDefaultClient(k8sClientConfig)
-
-	opts := portforward.NewPortForwardOptions(
-		k8sClient,
-		WorkspaceResolver{},
-		&portforward.DefaultPortForwarder{
-			IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
-		},
-	)
-
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
 		Use:                   "link",
@@ -46,13 +27,38 @@ func NewCmdLink() *cobra.Command {
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             workspaceNames,
+		ValidArgs:             getCompletions(),
 		Run: func(cmd *cobra.Command, args []string) {
+			k8sClientConfig, err := NewRemoteK8sClientConfig()
+			if err != nil {
+				panic(err)
+			}
+			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
+
+			opts := portforward.NewPortForwardOptions(
+				k8sClient,
+				WorkspaceResolver{},
+				&portforward.DefaultPortForwarder{
+					IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
+				},
+			)
+
 			cmdutil.CheckErr(opts.Complete(cmd, args))
 			cmdutil.CheckErr(opts.RunPortforward())
 		},
 	}
 	return cmd
+}
+
+func getCompletions() []string {
+	workspaceNames, err := completions.CompletionHelpers{}.GetWorkspaceNames()
+	if err.Error() == "active org is not set" {
+		return []string{}
+	}
+	if err != nil {
+		panic(err)
+	}
+	return workspaceNames
 }
 
 type WorkspaceResolver struct{}

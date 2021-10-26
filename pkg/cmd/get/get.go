@@ -31,13 +31,13 @@ func getMe() brev_api.User {
 	return *user
 }
 
-// func getMePrivateKeys() (*brev_api.PrivateKeys, error) {
-// 	client, err := brev_api.NewClient()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return client.GetMePrivateKeys()
-// }
+func getMeKeys() (*brev_api.UserKeys, error) {
+	client, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
+	return client.GetMeKeys()
+}
 
 func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 	// opts := SshOptions{}
@@ -159,12 +159,26 @@ func newCmdMePrivateKeys(t *terminal.Terminal) *cobra.Command {
 		Long:    "get your ssh privatekey and print it to stdout",
 		Example: `brev get sshprivkey`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mePrivateKeys, err := getMePrivateKeys()
+			meKeys, err := getMeKeys()
 			if err != nil {
 				t.Eprint(err.Error())
 			}
-			files.OverwriteString(files.GetCertFilePath(), mePrivateKeys.Cert)
-			files.OverwriteString(files.GetSSHPrivateKeyFilePath(), mePrivateKeys.SSHPrivateKey)
+
+			clusterID := "k8s.brevstack.com"
+
+			clusterKeys, err := meKeys.GetWorkspaceGroupKeysByGroupID(clusterID)
+			if err != nil {
+				t.Eprint(err.Error())
+			}
+
+			err = files.OverwriteString(files.GetCertFilePath(), clusterKeys.Cert)
+			if err != nil {
+				t.Eprint(err.Error())
+			}
+			err = files.OverwriteString(files.GetSSHPrivateKeyFilePath(), meKeys.PrivateKey)
+			if err != nil {
+				t.Eprint(err.Error())
+			}
 			return nil
 		},
 	}

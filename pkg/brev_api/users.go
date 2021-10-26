@@ -13,7 +13,7 @@ type User struct {
 func (a *Client) GetMe() (*User, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/me"),
+		Endpoint: buildBrevEndpoint("/api/me"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
@@ -56,10 +56,10 @@ func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGrou
 	return nil, fmt.Errorf("group id %s not found", groupID)
 }
 
-func (a *Client) GetMePrivateKeys() (*UserKeys, error) {
+func (a *Client) GetMeKeys() (*UserKeys, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/me/privatekeys"),
+		Endpoint: buildBrevEndpoint("/api/me/keys"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
