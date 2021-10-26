@@ -64,7 +64,7 @@ func ls(t *terminal.Terminal, args []string) error {
 	t.Vprintf("%d Workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(wss))
 	for _, v := range wss {
 		t.Vprint("\t• " + v.Name + " id:" + v.ID)
-		t.Vprint("\t\t" + v.DNS)
+		t.Vprint("\t\thttps://" + v.DNS)
 	}
 
 	return nil
