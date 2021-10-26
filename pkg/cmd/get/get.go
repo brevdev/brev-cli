@@ -1,4 +1,5 @@
 // Package get is for the get command
+// TODO: delete this file if getmeprivatekeys isn't needed
 package get
 
 import (
@@ -8,22 +9,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
-
-func getOrgs() []brev_api.Organization {
-	client, _ := brev_api.NewClient()
-	orgs, _ := client.GetOrgs()
-
-	return orgs
-}
-
-func getWorkspaces(orgID string) []brev_api.Workspace {
-	// orgID := getOrgID(orgName)
-
-	client, _ := brev_api.NewClient()
-	workspaces, _ := client.GetWorkspaces(orgID)
-
-	return workspaces
-}
 
 func getMe() brev_api.User {
 	client, _ := brev_api.NewClient()
@@ -62,77 +47,12 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 		},
 	}
 
-	cmd.AddCommand(newCmdOrg(t))
-	cmd.AddCommand(newCmdWorkspace(t))
 	cmd.AddCommand(newCmdMe(t))
 	cmd.AddCommand(newCmdMePrivateKeys(t))
 
 	return cmd
 }
 
-func newCmdOrg(t *terminal.Terminal) *cobra.Command {
-	var name string
-
-	cmd := &cobra.Command{
-		Use:     "orgs",
-		Short:   "List your Brev orgs.",
-		Long:    "List your Brev orgs.",
-		Example: `  brev get orgs`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return listOrgs(t)
-		},
-	}
-
-	cmd.Flags().StringVarP(&name, "name", "n", "", "name of the endpoint")
-
-	return cmd
-}
-
-func listOrgs(t *terminal.Terminal) error {
-	orgs := getOrgs()
-	for _, v := range orgs {
-		t.Vprint(v.Name + " id:" + t.Yellow(v.ID))
-	}
-	return nil
-}
-
-func newCmdWorkspace(t *terminal.Terminal) *cobra.Command {
-	var name string
-
-	cmd := &cobra.Command{
-		Use:     "workspace",
-		Short:   "List your Brev workspaces.",
-		Long:    "List your Brev workspaces.",
-		Example: `  brev get workspaces`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return listWorkspaces(t)
-		},
-	}
-
-	cmd.Flags().StringVarP(&name, "name", "n", "", "name of the endpoint")
-
-	return cmd
-}
-
-func listWorkspaces(t *terminal.Terminal) error {
-	orgs := getOrgs()
-	// var workspaces map[string]interface{};
-
-	for _, v := range orgs {
-		ws := getWorkspaces(v.ID)
-
-		if len(ws) == 0 {
-			t.Vprint("0 Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.ID))
-		} else {
-			t.Vprint("Workspaces in Org: " + v.Name + " id:" + t.Yellow(v.ID) + ":")
-		}
-
-		for _, w := range ws {
-			t.Vprint("\t" + w.Name + " id: " + t.Yellow(w.ID))
-		}
-	}
-	return nil
-}
 
 func newCmdMe(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
