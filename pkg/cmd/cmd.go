@@ -26,7 +26,6 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	t := terminal.New()
 	var printVersion bool
 
-
 	cmds := &cobra.Command{
 		Use:   "brev-cli",
 		Short: "brev client for managing workspaces",
