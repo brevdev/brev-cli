@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -40,11 +41,11 @@ var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give c
 
 var sshLinkExample = "brev link <ws_name>"
 
-var (
-	testCert = ""
-	testKey  = ""
-	testCA   = ""
-)
+// var (
+// 	testCert = ""
+// 	testKey  = ""
+// 	testCA   = ""
+// )
 
 func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	host := "https://api.k8s.brevstack.com"
@@ -74,6 +75,8 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			CAData:   k8sCA,
 		},
 	}
+
+	config = dynamic.ConfigFor(config)
 	k8sClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err)

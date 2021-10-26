@@ -99,6 +99,7 @@ type DefaultPortForwarder struct {
 }
 
 func (f *DefaultPortForwarder) ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error {
+	opts.K8sConfig.APIPath = "/api"
 	transport, upgrader, err := spdy.RoundTripperFor(opts.K8sConfig)
 	if err != nil {
 		return err
@@ -108,5 +109,10 @@ func (f *DefaultPortForwarder) ForwardPorts(method string, url *url.URL, opts Po
 	if err != nil {
 		return err
 	}
-	return fw.ForwardPorts()
+
+	err = fw.ForwardPorts()
+	if err != nil {
+		return err
+	}
+	return nil
 }
