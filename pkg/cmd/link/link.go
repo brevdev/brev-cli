@@ -23,14 +23,14 @@ func getWorkspaces() []string {
 		// return err
 	}
 
-	ws_cache,err := brev_api.Get_ws_cache_data()
+	ws_cache, err := brev_api.Get_ws_cache_data()
 	if err != nil {
 		return nil
 		// return err
 	}
 	for _, v := range ws_cache {
 		if v.OrgID == activeorg.ID {
-			var workspace_names []string;
+			var workspace_names []string
 			for _, w := range v.Workspaces {
 				workspace_names = append(workspace_names, w.Name)
 			}

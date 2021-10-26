@@ -19,9 +19,8 @@ func getWorkspaces(orgID string) []Workspace {
 	return workspaces
 }
 
-
 type CacheableWorkspace struct {
-	OrgID string `json:"orgID`
+	OrgID      string      `json:"orgID`
 	Workspaces []Workspace `json:"workspaces"`
 }
 
@@ -54,11 +53,11 @@ func Write_caches() error {
 	orgs := getOrgs()
 	path := files.GetOrgCacheFilePath()
 	err := files.OverwriteJSON(path, orgs)
-	if err!=nil {
+	if err != nil {
 		return err
 	}
 
-	var worspaceCache []CacheableWorkspace;
+	var worspaceCache []CacheableWorkspace
 	for _, v := range orgs {
 		wss := getWorkspaces(v.ID)
 		worspaceCache = append(worspaceCache, CacheableWorkspace{
@@ -67,13 +66,13 @@ func Write_caches() error {
 	}
 	path_ws := files.GetWorkspacesCacheFilePath()
 	err2 := files.OverwriteJSON(path_ws, worspaceCache)
-	if err2!=nil {
+	if err2 != nil {
 		return err2
 	}
 	return nil
 }
 
-func Get_org_cache_data() ([]Organization,error) {
+func Get_org_cache_data() ([]Organization, error) {
 	path := files.GetOrgCacheFilePath()
 	exists, err := files.Exists(path, false)
 	if err != nil {
@@ -82,20 +81,20 @@ func Get_org_cache_data() ([]Organization,error) {
 
 	if !exists {
 		err = Write_caches()
-		if (err != nil) {
+		if err != nil {
 			return nil, err
 		}
 	}
 
 	var orgCache []Organization
 	err = files.ReadJSON(path, &orgCache)
-	if err!=nil {
+	if err != nil {
 		return nil, err
 	}
 	return orgCache, nil
 }
 
-func Get_ws_cache_data() ([]CacheableWorkspace,error) {
+func Get_ws_cache_data() ([]CacheableWorkspace, error) {
 	path := files.GetWorkspacesCacheFilePath()
 	exists, err := files.Exists(path, false)
 	if err != nil {
@@ -104,16 +103,15 @@ func Get_ws_cache_data() ([]CacheableWorkspace,error) {
 
 	if !exists {
 		err = Write_caches()
-		if (err != nil) {
+		if err != nil {
 			return nil, err
 		}
 	}
 
 	var wsCache []CacheableWorkspace
 	err = files.ReadJSON(path, &wsCache)
-	if err!=nil {
+	if err != nil {
 		return nil, err
 	}
 	return wsCache, nil
 }
-
