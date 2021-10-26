@@ -14,7 +14,7 @@ type Organization struct {
 func (a *Client) GetOrgs() ([]Organization, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: brevEndpoint("/api/organizations"),
+		Endpoint: buildBrevEndpoint("/api/organizations"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},
