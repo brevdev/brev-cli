@@ -49,8 +49,8 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 }
 
 func ls(t *terminal.Terminal, args []string) error {
-	if len(args) > 0 && (args[0] == "orgs" || args[0] == "organizations") {
-	}
+	// if len(args) > 0 && (args[0] == "orgs" || args[0] == "organizations") {
+	// }
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return err
