@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -19,9 +20,9 @@ import (
 )
 
 type PortForwardOptions struct {
-	PortForwarder PortForwarder
-	K8sClient     k8s.K8sClient
-	WorkspaceResolver
+	PortForwarder    PortForwarder
+	K8sClient        k8s.K8sClient
+	ResourceResolver ResourceResolver
 
 	Namespace string
 	PodName   string
@@ -32,31 +33,26 @@ type PortForwardOptions struct {
 	ReadyChannel chan struct{}
 }
 
-type WorkspaceResolver interface {
-	GetWorkspaceByID(id string) (Workspace, error)
-}
-
-type Workspace interface {
-	GetPodName() string
-	GetNamespaceName() string
+type ResourceResolver interface {
+	GetWorkspaceByID(id string) (*brev_api.WorkspaceMetaData, error)
 }
 
 type PortForwarder interface {
 	ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error
 }
 
-func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver WorkspaceResolver, portforwarder PortForwarder) *PortForwardOptions {
+func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver ResourceResolver, portforwarder PortForwarder) *PortForwardOptions {
 	return &PortForwardOptions{
-		PortForwarder:     portforwarder,
-		K8sClient:         portForwardHelpers,
-		WorkspaceResolver: workspaceResolver,
+		PortForwarder:    portforwarder,
+		K8sClient:        portForwardHelpers,
+		ResourceResolver: workspaceResolver,
 	}
 }
 
 func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
 	workspaceID := args[0]
 
-	workspace, err := o.WorkspaceResolver.GetWorkspaceByID(workspaceID)
+	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceID)
 	if workspace == nil {
 		return fmt.Errorf("workspace with id %s does not exist", workspaceID)
 	}

@@ -345,11 +345,11 @@ func Login() error {
 
 	return nil
 }
+
 func Logout() error {
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
 		return err
 	}
 	return files.DeleteFile(*brevCredentialsFile)
-
 }

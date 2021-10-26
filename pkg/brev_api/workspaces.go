@@ -26,7 +26,6 @@ type Workspace struct {
 }
 
 func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
-
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),
@@ -52,8 +51,46 @@ func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 	return payload, nil
 }
 
-func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
+type WorkspaceMetaData struct {
+	PodName       string `json:"podName"`
+	NamespaceName string `json:"namespaceName"`
+}
 
+func (w WorkspaceMetaData) GetPodName() string {
+	return w.PodName
+}
+
+func (w WorkspaceMetaData) GetNamespaceName() string {
+	return w.NamespaceName
+}
+
+func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
+	request := requests.RESTRequest{
+		Method:   "GET",
+		Endpoint: brevEndpoint("/api/workspaces/" + wsID + "/metadata"),
+		QueryParams: []requests.QueryParam{
+			{Key: "utm_source", Value: "cli"},
+		},
+		Headers: []requests.Header{
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
+		},
+	}
+
+	response, err := request.SubmitStrict()
+	if err != nil {
+		return nil, err
+	}
+
+	var payload WorkspaceMetaData
+	err = response.UnmarshalPayload(&payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
+}
+
+func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/workspaces/" + wsID),
@@ -80,7 +117,6 @@ func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 }
 
 func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
-
 	request := &requests.RESTRequest{
 		Method:   "POST",
 		Endpoint: brevEndpoint("/api/organizations/" + orgID + "/workspaces"),

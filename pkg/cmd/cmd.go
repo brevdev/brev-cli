@@ -58,7 +58,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
-	cmd.AddCommand(link.NewCmdLink(t))
+	cmd.AddCommand(link.NewCmdLink())
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(get.NewCmdGet(t))
 	cmd.AddCommand(set.NewCmdSet(t))
