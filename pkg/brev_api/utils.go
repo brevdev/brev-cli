@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"runtime"
 
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
@@ -13,7 +14,14 @@ func NewClient() (*Client, error) {
 	// get token and use it to create a client
 	token, err := GetToken()
 	if err != nil {
-		return nil, err
+		switch err.(type) {
+		case *brev_errors.CredentialsFileNotFound:
+			e := Login()
+			if e != nil {
+				return nil, e
+			}
+			return NewClient()
+		}
 	}
 	client := Client{
 		Key: token,
