@@ -5,7 +5,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/files"
-	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -161,15 +160,8 @@ func newCmdMePrivateKeys(t *terminal.Terminal) *cobra.Command {
 		Example: `brev get sshprivkey`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mePrivateKeys, err := getMePrivateKeys()
-			// TODO move me back into api client and propagate error out
-			switch err := err.(type) {
-			case *requests.RESTResponseError:
-				switch err.ResponseStatusCode {
-				case 404:
-					// TODO error exit code
-					t.Eprint("Create an account on https://console.brev.dev")
-					return nil
-				}
+			if err != nil {
+				t.Eprint(err.Error())
 			}
 			files.OverwriteString(files.GetCertFilePath(), mePrivateKeys.Cert)
 			files.OverwriteString(files.GetSSHPrivateKeyFilePath(), mePrivateKeys.SSHPrivateKey)
