@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
-	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -24,7 +23,7 @@ func getWorkspaces() []string {
 		// return err
 	}
 
-	ws_cache,err := refresh.Get_ws_cache_data()
+	ws_cache,err := brev_api.Get_ws_cache_data()
 	if err != nil {
 		return nil
 		// return err
