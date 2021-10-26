@@ -1,25 +1,31 @@
 package completions
 
-import "github.com/brevdev/brev-cli/pkg/brev_api"
+import (
+	"fmt"
+
+	"github.com/brevdev/brev-cli/pkg/brev_api"
+)
 
 type CompletionHelpers struct{}
 
 func (c CompletionHelpers) GetWorkspaceNames() ([]string, error) {
-	activeorg, err := brev_api.GetActiveOrgContext()
+	activeOrg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return nil, err
 	}
 
-	client, _ := brev_api.NewClient()
-	wss, err := client.GetWorkspaces(activeorg.ID)
+	wsCache, err := brev_api.GetWsCacheData()
 	if err != nil {
 		return nil, err
 	}
-
-	wsNames := []string{}
-	for _, v := range wss {
-		wsNames = append(wsNames, v.Name)
+	for _, v := range wsCache {
+		if v.OrgID == activeOrg.ID {
+			var workspaceNames []string
+			for _, w := range v.Workspaces {
+				workspaceNames = append(workspaceNames, w.Name)
+			}
+			return workspaceNames, nil
+		}
 	}
-
-	return wsNames, nil
+	return nil, fmt.Errorf("cache error")
 }
