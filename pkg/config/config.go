@@ -9,6 +9,7 @@ var config configs
 var (
 	Version         = "unknown"
 	BrevAPIEndpoint = `https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com`
+	// BrevAPIEndpoint = `http://localhost:8080`
 )
 
 func Init() {

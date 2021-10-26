@@ -14,6 +14,7 @@ func NewCmdLogin() *cobra.Command {
 	opts := LoginOptions{}
 
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"housekeeping": ""},
 		Use:                   "login",
 		DisableFlagsInUseLine: true,
 		Short:                 "log into brev",

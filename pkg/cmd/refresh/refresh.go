@@ -11,8 +11,8 @@ import (
 
 func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"housekeeping": ""},
 		Use: "refresh",
-		// Annotations: map[string]string{"project": ""},
 		Short:   "Refresh the cache",
 		Long:    "Refresh Brev's cache",
 		Example: `brev refresh`,

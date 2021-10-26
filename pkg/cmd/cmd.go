@@ -49,6 +49,20 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 		},
 	}
 
+	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
+	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
+	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
+	cobra.AddTemplateFunc("hasSSHCommands", hasSSHCommands)
+	cobra.AddTemplateFunc("isSSHCommand", isSSHCommand)
+	cobra.AddTemplateFunc("sshCommands", sshCommands)
+	cobra.AddTemplateFunc("hasContextCommands", hasContextCommands)
+	cobra.AddTemplateFunc("isContextCommand", isContextCommand)
+	cobra.AddTemplateFunc("contextCommands", contextCommands)
+	cobra.AddTemplateFunc("hasCodeCommands", hasCodeCommands)
+	cobra.AddTemplateFunc("isCodeCommand", isCodeCommand)
+	cobra.AddTemplateFunc("codeCommands", codeCommands)
+	cmds.SetUsageTemplate(usageTemplate)
+
 	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 
 	createCmdTree(cmds, t)
@@ -57,14 +71,147 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
-	cmd.AddCommand(link.NewCmdLink())
-	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
-	cmd.AddCommand(refresh.NewCmdRefresh(t))
+	cmd.AddCommand(link.NewCmdLink(t))
+	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
+	cmd.AddCommand(refresh.NewCmdRefresh(t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
 	cmd.Help()
 }
+
+func hasHousekeepingCommands(cmd *cobra.Command) bool {
+	return len(housekeepingCommands(cmd)) > 0
+}
+
+func hasSSHCommands(cmd *cobra.Command) bool {
+	return len(sshCommands(cmd)) > 0
+}
+
+func hasContextCommands(cmd *cobra.Command) bool {
+	return len(contextCommands(cmd)) > 0
+}
+
+func hasCodeCommands(cmd *cobra.Command) bool {
+	return len(codeCommands(cmd)) > 0
+}
+
+func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isHousekeepingCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func sshCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isSSHCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func contextCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isContextCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func codeCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isCodeCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func isHousekeepingCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["housekeeping"]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
+func isSSHCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["ssh"]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
+func isContextCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["context"]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
+func isCodeCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["code"]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
+var usageTemplate = `Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
+
+{{- if hasContextCommands . }}
+
+Context Commands:
+{{- range contextCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- if hasSSHCommands . }}
+
+SSH Commands:
+{{- range sshCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- if hasHousekeepingCommands . }}
+
+Housekeeping Commands:
+{{- range housekeepingCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
