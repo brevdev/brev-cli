@@ -32,13 +32,13 @@ func getMe() brev_api.User {
 	return *user
 }
 
-func getMePrivateKeys() (*brev_api.PrivateKeys, error) {
-	client, err := brev_api.NewClient()
-	if err != nil {
-		return nil, err
-	}
-	return client.GetMePrivateKeys()
-}
+// func getMePrivateKeys() (*brev_api.PrivateKeys, error) {
+// 	client, err := brev_api.NewClient()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return client.GetMePrivateKeys()
+// }
 
 func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 	// opts := SshOptions{}

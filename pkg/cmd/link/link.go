@@ -4,6 +4,8 @@ package link
 import (
 	"os"
 
+	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 
@@ -16,25 +18,25 @@ var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give c
 
 var sshLinkExample = "brev link <ws_name>"
 
-type WorkspaceResolver interface {
-	portforward.WorkspaceResolver
+func NewCmdLink() *cobra.Command {
+	workspaceNames, err := completions.CompletionHelpers{}.GetWorkspaceNames()
+	if err != nil {
+		panic(err)
+	}
 
-	GetWorkspaceNames() ([]string, error)
-}
+	k8sClientConfig, err := NewRemoteK8sClientConfig()
+	if err != nil {
+		panic(err)
+	}
+	k8sClient := k8s.NewDefaultClient(k8sClientConfig)
 
-func NewCmdLink(workspaceResolver WorkspaceResolver, k8sClient k8s.K8sClient) *cobra.Command {
 	opts := portforward.NewPortForwardOptions(
 		k8sClient,
-		workspaceResolver,
+		WorkspaceResolver{},
 		&portforward.DefaultPortForwarder{
 			IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
 		},
 	)
-
-	workspaceNames, err := workspaceResolver.GetWorkspaceNames()
-	if err != nil {
-		panic(err) // TODO
-	}
 
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
@@ -51,4 +53,68 @@ func NewCmdLink(workspaceResolver WorkspaceResolver, k8sClient k8s.K8sClient) *c
 		},
 	}
 	return cmd
+}
+
+type WorkspaceResolver struct{}
+
+func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.WorkspaceMetaData, error) {
+	c, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
+	w, err := c.GetWorkspaceMetaData(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return w, nil
+}
+
+type K8sClientConfig struct {
+	host string
+	cert []byte
+	key  []byte
+	ca   []byte
+}
+
+func NewRemoteK8sClientConfig() (*K8sClientConfig, error) {
+	c, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	keys, err := c.GetMeKeys()
+	if err != nil {
+		return nil, err
+	}
+
+	clusterID := "k8s.brevstack.com"
+
+	cluserKeys, err := keys.GetWorkspaceGroupKeysByGroupID(clusterID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &K8sClientConfig{
+		host: "https://api.k8s.brevstack.com",
+		cert: []byte(cluserKeys.Cert),
+		key:  []byte(keys.PrivateKey),
+		ca:   []byte(cluserKeys.CA),
+	}, nil
+}
+
+func (k K8sClientConfig) GetHost() string {
+	return k.host
+}
+
+func (k K8sClientConfig) GetCert() []byte {
+	return k.cert
+}
+
+func (k K8sClientConfig) GetKey() []byte {
+	return k.key
+}
+
+func (k K8sClientConfig) GetCA() []byte {
+	return k.ca
 }

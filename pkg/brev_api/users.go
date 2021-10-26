@@ -1,6 +1,8 @@
 package brev_api
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
@@ -33,12 +35,28 @@ func (a *Client) GetMe() (*User, error) {
 	return &payload, nil
 }
 
-type PrivateKeys struct {
-	Cert          string
-	SSHPrivateKey string
+type UserKeys struct {
+	PrivateKey      string               `json:"privateKey"`
+	PublicKey       string               `json:"publicKey"`
+	WorkspaceGroups []WorkspaceGroupKeys `json:"workspaceGroups"`
 }
 
-func (a *Client) GetMePrivateKeys() (*PrivateKeys, error) {
+type WorkspaceGroupKeys struct {
+	GroupID string `json:"groupId"`
+	Cert    string `json:"cert"`
+	CA      string `json:"ca"`
+}
+
+func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGroupKeys, error) {
+	for _, wgk := range u.WorkspaceGroups {
+		if wgk.GroupID == groupID {
+			return &wgk, nil
+		}
+	}
+	return nil, fmt.Errorf("group id %s not found", groupID)
+}
+
+func (a *Client) GetMePrivateKeys() (*UserKeys, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: brevEndpoint("/api/me/privatekeys"),
@@ -53,7 +71,7 @@ func (a *Client) GetMePrivateKeys() (*PrivateKeys, error) {
 	if err != nil {
 		return nil, err
 	}
-	var payload PrivateKeys
+	var payload UserKeys
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
 		return nil, err
