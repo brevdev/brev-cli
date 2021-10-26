@@ -41,25 +41,19 @@ var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give c
 
 var sshLinkExample = "brev link <ws_name>"
 
-// var (
-// 	testCert = ""
-// 	testKey  = ""
-// 	testCA   = ""
-// )
-
 func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	host := "https://api.k8s.brevstack.com"
-	// k8sCert := []byte(testCert)
-	// k8sKeyFile := []byte(testKey)
+	k8sCert := []byte(testCert)
+	k8sKey := []byte(testKey)
 
-	k8sCert, err := base64.StdEncoding.DecodeString(testCert)
-	if err != nil {
-		panic(err)
-	}
-	k8sKey, err := base64.StdEncoding.DecodeString(testKey)
-	if err != nil {
-		panic(err)
-	}
+	// k8sCert, err := base64.StdEncoding.DecodeString(testCert)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// k8sKey, err := base64.StdEncoding.DecodeString(testKey)
+	// if err != nil {
+	// 	panic(err)
+	// }
 	k8sCA, err := base64.StdEncoding.DecodeString(testCA)
 	if err != nil {
 		panic(err)
@@ -68,7 +62,8 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	streams := genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	config := &rest.Config{
-		Host: host,
+		Host:    host,
+		APIPath: "/api",
 		TLSClientConfig: rest.TLSClientConfig{
 			CertData: k8sCert,
 			KeyData:  k8sKey,
