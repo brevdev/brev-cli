@@ -8,12 +8,10 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport/spdy"
-	"k8s.io/kubectl/pkg/cmd/portforward"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,8 +19,8 @@ import (
 )
 
 type PortForwardOptions struct {
-	PortForwarder     PortForwarder
-	PortForwardClient PortForwardClient
+	PortForwarder PortForwarder
+	K8sClient     k8s.K8sClient
 	WorkspaceResolver
 
 	Namespace string
@@ -32,11 +30,6 @@ type PortForwardOptions struct {
 	Ports        []string
 	StopChannel  chan struct{}
 	ReadyChannel chan struct{}
-}
-
-type PortForwardClient interface {
-	GetK8sClient() *kubernetes.Clientset
-	GetK8sRestConfig() *rest.Config
 }
 
 type WorkspaceResolver interface {
@@ -52,10 +45,10 @@ type PortForwarder interface {
 	ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error
 }
 
-func NewPortForwardOptions(portForwardHelpers PortForwardClient, workspaceResolver WorkspaceResolver, portforwarder PortForwarder) *PortForwardOptions {
+func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver WorkspaceResolver, portforwarder PortForwarder) *PortForwardOptions {
 	return &PortForwardOptions{
 		PortForwarder:     portforwarder,
-		PortForwardClient: portForwardHelpers,
+		K8sClient:         portForwardHelpers,
 		WorkspaceResolver: workspaceResolver,
 	}
 }
@@ -84,15 +77,15 @@ func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 func (o PortForwardOptions) RunPortforward() error {
-	cmd := portforward.NewCmdPortForward(tf, streams) // This command is useful to have around to go to def of kubectl cmd
+	// cmd := portforward.NewCmdPortForward(tf, streams) // This command is useful to have around to go to def of kubectl cmd
 
-	pod, err := o.K8sClient.CoreV1().Pods(o.Namespace).Get(context.TODO(), o.PodName, metav1.GetOptions{})
+	pod, err := o.K8sClient.GetK8sClient().CoreV1().Pods(o.Namespace).Get(context.TODO(), o.PodName, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
 
 	if pod.Status.Phase != corev1.PodRunning {
-		return fmt.Errorf("unable to forward port because pod is not running. Current status=%v", pod.Status.Phase)
+		return fmt.Errorf("unable to forward port because workspace is not running", pod.Status.Phase)
 	}
 
 	signals := make(chan os.Signal, 1)
@@ -120,8 +113,7 @@ type DefaultPortForwarder struct {
 }
 
 func (f *DefaultPortForwarder) ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error {
-	opts.K8sConfig.APIPath = "/api"
-	transport, upgrader, err := spdy.RoundTripperFor(opts.K8sConfig)
+	transport, upgrader, err := spdy.RoundTripperFor(opts.K8sClient.GetK8sRestConfig())
 	if err != nil {
 		return err
 	}
