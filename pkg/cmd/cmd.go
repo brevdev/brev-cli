@@ -48,19 +48,16 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 			}
 		},
 	}
-
-	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
-	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
-	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
-	cobra.AddTemplateFunc("hasSSHCommands", hasSSHCommands)
-	cobra.AddTemplateFunc("isSSHCommand", isSSHCommand)
-	cobra.AddTemplateFunc("sshCommands", sshCommands)
 	cobra.AddTemplateFunc("hasContextCommands", hasContextCommands)
 	cobra.AddTemplateFunc("isContextCommand", isContextCommand)
 	cobra.AddTemplateFunc("contextCommands", contextCommands)
-	cobra.AddTemplateFunc("hasCodeCommands", hasCodeCommands)
-	cobra.AddTemplateFunc("isCodeCommand", isCodeCommand)
-	cobra.AddTemplateFunc("codeCommands", codeCommands)
+	cobra.AddTemplateFunc("hasSSHCommands", hasSSHCommands)
+	cobra.AddTemplateFunc("isSSHCommand", isSSHCommand)
+	cobra.AddTemplateFunc("sshCommands", sshCommands)
+	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
+	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
+	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
+
 	cmds.SetUsageTemplate(usageTemplate)
 
 	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
@@ -95,10 +92,6 @@ func hasContextCommands(cmd *cobra.Command) bool {
 	return len(contextCommands(cmd)) > 0
 }
 
-func hasCodeCommands(cmd *cobra.Command) bool {
-	return len(codeCommands(cmd)) > 0
-}
-
 func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
@@ -129,16 +122,6 @@ func contextCommands(cmd *cobra.Command) []*cobra.Command {
 	return cmds
 }
 
-func codeCommands(cmd *cobra.Command) []*cobra.Command {
-	cmds := []*cobra.Command{}
-	for _, sub := range cmd.Commands() {
-		if isCodeCommand(sub) {
-			cmds = append(cmds, sub)
-		}
-	}
-	return cmds
-}
-
 func isHousekeepingCommand(cmd *cobra.Command) bool {
 	if _, ok := cmd.Annotations["housekeeping"]; ok {
 		return true
@@ -163,13 +146,6 @@ func isContextCommand(cmd *cobra.Command) bool {
 	}
 }
 
-func isCodeCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["code"]; ok {
-		return true
-	} else {
-		return false
-	}
-}
 
 var usageTemplate = `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
