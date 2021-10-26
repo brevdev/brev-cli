@@ -1,6 +1,10 @@
 package brev_api
 
-import "github.com/brevdev/brev-cli/pkg/files"
+import (
+	"sync"
+
+	"github.com/brevdev/brev-cli/pkg/files"
+)
 
 // Helper functions
 func getOrgs() []Organization {
@@ -57,13 +61,19 @@ func Write_caches() error {
 		return err
 	}
 
+	var wg sync.WaitGroup
 	var worspaceCache []CacheableWorkspace
 	for _, v := range orgs {
-		wss := getWorkspaces(v.ID)
-		worspaceCache = append(worspaceCache, CacheableWorkspace{
-			OrgID: v.ID, Workspaces: wss,
-		})
+		wg.Add(1)
+		go func (orgID string) {
+			wss := getWorkspaces(orgID)
+			worspaceCache = append(worspaceCache, CacheableWorkspace{
+				OrgID: orgID, Workspaces: wss,
+			})
+			defer wg.Done()
+		}(v.ID)
 	}
+	wg.Wait()
 	path_ws := files.GetWorkspacesCacheFilePath()
 	err2 := files.OverwriteJSON(path_ws, worspaceCache)
 	if err2 != nil {
