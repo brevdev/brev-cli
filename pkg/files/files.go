@@ -13,9 +13,6 @@ import (
 
 const (
 	brevDirectory      = ".brev"
-	activeProjectsFile = "active_projects.json"
-	projectsFile       = "projects.json"
-	endpointsFile      = "endpoints.json"
 	// This might be better as a context.json??
 	activeOrgFile         = "active_org.json"
 	orgCacheFile          = "org_cache.json"
@@ -26,18 +23,6 @@ const (
 
 func GetBrevDirectory() string {
 	return brevDirectory
-}
-
-func GetActiveProjectFile() string {
-	return activeProjectsFile
-}
-
-func GetProjectsFile() string {
-	return projectsFile
-}
-
-func GetEndpointsFile() string {
-	return endpointsFile
 }
 
 func GetActiveOrgFile() string {
@@ -68,17 +53,6 @@ func GetHomeDir() string {
 	return usr.HomeDir
 }
 
-func GetActiveProjectsPath() string {
-	rootDir := GetHomeDir()
-
-	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, activeProjectsFile)
-}
-
-func GetLocalBrevDir() string {
-	cwd, _ := os.Getwd()
-	return fmt.Sprintf("%s/%s", cwd, brevDirectory)
-}
-
 func GetWorkspacesCacheFilePath() string {
 	rootDir := GetHomeDir()
 
@@ -95,15 +69,6 @@ func GetActiveOrgsPath() string {
 	rootDir := GetHomeDir()
 
 	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, activeOrgFile)
-}
-
-func GetEndpointsPath() string {
-	cwd, _ := os.Getwd()
-	return fmt.Sprintf("%s/%s/%s", cwd, brevDirectory, endpointsFile)
-}
-func GetProjectsPath() string {
-	cwd, _ := os.Getwd()
-	return fmt.Sprintf("%s/%s/%s", cwd, brevDirectory, projectsFile)
 }
 
 func GetCertFilePath() string {
