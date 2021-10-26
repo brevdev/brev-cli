@@ -61,7 +61,7 @@ var (
 	testKey  = ``
 )
 
-func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
+func NewCmdSSHLink(t *terminal.Terminal) *cobra.Command {
 	host := "https://api.k8s.brevstack.com"
 	k8sCert := []byte(testCert)
 	k8sKeyFile := []byte(testKey)
