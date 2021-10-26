@@ -53,7 +53,6 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-
 func newCmdMe(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "me",
