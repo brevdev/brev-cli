@@ -36,40 +36,13 @@ func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 }
 
 func refresh(t *terminal.Terminal) error {
-	// idk why this doesn't work...
-	// write_individual_workspace_cache("ejmrvoj8m", t)
 
-	err := brev_api.Write_caches()
+	err := brev_api.WriteCaches()
 	if err != nil {
 		return err
 	}
 
 	t.Vprintf(t.Green("Cache has been refreshed\n"))
-
-	// // Prove the cached data can be read
-	// orgs, err := brev_api.Get_org_cache_data()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// wss, err := brev_api.Get_ws_cache_data()
-	// if err != nil {
-	// 	return err
-	// }
-
-	// t.Vprintf("%d" + t.Green("Orgs"), len(orgs))
-
-	// for _, v := range wss {
-	// 	t.Vprintf("\n%d workspaces in orgid %s", len(v.Workspaces), v.OrgID)
-	// 	if (v.OrgID == "ejmrvoj8m") {
-	// 		t.Vprint("\n\n")
-	// 		for _, w := range v.Workspaces {
-	// 			t.Vprintf("\n\t %s %s", w.DNS, w.Status)
-	// 		}
-	// 		t.Vprint("\n\n")
-
-	// 	}
-	// }
 
 	return nil
 }

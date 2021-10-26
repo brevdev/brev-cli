@@ -28,31 +28,42 @@ type CacheableWorkspace struct {
 	Workspaces []Workspace `json:"workspaces"`
 }
 
-// BANANA: this one just didn't work
-// func write_individual_workspace_cache(orgID string, t *terminal.Terminal) error {
-// 	var worspaceCache []CacheableWorkspace;
-// 	path := files.GetWorkspacesCacheFilePath()
-// 	err := files.ReadJSON(path, &worspaceCache)
-// 	if err!=nil {
-// 		return err
-// 	}
-// 	wss := getWorkspaces(orgID)
-// 	for _, v := range worspaceCache {
-// 		if v.OrgID == orgID {
-// 			v.Workspaces = wss
-// 			t.Vprintf("%d %s", len(v.Workspaces), v.OrgID)
-// 			wsc := worspaceCache
-// 			err := files.OverwriteJSON(path, wsc)
-// 			if err!=nil {
-// 				return err
-// 			}
-// 			return nil;
-// 		}
-// 	}
-// 	return nil // BANANA: should this error cus it shouldn't get here???
-// }
+func RefreshWorkspaceCacheForActiveOrg() error {
+	activeorg, err := GetActiveOrgContext()
+	if err != nil {
+		return err
+	}
+	err = WriteIndividualWorkspaceCache(activeorg.ID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-func Write_caches() error {
+func WriteIndividualWorkspaceCache(orgID string) error {
+	var worspaceCache []CacheableWorkspace
+	path := files.GetWorkspacesCacheFilePath()
+	err := files.ReadJSON(path, &worspaceCache)
+	if err != nil {
+		return err
+	}
+	wss := getWorkspaces(orgID)
+	var updatedCache []CacheableWorkspace
+	for _, v := range worspaceCache {
+		if v.OrgID == orgID {
+			v.Workspaces = wss
+		}
+		updatedCache = append(updatedCache, v)
+
+	}
+	err = files.OverwriteJSON(path, updatedCache)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func WriteCaches() error {
 
 	orgs := getOrgs()
 	path := files.GetOrgCacheFilePath()
@@ -65,7 +76,7 @@ func Write_caches() error {
 	var worspaceCache []CacheableWorkspace
 	for _, v := range orgs {
 		wg.Add(1)
-		go func (orgID string) {
+		go func(orgID string) {
 			wss := getWorkspaces(orgID)
 			worspaceCache = append(worspaceCache, CacheableWorkspace{
 				OrgID: orgID, Workspaces: wss,
@@ -82,7 +93,7 @@ func Write_caches() error {
 	return nil
 }
 
-func Get_org_cache_data() ([]Organization, error) {
+func GetOrgCacheData() ([]Organization, error) {
 	path := files.GetOrgCacheFilePath()
 	exists, err := files.Exists(path, false)
 	if err != nil {
@@ -90,7 +101,7 @@ func Get_org_cache_data() ([]Organization, error) {
 	}
 
 	if !exists {
-		err = Write_caches()
+		err = WriteCaches()
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +115,7 @@ func Get_org_cache_data() ([]Organization, error) {
 	return orgCache, nil
 }
 
-func Get_ws_cache_data() ([]CacheableWorkspace, error) {
+func GetWsCacheData() ([]CacheableWorkspace, error) {
 	path := files.GetWorkspacesCacheFilePath()
 	exists, err := files.Exists(path, false)
 	if err != nil {
@@ -112,7 +123,7 @@ func Get_ws_cache_data() ([]CacheableWorkspace, error) {
 	}
 
 	if !exists {
-		err = Write_caches()
+		err = WriteCaches()
 		if err != nil {
 			return nil, err
 		}

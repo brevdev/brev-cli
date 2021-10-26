@@ -23,7 +23,7 @@ func getWorkspaces() []string {
 		// return err
 	}
 
-	ws_cache, err := brev_api.Get_ws_cache_data()
+	ws_cache, err := brev_api.GetWsCacheData()
 	if err != nil {
 		return nil
 		// return err
