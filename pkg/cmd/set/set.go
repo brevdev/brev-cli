@@ -22,8 +22,8 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 	var orgName string
 
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"context": ""},
 		Use: "set",
-		// Annotations: map[string]string{"project": ""},
 		Short:   "Set active org",
 		Long:    "Set your organization to view, open, create workspaces etc",
 		Example: `brev set --org [org_id]`,

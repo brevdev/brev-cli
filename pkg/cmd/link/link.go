@@ -20,6 +20,7 @@ var sshLinkExample = "brev link <ws_name>"
 func NewCmdLink() *cobra.Command {
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"context": ""},
 		Use:                   "link",
 		DisableFlagsInUseLine: true,
 		Short:                 "Enable a local ssh link tunnel, setup private key auth, and give connection string",
