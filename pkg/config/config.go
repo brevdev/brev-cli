@@ -8,7 +8,7 @@ var config configs
 // Below vars are exposed to the build-layer (Makefile) so that they be overridden at build time.
 var (
 	Version         = "unknown"
-	BrevAPIEndpoint = `http://localhost:8080`
+	BrevAPIEndpoint = `https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com`
 )
 
 func Init() {
