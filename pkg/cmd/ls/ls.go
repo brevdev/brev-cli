@@ -36,8 +36,8 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 			// _, err = brev_api.CheckOutsideBrevErrorMessage(t)
 			return err
 		},
-		Args:                  cobra.MinimumNArgs(0),
-		ValidArgs:             []string{"orgs", "workspaces"},
+		Args:      cobra.MinimumNArgs(0),
+		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := ls(t, args)
 			return err
@@ -49,8 +49,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 }
 
 func ls(t *terminal.Terminal, args []string) error {
-	if (args[0]=="orgs" || args[0]=="organizations") {
-
+	if len(args) > 0 && (args[0] == "orgs" || args[0] == "organizations") {
 	}
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
