@@ -22,8 +22,8 @@ func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 
 func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"context": ""},
 		Use: "ls",
-		// Annotations: map[string]string{"project": ""},
 		Short:   "List workspaces",
 		Long:    "List workspaces within your active org",
 		Example: `brev ls`,

@@ -7,6 +7,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
@@ -17,12 +18,13 @@ var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give c
 
 var sshLinkExample = "brev link <ws_name>"
 
-func NewCmdLink() *cobra.Command {
+func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"ssh": ""},
 		Use:                   "link",
 		DisableFlagsInUseLine: true,
-		Short:                 "Enable a local ssh link tunnel, setup private key auth, and give connection string",
+		Short:                 "Enable a local ssh link tunnel",
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
