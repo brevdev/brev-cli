@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
 func NewClient() (*Client, error) {
@@ -20,13 +21,27 @@ func NewClient() (*Client, error) {
 	// make sure the token we have is associated with a valid user
 	user, err := client.GetMe()
 	if err != nil {
+		switch err := err.(type) {
+		case *requests.RESTResponseError:
+			switch err.ResponseStatusCode {
+			case 404: // happens when user signs in to the cli using github but does not have an account on brev
+				return nil, fmt.Errorf("Create an account on https://console.brev.dev")
+			case 403: // possibly malformed credentials.json, try logging in
+				// TODO prompt
+				err := Login()
+				if err != nil {
+					return nil, err
+				}
+				return NewClient()
+			}
+		}
+
 		return nil, err
 	}
 	if user != nil {
 		return &client, nil
 	}
 	return nil, fmt.Errorf("error creating client")
-
 }
 
 type Client struct {
