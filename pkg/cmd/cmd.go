@@ -26,7 +26,6 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	t := terminal.New()
 	var printVersion bool
 
-
 	cmds := &cobra.Command{
 		Use:   "brev-cli",
 		Short: "brev client for managing workspaces",
@@ -59,7 +58,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
-	cmd.AddCommand(link.NewCmdSSHLink(t))
+	cmd.AddCommand(link.NewCmdLink(t))
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(get.NewCmdGet(t))
 	cmd.AddCommand(set.NewCmdSet(t))
