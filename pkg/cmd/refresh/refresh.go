@@ -81,11 +81,9 @@ type CacheableWorkspace struct {
 // 	return nil // BANANA: should this error cus it shouldn't get here???
 // }
 
-func write_caches(t *terminal.Terminal) error {
-	t.Vprint(t.Yellow("\t... getting orgs"))
+func write_caches() error {
 
 	orgs := getOrgs()
-	t.Vprint(t.Yellow("\t... writing orgs"))
 	path := files.GetOrgCacheFilePath()
 	err := files.OverwriteJSON(path, orgs)
 	if err!=nil {
@@ -94,26 +92,35 @@ func write_caches(t *terminal.Terminal) error {
 
 	var worspaceCache []CacheableWorkspace;
 	for _, v := range orgs {
-		t.Vprint(t.Yellow("\t... getting workspaces per org"))	
 		wss := getWorkspaces(v.ID)
 		worspaceCache = append(worspaceCache, CacheableWorkspace{
 			OrgID: v.ID, Workspaces: wss,
 		})
 	}
-	t.Vprint(t.Yellow("\t... writing fetched workspaces"))	
 	path_ws := files.GetWorkspacesCacheFilePath()
 	err2 := files.OverwriteJSON(path_ws, worspaceCache)
 	if err2!=nil {
 		return err2
 	}
-	t.Vprint(t.Yellow("\t... done ✅"))	
 	return nil
 }
 
 func Get_org_cache_data() ([]brev_api.Organization,error) {
-	var orgCache []brev_api.Organization
 	path := files.GetOrgCacheFilePath()
-	err := files.ReadJSON(path, &orgCache)
+	exists, err := files.Exists(path, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		err = write_caches()
+		if (err != nil) {
+			return nil, err
+		}
+	}
+
+	var orgCache []brev_api.Organization
+	err = files.ReadJSON(path, &orgCache)
 	if err!=nil {
 		return nil, err
 	}
@@ -121,9 +128,21 @@ func Get_org_cache_data() ([]brev_api.Organization,error) {
 }
 
 func Get_ws_cache_data() ([]CacheableWorkspace,error) {
-	var wsCache []CacheableWorkspace
 	path := files.GetWorkspacesCacheFilePath()
-	err := files.ReadJSON(path, &wsCache)
+	exists, err := files.Exists(path, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if !exists {
+		err = write_caches()
+		if (err != nil) {
+			return nil, err
+		}
+	}
+
+	var wsCache []CacheableWorkspace
+	err = files.ReadJSON(path, &wsCache)
 	if err!=nil {
 		return nil, err
 	}
@@ -134,7 +153,7 @@ func refresh(t *terminal.Terminal) error {
 	// idk why this doesn't work...
 	// write_individual_workspace_cache("ejmrvoj8m", t)
 
-	err := write_caches(t)
+	err := write_caches()
 	if err != nil {
 		return err
 	}
