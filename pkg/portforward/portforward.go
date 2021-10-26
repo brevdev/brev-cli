@@ -33,10 +33,11 @@ type PortForwardOptions struct {
 	ReadyChannel chan struct{}
 }
 
-func NewPortForwardOptions(k8sClient *kubernetes.Clientset, portforwarder PortForwarder) *PortForwardOptions {
+func NewPortForwardOptions(k8sClient *kubernetes.Clientset, k8sConfig *rest.Config, portforwarder PortForwarder) *PortForwardOptions {
 	return &PortForwardOptions{
 		PortForwarder: portforwarder,
 		K8sClient:     k8sClient,
+		K8sConfig:     k8sConfig,
 	}
 }
 

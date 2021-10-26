@@ -44,26 +44,28 @@ var (
 	testKey  = ``
 )
 
-func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
+func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	host := "https://api.k8s.brevstack.com"
 	k8sCert := []byte(testCert)
 	k8sKeyFile := []byte(testKey)
 
 	streams := genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
-	k8sClient, err := kubernetes.NewForConfig(&rest.Config{
+	config := &rest.Config{
 		Host: host,
 		TLSClientConfig: rest.TLSClientConfig{
 			CertData: k8sCert,
 			KeyData:  k8sKeyFile,
 		},
-	})
+	}
+	k8sClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err)
 	}
 
 	opts := portforward.NewPortForwardOptions(
 		k8sClient,
+		config,
 		&portforward.DefaultPortForwarder{
 			IOStreams: streams,
 		},
