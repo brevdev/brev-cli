@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport/spdy"
+	"k8s.io/kubectl/pkg/cmd/portforward"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,9 +21,9 @@ import (
 )
 
 type PortForwardOptions struct {
-	PortForwarder PortForwarder
-	K8sClient     *kubernetes.Clientset
-	K8sConfig     *rest.Config
+	PortForwarder     PortForwarder
+	PortForwardClient PortForwardClient
+	WorkspaceResolver
 
 	Namespace string
 	PodName   string
@@ -33,17 +34,45 @@ type PortForwardOptions struct {
 	ReadyChannel chan struct{}
 }
 
-func NewPortForwardOptions(k8sClient *kubernetes.Clientset, k8sConfig *rest.Config, portforwarder PortForwarder) *PortForwardOptions {
+type PortForwardClient interface {
+	GetK8sClient() *kubernetes.Clientset
+	GetK8sRestConfig() *rest.Config
+}
+
+type WorkspaceResolver interface {
+	GetWorkspaceByID(id string) (Workspace, error)
+}
+
+type Workspace interface {
+	GetPodName() string
+	GetNamespaceName() string
+}
+
+type PortForwarder interface {
+	ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error
+}
+
+func NewPortForwardOptions(portForwardHelpers PortForwardClient, workspaceResolver WorkspaceResolver, portforwarder PortForwarder) *PortForwardOptions {
 	return &PortForwardOptions{
-		PortForwarder: portforwarder,
-		K8sClient:     k8sClient,
-		K8sConfig:     k8sConfig,
+		PortForwarder:     portforwarder,
+		PortForwardClient: portForwardHelpers,
+		WorkspaceResolver: workspaceResolver,
 	}
 }
 
 func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
-	o.Namespace = "w8s-pftest-cc39-alecfong1hq"                // TODO get ns
-	o.PodName = "w8s-pftest-cc39-alecfong1hq-7649c85f94-gjq6l" // TODO get podName
+	workspaceID := args[0]
+
+	workspace, err := o.WorkspaceResolver.GetWorkspaceByID(workspaceID)
+	if workspace == nil {
+		return fmt.Errorf("workspace with id %s does not exist", workspaceID)
+	}
+	if err != nil {
+		return err
+	}
+
+	o.Namespace = workspace.GetNamespaceName()
+	o.PodName = workspace.GetPodName()
 
 	o.Address = []string{"localhost"}
 	o.Ports = []string{"2222:22"} // TODO override from args
@@ -55,7 +84,7 @@ func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 func (o PortForwardOptions) RunPortforward() error {
-	// cmd := portforward.NewCmdPortForward(tf, streams)
+	cmd := portforward.NewCmdPortForward(tf, streams) // This command is useful to have around to go to def of kubectl cmd
 
 	pod, err := o.K8sClient.CoreV1().Pods(o.Namespace).Get(context.TODO(), o.PodName, metav1.GetOptions{})
 	if err != nil {
@@ -77,21 +106,13 @@ func (o PortForwardOptions) RunPortforward() error {
 		}
 	}()
 
-	req := o.K8sClient.RESTClient().Post().
-		Resource("pods").
-		Namespace(o.Namespace).
-		Name(pod.Name).
-		SubResource("portforward")
+	urlStr := fmt.Sprintf("https://api.k8s.brevstack.com/api/v1/namespaces/%s/pods/%s/portforward", o.Namespace, o.PodName)
 
-	return o.PortForwarder.ForwardPorts("POST", req.URL(), o)
-}
-
-// how do we specify port
-// how do we do auth
-// vi client how do we specify namespace & pod
-
-type PortForwarder interface {
-	ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error
+	url, err := url.Parse(urlStr)
+	if err != nil {
+		return err
+	}
+	return o.PortForwarder.ForwardPorts("POST", url, o)
 }
 
 type DefaultPortForwarder struct {
