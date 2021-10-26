@@ -4,28 +4,10 @@ package refresh
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 )
-
-func getOrgs() []brev_api.Organization {
-	client, _ := brev_api.NewClient()
-	orgs, _ := client.GetOrgs()
-
-	return orgs
-}
-
-func getWorkspaces(orgID string) []brev_api.Workspace {
-	// orgID := getOrgID(orgName)
-
-	client, _ := brev_api.NewClient()
-	workspaces, _ := client.GetWorkspaces(orgID)
-
-	return workspaces
-}
-
 
 func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
@@ -53,121 +35,14 @@ func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-type CacheableWorkspace struct {
-	OrgID string `json:"orgID`
-	Workspaces []brev_api.Workspace `json:"workspaces"`
-}
-
-// func write_individual_workspace_cache(orgID string, t *terminal.Terminal) error {
-// 	var worspaceCache []CacheableWorkspace;
-// 	path := files.GetWorkspacesCacheFilePath()
-// 	err := files.ReadJSON(path, &worspaceCache)
-// 	if err!=nil {
-// 		return err
-// 	}
-// 	wss := getWorkspaces(orgID)
-// 	for _, v := range worspaceCache {
-// 		if v.OrgID == orgID {
-// 			v.Workspaces = wss
-// 			t.Vprintf("%d %s", len(v.Workspaces), v.OrgID)
-// 			wsc := worspaceCache
-// 			err := files.OverwriteJSON(path, wsc)
-// 			if err!=nil {
-// 				return err
-// 			}
-// 			return nil;
-// 		}
-// 	}
-// 	return nil // BANANA: should this error cus it shouldn't get here???
-// }
-
-func write_caches(t *terminal.Terminal) error {
-	t.Vprint(t.Yellow("\t... getting orgs"))
-
-	orgs := getOrgs()
-	t.Vprint(t.Yellow("\t... writing orgs"))
-	path := files.GetOrgCacheFilePath()
-	err := files.OverwriteJSON(path, orgs)
-	if err!=nil {
-		return err
-	}
-
-	var worspaceCache []CacheableWorkspace;
-	for _, v := range orgs {
-		t.Vprint(t.Yellow("\t... getting workspaces per org"))	
-		wss := getWorkspaces(v.ID)
-		worspaceCache = append(worspaceCache, CacheableWorkspace{
-			OrgID: v.ID, Workspaces: wss,
-		})
-	}
-	t.Vprint(t.Yellow("\t... writing fetched workspaces"))	
-	path_ws := files.GetWorkspacesCacheFilePath()
-	err2 := files.OverwriteJSON(path_ws, worspaceCache)
-	if err2!=nil {
-		return err2
-	}
-	t.Vprint(t.Yellow("\t... done ✅"))	
-	return nil
-}
-
-func get_org_cache_data() ([]brev_api.Organization,error) {
-	var orgCache []brev_api.Organization
-	path := files.GetOrgCacheFilePath()
-	err := files.ReadJSON(path, &orgCache)
-	if err!=nil {
-		return nil, err
-	}
-	return orgCache, nil
-}
-
-func get_ws_cache_data() ([]CacheableWorkspace,error) {
-	var wsCache []CacheableWorkspace
-	path := files.GetWorkspacesCacheFilePath()
-	err := files.ReadJSON(path, &wsCache)
-	if err!=nil {
-		return nil, err
-	}
-	return wsCache, nil
-}
-
 func refresh(t *terminal.Terminal) error {
-	// idk why this doesn't work...
-	// write_individual_workspace_cache("ejmrvoj8m", t)
 
-	err := write_caches(t)
+	err := brev_api.WriteCaches()
 	if err != nil {
 		return err
 	}
 
-	t.Vprintf(t.Green("Cache has been refreshed"))
-
-	
-	
-	orgs, err := get_org_cache_data()
-	if err != nil {
-		return err
-	}
-	
-	wss, err := get_ws_cache_data()
-	if err != nil {
-		return err
-	}
-
-	t.Vprintf("%d" + t.Green("Orgs"), len(orgs))
-	
-	for _, v := range wss {
-		t.Vprintf("\n%d workspaces in orgid %s", len(v.Workspaces), v.OrgID)
-		if (v.OrgID == "ejmrvoj8m") {
-			t.Vprint("\n\n")
-			for _, w := range v.Workspaces {
-				t.Vprintf("\n\t %s %s", w.DNS, w.Status)
-			}
-			t.Vprint("\n\n")
-
-		}
-	}
-
-
+	t.Vprintf(t.Green("Cache has been refreshed\n"))
 
 	return nil
 }
