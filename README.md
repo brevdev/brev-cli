@@ -28,7 +28,6 @@ or
 
 ```
 curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | sudo sh
-
 ```
 
 # Uninstall 
@@ -44,7 +43,7 @@ rm -rf ~/.brev
 Figured we'd move this to a different part of the readme, but just wanted to add it in 
 
 ```
-brev completion zsh > "${fpath[1]}/\_brev"
+brev completion zsh > /usr/local/share/zsh/site-functions/brev
 
 brev completion bash > /usr/local/etc/bash_completion.d/brev
 ```
