@@ -27,7 +27,7 @@ sudo cp /tmp/brev/brev /usr/local/bin
 or 
 
 ```
-curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/bin/install-latest.sh  -o install-brev.sh
+curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh  -o install-brev.sh
 less install-brev.sh
 chmod +x install-brev.sh
 sudo ./install-brev.sh
@@ -35,7 +35,7 @@ sudo ./install-brev.sh
 or
 
 ```
-sudo su -c "curl https://raw.githubusercontent.com/brevdev/brev-cli/bin/install-latest.sh -o install-brev.sh && chmod +x install-brev.sh && ./install-brev.sh"
+sudo su -c "curl https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh -o install-brev.sh && chmod +x install-brev.sh && ./install-brev.sh"
 
 ```
 
@@ -45,7 +45,6 @@ sudo su -c "curl https://raw.githubusercontent.com/brevdev/brev-cli/bin/install-
 sudo rm /usr/local/bin/brev
 rm -rf ~/.brev
 ```
-
 
 # Usage
 
