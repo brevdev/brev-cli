@@ -23,32 +23,33 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
-		Use: "set",
-		Short:   "Set active org",
-		Long:    "Set your organization to view, open, create workspaces etc",
-		Example: `brev set --org [org_id]`,
+		Use:         "set",
+		Short:       "Set active org",
+		Long:        "Set your organization to view, open, create workspaces etc",
+		Example:     `brev set --org [org name]`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
 				return err
 			}
 
-			// _, err = brev_api.CheckOutsideBrevErrorMessage(t)
-			return err
+			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := set(t, orgName)
 			return err
-			// return nil
 		},
 	}
 
 	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name")
 	cmd.MarkFlagRequired("org")
 	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// Note: we're only using the cached data in the shell completion. 
+		// Note: we're only using the cached data in the shell completion.
 		// BANANA: run this by Alec. For sake of speed, we might want the actual cmd to only use cache too
-		orgs,_ := brev_api.GetOrgCacheData()
+		orgs, err := brev_api.GetOrgCacheData()
+		if err != nil {
+			t.Errprint(err, "")
+		}
 
 		var orgNames []string
 		for _, v := range orgs {
@@ -66,10 +67,12 @@ func set(t *terminal.Terminal, orgName string) error {
 
 	for _, v := range orgs {
 		if v.Name == orgName {
-
 			path := files.GetActiveOrgsPath()
 
-			files.OverwriteJSON(path, v)
+			err := files.OverwriteJSON(path, v)
+			if err != nil {
+				return err
+			}
 
 			t.Vprint("Organization " + t.Green(v.Name) + " is now active.")
 
