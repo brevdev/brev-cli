@@ -3,7 +3,6 @@ package requests
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -53,13 +52,16 @@ func (e *RESTResponseError) Error() string {
 func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	var payload io.Reader
 	switch r.Method {
-	case "PUT" || "POST" || "PATCH":
+	case "PUT":
+	case "POST":
+	case "PATCH":
 		payloadBytes, _ := json.Marshal(r.Payload)
 		payload = bytes.NewBuffer(payloadBytes)
-	case "GET" || "DELETE":
+	case "GET":
+	case "DELETE":
 		payload = nil
 	default:
-		return nil, errors.New(fmt.Sprintf("Unknown method: %s", r.Method))
+		return nil, fmt.Errorf("Unknown method: %s", r.Method)
 	}
 
 	// set up request
@@ -152,7 +154,7 @@ func (r *RESTResponse) UnmarshalPayload(v interface{}) error {
 	return err
 }
 
-// PayloadAsString returns the response body as a string
+// PayloadAsString returns the response body as a string.
 func (r *RESTResponse) PayloadAsString() (string, error) {
 	return string(r.Payload), nil
 }
@@ -164,10 +166,10 @@ func (r *RESTResponse) PayloadAsPrettyJSONString() (string, error) {
 	indent := "  "
 
 	// attempt to marshal as typical JSON (e.g.: { <el>: { <el>: ... }}
-	var payloadStructJson map[string]interface{}
-	err := json.Unmarshal(r.Payload, &payloadStructJson)
+	var payloadStructJSON map[string]interface{}
+	err := json.Unmarshal(r.Payload, &payloadStructJSON)
 	if err == nil {
-		jsonBytes, err := json.MarshalIndent(payloadStructJson, prefix, indent)
+		jsonBytes, err := json.MarshalIndent(payloadStructJSON, prefix, indent)
 		if err != nil {
 			return "", fmt.Errorf("failed to marhsal JSON struct: %s", err)
 		}

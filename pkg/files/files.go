@@ -2,7 +2,6 @@ package files
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,11 +13,13 @@ import (
 const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
-	activeOrgFile         = "active_org.json"
-	orgCacheFile          = "org_cache.json"
-	workspaceCacheFile    = "workspace_cache.json"
-	kubeCertFileName      = "brev.crt"
-	sshPrivateKeyFileName = "brev.pem"
+	activeOrgFile                = "active_org.json"
+	orgCacheFile                 = "org_cache.json"
+	workspaceCacheFile           = "workspace_cache.json"
+	kubeCertFileName             = "brev.crt"
+	sshPrivateKeyFileName        = "brev.pem"
+	sshPrivateKeyFilePermissions = 0600
+	defaultFilePermission        = 0770
 )
 
 func GetBrevDirectory() string {
@@ -87,7 +88,7 @@ func Exists(filepath string, isDir bool) (bool, error) {
 		return false, nil
 	}
 	if info == nil {
-		return false, errors.New(fmt.Sprintf("Could not stat file %s", filepath))
+		return false, fmt.Errorf("Could not stat file %s", filepath)
 	}
 	if info.IsDir() {
 		// error?
@@ -104,8 +105,9 @@ func Exists(filepath string, isDir bool) (bool, error) {
 // Usage:
 //   var foo myStruct
 //   files.ReadJSON("tmp/a.json", &foo)
-func ReadJSON(filepath string, v interface{}) error {
-	f, err := os.Open(filepath)
+func ReadJSON(unsafeFilePathString string, v interface{}) error {
+	safeFilePath := filepath.Clean(unsafeFilePathString)
+	f, err := os.Open(safeFilePath)
 	if err != nil {
 		return err
 	}
@@ -119,8 +121,9 @@ func ReadJSON(filepath string, v interface{}) error {
 	return json.Unmarshal(dataBytes, v)
 }
 
-func ReadString(filepath string) (string, error) {
-	f, err := os.Open(filepath)
+func ReadString(unsafeFilePathString string) (string, error) {
+	safeFilePath := filepath.Clean(unsafeFilePathString)
+	f, err := os.Open(safeFilePath)
 	if err != nil {
 		return "", err
 	}
@@ -194,10 +197,9 @@ func OverwriteString(filepath string, data string) error {
 func WriteSSHPrivateKey(data string) error {
 	// write
 	err := ioutil.WriteFile(GetSSHPrivateKeyFilePath(), []byte(data), 0600)
-	if err := os.Chmod(GetSSHPrivateKeyFilePath(), 0600); err != nil {
+	if err := os.Chmod(GetSSHPrivateKeyFilePath(), sshPrivateKeyFilePermissions); err != nil {
 		log.Fatal(err)
 	}
-
 	return err
 }
 
@@ -210,9 +212,9 @@ func DeleteFile(filepath string) error {
 	return error
 }
 
-// Create file (and full path) if it does not already exit
+// Create file (and full path) if it does not already exit.
 func touchFile(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0770); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), defaultFilePermission); err != nil {
 		return nil, err
 	}
 	return os.Create(path)

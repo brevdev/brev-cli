@@ -42,8 +42,11 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name")
-	cmd.MarkFlagRequired("org")
-	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	err := cmd.MarkFlagRequired("org")
+	if err != nil {
+		panic(err)
+	}
+	err = cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		// Note: we're only using the cached data in the shell completion.
 		// BANANA: run this by Alec. For sake of speed, we might want the actual cmd to only use cache too
 		orgs, err := brev_api.GetOrgCacheData()
@@ -58,6 +61,9 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 
 		return orgNames, cobra.ShellCompDirectiveNoSpace
 	})
+	if err != nil {
+		panic(err)
+	}
 
 	return cmd
 }
