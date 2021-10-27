@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	brevDirectory      = ".brev"
+	brevDirectory = ".brev"
 	// This might be better as a context.json??
 	activeOrgFile         = "active_org.json"
 	orgCacheFile          = "org_cache.json"
@@ -78,7 +78,7 @@ func GetCertFilePath() string {
 
 func GetSSHPrivateKeyFilePath() string {
 	home, _ := os.UserHomeDir()
-	return home + "/" + GetBrevDirectory() + "/" + GetKubeCertFileName()
+	return home + "/" + GetBrevDirectory() + "/" + GetSSHPrivateKeyFileName()
 }
 
 func Exists(filepath string, isDir bool) (bool, error) {
@@ -134,7 +134,6 @@ func ReadString(filepath string) (string, error) {
 	return string(dataBytes), nil
 	// fmt.Println(dataBytes)
 	// fmt.Println(string(dataBytes))
-
 }
 
 // OverwriteJSON data in the target file with data from the given struct
@@ -184,6 +183,20 @@ func OverwriteString(filepath string, data string) error {
 
 	// write
 	err = ioutil.WriteFile(filepath, []byte(data), os.ModePerm)
+
+	return err
+}
+
+// OverwriteString data in the target file with data from the given string
+//
+// Usage
+//   OverwriteString("tmp/a/b/c.txt", "hi there")
+func WriteSSHPrivateKey(data string) error {
+	// write
+	err := ioutil.WriteFile(GetSSHPrivateKeyFilePath(), []byte(data), 0600)
+	if err := os.Chmod(GetSSHPrivateKeyFilePath(), 0600); err != nil {
+		log.Fatal(err)
+	}
 
 	return err
 }
