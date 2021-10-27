@@ -11,7 +11,6 @@ import (
 
 func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 	client, err := brev_api.NewClient()
-	// wss = workspaces, is that a bad name?
 	wss, err := client.GetWorkspaces(orgID)
 	if err != nil {
 		return nil, err
@@ -23,25 +22,26 @@ func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
-		Use: "ls",
-		Short:   "List workspaces",
-		Long:    "List workspaces within your active org",
-		Example: `brev ls`,
+		Use:         "ls",
+		Short:       "List workspaces",
+		Long:        "List workspaces within your active org",
+		Example:     `brev ls`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
 				return err
 			}
 
-			// _, err = brev_api.CheckOutsideBrevErrorMessage(t)
-			return err
+			return nil
 		},
 		Args:      cobra.MinimumNArgs(0),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := ls(t, args)
-			return err
-			// return nil
+			if err != nil {
+				return err
+			}
+			return nil
 		},
 	}
 
