@@ -2,34 +2,46 @@ before:
   hooks:
     - go mod download
 builds:
-- env:
-    - CGO_ENABLED=0
-  goos:
-    - darwin
-    - linux
-    - windows
-  goarch:
-    - amd64
-  binary: brev
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+    binary: brev
+brew:
+  name: brev-cli
+  # GitHub/GitLab repository to push the formula to
+  tap:
+    owner: brevdev
+    name: homebrew-tap
+    # Optionally a branch can be provided. If the branch does not exist, it
+    # will be created. If no branch is listed, the default branch will be used
+    branch: main
+    # Optionally a token can be provided, if it differs from the token provided to GoReleaser
+    token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+  # The project name and current git tag are used in the format string.
+  commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
 
 archives:
-- format_overrides:
-    - goos: windows
-      format: zip
+  - format_overrides:
+      - goos: windows
+        format: zip
 release:
   github:
   prerelease: auto
 dockers:
-  -
-    image_templates:
-    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:latest"
-    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}"
-    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}"
-    - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+  - image_templates:
+      - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:latest"
+      - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}"
+      - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}"
+      - "docker.pkg.github.com/brevdev/brev-cli/{{ .ProjectName }}:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
     build_flag_templates:
-    - "--pull"
-    - "--label=org.opencontainers.image.created={{.Date}}"
-    - "--label=org.opencontainers.image.name={{.ProjectName}}"
-    - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-    - "--label=org.opencontainers.image.version={{.Version}}"
-    - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.name={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
