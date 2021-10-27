@@ -38,7 +38,7 @@ dist/
 .idea/
 
 # env files that usually contain secrets or local config
-.env
+# .env
 .envrc
 
 # binary
