@@ -77,7 +77,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
-	cmd.Help()
+	err := cmd.Help()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {

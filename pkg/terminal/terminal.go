@@ -13,6 +13,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 )
 
+var (
+	ProgressBarMax = 100
+)
+
 type ProgressBar struct {
 	Bar            *progressbar.ProgressBar
 	CurrPercentage int
@@ -100,7 +104,7 @@ func (w silentWriter) Write(_ []byte) (n int, err error) {
 }
 
 func (t *Terminal) NewProgressBar(description string, onComplete func()) *ProgressBar {
-	bar := progressbar.NewOptions(100,
+	bar := progressbar.NewOptions(ProgressBarMax,
 		progressbar.OptionOnCompletion(onComplete),
 		progressbar.OptionEnableColorCodes(true),
 		progressbar.OptionShowBytes(false),
@@ -122,8 +126,11 @@ func (t *Terminal) NewProgressBar(description string, onComplete func()) *Progre
 
 func (bar *ProgressBar) AdvanceTo(percentage int) {
 	for bar.CurrPercentage < percentage && bar.CurrPercentage <= 100 {
-		bar.CurrPercentage += 1
-		bar.Bar.Add(1)
+		bar.CurrPercentage++
+		err := bar.Bar.Add(1)
+		if err != nil {
+			panic(err)
+		}
 		time.Sleep(5 * time.Millisecond)
 	}
 }

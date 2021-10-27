@@ -8,7 +8,7 @@ import (
 // PersistentPreRunE and PersistentPreRun functions, in that order. If
 // an error is returned from PersistentPreRunE, it is immediately returned.
 //
-// TODO: reverse walk up command tree? would need to ensure no one parent is invoked multiple times
+// TODO: reverse walk up command tree? would need to ensure no one parent is invoked multiple times.
 func InvokeParentPersistentPreRun(cmd *cobra.Command, args []string) error {
 	parentCmd := cmd.Parent()
 	if parentCmd == nil {
