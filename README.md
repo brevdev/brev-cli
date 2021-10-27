@@ -19,7 +19,6 @@ Linux & Mac
 
 ```
 curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh  -o install-brev.sh
-less install-brev.sh
 chmod +x install-brev.sh
 sudo ./install-brev.sh
 ```
