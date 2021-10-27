@@ -1,31 +1,3 @@
-## Distribute to Homebrew
-
-Step 1: bump version (see top of Makefile)
-
-Step 2: create homebrew distribution
-```
-> make dist-homebrew
-```
-
-Step 3: create GitHub release
-
-Step 4: upload resultant tar.gz to GitHub release
-
-Step 5: copy sha256 (output from step 2) and use it in a new update to https://github.com/brevdev/homebrew-tap
-
-
-# completion
-Figured we'd move this to a different part of the readme, but just wanted to add it in 
-
-```
-brev completion zsh > "${fpath[1]}/\_brev"
-
-brev completion bash > /usr/local/etc/bash_completion.d/brev
-```
-Run the completion command from the executable. It'll likely be `./brev completion zsh...`
-
-You'll need the cli to be called `./brev` but otherwise it works
-
 # Brev CLI
 
 [![Keep a Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-%23E05735)](CHANGELOG.md)
@@ -41,8 +13,60 @@ You'll need the cli to be called `./brev` but otherwise it works
 
 `Watch` this repository to get notified about new releases, issues, etc.
 
+# Install
+
+Linux & Mac
+
+```
+mkdir -p /tmp/brev
+wget https://github.com/brevdev/brev-cli/releases/download/v0.1.1/brev-cli_0.1.1_linux_amd64.tar.gz -O /tmp/brev/brev.tar.gz
+tar -xzvf /tmp/brev/brev.tar.gz -C /tmp/brev
+sudo cp /tmp/brev/brev /usr/local/bin
+```
+
+or 
+
+```
+curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/bin/install-latest.sh -o install-brev.sh
+less install-brev.sh
+chmod +x install-brev.sh
+sudo ./install-brev.sh
+```
+or
+
+```
+su -c "curl https://raw.githubusercontent.com/brevdev/brev-cli/bin/install-latest.sh -o install-brev.sh && chmod +x install-brev.sh && ./install-brev.sh"
+
+```
+
+# Uninstall 
+
+```
+sudo rm /usr/local/bin/brev
+rm -rf ~/.brev
+```
+
+
+# Usage
+
+## Completion
+Figured we'd move this to a different part of the readme, but just wanted to add it in 
+
+```
+brev completion zsh > "${fpath[1]}/\_brev"
+
+brev completion bash > /usr/local/etc/bash_completion.d/brev
+```
+Run the completion command from the executable. It'll likely be `./brev completion zsh...`
+
+You'll need the cli to be called `./brev` but otherwise it works
+
+# Development
+
 ## Build
+
 make build
+
 ### Terminal
 
 - `make` - execute the build pipeline.
@@ -78,3 +102,18 @@ Notable files:
 ## Contributing
 
 Simply create an issue or a pull request.
+
+## Distribute to Homebrew
+
+Step 1: bump version (see top of Makefile)
+
+Step 2: create homebrew distribution
+```
+> make dist-homebrew
+```
+
+Step 3: create GitHub release
+
+Step 4: upload resultant tar.gz to GitHub release
+
+Step 5: copy sha256 (output from step 2) and use it in a new update to https://github.com/brevdev/homebrew-tap
