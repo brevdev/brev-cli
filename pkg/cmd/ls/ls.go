@@ -9,6 +9,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Helper functions
+func getOrgs() ([]brev_api.Organization, error) {
+	client, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
+	orgs, err := client.GetOrgs()
+	if err != nil {
+		return nil, err
+	}
+	return orgs, nil
+}
+
 func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 	client, err := brev_api.NewClient()
 	wss, err := client.GetWorkspaces(orgID)
@@ -49,8 +62,23 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 }
 
 func ls(t *terminal.Terminal, args []string) error {
-	// if len(args) > 0 && (args[0] == "orgs" || args[0] == "organizations") {
-	// }
+	if len(args) > 0 && (args[0] == "orgs" || args[0] == "organizations") {
+		orgs, err := getOrgs()
+		if err != nil {
+			return err
+		}
+		if len(orgs) == 0 {
+			t.Vprint(t.Yellow("You don't have any orgs. Create one!"))
+			return nil;
+		}		
+		
+		t.Vprint(t.Yellow("Your organizations:"))
+		for _, v := range orgs {
+			t.Vprint("\t" + v.Name  + t.Yellow(" id:"+ v.ID))
+		}
+		return nil
+
+	}
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return err
