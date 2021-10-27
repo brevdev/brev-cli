@@ -2,7 +2,6 @@
 package config
 
 import (
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -29,16 +28,16 @@ var config configs
 func GetVersion() string {
 	err := godotenv.Load(".env")
 	if err != nil {
-	  log.Fatal("Error loading .env file")
+		return "unknown"
 	}
-	return 	os.Getenv("VERSION")
+	return os.Getenv("VERSION")
 
 }
 
 func GetBrevAPIEndpoint() string {
 	err := godotenv.Load(".env")
 	if err != nil {
-	  log.Fatal("Error loading .env file")
+		return "https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com"
 	}
-	return 	os.Getenv("BREVAPIENDPOINT")
+	return os.Getenv("BREVAPIENDPOINT")
 }
