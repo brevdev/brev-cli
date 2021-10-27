@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -21,35 +22,37 @@ var sshLinkExample = "brev link <ws_name>"
 func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "link",
 		DisableFlagsInUseLine: true,
 		Short:                 "Enable a local ssh link tunnel",
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
-		Run:                   RunCommandLink,
+		Run: func(cmd *cobra.Command, args []string) {
+			k8sClientConfig, err := NewRemoteK8sClientConfig()
+			if err != nil {
+				panic(err)
+			}
+			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
+
+			opts := portforward.NewPortForwardOptions(
+				k8sClient,
+				WorkspaceResolver{},
+				&portforward.DefaultPortForwarder{
+					IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
+				},
+			)
+			err = files.WriteSSHPrivateKey(string(k8sClientConfig.GetKey()))
+			if err != nil {
+				panic(err)
+			}
+			t.Printf("SSH Private Key:\n%s\n", files.GetSSHPrivateKeyFilePath())
+			cmdutil.CheckErr(opts.Complete(cmd, args))
+			cmdutil.CheckErr(opts.RunPortforward())
+		},
 	}
 	return cmd
-}
-
-func RunCommandLink(cmd *cobra.Command, args []string) {
-	k8sClientConfig, err := NewRemoteK8sClientConfig()
-	if err != nil {
-		panic(err)
-	}
-	k8sClient := k8s.NewDefaultClient(k8sClientConfig)
-
-	opts := portforward.NewPortForwardOptions(
-		k8sClient,
-		WorkspaceResolver{},
-		&portforward.DefaultPortForwarder{
-			IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
-		},
-	)
-
-	cmdutil.CheckErr(opts.Complete(cmd, args))
-	cmdutil.CheckErr(opts.RunPortforward())
 }
 
 type WorkspaceResolver struct{}
