@@ -18,15 +18,6 @@
 Linux & Mac
 
 ```
-mkdir -p /tmp/brev
-curl -L https://github.com/brevdev/brev-cli/releases/download/v0.1.1/brev-cli_0.1.1_linux_amd64.tar.gz > /tmp/brev/brev.tar.gz
-tar -xzvf /tmp/brev/brev.tar.gz -C /tmp/brev
-sudo cp /tmp/brev/brev /usr/local/bin
-```
-
-or 
-
-```
 curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh  -o install-brev.sh
 less install-brev.sh
 chmod +x install-brev.sh
@@ -36,7 +27,6 @@ or
 
 ```
 sudo su -c "curl https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh -o install-brev.sh && chmod +x install-brev.sh && ./install-brev.sh"
-
 ```
 
 # Uninstall 
