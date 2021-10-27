@@ -1,3 +1,4 @@
+// completions provides completions
 package completions
 
 import (
