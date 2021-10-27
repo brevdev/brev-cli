@@ -1,4 +1,4 @@
-// Package get is for the get command
+// Package login is for the get command
 package login
 
 import (

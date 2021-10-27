@@ -7,37 +7,19 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type configs struct{}
+type Config struct{}
 
-var config configs
+func NewConfig() *Config {
+	_ = godotenv.Load(".env") // explicitly not handling error
+	return &Config{}
+}
 
-// TODO add auth0 stuff here instead of being hardcoded in pkg/auth/auth.go
-// Below vars are exposed to the build-layer (Makefile) so that they be overridden at build time.
-// var err Error
+func (c Config) GetBrevAPIURl() string {
+	return os.Getenv("BREV_API_URL")
+}
 
-// var (
-// 	Version = os.Getenv("VERSION")
-// 	BrevAPIEndpoint = os.Getenv("BREVAPIENDPOINT")
-// )
-
-// var (
-// 	Version = os.Getenv("VERSION")
-// 	BrevAPIEndpoint = os.Getenv("BREVAPIENDPOINT")
-// )
-
-func GetVersion() string {
-	err := godotenv.Load(".env")
-	if err != nil {
-		return "unknown"
-	}
+func (c Config) GetVersion() string {
 	return os.Getenv("VERSION")
-
 }
 
-func GetBrevAPIEndpoint() string {
-	err := godotenv.Load(".env")
-	if err != nil {
-		return "https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com"
-	}
-	return os.Getenv("BREVAPIENDPOINT")
-}
+var GlobalConfig = NewConfig()
