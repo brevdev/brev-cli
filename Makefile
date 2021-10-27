@@ -6,7 +6,7 @@ dev: clean install generate vet fmt test mod-tidy
 
 .PHONY: ci
 ci: ## CI build
-ci: dev diff build
+ci: dev diff
 
 .PHONY: clean
 clean: ## remove files created during build pipeline
