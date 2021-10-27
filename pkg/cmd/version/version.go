@@ -44,7 +44,7 @@ type githubReleaseMetadata struct {
 }
 
 func BuildVersionString(t *terminal.Terminal) (string, error) {
-	currentVersion := config.GetVersion()
+	currentVersion := config.GlobalConfig.GetVersion()
 
 	githubRelease, err := getLatestGithubReleaseMetadata()
 	if err != nil {

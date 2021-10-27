@@ -57,7 +57,7 @@ type Client struct {
 }
 
 func buildBrevEndpoint(resource string) string {
-	baseEndpoint := config.GetBrevAPIEndpoint()
+	baseEndpoint := config.GlobalConfig.GetBrevAPIURl()
 	return baseEndpoint + resource
 }
 
