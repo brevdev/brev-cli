@@ -81,7 +81,7 @@ func (o PortForwardOptions) RunPortforward() error {
 	}
 
 	if pod.Status.Phase != corev1.PodRunning {
-		return fmt.Errorf("unable to forward port because workspace is not running", pod.Status.Phase)
+		return fmt.Errorf("unable to forward port because workspace is not running, Status: %s", pod.Status.Phase)
 	}
 
 	signals := make(chan os.Signal, 1)

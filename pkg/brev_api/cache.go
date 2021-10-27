@@ -24,7 +24,7 @@ func getWorkspaces(orgID string) []Workspace {
 }
 
 type CacheableWorkspace struct {
-	OrgID      string      `json:"orgID`
+	OrgID      string      `json:"orgID"`
 	Workspaces []Workspace `json:"workspaces"`
 }
 
