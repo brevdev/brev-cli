@@ -146,7 +146,6 @@ func isContextCommand(cmd *cobra.Command) bool {
 	}
 }
 
-
 var usageTemplate = `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
   {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
