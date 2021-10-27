@@ -26,7 +26,8 @@ sudo ./install-brev.sh
 or
 
 ```
-sudo su -c "curl https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh -o install-brev.sh && chmod +x install-brev.sh && ./install-brev.sh"
+curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | sudo sh
+
 ```
 
 # Uninstall 
