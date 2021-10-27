@@ -24,6 +24,9 @@ func getOrgs() ([]brev_api.Organization, error) {
 
 func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 	client, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
 	wss, err := client.GetWorkspaces(orgID)
 	if err != nil {
 		return nil, err

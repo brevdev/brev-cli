@@ -52,12 +52,13 @@ func (e *RESTResponseError) Error() string {
 // object needs to be inspected or modified for advanced use cases.
 func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	var payload io.Reader
-	if r.Method == "PUT" || r.Method == "POST" || r.Method == "PATCH" {
+	switch r.Method {
+	case "PUT" || "POST" || "PATCH":
 		payloadBytes, _ := json.Marshal(r.Payload)
 		payload = bytes.NewBuffer(payloadBytes)
-	} else if r.Method == "GET" || r.Method == "DELETE" {
+	case "GET" || "DELETE":
 		payload = nil
-	} else {
+	default:
 		return nil, errors.New(fmt.Sprintf("Unknown method: %s", r.Method))
 	}
 

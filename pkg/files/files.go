@@ -201,7 +201,7 @@ func WriteSSHPrivateKey(data string) error {
 	return err
 }
 
-// Delete a single file altogether
+// Delete a single file altogether.
 func DeleteFile(filepath string) error {
 	error := os.Remove(filepath)
 	if error != nil {
