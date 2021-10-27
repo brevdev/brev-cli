@@ -69,12 +69,12 @@ func ls(t *terminal.Terminal, args []string) error {
 		}
 		if len(orgs) == 0 {
 			t.Vprint(t.Yellow("You don't have any orgs. Create one!"))
-			return nil;
-		}		
-		
+			return nil
+		}
+
 		t.Vprint(t.Yellow("Your organizations:"))
 		for _, v := range orgs {
-			t.Vprint("\t" + v.Name  + t.Yellow(" id:"+ v.ID))
+			t.Vprint("\t" + v.Name + t.Yellow(" id:"+v.ID))
 		}
 		return nil
 
