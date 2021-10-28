@@ -112,7 +112,7 @@ func ls(t *terminal.Terminal, args []string) error {
 				return err
 			}
 		}
-		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
+		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set --org <orgname>' to set one."))
 
 		return nil;
 	}
@@ -158,8 +158,8 @@ func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, 
 	
 	DELIMETER := 40
 	if len(joinedWorkspaces) > 0 {
-		t.Vprintf("You have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
-		t.Vprint("\nNAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
+		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
+		t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
 		for _, v := range joinedWorkspaces {
 			t.Vprint(truncateString(v.Name, DELIMETER)+ strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER)))+ " " +v.ID+ strings.Repeat(" ", 5) +v.DNS)
 		}
