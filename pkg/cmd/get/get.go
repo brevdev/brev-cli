@@ -5,6 +5,7 @@ package get
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -83,7 +84,7 @@ func newCmdMePrivateKeys(t *terminal.Terminal) *cobra.Command {
 				t.Eprint(err.Error())
 			}
 
-			clusterID := "k8s.brevstack.com"
+			clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 			clusterKeys, err := meKeys.GetWorkspaceGroupKeysByGroupID(clusterID)
 			if err != nil {

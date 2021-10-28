@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
@@ -89,7 +90,7 @@ func NewRemoteK8sClientConfig() (*K8sClientConfig, error) {
 		return nil, err
 	}
 
-	clusterID := "k8s.brevstack.com"
+	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	cluserKeys, err := keys.GetWorkspaceGroupKeysByGroupID(clusterID)
 	if err != nil {
@@ -97,7 +98,7 @@ func NewRemoteK8sClientConfig() (*K8sClientConfig, error) {
 	}
 
 	return &K8sClientConfig{
-		host: "https://api.k8s.brevstack.com",
+		host: config.GlobalConfig.GetKubeAPIURL(),
 		cert: []byte(cluserKeys.Cert),
 		key:  []byte(keys.PrivateKey),
 		ca:   []byte(cluserKeys.CA),
