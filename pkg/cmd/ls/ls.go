@@ -108,8 +108,9 @@ func ls(t *terminal.Terminal, args []string) error {
 	var workspacesToJoin []brev_api.Workspace
 	for _, v := range wss {
 		if v.CreatedByUserID == me.Id {
-			t.Vprint("\t• " + v.Name + t.Yellow(" id:" + v.ID))
-			t.Vprint("\t\thttps://" + v.DNS)
+			t.Vprint(t.Yellow("\t• " + v.Name))
+			t.Vprint("\t\t" + "id: " + v.ID)
+			t.Vprint("\t\turl: https://" + v.DNS)
 		} else {
 			workspacesToJoin = append(workspacesToJoin, v)
 		}
