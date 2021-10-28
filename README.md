@@ -40,17 +40,21 @@ rm -rf ~/.brev
 # Usage
 
 ## Completion
-Figured we'd move this to a different part of the readme, but just wanted to add it in
+
+
+### zsh
 
 
 ```
 brev completion zsh > /usr/share/zsh/site-functions/brev
+```
+
+### bash
+
+```
 
 brev completion bash > /usr/local/etc/bash_completion.d/brev
 ```
-Run the completion command from the executable. It'll likely be `./brev completion zsh...`
-
-You'll need the cli to be called `./brev` but otherwise it works
 
 # Development
 
