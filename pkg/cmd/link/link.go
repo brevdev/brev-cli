@@ -45,7 +45,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			)
 			err = files.WriteSSHPrivateKey(string(k8sClientConfig.GetKey()))
 			if err != nil {
-				panic(err)
+				t.Errprint(err, "")
 			}
 			t.Printf("SSH Private Key:\n%s\n", files.GetSSHPrivateKeyFilePath())
 			t.Printf("Connect to workspace: \n\nssh -p 2222   -i \"%s\" brev@0.0.0.0\n\n", files.GetSSHPrivateKeyFilePath())

@@ -18,7 +18,6 @@ func getMe() brev_api.User {
 	return *user
 }
 
-
 func getOrgs() ([]brev_api.Organization, error) {
 	client, err := brev_api.NewClient()
 	if err != nil {
@@ -86,7 +85,7 @@ func ls(t *terminal.Terminal, args []string) error {
 
 		t.Vprint(t.Yellow("Your organizations:"))
 		for _, v := range orgs {
-			t.Vprint("\t" + v.Name + t.Yellow(" id:"+v.ID))
+			t.Vprint("\t" + v.Name + t.Yellow(" id: "+v.ID))
 		}
 		return nil
 
@@ -100,15 +99,15 @@ func ls(t *terminal.Terminal, args []string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	me := getMe()
 	if err != nil {
 		return err
 	}
-	
+
 	var unjoinedWorkspaces []brev_api.Workspace
 	var joinedWorkspaces []brev_api.Workspace
-	
+
 	for _, v := range wss {
 		if v.CreatedByUserID == me.Id {
 			joinedWorkspaces = append(joinedWorkspaces, v)
@@ -116,13 +115,13 @@ func ls(t *terminal.Terminal, args []string) error {
 			unjoinedWorkspaces = append(unjoinedWorkspaces, v)
 		}
 	}
-	
+
 	DELIMETER := 40
 	if len(joinedWorkspaces) > 0 {
 		t.Vprintf("You have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
-		t.Vprint("\nNAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
+		t.Vprint("\nNAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) + "ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) + "URL")
 		for _, v := range joinedWorkspaces {
-			t.Vprint(truncateString(v.Name, DELIMETER)+ strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER)))+ " " +v.ID+ strings.Repeat(" ", 5) +v.DNS)
+			t.Vprint(truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " + v.ID + strings.Repeat(" ", 5) + v.DNS)
 		}
 		t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
 	}
@@ -130,10 +129,8 @@ func ls(t *terminal.Terminal, args []string) error {
 	return nil
 }
 
-
 func truncateString(s string, delimterCount int) string {
 	if len(s) <= delimterCount {
-
 		return s
 	} else {
 		return s[:delimterCount]
