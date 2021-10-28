@@ -54,7 +54,8 @@ autoload -U compinit && compinit
 ### bash
 
 ```
-brev completion bash > /usr/local/etc/bash_completion.d/brev
+brev completion bash | sudo tee /usr/local/share/bash-completion/completions/brev
+source /usr/local/share/bash-completion/completions/brev
 ```
 
 # Development
