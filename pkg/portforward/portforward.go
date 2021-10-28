@@ -1,7 +1,6 @@
 package portforward
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,8 +13,6 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/transport/spdy"
 
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	toolsportforward "k8s.io/client-go/tools/portforward"
 )
 
@@ -53,15 +50,19 @@ func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
 	workspaceID := args[0]
 
 	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceID)
-	if workspace == nil {
-		return fmt.Errorf("workspace with id %s does not exist", workspaceID)
-	}
 	if err != nil {
 		return err
+	}
+	if workspace == nil {
+		return fmt.Errorf("workspace with id %s does not exist", workspaceID)
 	}
 
 	o.Namespace = workspace.GetNamespaceName()
 	o.PodName = workspace.GetPodName()
+
+	if o.PodName == "" {
+		return fmt.Errorf("unable to forward port because pod is not found-- workspace may not be running")
+	}
 
 	o.Address = []string{"localhost"}
 	o.Ports = []string{"2222:22"} // TODO override from args
@@ -74,15 +75,6 @@ func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
 
 func (o PortForwardOptions) RunPortforward() error {
 	// cmd := portforward.NewCmdPortForward(tf, streams) // This command is useful to have around to go to def of kubectl cmd
-
-	pod, err := o.K8sClient.GetK8sClient().CoreV1().Pods(o.Namespace).Get(context.TODO(), o.PodName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-
-	if pod.Status.Phase != corev1.PodRunning {
-		return fmt.Errorf("unable to forward port because workspace is not running, Status: %s", pod.Status.Phase)
-	}
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)

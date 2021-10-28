@@ -37,7 +37,7 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["set", "--org", "alecfong1-hq"]
+      "args": ["set", "--org", "personal"]
     },
     {
       "name": "link",
@@ -47,7 +47,11 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
+<<<<<<< Updated upstream
       "args": ["link", "2bt7ykd9o"]
+=======
+      "args": ["link", "iiq1iopqg"]
+>>>>>>> Stashed changes
     }
   ]
 }
