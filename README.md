@@ -15,8 +15,6 @@
 
 # Install
 
-!!! warning these commands run as sudo !!!
-
 Linux & Mac
 
 ```
