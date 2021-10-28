@@ -61,6 +61,14 @@ brev completion bash > /usr/local/etc/bash_completion.d/brev
 
 make build
 
+## example .env file
+
+```
+VERSION=unknown
+BREV_API_URL=http://localhost:8080
+# BREV_API_URL=https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com
+```
+
 ### Terminal
 
 - `make` - execute the build pipeline.
