@@ -47,7 +47,10 @@ rm -rf /tmp/brev
 
 
 ```
-brev completion zsh | sudo tee /usr/local/share/zsh/site-functions/brev
+mkdir -p ~/.zsh/completions
+brev completion zsh > ~/.zsh/completions/_brev
+echo fpath=~/.zsh/completions $fpath >> ~/.zshrc && fpath=(~/.zsh/completions $fpath)
+autoload -U compinit && compinit
 ```
 
 ### bash
