@@ -1,6 +1,7 @@
 package brev_api
 
 import (
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
@@ -117,6 +118,8 @@ func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 }
 
 func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
+	clusterID := config.GlobalConfig.GetDefaultClusterID()
+
 	request := &requests.RESTRequest{
 		Method:   "POST",
 		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
@@ -128,7 +131,7 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 		},
 		Payload: RequestCreateWorkspace{
 			Name:                name,
-			WorkspaceGroupID:    "k8s.brevstack.com",
+			WorkspaceGroupID:    clusterID,
 			WorkspaceClassID:    "2x8",
 			GitRepo:             gitrepo,
 			WorkspaceTemplateID: "4nbb4lg2s", // default ubuntu template
