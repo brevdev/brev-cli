@@ -30,7 +30,7 @@ or
 curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | sudo sh
 ```
 
-# Uninstall 
+# Uninstall
 
 ```
 sudo rm /usr/local/bin/brev
@@ -40,10 +40,11 @@ rm -rf ~/.brev
 # Usage
 
 ## Completion
-Figured we'd move this to a different part of the readme, but just wanted to add it in 
+Figured we'd move this to a different part of the readme, but just wanted to add it in
+
 
 ```
-brev completion zsh > /usr/local/share/zsh/site-functions/brev
+brev completion zsh > /usr/share/zsh/site-functions/brev
 
 brev completion bash > /usr/local/etc/bash_completion.d/brev
 ```
