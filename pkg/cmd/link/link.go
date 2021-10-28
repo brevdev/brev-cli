@@ -52,10 +52,10 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			sshPrivateKeyFilePath := files.GetSSHPrivateKeyFilePath()
 			cmdutil.CheckErr(opts.Complete(cmd, t, args))
 			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
-			t.Printf("1. Add SSH Key:\n")
-			t.Printf(t.Yellow("ssh-add %s\n", sshPrivateKeyFilePath))
-			t.Printf("2. Connect to workspace:\n")
-			t.Printf(t.Yellow("ssh -p 2222 brev@0.0.0.0\n\n"))
+			t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
+			t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
+			t.Printf(t.Green("\t2. Connect to workspace:\n"))
+			t.Printf(t.Yellow("\t\tssh -p 2222 brev@0.0.0.0\n\n"))
 			cmdutil.CheckErr(opts.RunPortforward())
 		},
 	}
