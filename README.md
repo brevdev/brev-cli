@@ -35,6 +35,7 @@ curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-
 ```
 sudo rm /usr/local/bin/brev
 rm -rf ~/.brev
+rm -rf /tmp/brev
 ```
 
 # Usage
