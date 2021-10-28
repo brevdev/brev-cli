@@ -104,16 +104,25 @@ func ls(t *terminal.Terminal, args []string) error {
 		return err
 	}
 	
-	t.Vprintf("%d Workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(wss))
-	var workspacesToJoin []brev_api.Workspace
+	var unjoinedWorkspaces []brev_api.Workspace
+	var joinedWorkspaces []brev_api.Workspace
+	
 	for _, v := range wss {
 		if v.CreatedByUserID == me.Id {
+			joinedWorkspaces = append(joinedWorkspaces, v)
+		} else {
+			unjoinedWorkspaces = append(unjoinedWorkspaces, v)
+		}
+	}
+	
+	if len(joinedWorkspaces) > 0 {
+		t.Vprintf("You have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
+		for _, v := range joinedWorkspaces {
 			t.Vprint(t.Yellow("\t• " + v.Name))
 			t.Vprint("\t\t" + "id: " + v.ID)
 			t.Vprint("\t\turl: https://" + v.DNS)
-		} else {
-			workspacesToJoin = append(workspacesToJoin, v)
 		}
+		t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
 	}
 
 	return nil
