@@ -13,9 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 )
 
-var (
-	ProgressBarMax = 100
-)
+var ProgressBarMax = 100
 
 type ProgressBar struct {
 	Bar            *progressbar.ProgressBar
@@ -30,6 +28,7 @@ type Terminal struct {
 	Green  func(format string, a ...interface{}) string
 	Yellow func(format string, a ...interface{}) string
 	Red    func(format string, a ...interface{}) string
+	Blue   func(format string, a ...interface{}) string
 
 	Bar ProgressBar
 }
@@ -42,6 +41,7 @@ func New() (t *Terminal) {
 		Green:   color.New(color.FgGreen).SprintfFunc(),
 		Yellow:  color.New(color.FgYellow).SprintfFunc(),
 		Red:     color.New(color.FgRed).SprintfFunc(),
+		Blue:    color.New(color.FgBlue).SprintfFunc(),
 	}
 }
 

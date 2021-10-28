@@ -8,7 +8,9 @@ import (
 	"os/signal"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/k8s"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/transport/spdy"
@@ -46,7 +48,7 @@ func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver R
 	}
 }
 
-func (o *PortForwardOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string) error {
 	workspaceID := args[0]
 
 	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceID)
@@ -87,7 +89,7 @@ func (o PortForwardOptions) RunPortforward() error {
 		}
 	}()
 
-	urlStr := fmt.Sprintf("https://api.k8s.brevstack.com/api/v1/namespaces/%s/pods/%s/portforward", o.Namespace, o.PodName)
+	urlStr := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", config.GlobalConfig.GetKubeAPIURL(), o.Namespace, o.PodName)
 
 	url, err := url.Parse(urlStr)
 	if err != nil {

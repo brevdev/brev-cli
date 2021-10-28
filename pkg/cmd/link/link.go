@@ -31,6 +31,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			t.Printf("Starting ssh link...\n")
 			k8sClientConfig, err := NewRemoteK8sClientConfig()
 			if err != nil {
 				t.Errprint(err, "")
@@ -48,9 +49,13 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			if err != nil {
 				t.Errprint(err, "")
 			}
-			t.Printf("SSH Private Key:\n%s\n", files.GetSSHPrivateKeyFilePath())
-			t.Printf("Connect to workspace: \n\nssh -p 2222   -i \"%s\" brev@0.0.0.0\n\n", files.GetSSHPrivateKeyFilePath())
-			cmdutil.CheckErr(opts.Complete(cmd, args))
+			sshPrivateKeyFilePath := files.GetSSHPrivateKeyFilePath()
+			cmdutil.CheckErr(opts.Complete(cmd, t, args))
+			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
+			t.Printf("1. Add SSH Key:\n")
+			t.Printf(t.Yellow("ssh-add %s\n", sshPrivateKeyFilePath))
+			t.Printf("2. Connect to workspace:\n")
+			t.Printf(t.Yellow("ssh -p 2222 brev@0.0.0.0\n\n"))
 			cmdutil.CheckErr(opts.RunPortforward())
 		},
 	}
