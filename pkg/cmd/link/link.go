@@ -32,7 +32,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			k8sClientConfig, err := NewRemoteK8sClientConfig()
 			if err != nil {
-				panic(err)
+				t.Errprint(err, "")
 			}
 			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
 
