@@ -46,7 +46,7 @@ rm -rf ~/.brev
 
 
 ```
-brev completion zsh > /usr/share/zsh/site-functions/brev
+brev completion zsh | sudo tee /usr/local/share/zsh/site-functions/brev
 ```
 
 ### bash
