@@ -10,6 +10,13 @@ import (
 )
 
 // Helper functions
+func getMe() brev_api.User {
+	client, _ := brev_api.NewClient()
+	user, _ := client.GetMe()
+	return *user
+}
+
+
 func getOrgs() ([]brev_api.Organization, error) {
 	client, err := brev_api.NewClient()
 	if err != nil {
@@ -91,11 +98,21 @@ func ls(t *terminal.Terminal, args []string) error {
 	if err != nil {
 		return err
 	}
-
+	
+	me := getMe()
+	if err != nil {
+		return err
+	}
+	
 	t.Vprintf("%d Workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(wss))
+	var workspacesToJoin []brev_api.Workspace
 	for _, v := range wss {
-		t.Vprint("\t• " + v.Name + " id:" + v.ID)
-		t.Vprint("\t\thttps://" + v.DNS)
+		if v.CreatedByUserID == me.Id {
+			t.Vprint("\t• " + v.Name + t.Yellow(" id:" + v.ID))
+			t.Vprint("\t\thttps://" + v.DNS)
+		} else {
+			workspacesToJoin = append(workspacesToJoin, v)
+		}
 	}
 
 	return nil
