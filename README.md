@@ -15,7 +15,7 @@
 
 # Install
 
-!!! warning run as sudo !!!
+!!! warning these commands run as sudo !!!
 
 Linux & Mac
 
