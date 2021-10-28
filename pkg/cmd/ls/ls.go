@@ -2,6 +2,8 @@
 package ls
 
 import (
+	"strings"
+
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -115,15 +117,25 @@ func ls(t *terminal.Terminal, args []string) error {
 		}
 	}
 	
+	DELIMETER := 40
 	if len(joinedWorkspaces) > 0 {
 		t.Vprintf("You have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
+		t.Vprint("\nNAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
 		for _, v := range joinedWorkspaces {
-			t.Vprint(t.Yellow("\t• " + v.Name))
-			t.Vprint("\t\t" + "id: " + v.ID)
-			t.Vprint("\t\turl: https://" + v.DNS)
+			t.Vprint(truncateString(v.Name, DELIMETER)+ strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER)))+ " " +v.ID+ strings.Repeat(" ", 5) +v.DNS)
 		}
 		t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
 	}
 
 	return nil
+}
+
+
+func truncateString(s string, delimterCount int) string {
+	if len(s) <= delimterCount {
+
+		return s
+	} else {
+		return s[:delimterCount]
+	}
 }
