@@ -52,7 +52,6 @@ brev completion zsh > /usr/share/zsh/site-functions/brev
 ### bash
 
 ```
-
 brev completion bash > /usr/local/etc/bash_completion.d/brev
 ```
 
