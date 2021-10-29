@@ -2,6 +2,7 @@ package version
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/fatih/color"
 
@@ -44,7 +45,13 @@ type githubReleaseMetadata struct {
 }
 
 func BuildVersionString(t *terminal.Terminal) (string, error) {
-	currentVersion := config.GlobalConfig.GetVersion()
+	info, ok := debug.ReadBuildInfo()
+	var currentVersion string
+	if ok {
+		currentVersion = info.Main.Version
+	} else {
+		currentVersion = config.GlobalConfig.GetVersion()
+	}
 
 	githubRelease, err := getLatestGithubReleaseMetadata()
 	if err != nil {
