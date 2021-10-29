@@ -11,6 +11,9 @@ builds:
     goarch:
       - amd64
     binary: brev
+    ldflags:
+      - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
+
 brews:
   - name: brev-cli
     # GitHub/GitLab repository to push the formula to

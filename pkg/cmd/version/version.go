@@ -2,11 +2,9 @@ package version
 
 import (
 	"fmt"
-	"runtime/debug"
 
 	"github.com/fatih/color"
 
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
@@ -14,6 +12,8 @@ import (
 const (
 	cliReleaseURL = "https://api.github.com/repos/brevdev/brev-cli/releases/latest"
 )
+
+var Version = ""
 
 var green = color.New(color.FgGreen).SprintfFunc()
 
@@ -45,14 +45,6 @@ type githubReleaseMetadata struct {
 }
 
 func BuildVersionString(t *terminal.Terminal) (string, error) {
-	info, ok := debug.ReadBuildInfo()
-	var currentVersion string
-	if ok {
-		currentVersion = info.Main.Version
-	} else {
-		currentVersion = config.GlobalConfig.GetVersion()
-	}
-
 	githubRelease, err := getLatestGithubReleaseMetadata()
 	if err != nil {
 		t.Errprint(err, "Failed to retrieve latest version")
@@ -60,15 +52,15 @@ func BuildVersionString(t *terminal.Terminal) (string, error) {
 	}
 
 	var versionString string
-	if githubRelease.TagName == currentVersion {
+	if githubRelease.TagName == Version {
 		versionString = fmt.Sprintf(
 			upToDateString,
-			currentVersion,
+			Version,
 		)
 	} else {
 		versionString = fmt.Sprintf(
 			outOfDateString,
-			currentVersion,
+			Version,
 			githubRelease.TagName,
 			githubRelease.Name,
 			githubRelease.Body,

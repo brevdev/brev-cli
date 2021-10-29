@@ -1,4 +1,6 @@
 .DEFAULT_GOAL := dev
+VERSION := $(shell git tag | grep ^v | sort -V | tail -n 1)
+
 
 .PHONY: dev
 dev: ## dev build
@@ -66,7 +68,8 @@ build: install
 .PHONY: fast-build
 fast-build: ## go build -o brev
 	$(call print-target)
-	go build -o brev 
+	go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+
 
 .PHONY: release
 release: ## goreleaser --rm-dist
