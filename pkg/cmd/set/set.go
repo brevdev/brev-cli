@@ -18,15 +18,31 @@ func getOrgs() []brev_api.Organization {
 	return orgs
 }
 
+func getOrgNames() []string {
+	cachedOrgs, err := brev_api.GetOrgCacheData()
+	if err != nil {
+		return nil;
+	}
+
+	// orgs  := getOrgs()
+	var orgNames []string
+	for _, v := range cachedOrgs {
+		orgNames = append(orgNames, v.Name)
+	}
+
+	return orgNames
+}
+
 func NewCmdSet(t *terminal.Terminal) *cobra.Command {
-	var orgName string
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
 		Use:         "set",
 		Short:       "Set active org",
 		Long:        "Set your organization to view, open, create workspaces etc",
-		Example:     `brev set --org [org name]`,
+		Example:     `brev set [org name]`,
+		Args:                  cobra.MinimumNArgs(1),
+		ValidArgs:             getOrgNames(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -36,33 +52,9 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := set(t, orgName)
+			err := set(t, args[0])
 			return err
 		},
-	}
-
-	cmd.Flags().StringVarP(&orgName, "org", "o", "", "organization name")
-	err := cmd.MarkFlagRequired("org")
-	if err != nil {
-		panic(err)
-	}
-	err = cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// Note: we're only using the cached data in the shell completion.
-		// BANANA: run this by Alec. For sake of speed, we might want the actual cmd to only use cache too
-		orgs, err := brev_api.GetOrgCacheData()
-		if err != nil {
-			t.Errprint(err, "")
-		}
-
-		var orgNames []string
-		for _, v := range orgs {
-			orgNames = append(orgNames, v.Name)
-		}
-
-		return orgNames, cobra.ShellCompDirectiveNoSpace
-	})
-	if err != nil {
-		panic(err)
 	}
 
 	return cmd
