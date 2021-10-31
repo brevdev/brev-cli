@@ -73,7 +73,8 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 }
 
 func ls(t *terminal.Terminal, args []string) error {
-	if len(args) > 0 && (args[0] == "orgs" || args[0] == "organizations") {
+	// If anyone mispells orgs/org/organizations we should just do it
+	if len(args) > 0 && (strings.Contains(args[0], "org")) {
 		orgs, err := getOrgs()
 		if err != nil {
 			return err
