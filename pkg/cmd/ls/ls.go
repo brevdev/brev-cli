@@ -84,10 +84,18 @@ func ls(t *terminal.Terminal, args []string) error {
 			return nil
 		}
 
-		t.Vprint(t.Yellow("Your organizations:"))
-		for _, v := range orgs {
-			t.Vprint("\t" + v.Name + t.Yellow(" id: "+v.ID))
+		activeorg, err := brev_api.GetActiveOrgContext()
+		if err != nil {
+			t.Vprint(t.Yellow("Your organizations:"))
+			err = printOrgTableWithoutActiveOrg(t, orgs)
+			return nil
 		}
+		t.Vprint(t.Yellow("Your organizations:"))
+		err = printOrgTable(t, orgs, *activeorg)
+		if err != nil {
+			return err
+		}
+
 		return nil
 
 	}
@@ -166,4 +174,32 @@ func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, 
 	}
 
 	return joinedWorkspaces, unjoinedWorkspaces, nil
+}
+
+func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, activeorg brev_api.Organization) error {
+	ID_LEN := 9
+	if len(organizations) > 0 {
+		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
+		t.Vprint("ID"+ strings.Repeat(" ", ID_LEN+1-len("ID")) +"NAME")
+		for _, v := range organizations {
+			if activeorg.ID==v.ID {
+				t.Vprint(t.Green("*" + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name))
+			} else {
+				t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
+			}
+		}
+	}
+	return nil
+}
+
+func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brev_api.Organization) error {
+	ID_LEN := 9
+	if len(organizations) > 0 {
+		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
+		t.Vprint("ID"+ strings.Repeat(" ", ID_LEN+1-len("ID")) +"NAME")
+		for _, v := range organizations {
+			t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
+		}
+	}
+	return nil
 }
