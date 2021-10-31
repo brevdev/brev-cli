@@ -115,12 +115,15 @@ func ls(t *terminal.Terminal, args []string) error {
 			if err != nil {
 				return err
 			}
+			if len(wss) == 0 {
+				t.Vprint(t.Yellow("You don't have any workspaces in org %s.", o.Name))
+			}
 			_,_,err = printWorkspaceTable(t, wss, o)
 			if err != nil {
 				return err
 			}
 		}
-		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set --org <orgname>' to set one."))
+		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
 
 		return nil;
 	}
@@ -129,7 +132,9 @@ func ls(t *terminal.Terminal, args []string) error {
 	if err != nil {
 		return err
 	}
-	
+	if len(wss) == 0 {
+		t.Vprint(t.Yellow("You don't have any workspaces in org %s.", activeorg.Name))
+	}
 	joined, _, err := printWorkspaceTable(t, wss, *activeorg)
 	if len(joined) > 0 {
 		t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
