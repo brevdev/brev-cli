@@ -3,6 +3,7 @@ package link
 
 import (
 	"os"
+	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -51,6 +52,14 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			}
 			sshPrivateKeyFilePath := files.GetSSHPrivateKeyFilePath()
 			cmdutil.CheckErr(opts.Complete(cmd, t, args))
+			
+			addKey := exec.Command("ssh-add", sshPrivateKeyFilePath)
+			stdout, err := addKey.Output()
+			if err != nil {
+				t.Printf("%s", err.Error())
+			}
+			t.Printf("%s", stdout)
+
 			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
 			t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
 			t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
