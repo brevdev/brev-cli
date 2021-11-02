@@ -33,7 +33,8 @@ type PortForwardOptions struct {
 }
 
 type ResourceResolver interface {
-	GetWorkspaceByID(id string) (*brev_api.WorkspaceMetaData, error)
+	GetWorkspaceByID(id string) (*brev_api.AllWorkspaceData, error)
+	GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error)
 }
 
 type PortForwarder interface {
@@ -49,15 +50,21 @@ func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver R
 }
 
 func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string) error {
-	workspaceID := args[0]
+	workspaceIDOrName := args[0]
 
-	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceID)
+	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceIDOrName)
 	if err != nil {
-		return err
+		wsByName, err2 := o.ResourceResolver.GetWorkspaceByName(workspaceIDOrName)
+		if err2 != nil {
+			return err2
+		} else {
+			workspace = wsByName
+		}
 	}
 	if workspace == nil {
-		return fmt.Errorf("workspace with id %s does not exist", workspaceID)
+		return fmt.Errorf("workspace with id or name %s does not exist", workspaceIDOrName)
 	}
+	// handle diff org than settings
 
 	o.Namespace = workspace.GetNamespaceName()
 	o.PodName = workspace.GetPodName()

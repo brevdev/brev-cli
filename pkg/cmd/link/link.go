@@ -2,6 +2,7 @@
 package link
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
@@ -10,15 +11,39 @@ import (
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-
-	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/spf13/cobra"
 )
 
 var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give connection string"
 
 var sshLinkExample = "brev link <ws_name>"
+
+func getWorkspaceNames() []string {
+
+	activeOrg, err := brev_api.GetActiveOrgContext()
+	if err != nil {
+		return nil
+	}
+
+	client, err := brev_api.NewClient()
+	if err != nil {
+		return nil
+	}
+	wss, err := client.GetWorkspaces(activeOrg.ID)
+	if err != nil {
+		return nil
+	}
+
+	var wsNames []string;
+	for _, w := range wss {
+		wsNames = append(wsNames, w.Name)
+	}
+
+	return wsNames
+}
 
 func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
@@ -30,6 +55,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
+		ValidArgs:             getWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 			t.Printf("Starting ssh link...\n")
 			k8sClientConfig, err := NewRemoteK8sClientConfig()
@@ -64,17 +90,76 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 
 type WorkspaceResolver struct{}
 
-func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.WorkspaceMetaData, error) {
+func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceData, error) {
 	c, err := brev_api.NewClient()
 	if err != nil {
 		return nil, err
 	}
-	w, err := c.GetWorkspaceMetaData(id)
+	wmeta, err := c.GetWorkspaceMetaData(id)
+	if err != nil {
+		return nil, err
+	}
+	w, err := c.GetWorkspace(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return w, nil
+	return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace:*w}, nil
+}
+
+// This function will be long and messy, it's entirely built to check random error cases
+// func GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error) {
+func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error) {
+	c, err := brev_api.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check ActiveOrg's workspaces before checking every orgs workspaces as fallback
+	activeorg, err := brev_api.GetActiveOrgContext()
+	if err != nil {
+		// BANANA: check all workspaces if this doesn't work
+	} else {
+		workspaces, err := c.GetMyWorkspaces(activeorg.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, w := range workspaces {
+			if w.Name == name {
+				wmeta, err := c.GetWorkspaceMetaData(w.ID)
+				if err != nil {
+					return nil, err
+				}
+				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace:w}, nil
+			}
+		}
+		// if there wasn't a workspace in the org, check all the orgs
+	}
+
+	orgs, err := c.GetOrgs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, o := range orgs {
+		workspaces, err := c.GetWorkspaces(o.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, w := range workspaces {
+			if w.Name==name {
+				// Assemble full object
+				wmeta, err := c.GetWorkspaceMetaData(w.ID)
+				if err != nil {
+					return nil, err
+				}
+				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace:w}, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("workspace with name %s does not exist", name)
 }
 
 type K8sClientConfig struct {

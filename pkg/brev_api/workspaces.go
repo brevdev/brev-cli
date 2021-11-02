@@ -26,6 +26,46 @@ type Workspace struct {
 	GitRepo          string `json:"gitRepo"`
 }
 
+// Note: this is the "projects" view
+func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
+
+	me, err := a.GetMe()
+	if err != nil {
+		return nil, err
+	}
+
+	request := requests.RESTRequest{
+		Method:   "GET",
+		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
+		QueryParams: []requests.QueryParam{
+			{Key: "utm_source", Value: "cli"},
+		},
+		Headers: []requests.Header{
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
+		},
+	}
+
+	response, err := request.SubmitStrict()
+	if err != nil {
+		return nil, err
+	}
+
+	var payload []Workspace
+	err = response.UnmarshalPayload(&payload)
+	if err != nil {
+		return nil, err
+	}
+
+	var myWorkspaces []Workspace
+	for _, w := range payload {
+		if w.CreatedByUserID == me.Id {
+			myWorkspaces = append(myWorkspaces, w)
+		}
+	}
+
+	return myWorkspaces, nil
+}
+
 func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
@@ -89,6 +129,11 @@ func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
 	}
 
 	return &payload, nil
+}
+
+type AllWorkspaceData struct {
+	WorkspaceMetaData
+	Workspace
 }
 
 func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
