@@ -2,6 +2,7 @@
 package link
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -118,7 +119,8 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspa
 	// Check ActiveOrg's workspaces before checking every orgs workspaces as fallback
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
-		// BANANA: check all workspaces if this doesn't work
+		// TODO: we sould just check all possible workspaces here
+		return nil, errors.New("Please set your active org or link to a workspace by it's ID")
 	} else {
 		workspaces, err := c.GetMyWorkspaces(activeorg.ID)
 		if err != nil {
