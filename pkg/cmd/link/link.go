@@ -32,7 +32,7 @@ func getWorkspaceNames() []string {
 	if err != nil {
 		return nil
 	}
-	wss, err := client.GetWorkspaces(activeOrg.ID)
+	wss, err := client.GetMyWorkspaces(activeOrg.ID)
 	if err != nil {
 		return nil
 	}

@@ -18,7 +18,7 @@ func getWorkspaces(orgID string) []Workspace {
 	// orgID := getOrgID(orgName)
 
 	client, _ := NewClient()
-	workspaces, _ := client.GetWorkspaces(orgID)
+	workspaces, _ := client.GetMyWorkspaces(orgID)
 
 	return workspaces
 }
