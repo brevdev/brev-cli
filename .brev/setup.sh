@@ -52,6 +52,15 @@ echo "export PATH=\$PATH:/usr/local/go/bin" | sudo tee -a ~/.zshrc
 source ~/.zshrc
 rm go1.16.7.linux-amd64.tar.gz
 
+# emacs stuff
+cd /tmp
+GO111MODULE=on go get golang.org/x/tools/gopls@latest
+cd -
+echo "export PATH=\$PATH:/home/brev/go/bin" | sudo tee -a ~/.bashrc
+source ~/.bashrc
+echo "export PATH=\$PATH:/home/brev/go/bin" | sudo tee -a ~/.zshrc
+source ~/.zshrc
+
 ##### Custom commands #####
 # (echo ""; echo "##### Custom commands #####"; echo "";)
 # npm install
