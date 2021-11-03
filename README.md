@@ -27,7 +27,16 @@ or
 ```
 sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`"
 ```
+check that you have installed brev successfully by running
 
+```
+$ brev --version
+
+Current version: v0.1.5
+
+You're up to date!
+
+```
 # Uninstall
 
 ```
