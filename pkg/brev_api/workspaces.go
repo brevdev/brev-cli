@@ -1,6 +1,9 @@
 package brev_api
 
 import (
+	"fmt"
+	"sync"
+
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
@@ -29,36 +32,70 @@ type Workspace struct {
 // Note: this is the "projects" view
 func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
 
-	me, err := a.GetMe()
-	if err != nil {
-		return nil, err
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	me := make(chan *User)
+	err := make(chan error)
+	go func() {
+		fmt.Println("fetching me.")
+		me_, err_ := a.GetMe()
+		me <- me_
+		err <- err_
+		defer wg.Done()
+	}()
+
+	wg.Add(1)
+
+	payload := make(chan []Workspace)
+	err2 := make(chan error)
+	go func() {
+		request := requests.RESTRequest{
+			Method:   "GET",
+			Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
+			QueryParams: []requests.QueryParam{
+				{Key: "utm_source", Value: "cli"},
+			},
+			Headers: []requests.Header{
+				{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
+			},
+		}
+		
+		fmt.Println("fetching " + buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"))
+		response, err := request.SubmitStrict()
+		if err != nil {
+			err2 <- err
+			defer wg.Done()
+			// 
+			// return nil, err
+		}
+	
+		var payload_ []Workspace
+		err = response.UnmarshalPayload(&payload_)
+		if err != nil {
+			err2 <- err
+			defer wg.Done()
+			// return nil, err
+		}
+		payload <- payload_
+		defer wg.Done()
+	}()
+	wg.Wait()
+
+	err_1 := <- err
+	err_2 := <- err2
+	if err_1 != nil {
+		return nil, err_1
+	} else if err_2 != nil {
+		return nil, err_2
 	}
 
-	request := requests.RESTRequest{
-		Method:   "GET",
-		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
-		QueryParams: []requests.QueryParam{
-			{Key: "utm_source", Value: "cli"},
-		},
-		Headers: []requests.Header{
-			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
-		},
-	}
 
-	response, err := request.SubmitStrict()
-	if err != nil {
-		return nil, err
-	}
-
-	var payload []Workspace
-	err = response.UnmarshalPayload(&payload)
-	if err != nil {
-		return nil, err
-	}
-
+	payload_ := <- payload
+	me_ := <- me
 	var myWorkspaces []Workspace
-	for _, w := range payload {
-		if w.CreatedByUserID == me.Id {
+	for _, w := range payload_ {
+		if w.CreatedByUserID == me_.Id {
 			myWorkspaces = append(myWorkspaces, w)
 		}
 	}
