@@ -73,7 +73,7 @@ BREV_API_URL=http://localhost:8080
 
 `pkg/cmd/logout/logout.go` is a minimal command to go off of for adding new commands.
 
-commands for the cli should follow <VERB> <NOUN> pattern.
+commands for the cli should follow `<VERB>` `<NOUN>` pattern.
 
 Don't forget to add a debug command to `.vscode/launch.json`
 
