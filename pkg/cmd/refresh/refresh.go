@@ -35,12 +35,16 @@ func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 }
 
 func refresh(t *terminal.Terminal) error {
+	bar := t.NewProgressBar("Fetching orgs and workspaces", func() {})
+	bar.AdvanceTo(50)
+
 	err := brev_api.WriteCaches()
 	if err != nil {
 		return err
 	}
 
-	t.Vprintf(t.Green("Cache has been refreshed\n"))
+	bar.AdvanceTo(100)
+	t.Vprintf(t.Green("\nCache has been refreshed\n"))
 
 	return nil
 }
