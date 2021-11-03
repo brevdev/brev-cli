@@ -185,12 +185,12 @@ func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, 
 	ID_LEN := 9
 	if len(organizations) > 0 {
 		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
-		t.Vprint("ID"+ strings.Repeat(" ", ID_LEN+1-len("ID")) +"NAME")
+		t.Vprint("  ID"+ strings.Repeat(" ", ID_LEN+1-len("ID")) +"NAME")
 		for _, v := range organizations {
 			if activeorg.ID==v.ID {
-				t.Vprint(t.Green("*" + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name))
+				t.Vprint(t.Green("* " + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name))
 			} else {
-				t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
+				t.Vprint("  " + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
 			}
 		}
 	}
