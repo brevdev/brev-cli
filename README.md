@@ -57,7 +57,8 @@ source /usr/local/share/bash-completion/completions/brev
 
 ## Build
 
-make build
+`make build` runs a full release build
+`make fast-build` builds a binary for your current machine only
 
 ## example .env file
 
@@ -66,6 +67,16 @@ VERSION=unknown
 BREV_API_URL=http://localhost:8080
 # BREV_API_URL=https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com
 ```
+
+
+## adding new commands
+
+`pkg/cmd/logout/logout.go` is a minimal command to go off of for adding new commands.
+
+commands for the cli should follow <VERB> <NOUN> pattern.
+
+Don't forget to add a debug command to `.vscode/launch.json`
+
 
 ### Terminal
 
@@ -80,7 +91,7 @@ BREV_API_URL=http://localhost:8080
 
 The release workflow is triggered each time a tag with `v` prefix is pushed.
 
-when releasing make sure to 
+when releasing make sure to
 
 1. [ ]  update `bin/install-latest.sh`
 2. [ ]  release new version of [workspace-images](https://github.com/brevdev/workspace-images)
