@@ -206,5 +206,6 @@ func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brev_ap
 			t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
 		}
 	}
+	t.Vprint(t.Yellow("\nYou haven't set an active org. Use 'brev set [org_name]' to set one.\n"))
 	return nil
 }
