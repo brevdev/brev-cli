@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/configure"
 	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
@@ -74,6 +75,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
+	cmd.AddCommand(configure.NewCmdConfigure())
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {

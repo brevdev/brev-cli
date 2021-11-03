@@ -13,7 +13,9 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["login"],
+      "args": [
+        "login"
+      ],
       "env": {
         // "ACTION": "stop",
         // "WORKSPACE_ID": "goelomabr"
@@ -27,7 +29,9 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["ls"]
+      "args": [
+        "ls"
+      ]
     },
     {
       "name": "set",
@@ -37,7 +41,11 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["set", "--org", "personal"]
+      "args": [
+        "set",
+        "--org",
+        "personal"
+      ]
     },
     {
       "name": "link",
