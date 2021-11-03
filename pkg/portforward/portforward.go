@@ -49,7 +49,7 @@ func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver R
 	}
 }
 
-func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string) error {
+func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string, Port string) error {
 	workspaceIDOrName := args[0]
 
 	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceIDOrName)
@@ -74,7 +74,7 @@ func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, 
 	}
 
 	o.Address = []string{"localhost"}
-	o.Ports = []string{"2222:22"} // TODO override from args
+	o.Ports = []string{Port} // TODO override from args
 
 	o.StopChannel = make(chan struct{}, 1)
 	o.ReadyChannel = make(chan struct{})

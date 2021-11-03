@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -18,12 +19,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var sshLinkLong = "Enable a local ssh tunnel, setup private key auth, and give connection string"
-
-var sshLinkExample = "brev link <ws_name>"
+var (
+	Port           string
+	sshLinkLong    = "Enable a local ssh tunnel, setup private key auth, and give connection string"
+	sshLinkExample = "brev link <ws_name>"
+)
 
 func getWorkspaceNames() []string {
-
 	activeOrg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return nil
@@ -38,7 +40,7 @@ func getWorkspaceNames() []string {
 		return nil
 	}
 
-	var wsNames []string;
+	var wsNames []string
 	for _, w := range wss {
 		wsNames = append(wsNames, w.Name)
 	}
@@ -77,15 +79,21 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 				t.Errprint(err, "")
 			}
 			sshPrivateKeyFilePath := files.GetSSHPrivateKeyFilePath()
-			cmdutil.CheckErr(opts.Complete(cmd, t, args))
+			if Port == "" {
+				Port = "2222:22"
+			}
+			cmdutil.CheckErr(opts.Complete(cmd, t, args, Port))
 			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
 			t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
 			t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
 			t.Printf(t.Green("\t2. Connect to workspace:\n"))
-			t.Printf(t.Yellow("\t\tssh -p 2222 brev@0.0.0.0\n\n"))
+			localPort := strings.Split(Port, ":")[0]
+			t.Printf(t.Yellow("\t\tssh -p %s brev@0.0.0.0\n\n", localPort))
 			cmdutil.CheckErr(opts.RunPortforward())
 		},
 	}
+	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
+
 	return cmd
 }
 
@@ -105,7 +113,7 @@ func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceDa
 		return nil, err
 	}
 
-	return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace:*w}, nil
+	return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace: *w}, nil
 }
 
 // This function will be long and messy, it's entirely built to check random error cases
@@ -132,7 +140,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspa
 				if err != nil {
 					return nil, err
 				}
-				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace:w}, nil
+				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}
 		}
 		// if there wasn't a workspace in the org, check all the orgs
@@ -150,13 +158,13 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspa
 		}
 
 		for _, w := range workspaces {
-			if w.Name==name {
+			if w.Name == name {
 				// Assemble full object
 				wmeta, err := c.GetWorkspaceMetaData(w.ID)
 				if err != nil {
 					return nil, err
 				}
-				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace:w}, nil
+				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}
 		}
 	}
