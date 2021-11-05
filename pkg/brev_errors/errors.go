@@ -108,3 +108,8 @@ func (e *InvalidOrganizationError) Directive() string {
 func (e *InvalidOrganizationError) Error() string {
 	return "invalid organization"
 }
+
+type DeclineToLoginError struct{}
+
+func (d *DeclineToLoginError) Error() string     { return "declined to login" }
+func (d *DeclineToLoginError) Directive() string { return "log in to run this command" }

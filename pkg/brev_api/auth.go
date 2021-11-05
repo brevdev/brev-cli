@@ -1,6 +1,7 @@
 package brev_api
 
 import (
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -233,9 +234,7 @@ func GetToken() (*OauthToken, error) {
 		return nil, err
 	}
 	if token == nil { // we have not logged in yet
-		// TODO make this a prompt instead of auto going to login
-		// step
-		err = Login()
+		err = Login(true)
 		if err != nil {
 			return nil, err
 		}
@@ -293,8 +292,16 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 	return &token, nil
 }
 
-func Login() error {
-	ctx := context.Background() // TODO is this where I belong? probably not
+func Login(prompt bool) error {
+	if prompt {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+		text, _ := reader.ReadString('\n')
+		if strings.Compare(text, "y") != 1 {
+			return &brev_errors.DeclineToLoginError{}
+		}
+	}
+	ctx := context.Background()
 
 	// TODO env vars
 	authenticator := Authenticator{
