@@ -58,11 +58,11 @@ func NewCommandClient() (*Client, error) {
 	if err != nil {
 		err = HandleNewClientErrors(err)
 		if err != nil {
-			panic(err)
+			return nil, err
 		} else {
 			client, err = NewClient()
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 		}
 	}
