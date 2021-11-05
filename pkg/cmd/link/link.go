@@ -31,7 +31,7 @@ func getWorkspaceNames() []string {
 		return nil
 	}
 
-	client, err := brev_api.NewClient()
+	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil
 	}
@@ -100,7 +100,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 type WorkspaceResolver struct{}
 
 func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceData, error) {
-	c, err := brev_api.NewClient()
+	c, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +119,7 @@ func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceDa
 // This function will be long and messy, it's entirely built to check random error cases
 // func GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error) {
 func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error) {
-	c, err := brev_api.NewClient()
+	c, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ type K8sClientConfig struct {
 }
 
 func NewRemoteK8sClientConfig() (*K8sClientConfig, error) {
-	c, err := brev_api.NewClient()
+	c, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}

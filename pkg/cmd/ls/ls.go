@@ -13,13 +13,19 @@ import (
 
 // Helper functions
 func getMe() brev_api.User {
-	client, _ := brev_api.NewClient()
-	user, _ := client.GetMe()
+	client, err := brev_api.NewCommandClient()
+	if err != nil {
+		panic(err)
+	}
+	user, err := client.GetMe()
+	if err != nil {
+		panic(err)
+	}
 	return *user
 }
 
 func getOrgs() ([]brev_api.Organization, error) {
-	client, err := brev_api.NewClient()
+	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -31,7 +37,7 @@ func getOrgs() ([]brev_api.Organization, error) {
 }
 
 func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
-	client, err := brev_api.NewClient()
+	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -118,14 +124,14 @@ func ls(t *terminal.Terminal, args []string) error {
 			if len(wss) == 0 {
 				t.Vprint(t.Yellow("You don't have any workspaces in org %s.", o.Name))
 			}
-			_,_,err = printWorkspaceTable(t, wss, o)
+			_, _, err = printWorkspaceTable(t, wss, o)
 			if err != nil {
 				return err
 			}
 		}
 		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
 
-		return nil;
+		return nil
 	}
 
 	wss, err := getWorkspaces(activeorg.ID)
@@ -155,12 +161,12 @@ func truncateString(s string, delimterCount int) string {
 	}
 }
 
-func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization)  ([]brev_api.Workspace, []brev_api.Workspace, error) {
+func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
 	me := getMe()
-	
+
 	var unjoinedWorkspaces []brev_api.Workspace
 	var joinedWorkspaces []brev_api.Workspace
-	
+
 	for _, v := range workspaces {
 		if v.CreatedByUserID == me.Id {
 			joinedWorkspaces = append(joinedWorkspaces, v)
@@ -172,7 +178,7 @@ func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, 
 	DELIMETER := 40
 	if len(joinedWorkspaces) > 0 {
 		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
-		t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
+		t.Vprint("NAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) + "ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) + "URL")
 		for _, v := range joinedWorkspaces {
 			t.Vprint(truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " + v.ID + strings.Repeat(" ", 5) + v.DNS)
 		}
@@ -185,9 +191,9 @@ func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, 
 	ID_LEN := 9
 	if len(organizations) > 0 {
 		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
-		t.Vprint("  ID"+ strings.Repeat(" ", ID_LEN+1-len("ID")) +"NAME")
+		t.Vprint("  ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
 		for _, v := range organizations {
-			if activeorg.ID==v.ID {
+			if activeorg.ID == v.ID {
 				t.Vprint(t.Green("* " + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name))
 			} else {
 				t.Vprint("  " + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
@@ -201,7 +207,7 @@ func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brev_ap
 	ID_LEN := 9
 	if len(organizations) > 0 {
 		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
-		t.Vprint("ID"+ strings.Repeat(" ", ID_LEN+1-len("ID")) +"NAME")
+		t.Vprint("ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
 		for _, v := range organizations {
 			t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
 		}

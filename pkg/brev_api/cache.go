@@ -8,18 +8,26 @@ import (
 
 // Helper functions
 func getOrgs() []Organization {
-	client, _ := NewClient()
-	orgs, _ := client.GetOrgs()
-
+	client, err := NewClient()
+	if err != nil {
+		return []Organization{}
+	}
+	orgs, err := client.GetOrgs()
+	if err != nil {
+		return []Organization{}
+	}
 	return orgs
 }
 
 func getWorkspaces(orgID string) []Workspace {
-	// orgID := getOrgID(orgName)
-
-	client, _ := NewClient()
-	workspaces, _ := client.GetMyWorkspaces(orgID)
-
+	client, err := NewClient()
+	if err != nil {
+		return []Workspace{}
+	}
+	workspaces, err := client.GetMyWorkspaces(orgID)
+	if err != nil {
+		return []Workspace{}
+	}
 	return workspaces
 }
 
@@ -64,7 +72,6 @@ func WriteIndividualWorkspaceCache(orgID string) error {
 }
 
 func WriteCaches() error {
-
 	orgs := getOrgs()
 	path := files.GetOrgCacheFilePath()
 	err := files.OverwriteJSON(path, orgs)

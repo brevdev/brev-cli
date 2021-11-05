@@ -12,13 +12,19 @@ import (
 )
 
 func getMe() brev_api.User {
-	client, _ := brev_api.NewClient()
-	user, _ := client.GetMe()
+	client, err := brev_api.NewCommandClient()
+	if err != nil {
+		panic(err)
+	}
+	user, err := client.GetMe()
+	if err != nil {
+		panic(err)
+	}
 	return *user
 }
 
 func getMeKeys() (*brev_api.UserKeys, error) {
-	client, err := brev_api.NewClient()
+	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}

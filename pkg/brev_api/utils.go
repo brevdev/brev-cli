@@ -10,18 +10,32 @@ import (
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
+type Client struct {
+	Key *OauthToken
+}
+
+func HandleNewClientErrors(err error) error {
+	switch e := err.(type) {
+	case *brev_errors.CredentialsFileNotFound:
+		// TODO prompt
+		return Login()
+	case *requests.RESTResponseError:
+		switch e.ResponseStatusCode {
+		case 404: // happens when user signs in to the cli using github but does not have an account on brev
+			return fmt.Errorf("Create an account on https://console.brev.dev")
+		case 403: // possibly malformed credentials.json, try logging in
+			// TODO prompt
+			return Login()
+		}
+	}
+	return err
+}
+
 func NewClient() (*Client, error) {
 	// get token and use it to create a client
 	token, err := GetToken()
 	if err != nil {
-		switch err.(type) {
-		case *brev_errors.CredentialsFileNotFound:
-			e := Login()
-			if e != nil {
-				return nil, e
-			}
-			return NewClient()
-		}
+		return nil, err
 	}
 	client := Client{
 		Key: token,
@@ -29,21 +43,6 @@ func NewClient() (*Client, error) {
 	// make sure the token we have is associated with a valid user
 	user, err := client.GetMe()
 	if err != nil {
-		switch err := err.(type) {
-		case *requests.RESTResponseError:
-			switch err.ResponseStatusCode {
-			case 404: // happens when user signs in to the cli using github but does not have an account on brev
-				return nil, fmt.Errorf("Create an account on https://console.brev.dev")
-			case 403: // possibly malformed credentials.json, try logging in
-				// TODO prompt
-				err := Login()
-				if err != nil {
-					return nil, err
-				}
-				return NewClient()
-			}
-		}
-
 		return nil, err
 	}
 	if user != nil {
@@ -52,31 +51,28 @@ func NewClient() (*Client, error) {
 	return nil, fmt.Errorf("error creating client")
 }
 
-type Client struct {
-	Key *OauthToken
+func NewCommandClient() (*Client, error) {
+	var client *Client
+	var err error
+	client, err = NewClient()
+	if err != nil {
+		err = HandleNewClientErrors(err)
+		if err != nil {
+			panic(err)
+		} else {
+			client, err = NewClient()
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	return client, err
 }
 
 func buildBrevEndpoint(resource string) string {
 	baseEndpoint := config.GlobalConfig.GetBrevAPIURl()
 	return baseEndpoint + resource
 }
-
-// Example usage
-/*
-	token, _ := auth.GetToken()
-	brevAgent := brev_api.Agent{
-		Key: token,
-	}
-
-	endpointsResponse, _ := brevAgent.GetEndpoints()
-	fmt.Println(endpointsResponse)
-
-	projectsResponse, _ := brevAgent.GetProjects()
-	fmt.Println(projectsResponse)
-
-	modulesResponse, _ := brevAgent.GetModules()
-	fmt.Println(modulesResponse)
-*/
 
 func IsInProjectDirectory() (bool, error) {
 	return false, nil
