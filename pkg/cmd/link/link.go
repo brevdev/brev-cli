@@ -4,6 +4,7 @@ package link
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strings"
 
@@ -62,7 +63,12 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			t.Printf("Starting ssh link...\n")
 			k8sClientConfig, err := NewRemoteK8sClientConfig()
-			if err != nil {
+			switch err.(type) {
+			case *url.Error:
+				t.Errprint(err, "\n\ncheck your internet connection")
+				return
+
+			default:
 				t.Errprint(err, "")
 			}
 			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
