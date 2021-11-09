@@ -53,8 +53,8 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
 		Use:         "ls",
-		Short:       "List workspaces",
-		Long:        "List workspaces within your active org",
+		Short:       "List workspaces within active org",
+		Long:        "List workspaces within your active org. List all workspaces if no active org is set.",
 		Example:     `brev ls`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)

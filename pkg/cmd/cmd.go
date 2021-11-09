@@ -57,6 +57,9 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	cobra.AddTemplateFunc("hasSSHCommands", hasSSHCommands)
 	cobra.AddTemplateFunc("isSSHCommand", isSSHCommand)
 	cobra.AddTemplateFunc("sshCommands", sshCommands)
+	cobra.AddTemplateFunc("hasWorkspaceCommands", hasWorkspaceCommands)
+	cobra.AddTemplateFunc("isWorkspaceCommand", isWorkspaceCommand)
+	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
 	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
 	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
 	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
@@ -104,6 +107,10 @@ func hasSSHCommands(cmd *cobra.Command) bool {
 	return len(sshCommands(cmd)) > 0
 }
 
+func hasWorkspaceCommands(cmd *cobra.Command) bool {
+	return len(workspaceCommands(cmd)) > 0
+}
+
 func hasContextCommands(cmd *cobra.Command) bool {
 	return len(contextCommands(cmd)) > 0
 }
@@ -122,6 +129,16 @@ func sshCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
 		if isSSHCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isWorkspaceCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -154,6 +171,14 @@ func isSSHCommand(cmd *cobra.Command) bool {
 	}
 }
 
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["workspace"]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
 func isContextCommand(cmd *cobra.Command) bool {
 	if _, ok := cmd.Annotations["context"]; ok {
 		return true
@@ -176,6 +201,13 @@ Examples:
 
 Context Commands:
 {{- range contextCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- if hasWorkspaceCommands . }}
+
+Workspace Commands:
+{{- range workspaceCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 

@@ -42,7 +42,7 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
 		Use:         "set",
-		Short:       "Set active org",
+		Short:       "Set active org (helps with completion)",
 		Long:        "Set your organization to view, open, create workspaces etc",
 		Example:     `brev set [org name]`,
 		Args:        cobra.MinimumNArgs(1),
