@@ -1,16 +1,29 @@
 package brev_api
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
+
+type Application struct {
+	ID string `json:"id"`
+	Name string `json:"name"`
+	Port int `json:"port"`
+	StartCommand string `json:"startCommand"`
+	Version string `json:"version"`
+}
 
 type RequestCreateWorkspace struct {
 	Name                string `json:"name"`
 	WorkspaceGroupID    string `json:"workspaceGroupId"`
 	WorkspaceClassID    string `json:"workspaceClassId"`
 	GitRepo             string `json:"gitRepo"`
+	IsStoppable         bool   `json:"isStoppable"`
 	WorkspaceTemplateID string `json:"workspaceTemplateId"`
+	PrimaryApplicationId string `json:"primaryApplicationId"`
+	Applications []Application `json:"applications"`
 }
 
 type Workspace struct {
@@ -25,6 +38,16 @@ type Workspace struct {
 	Password         string `json:"password"`
 	GitRepo          string `json:"gitRepo"`
 }
+
+var DEFAULT_APPLICATION_ID = "92f59a4yf"
+var DEFAULT_APPLICATION = Application{
+  ID: "92f59a4yf",
+  Name: "VSCode",
+  Port: 22778,
+  StartCommand: "",
+  Version: "1.57.1",
+}
+var DEFAULT_APPLICATION_LIST = []Application{DEFAULT_APPLICATION}
 
 // Note: this is the "projects" view
 func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
@@ -180,11 +203,14 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 			WorkspaceClassID:    "2x8",
 			GitRepo:             gitrepo,
 			WorkspaceTemplateID: "4nbb4lg2s", // default ubuntu template
+			PrimaryApplicationId: DEFAULT_APPLICATION_ID,
+			Applications: []Application{DEFAULT_APPLICATION},
 		},
 	}
 
 	response, err := request.SubmitStrict()
 	if err != nil {
+		fmt.Println(err.Error())
 		return nil, err
 	}
 

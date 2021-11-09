@@ -52,9 +52,7 @@ func (e *RESTResponseError) Error() string {
 func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	var payload io.Reader
 	switch r.Method {
-	case "PUT":
-	case "POST":
-	case "PATCH":
+	case "PUT","POST","PATCH":
 		payloadBytes, _ := json.Marshal(r.Payload)
 		payload = bytes.NewBuffer(payloadBytes)
 	case "GET":
@@ -101,12 +99,10 @@ func (r *RESTRequest) Submit() (*RESTResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
-
 	payloadBytes, err := ioutil.ReadAll(res.Body)
 	defer res.Body.Close()
 	if err != nil {
@@ -137,6 +133,10 @@ func (r *RESTRequest) SubmitStrict() (*RESTResponse, error) {
 		return nil, err
 	}
 	if response.StatusCode >= 400 {
+		fmt.Println(r.Headers)
+		fmt.Println(r.Payload)
+		fmt.Println(response.StatusCode)
+		fmt.Println(response.PayloadAsString())
 		return nil, &RESTResponseError{
 			RequestURI:         r.URI,
 			ResponseStatusCode: response.StatusCode,

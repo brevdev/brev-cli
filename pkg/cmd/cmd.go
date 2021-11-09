@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/clone"
 	"github.com/brevdev/brev-cli/pkg/cmd/configure"
 	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
@@ -69,6 +70,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
+	cmd.AddCommand(clone.NewCmdClone(t))
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
 	cmd.AddCommand(link.NewCmdLink(t))
