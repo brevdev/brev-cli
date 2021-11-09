@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
+	"github.com/brevdev/brev-cli/pkg/cmd/configure"
+	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
@@ -14,6 +16,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
+	"github.com/brevdev/brev-cli/pkg/cmd/start"
+	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -86,6 +90,11 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	if isDev() {
 		cmd.AddCommand(sshall.NewCmdSSHAll())
 	}
+	cmd.AddCommand(configure.NewCmdConfigure())
+
+	cmd.AddCommand(start.NewCmdStart(t))
+	cmd.AddCommand(stop.NewCmdStop(t))
+	cmd.AddCommand(delete.NewCmdDelete(t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
@@ -197,13 +206,6 @@ Aliases:
 Examples:
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
 
-{{- if hasContextCommands . }}
-
-Context Commands:
-{{- range contextCommands . }}
-  {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}{{- end}}
-
 {{- if hasWorkspaceCommands . }}
 
 Workspace Commands:
@@ -212,6 +214,13 @@ Workspace Commands:
 {{- end}}{{- end}}
 
 {{- if hasSSHCommands . }}
+
+{{- if hasContextCommands . }}
+
+Context Commands:
+{{- range contextCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
 
 SSH Commands:
 {{- range sshCommands . }}
