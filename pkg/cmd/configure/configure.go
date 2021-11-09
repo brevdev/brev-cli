@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -21,7 +22,7 @@ Host brev
 
 type configureOptions struct{}
 
-func NewCmdConfigure() *cobra.Command {
+func NewCmdConfigure(t *terminal.Terminal) *cobra.Command {
 	opts := configureOptions{}
 
 	cmd := &cobra.Command{
@@ -36,7 +37,7 @@ func NewCmdConfigure() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(cmd, args))
 			cmdutil.CheckErr(opts.Validate(cmd, args))
-			cmdutil.CheckErr(opts.Runconfigure(cmd, args))
+			cmdutil.CheckErr(opts.Runconfigure(cmd, args, t))
 		},
 	}
 	return cmd
@@ -52,20 +53,21 @@ func (o *configureOptions) Validate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (o *configureOptions) Runconfigure(cmd *cobra.Command, args []string) error {
-	return configureSSH()
+func (o *configureOptions) Runconfigure(cmd *cobra.Command, args []string, t *terminal.Terminal) error {
+	return configureSSH(t)
 }
 
 // configureSSH finds the user's ssh config file, checks to see if
 // it has been configured for brev, and then sets it to the
 // DefaultSSHConfigEntry if it has not been set.
-func configureSSH() error {
+func configureSSH(t *terminal.Terminal) error {
 	sshConfigPath := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
 	sshConfigExists, err := files.Exists(sshConfigPath, false)
 	if err != nil {
 		return err
 	}
 	var file *os.File
+	t.Vprintf("ssh config path %s", sshConfigPath)
 	if sshConfigExists {
 		file, err = os.Open(sshConfigPath)
 		if err != nil {

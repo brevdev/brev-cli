@@ -25,6 +25,7 @@ func NewDefaultBrevCommand() *cobra.Command {
 func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	t := terminal.New()
 	var printVersion bool
+	var verbose bool
 
 	cmds := &cobra.Command{
 		Use:   "brev",
@@ -62,6 +63,8 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 	cmds.SetUsageTemplate(usageTemplate)
 
 	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
+	cmds.PersistentFlags().BoolVar(&verbose, "verbose", false, "verbose output")
+	t.SetVerbose(verbose)
 
 	createCmdTree(cmds, t)
 
@@ -75,7 +78,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
-	cmd.AddCommand(configure.NewCmdConfigure())
+	cmd.AddCommand(configure.NewCmdConfigure(t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
