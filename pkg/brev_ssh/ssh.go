@@ -81,7 +81,7 @@ func ConfigureSSH() error {
 			return err
 		}
 		// TODO getPort func?
-		ports, err := getBrevPorts(*cfg, existingNames)
+		ports, err := GetBrevPorts(*cfg, existingNames)
 		if err != nil {
 			return err
 		}
@@ -174,7 +174,7 @@ func getSSHConfig() (*ssh_config.Config, error) {
 	return cfg, nil
 }
 
-func getBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, error) {
+func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, error) {
 	portSet := make(map[string]bool)
 
 	for _, name := range hostnames {
