@@ -52,6 +52,9 @@ func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 }
 
 func NewCmdLs(t *terminal.Terminal) *cobra.Command {
+
+	var org string
+
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
 		Use:         "ls",
@@ -69,18 +72,23 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 		Args:      cobra.MinimumNArgs(0),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := ls(t, args)
+			err := ls(t, args, org)
 			if err != nil {
 				return err
 			}
 			return nil
 		},
 	}
+	
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return brev_api.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
+	})
 
 	return cmd
 }
 
-func ls(t *terminal.Terminal, args []string) error {
+func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	// If anyone mispells orgs/org/organizations we should just do it
 	if len(args) > 0 && (strings.Contains(args[0], "org")) {
 		orgs, err := getOrgs()
@@ -106,6 +114,23 @@ func ls(t *terminal.Terminal, args []string) error {
 
 		return nil
 	}
+
+	// if flag-- just get that org
+	if orgflag != "" {
+		org, err := brev_api.GetOrgFromName(orgflag)
+		if err != nil {
+			return err
+		}
+		joined, _, err := fetchWorkspacesAndPrintTable(t, org)
+		if err != nil {
+			return err
+		}
+		if len(joined) > 0 {
+			t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
+		}
+		return nil
+	}
+
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
@@ -138,14 +163,10 @@ func ls(t *terminal.Terminal, args []string) error {
 		return err
 	}
 
-	wss, err := getWorkspaces(activeorg.ID)
+	joined, _, err := fetchWorkspacesAndPrintTable(t, activeorg)
 	if err != nil {
 		return err
 	}
-	if len(wss) == 0 {
-		t.Vprint(t.Yellow("You don't have any workspaces in org %s.", activeorg.Name))
-	}
-	joined, _, err := printWorkspaceTable(t, wss, *activeorg)
 	if len(joined) > 0 {
 		t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
 	}
@@ -157,6 +178,24 @@ func ls(t *terminal.Terminal, args []string) error {
 	return nil
 }
 
+func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
+	wss, err := getWorkspaces(org.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(wss) == 0 {
+		t.Vprint(t.Yellow("You don't have any workspaces in org %s.", org.Name))
+		return nil, nil, nil
+	}
+	o := org
+	joined, unjoined, err := printWorkspaceTable(t, wss, *o)
+
+	if err != nil {
+		return nil, nil, err
+	}
+	return joined, unjoined, nil
+}
+
 func truncateString(s string, delimterCount int) string {
 	if len(s) <= delimterCount {
 		return s
@@ -165,7 +204,7 @@ func truncateString(s string, delimterCount int) string {
 	}
 }
 
-func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
+func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {	
 	me := getMe()
 
 	var unjoinedWorkspaces []brev_api.Workspace
