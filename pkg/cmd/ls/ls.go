@@ -2,11 +2,10 @@
 package ls
 
 import (
-	"errors"
 	"strings"
+	"sync"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -115,7 +114,6 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		return nil
 	}
 
-	// if flag-- just get that org
 	if orgflag != "" {
 		org, err := brev_api.GetOrgFromName(orgflag)
 		if err != nil {
@@ -133,34 +131,37 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
-		activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
-		if errors.Is(err, &activeOrgFoundErr) {
-			orgs, err := getOrgs()
-			if err != nil {
-				return err
-			}
-			if len(orgs) == 0 {
-				t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
-				return nil
-			}
-			for _, o := range orgs {
-				wss, err := getWorkspaces(o.ID)
-				if err != nil {
-					return err
-				}
-				if len(wss) == 0 {
-					t.Vprint(t.Yellow("You don't have any workspaces in org %s.", o.Name))
-				}
-				_, _, err = printWorkspaceTable(t, wss, o)
-				if err != nil {
-					return err
-				}
-			}
-			t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
-
+		orgs, err := getOrgs()
+		if err != nil {
+			return err
+		}
+		if len(orgs) == 0 {
+			t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
 			return nil
 		}
-		return err
+		var wg sync.WaitGroup
+
+		for _, o := range orgs {
+			wg.Add(1)
+			err := make(chan error)
+
+			o := o
+			go func(t *terminal.Terminal, org *brev_api.Organization) {
+				_, _, err1 := fetchWorkspacesAndPrintTable(t, org)
+				err <- err1
+				defer wg.Done()
+			}(t, &o)
+
+			err_ := <- err
+			if err_ != nil {
+				return err_
+			}
+
+		}
+		wg.Wait()
+		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
+
+			return nil
 	}
 
 	joined, _, err := fetchWorkspacesAndPrintTable(t, activeorg)
