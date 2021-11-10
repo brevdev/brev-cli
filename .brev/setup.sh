@@ -45,7 +45,10 @@ set -euo pipefail
 wget https://golang.org/dl/go1.16.7.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.16.7.linux-amd64.tar.gz
 rm go1.16.7.linux-amd64.tar.gz
+
+export PATH=$PATH:/usr/local/go/bin
 printf "\n%s\n" "export PATH=\$PATH:/usr/local/go/bin" | tee -a ~/.bashrc | tee -a ~/.zshrc
+export PATH=$PATH:/home/brev/go/bin
 printf "\n%s\n" "export PATH=\$PATH:/home/brev/go/bin" | tee -a ~/.bashrc | tee -a ~/.zshrc
 
 cd /tmp
