@@ -81,6 +81,11 @@ release: install
 run: ## go run
 	@go run -race .
 
+.PHONY: smoke-test
+smoke-test: ## runs `brev version`
+	$(call print-target)
+	go run main.go --version
+
 .PHONY: go-clean
 go-clean: ## go clean build, test and modules caches
 	$(call print-target)

@@ -46,16 +46,13 @@ wget https://golang.org/dl/go1.16.7.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.16.7.linux-amd64.tar.gz
 rm go1.16.7.linux-amd64.tar.gz
 printf "\n%s\n" "export PATH=\$PATH:/usr/local/go/bin" | tee -a ~/.bashrc | tee -a ~/.zshrc
+printf "\n%s\n" "export PATH=\$PATH:/home/brev/go/bin" | tee -a ~/.bashrc | tee -a ~/.zshrc
 
-# emacs stuff
 cd /tmp
 GO111MODULE=on go get golang.org/x/tools/gopls@latest
 cd -
-echo "export PATH=\$PATH:/home/brev/go/bin" | sudo tee -a ~/.bashrc
-source ~/.bashrc
-echo "export PATH=\$PATH:/home/brev/go/bin" | sudo tee -a ~/.zshrc
-source ~/.zshrc
-
+ 
 ##### Custom commands #####
 # (echo ""; echo "##### Custom commands #####"; echo "";)
-# npm install
+
+make install
