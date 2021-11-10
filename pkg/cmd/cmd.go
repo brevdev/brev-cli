@@ -90,7 +90,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	if isDev() {
 		cmd.AddCommand(sshall.NewCmdSSHAll())
 	}
-	cmd.AddCommand(configure.NewCmdConfigure())
 
 	cmd.AddCommand(start.NewCmdStart(t))
 	cmd.AddCommand(stop.NewCmdStop(t))
