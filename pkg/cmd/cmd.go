@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
-	"github.com/brevdev/brev-cli/pkg/cmd/configure"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
