@@ -2,6 +2,9 @@
 package delete
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -12,29 +15,6 @@ var (
 	deleteLong    = "Delete a Brev workspace that you no longer need. If you have a .brev setup script, you can get a new one without setting up."
 	deleteExample = "brev delete <ws_name>"
 )
-
-// func getWorkspaceNames() []string {
-// 	activeOrg, err := brev_api.GetActiveOrgContext()
-// 	if err != nil {
-// 		return nil
-// 	}
-
-// 	client, err := brev_api.NewCommandClient()
-// 	if err != nil {
-// 		return nil
-// 	}
-// 	wss, err := client.GetMyWorkspaces(activeOrg.ID)
-// 	if err != nil {
-// 		return nil
-// 	}
-
-// 	var wsNames []string
-// 	for _, w := range wss {
-// 		wsNames = append(wsNames, w.Name)
-// 	}
-
-// 	return wsNames
-// }
 
 func getCachedWorkspaceNames() []string {
 	activeOrg, err := brev_api.GetActiveOrgContext()
@@ -73,12 +53,78 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 		ValidArgs:             getCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
-			if len(args) > 0 {
-				t.Vprint(args[0])
+			err := deleteWorkspaceByID(args[0], t)
+			if err != nil {
+				t.Vprint(t.Red(err.Error()))
 			}
 
 		},
 	}
 
 	return cmd
+}
+
+func deleteWorkspaceByID(name string, t *terminal.Terminal) error {
+	client, err := brev_api.NewCommandClient()
+	if err != nil {
+		return err
+	}
+
+	workspace, err := getWorkspaceFromName(name)
+	if err != nil {
+		return err
+	}
+
+	deletedWorkspace, err := client.DeleteWorkspace(workspace.ID)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	t.Vprintf("Deleting workspace %s. \n Note: this can take a few minutes. Run 'brev ls' to check status", deletedWorkspace.Name)
+
+	return nil
+}
+
+func getWorkspaceFromName(name string) (*brev_api.Workspace, error) {
+
+	client, err := brev_api.NewCommandClient()
+	if err != nil {
+		return nil, err
+	}
+	activeOrg, err := brev_api.GetActiveOrgContext()
+	if err != nil {
+		return nil, err
+	}
+	
+	if err != nil {
+		// Get all orgs
+		orgs, err2 := client.GetOrgs()
+		if err2 != nil {
+			return nil, err2
+		}
+		for _, o := range orgs {
+			wss, err3 := client.GetWorkspaces(o.ID)
+			if err3 != nil {
+				return nil, err3
+			}
+			for _, w := range wss {
+				if w.Name == name {
+					return &w, nil
+				}
+			}
+		}
+	}
+	// If active org, get all ActiveOrg workspaces
+	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range wss {
+		if v.Name == name {
+			return &v, nil
+		}
+	}
+
+	return nil, errors.New("no workspace with that name")
 }

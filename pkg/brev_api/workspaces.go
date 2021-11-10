@@ -222,3 +222,29 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 
 	return &payload, nil
 }
+
+func (a *Client) DeleteWorkspace(wsID string) (*Workspace, error) {
+	request := requests.RESTRequest{
+		Method:   "DELETE",
+		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID),
+		QueryParams: []requests.QueryParam{
+			{Key: "utm_source", Value: "cli"},
+		},
+		Headers: []requests.Header{
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
+		},
+	}
+
+	response, err := request.SubmitStrict()
+	if err != nil {
+		return nil, err
+	}
+
+	var payload Workspace
+	err = response.UnmarshalPayload(&payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
+}
