@@ -2,6 +2,8 @@
 package stop
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -48,12 +50,36 @@ func NewCmdStop(t *terminal.Terminal) *cobra.Command {
 		ValidArgs:             getWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
-			if len(args) > 0 {
-				t.Vprint(args[0])
+			err := stopWorkspace(args[0], t)
+			if err != nil {
+				t.Vprint(t.Red(err.Error()))
 			}
 
 		},
 	}
 
 	return cmd
+}
+
+func stopWorkspace(workspaceName string, t *terminal.Terminal) error {
+	client, err := brev_api.NewCommandClient()
+	if err != nil {
+		return err
+	}
+
+	workspace, err := brev_api.GetWorkspaceFromName(workspaceName)
+	if err != nil {
+		return err
+	}
+
+	startedWorkspace, err := client.StopWorkspace(workspace.ID)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	t.Vprintf("Workspace %s is starting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
+
+	return nil
+
 }

@@ -28,7 +28,7 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 		ValidArgs:             brev_api.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
-			err := deleteWorkspaceByID(args[0], t)
+			err := deleteWorkspace(args[0], t)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -39,7 +39,7 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func deleteWorkspaceByID(name string, t *terminal.Terminal) error {
+func deleteWorkspace(name string, t *terminal.Terminal) error {
 	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return err
