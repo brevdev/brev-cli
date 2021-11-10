@@ -78,7 +78,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal) error {
 		return err
 	}
 
-	t.Vprintf("Workspace %s is starting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
+	t.Vprintf("Workspace %s is stopping. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
 
 	return nil
 
