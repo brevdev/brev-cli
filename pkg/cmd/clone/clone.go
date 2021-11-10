@@ -18,6 +18,8 @@ func isValidGitUrl(url string) bool {
 
 func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 
+	var org string
+
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"ssh": ""},
 		Use:         "clone",
@@ -43,24 +45,46 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			clone(t, args[0])
+			err := clone(t, args[0], org)
+			if err != nil {
+				t.Vprint(t.Red(err.Error()))
+			}
 			return nil
 		},
 	}
 
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return brev_api.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
+	})
 	return cmd
 }
 
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
-func clone(t *terminal.Terminal, url string) error {
+func clone(t *terminal.Terminal, url string, orgflag string) error {	
 	formattedURL := validateGitUrl(t, url)
 
-	err := createWorkspace(t, formattedURL)
+	var orgID string
+	if orgflag=="" {
+		activeorg, err := brev_api.GetActiveOrgContext()
+		if err != nil {
+			return err
+		}
+		orgID = activeorg.ID
+	} else {
+		org, err := brev_api.GetOrgFromName(orgflag)
+		if err != nil {
+			return err
+		}
+		orgID = org.ID
+	}
+
+	err := createWorkspace(t, formattedURL, orgID)
 
 	if err != nil {
-		t.Vprint(err.Error())
+		t.Vprint(t.Red(err.Error()))
 	}
 	return nil
 }
@@ -97,18 +121,14 @@ func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace) error {
-	activeorg, err := brev_api.GetActiveOrgContext()
-	if err != nil {
-		return err
-	}
+func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string) error {
 
 	c, err := brev_api.NewClient()
 	if err != nil {
 		return err
 	}
 
-	w, err := c.CreateWorkspace(activeorg.ID, newworkspace.Name, newworkspace.GitRepo)
+	w, err := c.CreateWorkspace(orgID, newworkspace.Name, newworkspace.GitRepo)
 	if err != nil {
 		return err
 	}

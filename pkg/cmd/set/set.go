@@ -23,21 +23,6 @@ func getOrgs() []brev_api.Organization {
 	return orgs
 }
 
-func getOrgNames() []string {
-	cachedOrgs, err := brev_api.GetOrgCacheData()
-	if err != nil {
-		return nil
-	}
-
-	// orgs  := getOrgs()
-	var orgNames []string
-	for _, v := range cachedOrgs {
-		orgNames = append(orgNames, v.Name)
-	}
-
-	return orgNames
-}
-
 func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
@@ -46,7 +31,7 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 		Long:        "Set your organization to view, open, create workspaces etc",
 		Example:     `brev set [org name]`,
 		Args:        cobra.MinimumNArgs(1),
-		ValidArgs:   getOrgNames(),
+		ValidArgs:   brev_api.GetOrgNames(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {

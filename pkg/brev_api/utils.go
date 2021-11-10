@@ -105,6 +105,27 @@ func OpenBrowser(url string) error {
 	return exec.Command(cmd, args...).Start()
 }
 
+func GetOrgFromName(name string) (*Organization, error) {
+	client, err := NewCommandClient()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get all orgs
+	orgs, err := client.GetOrgs()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, o := range orgs {
+		if o.Name == name {
+			return &o, nil
+		}
+	}
+
+	return nil, errors.New("no organization with that name")
+}
+
 func GetWorkspaceFromName(name string) (*Workspace, error) {
 
 	client, err := NewCommandClient()
@@ -170,4 +191,19 @@ func GetCachedWorkspaceNames() []string {
 	}
 
 	return nil
+}
+
+func GetOrgNames() []string {
+	cachedOrgs, err := GetOrgCacheData()
+	if err != nil {
+		return nil
+	}
+
+	// orgs  := getOrgs()
+	var orgNames []string
+	for _, v := range cachedOrgs {
+		orgNames = append(orgNames, v.Name)
+	}
+
+	return orgNames
 }
