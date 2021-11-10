@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/user"
 	"path/filepath"
 )
 
@@ -46,40 +45,44 @@ func GetSSHPrivateKeyFileName() string {
 	return sshPrivateKeyFileName
 }
 
-func GetHomeDir() string {
-	usr, err := user.Current()
+func makeBrevFilePath(filename string) (*string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	fpath, err := filepath.Join(home, brevDirectory, filename), nil
+	if err != nil {
+		return nil, err
+	}
+	return &fpath, nil
+}
+
+func makeBrevFilePathOrPanic(filename string) string {
+	fpath, err := makeBrevFilePath(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return usr.HomeDir
+	return *fpath
 }
 
 func GetWorkspacesCacheFilePath() string {
-	rootDir := GetHomeDir()
-
-	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, workspaceCacheFile)
+	return makeBrevFilePathOrPanic(workspaceCacheFile)
 }
 
 func GetOrgCacheFilePath() string {
-	rootDir := GetHomeDir()
-
-	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, orgCacheFile)
+	return makeBrevFilePathOrPanic(orgCacheFile)
 }
 
 func GetActiveOrgsPath() string {
-	rootDir := GetHomeDir()
-
-	return fmt.Sprintf("%s/%s/%s", rootDir, brevDirectory, activeOrgFile)
+	return makeBrevFilePathOrPanic(activeOrgFile)
 }
 
 func GetCertFilePath() string {
-	home, _ := os.UserHomeDir()
-	return home + "/" + GetBrevDirectory() + "/" + GetKubeCertFileName()
+	return makeBrevFilePathOrPanic(GetKubeCertFileName())
 }
 
 func GetSSHPrivateKeyFilePath() string {
-	home, _ := os.UserHomeDir()
-	return home + "/" + GetBrevDirectory() + "/" + GetSSHPrivateKeyFileName()
+	return makeBrevFilePathOrPanic(GetSSHPrivateKeyFileName())
 }
 
 func Exists(filepath string, isDir bool) (bool, error) {
