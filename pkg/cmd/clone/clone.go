@@ -33,21 +33,20 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-			  return errors.New("requires a git url")
+				return errors.New("requires a git url")
 			}
 
-			if (!isValidGitUrl(args[0])) {
+			if !isValidGitUrl(args[0]) {
 				return errors.New("please use a valid git url")
 			}
 			return nil
-		
-		  },
+
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			clone(t, args[0])
 			return nil
 		},
 	}
-
 
 	return cmd
 }
@@ -58,7 +57,6 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 func clone(t *terminal.Terminal, url string) error {
 	formattedURL := validateGitUrl(t, url)
 
-
 	err := createWorkspace(t, formattedURL)
 
 	if err != nil {
@@ -68,8 +66,8 @@ func clone(t *terminal.Terminal, url string) error {
 }
 
 type NewWorkspace struct {
-	Name                string `json:"name"`
-	GitRepo             string `json:"gitRepo"`
+	Name    string `json:"name"`
+	GitRepo string `json:"gitRepo"`
 }
 
 func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
@@ -77,24 +75,24 @@ func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
 	if strings.Contains(url, "http") {
 		split := strings.Split(url, ".com/")
 		provider := strings.Split(split[0], "://")[1]
-		
-		if (strings.Contains(split[1], ".git")){
+
+		if strings.Contains(split[1], ".git") {
 			return NewWorkspace{
-				GitRepo: fmt.Sprintf("%s.com:%s", provider,split[1]),
-				Name: strings.Split(split[1], ".git")[0],
+				GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
+				Name:    strings.Split(split[1], ".git")[0],
 			}
-			} else {
+		} else {
 			return NewWorkspace{
-				GitRepo: fmt.Sprintf("%s.com:%s.git", provider,split[1]),
-				Name: split[1],
+				GitRepo: fmt.Sprintf("%s.com:%s.git", provider, split[1]),
+				Name:    split[1],
 			}
 		}
 	} else {
 		split := strings.Split(url, ".com:")
 		provider := strings.Split(split[0], "@")[1]
 		return NewWorkspace{
-			GitRepo: fmt.Sprintf("%s.com:%s", provider,split[1]),
-			Name: strings.Split(split[1], ".git")[0],
+			GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
+			Name:    strings.Split(split[1], ".git")[0],
 		}
 	}
 }

@@ -52,7 +52,7 @@ func (e *RESTResponseError) Error() string {
 func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	var payload io.Reader
 	switch r.Method {
-	case "PUT","POST","PATCH":
+	case "PUT", "POST", "PATCH":
 		payloadBytes, _ := json.Marshal(r.Payload)
 		payload = bytes.NewBuffer(payloadBytes)
 	case "GET":
