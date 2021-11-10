@@ -176,21 +176,43 @@ func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, 
 	}
 
 	DELIMETER := 40
+	LONGEST_STATUS := len("DEPLOYING") // longest name for a workspace status, used for table formatting
 	if len(joinedWorkspaces) > 0 {
 		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
-		t.Vprint("NAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) + "ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) + "URL")
+		t.Vprint(
+			"NAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) + 
+			// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
+			"STATUS" + strings.Repeat(" ", LONGEST_STATUS + 1 + LONGEST_STATUS - len("STATUS")) + 
+			"ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) + 
+			"URL")
 		for _, v := range joinedWorkspaces {
-			t.Vprint(truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " + v.ID + strings.Repeat(" ", 5) + v.DNS)
+			t.Vprint(
+				truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " + 
+				getStatusColoredText(t, v.Status) + strings.Repeat(" ", LONGEST_STATUS + LONGEST_STATUS - len(v.Status)) + " " + 
+				v.ID + strings.Repeat(" ", 5) + 
+				v.DNS)
 		}
 	}
 
 	return joinedWorkspaces, unjoinedWorkspaces, nil
 }
 
+func getStatusColoredText(t *terminal.Terminal, status string) string {
+	switch status {
+	case "RUNNING":
+		return t.Green(status)	
+	case "STARTING","DEPLOYING","STOPPING":
+		return t.Yellow(status)
+	case "FAILURE","DELETING":
+		return t.Red(status)
+	default:
+		return status
+	}
+}
+
 func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, activeorg brev_api.Organization) error {
 	ID_LEN := 9
 	if len(organizations) > 0 {
-		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
 		t.Vprint("  ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
 		for _, v := range organizations {
 			if activeorg.ID == v.ID {
@@ -206,7 +228,6 @@ func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, 
 func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brev_api.Organization) error {
 	ID_LEN := 9
 	if len(organizations) > 0 {
-		// t.Vprint("NAME"+ strings.Repeat(" ", DELIMETER+1-len("NAME")) +"ID"+ strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +"URL")
 		t.Vprint("ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
 		for _, v := range organizations {
 			t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
