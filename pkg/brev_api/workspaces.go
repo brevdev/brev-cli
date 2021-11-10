@@ -300,3 +300,29 @@ func (a *Client) StopWorkspace(wsID string) (*Workspace, error) {
 
 	return &payload, nil
 }
+
+func (a *Client) ResetWorkspace(wsID string) (*Workspace, error) {
+	request := requests.RESTRequest{
+		Method:   "PUT",
+		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/reset"),
+		QueryParams: []requests.QueryParam{
+			{Key: "utm_source", Value: "cli"},
+		},
+		Headers: []requests.Header{
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
+		},
+	}
+
+	response, err := request.SubmitStrict()
+	if err != nil {
+		return nil, err
+	}
+
+	var payload Workspace
+	err = response.UnmarshalPayload(&payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
+}

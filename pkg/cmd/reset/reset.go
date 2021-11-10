@@ -1,5 +1,5 @@
 // Package start is for starting Brev workspaces
-package start
+package reset
 
 import (
 	"fmt"
@@ -15,10 +15,10 @@ var (
 	startExample = "brev start <ws_name>"
 )
 
-func NewCmdStart(t *terminal.Terminal) *cobra.Command {
+func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "start",
+		Use:                   "reset",
 		DisableFlagsInUseLine: true,
 		Short:                 "Start a workspace if it's stopped",
 		Long:                  startLong,
@@ -27,7 +27,7 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 		ValidArgs:             brev_api.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
-			err := startWorkspace(args[0], t)
+			err := resetWorkspace(args[0], t)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -38,7 +38,7 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func startWorkspace(workspaceName string, t *terminal.Terminal) error {
+func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
 	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return err
@@ -49,13 +49,13 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		return err
 	}
 
-	startedWorkspace, err := client.StartWorkspace(workspace.ID)
+	startedWorkspace, err := client.ResetWorkspace(workspace.ID)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
 
-	t.Vprintf("Workspace %s is starting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
+	t.Vprintf("Workspace %s is resetting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
 
 	return nil
 
