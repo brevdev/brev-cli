@@ -49,6 +49,9 @@ func GetActiveOrgContext() (*Organization, error) {
 
 	var activeOrg Organization
 	err = files.ReadJSON(brevActiveOrgsFile, &activeOrg)
+	if err != nil {
+		return nil, err
+	}
 
 	return &activeOrg, nil
 }

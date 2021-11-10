@@ -42,44 +42,66 @@ type PortForwarder interface {
 }
 
 func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver ResourceResolver, portforwarder PortForwarder) *PortForwardOptions {
-	return &PortForwardOptions{
+	p := &PortForwardOptions{
 		PortForwarder:    portforwarder,
 		K8sClient:        portForwardHelpers,
 		ResourceResolver: workspaceResolver,
 	}
+
+	p.Address = []string{"localhost"}
+	p.StopChannel = make(chan struct{}, 1)
+	p.ReadyChannel = make(chan struct{})
+
+	return p
 }
 
-func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string, Port string) error {
+func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string, port string) error {
 	workspaceIDOrName := args[0]
 
+	_, err := o.WithWorkspace(workspaceIDOrName)
+	if err != nil {
+		return err
+	}
+
+	o.WithPort(port)
+
+	return nil
+}
+
+func (o *PortForwardOptions) WithWorkspace(workspaceIDOrName string) (*PortForwardOptions, error) {
 	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceIDOrName)
 	if err != nil {
 		wsByName, err2 := o.ResourceResolver.GetWorkspaceByName(workspaceIDOrName)
 		if err2 != nil {
-			return err2
+			return nil, err2
 		} else {
 			workspace = wsByName
 		}
 	}
 	if workspace == nil {
-		return fmt.Errorf("workspace with id or name %s does not exist", workspaceIDOrName)
+		return nil, fmt.Errorf("workspace with id or name %s does not exist", workspaceIDOrName)
 	}
-	// handle diff org than settings
 
 	o.Namespace = workspace.GetNamespaceName()
 	o.PodName = workspace.GetPodName()
 
 	if o.PodName == "" {
-		return fmt.Errorf("unable to forward port because pod is not found-- workspace may not be running")
+		return nil, fmt.Errorf("unable to forward port because pod is not found-- workspace may not be running")
 	}
 
-	o.Address = []string{"localhost"}
-	o.Ports = []string{Port} // TODO override from args
+	return o, nil
+}
 
-	o.StopChannel = make(chan struct{}, 1)
-	o.ReadyChannel = make(chan struct{})
+func (o *PortForwardOptions) WithStopChan(stopChan chan struct{}) *PortForwardOptions {
+	o.StopChannel = stopChan
 
-	return nil
+	return o
+}
+
+func (o *PortForwardOptions) WithPort(port string) *PortForwardOptions {
+	o.Ports = []string{port}
+
+	return o
 }
 
 func (o PortForwardOptions) RunPortforward() error {

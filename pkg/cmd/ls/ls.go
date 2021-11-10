@@ -2,16 +2,18 @@
 package ls
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 )
 
-// Helper functions
+// Helper functions.
 func getMe() brev_api.User {
 	client, err := brev_api.NewCommandClient()
 	if err != nil {
@@ -103,35 +105,37 @@ func ls(t *terminal.Terminal, args []string) error {
 		}
 
 		return nil
-
 	}
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
-		// TODO: if no active org, print everything
-		orgs, err := getOrgs()
-		if err != nil {
-			return err
-		}
-		if len(orgs) == 0 {
-			t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
+		activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
+		if errors.Is(err, &activeOrgFoundErr) {
+			orgs, err := getOrgs()
+			if err != nil {
+				return err
+			}
+			if len(orgs) == 0 {
+				t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
+				return nil
+			}
+			for _, o := range orgs {
+				wss, err := getWorkspaces(o.ID)
+				if err != nil {
+					return err
+				}
+				if len(wss) == 0 {
+					t.Vprint(t.Yellow("You don't have any workspaces in org %s.", o.Name))
+				}
+				_, _, err = printWorkspaceTable(t, wss, o)
+				if err != nil {
+					return err
+				}
+			}
+			t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
+
 			return nil
 		}
-		for _, o := range orgs {
-			wss, err := getWorkspaces(o.ID)
-			if err != nil {
-				return err
-			}
-			if len(wss) == 0 {
-				t.Vprint(t.Yellow("You don't have any workspaces in org %s.", o.Name))
-			}
-			_, _, err = printWorkspaceTable(t, wss, o)
-			if err != nil {
-				return err
-			}
-		}
-		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
-
-		return nil
+		return err
 	}
 
 	wss, err := getWorkspaces(activeorg.ID)

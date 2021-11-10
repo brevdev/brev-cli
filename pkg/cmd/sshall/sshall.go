@@ -1,6 +1,11 @@
 package sshall
 
 import (
+	"fmt"
+	"math/rand"
+	"strconv"
+
+	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -31,10 +36,64 @@ func (s *sshAllOptions) Complete(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (s *sshAllOptions) Validate() error {
+func (s sshAllOptions) Validate() error {
 	return nil
 }
 
-func (s *sshAllOptions) RunSSHAll() error {
+func (s sshAllOptions) RunSSHAll() error {
 	return nil
+}
+
+type SSHAll struct{}
+
+func (s SSHAll) Run() error {
+	workspaces, err := getActiveWorkspaces() // to inject?
+	if err != nil {
+		return err
+	}
+
+	for _, w := range workspaces {
+		id := w.GetID()
+		port := getLocalPortForWorkspace(id) // to inject?
+		portMapping := makeSSHPortMapping(port)
+		err := portforwardWorkspace(id, portMapping) // to inject?
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func getActiveWorkspaces() ([]brev_api.Workspace, error) {
+	activeOrg, err := brev_api.GetActiveOrgContext()
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := brev_api.NewCommandClient()
+	if err != nil {
+		return nil, err
+	}
+	wss, err := client.GetWorkspaces(activeOrg.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	return wss, nil
+}
+
+func getLocalPortForWorkspace(workspaceID string) string {
+	minPort := 1024
+	maxPort := 65535
+	port := rand.Intn(maxPort-minPort) + minPort
+	return strconv.Itoa(port)
+}
+
+func portforwardWorkspace(workspaceID string, portMapping string) error {
+	return nil
+}
+
+func makeSSHPortMapping(localPort string) string {
+	return fmt.Sprintf("%s:22", localPort)
 }

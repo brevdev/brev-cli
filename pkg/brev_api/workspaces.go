@@ -39,19 +39,24 @@ type Workspace struct {
 	GitRepo          string `json:"gitRepo"`
 }
 
-var DEFAULT_APPLICATION_ID = "92f59a4yf"
-var DEFAULT_APPLICATION = Application{
-	ID:           "92f59a4yf",
-	Name:         "VSCode",
-	Port:         22778,
-	StartCommand: "",
-	Version:      "1.57.1",
+func (w Workspace) GetID() string {
+	return w.ID
 }
+
+var (
+	DEFAULT_APPLICATION_ID = "92f59a4yf"
+	DEFAULT_APPLICATION    = Application{
+		ID:           "92f59a4yf",
+		Name:         "VSCode",
+		Port:         22778,
+		StartCommand: "",
+		Version:      "1.57.1",
+	}
+)
 var DEFAULT_APPLICATION_LIST = []Application{DEFAULT_APPLICATION}
 
 // Note: this is the "projects" view
 func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
-
 	me, err := a.GetMe()
 	if err != nil {
 		return nil, err
