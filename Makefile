@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := dev
-VERSION := $(shell git tag | grep ^v | sort -V | tail -n 1)
+VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 
+.PHONY: version
+version:
+	echo ${VERSION}
 
 .PHONY: dev
 dev: ## dev build

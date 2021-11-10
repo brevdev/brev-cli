@@ -4,6 +4,7 @@ package cmd
 import (
 	"io"
 	"os"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
 	"github.com/brevdev/brev-cli/pkg/cmd/configure"
@@ -13,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
+	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -78,6 +80,11 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
 	cmd.AddCommand(configure.NewCmdConfigure())
+
+	// dev feature toggle
+	if isDev() {
+		cmd.AddCommand(sshall.NewCmdSSHAll())
+	}
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
@@ -85,6 +92,10 @@ func runHelp(cmd *cobra.Command, _ []string) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func isDev() bool {
+	return version.Version == "" || strings.HasPrefix(version.Version, "dev")
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
