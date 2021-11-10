@@ -13,27 +13,28 @@ var (
 	startExample = "brev start <ws_name>"
 )
 
-func getWorkspaceNames() []string {
+func getCachedWorkspaceNames() []string {
 	activeOrg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return nil
 	}
 
-	client, err := brev_api.NewCommandClient()
-	if err != nil {
-		return nil
-	}
-	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	cachedWorkspaces, err := brev_api.GetWsCacheData()
 	if err != nil {
 		return nil
 	}
 
 	var wsNames []string
-	for _, w := range wss {
-		wsNames = append(wsNames, w.Name)
+	for _, cw := range cachedWorkspaces {
+		if cw.OrgID == activeOrg.ID {
+			for _, w := range cw.Workspaces {
+				wsNames = append(wsNames, w.Name)
+			}
+			return wsNames
+		}
 	}
 
-	return wsNames
+	return nil
 }
 
 func NewCmdStart(t *terminal.Terminal) *cobra.Command {
@@ -45,7 +46,7 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             getWorkspaceNames(),
+		ValidArgs:             getCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
 			if len(args) > 0 {
@@ -56,4 +57,10 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 	}
 
 	return cmd
+}
+
+func startWorkspace(workspaceName string, t *terminal.Terminal) error {
+
+	
+
 }

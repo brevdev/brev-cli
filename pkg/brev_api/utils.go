@@ -1,6 +1,7 @@
 package brev_api
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"runtime"
@@ -102,4 +103,71 @@ func OpenBrowser(url string) error {
 	}
 	args = append(args, url)
 	return exec.Command(cmd, args...).Start()
+}
+
+func GetWorkspaceFromName(name string) (*Workspace, error) {
+
+	client, err := NewCommandClient()
+	if err != nil {
+		return nil, err
+	}
+	activeOrg, err := GetActiveOrgContext()
+	if err != nil {
+		return nil, err
+	}
+	
+	if err != nil {
+		// Get all orgs
+		orgs, err2 := client.GetOrgs()
+		if err2 != nil {
+			return nil, err2
+		}
+		for _, o := range orgs {
+			wss, err3 := client.GetWorkspaces(o.ID)
+			if err3 != nil {
+				return nil, err3
+			}
+			for _, w := range wss {
+				if w.Name == name {
+					return &w, nil
+				}
+			}
+		}
+	}
+	// If active org, get all ActiveOrg workspaces
+	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range wss {
+		if v.Name == name {
+			return &v, nil
+		}
+	}
+
+	return nil, errors.New("no workspace with that name")
+}
+
+func GetCachedWorkspaceNames() []string {
+	activeOrg, err := GetActiveOrgContext()
+	if err != nil {
+		return nil
+	}
+
+	cachedWorkspaces, err := GetWsCacheData()
+	if err != nil {
+		return nil
+	}
+
+	var wsNames []string
+	for _, cw := range cachedWorkspaces {
+		if cw.OrgID == activeOrg.ID {
+			for _, w := range cw.Workspaces {
+				wsNames = append(wsNames, w.Name)
+			}
+			return wsNames
+		}
+	}
+
+	return nil
 }
