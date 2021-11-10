@@ -13,27 +13,51 @@ var (
 	deleteExample = "brev delete <ws_name>"
 )
 
-func getWorkspaceNames() []string {
+// func getWorkspaceNames() []string {
+// 	activeOrg, err := brev_api.GetActiveOrgContext()
+// 	if err != nil {
+// 		return nil
+// 	}
+
+// 	client, err := brev_api.NewCommandClient()
+// 	if err != nil {
+// 		return nil
+// 	}
+// 	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+// 	if err != nil {
+// 		return nil
+// 	}
+
+// 	var wsNames []string
+// 	for _, w := range wss {
+// 		wsNames = append(wsNames, w.Name)
+// 	}
+
+// 	return wsNames
+// }
+
+func getCachedWorkspaceNames() []string {
 	activeOrg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
 		return nil
 	}
 
-	client, err := brev_api.NewCommandClient()
-	if err != nil {
-		return nil
-	}
-	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	cachedWorkspaces, err := brev_api.GetWsCacheData()
 	if err != nil {
 		return nil
 	}
 
 	var wsNames []string
-	for _, w := range wss {
-		wsNames = append(wsNames, w.Name)
+	for _, cw := range cachedWorkspaces {
+		if cw.OrgID == activeOrg.ID {
+			for _, w := range cw.Workspaces {
+				wsNames = append(wsNames, w.Name)
+			}
+			return wsNames
+		}
 	}
 
-	return wsNames
+	return nil
 }
 
 func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
@@ -46,7 +70,7 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 		Long:                  deleteLong,
 		Example:               deleteExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             getWorkspaceNames(),
+		ValidArgs:             getCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
 			if len(args) > 0 {
