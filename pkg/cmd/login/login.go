@@ -42,5 +42,5 @@ func (o *LoginOptions) Validate(cmd *cobra.Command, args []string) error {
 }
 
 func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
-	return brev_api.Login(true)
+	return brev_api.Login(false)
 }
