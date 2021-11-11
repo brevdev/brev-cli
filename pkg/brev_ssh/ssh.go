@@ -129,14 +129,17 @@ func ConfigureSSH() error {
 }
 
 func checkIfBrevHost(host ssh_config.Host) bool {
-	brevEntry := false
 	for _, node := range host.Nodes {
-		if strings.Contains(node.String(), "~/.brev/brev.pem") {
-			brevEntry = true
-			break
+		switch n := node.(type) {
+		case *ssh_config.KV:
+			if strings.Compare(n.Key, "IdentityFile") == 0 {
+				if strings.Compare(files.GetSSHPrivateKeyFilePath(), n.Value) == 0 {
+					return true
+				}
+			}
 		}
 	}
-	return brevEntry
+	return false
 }
 
 func getSSHConfig() (*ssh_config.Config, error) {

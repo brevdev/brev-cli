@@ -20,25 +20,23 @@ type BrevSSHTestSuite struct {
 }
 
 func (suite *BrevSSHTestSuite) SetupTest() {
-	r := strings.NewReader(`
-Host brev
+	r := strings.NewReader(`Host brev
 	 Hostname 0.0.0.0
-	 IdentityFile ~/.brev/brev.pem
+	 IdentityFile /home/brev/.brev/brev.pem
 	 User brev
 	 Port 2222
 
 Host workspace-images
 	 Hostname 0.0.0.0
-	 IdentityFile ~/.brev/brev.pem
+	 IdentityFile /home/brev/.brev/brev.pem
 	 User brev
 	 Port 2223
 
 Host brevdev/brev-deploy
 	 Hostname 0.0.0.0
-	 IdentityFile ~/.brev/brev.pem
+	 IdentityFile /home/brev/.brev/brev.pem
 	 User brev
-	 Port 2224
-`)
+	 Port 2224`)
 	SSHConfig, err := ssh_config.Decode(r)
 	if err != nil {
 		panic(err)
@@ -47,8 +45,6 @@ Host brevdev/brev-deploy
 	suite.activeWorkspaces = []string{"brev", "workspace-images"}
 }
 
-// All methods that begin with "Test" are run as tests within a
-// suite.
 func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
 	ports, err := GetBrevPorts(suite.SSHConfig, []string{"brev", "workspace-images", "brevdev/brev-deploy"})
 	suite.True(ports["2222"])
@@ -59,7 +55,10 @@ func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
 
 func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 	for _, host := range suite.SSHConfig.Hosts {
-		suite.True(checkIfBrevHost(*host))
+		if len(host.Nodes) > 0 {
+			isBrevHost := checkIfBrevHost(*host)
+			suite.True(isBrevHost)
+		}
 	}
 }
 
