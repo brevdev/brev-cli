@@ -163,7 +163,7 @@ func getSSHConfigFile() (*os.File, error) {
 }
 
 func getSSHConfig() (*ssh_config.Config, error) {
-	file, err := getSSHConfigFile()
+	file, err := files.GetOrCreateSSHConfigFile()
 	if err != nil {
 		return nil, err
 	}
