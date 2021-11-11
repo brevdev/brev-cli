@@ -16,6 +16,7 @@ package brev_ssh
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"text/template"
 
@@ -120,6 +121,8 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 	return newConfig
 }
 
+// todo this should prob return a cfg object, instead make sure your re get the cfg
+// after calling this
 func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []string) error {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
@@ -141,12 +144,17 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []s
 			for ports[fmt.Sprint(port)] {
 				port++
 			}
-			err = appendBrevEntry(workspaceName, fmt.Sprint(port))
+			file, err := files.GetOrCreateSSHConfigFile()
+			if err != nil {
+				return err
+			}
+			err = appendBrevEntry(*file, workspaceName, fmt.Sprint(port))
 			if err != nil {
 				return err
 			}
 		}
 	}
+	return nil
 }
 
 func checkIfBrevHost(host ssh_config.Host) bool {
@@ -212,11 +220,7 @@ func unorderedRemove(s []string, i int) []string {
 	return s[:len(s)-1]
 }
 
-func appendBrevEntry(workspaceName, port string) error {
-	file, err := files.GetOrCreateSSHConfigFile()
-	if err != nil {
-		return err
-	}
+func appendBrevEntry(file os.File, workspaceName, port string) error {
 	workspaceSSHConfig := workspaceSSHConfig{
 		Host:         workspaceName,
 		Hostname:     "0.0.0.0",

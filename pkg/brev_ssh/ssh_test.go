@@ -41,7 +41,6 @@ Host brevdev/brev-deploy
 	}
 	suite.SSHConfig = *SSHConfig
 	suite.SSHConfig.Hosts = suite.SSHConfig.Hosts[1:]
-	suite.activeWorkspaces = []string{"brev"}
 }
 
 func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
@@ -60,6 +59,7 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 		}
 	}
 }
+
 func (suite *BrevSSHTestSuite) TestGetWorkspaceLocalSSHPort() {
 	port, err := GetWorkspaceLocalSSHPort("brev")
 	if err != nil {
@@ -67,7 +67,6 @@ func (suite *BrevSSHTestSuite) TestGetWorkspaceLocalSSHPort() {
 	}
 	suite.Equal(strings.Compare("2222", port), 0)
 }
-
 
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
