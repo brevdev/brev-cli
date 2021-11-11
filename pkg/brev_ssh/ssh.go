@@ -193,41 +193,6 @@ func unorderedRemove(s []string, i int) []string {
 	return s[:len(s)-1]
 }
 
-// sshConfigHasValidEntry checks a user's ssh config to see if their is a valid
-// entry for a workspace, which is defined as:
-//
-// 		Host <workspace-name>
-// 	 		Hostname 0.0.0.0
-// 	 		IdentityFile ~/.brev/brev.pem
-// 	 		User brev
-// 	 		Port <some-random-port>
-//
-// a workspace's config definition must use a unique port
-func GetWorkspaceSSHConfig(cfg *ssh_config.Config, workspaceName string) (*workspaceSSHConfig, error) {
-	Hostname, err := cfg.Get(workspaceName, "Hostname")
-	if err != nil {
-		return nil, err
-	}
-	IdentityFile, err := cfg.Get(workspaceName, "IdentityFile")
-	if err != nil {
-		return nil, err
-	}
-	User, err := cfg.Get(workspaceName, "User")
-	if err != nil {
-		return nil, err
-	}
-	Port, err := cfg.Get(workspaceName, "Port")
-	if err != nil {
-		return nil, err
-	}
-	return &workspaceSSHConfig{
-		Host:         Hostname,
-		IdentityFile: IdentityFile,
-		User:         User,
-		Port:         Port,
-	}, nil
-}
-
 func appendBrevEntry(workspaceName, port string) error {
 	file, err := files.GetOrCreateSSHConfigFile()
 	if err != nil {
