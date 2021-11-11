@@ -48,15 +48,15 @@ func (s sshAllOptions) Validate() error {
 }
 
 func (s sshAllOptions) RunSSHAll() error {
-	return RunSSHAll(getUserActiveWorkspaces, getRandomLocalPortForWorkspace)
-}
-
-func RunSSHAll(getUserActiveWorkspaces func() ([]brev_api.Workspace, error), getLocalPortForWorkspace func(string) string) error {
 	workspaces, err := getUserActiveWorkspaces()
 	if err != nil {
 		return err
 	}
 
+	return RunSSHAll(workspaces, getRandomLocalPortForWorkspace)
+}
+
+func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(string) string) error {
 	for _, w := range workspaces {
 		id := w.GetID()
 		port := getLocalPortForWorkspace(id)
