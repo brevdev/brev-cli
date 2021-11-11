@@ -15,13 +15,12 @@ import (
 // returns the current testing context
 type BrevSSHTestSuite struct {
 	suite.Suite
-	SSHConfig ssh_config.Config
+	SSHConfig        ssh_config.Config
+	activeWorkspaces []string
 }
 
-// Make sure that VariableThatShouldStartAtFive is set to five
-// before each test
 func (suite *BrevSSHTestSuite) SetupTest() {
-	r := strings.NewReader( `
+	r := strings.NewReader(`
 Host brev
 	 Hostname 0.0.0.0
 	 IdentityFile ~/.brev/brev.pem
@@ -41,11 +40,11 @@ Host brevdev/brev-deploy
 	 Port 2224
 `)
 	SSHConfig, err := ssh_config.Decode(r)
-
 	if err != nil {
 		panic(err)
 	}
 	suite.SSHConfig = *SSHConfig
+	suite.activeWorkspaces = []string{"brev", "workspace-images"}
 }
 
 // All methods that begin with "Test" are run as tests within a
@@ -62,6 +61,12 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 	for _, host := range suite.SSHConfig.Hosts {
 		suite.True(checkIfBrevHost(*host))
 	}
+}
+
+func (suite *BrevSSHTestSuite) TestFilterExistingWorkspaceNames() {
+	workspaceNames, existingNames := filterExistingWorkspaceNames(suite.activeWorkspaces, suite.SSHConfig)
+	suite.ElementsMatch([]string{"brev", "workspace-images"}, workspaceNames)
+	suite.ElementsMatch([]string{"brevdev/brev-deploy"}, existingNames)
 }
 
 // In order for 'go test' to run this suite, we need to create
