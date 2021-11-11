@@ -235,8 +235,6 @@ func appendBrevEntry(workspaceName, port string) error {
 	return err
 }
 
-func GetBrevHostsFromConfig(cfg ssh_config.Config) {}
-
 // given a workspace name string give me a port
 // will be changing to workspaceDNSName shortly
 func GetWorkspaceLocalSSHPort(workspaceName string) (string, error) {
