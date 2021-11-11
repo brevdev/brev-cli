@@ -25,13 +25,11 @@ func (suite *BrevSSHTestSuite) SetupTest() {
 	 IdentityFile /home/brev/.brev/brev.pem
 	 User brev
 	 Port 2222
-
 Host workspace-images
 	 Hostname 0.0.0.0
 	 IdentityFile /home/brev/.brev/brev.pem
 	 User brev
 	 Port 2223
-
 Host brevdev/brev-deploy
 	 Hostname 0.0.0.0
 	 IdentityFile /home/brev/.brev/brev.pem
@@ -42,6 +40,7 @@ Host brevdev/brev-deploy
 		panic(err)
 	}
 	suite.SSHConfig = *SSHConfig
+	suite.SSHConfig.Hosts = suite.SSHConfig.Hosts[1:]
 	suite.activeWorkspaces = []string{"brev", "workspace-images"}
 }
 
@@ -62,10 +61,10 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 	}
 }
 
-func (suite *BrevSSHTestSuite) TestFilterExistingWorkspaceNames() {
-	workspaceNames, existingNames := filterExistingWorkspaceNames(suite.activeWorkspaces, suite.SSHConfig)
-	suite.ElementsMatch([]string{"brev", "workspace-images"}, workspaceNames)
-	suite.ElementsMatch([]string{"brevdev/brev-deploy"}, existingNames)
+func (suite *BrevSSHTestSuite) TestSplitWorkspaceByConfigMembership() {
+	member, excluded := SplitWorkspaceByConfigMembership(suite.activeWorkspaces, suite.SSHConfig)
+	suite.ElementsMatch([]string{"brev", "workspace-images"}, member)
+	suite.ElementsMatch([]string{"brevdev/brev-deploy"}, excluded)
 }
 
 // In order for 'go test' to run this suite, we need to create

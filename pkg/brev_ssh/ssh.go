@@ -3,13 +3,14 @@
 //
 // brev ssh host file entry format:
 //
-// 	Host <workspace-name>
+// 	Host <workspace-dns-name
 // 		Hostname 0.0.0.0
-// 		IdentityFile ~/.brev/brev.pem
+// 		IdentityFile /home//.brev/brev.pem
 //		User brev
 //		Port <some-available-port>
 //
 // also think that file stuff should probably live in files package
+// TODO migrate to using dns name for hostname
 package brev_ssh
 
 import (
@@ -70,7 +71,7 @@ func ConfigureSSH() error {
 	if err != nil {
 		return err
 	}
-	namesToCreate, existingNames := filterExistingWorkspaceNames(workspaceNames[:], *cfg)
+	namesToCreate, existingNames := SplitWorkspaceByConfigMembership(workspaceNames, *cfg)
 	for _, name := range namesToCreate {
 		// re get ssh config from disk at begining of loop b/c it's modified
 		// at the end of the loop
@@ -167,27 +168,39 @@ func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, e
 	return portSet, nil
 }
 
-func filterExistingWorkspaceNames(workspaceNames []string, cfg ssh_config.Config) ([]string, []string) {
-	var existingNames []string
+// SplitWorkspaceByConfigMembership given a list of
+func SplitWorkspaceByConfigMembership(workspaceNames []string, cfg ssh_config.Config) ([]string, []string) {
+	var members []string
+	var brevHosts []string
+	memberMap := make(map[string]bool)
 	for _, host := range cfg.Hosts {
+
+		hostname := hostnameFromString(host.String())
 		// is this host a brev entry? if not, we don't care, and on to the
 		// next one
+		if checkIfBrevHost(*host) {
+			brevHosts = append(brevHosts, hostname)
+		}
 		// TODO maybe not brute force here?
-		brevEntry := false
-		var nameToRemove int
-		for nameIndex, name := range workspaceNames {
-			if host.Matches(name) {
-				brevEntry = true
-				nameToRemove = nameIndex
+		for _, name := range workspaceNames {
+			if strings.Compare(name, hostname) == 0 {
+				members = append(members, name)
+				memberMap[name] = true
 				break
 			}
 		}
-		if brevEntry {
-			existingNames = append(existingNames, workspaceNames[nameToRemove])
-			unorderedRemove(workspaceNames, nameToRemove)
+	}
+	var excluded []string
+	for _, name := range brevHosts {
+		if !memberMap[name] {
+			excluded = append(excluded, name)
 		}
 	}
-	return workspaceNames, existingNames
+	return members, excluded
+}
+
+func hostnameFromString(hoststring string) string {
+	return strings.Split(strings.Split(hoststring, "\n")[0], " ")[1]
 }
 
 // https://stackoverflow.com/questions/37334119/how-to-delete-an-element-from-a-slice-in-golang
@@ -220,4 +233,11 @@ func appendBrevEntry(workspaceName, port string) error {
 	}
 	_, err = file.Write(buf.Bytes())
 	return err
+}
+
+func GetBrevHostsFromConfig(cfg ssh_config.Config) {}
+
+// given a workspace name string give me a port
+func GetWorkspaceLocalSSHPort(workspaceName string) string {
+	return "2222"
 }
