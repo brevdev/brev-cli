@@ -67,6 +67,15 @@ func (suite *BrevSSHTestSuite) TestSplitWorkspaceByConfigMembership() {
 	suite.ElementsMatch([]string{"brevdev/brev-deploy"}, excluded)
 }
 
+func (suite *BrevSSHTestSuite) TestGetWorkspaceLocalSSHPort() {
+	port, err := GetWorkspaceLocalSSHPort("brev")
+	if err != nil {
+		panic(err)
+	}
+	suite.Equal(strings.Compare("2222", port), 0)
+}
+
+
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestSSH(t *testing.T) {
