@@ -15,8 +15,6 @@ package brev_ssh
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -141,27 +139,6 @@ func checkIfBrevHost(host ssh_config.Host) bool {
 	return brevEntry
 }
 
-func getSSHConfigFile() (*os.File, error) {
-	sshConfigPath := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
-	sshConfigExists, err := files.Exists(sshConfigPath, false)
-	if err != nil {
-		return nil, err
-	}
-	var file *os.File
-	if sshConfigExists {
-		file, err = os.Open(sshConfigPath)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		file, err = os.Create(sshConfigPath)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return file, nil
-}
-
 func getSSHConfig() (*ssh_config.Config, error) {
 	file, err := files.GetOrCreateSSHConfigFile()
 	if err != nil {
@@ -252,7 +229,7 @@ func GetWorkspaceSSHConfig(cfg *ssh_config.Config, workspaceName string) (*works
 }
 
 func appendBrevEntry(workspaceName, port string) error {
-	file, err := getSSHConfigFile()
+	file, err := files.GetOrCreateSSHConfigFile()
 	if err != nil {
 		return err
 	}
