@@ -79,7 +79,7 @@ func (o *PortForwardOptions) WithWorkspace(workspaceIDOrName string) (*PortForwa
 		}
 	}
 	if workspace == nil {
-		return nil, fmt.Errorf("workspace with id or name %s does not exist", workspaceIDOrName)
+		return nil, fmt.Errorf("workspace does not exist [identifier=%s]", workspaceIDOrName)
 	}
 
 	o.Namespace = workspace.GetNamespaceName()

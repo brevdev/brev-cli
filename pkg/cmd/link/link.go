@@ -15,7 +15,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/spf13/cobra"
 )
@@ -71,6 +70,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 
 				default:
 					t.Errprint(err, "")
+					return
 				}
 			}
 			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
@@ -85,19 +85,30 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			err = files.WriteSSHPrivateKey(string(k8sClientConfig.GetKey()))
 			if err != nil {
 				t.Errprint(err, "")
+				return
 			}
 			sshPrivateKeyFilePath := files.GetSSHPrivateKeyFilePath()
 			if Port == "" {
 				Port = "2222:22"
 			}
-			cmdutil.CheckErr(opts.Complete(cmd, t, args, Port))
+
+			err = opts.Complete(cmd, t, args, Port)
+			if err != nil {
+				t.Errprint(err, "")
+				return
+			}
+
 			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
 			t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
 			t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
 			t.Printf(t.Green("\t2. Connect to workspace:\n"))
 			localPort := strings.Split(Port, ":")[0]
 			t.Printf(t.Yellow("\t\tssh -p %s brev@0.0.0.0\n\n", localPort))
-			cmdutil.CheckErr(opts.RunPortforward())
+			err = opts.RunPortforward()
+			if err != nil {
+				t.Errprint(err, "")
+				return
+			}
 		},
 	}
 	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
@@ -112,11 +123,11 @@ func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceDa
 	if err != nil {
 		return nil, err
 	}
-	wmeta, err := c.GetWorkspaceMetaData(id)
+	w, err := c.GetWorkspace(id)
 	if err != nil {
 		return nil, err
 	}
-	w, err := c.GetWorkspace(id)
+	wmeta, err := c.GetWorkspaceMetaData(id)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +188,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspa
 		}
 	}
 
-	return nil, fmt.Errorf("workspace with name %s does not exist", name)
+	return nil, fmt.Errorf("workspace does not exist [name=%s]", name)
 }
 
 type K8sClientConfig struct {

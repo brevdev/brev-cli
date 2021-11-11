@@ -133,9 +133,6 @@ func (r *RESTRequest) SubmitStrict() (*RESTResponse, error) {
 		return nil, err
 	}
 	if response.StatusCode >= 400 {
-		fmt.Println(r.Payload)
-		fmt.Println(response.StatusCode)
-		fmt.Println(response.PayloadAsString())
 		return nil, &RESTResponseError{
 			RequestURI:         r.URI,
 			ResponseStatusCode: response.StatusCode,

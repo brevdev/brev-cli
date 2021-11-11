@@ -2,10 +2,12 @@
 package ls
 
 import (
+	"errors"
 	"strings"
 	"sync"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -37,7 +39,7 @@ func getOrgs() ([]brev_api.Organization, error) {
 	return orgs, nil
 }
 
-func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
+func GetAllWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 	client, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
@@ -51,7 +53,6 @@ func getWorkspaces(orgID string) ([]brev_api.Workspace, error) {
 }
 
 func NewCmdLs(t *terminal.Terminal) *cobra.Command {
-
 	var org string
 
 	cmd := &cobra.Command{
@@ -78,7 +79,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 			return nil
 		},
 	}
-	
+
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return brev_api.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
@@ -131,37 +132,43 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 
 	activeorg, err := brev_api.GetActiveOrgContext()
 	if err != nil {
-		orgs, err := getOrgs()
-		if err != nil {
+
+		activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
+		if errors.Is(err, &activeOrgFoundErr) {
+			orgs, err := getOrgs()
+			if err != nil {
+				return err
+			}
+			if len(orgs) == 0 {
+				t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
+				return nil
+			}
+			var wg sync.WaitGroup
+
+			for _, o := range orgs {
+				wg.Add(1)
+				err := make(chan error)
+
+				o := o
+				go func(t *terminal.Terminal, org *brev_api.Organization) {
+					_, _, err1 := fetchWorkspacesAndPrintTable(t, org)
+					err <- err1
+					defer wg.Done()
+				}(t, &o)
+
+				err_ := <-err
+				if err_ != nil {
+					return err_
+				}
+
+			}
+			wg.Wait()
+			t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
+
+			return nil
+		} else {
 			return err
 		}
-		if len(orgs) == 0 {
-			t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
-			return nil
-		}
-		var wg sync.WaitGroup
-
-		for _, o := range orgs {
-			wg.Add(1)
-			err := make(chan error)
-
-			o := o
-			go func(t *terminal.Terminal, org *brev_api.Organization) {
-				_, _, err1 := fetchWorkspacesAndPrintTable(t, org)
-				err <- err1
-				defer wg.Done()
-			}(t, &o)
-
-			err_ := <- err
-			if err_ != nil {
-				return err_
-			}
-
-		}
-		wg.Wait()
-		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
-
-			return nil
 	}
 
 	joined, _, err := fetchWorkspacesAndPrintTable(t, activeorg)
@@ -180,7 +187,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 }
 
 func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
-	wss, err := getWorkspaces(org.ID)
+	wss, err := GetAllWorkspaces(org.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -190,7 +197,6 @@ func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brev_api.Organizati
 	}
 	o := org
 	joined, unjoined, err := printWorkspaceTable(t, wss, *o)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -205,7 +211,32 @@ func truncateString(s string, delimterCount int) string {
 	}
 }
 
-func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {	
+func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
+	unjoinedWorkspaces, joinedWorkspaces := GetSortedUserWorkspaces(workspaces)
+
+	DELIMETER := 40
+	LONGEST_STATUS := len("DEPLOYING") // longest name for a workspace status, used for table formatting
+	if len(joinedWorkspaces) > 0 {
+		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
+		t.Vprint(
+			"NAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) +
+				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
+				"STATUS" + strings.Repeat(" ", LONGEST_STATUS+1+LONGEST_STATUS-len("STATUS")) +
+				"ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +
+				"URL")
+		for _, v := range joinedWorkspaces {
+			t.Vprint(
+				truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " +
+					getStatusColoredText(t, v.Status) + strings.Repeat(" ", LONGEST_STATUS+LONGEST_STATUS-len(v.Status)) + " " +
+					v.ID + strings.Repeat(" ", 5) +
+					v.DNS)
+		}
+	}
+
+	return joinedWorkspaces, unjoinedWorkspaces, nil
+}
+
+func GetSortedUserWorkspaces(workspaces []brev_api.Workspace) ([]brev_api.Workspace, []brev_api.Workspace) {
 	me := getMe()
 
 	var unjoinedWorkspaces []brev_api.Workspace
@@ -218,36 +249,16 @@ func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, 
 			unjoinedWorkspaces = append(unjoinedWorkspaces, v)
 		}
 	}
-
-	DELIMETER := 40
-	LONGEST_STATUS := len("DEPLOYING") // longest name for a workspace status, used for table formatting
-	if len(joinedWorkspaces) > 0 {
-		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
-		t.Vprint(
-			"NAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) + 
-			// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
-			"STATUS" + strings.Repeat(" ", LONGEST_STATUS + 1 + LONGEST_STATUS - len("STATUS")) + 
-			"ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) + 
-			"URL")
-		for _, v := range joinedWorkspaces {
-			t.Vprint(
-				truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " + 
-				getStatusColoredText(t, v.Status) + strings.Repeat(" ", LONGEST_STATUS + LONGEST_STATUS - len(v.Status)) + " " + 
-				v.ID + strings.Repeat(" ", 5) + 
-				v.DNS)
-		}
-	}
-
-	return joinedWorkspaces, unjoinedWorkspaces, nil
+	return unjoinedWorkspaces, joinedWorkspaces
 }
 
 func getStatusColoredText(t *terminal.Terminal, status string) string {
 	switch status {
 	case "RUNNING":
-		return t.Green(status)	
-	case "STARTING","DEPLOYING","STOPPING":
+		return t.Green(status)
+	case "STARTING", "DEPLOYING", "STOPPING":
 		return t.Yellow(status)
-	case "FAILURE","DELETING":
+	case "FAILURE", "DELETING":
 		return t.Red(status)
 	default:
 		return status

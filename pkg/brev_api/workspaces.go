@@ -134,9 +134,10 @@ func (w WorkspaceMetaData) GetNamespaceName() string {
 }
 
 func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
+	ep := buildBrevEndpoint("/api/workspaces/" + wsID + "/metadata")
 	request := requests.RESTRequest{
 		Method:   "GET",
-		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/metadata"),
+		Endpoint: ep,
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},

@@ -55,7 +55,7 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["link", "2bt7ykd9o"]
+      "args": ["link", "jtevxj5g5"]
     },
     {
       "name": "refresh",
