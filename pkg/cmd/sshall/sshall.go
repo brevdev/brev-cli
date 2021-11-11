@@ -56,9 +56,12 @@ func (s sshAllOptions) RunSSHAll() error {
 	return RunSSHAll(workspaces, getRandomLocalPortForWorkspace)
 }
 
-func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(workspace brev_api.Workspace) string) error {
+func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(workspace brev_api.Workspace) (string, error)) error {
 	for _, w := range workspaces {
-		port := getLocalPortForWorkspace(w)
+		port, err := getLocalPortForWorkspace(w)
+		if err != nil {
+			return err
+		}
 		portMapping := makeSSHPortMapping(port)
 		go func() {
 			err := portforwardWorkspace(w.ID, portMapping)
@@ -91,11 +94,11 @@ func getUserActiveWorkspaces() ([]brev_api.Workspace, error) {
 	return userWorkspaces, nil
 }
 
-func getRandomLocalPortForWorkspace(workspace brev_api.Workspace) string {
+func getRandomLocalPortForWorkspace(workspace brev_api.Workspace) (string, error) {
 	minPort := 1024
 	maxPort := 65535
 	port := rand.Intn(maxPort-minPort) + minPort
-	return strconv.Itoa(port)
+	return strconv.Itoa(port), nil
 }
 
 func portforwardWorkspace(workspaceID string, portMapping string) error {

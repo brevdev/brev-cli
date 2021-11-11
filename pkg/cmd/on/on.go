@@ -44,7 +44,7 @@ func (s onOptions) RunOn() error {
 type SSHConfigurer interface {
 	Config() error
 	GetWorkspaces() []brev_api.Workspace
-	GetConfiguredWorkspacePort(workspace brev_api.Workspace) string
+	GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error)
 }
 
 func RunOn(sshConfigurer SSHConfigurer) error {
