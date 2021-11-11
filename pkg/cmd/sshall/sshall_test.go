@@ -14,7 +14,7 @@ func Test_getActiveWorkspaces(t *testing.T) {
 }
 
 func Test_getLocalPortForWorkspace(t *testing.T) {
-	port := getLocalPortForWorkspace("")
+	port := getRandomLocalPortForWorkspace("")
 	assert.NotEmpty(t, port)
 }
 
@@ -24,6 +24,9 @@ func Test_portforwardWorkspace(t *testing.T) {
 }
 
 func Test_runSSHAll(t *testing.T) {
-	err := RunSSHAll()
+	workspaces, err := getUserActiveWorkspaces()
+	assert.Nil(t, err)
+
+	err = RunSSHAll(workspaces, getRandomLocalPortForWorkspace)
 	assert.Nil(t, err)
 }
