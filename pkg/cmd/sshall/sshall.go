@@ -48,21 +48,21 @@ func (s sshAllOptions) Validate() error {
 }
 
 func (s sshAllOptions) RunSSHAll() error {
-	return nil
+	return RunSSHAll(getUserActiveWorkspaces, getRandomLocalPortForWorkspace)
 }
 
-func RunSSHAll() error {
-	workspaces, err := getUserActiveWorkspaces() // to inject?
+func RunSSHAll(getUserActiveWorkspaces func() ([]brev_api.Workspace, error), getLocalPortForWorkspace func(string) string) error {
+	workspaces, err := getUserActiveWorkspaces()
 	if err != nil {
 		return err
 	}
 
 	for _, w := range workspaces {
 		id := w.GetID()
-		port := getLocalPortForWorkspace(id) // to inject?
+		port := getLocalPortForWorkspace(id)
 		portMapping := makeSSHPortMapping(port)
 		go func() {
-			err := portforwardWorkspace(id, portMapping) // to inject?
+			err := portforwardWorkspace(id, portMapping)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
@@ -92,7 +92,7 @@ func getUserActiveWorkspaces() ([]brev_api.Workspace, error) {
 	return userWorkspaces, nil
 }
 
-func getLocalPortForWorkspace(workspaceID string) string {
+func getRandomLocalPortForWorkspace(workspaceID string) string {
 	minPort := 1024
 	maxPort := 65535
 	port := rand.Intn(maxPort-minPort) + minPort
