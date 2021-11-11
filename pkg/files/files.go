@@ -85,6 +85,39 @@ func GetSSHPrivateKeyFilePath() string {
 	return makeBrevFilePathOrPanic(GetSSHPrivateKeyFileName())
 }
 
+func GetUserSSHConfigPath() (*string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	sshConfigPath := filepath.Join(home, ".ssh", "config")
+	return &sshConfigPath, nil
+}
+
+func GetOrCreateSSHConfigFile() (*os.File, error) {
+	sshConfigPath, err := GetUserSSHConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	sshConfigExists, err := Exists(*sshConfigPath, false)
+	if err != nil {
+		return nil, err
+	}
+	var file *os.File
+	if sshConfigExists {
+		file, err = os.Open(*sshConfigPath)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		file, err = os.Create(*sshConfigPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return file, nil
+}
+
 func Exists(filepath string, isDir bool) (bool, error) {
 	info, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
