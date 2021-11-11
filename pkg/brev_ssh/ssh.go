@@ -50,7 +50,7 @@ Host {{ .Host }}
 // 	[x] 4. After creating the ssh config entries, prune entries from workspaces
 //        that exist in the ssh config but not as active workspaces.
 // 	[ ] 5. Check for and remove duplicates?
-// 	[ ] 6. truncate old config and write new config back to disk (making backup of original copy first)
+// 	[x] 6. truncate old config and write new config back to disk (making backup of original copy first)
 func ConfigureSSH() error {
 	// to get workspaces, we need to get the active org
 	activeorg, err := brev_api.GetActiveOrgContext()
@@ -63,43 +63,34 @@ func ConfigureSSH() error {
 	}
 	workspaces, err := client.GetMyWorkspaces(activeorg.ID)
 
-	var workspaceNames []string
+	var activeWorkspacesNames []string
 	for _, workspace := range workspaces {
-		workspaceNames = append(workspaceNames, workspace.Name)
+		activeWorkspacesNames = append(activeWorkspacesNames, workspace.Name)
 	}
 	cfg, err := getSSHConfig()
 	if err != nil {
 		return err
 	}
-	namesToCreate, existingNames := SplitWorkspaceByConfigMembership(workspaceNames, *cfg)
-	for _, name := range namesToCreate {
-		// re get ssh config from disk at begining of loop b/c it's modified
-		// at the end of the loop
-		cfg, err = getSSHConfig()
-		if err != nil {
-			return err
-		}
-		// TODO getPort func?
-		ports, err := GetBrevPorts(*cfg, existingNames)
-		if err != nil {
-			return err
-		}
-		port := 2222
-		for ports[fmt.Sprint(port)] {
-			port++
-		}
-		err = appendBrevEntry(name, fmt.Sprint(port))
-		if err != nil {
-			return err
-		}
-	}
 
+	err = CreateBrevSSHConfigEntries(*cfg, activeWorkspacesNames)
+	if err != nil {
+		return err
+	}
 	// re get ssh cfg again from disk since we likely just modified it
 	cfg, err = getSSHConfig()
 	if err != nil {
 		return err
 	}
+	newConfig := PruneInactiveWorkspaces(*cfg, activeWorkspacesNames)
+	configPath, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return err
+	}
+	files.OverwriteString(*configPath, newConfig)
+	return nil
+}
 
+func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []string) string {
 	newConfig := ""
 
 	for _, host := range cfg.Hosts {
@@ -112,7 +103,7 @@ func ConfigureSSH() error {
 			// if this host does not match a workspacename, then delete since it belongs to an inactive
 			// workspace or deleted one.
 			foundMatch := false
-			for _, name := range workspaceNames {
+			for _, name := range activeWorkspacesNames {
 				if host.Matches(name) {
 					foundMatch = true
 					break
@@ -126,7 +117,36 @@ func ConfigureSSH() error {
 		}
 
 	}
-	return nil
+	return newConfig
+}
+
+func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []string) error {
+	brevHostValues := GetBrevHostValues(cfg)
+	brevHostValuesSet := make(map[string]bool)
+	for _, hostValue := range brevHostValues {
+		brevHostValuesSet[hostValue] = true
+	}
+
+	for _, workspaceName := range activeWorkspacesNames {
+		if !brevHostValuesSet[workspaceName] {
+			cfg, err := getSSHConfig()
+			if err != nil {
+				return err
+			}
+			ports, err := GetBrevPorts(*cfg, brevHostValues)
+			if err != nil {
+				return err
+			}
+			port := 2222
+			for ports[fmt.Sprint(port)] {
+				port++
+			}
+			err = appendBrevEntry(workspaceName, fmt.Sprint(port))
+			if err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func checkIfBrevHost(host ssh_config.Host) bool {
@@ -168,35 +188,18 @@ func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, e
 	return portSet, nil
 }
 
-// SplitWorkspaceByConfigMembership given a list of
-func SplitWorkspaceByConfigMembership(workspaceNames []string, cfg ssh_config.Config) ([]string, []string) {
-	var members []string
+// Hostname is a loaded term so using values
+func GetBrevHostValues(cfg ssh_config.Config) []string {
 	var brevHosts []string
-	memberMap := make(map[string]bool)
 	for _, host := range cfg.Hosts {
-
 		hostname := hostnameFromString(host.String())
 		// is this host a brev entry? if not, we don't care, and on to the
 		// next one
 		if checkIfBrevHost(*host) {
 			brevHosts = append(brevHosts, hostname)
 		}
-		// TODO maybe not brute force here?
-		for _, name := range workspaceNames {
-			if strings.Compare(name, hostname) == 0 {
-				members = append(members, name)
-				memberMap[name] = true
-				break
-			}
-		}
 	}
-	var excluded []string
-	for _, name := range brevHosts {
-		if !memberMap[name] {
-			excluded = append(excluded, name)
-		}
-	}
-	return members, excluded
+	return brevHosts
 }
 
 func hostnameFromString(hoststring string) string {

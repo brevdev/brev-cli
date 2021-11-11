@@ -41,7 +41,7 @@ Host brevdev/brev-deploy
 	}
 	suite.SSHConfig = *SSHConfig
 	suite.SSHConfig.Hosts = suite.SSHConfig.Hosts[1:]
-	suite.activeWorkspaces = []string{"brev", "workspace-images"}
+	suite.activeWorkspaces = []string{"brev"}
 }
 
 func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
@@ -60,13 +60,6 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 		}
 	}
 }
-
-func (suite *BrevSSHTestSuite) TestSplitWorkspaceByConfigMembership() {
-	member, excluded := SplitWorkspaceByConfigMembership(suite.activeWorkspaces, suite.SSHConfig)
-	suite.ElementsMatch([]string{"brev", "workspace-images"}, member)
-	suite.ElementsMatch([]string{"brevdev/brev-deploy"}, excluded)
-}
-
 func (suite *BrevSSHTestSuite) TestGetWorkspaceLocalSSHPort() {
 	port, err := GetWorkspaceLocalSSHPort("brev")
 	if err != nil {
