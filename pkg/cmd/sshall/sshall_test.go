@@ -3,6 +3,7 @@ package sshall
 import (
 	"testing"
 
+	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +15,7 @@ func Test_getActiveWorkspaces(t *testing.T) {
 }
 
 func Test_getLocalPortForWorkspace(t *testing.T) {
-	port := getRandomLocalPortForWorkspace("")
+	port := getRandomLocalPortForWorkspace(brev_api.Workspace{})
 	assert.NotEmpty(t, port)
 }
 

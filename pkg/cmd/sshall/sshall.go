@@ -56,13 +56,12 @@ func (s sshAllOptions) RunSSHAll() error {
 	return RunSSHAll(workspaces, getRandomLocalPortForWorkspace)
 }
 
-func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(string) string) error {
+func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(workspace brev_api.Workspace) string) error {
 	for _, w := range workspaces {
-		id := w.GetID()
-		port := getLocalPortForWorkspace(id)
+		port := getLocalPortForWorkspace(w)
 		portMapping := makeSSHPortMapping(port)
 		go func() {
-			err := portforwardWorkspace(id, portMapping)
+			err := portforwardWorkspace(w.ID, portMapping)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
@@ -78,12 +77,12 @@ func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(st
 }
 
 func getUserActiveWorkspaces() ([]brev_api.Workspace, error) {
-	activeOrg, err := brev_api.GetActiveOrgContext()
+	activeOrg, err := brev_api.GetActiveOrgContext() // to interface out
 	if err != nil {
 		return nil, err
 	}
 
-	wss, err := ls.GetAllWorkspaces(activeOrg.ID)
+	wss, err := ls.GetAllWorkspaces(activeOrg.ID) // to interface out
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +91,7 @@ func getUserActiveWorkspaces() ([]brev_api.Workspace, error) {
 	return userWorkspaces, nil
 }
 
-func getRandomLocalPortForWorkspace(workspaceID string) string {
+func getRandomLocalPortForWorkspace(workspace brev_api.Workspace) string {
 	minPort := 1024
 	maxPort := 65535
 	port := rand.Intn(maxPort-minPort) + minPort
@@ -100,17 +99,17 @@ func getRandomLocalPortForWorkspace(workspaceID string) string {
 }
 
 func portforwardWorkspace(workspaceID string, portMapping string) error {
-	k8sClientConfig, err := link.NewRemoteK8sClientConfig()
+	k8sClientConfig, err := link.NewRemoteK8sClientConfig() // to inject
 	if err != nil {
 		return err
 	}
-	k8sClient := k8s.NewDefaultClient(k8sClientConfig)
+	k8sClient := k8s.NewDefaultClient(k8sClientConfig) // to inject
 
 	pf := portforward.NewPortForwardOptions(
 		k8sClient,
 		link.WorkspaceResolver{},
 		&portforward.DefaultPortForwarder{
-			IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
+			IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}, // to unify
 		},
 	)
 
