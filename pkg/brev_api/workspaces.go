@@ -117,6 +117,11 @@ func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 		return nil, err
 	}
 
+	err = WriteIndividualWorkspaceCache(orgID, payload)
+	if err != nil {
+		// do nothing, failure to cache shouldn't kill this command
+	}
+
 	return payload, nil
 }
 

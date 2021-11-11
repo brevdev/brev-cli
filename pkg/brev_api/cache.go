@@ -41,21 +41,21 @@ func RefreshWorkspaceCacheForActiveOrg() error {
 	if err != nil {
 		return err
 	}
-	err = WriteIndividualWorkspaceCache(activeorg.ID)
+	wss := getWorkspaces(activeorg.ID)
+	err = WriteIndividualWorkspaceCache(activeorg.ID, wss)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func WriteIndividualWorkspaceCache(orgID string) error {
+func WriteIndividualWorkspaceCache(orgID string, wss []Workspace) error {
 	var worspaceCache []CacheableWorkspace
 	path := files.GetWorkspacesCacheFilePath()
 	err := files.ReadJSON(path, &worspaceCache)
 	if err != nil {
 		return err
 	}
-	wss := getWorkspaces(orgID)
 	var updatedCache []CacheableWorkspace
 	for _, v := range worspaceCache {
 		if v.OrgID == orgID {
@@ -71,10 +71,18 @@ func WriteIndividualWorkspaceCache(orgID string) error {
 	return nil
 }
 
-func WriteCaches() error {
-	orgs := getOrgs()
+func WriteOrgCache(orgs []Organization) error {
 	path := files.GetOrgCacheFilePath()
 	err := files.OverwriteJSON(path, orgs)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func WriteCaches() error {
+	orgs := getOrgs()
+	err := WriteOrgCache(orgs)
 	if err != nil {
 		return err
 	}

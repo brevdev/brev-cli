@@ -26,11 +26,15 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var payload []Organization
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
 		return nil, err
+	}
+
+	err = WriteOrgCache(payload)
+	if err != nil {
+		// do nothing, failure to cache shouldn't kill this command
 	}
 
 	return payload, nil

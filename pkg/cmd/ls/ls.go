@@ -131,6 +131,8 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	}
 
 	activeorg, err := brev_api.GetActiveOrgContext()
+	// activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
+	// if errors.Is(err, &activeOrgFoundErr) {
 	if err != nil {
 
 		activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
