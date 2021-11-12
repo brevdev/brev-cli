@@ -70,11 +70,45 @@ func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
 }
 
 func (s DefaultSSHConfigurer) Config() error {
-	err := ConfigureSSH(s.workspaceGetter, s.fs, s.privateKey)
+	err := files.WriteSSHPrivateKey(s.fs, s.privateKey)
 	if err != nil {
 		return err
 	}
-	return nil
+	// to get workspaces, we need to get the active org
+	activeorg, err := brev_api.GetActiveOrgContext(s.fs)
+	if err != nil {
+		return err
+	}
+
+	workspaces, err := s.workspaceGetter.GetMyWorkspaces(activeorg.ID)
+	if err != nil {
+		return err
+	}
+
+	var activeWorkspacesNames []string
+	for _, workspace := range workspaces {
+		activeWorkspacesNames = append(activeWorkspacesNames, workspace.Name)
+	}
+	cfg, err := GetSSHConfig(files.AppFs)
+	if err != nil {
+		return err
+	}
+
+	err = CreateBrevSSHConfigEntries(files.AppFs, *cfg, activeWorkspacesNames)
+	if err != nil {
+		return err
+	}
+	// re get ssh cfg again from disk since we likely just modified it
+	cfg, err = GetSSHConfig(files.AppFs)
+	if err != nil {
+		return err
+	}
+	newConfig := PruneInactiveWorkspaces(*cfg, activeWorkspacesNames)
+	configPath, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return err
+	}
+	return files.OverwriteString(*configPath, newConfig)
 }
 
 func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
@@ -88,7 +122,7 @@ func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, err
 		workspaceWithMeta := brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
 		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
 	}
-	return nil, nil
+	return workspacesWithMeta, nil
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {

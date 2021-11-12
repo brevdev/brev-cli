@@ -24,8 +24,6 @@ func (m *MockWorkspaceGetter) GetMyWorkspaces(orgID string) ([]brev_api.Workspac
 	return []brev_api.Workspace{}, nil
 }
 
-}
-
 func (m *MockWorkspaceGetter) GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error) {
 	return &brev_api.WorkspaceMetaData{}, nil
 }
@@ -50,6 +48,11 @@ func (m *MockWorkspaceGetterActiveOrgs) GetMyWorkspaces(orgID string) ([]brev_ap
 		},
 	}, nil
 }
+
+func (m *MockWorkspaceGetterActiveOrgs) GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error) {
+	return &brev_api.WorkspaceMetaData{}, nil
+}
+
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
 // returns the current testing context
