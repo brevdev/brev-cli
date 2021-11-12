@@ -45,6 +45,7 @@ type WorkspaceGroupKeys struct {
 	GroupID string `json:"groupId"`
 	Cert    string `json:"cert"`
 	CA      string `json:"ca"`
+	APIURL  string `json:"apiUrl"`
 }
 
 func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGroupKeys, error) {

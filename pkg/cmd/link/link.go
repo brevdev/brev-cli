@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
@@ -58,7 +57,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		ValidArgs:             getWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 			t.Printf("Starting ssh link...\n")
-			k8sClientConfig, err := NewRemoteK8sClientConfig()
+			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper() // to resolve
 			if err != nil {
 				switch err.(type) {
 				case *url.Error:
@@ -70,15 +69,14 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 					return
 				}
 			}
-			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
 
 			pf := portforward.NewDefaultPortForwarder()
 
 			opts := portforward.NewPortForwardOptions(
-				k8sClient,
+				k8sClientMapper,
 				pf,
 			)
-			err = files.WriteSSHPrivateKey(string(k8sClientConfig.GetKey()))
+			err = files.WriteSSHPrivateKey(k8sClientMapper.GetPrivateKey())
 			if err != nil {
 				t.Errprint(err, "")
 				return
@@ -209,53 +207,4 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.WorkspaceW
 	}
 
 	return nil, fmt.Errorf("workspace does not exist [name=%s]", name)
-}
-
-type K8sClientConfig struct {
-	host string
-	cert []byte
-	key  []byte
-	ca   []byte
-}
-
-func NewRemoteK8sClientConfig() (*K8sClientConfig, error) {
-	c, err := brev_api.NewCommandClient()
-	if err != nil {
-		return nil, err
-	}
-
-	keys, err := c.GetMeKeys()
-	if err != nil {
-		return nil, err
-	}
-
-	clusterID := config.GlobalConfig.GetDefaultClusterID()
-
-	cluserKeys, err := keys.GetWorkspaceGroupKeysByGroupID(clusterID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &K8sClientConfig{
-		host: config.GlobalConfig.GetKubeAPIURL(),
-		cert: []byte(cluserKeys.Cert),
-		key:  []byte(keys.PrivateKey),
-		ca:   []byte(cluserKeys.CA),
-	}, nil
-}
-
-func (k K8sClientConfig) GetHost() string {
-	return k.host
-}
-
-func (k K8sClientConfig) GetCert() []byte {
-	return k.cert
-}
-
-func (k K8sClientConfig) GetKey() []byte {
-	return k.key
-}
-
-func (k K8sClientConfig) GetCA() []byte {
-	return k.ca
 }

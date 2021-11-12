@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
-	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
@@ -41,14 +40,13 @@ type sshAllOptions struct {
 }
 
 func (s *sshAllOptions) Complete(cmd *cobra.Command, args []string) error {
-	k8sClientConfig, err := link.NewRemoteK8sClientConfig() // to resolve
+	k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper() // to resolve
 	if err != nil {
 		return err
 	}
-	k8sClient := k8s.NewDefaultClient(k8sClientConfig) // to resolve
 
 	sshResolver := RandomSSHResolver{} // to resolve
-	s.sshAll = NewSSHAll(k8sClient, sshResolver)
+	s.sshAll = NewSSHAll(k8sClientMapper, sshResolver)
 	return nil
 }
 
@@ -61,8 +59,8 @@ func (s sshAllOptions) RunSSHAll() error {
 }
 
 type SSHAll struct {
-	k8sClient   k8s.K8sClient
-	sshResolver SSHResolver
+	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
+	sshResolver                SSHResolver
 }
 
 type SSHResolver interface {
@@ -71,13 +69,13 @@ type SSHResolver interface {
 }
 
 func NewSSHAll(
-	k8sClient k8s.K8sClient,
+	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper,
 	sshResolver SSHResolver,
 
 ) *SSHAll {
 	return &SSHAll{
-		k8sClient:   k8sClient,
-		sshResolver: sshResolver,
+		workspaceGroupClientMapper: workspaceGroupClientMapper,
+		sshResolver:                sshResolver,
 	}
 }
 
@@ -112,7 +110,7 @@ func (s SSHAll) Run() error {
 func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta, portMapping string) error {
 	dpf := portforward.NewDefaultPortForwarder()
 	pf := portforward.NewPortForwardOptions(
-		s.k8sClient,
+		s.workspaceGroupClientMapper,
 		dpf,
 	)
 

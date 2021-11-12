@@ -8,7 +8,6 @@ import (
 	"os/signal"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/transport/spdy"
@@ -17,12 +16,14 @@ import (
 )
 
 type PortForwardOptions struct {
-	PortForwarder PortForwarder
-	K8sClient     k8s.K8sClient
+	PortForwarder              PortForwarder
+	WorkspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 
-	Namespace  string
-	PodName    string
-	KubeApiURL string
+	K8sClient k8s.K8sClient
+	K8sAPIURL string
+
+	Namespace string
+	PodName   string
 
 	Address      []string
 	Ports        []string
@@ -34,10 +35,10 @@ type PortForwarder interface {
 	ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error
 }
 
-func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, portforwarder PortForwarder) *PortForwardOptions {
+func NewPortForwardOptions(workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper, portforwarder PortForwarder) *PortForwardOptions {
 	p := &PortForwardOptions{
-		PortForwarder: portforwarder,
-		K8sClient:     portForwardHelpers,
+		PortForwarder:              portforwarder,
+		WorkspaceGroupClientMapper: workspaceGroupClientMapper,
 	}
 
 	p.Address = []string{"localhost"}
@@ -50,7 +51,18 @@ func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, portforwarder PortF
 func (o *PortForwardOptions) WithWorkspace(workspace brev_api.WorkspaceWithMeta) (*PortForwardOptions, error) {
 	o.Namespace = workspace.GetNamespaceName()
 	o.PodName = workspace.GetPodName()
-	o.KubeApiURL = config.GlobalConfig.GetKubeAPIURL()
+
+	k8sAPIURL, err := o.WorkspaceGroupClientMapper.GetK8sAPIURL(workspace.WorkspaceGroupID)
+	if err != nil {
+		return nil, err
+	}
+	o.K8sAPIURL = k8sAPIURL
+
+	k8sClient, err := o.WorkspaceGroupClientMapper.GetK8sClient(workspace.WorkspaceGroupID)
+	if err != nil {
+		return nil, err
+	}
+	o.K8sClient = k8sClient
 
 	if o.PodName == "" {
 		return nil, fmt.Errorf("unable to forward port because pod is not found-- workspace may not be running")
@@ -79,7 +91,7 @@ func (o PortForwardOptions) RunPortforward() error {
 		}
 	}()
 
-	urlStr := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", o.KubeApiURL, o.Namespace, o.PodName)
+	urlStr := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", o.K8sAPIURL, o.Namespace, o.PodName)
 
 	url, err := url.Parse(urlStr)
 	if err != nil {

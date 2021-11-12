@@ -35,10 +35,6 @@ func (c ConstantsConfig) GetDefaultClusterID() string {
 	return getEnvOrDefault(clusterID, "k8s.brevstack.com")
 }
 
-func (c ConstantsConfig) GetKubeAPIURL() string {
-	return getEnvOrDefault(k8APIURL, "https://api.k8s.brevstack.com")
-}
-
 func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {
 	version := os.Getenv(string(envVarName))
 	if version == "" {

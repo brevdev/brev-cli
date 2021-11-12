@@ -2,7 +2,6 @@ package on
 
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
-	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/spf13/cobra"
@@ -34,13 +33,12 @@ func NewCmdOn() *cobra.Command {
 }
 
 func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
-	k8sClientConfig, err := link.NewRemoteK8sClientConfig() // to resolve
+	_, err := k8s.NewDefaultWorkspaceGroupClientMapper() // to resolve
 	if err != nil {
 		return err
 	}
-	_ = k8s.NewDefaultClient(k8sClientConfig) // to resolve
 
-	// s.on = NewOn("", k8sClient)
+	// s.on = NewOn("", workspaceGroupClientMapper)
 	return nil
 }
 
@@ -59,14 +57,14 @@ type SSHConfigurer interface {
 }
 
 type On struct {
-	sshConfigurer SSHConfigurer
-	k8sClient     k8s.K8sClient
+	sshConfigurer              SSHConfigurer
+	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 }
 
-func NewOn(sshConfigurer SSHConfigurer, k8sClient k8s.K8sClient) *On {
+func NewOn(sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *On {
 	return &On{
-		sshConfigurer: sshConfigurer,
-		k8sClient:     k8sClient,
+		sshConfigurer:              sshConfigurer,
+		workspaceGroupClientMapper: workspaceGroupClientMapper,
 	}
 }
 
@@ -76,7 +74,7 @@ func (o On) Run() error {
 		return err
 	}
 
-	sshall := sshall.NewSSHAll(o.k8sClient, o.sshConfigurer)
+	sshall := sshall.NewSSHAll(o.workspaceGroupClientMapper, o.sshConfigurer)
 	err = sshall.Run()
 	if err != nil {
 		return err
