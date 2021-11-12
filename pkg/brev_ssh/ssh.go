@@ -54,6 +54,7 @@ type DefaultSSHConfigurer struct {
 
 	workspaces              []brev_api.Workspace
 	workspaceDNSPortMapping map[string]string
+	sshConfig               ssh_config.Config
 }
 
 func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string) *DefaultSSHConfigurer {
@@ -107,11 +108,15 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return err
 	}
 
-	dnsPortMapping, err := CreateBrevSSHConfigEntries(s.fs, *cfg, activeWorkspacesDNS)
+	configFile, err := CreateBrevSSHConfigEntries(*cfg, activeWorkspacesDNS)
 	if err != nil {
 		return err
 	}
-	s.workspaceDNSPortMapping = dnsPortMapping
+
+	err = writeConfigFile(s.fs, configFile)
+	if err != nil {
+		return err
+	}
 
 	// re get ssh cfg again from disk since we likely just modified it
 	cfg, err = GetSSHConfig(s.fs)
@@ -123,6 +128,12 @@ func (s *DefaultSSHConfigurer) Config() error {
 	if err != nil {
 		return err
 	}
+
+	cfg, err = ssh_config.Decode(strings.NewReader(newConfig))
+	if err != nil {
+		return err
+	}
+	s.sshConfig = *cfg
 	return files.OverwriteString(*configPath, newConfig)
 }
 
@@ -141,9 +152,9 @@ func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, err
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
-	port, didFind := s.workspaceDNSPortMapping[workspace.DNS]
-	if !didFind {
-		return "", fmt.Errorf("port not found for workspace [id=%s]", workspace.ID)
+	port, err := s.sshConfig.Get(workspace.DNS, "Port")
+	if err != nil {
+		return "", err
 	}
 	return port, nil
 }
@@ -156,8 +167,8 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 		// is nothing for us to do to it.
 		// if the host is a brev entry, make sure that it's hostname maps to an
 		// active workspace, otherwise this host should be deleted.
-		brevEntry := checkIfBrevHost(*host)
-		if brevEntry {
+		isBrevHost := checkIfBrevHost(*host)
+		if isBrevHost {
 			// if this host does not match a workspacename, then delete since it belongs to an inactive
 			// workspace or deleted one.
 			foundMatch := false
@@ -180,7 +191,7 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 
 // todo this should prob return a cfg object, instead make sure your re get the cfg
 // after calling this
-func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (map[string]string, error) {
+func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (string, error) {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
@@ -191,7 +202,7 @@ func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorksp
 
 	ports, err := GetBrevPorts(cfg, brevHostValues)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	port := 2222
 
@@ -202,24 +213,28 @@ func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorksp
 				port++
 			}
 			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
-			sshConfigStr, err = makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
+			entry, err := makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
 			if err != nil {
-				return nil, err
+				return "", err
 			}
+			sshConfigStr += entry
 			ports[fmt.Sprint(port)] = true
 		}
 	}
 
+	return sshConfigStr, nil
+}
+
+func writeConfigFile(fs afero.Fs, configFile string) error {
 	csp, err := files.GetUserSSHConfigPath()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = afero.WriteFile(fs, *csp, []byte(sshConfigStr), 0644)
+	err = afero.WriteFile(fs, *csp, []byte(configFile), 0644)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	return identifierPortMapping, nil
+	return nil
 }
 
 func checkIfBrevHost(host ssh_config.Host) bool {

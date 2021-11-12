@@ -120,17 +120,11 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 }
 
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
-	portsMapping, err := CreateBrevSSHConfigEntries(MemAppFs, suite.SSHConfig, []string{"foo", "bar", "baz"})
+	configFile, err := CreateBrevSSHConfigEntries(suite.SSHConfig, []string{"foo", "bar", "baz"})
 	suite.Nil(err)
-	existsMap := make(map[string]string)
-	for key := range portsMapping {
-		port := portsMapping[key]
-		_, doesExist := existsMap[port]
-		if !suite.False(doesExist) {
-			return
-		}
-		existsMap[port] = key
-	}
+	resq := strings.Split(configFile, "\n")
+	res := strings.Split(workspaceSSHConfigTemplate, "\n")
+	suite.Greater(len(resq), len(res))
 }
 
 func (suite *BrevSSHTestSuite) TestConfigureSSH() {
