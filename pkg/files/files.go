@@ -20,7 +20,7 @@ const (
 	kubeCertFileName             = "brev.crt"
 	sshPrivateKeyFileName        = "brev.pem"
 	sshPrivateKeyFilePermissions = 0600
-	defaultFilePermission        = 0644
+	defaultFilePermission        = 0770
 )
 
 var AppFs = afero.NewOsFs()
