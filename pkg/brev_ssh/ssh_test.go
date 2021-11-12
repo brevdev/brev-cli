@@ -24,6 +24,10 @@ func (m *MockWorkspaceGetter) GetMyWorkspaces(orgID string) ([]brev_api.Workspac
 	return []brev_api.Workspace{}, nil
 }
 
+func (m *MockWorkspaceGetter) GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error) {
+	return &brev_api.WorkspaceMetaData{}, nil
+}
+
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
 // returns the current testing context
@@ -96,8 +100,8 @@ func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
 	suite.Nil(err)
 }
 
-func (suite *BrevSSHTestSuite) TestConfigureSSH(){
-	err := afero.WriteFile(MemAppFs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`),0644)
+func (suite *BrevSSHTestSuite) TestConfigureSSH() {
+	err := afero.WriteFile(MemAppFs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
 	if err != nil {
 		panic(err)
 	}

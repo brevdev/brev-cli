@@ -40,12 +40,12 @@ type sshAllOptions struct {
 }
 
 func (s *sshAllOptions) Complete(cmd *cobra.Command, args []string) error {
-	k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper() // to resolve
+	client, err := brev_api.NewCommandClient() // to resolve
 	if err != nil {
 		return err
 	}
 
-	client, err := brev_api.NewCommandClient() // to resolve
+	k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
 	if err != nil {
 		return err
 	}

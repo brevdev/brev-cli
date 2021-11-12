@@ -16,6 +16,7 @@ package brev_ssh
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -43,12 +44,16 @@ Host {{ .Host }}
 
 type WorkspaceGetter interface {
 	GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error)
+	GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error)
 }
 
 type DefaultSSHConfigurer struct {
 	workspaceGetter WorkspaceGetter
 	privateKey      string
 	fs              afero.Fs
+
+	workspaces             []brev_api.Workspace
+	workspaceIDPortMapping map[string]int
 }
 
 func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string) *DefaultSSHConfigurer {
@@ -73,11 +78,25 @@ func (s DefaultSSHConfigurer) Config() error {
 }
 
 func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
+	var workspacesWithMeta []brev_api.WorkspaceWithMeta
+	for _, w := range s.workspaces {
+		wmeta, err := s.workspaceGetter.GetWorkspaceMetaData(w.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		workspaceWithMeta := brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
+		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
+	}
 	return nil, nil
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
-	return "", nil
+	port, didFind := s.workspaceIDPortMapping[workspace.ID]
+	if !didFind {
+		return "", fmt.Errorf("port not found for workspace [id=%s]", workspace.ID)
+	}
+	return strconv.Itoa(port), nil
 }
 
 // ConfigureSSH
