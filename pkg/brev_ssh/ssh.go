@@ -41,6 +41,10 @@ Host {{ .Host }}
 	 Port {{ .Port }}
 `
 
+type WorkspaceGetter interface {
+	GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error)
+}
+
 // ConfigureSSH
 // 	[ ] 0. checks to see if a user has configured their ssh private key
 // 	[x] 1. gets a list of the current user's workspaces
@@ -53,17 +57,17 @@ Host {{ .Host }}
 // 	[ ] 5. Check for and remove duplicates?
 // 	[1/2] 6. truncate old config and write new config back to disk (making backup of original copy first)
 // TODO: backup config before running these steps
-func ConfigureSSH() error {
+func ConfigureSSH(workspaceGetter WorkspaceGetter) error {
 	// to get workspaces, we need to get the active org
 	activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return err
 	}
-	client, err := brev_api.NewClient()
+
+	workspaces, err := workspaceGetter.GetMyWorkspaces(activeorg.ID)
 	if err != nil {
 		return err
 	}
-	workspaces, err := client.GetMyWorkspaces(activeorg.ID)
 
 	var activeWorkspacesNames []string
 	for _, workspace := range workspaces {
@@ -123,7 +127,7 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 
 // todo this should prob return a cfg object, instead make sure your re get the cfg
 // after calling this
-func CreateBrevSSHConfigEntries(fs afero.Fs,cfg ssh_config.Config, activeWorkspacesNames []string) error {
+func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorkspacesNames []string) error {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
