@@ -90,13 +90,13 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	// dev feature toggle
 	if isDev() {
 		cmd.AddCommand(sshall.NewCmdSSHAll())
-		cmd.AddCommand(on.NewCmdOn())
 	}
 
 	cmd.AddCommand(start.NewCmdStart(t))
 	cmd.AddCommand(stop.NewCmdStop(t))
 	cmd.AddCommand(delete.NewCmdDelete(t))
 	cmd.AddCommand(reset.NewCmdReset(t))
+	cmd.AddCommand(on.NewCmdOn())
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
