@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	startLong    = "Start a Brev machine that's in a paused or off state"
-	startExample = "brev start <ws_name>"
+	startLong    = "Reset your machine if it's acting up. This deletes the machine and gets you a fresh one."
+	startExample = "brev reset <ws_name>"
 )
 
 func NewCmdReset(t *terminal.Terminal) *cobra.Command {
@@ -20,7 +20,7 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "reset",
 		DisableFlagsInUseLine: true,
-		Short:                 "Start a workspace if it's stopped",
+		Short:                 "Reset a workspace if it's in a weird state.",
 		Long:                  startLong,
 		Example:               startExample,
 		Args:                  cobra.ExactArgs(1),
