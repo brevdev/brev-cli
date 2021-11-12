@@ -33,7 +33,11 @@ func NewCmdOn() *cobra.Command {
 }
 
 func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
-	_, err := k8s.NewDefaultWorkspaceGroupClientMapper() // to resolve
+	client, err := brev_api.NewCommandClient() // to inject
+	if err != nil {
+		return err
+	}
+	_, err = k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
 	if err != nil {
 		return err
 	}

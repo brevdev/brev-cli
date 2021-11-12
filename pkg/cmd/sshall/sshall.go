@@ -45,7 +45,12 @@ func (s *sshAllOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	sshResolver := RandomSSHResolver{} // to resolve
+	client, err := brev_api.NewCommandClient() // to resolve
+	if err != nil {
+		return err
+	}
+
+	sshResolver := NewRandomPortSSHResolver(client)
 	s.sshAll = NewSSHAll(k8sClientMapper, sshResolver)
 	return nil
 }
@@ -128,7 +133,21 @@ func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta, portM
 	return nil
 }
 
-type RandomSSHResolver struct{}
+type (
+	RandomSSHResolver struct {
+		WorkspaceResolver WorkspaceResolver
+	}
+	WorkspaceResolver interface {
+		GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error)
+		GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error)
+	}
+)
+
+func NewRandomPortSSHResolver(workspaceResolver WorkspaceResolver) *RandomSSHResolver {
+	return &RandomSSHResolver{
+		WorkspaceResolver: workspaceResolver,
+	}
+}
 
 func (r RandomSSHResolver) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
 	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs) // to inject
@@ -136,18 +155,14 @@ func (r RandomSSHResolver) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error)
 		return nil, err
 	}
 
-	client, err := brev_api.NewCommandClient() // to inject
-	if err != nil {
-		return nil, err
-	}
-	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	wss, err := r.WorkspaceResolver.GetMyWorkspaces(activeOrg.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	var workspacesWithMeta []brev_api.WorkspaceWithMeta
 	for _, w := range wss {
-		wmeta, err := client.GetWorkspaceMetaData(w.ID)
+		wmeta, err := r.WorkspaceResolver.GetWorkspaceMetaData(w.ID)
 		if err != nil {
 			return nil, err
 		}

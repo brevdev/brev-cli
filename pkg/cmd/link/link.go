@@ -57,7 +57,12 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		ValidArgs:             getWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 			t.Printf("Starting ssh link...\n")
-			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper() // to resolve
+			client, err := brev_api.NewCommandClient() // to inject
+			if err != nil {
+				t.Errprint(err, "")
+				return
+			}
+			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
 			if err != nil {
 				switch err.(type) {
 				case *url.Error:

@@ -68,13 +68,17 @@ type DefaultWorkspaceGroupClientMapper struct {
 	privateKey            string
 }
 
-func NewDefaultWorkspaceGroupClientMapper() (*DefaultWorkspaceGroupClientMapper, error) {
-	c, err := brev_api.NewCommandClient() // to inject
-	if err != nil {
-		return nil, err
-	}
+type KeyResolver interface {
+	GetMeKeys() (*brev_api.UserKeys, error)
+}
 
-	keys, err := c.GetMeKeys()
+func NewDefaultWorkspaceGroupClientMapper(keyResolver KeyResolver) (*DefaultWorkspaceGroupClientMapper, error) {
+	// c, err := brev_api.NewCommandClient() // to inject
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	keys, err := keyResolver.GetMeKeys()
 	if err != nil {
 		return nil, err
 	}
