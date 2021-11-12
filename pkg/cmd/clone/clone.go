@@ -24,7 +24,7 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"workspace": ""},
 		Use:         "clone",
-		Short:       "clone a git repo",
+		Short:       "Clone a git repo into a fresh workspace",
 		Long:        "Create a workspace by repo url",
 		Example:     `  brev clone <url>`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
