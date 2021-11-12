@@ -119,7 +119,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Editing ssh config, backed up at path %s", *backupFilePath)
+	fmt.Printf("Editing ssh config, backed up at path %s\n", *backupFilePath)
 	configFile, err := CreateBrevSSHConfigEntries(*cfg, activeWorkspacesDNS)
 	if err != nil {
 		return err
