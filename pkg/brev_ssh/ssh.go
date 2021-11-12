@@ -45,6 +45,41 @@ type WorkspaceGetter interface {
 	GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error)
 }
 
+type DefaultSSHConfigurer struct {
+	workspaceGetter WorkspaceGetter
+	privateKey      string
+	fs              afero.Fs
+}
+
+func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string) *DefaultSSHConfigurer {
+	return &DefaultSSHConfigurer{
+		workspaceGetter: workspaceGetter,
+		privateKey:      privateKey,
+		fs:              files.AppFs,
+	}
+}
+
+func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
+	s.fs = fs
+	return s
+}
+
+func (s DefaultSSHConfigurer) Config() error {
+	err := ConfigureSSH(s.workspaceGetter, s.fs, s.privateKey)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
+	return nil, nil
+}
+
+func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
+	return "", nil
+}
+
 // ConfigureSSH
 // 	[ ] 0. checks to see if a user has configured their ssh private key
 // 	[x] 1. gets a list of the current user's workspaces

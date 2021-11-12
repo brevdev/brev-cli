@@ -73,11 +73,6 @@ type KeyResolver interface {
 }
 
 func NewDefaultWorkspaceGroupClientMapper(keyResolver KeyResolver) (*DefaultWorkspaceGroupClientMapper, error) {
-	// c, err := brev_api.NewCommandClient() // to inject
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	keys, err := keyResolver.GetMeKeys()
 	if err != nil {
 		return nil, err

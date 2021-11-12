@@ -2,6 +2,7 @@ package on
 
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	brevssh "github.com/brevdev/brev-cli/pkg/brev_ssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/spf13/cobra"
@@ -37,12 +38,14 @@ func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
+	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
 	if err != nil {
 		return err
 	}
 
-	// s.on = NewOn("", workspaceGroupClientMapper)
+	sshConfigurer := brevssh.NewDefaultSSHConfigurer(client, workspaceGroupClientMapper.GetPrivateKey())
+
+	s.on = NewOn(sshConfigurer, workspaceGroupClientMapper)
 	return nil
 }
 
