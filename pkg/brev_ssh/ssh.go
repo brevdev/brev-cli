@@ -69,7 +69,7 @@ func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
 	return s
 }
 
-func (s DefaultSSHConfigurer) Config() error {
+func (s *DefaultSSHConfigurer) Config() error {
 	err := files.WriteSSHPrivateKey(s.fs, s.privateKey)
 	if err != nil {
 		return err
@@ -84,6 +84,7 @@ func (s DefaultSSHConfigurer) Config() error {
 	if err != nil {
 		return err
 	}
+	s.workspaces = workspaces
 
 	var activeWorkspacesNames []string
 	for _, workspace := range workspaces {
@@ -219,22 +220,23 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 
 // todo this should prob return a cfg object, instead make sure your re get the cfg
 // after calling this
-func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorkspacesNames []string) error {
+func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorkspacesNames []string) (map[string]string, error) {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
 		brevHostValuesSet[hostValue] = true
 	}
 
+	namePortMapping := make(map[string]string)
 	for _, workspaceName := range activeWorkspacesNames {
 		if !brevHostValuesSet[workspaceName] {
 			cfg, err := GetSSHConfig(fs)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			ports, err := GetBrevPorts(*cfg, brevHostValues)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			port := 2222
 			for ports[fmt.Sprint(port)] {
@@ -242,15 +244,17 @@ func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorksp
 			}
 			file, err := files.GetOrCreateSSHConfigFile(fs)
 			if err != nil {
-				return err
+				return nil, err
 			}
+
+			namePortMapping[workspaceName] = strconv.Itoa(port)
 			err = appendBrevEntry(file, workspaceName, fmt.Sprint(port))
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
+	return namePortMapping, nil
 }
 
 func checkIfBrevHost(host ssh_config.Host) bool {
