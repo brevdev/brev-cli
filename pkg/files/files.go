@@ -52,7 +52,7 @@ func GetSSHPrivateKeyFileName() string {
 }
 
 func GetNewBackupSSHConfigFileName() string {
-	return fmt.Sprintf(backupSSHConfigFileNamePrefix, ".", uuid.New())
+	return fmt.Sprintf("%s.%s", backupSSHConfigFileNamePrefix, uuid.New())
 }
 
 func makeBrevFilePath(filename string) (*string, error) {
