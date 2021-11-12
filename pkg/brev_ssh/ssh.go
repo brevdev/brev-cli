@@ -52,8 +52,8 @@ type DefaultSSHConfigurer struct {
 	privateKey      string
 	fs              afero.Fs
 
-	workspaces             []brev_api.Workspace
-	workspaceIDPortMapping map[string]int
+	workspaces              []brev_api.Workspace
+	workspaceDNSPortMapping map[string]string
 }
 
 func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string) *DefaultSSHConfigurer {
@@ -69,6 +69,18 @@ func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
 	return s
 }
 
+// ConfigureSSH
+// 	[x] 0. writes private key to disk
+// 	[x] 1. gets a list of the current user's workspaces
+// 	[x] 2. finds the user's ssh config file,
+// 	[x] 3. looks at entries in the ssh config file and:
+//         for each active workspace from brev delpoy
+//            create ssh config entry if it does not exist
+// 	[x] 4. After creating the ssh config entries, prune entries from workspaces
+//        that exist in the ssh config but not as active workspaces.
+// 	[ ] 5. Check for and remove duplicates?
+// 	[1/2] 6. truncate old config and write new config back to disk (making backup of original copy first)
+// TODO: backup config before running these steps
 func (s *DefaultSSHConfigurer) Config() error {
 	err := files.WriteSSHPrivateKey(s.fs, s.privateKey)
 	if err != nil {
@@ -86,25 +98,27 @@ func (s *DefaultSSHConfigurer) Config() error {
 	}
 	s.workspaces = workspaces
 
-	var activeWorkspacesNames []string
+	var activeWorkspacesDNS []string
 	for _, workspace := range workspaces {
-		activeWorkspacesNames = append(activeWorkspacesNames, workspace.Name)
+		activeWorkspacesDNS = append(activeWorkspacesDNS, workspace.DNS)
 	}
 	cfg, err := GetSSHConfig(files.AppFs)
 	if err != nil {
 		return err
 	}
 
-	err = CreateBrevSSHConfigEntries(files.AppFs, *cfg, activeWorkspacesNames)
+	dnsPortMapping, err := CreateBrevSSHConfigEntries(files.AppFs, *cfg, activeWorkspacesDNS)
 	if err != nil {
 		return err
 	}
+	s.workspaceDNSPortMapping = dnsPortMapping
+
 	// re get ssh cfg again from disk since we likely just modified it
 	cfg, err = GetSSHConfig(files.AppFs)
 	if err != nil {
 		return err
 	}
-	newConfig := PruneInactiveWorkspaces(*cfg, activeWorkspacesNames)
+	newConfig := PruneInactiveWorkspaces(*cfg, activeWorkspacesDNS)
 	configPath, err := files.GetUserSSHConfigPath()
 	if err != nil {
 		return err
@@ -127,65 +141,11 @@ func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, err
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
-	port, didFind := s.workspaceIDPortMapping[workspace.ID]
+	port, didFind := s.workspaceDNSPortMapping[workspace.DNS]
 	if !didFind {
 		return "", fmt.Errorf("port not found for workspace [id=%s]", workspace.ID)
 	}
-	return strconv.Itoa(port), nil
-}
-
-// ConfigureSSH
-// 	[x] 0. writes private key to disk
-// 	[x] 1. gets a list of the current user's workspaces
-// 	[x] 2. finds the user's ssh config file,
-// 	[x] 3. looks at entries in the ssh config file and:
-//         for each active workspace from brev delpoy
-//            create ssh config entry if it does not exist
-// 	[x] 4. After creating the ssh config entries, prune entries from workspaces
-//        that exist in the ssh config but not as active workspaces.
-// 	[ ] 5. Check for and remove duplicates?
-// 	[1/2] 6. truncate old config and write new config back to disk (making backup of original copy first)
-// TODO: backup config before running these steps
-func ConfigureSSH(workspaceGetter WorkspaceGetter, fs afero.Fs, privateKey string) error {
-	err := files.WriteSSHPrivateKey(fs, privateKey)
-	if err != nil {
-		return err
-	}
-	// to get workspaces, we need to get the active org
-	activeorg, err := brev_api.GetActiveOrgContext(fs)
-	if err != nil {
-		return err
-	}
-
-	workspaces, err := workspaceGetter.GetMyWorkspaces(activeorg.ID)
-	if err != nil {
-		return err
-	}
-
-	var activeWorkspacesNames []string
-	for _, workspace := range workspaces {
-		activeWorkspacesNames = append(activeWorkspacesNames, workspace.Name)
-	}
-	cfg, err := GetSSHConfig(files.AppFs)
-	if err != nil {
-		return err
-	}
-
-	err = CreateBrevSSHConfigEntries(files.AppFs, *cfg, activeWorkspacesNames)
-	if err != nil {
-		return err
-	}
-	// re get ssh cfg again from disk since we likely just modified it
-	cfg, err = GetSSHConfig(files.AppFs)
-	if err != nil {
-		return err
-	}
-	newConfig := PruneInactiveWorkspaces(*cfg, activeWorkspacesNames)
-	configPath, err := files.GetUserSSHConfigPath()
-	if err != nil {
-		return err
-	}
-	return files.OverwriteString(*configPath, newConfig)
+	return port, nil
 }
 
 func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []string) string {
@@ -220,15 +180,15 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 
 // todo this should prob return a cfg object, instead make sure your re get the cfg
 // after calling this
-func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorkspacesNames []string) (map[string]string, error) {
+func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (map[string]string, error) {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
 		brevHostValuesSet[hostValue] = true
 	}
 
-	namePortMapping := make(map[string]string)
-	for _, workspaceName := range activeWorkspacesNames {
+	identifierPortMapping := make(map[string]string)
+	for _, workspaceName := range activeWorkspacesIdentifiers {
 		if !brevHostValuesSet[workspaceName] {
 			cfg, err := GetSSHConfig(fs)
 			if err != nil {
@@ -247,14 +207,14 @@ func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorksp
 				return nil, err
 			}
 
-			namePortMapping[workspaceName] = strconv.Itoa(port)
+			identifierPortMapping[workspaceName] = strconv.Itoa(port)
 			err = appendBrevEntry(file, workspaceName, fmt.Sprint(port))
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	return namePortMapping, nil
+	return identifierPortMapping, nil
 }
 
 func checkIfBrevHost(host ssh_config.Host) bool {
