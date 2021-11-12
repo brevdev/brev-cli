@@ -6,9 +6,12 @@ import (
 	"testing"
 
 	"github.com/kevinburke/ssh_config"
+	"github.com/spf13/afero"
 
 	"github.com/stretchr/testify/suite"
 )
+
+var MemAppFs = afero.NewMemMapFs()
 
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
@@ -77,6 +80,12 @@ func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
   User brev
   Port 2222
 `)
+}
+
+func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
+	file, _ := MemAppFs.Create("foo")
+	err := appendBrevEntry(file, "bar", "2222")
+	suite.Nil(err)
 }
 
 // In order for 'go test' to run this suite, we need to create

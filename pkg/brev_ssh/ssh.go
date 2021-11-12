@@ -16,13 +16,13 @@ package brev_ssh
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"text/template"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/kevinburke/ssh_config"
+	"github.com/spf13/afero"
 )
 
 type workspaceSSHConfig struct {
@@ -51,7 +51,8 @@ Host {{ .Host }}
 // 	[x] 4. After creating the ssh config entries, prune entries from workspaces
 //        that exist in the ssh config but not as active workspaces.
 // 	[ ] 5. Check for and remove duplicates?
-// 	[x] 6. truncate old config and write new config back to disk (making backup of original copy first)
+// 	[1/2] 6. truncate old config and write new config back to disk (making backup of original copy first)
+// TODO: backup config before running these steps
 func ConfigureSSH() error {
 	// to get workspaces, we need to get the active org
 	activeorg, err := brev_api.GetActiveOrgContext()
@@ -87,8 +88,7 @@ func ConfigureSSH() error {
 	if err != nil {
 		return err
 	}
-	files.OverwriteString(*configPath, newConfig)
-	return nil
+	return files.OverwriteString(*configPath, newConfig)
 }
 
 func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []string) string {
@@ -148,7 +148,7 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []s
 			if err != nil {
 				return err
 			}
-			err = appendBrevEntry(*file, workspaceName, fmt.Sprint(port))
+			err = appendBrevEntry(file, workspaceName, fmt.Sprint(port))
 			if err != nil {
 				return err
 			}
@@ -220,7 +220,7 @@ func unorderedRemove(s []string, i int) []string {
 	return s[:len(s)-1]
 }
 
-func appendBrevEntry(file os.File, workspaceName, port string) error {
+func appendBrevEntry(file afero.File, workspaceName, port string) error {
 	workspaceSSHConfig := workspaceSSHConfig{
 		Host:         workspaceName,
 		Hostname:     "0.0.0.0",

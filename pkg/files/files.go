@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/spf13/afero"
 )
 
 const (
@@ -20,6 +22,8 @@ const (
 	sshPrivateKeyFilePermissions = 0600
 	defaultFilePermission        = 0770
 )
+
+var AppFs = afero.NewOsFs()
 
 func GetBrevDirectory() string {
 	return brevDirectory
@@ -94,7 +98,7 @@ func GetUserSSHConfigPath() (*string, error) {
 	return &sshConfigPath, nil
 }
 
-func GetOrCreateSSHConfigFile() (*os.File, error) {
+func GetOrCreateSSHConfigFile() (afero.File, error) {
 	sshConfigPath, err := GetUserSSHConfigPath()
 	if err != nil {
 		return nil, err
@@ -103,14 +107,14 @@ func GetOrCreateSSHConfigFile() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	var file *os.File
+	var file afero.File
 	if sshConfigExists {
-		file, err = os.Open(*sshConfigPath)
+		file, err = AppFs.Open(*sshConfigPath)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		file, err = os.Create(*sshConfigPath)
+		file, err = AppFs.Create(*sshConfigPath)
 		if err != nil {
 			return nil, err
 		}
