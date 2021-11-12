@@ -61,7 +61,11 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 		Use:         "ls",
 		Short:       "List workspaces within active org",
 		Long:        "List workspaces within your active org. List all workspaces if no active org is set.",
-		Example:     `brev ls`,
+		Example:     `
+  brev ls
+  brev ls orgs
+  brev ls --org <orgid> 
+		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
