@@ -1,6 +1,8 @@
 package on
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	brevssh "github.com/brevdev/brev-cli/pkg/brev_ssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
@@ -34,7 +36,8 @@ func NewCmdOn() *cobra.Command {
 }
 
 func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
-	client, err := brev_api.NewCommandClient() // to inject
+	fmt.Println("Setting up client...")
+	client, err := brev_api.NewCommandClient() // to resolve
 	if err != nil {
 		return err
 	}
@@ -54,6 +57,7 @@ func (s onOptions) Validate() error {
 }
 
 func (s onOptions) RunOn() error {
+	fmt.Println("Running on...")
 	return s.on.Run()
 }
 

@@ -85,24 +85,23 @@ func NewSSHAll(
 }
 
 func (s SSHAll) Run() error {
+	fmt.Println("Resolving workspaces...")
 	workspaces, err := s.sshResolver.GetWorkspaces()
 	if err != nil {
 		return err
 	}
 
+	fmt.Println()
 	for _, w := range workspaces {
-		go func(w brev_api.WorkspaceWithMeta) {
-			port, err := s.sshResolver.GetConfiguredWorkspacePort(w.Workspace)
+		fmt.Printf("ssh %s\n", w.DNS)
+		go func(workspace brev_api.WorkspaceWithMeta) {
+			err := s.portforwardWorkspace(workspace)
 			if err != nil {
-				fmt.Printf("%v\n", err)
-			}
-			portMapping := makeSSHPortMapping(port)
-			err = s.portforwardWorkspace(w, portMapping)
-			if err != nil {
-				fmt.Printf("%v\n", err)
+				fmt.Printf("%v [workspace=%s]\n", err, workspace.DNS)
 			}
 		}(w)
 	}
+	fmt.Println()
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
@@ -112,7 +111,20 @@ func (s SSHAll) Run() error {
 	return nil
 }
 
-func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta, portMapping string) error {
+func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta) error {
+	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace)
+	if err != nil {
+		return err
+	}
+	portMapping := makeSSHPortMapping(port)
+	err = s.portforwardWorkspaceAtPort(workspace, portMapping)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s SSHAll) portforwardWorkspaceAtPort(workspace brev_api.WorkspaceWithMeta, portMapping string) error {
 	dpf := portforward.NewDefaultPortForwarder()
 	pf := portforward.NewPortForwardOptions(
 		s.workspaceGroupClientMapper,
