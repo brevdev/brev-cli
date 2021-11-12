@@ -62,14 +62,6 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 	}
 }
 
-func (suite *BrevSSHTestSuite) TestGetWorkspaceLocalSSHPort() {
-	port, err := GetWorkspaceLocalSSHPort("brev")
-	if err != nil {
-		panic(err)
-	}
-	suite.Equal(strings.Compare("2222", port), 0)
-}
-
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
 	newConfig := PruneInactiveWorkspaces(suite.SSHConfig, []string{"brev"})
 

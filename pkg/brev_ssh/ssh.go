@@ -69,7 +69,7 @@ func ConfigureSSH() error {
 	for _, workspace := range workspaces {
 		activeWorkspacesNames = append(activeWorkspacesNames, workspace.Name)
 	}
-	cfg, err := getSSHConfig(files.AppFs)
+	cfg, err := GetSSHConfig(files.AppFs)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func ConfigureSSH() error {
 		return err
 	}
 	// re get ssh cfg again from disk since we likely just modified it
-	cfg, err = getSSHConfig(files.AppFs)
+	cfg, err = GetSSHConfig(files.AppFs)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func CreateBrevSSHConfigEntries(fs afero.Fs,cfg ssh_config.Config, activeWorkspa
 
 	for _, workspaceName := range activeWorkspacesNames {
 		if !brevHostValuesSet[workspaceName] {
-			cfg, err := getSSHConfig(fs)
+			cfg, err := GetSSHConfig(fs)
 			if err != nil {
 				return err
 			}
@@ -171,7 +171,7 @@ func checkIfBrevHost(host ssh_config.Host) bool {
 	return false
 }
 
-func getSSHConfig(fs afero.Fs) (*ssh_config.Config, error) {
+func GetSSHConfig(fs afero.Fs) (*ssh_config.Config, error) {
 	file, err := files.GetOrCreateSSHConfigFile(fs)
 	if err != nil {
 		return nil, err
@@ -240,14 +240,4 @@ func appendBrevEntry(file afero.File, workspaceName, port string) error {
 	}
 	_, err = file.Write(buf.Bytes())
 	return err
-}
-
-// given a workspace name string give me a port
-// will be changing to workspaceDNSName shortly
-func GetWorkspaceLocalSSHPort(workspaceName string) (string, error) {
-	cfg, err := getSSHConfig(files.AppFs)
-	if err != nil {
-		return "", err
-	}
-	return cfg.Get(workspaceName, "Port")
 }

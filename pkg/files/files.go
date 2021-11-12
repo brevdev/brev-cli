@@ -109,7 +109,7 @@ func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 	}
 	var file afero.File
 	if sshConfigExists {
-		file, err = AppFs.Open(*sshConfigPath)
+		file, err = AppFs.OpenFile(*sshConfigPath, os.O_RDWR, 0644)
 		if err != nil {
 			return nil, err
 		}
