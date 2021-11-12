@@ -15,8 +15,7 @@ import (
 // returns the current testing context
 type BrevSSHTestSuite struct {
 	suite.Suite
-	SSHConfig        ssh_config.Config
-	activeWorkspaces []string
+	SSHConfig ssh_config.Config
 }
 
 func (suite *BrevSSHTestSuite) SetupTest() {
