@@ -57,7 +57,11 @@ type WorkspaceGetter interface {
 // 	[ ] 5. Check for and remove duplicates?
 // 	[1/2] 6. truncate old config and write new config back to disk (making backup of original copy first)
 // TODO: backup config before running these steps
-func ConfigureSSH(workspaceGetter WorkspaceGetter, fs afero.Fs) error {
+func ConfigureSSH(workspaceGetter WorkspaceGetter, fs afero.Fs, privateKey string) error {
+	err := files.WriteSSHPrivateKey(fs, privateKey)
+	if err != nil {
+		return err
+	}
 	// to get workspaces, we need to get the active org
 	activeorg, err := brev_api.GetActiveOrgContext(fs)
 	if err != nil {

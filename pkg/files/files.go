@@ -230,17 +230,9 @@ func OverwriteString(filepath string, data string) error {
 	return err
 }
 
-// OverwriteString data in the target file with data from the given string
-//
-// Usage
-//   OverwriteString("tmp/a/b/c.txt", "hi there")
-func WriteSSHPrivateKey(data string) error {
+func WriteSSHPrivateKey(fs afero.Fs, data string) error {
 	// write
-	err := ioutil.WriteFile(GetSSHPrivateKeyFilePath(), []byte(data), 0600)
-	if err := os.Chmod(GetSSHPrivateKeyFilePath(), sshPrivateKeyFilePermissions); err != nil {
-		log.Fatal(err)
-	}
-	return err
+	return afero.WriteFile(fs, GetSSHPrivateKeyFilePath(), []byte(data), sshPrivateKeyFilePermissions)
 }
 
 // Delete a single file altogether.

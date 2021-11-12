@@ -76,7 +76,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 				k8sClientMapper,
 				pf,
 			)
-			err = files.WriteSSHPrivateKey(k8sClientMapper.GetPrivateKey())
+			err = files.WriteSSHPrivateKey(files.AppFs, k8sClientMapper.GetPrivateKey())
 			if err != nil {
 				t.Errprint(err, "")
 				return
