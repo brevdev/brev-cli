@@ -102,19 +102,19 @@ func (s *DefaultSSHConfigurer) Config() error {
 	for _, workspace := range workspaces {
 		activeWorkspacesDNS = append(activeWorkspacesDNS, workspace.DNS)
 	}
-	cfg, err := GetSSHConfig(files.AppFs)
+	cfg, err := GetSSHConfig(s.fs)
 	if err != nil {
 		return err
 	}
 
-	dnsPortMapping, err := CreateBrevSSHConfigEntries(files.AppFs, *cfg, activeWorkspacesDNS)
+	dnsPortMapping, err := CreateBrevSSHConfigEntries(s.fs, *cfg, activeWorkspacesDNS)
 	if err != nil {
 		return err
 	}
 	s.workspaceDNSPortMapping = dnsPortMapping
 
 	// re get ssh cfg again from disk since we likely just modified it
-	cfg, err = GetSSHConfig(files.AppFs)
+	cfg, err = GetSSHConfig(s.fs)
 	if err != nil {
 		return err
 	}
