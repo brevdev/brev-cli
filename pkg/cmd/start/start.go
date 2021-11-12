@@ -3,6 +3,7 @@ package start
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -55,7 +56,36 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		return err
 	}
 
-	t.Vprintf("Workspace %s is starting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
+	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+
+	bar := t.NewProgressBar("Loading...", func() {})
+	bar.AdvanceTo(1)
+	for i := 0; i <= 30; i++ {
+		time.Sleep(1 * time.Second)
+		bar.AdvanceTo(1+(i*2))
+	}
+
+	bar.Describe("Workspace is starting")
+	bar.AdvanceTo(62)
+
+	isReady := false
+	for isReady != true {
+		ws, err := client.GetWorkspace(workspace.ID)
+		if err != nil {
+			// TODO: what do we do here??
+		}
+		if ws.Status == "RUNNING" {
+			bar.Describe("Workspace is ready!")
+			bar.AdvanceTo(100)
+			isReady = true
+		}
+	}
+
+
+	t.Vprintf(t.Green("\n\nTo connect to your machine, run:")+ 
+	t.Yellow("\n\tbrev on "+"brev-cli") )
+	
+	t.Vprintf(t.Green("\nor access via browser at https://" + "sshghhh.brev.sh\n"))
 
 	return nil
 
