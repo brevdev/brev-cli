@@ -22,7 +22,7 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 	var org string
 
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"ssh": ""},
+		Annotations: map[string]string{"workspace": ""},
 		Use:         "clone",
 		Short:       "clone a git repo",
 		Long:        "Create a workspace by repo url",

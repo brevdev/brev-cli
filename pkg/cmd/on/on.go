@@ -17,7 +17,7 @@ func NewCmdOn() *cobra.Command {
 	opts := onOptions{}
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "on",
 		DisableFlagsInUseLine: true,
 		Short:                 "on",
