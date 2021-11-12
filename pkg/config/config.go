@@ -16,26 +16,26 @@ const (
 	k8APIURL   EnvVarName = "K8_API_URL"
 )
 
-type Config struct{}
+type ConstantsConfig struct{}
 
-func NewConfig() *Config {
+func NewConstants() *ConstantsConfig {
 	_ = godotenv.Load(".env") // explicitly not handling error
-	return &Config{}
+	return &ConstantsConfig{}
 }
 
-func (c Config) GetBrevAPIURl() string {
+func (c ConstantsConfig) GetBrevAPIURl() string {
 	return getEnvOrDefault(brevAPIURL, "https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com")
 }
 
-func (c Config) GetVersion() string {
+func (c ConstantsConfig) GetVersion() string {
 	return getEnvOrDefault(version, "unknown")
 }
 
-func (c Config) GetDefaultClusterID() string {
+func (c ConstantsConfig) GetDefaultClusterID() string {
 	return getEnvOrDefault(clusterID, "k8s.brevstack.com")
 }
 
-func (c Config) GetKubeAPIURL() string {
+func (c ConstantsConfig) GetKubeAPIURL() string {
 	return getEnvOrDefault(k8APIURL, "https://api.k8s.brevstack.com")
 }
 
@@ -47,4 +47,28 @@ func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {
 	return version
 }
 
-var GlobalConfig = NewConfig()
+var GlobalConfig = NewConstants()
+
+type EnvVarConfig struct {
+	ConstantsConfig
+}
+
+func (c *ConstantsConfig) WithEnvVars() *EnvVarConfig {
+	return &EnvVarConfig{*c}
+}
+
+type FileConfig struct {
+	EnvVarConfig
+}
+
+func (c *EnvVarConfig) WithFileConfig() *FileConfig {
+	return &FileConfig{*c}
+}
+
+type FlagsConfig struct {
+	FileConfig
+}
+
+func (c *FileConfig) WithFlags() *FlagsConfig {
+	return &FlagsConfig{*c}
+}

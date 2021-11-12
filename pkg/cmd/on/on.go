@@ -2,12 +2,16 @@ package on
 
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
+	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-type onOptions struct{}
+type onOptions struct {
+	on *On
+}
 
 func NewCmdOn() *cobra.Command {
 	opts := onOptions{}
@@ -30,6 +34,13 @@ func NewCmdOn() *cobra.Command {
 }
 
 func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
+	k8sClientConfig, err := link.NewRemoteK8sClientConfig() // to resolve
+	if err != nil {
+		return err
+	}
+	_ = k8s.NewDefaultClient(k8sClientConfig) // to resolve
+
+	// s.on = NewOn("", k8sClient)
 	return nil
 }
 
@@ -38,24 +49,35 @@ func (s onOptions) Validate() error {
 }
 
 func (s onOptions) RunOn() error {
-	return nil
+	return s.on.Run()
 }
 
 type SSHConfigurer interface {
 	Config() error
-	GetWorkspaces() []brev_api.Workspace
+	GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error)
 	GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error)
 }
 
-func RunOn(sshConfigurer SSHConfigurer) error {
-	err := sshConfigurer.Config()
+type On struct {
+	sshConfigurer SSHConfigurer
+	k8sClient     k8s.K8sClient
+}
+
+func NewOn(sshConfigurer SSHConfigurer, k8sClient k8s.K8sClient) *On {
+	return &On{
+		sshConfigurer: sshConfigurer,
+		k8sClient:     k8sClient,
+	}
+}
+
+func (o On) Run() error {
+	err := o.sshConfigurer.Config()
 	if err != nil {
 		return err
 	}
 
-	workspaces := sshConfigurer.GetWorkspaces()
-
-	err = sshall.RunSSHAll(workspaces, sshConfigurer.GetConfiguredWorkspacePort)
+	sshall := sshall.NewSSHAll(o.k8sClient, o.sshConfigurer)
+	err = sshall.Run()
 	if err != nil {
 		return err
 	}

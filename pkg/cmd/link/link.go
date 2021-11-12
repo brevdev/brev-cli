@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
@@ -14,8 +13,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
-
 	"github.com/spf13/cobra"
 )
 
@@ -75,12 +72,11 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 			}
 			k8sClient := k8s.NewDefaultClient(k8sClientConfig)
 
+			pf := portforward.NewDefaultPortForwarder()
+
 			opts := portforward.NewPortForwardOptions(
 				k8sClient,
-				WorkspaceResolver{},
-				&portforward.DefaultPortForwarder{
-					IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
-				},
+				pf,
 			)
 			err = files.WriteSSHPrivateKey(string(k8sClientConfig.GetKey()))
 			if err != nil {
@@ -92,11 +88,19 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 				Port = "2222:22"
 			}
 
-			err = opts.Complete(cmd, t, args, Port)
+			workspace, err := GetWorkspaceByIDOrName(args[0], WorkspaceResolver{})
 			if err != nil {
 				t.Errprint(err, "")
 				return
 			}
+
+			opts, err = opts.WithWorkspace(*workspace)
+			if err != nil {
+				t.Errprint(err, "")
+				return
+			}
+
+			opts.WithPort(Port)
 
 			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
 			t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
@@ -118,7 +122,23 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 
 type WorkspaceResolver struct{}
 
-func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceData, error) {
+func GetWorkspaceByIDOrName(workspaceIDOrName string, workspaceResolver WorkspaceResolver) (*brev_api.WorkspaceWithMeta, error) {
+	workspace, err := workspaceResolver.GetWorkspaceByID(workspaceIDOrName)
+	if err != nil {
+		wsByName, err2 := workspaceResolver.GetWorkspaceByName(workspaceIDOrName)
+		if err2 != nil {
+			return nil, err2
+		} else {
+			workspace = wsByName
+		}
+	}
+	if workspace == nil {
+		return nil, fmt.Errorf("workspace does not exist [identifier=%s]", workspaceIDOrName)
+	}
+	return workspace, nil
+}
+
+func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.WorkspaceWithMeta, error) {
 	c, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
@@ -132,12 +152,12 @@ func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brev_api.AllWorkspaceDa
 		return nil, err
 	}
 
-	return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace: *w}, nil
+	return &brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: *w}, nil
 }
 
 // This function will be long and messy, it's entirely built to check random error cases
 // func GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error) {
-func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error) {
+func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.WorkspaceWithMeta, error) {
 	c, err := brev_api.NewCommandClient()
 	if err != nil {
 		return nil, err
@@ -159,7 +179,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspa
 				if err != nil {
 					return nil, err
 				}
-				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace: w}, nil
+				return &brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}
 		}
 		// if there wasn't a workspace in the org, check all the orgs
@@ -183,7 +203,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.AllWorkspa
 				if err != nil {
 					return nil, err
 				}
-				return &brev_api.AllWorkspaceData{WorkspaceMetaData: *wmeta, Workspace: w}, nil
+				return &brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}
 		}
 	}

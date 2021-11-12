@@ -165,7 +165,7 @@ func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
 	return &payload, nil
 }
 
-type AllWorkspaceData struct {
+type WorkspaceWithMeta struct {
 	WorkspaceMetaData
 	Workspace
 }

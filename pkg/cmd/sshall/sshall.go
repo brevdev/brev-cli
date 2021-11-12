@@ -9,15 +9,11 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmd/link"
-	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/spf13/cobra"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
-
-type sshAllOptions struct{}
 
 func NewCmdSSHAll() *cobra.Command {
 	opts := sshAllOptions{}
@@ -39,7 +35,19 @@ func NewCmdSSHAll() *cobra.Command {
 	return cmd
 }
 
+type sshAllOptions struct {
+	sshAll *SSHAll
+}
+
 func (s *sshAllOptions) Complete(cmd *cobra.Command, args []string) error {
+	k8sClientConfig, err := link.NewRemoteK8sClientConfig() // to resolve
+	if err != nil {
+		return err
+	}
+	k8sClient := k8s.NewDefaultClient(k8sClientConfig) // to resolve
+
+	sshResolver := RandomSSHResolver{} // to resolve
+	s.sshAll = NewSSHAll(k8sClient, sshResolver)
 	return nil
 }
 
@@ -48,23 +56,44 @@ func (s sshAllOptions) Validate() error {
 }
 
 func (s sshAllOptions) RunSSHAll() error {
-	workspaces, err := getUserActiveWorkspaces()
+	return s.sshAll.Run()
+}
+
+type SSHAll struct {
+	k8sClient   k8s.K8sClient
+	sshResolver SSHResolver
+}
+
+type SSHResolver interface {
+	GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error)
+	GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error)
+}
+
+func NewSSHAll(
+	k8sClient k8s.K8sClient,
+	sshResolver SSHResolver,
+
+) *SSHAll {
+	return &SSHAll{
+		k8sClient:   k8sClient,
+		sshResolver: sshResolver,
+	}
+}
+
+func (s SSHAll) Run() error {
+	workspaces, err := s.sshResolver.GetWorkspaces()
 	if err != nil {
 		return err
 	}
 
-	return RunSSHAll(workspaces, getRandomLocalPortForWorkspace)
-}
-
-func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(workspace brev_api.Workspace) (string, error)) error {
 	for _, w := range workspaces {
-		port, err := getLocalPortForWorkspace(w)
+		port, err := s.sshResolver.GetConfiguredWorkspacePort(w.Workspace)
 		if err != nil {
 			return err
 		}
 		portMapping := makeSSHPortMapping(port)
 		go func() {
-			err := portforwardWorkspace(w.ID, portMapping)
+			err := s.portforwardWorkspace(w, portMapping)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
@@ -79,44 +108,14 @@ func RunSSHAll(workspaces []brev_api.Workspace, getLocalPortForWorkspace func(wo
 	return nil
 }
 
-func getUserActiveWorkspaces() ([]brev_api.Workspace, error) {
-	activeOrg, err := brev_api.GetActiveOrgContext() // to interface out
-	if err != nil {
-		return nil, err
-	}
-
-	wss, err := ls.GetAllWorkspaces(activeOrg.ID) // to interface out
-	if err != nil {
-		return nil, err
-	}
-	_, userWorkspaces := ls.GetSortedUserWorkspaces(wss)
-
-	return userWorkspaces, nil
-}
-
-func getRandomLocalPortForWorkspace(workspace brev_api.Workspace) (string, error) {
-	minPort := 1024
-	maxPort := 65535
-	port := rand.Intn(maxPort-minPort) + minPort
-	return strconv.Itoa(port), nil
-}
-
-func portforwardWorkspace(workspaceID string, portMapping string) error {
-	k8sClientConfig, err := link.NewRemoteK8sClientConfig() // to inject
-	if err != nil {
-		return err
-	}
-	k8sClient := k8s.NewDefaultClient(k8sClientConfig) // to inject
-
+func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta, portMapping string) error {
+	dpf := portforward.NewDefaultPortForwarder()
 	pf := portforward.NewPortForwardOptions(
-		k8sClient,
-		link.WorkspaceResolver{},
-		&portforward.DefaultPortForwarder{
-			IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}, // to unify
-		},
+		s.k8sClient,
+		dpf,
 	)
 
-	_, err = pf.WithWorkspace(workspaceID)
+	_, err := pf.WithWorkspace(workspace)
 	if err != nil {
 		return err
 	}
@@ -128,6 +127,44 @@ func portforwardWorkspace(workspaceID string, portMapping string) error {
 	}
 
 	return nil
+}
+
+type RandomSSHResolver struct{}
+
+func (r RandomSSHResolver) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
+	activeOrg, err := brev_api.GetActiveOrgContext() // to inject
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := brev_api.NewCommandClient() // to inject
+	if err != nil {
+		return nil, err
+	}
+	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	var workspacesWithMeta []brev_api.WorkspaceWithMeta
+	for _, w := range wss {
+		wmeta, err := client.GetWorkspaceMetaData(w.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		workspaceWithMeta := brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
+		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
+	}
+
+	return workspacesWithMeta, nil
+}
+
+func (r RandomSSHResolver) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
+	minPort := 1024
+	maxPort := 65535
+	port := rand.Intn(maxPort-minPort) + minPort
+	return strconv.Itoa(port), nil
 }
 
 func makeSSHPortMapping(localPort string) string {

@@ -10,8 +10,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/k8s"
-	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/spf13/cobra"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/transport/spdy"
 
@@ -19,12 +17,12 @@ import (
 )
 
 type PortForwardOptions struct {
-	PortForwarder    PortForwarder
-	K8sClient        k8s.K8sClient
-	ResourceResolver ResourceResolver
+	PortForwarder PortForwarder
+	K8sClient     k8s.K8sClient
 
-	Namespace string
-	PodName   string
+	Namespace  string
+	PodName    string
+	KubeApiURL string
 
 	Address      []string
 	Ports        []string
@@ -32,20 +30,14 @@ type PortForwardOptions struct {
 	ReadyChannel chan struct{}
 }
 
-type ResourceResolver interface {
-	GetWorkspaceByID(id string) (*brev_api.AllWorkspaceData, error)
-	GetWorkspaceByName(name string) (*brev_api.AllWorkspaceData, error)
-}
-
 type PortForwarder interface {
 	ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error
 }
 
-func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver ResourceResolver, portforwarder PortForwarder) *PortForwardOptions {
+func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, portforwarder PortForwarder) *PortForwardOptions {
 	p := &PortForwardOptions{
-		PortForwarder:    portforwarder,
-		K8sClient:        portForwardHelpers,
-		ResourceResolver: workspaceResolver,
+		PortForwarder: portforwarder,
+		K8sClient:     portForwardHelpers,
 	}
 
 	p.Address = []string{"localhost"}
@@ -55,47 +47,16 @@ func NewPortForwardOptions(portForwardHelpers k8s.K8sClient, workspaceResolver R
 	return p
 }
 
-func (o *PortForwardOptions) Complete(cmd *cobra.Command, t *terminal.Terminal, args []string, port string) error {
-	workspaceIDOrName := args[0]
-
-	_, err := o.WithWorkspace(workspaceIDOrName)
-	if err != nil {
-		return err
-	}
-
-	o.WithPort(port)
-
-	return nil
-}
-
-func (o *PortForwardOptions) WithWorkspace(workspaceIDOrName string) (*PortForwardOptions, error) {
-	workspace, err := o.ResourceResolver.GetWorkspaceByID(workspaceIDOrName)
-	if err != nil {
-		wsByName, err2 := o.ResourceResolver.GetWorkspaceByName(workspaceIDOrName)
-		if err2 != nil {
-			return nil, err2
-		} else {
-			workspace = wsByName
-		}
-	}
-	if workspace == nil {
-		return nil, fmt.Errorf("workspace does not exist [identifier=%s]", workspaceIDOrName)
-	}
-
+func (o *PortForwardOptions) WithWorkspace(workspace brev_api.WorkspaceWithMeta) (*PortForwardOptions, error) {
 	o.Namespace = workspace.GetNamespaceName()
 	o.PodName = workspace.GetPodName()
+	o.KubeApiURL = config.GlobalConfig.GetKubeAPIURL()
 
 	if o.PodName == "" {
 		return nil, fmt.Errorf("unable to forward port because pod is not found-- workspace may not be running")
 	}
 
 	return o, nil
-}
-
-func (o *PortForwardOptions) WithStopChan(stopChan chan struct{}) *PortForwardOptions {
-	o.StopChannel = stopChan
-
-	return o
 }
 
 func (o *PortForwardOptions) WithPort(port string) *PortForwardOptions {
@@ -118,7 +79,7 @@ func (o PortForwardOptions) RunPortforward() error {
 		}
 	}()
 
-	urlStr := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", config.GlobalConfig.GetKubeAPIURL(), o.Namespace, o.PodName)
+	urlStr := fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", o.KubeApiURL, o.Namespace, o.PodName)
 
 	url, err := url.Parse(urlStr)
 	if err != nil {
@@ -129,6 +90,12 @@ func (o PortForwardOptions) RunPortforward() error {
 
 type DefaultPortForwarder struct {
 	genericclioptions.IOStreams
+}
+
+func NewDefaultPortForwarder() *DefaultPortForwarder {
+	return &DefaultPortForwarder{
+		IOStreams: genericclioptions.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr},
+	}
 }
 
 func (f *DefaultPortForwarder) ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error {
