@@ -219,6 +219,9 @@ func GetBrevHostValues(cfg ssh_config.Config) []string {
 }
 
 func hostnameFromString(hoststring string) string {
+	if hoststring == "" {
+		return hoststring
+	}
 	return strings.Split(strings.Split(hoststring, "\n")[0], " ")[1]
 }
 

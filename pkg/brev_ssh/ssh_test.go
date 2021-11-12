@@ -5,13 +5,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/afero"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
 var MemAppFs = afero.NewMemMapFs()
+
+type MockWorkspaceGetter struct {
+	mock.Mock
+}
+
+func (m *MockWorkspaceGetter) GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error) {
+	return []brev_api.Workspace{}, nil
+}
 
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
@@ -82,6 +93,16 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
 	err := CreateBrevSSHConfigEntries(MemAppFs, suite.SSHConfig, []string{"foo", "bar", "baz"})
+	suite.Nil(err)
+}
+
+func (suite *BrevSSHTestSuite) TestConfigureSSH(){
+	err := afero.WriteFile(MemAppFs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`),0644)
+	if err != nil {
+		panic(err)
+	}
+	workspaceGetter := new(MockWorkspaceGetter)
+	err = ConfigureSSH(workspaceGetter, MemAppFs, "lkjklj")
 	suite.Nil(err)
 }
 
