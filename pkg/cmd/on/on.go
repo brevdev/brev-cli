@@ -46,7 +46,7 @@ func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	sshConfigurer := brevssh.NewDefaultSSHConfigurer(client, workspaceGroupClientMapper.GetPrivateKey())
+	sshConfigurer := brevssh.NewDefaultSSHConfigurer(client, workspaceGroupClientMapper.GetPrivateKey(), brev_api.GetActiveOrgContext)
 
 	s.on = NewOn(sshConfigurer, workspaceGroupClientMapper)
 	return nil

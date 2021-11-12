@@ -133,7 +133,9 @@ func (suite *BrevSSHTestSuite) TestConfigureSSH() {
 		panic(err)
 	}
 	workspaceGetter := new(MockWorkspaceGetter)
-	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld")
+	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld", func(fs afero.Fs) (*brev_api.Organization, error) {
+		return &brev_api.Organization{}, nil
+	})
 	sshConfigurer.WithFS(MemAppFs)
 	err = sshConfigurer.Config()
 	suite.Nil(err)
@@ -145,7 +147,9 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 		panic(err)
 	}
 	workspaceGetter := new(MockWorkspaceGetterActiveOrgs)
-	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld")
+	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld", func(fs afero.Fs) (*brev_api.Organization, error) {
+		return &brev_api.Organization{}, nil
+	})
 	sshConfigurer.WithFS(MemAppFs)
 	err = sshConfigurer.Config()
 	suite.Nil(err)

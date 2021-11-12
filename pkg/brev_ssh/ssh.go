@@ -55,13 +55,16 @@ type DefaultSSHConfigurer struct {
 	workspaces              []brev_api.Workspace
 	workspaceDNSPortMapping map[string]string
 	sshConfig               ssh_config.Config
+
+	getActiveOrg func(fs afero.Fs) (*brev_api.Organization, error)
 }
 
-func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string) *DefaultSSHConfigurer {
+func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string, getActiveOrg func(fs afero.Fs) (*brev_api.Organization, error)) *DefaultSSHConfigurer {
 	return &DefaultSSHConfigurer{
 		workspaceGetter: workspaceGetter,
 		privateKey:      privateKey,
 		fs:              files.AppFs,
+		getActiveOrg:    getActiveOrg,
 	}
 }
 
@@ -88,7 +91,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return err
 	}
 	// to get workspaces, we need to get the active org
-	activeorg, err := brev_api.GetActiveOrgContext(s.fs)
+	activeorg, err := s.getActiveOrg(s.fs)
 	if err != nil {
 		return err
 	}
