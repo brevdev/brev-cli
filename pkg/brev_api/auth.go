@@ -350,6 +350,9 @@ func Login(prompt bool) error {
 		return err
 	}
 
+	// hydrate the cache
+	WriteCaches()
+
 	return nil
 }
 
