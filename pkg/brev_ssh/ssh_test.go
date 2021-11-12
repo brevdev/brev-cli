@@ -68,6 +68,18 @@ func (suite *BrevSSHTestSuite) TestGetWorkspaceLocalSSHPort() {
 	suite.Equal(strings.Compare("2222", port), 0)
 }
 
+func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
+	newConfig := PruneInactiveWorkspaces(suite.SSHConfig, []string{"brev"})
+
+	suite.Equal(newConfig,
+		`Host brev
+  Hostname 0.0.0.0
+  IdentityFile /home/brev/.brev/brev.pem
+  User brev
+  Port 2222
+`)
+}
+
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestSSH(t *testing.T) {
