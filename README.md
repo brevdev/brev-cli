@@ -51,6 +51,7 @@ mkdir -p ~/.zsh/completions && brev completion zsh > ~/.zsh/completions/_brev &&
 ### bash
 
 ```
+sudo mkdir -p /usr/local/share/bash-completion/completions
 brev completion bash | sudo tee /usr/local/share/bash-completion/completions/brev
 source /usr/local/share/bash-completion/completions/brev
 ```
