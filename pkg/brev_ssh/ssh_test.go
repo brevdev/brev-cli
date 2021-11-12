@@ -121,7 +121,7 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 }
 
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
-	err := CreateBrevSSHConfigEntries(MemAppFs, suite.SSHConfig, []string{"foo", "bar", "baz"})
+	_, err := CreateBrevSSHConfigEntries(MemAppFs, suite.SSHConfig, []string{"foo", "bar", "baz"})
 	suite.Nil(err)
 }
 
@@ -131,7 +131,9 @@ func (suite *BrevSSHTestSuite) TestConfigureSSH() {
 		panic(err)
 	}
 	workspaceGetter := new(MockWorkspaceGetter)
-	err = ConfigureSSH(workspaceGetter, MemAppFs, "lkjklj")
+	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld")
+	sshConfigurer.WithFS(MemAppFs)
+	err = sshConfigurer.Config()
 	suite.Nil(err)
 }
 
@@ -141,7 +143,9 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 		panic(err)
 	}
 	workspaceGetter := new(MockWorkspaceGetterActiveOrgs)
-	err = ConfigureSSH(workspaceGetter, MemAppFs, "lkjklj")
+	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld")
+	sshConfigurer.WithFS(MemAppFs)
+	err = sshConfigurer.Config()
 	suite.Nil(err)
 }
 
