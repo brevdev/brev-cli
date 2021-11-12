@@ -126,7 +126,8 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 			return err
 		}
 		if len(joined) > 0 {
-			t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
+			t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:")+ 
+			t.Yellow("\n\t$ brev on\n") )
 		}
 		return nil
 	}
@@ -179,7 +180,8 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		return err
 	}
 	if len(joined) > 0 {
-		t.Vprint(t.Green("\nConnect to one with 'brev link <name/id>\n"))
+		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:")+ 
+		t.Yellow("\n\t$ brev on\n") )
 	}
 
 	if err != nil {

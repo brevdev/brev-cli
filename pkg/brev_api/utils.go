@@ -207,3 +207,5 @@ func GetOrgNames() []string {
 
 	return orgNames
 }
+
+// func PollWorkspaceForReadyState()
