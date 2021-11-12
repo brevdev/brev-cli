@@ -23,7 +23,7 @@ var (
 )
 
 func getWorkspaceNames() []string {
-	activeOrg, err := brev_api.GetActiveOrgContext()
+	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brev_api.WorkspaceW
 	}
 
 	// Check ActiveOrg's workspaces before checking every orgs workspaces as fallback
-	activeorg, err := brev_api.GetActiveOrgContext()
+	activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		// TODO: we sould just check all possible workspaces here
 		return nil, errors.New("Please set your active org or link to a workspace by it's ID")

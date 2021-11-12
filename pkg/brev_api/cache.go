@@ -37,7 +37,7 @@ type CacheableWorkspace struct {
 }
 
 func RefreshWorkspaceCacheForActiveOrg() error {
-	activeorg, err := GetActiveOrgContext()
+	activeorg, err := GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return err
 	}

@@ -55,7 +55,7 @@ Host {{ .Host }}
 // TODO: backup config before running these steps
 func ConfigureSSH() error {
 	// to get workspaces, we need to get the active org
-	activeorg, err := brev_api.GetActiveOrgContext()
+	activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return err
 	}

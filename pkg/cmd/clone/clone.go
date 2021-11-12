@@ -9,6 +9,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -63,12 +64,12 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
-func clone(t *terminal.Terminal, url string, orgflag string) error {	
+func clone(t *terminal.Terminal, url string, orgflag string) error {
 	formattedURL := validateGitUrl(t, url)
 
 	var orgID string
 	if orgflag=="" {
-		activeorg, err := brev_api.GetActiveOrgContext()
+		activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 		if err != nil {
 			return err
 		}

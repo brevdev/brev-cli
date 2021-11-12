@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ var (
 )
 
 func getWorkspaceNames() []string {
-	activeOrg, err := brev_api.GetActiveOrgContext()
+	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil
 	}

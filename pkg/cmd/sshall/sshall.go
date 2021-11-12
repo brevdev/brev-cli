@@ -9,6 +9,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/cmd/link"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/spf13/cobra"
@@ -132,7 +133,7 @@ func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta, portM
 type RandomSSHResolver struct{}
 
 func (r RandomSSHResolver) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
-	activeOrg, err := brev_api.GetActiveOrgContext() // to inject
+	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs) // to inject
 	if err != nil {
 		return nil, err
 	}

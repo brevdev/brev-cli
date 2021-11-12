@@ -8,6 +8,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
@@ -127,16 +128,15 @@ func GetOrgFromName(name string) (*Organization, error) {
 }
 
 func GetWorkspaceFromName(name string) (*Workspace, error) {
-
 	client, err := NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
-	activeOrg, err := GetActiveOrgContext()
+	activeOrg, err := GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if err != nil {
 		// Get all orgs
 		orgs, err2 := client.GetOrgs()
@@ -170,7 +170,7 @@ func GetWorkspaceFromName(name string) (*Workspace, error) {
 }
 
 func GetCachedWorkspaceNames() []string {
-	activeOrg, err := GetActiveOrgContext()
+	activeOrg, err := GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil
 	}

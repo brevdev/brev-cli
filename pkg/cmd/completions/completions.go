@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/files"
 )
 
 type CompletionHelpers struct{}
 
 func (c CompletionHelpers) GetWorkspaceNames() ([]string, error) {
-	activeOrg, err := brev_api.GetActiveOrgContext()
+	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil, err
 	}

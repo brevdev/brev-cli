@@ -4,6 +4,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
+	"github.com/spf13/afero"
 )
 
 type Organization struct {
@@ -40,12 +41,10 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 	return payload, nil
 }
 
-func GetActiveOrgContext() (*Organization, error) {
+func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
-	exists, err := files.Exists(brevActiveOrgsFile, false)
-	if err != nil {
-		return nil, err
-	}
+	exists, err:= afero.Exists(fs, brevActiveOrgsFile)
+
 
 	if !exists {
 		return nil, &brev_errors.ActiveOrgFileNotFound{}

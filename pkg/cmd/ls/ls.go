@@ -9,6 +9,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -100,7 +101,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 			return nil
 		}
 
-		activeorg, err := brev_api.GetActiveOrgContext()
+		activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 		if err != nil {
 			t.Vprint(t.Yellow("Your organizations:"))
 			err = printOrgTableWithoutActiveOrg(t, orgs)
@@ -130,7 +131,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		return nil
 	}
 
-	activeorg, err := brev_api.GetActiveOrgContext()
+	activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 	// activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
 	// if errors.Is(err, &activeOrgFoundErr) {
 	if err != nil {
