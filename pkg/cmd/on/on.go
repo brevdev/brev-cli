@@ -20,8 +20,8 @@ func NewCmdOn() *cobra.Command {
 		Annotations:           map[string]string{"housekeeping": ""},
 		Use:                   "on",
 		DisableFlagsInUseLine: true,
-		Short:                 "run all workspace ssh connections",
-		Long:                  "run ssh connections for all running workspaces",
+		Short:                 "on",
+		Long:                  "on",
 		Example:               "brev ssh-all",
 		Args:                  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {

@@ -187,33 +187,38 @@ func CreateBrevSSHConfigEntries(fs afero.Fs, cfg ssh_config.Config, activeWorksp
 		brevHostValuesSet[hostValue] = true
 	}
 
+	sshConfigStr := cfg.String()
+
+	ports, err := GetBrevPorts(cfg, brevHostValues)
+	if err != nil {
+		return nil, err
+	}
+	port := 2222
+
 	identifierPortMapping := make(map[string]string)
-	for _, workspaceName := range activeWorkspacesIdentifiers {
-		if !brevHostValuesSet[workspaceName] {
-			cfg, err := GetSSHConfig(fs)
-			if err != nil {
-				return nil, err
-			}
-			ports, err := GetBrevPorts(*cfg, brevHostValues)
-			if err != nil {
-				return nil, err
-			}
-			port := 2222
+	for _, workspaceIdentifier := range activeWorkspacesIdentifiers {
+		if !brevHostValuesSet[workspaceIdentifier] {
 			for ports[fmt.Sprint(port)] {
 				port++
 			}
-			file, err := files.GetOrCreateSSHConfigFile(fs)
+			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
+			sshConfigStr, err = makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
 			if err != nil {
 				return nil, err
 			}
-
-			identifierPortMapping[workspaceName] = strconv.Itoa(port)
-			err = appendBrevEntry(file, workspaceName, fmt.Sprint(port))
-			if err != nil {
-				return nil, err
-			}
+			ports[fmt.Sprint(port)] = true
 		}
 	}
+
+	csp, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	err = afero.WriteFile(fs, *csp, []byte(sshConfigStr), 0644)
+	if err != nil {
+		return nil, err
+	}
+
 	return identifierPortMapping, nil
 }
 
@@ -273,6 +278,7 @@ func GetBrevHostValues(cfg ssh_config.Config) []string {
 func hostnameFromString(hoststring string) string {
 	switch hoststring {
 	case "":
+		return hoststring
 	case "\n":
 		return hoststring
 	}
@@ -285,8 +291,8 @@ func unorderedRemove(s []string, i int) []string {
 	return s[:len(s)-1]
 }
 
-func appendBrevEntry(file afero.File, workspaceName, port string) error {
-	workspaceSSHConfig := workspaceSSHConfig{
+func makeSSHEntry(workspaceName, port string) (string, error) {
+	wsc := workspaceSSHConfig{
 		Host:         workspaceName,
 		Hostname:     "0.0.0.0",
 		User:         "brev",
@@ -296,13 +302,13 @@ func appendBrevEntry(file afero.File, workspaceName, port string) error {
 
 	tmpl, err := template.New(workspaceName).Parse(workspaceSSHConfigTemplate)
 	if err != nil {
-		return err
+		return "", err
 	}
 	buf := &bytes.Buffer{}
-	err = tmpl.Execute(buf, workspaceSSHConfig)
+	err = tmpl.Execute(buf, wsc)
 	if err != nil {
-		return err
+		return "", err
 	}
-	_, err = file.Write(buf.Bytes())
-	return err
+
+	return buf.String(), nil
 }
