@@ -69,17 +69,17 @@ func ConfigureSSH() error {
 	for _, workspace := range workspaces {
 		activeWorkspacesNames = append(activeWorkspacesNames, workspace.Name)
 	}
-	cfg, err := getSSHConfig()
+	cfg, err := getSSHConfig(files.AppFs)
 	if err != nil {
 		return err
 	}
 
-	err = CreateBrevSSHConfigEntries(*cfg, activeWorkspacesNames)
+	err = CreateBrevSSHConfigEntries(files.AppFs, *cfg, activeWorkspacesNames)
 	if err != nil {
 		return err
 	}
 	// re get ssh cfg again from disk since we likely just modified it
-	cfg, err = getSSHConfig()
+	cfg, err = getSSHConfig(files.AppFs)
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 
 // todo this should prob return a cfg object, instead make sure your re get the cfg
 // after calling this
-func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []string) error {
+func CreateBrevSSHConfigEntries(fs afero.Fs,cfg ssh_config.Config, activeWorkspacesNames []string) error {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
@@ -132,7 +132,7 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []s
 
 	for _, workspaceName := range activeWorkspacesNames {
 		if !brevHostValuesSet[workspaceName] {
-			cfg, err := getSSHConfig()
+			cfg, err := getSSHConfig(fs)
 			if err != nil {
 				return err
 			}
@@ -144,7 +144,7 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesNames []s
 			for ports[fmt.Sprint(port)] {
 				port++
 			}
-			file, err := files.GetOrCreateSSHConfigFile()
+			file, err := files.GetOrCreateSSHConfigFile(fs)
 			if err != nil {
 				return err
 			}
@@ -171,8 +171,8 @@ func checkIfBrevHost(host ssh_config.Host) bool {
 	return false
 }
 
-func getSSHConfig() (*ssh_config.Config, error) {
-	file, err := files.GetOrCreateSSHConfigFile()
+func getSSHConfig(fs afero.Fs) (*ssh_config.Config, error) {
+	file, err := files.GetOrCreateSSHConfigFile(fs)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +245,7 @@ func appendBrevEntry(file afero.File, workspaceName, port string) error {
 // given a workspace name string give me a port
 // will be changing to workspaceDNSName shortly
 func GetWorkspaceLocalSSHPort(workspaceName string) (string, error) {
-	cfg, err := getSSHConfig()
+	cfg, err := getSSHConfig(files.AppFs)
 	if err != nil {
 		return "", err
 	}

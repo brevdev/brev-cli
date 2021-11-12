@@ -98,7 +98,7 @@ func GetUserSSHConfigPath() (*string, error) {
 	return &sshConfigPath, nil
 }
 
-func GetOrCreateSSHConfigFile() (afero.File, error) {
+func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 	sshConfigPath, err := GetUserSSHConfigPath()
 	if err != nil {
 		return nil, err

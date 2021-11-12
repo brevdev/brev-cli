@@ -88,6 +88,11 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 	suite.Nil(err)
 }
 
+func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
+	err := CreateBrevSSHConfigEntries(MemAppFs, suite.SSHConfig, []string{"foo", "bar", "baz"})
+	suite.Nil(err)
+}
+
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestSSH(t *testing.T) {
