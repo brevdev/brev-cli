@@ -43,8 +43,10 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 
 func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
-	exists, err:= afero.Exists(fs, brevActiveOrgsFile)
-
+	exists, err := afero.Exists(fs, brevActiveOrgsFile)
+	if err != nil {
+		return nil, err
+	}
 
 	if !exists {
 		return nil, &brev_errors.ActiveOrgFileNotFound{}

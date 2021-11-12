@@ -91,17 +91,17 @@ func (s SSHAll) Run() error {
 	}
 
 	for _, w := range workspaces {
-		port, err := s.sshResolver.GetConfiguredWorkspacePort(w.Workspace)
-		if err != nil {
-			return err
-		}
-		portMapping := makeSSHPortMapping(port)
-		go func() {
-			err := s.portforwardWorkspace(w, portMapping)
+		go func(w brev_api.WorkspaceWithMeta) {
+			port, err := s.sshResolver.GetConfiguredWorkspacePort(w.Workspace)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
-		}()
+			portMapping := makeSSHPortMapping(port)
+			err = s.portforwardWorkspace(w, portMapping)
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
+		}(w)
 	}
 
 	signals := make(chan os.Signal, 1)
