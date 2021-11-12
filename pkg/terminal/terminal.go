@@ -112,7 +112,7 @@ func (t *Terminal) NewProgressBar(description string, onComplete func()) *Progre
 		progressbar.OptionSetDescription(description),
 		progressbar.OptionSetTheme(progressbar.Theme{
 			Saucer:        "[green]=[reset]",
-			SaucerHead:    "[green]>[reset]",
+			SaucerHead:    "[green]🤙[reset]",
 			SaucerPadding: " ",
 			BarStart:      "[",
 			BarEnd:        "]",

@@ -58,18 +58,15 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 
 	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
+	i := 15
 	bar := t.NewProgressBar("Loading...", func() {})
-	bar.AdvanceTo(1)
-	for i := 0; i <= 30; i++ {
-		time.Sleep(1 * time.Second)
-		bar.AdvanceTo(1+(i*2))
-	}
-
+	bar.AdvanceTo(5)
 	bar.Describe("Workspace is starting")
-	bar.AdvanceTo(62)
+	bar.AdvanceTo(i)
 
 	isReady := false
 	for isReady != true {
+		time.Sleep(1 * time.Second)
 		ws, err := client.GetWorkspace(workspace.ID)
 		if err != nil {
 			// TODO: what do we do here??
@@ -78,14 +75,20 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 			bar.Describe("Workspace is ready!")
 			bar.AdvanceTo(100)
 			isReady = true
+		} else {
+			if i < 89 {
+				i += 2
+			} else {
+				bar.Describe("Still starting...")
+			}
+			bar.AdvanceTo(i)
 		}
 	}
 
 
-	t.Vprintf(t.Green("\n\nTo connect to your machine, run:")+ 
-	t.Yellow("\n\tbrev on "+"brev-cli") )
+	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:")+ 
+	t.Yellow("\n\t$ brev on\n") )
 	
-	t.Vprintf(t.Green("\nor access via browser at https://" + "sshghhh.brev.sh\n"))
 
 	return nil
 
