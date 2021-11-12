@@ -100,7 +100,7 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Work
 }
 
 // ConfigureSSH
-// 	[ ] 0. checks to see if a user has configured their ssh private key
+// 	[x] 0. writes private key to disk
 // 	[x] 1. gets a list of the current user's workspaces
 // 	[x] 2. finds the user's ssh config file,
 // 	[x] 3. looks at entries in the ssh config file and:

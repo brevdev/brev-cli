@@ -24,10 +24,32 @@ func (m *MockWorkspaceGetter) GetMyWorkspaces(orgID string) ([]brev_api.Workspac
 	return []brev_api.Workspace{}, nil
 }
 
+}
+
 func (m *MockWorkspaceGetter) GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error) {
 	return &brev_api.WorkspaceMetaData{}, nil
 }
 
+type MockWorkspaceGetterActiveOrgs struct {
+	mock.Mock
+}
+
+func (m *MockWorkspaceGetterActiveOrgs) GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error) {
+	return []brev_api.Workspace{
+		{
+			ID:               "foo",
+			Name:             "testWork",
+			WorkspaceGroupID: "lkj",
+			OrganizationID:   "lkjlasd",
+			WorkspaceClassID: "lkjas'lkf",
+			CreatedByUserID:  "lkasfjas",
+			DNS:              "lksajdalk",
+			Status:           "lkjgdflk",
+			Password:         "sdfal",
+			GitRepo:          "lkdfjlksadf",
+		},
+	}, nil
+}
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
 // returns the current testing context
@@ -106,6 +128,16 @@ func (suite *BrevSSHTestSuite) TestConfigureSSH() {
 		panic(err)
 	}
 	workspaceGetter := new(MockWorkspaceGetter)
+	err = ConfigureSSH(workspaceGetter, MemAppFs, "lkjklj")
+	suite.Nil(err)
+}
+
+func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
+	err := afero.WriteFile(MemAppFs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
+	if err != nil {
+		panic(err)
+	}
+	workspaceGetter := new(MockWorkspaceGetterActiveOrgs)
 	err = ConfigureSSH(workspaceGetter, MemAppFs, "lkjklj")
 	suite.Nil(err)
 }
