@@ -18,13 +18,6 @@
 Linux & Mac
 
 ```
-curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh  -o install-brev.sh
-chmod +x install-brev.sh
-sudo ./install-brev.sh
-```
-or
-
-```
 sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`"
 ```
 check that you have installed brev successfully by running
