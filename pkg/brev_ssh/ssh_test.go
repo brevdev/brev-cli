@@ -105,13 +105,12 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
 	newConfig := PruneInactiveWorkspaces(suite.SSHConfig, []string{"brev"})
 
-	suite.Equal(newConfig,
-		`Host brev
+	suite.Equal(`Host brev
   Hostname 0.0.0.0
   IdentityFile /home/brev/.brev/brev.pem
   User brev
   Port 2222
-`)
+`, newConfig)
 }
 
 func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
@@ -122,9 +121,9 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
 	configFile, err := CreateBrevSSHConfigEntries(suite.SSHConfig, []string{"foo", "bar", "baz"})
 	suite.Nil(err)
-	resq := strings.Split(configFile, "\n")
-	res := strings.Split(workspaceSSHConfigTemplate, "\n")
-	suite.Greater(len(resq), len(res))
+	templateLen := len(strings.Split(workspaceSSHConfigTemplate, "\n"))
+	actualLen := len(strings.Split(configFile, "\n"))
+	suite.Greater(actualLen, (templateLen))
 }
 
 func (suite *BrevSSHTestSuite) TestConfigureSSH() {

@@ -1,5 +1,12 @@
 package brev_errors
 
+import (
+	"fmt"
+	"runtime"
+
+	"github.com/pkg/errors"
+)
+
 type BrevError interface {
 
 	// Error returns a user-facing string explaining the error
@@ -113,3 +120,16 @@ type DeclineToLoginError struct{}
 
 func (d *DeclineToLoginError) Error() string     { return "declined to login" }
 func (d *DeclineToLoginError) Directive() string { return "log in to run this command" }
+
+func WrapAndTrace(err error, messages ...string) error {
+	message := ""
+	for _, m := range messages {
+		message += fmt.Sprintf(" %s", m)
+	}
+	return errors.Wrap(err, MakeErrorMessage(message))
+}
+
+func MakeErrorMessage(message string) string {
+	_, fn, line, _ := runtime.Caller(2)
+	return fmt.Sprintf("[error] %s:%d %s\n\t", fn, line, message)
+}

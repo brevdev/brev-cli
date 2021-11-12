@@ -25,12 +25,12 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 	}
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, brev_errors.WrapAndTrace(err)
 	}
 	var payload []Organization
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, brev_errors.WrapAndTrace(err)
 	}
 
 	err = WriteOrgCache(payload)
@@ -45,7 +45,7 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
 	exists, err := afero.Exists(fs, brevActiveOrgsFile)
 	if err != nil {
-		return nil, err
+		return nil, brev_errors.WrapAndTrace(err)
 	}
 
 	if !exists {
@@ -55,7 +55,7 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	var activeOrg Organization
 	err = files.ReadJSON(brevActiveOrgsFile, &activeOrg)
 	if err != nil {
-		return nil, err
+		return nil, brev_errors.WrapAndTrace(err)
 	}
 
 	return &activeOrg, nil
