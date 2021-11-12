@@ -83,8 +83,7 @@ func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
 // 	[x] 4. After creating the ssh config entries, prune entries from workspaces
 //        that exist in the ssh config but not as active workspaces.
 // 	[ ] 5. Check for and remove duplicates?
-// 	[1/2] 6. truncate old config and write new config back to disk (making backup of original copy first)
-// TODO: backup config before running these steps
+// 	[x] 6. truncate old config and write new config back to disk (making backup of original copy first)
 func (s *DefaultSSHConfigurer) Config() error {
 	err := files.WriteSSHPrivateKey(s.fs, s.privateKey)
 	if err != nil {
