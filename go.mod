@@ -12,7 +12,7 @@ require (
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0
-	k8s.io/cli-runtime v0.22.2
-	k8s.io/client-go v0.22.2
+	k8s.io/cli-runtime v0.22.3
+	k8s.io/client-go v0.22.3
 	k8s.io/kubectl v0.22.2
 )
