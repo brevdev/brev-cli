@@ -108,6 +108,14 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return err
 	}
 
+	backupFilePath, err := files.GetNewBackupSSHConfigFilePath()
+	if err != nil {
+		return err
+	}
+
+	// before doing potentially destructive work, backup the config
+	afero.WriteFile(s.fs, *backupFilePath, []byte(cfg.String()), 0644)
+
 	configFile, err := CreateBrevSSHConfigEntries(*cfg, activeWorkspacesDNS)
 	if err != nil {
 		return err

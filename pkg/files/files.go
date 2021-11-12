@@ -8,19 +8,21 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 )
 
 const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
-	activeOrgFile                = "active_org.json"
-	orgCacheFile                 = "org_cache.json"
-	workspaceCacheFile           = "workspace_cache.json"
-	kubeCertFileName             = "brev.crt"
-	sshPrivateKeyFileName        = "brev.pem"
-	sshPrivateKeyFilePermissions = 0600
-	defaultFilePermission        = 0770
+	activeOrgFile                 = "active_org.json"
+	orgCacheFile                  = "org_cache.json"
+	workspaceCacheFile            = "workspace_cache.json"
+	kubeCertFileName              = "brev.crt"
+	sshPrivateKeyFileName         = "brev.pem"
+	backupSSHConfigFileNamePrefix = "config.bak"
+	sshPrivateKeyFilePermissions  = 0600
+	defaultFilePermission         = 0770
 )
 
 var AppFs = afero.NewOsFs()
@@ -47,6 +49,10 @@ func GetKubeCertFileName() string {
 
 func GetSSHPrivateKeyFileName() string {
 	return sshPrivateKeyFileName
+}
+
+func GetNewBackupSSHConfigFileName() string {
+	return fmt.Sprintf(backupSSHConfigFileNamePrefix, ".", uuid.New())
 }
 
 func makeBrevFilePath(filename string) (*string, error) {
@@ -96,6 +102,14 @@ func GetUserSSHConfigPath() (*string, error) {
 	}
 	sshConfigPath := filepath.Join(home, ".ssh", "config")
 	return &sshConfigPath, nil
+}
+
+func GetNewBackupSSHConfigFilePath() (*string, error) {
+	fp, err := makeBrevFilePath(GetNewBackupSSHConfigFileName())
+	if err != nil {
+		return nil, err
+	}
+	return fp, nil
 }
 
 func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
