@@ -53,8 +53,8 @@ type DefaultSSHConfigurer struct {
 	privateKey      string
 	fs              afero.Fs
 
-	workspaces              []brev_api.Workspace
-	sshConfig               ssh_config.Config
+	workspaces []brev_api.Workspace
+	sshConfig  ssh_config.Config
 
 	getActiveOrg func(fs afero.Fs) (*brev_api.Organization, error)
 }
@@ -74,6 +74,10 @@ func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
 }
 
 // ConfigureSSH
+// inject active org id
+// maybe just inject workspaces
+// use project name instead of dns
+
 // 	[x] 0. writes private key to disk
 // 	[x] 1. gets a list of the current user's workspaces
 // 	[x] 2. finds the user's ssh config file,
@@ -90,12 +94,12 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return brev_errors.WrapAndTrace(err)
 	}
 	// to get workspaces, we need to get the active org
-	activeorg, err := s.getActiveOrg(s.fs)
+	activeorg, err := s.getActiveOrg(s.fs) // inject active org?
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	workspaces, err := s.workspaceGetter.GetMyWorkspaces(activeorg.ID)
+	workspaces, err := s.workspaceGetter.GetMyWorkspaces(activeorg.ID) // inject ?
 	if err != nil {
 		return err
 	}
@@ -110,17 +114,12 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	backupFilePath, err := files.GetNewBackupSSHConfigFilePath()
+	// before doing potentially destructive work, backup the config
+	err = s.backupConfig(cfg)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	// before doing potentially destructive work, backup the config
-	err = afero.WriteFile(s.fs, *backupFilePath, []byte(cfg.String()), 0644)
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-	fmt.Printf("Editing ssh config, backed up at path %s\n", *backupFilePath)
 	configFile, err := CreateBrevSSHConfigEntries(*cfg, activeWorkspacesDNS)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
@@ -131,7 +130,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	// re get ssh cfg again from disk since we likely just modified it
+	// re get ssh cfg again from disk
 	cfg, err = GetSSHConfig(s.fs)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
@@ -148,6 +147,20 @@ func (s *DefaultSSHConfigurer) Config() error {
 	}
 	s.sshConfig = *cfg
 	return files.OverwriteString(*configPath, newConfig)
+}
+
+func (s *DefaultSSHConfigurer) backupConfig(cfg *ssh_config.Config) error {
+	backupFilePath, err := files.GetNewBackupSSHConfigFilePath()
+	if err != nil {
+		return brev_errors.WrapAndTrace(err)
+	}
+
+	err = afero.WriteFile(s.fs, *backupFilePath, []byte(cfg.String()), 0644)
+	if err != nil {
+		return brev_errors.WrapAndTrace(err)
+	}
+	fmt.Printf("Editing ssh config, backed up at path %s\n", *backupFilePath)
+	return nil
 }
 
 func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
