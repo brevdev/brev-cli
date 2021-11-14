@@ -50,14 +50,14 @@ func RefreshWorkspaceCacheForActiveOrg() error {
 }
 
 func WriteIndividualWorkspaceCache(orgID string, wss []Workspace) error {
-	var worspaceCache []CacheableWorkspace
+	var workspaceCache []CacheableWorkspace
 	path := files.GetWorkspacesCacheFilePath()
-	err := files.ReadJSON(path, &worspaceCache)
+	err := files.ReadJSON(path, &workspaceCache)
 	if err != nil {
 		return err
 	}
 	var updatedCache []CacheableWorkspace
-	for _, v := range worspaceCache {
+	for _, v := range workspaceCache {
 		if v.OrgID == orgID {
 			v.Workspaces = wss
 		}
@@ -80,20 +80,20 @@ func WriteOrgCache(orgs []Organization) error {
 	return nil
 }
 
-func WriteCaches() error {
+func WriteCaches() ([]Organization, []CacheableWorkspace, error) {
 	orgs := getOrgs()
 	err := WriteOrgCache(orgs)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	var wg sync.WaitGroup
-	var worspaceCache []CacheableWorkspace
+	var workspaceCache []CacheableWorkspace
 	for _, v := range orgs {
 		wg.Add(1)
 		go func(orgID string) {
 			wss := getWorkspaces(orgID)
-			worspaceCache = append(worspaceCache, CacheableWorkspace{
+			workspaceCache = append(workspaceCache, CacheableWorkspace{
 				OrgID: orgID, Workspaces: wss,
 			})
 			defer wg.Done()
@@ -101,11 +101,11 @@ func WriteCaches() error {
 	}
 	wg.Wait()
 	path_ws := files.GetWorkspacesCacheFilePath()
-	err2 := files.OverwriteJSON(path_ws, worspaceCache)
+	err2 := files.OverwriteJSON(path_ws, workspaceCache)
 	if err2 != nil {
-		return err2
+		return nil, nil, err2
 	}
-	return nil
+	return orgs, workspaceCache, nil
 }
 
 func GetOrgCacheData() ([]Organization, error) {
@@ -116,7 +116,7 @@ func GetOrgCacheData() ([]Organization, error) {
 	}
 
 	if !exists {
-		err = WriteCaches()
+		_,_,err = WriteCaches()
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +138,7 @@ func GetWsCacheData() ([]CacheableWorkspace, error) {
 	}
 
 	if !exists {
-		err = WriteCaches()
+		_,_,err = WriteCaches()
 		if err != nil {
 			return nil, err
 		}

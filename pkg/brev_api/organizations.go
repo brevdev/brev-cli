@@ -1,7 +1,6 @@
 package brev_api
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/spf13/afero"
@@ -49,7 +48,23 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	}
 
 	if !exists {
-		return nil, &brev_errors.ActiveOrgFileNotFound{}
+		client, err := NewClient()
+		if err != nil {
+			return nil, err
+		}
+		orgs, err := client.GetOrgs()
+		if err != nil {
+			return nil, err
+		}
+		if len(orgs) > 0 {
+			org := orgs[0]
+			path := files.GetActiveOrgsPath()
+			err := files.OverwriteJSON(path, org)
+			if err != nil {
+				return nil, err
+			}
+
+		}
 	}
 
 	var activeOrg Organization
