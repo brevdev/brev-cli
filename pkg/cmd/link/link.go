@@ -21,28 +21,6 @@ var (
 	sshLinkExample = "brev link <ws_name>"
 )
 
-func getWorkspaceNames() []string {
-	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs)
-	if err != nil {
-		return nil
-	}
-
-	client, err := brev_api.NewCommandClient()
-	if err != nil {
-		return nil
-	}
-	wss, err := client.GetMyWorkspaces(activeOrg.ID)
-	if err != nil {
-		return nil
-	}
-
-	var wsNames []string
-	for _, w := range wss {
-		wsNames = append(wsNames, w.Name)
-	}
-
-	return wsNames
-}
 
 func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
@@ -54,7 +32,7 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             getWorkspaceNames(),
+		ValidArgs:             brev_api.GetWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 			t.Printf("Starting ssh link...\n")
 			client, err := brev_api.NewCommandClient() // to inject

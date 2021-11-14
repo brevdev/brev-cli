@@ -208,4 +208,28 @@ func GetOrgNames() []string {
 	return orgNames
 }
 
+func GetWorkspaceNames() []string {
+	activeOrg, err := GetActiveOrgContext(files.AppFs)
+	if err != nil {
+		return nil
+	}
+
+	client, err := NewCommandClient()
+	if err != nil {
+		return nil
+	}
+	wss, err := client.GetMyWorkspaces(activeOrg.ID)
+	if err != nil {
+		return nil
+	}
+
+	var wsNames []string
+	for _, w := range wss {
+		wsNames = append(wsNames, w.Name)
+	}
+
+	return wsNames
+}
+
+
 // func PollWorkspaceForReadyState()

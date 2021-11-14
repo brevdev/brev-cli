@@ -16,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/reset"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
+	"github.com/brevdev/brev-cli/pkg/cmd/ssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
@@ -85,6 +86,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
+	cmd.AddCommand(ssh.NewCmdSSH(t))
 
 	// dev feature toggle
 	if isDev() {
