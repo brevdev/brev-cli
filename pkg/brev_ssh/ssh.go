@@ -101,7 +101,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 
 	var activeWorkspacesDNS []string
 	for _, workspace := range workspaces {
-		activeWorkspacesDNS = append(activeWorkspacesDNS, workspace.DNS)
+		activeWorkspacesDNS = append(activeWorkspacesDNS, workspace.Name)
 	}
 	cfg, err := GetSSHConfig(s.fs)
 	if err != nil {
@@ -160,7 +160,7 @@ func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, err
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
-	port, err := s.sshConfig.Get(workspace.DNS, "Port")
+	port, err := s.sshConfig.Get(workspace.Name, "Port")
 	if err != nil {
 		return "", err
 	}

@@ -93,11 +93,11 @@ func (s SSHAll) Run() error {
 
 	fmt.Println()
 	for _, w := range workspaces {
-		fmt.Printf("ssh %s\n", w.DNS)
+		fmt.Printf("ssh %s\n", w.Name)
 		go func(workspace brev_api.WorkspaceWithMeta) {
 			err := s.portforwardWorkspace(workspace)
 			if err != nil {
-				fmt.Printf("%v [workspace=%s]\n", err, workspace.DNS)
+				fmt.Printf("%v [workspace=%s]\n", err, workspace.Name)
 			}
 		}(w)
 	}
