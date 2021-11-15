@@ -8,6 +8,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/joho/godotenv v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0
+	github.com/manifoldco/promptui v0.9.0 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/errors v0.9.1
 	github.com/schollz/progressbar/v3 v3.8.3

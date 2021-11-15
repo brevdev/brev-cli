@@ -5,22 +5,58 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/manifoldco/promptui"
+
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
+type promptContent struct {
+    errorMsg string
+    label    string
+}
+
 var (
 	Port           string
 	sshLinkLong    = "Port forward your Brev machine's port to your local port"
 	sshLinkExample = "brev link <ws_name> -p local_port:remote_port"
 )
+func promptGetInput(pc promptContent) string {
+    validate := func(input string) error {
+        if len(input) <= 0 {
+            return errors.New(pc.errorMsg)
+        }
+        return nil
+    }
 
+    templates := &promptui.PromptTemplates{
+        Prompt:  "{{ . }} ",
+        Valid:   "{{ . | green }} ",
+        Invalid: "{{ . | red }} ",
+        Success: "{{ . | bold }} ",
+    }
+
+    prompt := promptui.Prompt{
+        Label:     pc.label,
+        Templates: templates,
+        Validate:  validate,
+    }
+
+    result, err := prompt.Run()
+    if err != nil {
+        fmt.Printf("Prompt failed %v\n", err)
+        os.Exit(1)
+    }
+
+    return result
+}
 
 func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
@@ -34,7 +70,23 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brev_api.GetWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-			t.Printf("Starting ssh link...\n")
+
+			t.Vprintf(Port + "\n\n\n")
+			t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!"))
+			remoteInput := promptGetInput(promptContent{
+				label: "What port on your Brev machine would you like to forward?",
+				errorMsg: "error",
+			})
+			localInput := promptGetInput(promptContent{
+				label: "What port should it be on your local machine?",
+				errorMsg: "error",
+			})
+			
+			Port = localInput + ":" + remoteInput
+			
+			t.Vprintf(t.Green("\n-p " + Port + "\n"))
+
+			t.Printf("\nStarting ssh link...\n")
 			client, err := brev_api.NewCommandClient() // to inject
 			if err != nil {
 				t.Errprint(err, "")
