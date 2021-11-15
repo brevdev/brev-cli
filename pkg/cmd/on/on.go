@@ -3,11 +3,11 @@ package on
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
 	brevssh "github.com/brevdev/brev-cli/pkg/brev_ssh"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/config"
-	brev_errors "github.com/brevdev/brev-cli/pkg/errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -42,13 +42,13 @@ func NewCmdOn() *cobra.Command {
 
 func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	fmt.Println("Setting up client...")
-	client, err := brev_api.NewCommandClient() // to resolve
+	client, err := brevapi.NewCommandClient() // to resolve
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	fs := files.AppFs
@@ -56,7 +56,7 @@ func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 
 	workspaces, err := GetActiveWorkspaces(client, fs)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, onStore, workspaceGroupClientMapper.GetPrivateKey())
@@ -76,16 +76,16 @@ func (s onOptions) RunOn() error {
 
 type SSHConfigurer interface {
 	Config() error
-	GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error)
+	GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error)
 }
 
 type On struct {
 	sshConfigurer              SSHConfigurer
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
-	workspaces                 []brev_api.WorkspaceWithMeta
+	workspaces                 []brevapi.WorkspaceWithMeta
 }
 
-func NewOn(workspaces []brev_api.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *On {
+func NewOn(workspaces []brevapi.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *On {
 	return &On{
 		workspaces:                 workspaces,
 		sshConfigurer:              sshConfigurer,
@@ -108,27 +108,27 @@ func (o On) Run() error {
 	return nil
 }
 
-func GetActiveWorkspaces(client *brev_api.Client, fs afero.Fs) ([]brev_api.WorkspaceWithMeta, error) {
+func GetActiveWorkspaces(client *brevapi.Client, fs afero.Fs) ([]brevapi.WorkspaceWithMeta, error) {
 	fmt.Println("Resolving workspaces...")
 
-	org, err := brev_api.GetActiveOrgContext(fs)
+	org, err := brevapi.GetActiveOrgContext(fs)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	workspaces, err := client.GetMyWorkspaces(org.ID)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	var workspacesWithMeta []brev_api.WorkspaceWithMeta
+	var workspacesWithMeta []brevapi.WorkspaceWithMeta
 	for _, w := range workspaces {
 		wmeta, err := client.GetWorkspaceMetaData(w.ID)
 		if err != nil {
-			return nil, brev_errors.WrapAndTrace(err)
+			return nil, breverrors.WrapAndTrace(err)
 		}
 
-		workspaceWithMeta := brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
+		workspaceWithMeta := brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
 		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
 	}
 	return workspacesWithMeta, nil
