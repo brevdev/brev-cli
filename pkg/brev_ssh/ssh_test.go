@@ -6,52 +6,50 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/afero"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
 
-var MemAppFs = afero.NewMemMapFs()
-
-type MockWorkspaceGetter struct {
-	mock.Mock
-}
-
-func (m *MockWorkspaceGetter) GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error) {
-	return []brev_api.Workspace{}, nil
-}
-
-func (m *MockWorkspaceGetter) GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error) {
-	return &brev_api.WorkspaceMetaData{}, nil
-}
-
-type MockWorkspaceGetterActiveOrgs struct {
-	mock.Mock
-}
-
-func (m *MockWorkspaceGetterActiveOrgs) GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error) {
-	return []brev_api.Workspace{
+var (
+	noWorkspaces   = []brev_api.WorkspaceWithMeta{}
+	someWorkspaces = []brev_api.WorkspaceWithMeta{
 		{
-			ID:               "foo",
-			Name:             "testWork",
-			WorkspaceGroupID: "lkj",
-			OrganizationID:   "lkjlasd",
-			WorkspaceClassID: "lkjas'lkf",
-			CreatedByUserID:  "lkasfjas",
-			DNS:              "lksajdalk",
-			Status:           "lkjgdflk",
-			Password:         "sdfal",
-			GitRepo:          "lkdfjlksadf",
+			WorkspaceMetaData: brev_api.WorkspaceMetaData{},
+			Workspace: brev_api.Workspace{
+				ID:               "foo",
+				Name:             "testWork",
+				WorkspaceGroupID: "lkj",
+				OrganizationID:   "lkjlasd",
+				WorkspaceClassID: "lkjas'lkf",
+				CreatedByUserID:  "lkasfjas",
+				DNS:              "lksajdalk",
+				Status:           "lkjgdflk",
+				Password:         "sdfal",
+				GitRepo:          "lkdfjlksadf",
+			},
 		},
-	}, nil
-}
-
-func (m *MockWorkspaceGetterActiveOrgs) GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error) {
-	return &brev_api.WorkspaceMetaData{}, nil
-}
+		{
+			WorkspaceMetaData: brev_api.WorkspaceMetaData{},
+			Workspace: brev_api.Workspace{
+				ID:               "bar",
+				Name:             "testWork",
+				WorkspaceGroupID: "lkj",
+				OrganizationID:   "lkjlasd",
+				WorkspaceClassID: "lkjas'lkf",
+				CreatedByUserID:  "lkasfjas",
+				DNS:              "lksajdalk",
+				Status:           "lkjgdflk",
+				Password:         "sdfal",
+				GitRepo:          "lkdfjlksadf",
+			},
+		},
+	}
+)
 
 // Define the suite, and absorb the built-in basic suite
 // functionality from testify - including a T() method which
@@ -103,14 +101,17 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 }
 
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
-	newConfig := PruneInactiveWorkspaces(suite.SSHConfig, []string{"brev"})
+	newConfig, err := PruneInactiveWorkspaces(&suite.SSHConfig, []string{"brev"})
+	if !suite.Nil(err) {
+		return
+	}
 
 	suite.Equal(`Host brev
   Hostname 0.0.0.0
   IdentityFile /home/brev/.brev/brev.pem
   User brev
   Port 2222
-`, newConfig)
+`, newConfig.String())
 }
 
 func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
@@ -122,36 +123,48 @@ func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
 	configFile, err := CreateBrevSSHConfigEntries(suite.SSHConfig, []string{"foo", "bar", "baz"})
 	suite.Nil(err)
 	templateLen := len(strings.Split(workspaceSSHConfigTemplate, "\n"))
-	actualLen := len(strings.Split(configFile, "\n"))
+	actualLen := len(strings.Split(configFile.String(), "\n"))
 	suite.Greater(actualLen, (templateLen))
 }
 
+// TODO abstract out setup
+// TODO add in more meaningful assertions
 func (suite *BrevSSHTestSuite) TestConfigureSSH() {
-	err := afero.WriteFile(MemAppFs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
-	if err != nil {
-		panic(err)
+	mfs := afero.NewMemMapFs()
+	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
+	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
+	p, err := files.GetUserSSHConfigPath()
+	if !suite.Nil(err) {
+		return
 	}
-	workspaceGetter := new(MockWorkspaceGetter)
-	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld", func(fs afero.Fs) (*brev_api.Organization, error) {
-		return &brev_api.Organization{}, nil
-	})
-	sshConfigurer.WithFS(MemAppFs)
+	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
+	if !suite.Nil(err) {
+		return
+	}
+	sshConfigurer := NewDefaultSSHConfigurer(noWorkspaces, fs, "lkjdflkj sld")
 	err = sshConfigurer.Config()
-	suite.Nil(err)
+	if !suite.Nil(err) {
+		return
+	}
 }
 
 func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
-	err := afero.WriteFile(MemAppFs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
-	if err != nil {
-		panic(err)
+	mfs := afero.NewMemMapFs()
+	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
+	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
+	p, err := files.GetUserSSHConfigPath()
+	if !suite.Nil(err) {
+		return
 	}
-	workspaceGetter := new(MockWorkspaceGetterActiveOrgs)
-	sshConfigurer := NewDefaultSSHConfigurer(workspaceGetter, "lkjdflkj sld", func(fs afero.Fs) (*brev_api.Organization, error) {
-		return &brev_api.Organization{}, nil
-	})
-	sshConfigurer.WithFS(MemAppFs)
+	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
+	if !suite.Nil(err) {
+		return
+	}
+	sshConfigurer := NewDefaultSSHConfigurer(someWorkspaces, fs, "lkjdflkj sld")
 	err = sshConfigurer.Config()
-	suite.Nil(err)
+	if !suite.Nil(err) {
+		return
+	}
 }
 
 // In order for 'go test' to run this suite, we need to create

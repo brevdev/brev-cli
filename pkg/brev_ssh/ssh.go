@@ -43,34 +43,29 @@ Host {{ .Host }}
 	 Port {{ .Port }}
 `
 
-type WorkspaceGetter interface {
-	GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error)
-	GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error)
+type SSHStore interface {
+	GetSSHConfig() (string, error)
+	WriteSSHConfig(config string) error
+	CreateNewSSHConfigBackup() error
+	WritePrivateKey(pem string) error
 }
 
 type DefaultSSHConfigurer struct {
-	workspaceGetter WorkspaceGetter
-	privateKey      string
-	fs              afero.Fs
+	sshStore   SSHStore
+	privateKey string
 
-	workspaces []brev_api.Workspace
+	workspaces []brev_api.WorkspaceWithMeta
 	sshConfig  ssh_config.Config
 
 	getActiveOrg func(fs afero.Fs) (*brev_api.Organization, error)
 }
 
-func NewDefaultSSHConfigurer(workspaceGetter WorkspaceGetter, privateKey string, getActiveOrg func(fs afero.Fs) (*brev_api.Organization, error)) *DefaultSSHConfigurer {
+func NewDefaultSSHConfigurer(workspaces []brev_api.WorkspaceWithMeta, sshStore SSHStore, privateKey string) *DefaultSSHConfigurer {
 	return &DefaultSSHConfigurer{
-		workspaceGetter: workspaceGetter,
-		privateKey:      privateKey,
-		fs:              files.AppFs,
-		getActiveOrg:    getActiveOrg,
+		workspaces: workspaces,
+		sshStore:   sshStore,
+		privateKey: privateKey,
 	}
-}
-
-func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
-	s.fs = fs
-	return s
 }
 
 // ConfigureSSH
@@ -89,92 +84,50 @@ func (s *DefaultSSHConfigurer) WithFS(fs afero.Fs) *DefaultSSHConfigurer {
 // 	[ ] 5. Check for and remove duplicates?
 // 	[x] 6. truncate old config and write new config back to disk (making backup of original copy first)
 func (s *DefaultSSHConfigurer) Config() error {
-	err := files.WriteSSHPrivateKey(s.fs, s.privateKey)
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-	// to get workspaces, we need to get the active org
-	activeorg, err := s.getActiveOrg(s.fs) // inject active org?
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-
-	workspaces, err := s.workspaceGetter.GetMyWorkspaces(activeorg.ID) // inject ?
-	if err != nil {
-		return err
-	}
-	s.workspaces = workspaces
-
-	var activeWorkspacesDNS []string
-	for _, workspace := range workspaces {
-		activeWorkspacesDNS = append(activeWorkspacesDNS, workspace.DNS)
-	}
-	cfg, err := GetSSHConfig(s.fs)
+	err := s.sshStore.WritePrivateKey(s.privateKey)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
 	// before doing potentially destructive work, backup the config
-	err = s.backupConfig(cfg)
+	err = s.sshStore.CreateNewSSHConfigBackup()
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	configFile, err := CreateBrevSSHConfigEntries(*cfg, activeWorkspacesDNS)
+	configStr, err := s.sshStore.GetSSHConfig()
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	err = writeConfigFile(s.fs, configFile)
+	cfg, err := ssh_config.Decode(strings.NewReader(configStr))
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	// re get ssh cfg again from disk
-	cfg, err = GetSSHConfig(s.fs)
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+	var workspaceNames []string
+	for _, workspace := range s.workspaces {
+		workspaceNames = append(workspaceNames, workspace.Name)
 	}
-	newConfig := PruneInactiveWorkspaces(*cfg, activeWorkspacesDNS)
-	configPath, err := files.GetUserSSHConfigPath()
+
+	cfg, err = CreateBrevSSHConfigEntries(*cfg, workspaceNames)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	cfg, err = ssh_config.Decode(strings.NewReader(newConfig))
+	cfg, err = PruneInactiveWorkspaces(cfg, workspaceNames)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
+
+	err = s.sshStore.WriteSSHConfig(cfg.String())
+	if err != nil {
+		return brev_errors.WrapAndTrace(err)
+	}
+
 	s.sshConfig = *cfg
-	return files.OverwriteString(*configPath, newConfig)
-}
 
-func (s *DefaultSSHConfigurer) backupConfig(cfg *ssh_config.Config) error {
-	backupFilePath, err := files.GetNewBackupSSHConfigFilePath()
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-
-	err = afero.WriteFile(s.fs, *backupFilePath, []byte(cfg.String()), 0644)
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-	fmt.Printf("Editing ssh config, backed up at path %s\n", *backupFilePath)
 	return nil
-}
-
-func (s DefaultSSHConfigurer) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
-	var workspacesWithMeta []brev_api.WorkspaceWithMeta
-	for _, w := range s.workspaces {
-		wmeta, err := s.workspaceGetter.GetWorkspaceMetaData(w.ID)
-		if err != nil {
-			return nil, brev_errors.WrapAndTrace(err)
-		}
-
-		workspaceWithMeta := brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
-		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
-	}
-	return workspacesWithMeta, nil
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
@@ -185,7 +138,7 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Work
 	return port, nil
 }
 
-func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []string) string {
+func PruneInactiveWorkspaces(cfg *ssh_config.Config, activeWorkspacesNames []string) (*ssh_config.Config, error) {
 	newConfig := ""
 
 	for _, host := range cfg.Hosts {
@@ -211,12 +164,16 @@ func PruneInactiveWorkspaces(cfg ssh_config.Config, activeWorkspacesNames []stri
 			newConfig += host.String()
 		}
 	}
-	return newConfig
+
+	cfg, err := ssh_config.Decode(strings.NewReader(newConfig))
+	if err != nil {
+		return nil, brev_errors.WrapAndTrace(err)
+	}
+
+	return cfg, nil
 }
 
-// todo this should prob return a cfg object, instead make sure your re get the cfg
-// after calling this
-func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (string, error) {
+func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (*ssh_config.Config, error) {
 	brevHostValues := GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
@@ -227,7 +184,7 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifie
 
 	ports, err := GetBrevPorts(cfg, brevHostValues)
 	if err != nil {
-		return "", brev_errors.WrapAndTrace(err)
+		return nil, brev_errors.WrapAndTrace(err)
 	}
 	port := 2222
 
@@ -240,14 +197,14 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifie
 			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
 			entry, err := makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
 			if err != nil {
-				return "", brev_errors.WrapAndTrace(err)
+				return nil, brev_errors.WrapAndTrace(err)
 			}
 			sshConfigStr += entry
 			ports[fmt.Sprint(port)] = true
 		}
 	}
 
-	return sshConfigStr, nil
+	return ssh_config.Decode(strings.NewReader(sshConfigStr))
 }
 
 func writeConfigFile(fs afero.Fs, configFile string) error {
@@ -274,18 +231,6 @@ func checkIfBrevHost(host ssh_config.Host) bool {
 		}
 	}
 	return false
-}
-
-func GetSSHConfig(fs afero.Fs) (*ssh_config.Config, error) {
-	file, err := files.GetOrCreateSSHConfigFile(fs)
-	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
-	}
-	cfg, err := ssh_config.Decode(file)
-	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
-	}
-	return cfg, nil
 }
 
 func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, error) {

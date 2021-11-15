@@ -4,11 +4,12 @@ go 1.16
 
 require (
 	github.com/fatih/color v1.13.0
+	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/uuid v1.1.2
 	github.com/joho/godotenv v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/schollz/progressbar/v3 v3.8.3
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.2.1

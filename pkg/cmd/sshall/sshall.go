@@ -11,88 +11,34 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
-	"github.com/spf13/cobra"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-func NewCmdSSHAll() *cobra.Command {
-	opts := sshAllOptions{}
-
-	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
-		Use:                   "ssh-all",
-		DisableFlagsInUseLine: true,
-		Short:                 "run all workspace ssh connections",
-		Long:                  "run ssh connections for all running workspaces",
-		Example:               "brev ssh-all",
-		Args:                  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(opts.Complete(cmd, args))
-			cmdutil.CheckErr(opts.Validate())
-			cmdutil.CheckErr(opts.RunSSHAll())
-		},
-	}
-	return cmd
-}
-
-type sshAllOptions struct {
-	sshAll *SSHAll
-}
-
-func (s *sshAllOptions) Complete(cmd *cobra.Command, args []string) error {
-	client, err := brev_api.NewCommandClient() // to resolve
-	if err != nil {
-		return err
-	}
-
-	k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
-	if err != nil {
-		return err
-	}
-
-	sshResolver := NewRandomPortSSHResolver(client)
-	s.sshAll = NewSSHAll(k8sClientMapper, sshResolver)
-	return nil
-}
-
-func (s sshAllOptions) Validate() error {
-	return nil
-}
-
-func (s sshAllOptions) RunSSHAll() error {
-	return s.sshAll.Run()
-}
-
 type SSHAll struct {
+	workspaces                 []brev_api.WorkspaceWithMeta
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
 }
 
 type SSHResolver interface {
-	GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error)
 	GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error)
 }
 
 func NewSSHAll(
+	workspaces []brev_api.WorkspaceWithMeta,
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper,
 	sshResolver SSHResolver,
 
 ) *SSHAll {
 	return &SSHAll{
+		workspaces:                 workspaces,
 		workspaceGroupClientMapper: workspaceGroupClientMapper,
 		sshResolver:                sshResolver,
 	}
 }
 
 func (s SSHAll) Run() error {
-	fmt.Println("Resolving workspaces...")
-	workspaces, err := s.sshResolver.GetWorkspaces()
-	if err != nil {
-		return err
-	}
-
 	fmt.Println()
-	for _, w := range workspaces {
+	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.DNS)
 		go func(workspace brev_api.WorkspaceWithMeta) {
 			err := s.portforwardWorkspace(workspace)
