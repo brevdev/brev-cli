@@ -263,7 +263,11 @@ func OverwriteString(filepath string, data string) error {
 
 func WriteSSHPrivateKey(fs afero.Fs, data string) error {
 	// write
-	return afero.WriteFile(fs, GetSSHPrivateKeyFilePath(), []byte(data), sshPrivateKeyFilePermissions)
+	err := afero.WriteFile(fs, GetSSHPrivateKeyFilePath(), []byte(data), sshPrivateKeyFilePermissions)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 // Delete a single file altogether.
@@ -280,5 +284,9 @@ func touchFile(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), defaultFilePermission); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	return os.Create(path)
+	f, err := os.Create(path)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return f, nil
 }

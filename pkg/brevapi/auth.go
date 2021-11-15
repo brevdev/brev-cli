@@ -126,7 +126,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return Result{}, ctx.Err()
+			return Result{}, breverrors.WrapAndTrace(ctx.Err())
 		case <-t.C:
 			data := url.Values{
 				"client_id":   {a.ClientID},
@@ -159,7 +159,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 				if *res.Error == "authorization_pending" {
 					continue
 				}
-				return Result{}, errors.New(res.ErrorDescription)
+				return Result{}, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
 			}
 
 			ten, domain, err := parseTenant(res.AccessToken)
@@ -361,5 +361,9 @@ func Logout() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	return files.DeleteFile(*brevCredentialsFile)
+	err = files.DeleteFile(*brevCredentialsFile)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }

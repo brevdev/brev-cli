@@ -99,7 +99,11 @@ func (o PortForwardOptions) RunPortforward() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	return o.PortForwarder.ForwardPorts("POST", url, o)
+	err =o.PortForwarder.ForwardPorts("POST", url, o)
+	if err != nil {
+		breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 type DefaultPortForwarder struct {

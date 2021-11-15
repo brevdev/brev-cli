@@ -3,6 +3,7 @@ package logout
 
 import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -41,5 +42,9 @@ func (o *LogoutOptions) Validate(cmd *cobra.Command, args []string) error {
 }
 
 func (o *LogoutOptions) RunLogout(cmd *cobra.Command, args []string) error {
-	return brevapi.Logout()
+	err := brevapi.Logout()
+	if err != nil{
+		breverrors.WrapAndTrace(err)
+	}
+	return nil
 }

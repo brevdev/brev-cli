@@ -124,7 +124,7 @@ func GetOrgFromName(name string) (*Organization, error) {
 		}
 	}
 
-	return nil, errors.New("no organization with that name")
+	return nil, breverrors.WrapAndTrace(errors.New("no organization with that name"))
 }
 
 func GetWorkspaceFromName(name string) (*Workspace, error) {
@@ -166,7 +166,7 @@ func GetWorkspaceFromName(name string) (*Workspace, error) {
 		}
 	}
 
-	return nil, errors.New("no workspace with that name")
+	return nil, breverrors.WrapAndTrace(errors.New("no workspace with that name"))
 }
 
 func GetCachedWorkspaceNames() []string {

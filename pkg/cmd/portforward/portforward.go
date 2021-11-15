@@ -33,7 +33,7 @@ var (
 func promptGetInput(pc promptContent) string {
 	validate := func(input string) error {
 		if len(input) <= 0 {
-			return errors.New(pc.errorMsg)
+			return breverrors.WrapAndTrace(errors.New(pc.errorMsg))
 		}
 		return nil
 	}
