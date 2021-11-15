@@ -26,7 +26,7 @@ func getMe() brevapi.User {
 func getMeKeys() (*brevapi.UserKeys, error) {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return client.GetMeKeys()
 }

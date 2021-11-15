@@ -31,11 +31,11 @@ func getMe() brevapi.User {
 func getOrgs() ([]brevapi.Organization, error) {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	orgs, err := client.GetOrgs()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return orgs, nil
 }
@@ -43,11 +43,11 @@ func getOrgs() ([]brevapi.Organization, error) {
 func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	wss, err := client.GetWorkspaces(orgID)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return wss, nil
@@ -198,7 +198,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) {
 	wss, err := GetAllWorkspaces(org.ID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 	if len(wss) == 0 {
 		t.Vprint(t.Yellow("You don't have any workspaces in org %s.", org.Name))
@@ -207,7 +207,7 @@ func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organizatio
 	o := org
 	joined, unjoined, err := printWorkspaceTable(t, wss, *o)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 	return joined, unjoined, nil
 }

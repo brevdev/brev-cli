@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
@@ -55,13 +56,13 @@ func (o *PortForwardOptions) WithWorkspace(workspace brevapi.WorkspaceWithMeta) 
 
 	k8sAPIURL, err := o.WorkspaceGroupClientMapper.GetK8sAPIURL(workspace.WorkspaceGroupID)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	o.K8sAPIURL = k8sAPIURL
 
 	k8sClient, err := o.WorkspaceGroupClientMapper.GetK8sClient(workspace.WorkspaceGroupID)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	o.K8sClient = k8sClient
 

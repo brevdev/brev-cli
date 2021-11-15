@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/manifoldco/promptui"
 
@@ -177,15 +178,15 @@ func GetWorkspaceByIDOrName(workspaceIDOrName string, workspaceResolver Workspac
 func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brevapi.WorkspaceWithMeta, error) {
 	c, err := brevapi.NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	w, err := c.GetWorkspace(id)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	wmeta, err := c.GetWorkspaceMetaData(id)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: *w}, nil
@@ -196,7 +197,7 @@ func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brevapi.WorkspaceWithMe
 func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWithMeta, error) {
 	c, err := brevapi.NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// Check ActiveOrg's workspaces before checking every orgs workspaces as fallback
@@ -207,13 +208,13 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWi
 	} else {
 		workspaces, err := c.GetMyWorkspaces(activeorg.ID)
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		for _, w := range workspaces {
 			if w.Name == name {
 				wmeta, err := c.GetWorkspaceMetaData(w.ID)
 				if err != nil {
-					return nil, err
+					return nil, breverrors.WrapAndTrace(err)
 				}
 				return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}
@@ -223,13 +224,13 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWi
 
 	orgs, err := c.GetOrgs()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	for _, o := range orgs {
 		workspaces, err := c.GetWorkspaces(o.ID)
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 
 		for _, w := range workspaces {
@@ -237,7 +238,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWi
 				// Assemble full object
 				wmeta, err := c.GetWorkspaceMetaData(w.ID)
 				if err != nil {
-					return nil, err
+					return nil, breverrors.WrapAndTrace(err)
 				}
 				return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}

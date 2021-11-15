@@ -3,6 +3,7 @@ package brevapi
 import (
 	"fmt"
 
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
@@ -23,13 +24,13 @@ func (a *Client) GetMe() (*User, error) {
 	}
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload User
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -70,12 +71,12 @@ func (a *Client) GetMeKeys() (*UserKeys, error) {
 	}
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	var payload UserKeys
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil

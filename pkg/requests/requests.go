@@ -71,7 +71,7 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 		payload,
 	)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// build query parameters and encode
@@ -99,16 +99,16 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 func (r *RESTRequest) Submit() (*RESTResponse, error) {
 	req, err := r.BuildHTTPRequest()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	payloadBytes, err := ioutil.ReadAll(res.Body)
 	defer res.Body.Close()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var headers []Header
@@ -132,7 +132,7 @@ func (r *RESTRequest) Submit() (*RESTResponse, error) {
 func (r *RESTRequest) SubmitStrict() (*RESTResponse, error) {
 	response, err := r.Submit()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	if response.StatusCode >= 400 {
 		return nil, &RESTResponseError{

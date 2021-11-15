@@ -5,6 +5,7 @@ import (
 
 	"github.com/fatih/color"
 
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
@@ -48,7 +49,7 @@ func BuildVersionString(t *terminal.Terminal) (string, error) {
 	githubRelease, err := getLatestGithubReleaseMetadata()
 	if err != nil {
 		t.Errprint(err, "Failed to retrieve latest version")
-		return "", err
+		return "", breverrors.WrapAndTrace(err)
 	}
 
 	var versionString string
@@ -76,13 +77,13 @@ func getLatestGithubReleaseMetadata() (*githubReleaseMetadata, error) {
 	}
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload githubReleaseMetadata
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil

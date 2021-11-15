@@ -51,18 +51,18 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	if !exists {
 		client, err := NewClient()
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		orgs, err := client.GetOrgs()
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		if len(orgs) > 0 {
 			org := orgs[0]
 			path := files.GetActiveOrgsPath()
 			err := files.OverwriteJSON(path, org)
 			if err != nil {
-				return nil, err
+				return nil, breverrors.WrapAndTrace(err)
 			}
 
 		}

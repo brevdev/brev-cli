@@ -85,7 +85,7 @@ func WriteCaches() ([]Organization, []CacheableWorkspace, error) {
 	orgs := getOrgs()
 	err := WriteOrgCache(orgs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
 	var wg sync.WaitGroup
@@ -113,20 +113,20 @@ func GetOrgCacheData() ([]Organization, error) {
 	path := files.GetOrgCacheFilePath()
 	exists, err := files.Exists(path, false)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	if !exists {
 		_, _, err = WriteCaches()
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 	}
 
 	var orgCache []Organization
 	err = files.ReadJSON(path, &orgCache)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return orgCache, nil
 }
@@ -135,20 +135,20 @@ func GetWsCacheData() ([]CacheableWorkspace, error) {
 	path := files.GetWorkspacesCacheFilePath()
 	exists, err := files.Exists(path, false)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	if !exists {
 		_, _, err = WriteCaches()
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 	}
 
 	var wsCache []CacheableWorkspace
 	err = files.ReadJSON(path, &wsCache)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return wsCache, nil
 }

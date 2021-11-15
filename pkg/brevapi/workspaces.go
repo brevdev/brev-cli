@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/config"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
 
@@ -59,7 +60,7 @@ var DEFAULT_APPLICATION_LIST = []Application{DEFAULT_APPLICATION}
 func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
 	me, err := a.GetMe()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	request := requests.RESTRequest{
@@ -75,13 +76,13 @@ func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload []Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var myWorkspaces []Workspace
@@ -108,13 +109,13 @@ func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload []Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	err = WriteIndividualWorkspaceCache(orgID, payload)
@@ -153,13 +154,13 @@ func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload WorkspaceMetaData
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -184,13 +185,13 @@ func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -222,13 +223,13 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 	response, err := request.SubmitStrict()
 	if err != nil {
 		fmt.Println(err.Error())
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -248,13 +249,13 @@ func (a *Client) DeleteWorkspace(wsID string) (*Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -274,13 +275,13 @@ func (a *Client) StartWorkspace(wsID string) (*Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -300,13 +301,13 @@ func (a *Client) StopWorkspace(wsID string) (*Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil
@@ -326,13 +327,13 @@ func (a *Client) ResetWorkspace(wsID string) (*Workspace, error) {
 
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var payload Workspace
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &payload, nil

@@ -36,7 +36,7 @@ func NewClient() (*Client, error) {
 	// get token and use it to create a client
 	token, err := GetToken()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	client := Client{
 		Key: token,
@@ -44,7 +44,7 @@ func NewClient() (*Client, error) {
 	// make sure the token we have is associated with a valid user
 	user, err := client.GetMe()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	if user != nil {
 		return &client, nil
@@ -59,15 +59,15 @@ func NewCommandClient() (*Client, error) {
 	if err != nil {
 		err = HandleNewClientErrors(err)
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		} else {
 			client, err = NewClient()
 			if err != nil {
-				return nil, err
+				return nil, breverrors.WrapAndTrace(err)
 			}
 		}
 	}
-	return client, err
+	return client, breverrors.WrapAndTrace(err)
 }
 
 func buildBrevEndpoint(resource string) string {
@@ -109,13 +109,13 @@ func OpenBrowser(url string) error {
 func GetOrgFromName(name string) (*Organization, error) {
 	client, err := NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// Get all orgs
 	orgs, err := client.GetOrgs()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	for _, o := range orgs {
@@ -130,11 +130,11 @@ func GetOrgFromName(name string) (*Organization, error) {
 func GetWorkspaceFromName(name string) (*Workspace, error) {
 	client, err := NewCommandClient()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	activeOrg, err := GetActiveOrgContext(files.AppFs)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	if err != nil {
@@ -158,7 +158,7 @@ func GetWorkspaceFromName(name string) (*Workspace, error) {
 	// If active org, get all ActiveOrg workspaces
 	wss, err := client.GetMyWorkspaces(activeOrg.ID)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	for _, v := range wss {
 		if v.Name == name {

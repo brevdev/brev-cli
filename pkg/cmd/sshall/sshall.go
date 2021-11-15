@@ -111,19 +111,19 @@ func NewRandomPortSSHResolver(workspaceResolver WorkspaceResolver) *RandomSSHRes
 func (r RandomSSHResolver) GetWorkspaces() ([]brevapi.WorkspaceWithMeta, error) {
 	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs) // to inject
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	wss, err := r.WorkspaceResolver.GetMyWorkspaces(activeOrg.ID)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var workspacesWithMeta []brevapi.WorkspaceWithMeta
 	for _, w := range wss {
 		wmeta, err := r.WorkspaceResolver.GetWorkspaceMetaData(w.ID)
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 
 		workspaceWithMeta := brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}

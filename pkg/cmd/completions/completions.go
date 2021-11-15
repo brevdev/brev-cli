@@ -13,12 +13,12 @@ type CompletionHelpers struct{}
 func (c CompletionHelpers) GetWorkspaceNames() ([]string, error) {
 	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	wsCache, err := brevapi.GetWsCacheData()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	for _, v := range wsCache {
 		if v.OrgID == activeOrg.ID {
