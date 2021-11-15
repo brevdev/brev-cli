@@ -7,6 +7,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -35,7 +36,10 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 			return []string{}, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveDefault
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ssh(t, args[0])
+			err := ssh(t, args[0])
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			return nil
 		},
 	}

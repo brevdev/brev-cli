@@ -86,9 +86,12 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	err := cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return brevapi.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
 	})
+	if err != nil {
+		t.Errprint(err, "cli err")
+	}
 
 	return cmd
 }
@@ -107,8 +110,14 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 
 		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if err != nil {
 			t.Vprint(t.Yellow("Your organizations:"))
 			err = printOrgTableWithoutActiveOrg(t, orgs)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			return nil
 		}
 		t.Vprint(t.Yellow("Your organizations:"))

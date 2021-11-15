@@ -143,7 +143,7 @@ func Exists(filepath string, isDir bool) (bool, error) {
 		return false, nil
 	}
 	if info == nil {
-		return false, fmt.Errorf("Could not stat file %s", filepath)
+		return false, fmt.Errorf("could not stat file %s", filepath)
 	}
 	if info.IsDir() {
 		// error?
@@ -177,6 +177,10 @@ func ReadJSON(unsafeFilePathString string, v interface{}) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	if err = f.Close(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -186,10 +190,13 @@ func ReadString(unsafeFilePathString string) (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	defer f.Close()
 
 	dataBytes, err := ioutil.ReadAll(f)
 	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	if err = f.Close(); err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 
@@ -214,7 +221,6 @@ func OverwriteJSON(filepath string, v interface{}) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer f.Close()
 
 	// clear
 	err = f.Truncate(0)
@@ -232,6 +238,9 @@ func OverwriteJSON(filepath string, v interface{}) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	if err = f.Close(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return breverrors.WrapAndTrace(err)
 }
 
@@ -244,7 +253,6 @@ func OverwriteString(filepath string, data string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer f.Close()
 
 	// clear
 	err = f.Truncate(0)
@@ -258,6 +266,9 @@ func OverwriteString(filepath string, data string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	if err = f.Close(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return breverrors.WrapAndTrace(err)
 }
 

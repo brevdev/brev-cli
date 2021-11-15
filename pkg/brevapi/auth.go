@@ -121,12 +121,12 @@ func (a *Authenticator) Start(ctx context.Context) (State, error) {
 }
 
 // Wait waits until the user is logged in on the browser.
-func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
+func (a *Authenticator) Wait(ctx context.Context, state State) (*Result, error) {
 	t := time.NewTicker(state.IntervalDuration())
 	for {
 		select {
 		case <-ctx.Done():
-			return Result{}, breverrors.WrapAndTrace(ctx.Err())
+			return nil, breverrors.WrapAndTrace(ctx.Err())
 		case <-t.C:
 			data := url.Values{
 				"client_id":   {a.ClientID},
@@ -135,9 +135,8 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			}
 			r, err := http.PostForm(a.OauthTokenEndpoint, data)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
+				return nil, breverrors.WrapAndTrace(err, "cannot get device code")
 			}
-			defer r.Body.Close()
 
 			var res struct {
 				AccessToken      string  `json:"access_token"`
@@ -152,22 +151,25 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 
 			err = json.NewDecoder(r.Body).Decode(&res)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot decode response")
+				return nil, breverrors.WrapAndTrace(err, "cannot decode response")
 			}
 
 			if res.Error != nil {
 				if *res.Error == "authorization_pending" {
 					continue
 				}
-				return Result{}, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
+				return nil, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
 			}
 
 			ten, domain, err := parseTenant(res.AccessToken)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
+				return nil, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
 			}
 
-			return Result{
+			if err = r.Body.Close(); err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+			return &Result{
 				RefreshToken: res.RefreshToken,
 				AccessToken:  res.AccessToken,
 				ExpiresIn:    res.ExpiresIn,
@@ -188,7 +190,6 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	if err != nil {
 		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
 	}
-	defer r.Body.Close()
 	var res State
 	err = json.NewDecoder(r.Body).Decode(&res)
 	if err != nil {
@@ -197,6 +198,9 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	// TODO if status code > 399 handle errors
 	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
 
+	if err = r.Body.Close(); err != nil {
+		return State{}, breverrors.WrapAndTrace(err)
+	}
 	return res, nil
 }
 
@@ -351,7 +355,10 @@ func Login(prompt bool) error {
 	}
 
 	// hydrate the cache
-	WriteCaches()
+	_, _, err = WriteCaches()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }

@@ -64,7 +64,6 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 			if err != nil {
 				return nil, breverrors.WrapAndTrace(err)
 			}
-
 		}
 	}
 

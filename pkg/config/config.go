@@ -13,7 +13,6 @@ const (
 	brevAPIURL EnvVarName = "BREV_API_URL"
 	version    EnvVarName = "VERSION"
 	clusterID  EnvVarName = "DEFAULT_CLUSTER_ID"
-	k8APIURL   EnvVarName = "K8_API_URL"
 )
 
 type ConstantsConfig struct{}

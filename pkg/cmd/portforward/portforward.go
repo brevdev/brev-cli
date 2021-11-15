@@ -150,9 +150,12 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
-	cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
+	if err != nil {
+		t.Errprint(err, "cli err")
+	}
 
 	return cmd
 }

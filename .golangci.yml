@@ -45,6 +45,7 @@ linters-settings:
       - .WrapAndTrace
       - .Errorf
       - .Wrap
+      - .New
   stylecheck:
     checks: ["all", "-ST1020", "-ST1000"]
 
@@ -80,7 +81,7 @@ linters:
     # - gomnd
     - goprintffuncname
     - gosec
-    - ifshort
+    # - ifshort
     - misspell
     - noctx
     - nolintlint
@@ -91,7 +92,7 @@ linters:
     - tparallel
     - unconvert
     - unparam
-    - whitespace
+    # - whitespace
     # - errorlint
     # - goerr113
     - wrapcheck

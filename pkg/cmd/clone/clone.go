@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/spf13/cobra"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
@@ -54,9 +54,13 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	err := cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return brevapi.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
 	})
+	if err != nil {
+		t.Errprint(err, "cli err")
+	}
+
 	return cmd
 }
 

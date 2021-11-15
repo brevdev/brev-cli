@@ -2,6 +2,7 @@ package requests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -64,12 +65,15 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 		return nil, fmt.Errorf("unknown method: %s", r.Method)
 	}
 
+	ctx := context.Background()
+
 	// set up request
 	req, err := http.NewRequest(
 		r.Method,
 		r.Endpoint,
 		payload,
 	)
+	req.WithContext(ctx)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -106,7 +110,6 @@ func (r *RESTRequest) Submit() (*RESTResponse, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	payloadBytes, err := ioutil.ReadAll(res.Body)
-	defer res.Body.Close()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -117,6 +120,9 @@ func (r *RESTRequest) Submit() (*RESTResponse, error) {
 			Key:   key,
 			Value: strings.Join(values, "\n"),
 		})
+	}
+	if err = res.Body.Close(); err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &RESTResponse{
 		Headers:    headers,
