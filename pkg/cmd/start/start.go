@@ -27,12 +27,10 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			err := startWorkspace(args[0], t)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
-
 		},
 	}
 
@@ -58,30 +56,36 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 
 	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
-	i := 15
+	loadingAdv := 5
 	bar := t.NewProgressBar("Loading...", func() {})
-	bar.AdvanceTo(5)
+	bar.AdvanceTo(loadingAdv)
 	bar.Describe("Workspace is starting")
-	bar.AdvanceTo(i)
+	startingBar := 15
+	bar.AdvanceTo(startingBar)
+
+	total := 100
+	stdIncrement := 1
+	startingIncrement := 2
+	startingIncrementThresh := 89
 
 	isReady := false
-	for isReady != true {
-		time.Sleep(1 * time.Second)
+	for !isReady {
+		time.Sleep(time.Duration(stdIncrement) * time.Second)
 		ws, err := client.GetWorkspace(workspace.ID)
 		if err != nil {
-			// TODO: what do we do here??
+			return err
 		}
 		if ws.Status == "RUNNING" {
 			bar.Describe("Workspace is ready!")
-			bar.AdvanceTo(100)
+			bar.AdvanceTo(total)
 			isReady = true
 		} else {
-			if i < 89 {
-				i += 2
+			if startingBar < startingIncrementThresh {
+				startingBar += startingIncrement
 			} else {
 				bar.Describe("Still starting...")
 			}
-			bar.AdvanceTo(i)
+			bar.AdvanceTo(startingBar)
 		}
 	}
 
@@ -89,5 +93,4 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		t.Yellow("\n\t$ brev on\n"))
 
 	return nil
-
 }

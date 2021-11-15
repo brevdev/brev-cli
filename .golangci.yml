@@ -71,7 +71,7 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - godot
+    # - godot
     - gofumpt
     - revive
     - gomnd

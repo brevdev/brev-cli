@@ -50,12 +50,10 @@ func NewCmdStop(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             getWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			err := stopWorkspace(args[0], t)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
-
 		},
 	}
 
@@ -83,5 +81,4 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal) error {
 		"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil
-
 }
