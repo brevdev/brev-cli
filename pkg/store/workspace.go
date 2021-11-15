@@ -6,4 +6,6 @@ type GetWorkspacesOptions struct {
 	OrganizationID string
 }
 
-func (s AuthHTTPStore) GetWorkspaces(options GetWorkspacesOptions) ([]brev_api.Workspace, error)
+func (s AuthHTTPStore) GetWorkspaces(options GetWorkspacesOptions) ([]brev_api.Workspace, error) {
+	return nil, nil
+}
