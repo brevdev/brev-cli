@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
@@ -12,11 +12,11 @@ import (
 func setupSSHConfigFile(fs afero.Fs) error {
 	sshConfigPath, err := files.GetUserSSHConfigPath()
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	_, err = fs.Create(*sshConfigPath)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

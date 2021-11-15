@@ -2,7 +2,7 @@ package sshall
 
 // func Test_getActiveWorkspaces(t *testing.T) {
 // 	_, err := getUserActiveWorkspaces()
-// 	ae := brev_errors.ActiveOrgFileNotFound{}
+// 	ae := breverrors.ActiveOrgFileNotFound{}
 // 	assert.ErrorIs(t, err, &ae)
 // }
 

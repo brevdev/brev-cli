@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/config"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/kevinburke/ssh_config"
@@ -195,11 +195,11 @@ func makeMockSSHStore() (SSHStore, error) {
 	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
 	p, err := files.GetUserSSHConfigPath()
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return fs, nil
 }

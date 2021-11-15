@@ -1,7 +1,7 @@
 package brevapi
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/spf13/afero"
@@ -25,12 +25,12 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 	}
 	response, err := request.SubmitStrict()
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	var payload []Organization
 	err = response.UnmarshalPayload(&payload)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	err = WriteOrgCache(payload)
@@ -45,7 +45,7 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
 	exists, err := afero.Exists(fs, brevActiveOrgsFile)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	if !exists {
@@ -71,7 +71,7 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	var activeOrg Organization
 	err = files.ReadJSON(brevActiveOrgsFile, &activeOrg)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &activeOrg, nil

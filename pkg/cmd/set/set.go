@@ -2,9 +2,9 @@
 package set
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -67,5 +67,5 @@ func set(t *terminal.Terminal, orgName string) error {
 		}
 	}
 
-	return &brev_errors.InvalidOrganizationError{}
+	return &breverrors.InvalidOrganizationError{}
 }

@@ -20,8 +20,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/afero"
 )
@@ -87,23 +87,23 @@ func NewDefaultSSHConfigurer(workspaces []brevapi.WorkspaceWithMeta, sshStore SS
 func (s *DefaultSSHConfigurer) Config() error {
 	err := s.sshStore.WritePrivateKey(s.privateKey)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// before doing potentially destructive work, backup the config
 	err = s.sshStore.CreateNewSSHConfigBackup()
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	configStr, err := s.sshStore.GetSSHConfig()
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	cfg, err := ssh_config.Decode(strings.NewReader(configStr))
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	var workspaceNames []string
@@ -113,17 +113,17 @@ func (s *DefaultSSHConfigurer) Config() error {
 
 	cfg, err = s.CreateBrevSSHConfigEntries(*cfg, workspaceNames)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	cfg, err = s.PruneInactiveWorkspaces(cfg, workspaceNames)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = s.sshStore.WriteSSHConfig(cfg.String())
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	s.sshConfig = *cfg
@@ -134,7 +134,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error) {
 	port, err := s.sshConfig.Get(workspace.DNS, "Port")
 	if err != nil {
-		return "", brev_errors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 	return port, nil
 }
@@ -170,7 +170,7 @@ func (s DefaultSSHConfigurer) PruneInactiveWorkspaces(cfg *ssh_config.Config, ac
 
 	cfg, err := ssh_config.Decode(strings.NewReader(newConfig))
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return cfg, nil
@@ -187,7 +187,7 @@ func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, 
 
 	ports, err := GetBrevPorts(cfg, brevHostValues)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	port := 2222
 
@@ -200,7 +200,7 @@ func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, 
 			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
 			entry, err := s.makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
 			if err != nil {
-				return nil, brev_errors.WrapAndTrace(err)
+				return nil, breverrors.WrapAndTrace(err)
 			}
 			sshConfigStr += entry
 			ports[fmt.Sprint(port)] = true
@@ -230,7 +230,7 @@ func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, e
 	for _, name := range hostnames {
 		port, err := cfg.Get(name, "Port")
 		if err != nil {
-			return nil, brev_errors.WrapAndTrace(err)
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		portSet[port] = true
 	}
@@ -273,12 +273,12 @@ func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, 
 
 	tmpl, err := template.New(workspaceName).Parse(workspaceSSHConfigTemplate)
 	if err != nil {
-		return "", brev_errors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 	buf := &bytes.Buffer{}
 	err = tmpl.Execute(buf, wsc)
 	if err != nil {
-		return "", brev_errors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 
 	return buf.String(), nil

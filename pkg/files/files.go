@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 )
@@ -59,11 +59,11 @@ func GetNewBackupSSHConfigFileName() string {
 func makeBrevFilePath(filename string) (*string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	fpath, err := filepath.Join(home, brevDirectory, filename), nil
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &fpath, nil
 }
@@ -99,7 +99,7 @@ func GetSSHPrivateKeyFilePath() string {
 func GetUserSSHConfigPath() (*string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	sshConfigPath := filepath.Join(home, ".ssh", "config")
 	return &sshConfigPath, nil
@@ -108,7 +108,7 @@ func GetUserSSHConfigPath() (*string, error) {
 func GetNewBackupSSHConfigFilePath() (*string, error) {
 	fp, err := makeBrevFilePath(GetNewBackupSSHConfigFileName())
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return fp, nil
 }
@@ -116,22 +116,22 @@ func GetNewBackupSSHConfigFilePath() (*string, error) {
 func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 	sshConfigPath, err := GetUserSSHConfigPath()
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	sshConfigExists, err := Exists(*sshConfigPath, false)
 	if err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	var file afero.File
 	if sshConfigExists {
 		file, err = fs.OpenFile(*sshConfigPath, os.O_RDWR, 0644)
 		if err != nil {
-			return nil, brev_errors.WrapAndTrace(err)
+			return nil, breverrors.WrapAndTrace(err)
 		}
 	} else {
 		file, err = fs.Create(*sshConfigPath)
 		if err != nil {
-			return nil, brev_errors.WrapAndTrace(err)
+			return nil, breverrors.WrapAndTrace(err)
 		}
 	}
 	return file, nil
@@ -164,18 +164,18 @@ func ReadJSON(unsafeFilePathString string, v interface{}) error {
 	safeFilePath := filepath.Clean(unsafeFilePathString)
 	f, err := os.Open(safeFilePath)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	defer f.Close()
 
 	dataBytes, err := ioutil.ReadAll(f)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = json.Unmarshal(dataBytes, v)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -184,13 +184,13 @@ func ReadString(unsafeFilePathString string) (string, error) {
 	safeFilePath := filepath.Clean(unsafeFilePathString)
 	f, err := os.Open(safeFilePath)
 	if err != nil {
-		return "", brev_errors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 	defer f.Close()
 
 	dataBytes, err := ioutil.ReadAll(f)
 	if err != nil {
-		return "", brev_errors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 
 	return string(dataBytes), nil
@@ -212,24 +212,24 @@ func ReadString(unsafeFilePathString string) (string, error) {
 func OverwriteJSON(filepath string, v interface{}) error {
 	f, err := touchFile(filepath)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	defer f.Close()
 
 	// clear
 	err = f.Truncate(0)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// write
 	dataBytes, err := json.Marshal(v)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	err = ioutil.WriteFile(filepath, dataBytes, os.ModePerm)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return err
@@ -242,20 +242,20 @@ func OverwriteJSON(filepath string, v interface{}) error {
 func OverwriteString(filepath string, data string) error {
 	f, err := touchFile(filepath)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	defer f.Close()
 
 	// clear
 	err = f.Truncate(0)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// write
 	err = ioutil.WriteFile(filepath, []byte(data), os.ModePerm)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return err
@@ -270,7 +270,7 @@ func WriteSSHPrivateKey(fs afero.Fs, data string) error {
 func DeleteFile(filepath string) error {
 	err := os.Remove(filepath)
 	if err != nil {
-		return brev_errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -278,7 +278,7 @@ func DeleteFile(filepath string) error {
 // Create file (and full path) if it does not already exit.
 func touchFile(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), defaultFilePermission); err != nil {
-		return nil, brev_errors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return os.Create(path)
 }

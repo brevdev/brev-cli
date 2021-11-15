@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/pkg/browser"
 )
@@ -280,7 +280,7 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 		return nil, err
 	}
 	if !exists {
-		return nil, &brev_errors.CredentialsFileNotFound{}
+		return nil, &breverrors.CredentialsFileNotFound{}
 	}
 
 	var token OauthToken
@@ -298,7 +298,7 @@ func Login(prompt bool) error {
 		fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
 		text, _ := reader.ReadString('\n')
 		if strings.Compare(text, "y") != 1 {
-			return &brev_errors.DeclineToLoginError{}
+			return &breverrors.DeclineToLoginError{}
 		}
 	}
 	ctx := context.Background()

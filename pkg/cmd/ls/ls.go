@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -137,11 +137,11 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	}
 
 	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
-	// activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
+	// activeOrgFoundErr := breverrors.ActiveOrgFileNotFound{}
 	// if errors.Is(err, &activeOrgFoundErr) {
 	if err != nil {
 
-		activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
+		activeOrgFoundErr := breverrors.ActiveOrgFileNotFound{}
 		if errors.Is(err, &activeOrgFoundErr) {
 			orgs, err := getOrgs()
 			if err != nil {

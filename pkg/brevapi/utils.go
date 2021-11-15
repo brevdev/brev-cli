@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/config"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
@@ -18,7 +18,7 @@ type Client struct {
 
 func HandleNewClientErrors(err error) error {
 	switch e := err.(type) {
-	case *brev_errors.CredentialsFileNotFound:
+	case *breverrors.CredentialsFileNotFound:
 		// TODO prompt
 		return Login(true)
 	case *requests.RESTResponseError:

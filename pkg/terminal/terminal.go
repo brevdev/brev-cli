@@ -10,7 +10,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/schollz/progressbar/v3"
 
-	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 var ProgressBarMax = 100
@@ -82,7 +82,7 @@ func (t *Terminal) Errprint(err error, a string) {
 	if a != "" {
 		t.Eprint(t.Red(a))
 	}
-	if brevErr, ok := err.(brev_errors.BrevError); ok {
+	if brevErr, ok := err.(breverrors.BrevError); ok {
 		t.Eprint(t.Red(brevErr.Directive()))
 	}
 }
@@ -92,7 +92,7 @@ func (t *Terminal) Errprintf(err error, format string, a ...interface{}) {
 	if a != nil {
 		t.Eprint(t.Red(format, a))
 	}
-	if brevErr, ok := err.(brev_errors.BrevError); ok {
+	if brevErr, ok := err.(breverrors.BrevError); ok {
 		t.Eprint(t.Red(brevErr.Directive()))
 	}
 }

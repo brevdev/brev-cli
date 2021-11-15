@@ -1,4 +1,4 @@
-package brev_errors
+package errors
 
 import (
 	"fmt"
