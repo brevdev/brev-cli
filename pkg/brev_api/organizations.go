@@ -1,6 +1,7 @@
 package brev_api
 
 import (
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/spf13/afero"

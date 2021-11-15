@@ -273,12 +273,6 @@ func hostnameFromString(hoststring string) string {
 	return strings.Split(strings.Split(hoststring, "\n")[0], " ")[1]
 }
 
-// https://stackoverflow.com/questions/37334119/how-to-delete-an-element-from-a-slice-in-golang
-func unorderedRemove(s []string, i int) []string {
-	s[i] = s[len(s)-1]
-	return s[:len(s)-1]
-}
-
 func makeSSHEntry(workspaceName, port string) (string, error) {
 	wsc := workspaceSSHConfig{
 		Host:         workspaceName,
