@@ -2,6 +2,7 @@ package brev_ssh
 
 // Basic imports
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -58,30 +59,41 @@ var (
 type BrevSSHTestSuite struct {
 	suite.Suite
 	SSHConfig ssh_config.Config
+	store     SSHStore
 }
 
+var userConfigStr = `Host user-host
+Hostname 172.0.0.0
+`
+
 func (suite *BrevSSHTestSuite) SetupTest() {
-	r := strings.NewReader(`Host brev
+	s, err := makeMockSSHStore()
+	if !suite.Nil(err) {
+		return
+	}
+	suite.store = s
+
+	r := strings.NewReader(fmt.Sprintf(`%[2]s
+Host brev
 	 Hostname 0.0.0.0
-	 IdentityFile /home/brev/.brev/brev.pem
+	 IdentityFile %[1]s
 	 User brev
 	 Port 2222
 Host workspace-images
 	 Hostname 0.0.0.0
-	 IdentityFile /home/brev/.brev/brev.pem
+	 IdentityFile %[1]s
 	 User brev
 	 Port 2223
 Host brevdev/brev-deploy
 	 Hostname 0.0.0.0
-	 IdentityFile /home/brev/.brev/brev.pem
+	 IdentityFile %[1]s
 	 User brev
-	 Port 2224`)
+	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr))
 	SSHConfig, err := ssh_config.Decode(r)
 	if err != nil {
 		panic(err)
 	}
 	suite.SSHConfig = *SSHConfig
-	suite.SSHConfig.Hosts = suite.SSHConfig.Hosts[1:]
 }
 
 func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
@@ -93,9 +105,9 @@ func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
 }
 
 func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
-	for _, host := range suite.SSHConfig.Hosts {
+	for _, host := range suite.SSHConfig.Hosts[2:] {
 		if len(host.Nodes) > 0 {
-			isBrevHost := checkIfBrevHost(*host, "/home/brev/.brev/brev.pem")
+			isBrevHost := checkIfBrevHost(*host, suite.store.GetPrivateKeyFilePath())
 			suite.True(isBrevHost)
 		}
 	}
@@ -112,12 +124,15 @@ func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
 		return
 	}
 
-	suite.Equal(`Host brev
+	configStr := newConfig.String()
+
+	suite.Equal(fmt.Sprintf(`%s
+Host brev
   Hostname 0.0.0.0
-  IdentityFile /home/brev/.brev/brev.pem
+  IdentityFile %s
   User brev
   Port 2222
-`, newConfig.String())
+`, userConfigStr, s.GetPrivateKeyFilePath()), configStr)
 }
 
 func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {

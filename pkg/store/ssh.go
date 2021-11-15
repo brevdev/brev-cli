@@ -75,6 +75,6 @@ func (f FileStore) WritePrivateKey(pem string) error {
 	return nil
 }
 
-func (f FileStore) GetSSHPrivateKeyFilePath() string {
+func (f FileStore) GetPrivateKeyFilePath() string {
 	return files.GetSSHPrivateKeyFilePath()
 }

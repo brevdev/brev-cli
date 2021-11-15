@@ -48,7 +48,7 @@ type SSHStore interface {
 	CreateNewSSHConfigBackup() error
 	WritePrivateKey(pem string) error
 
-	GetSSHPrivateKeyFilePath() string
+	GetPrivateKeyFilePath() string
 }
 
 type DefaultSSHConfigurer struct {
@@ -142,7 +142,7 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Work
 func (s DefaultSSHConfigurer) PruneInactiveWorkspaces(cfg *ssh_config.Config, activeWorkspacesNames []string) (*ssh_config.Config, error) {
 	newConfig := ""
 
-	privateKeyPath := s.sshStore.GetSSHPrivateKeyFilePath()
+	privateKeyPath := s.sshStore.GetPrivateKeyFilePath()
 
 	for _, host := range cfg.Hosts {
 		// if a host is not a brev entry, it should stay in the config and there
@@ -239,7 +239,7 @@ func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, e
 
 // Hostname is a loaded term so using values
 func (s DefaultSSHConfigurer) GetBrevHostValues(cfg ssh_config.Config) []string {
-	privateKeyPath := s.sshStore.GetSSHPrivateKeyFilePath()
+	privateKeyPath := s.sshStore.GetPrivateKeyFilePath()
 	var brevHosts []string
 	for _, host := range cfg.Hosts {
 		hostname := hostnameFromString(host.String())
@@ -267,7 +267,7 @@ func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, 
 		Host:         workspaceName,
 		Hostname:     "0.0.0.0",
 		User:         "brev",
-		IdentityFile: s.sshStore.GetSSHPrivateKeyFilePath(),
+		IdentityFile: s.sshStore.GetPrivateKeyFilePath(),
 		Port:         port,
 	}
 
