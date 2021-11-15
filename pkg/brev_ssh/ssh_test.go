@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brev_errors"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -101,7 +102,12 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 }
 
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
-	newConfig, err := PruneInactiveWorkspaces(&suite.SSHConfig, []string{"brev"})
+	s, err := makeMockSSHStore()
+	if !suite.Nil(err) {
+		return
+	}
+
+	newConfig, err := DefaultSSHConfigurer{sshStore: s}.PruneInactiveWorkspaces(&suite.SSHConfig, []string{"brev"})
 	if !suite.Nil(err) {
 		return
 	}
@@ -115,13 +121,28 @@ func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
 }
 
 func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
-	_, err := makeSSHEntry("bar", "2222")
-	suite.Nil(err)
+	s, err := makeMockSSHStore()
+	if !suite.Nil(err) {
+		return
+	}
+
+	_, err = DefaultSSHConfigurer{sshStore: s}.makeSSHEntry("bar", "2222")
+	if !suite.Nil(err) {
+		return
+	}
 }
 
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
-	configFile, err := CreateBrevSSHConfigEntries(suite.SSHConfig, []string{"foo", "bar", "baz"})
-	suite.Nil(err)
+	s, err := makeMockSSHStore()
+	if !suite.Nil(err) {
+		return
+	}
+
+	configFile, err := DefaultSSHConfigurer{sshStore: s}.CreateBrevSSHConfigEntries(suite.SSHConfig, []string{"foo", "bar", "baz"})
+	if !suite.Nil(err) {
+		return
+	}
+
 	templateLen := len(strings.Split(workspaceSSHConfigTemplate, "\n"))
 	actualLen := len(strings.Split(configFile.String(), "\n"))
 	suite.Greater(actualLen, (templateLen))
@@ -130,18 +151,11 @@ func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
 // TODO abstract out setup
 // TODO add in more meaningful assertions
 func (suite *BrevSSHTestSuite) TestConfigureSSH() {
-	mfs := afero.NewMemMapFs()
-	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
-	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
-	p, err := files.GetUserSSHConfigPath()
+	s, err := makeMockSSHStore()
 	if !suite.Nil(err) {
 		return
 	}
-	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
-	if !suite.Nil(err) {
-		return
-	}
-	sshConfigurer := NewDefaultSSHConfigurer(noWorkspaces, fs, "lkjdflkj sld")
+	sshConfigurer := NewDefaultSSHConfigurer(noWorkspaces, s, "lkjdflkj sld")
 	err = sshConfigurer.Config()
 	if !suite.Nil(err) {
 		return
@@ -149,22 +163,30 @@ func (suite *BrevSSHTestSuite) TestConfigureSSH() {
 }
 
 func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
-	mfs := afero.NewMemMapFs()
-	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
-	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
-	p, err := files.GetUserSSHConfigPath()
+	s, err := makeMockSSHStore()
 	if !suite.Nil(err) {
 		return
 	}
-	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
-	if !suite.Nil(err) {
-		return
-	}
-	sshConfigurer := NewDefaultSSHConfigurer(someWorkspaces, fs, "lkjdflkj sld")
+	sshConfigurer := NewDefaultSSHConfigurer(someWorkspaces, s, "lkjdflkj sld")
 	err = sshConfigurer.Config()
 	if !suite.Nil(err) {
 		return
 	}
+}
+
+func makeMockSSHStore() (SSHStore, error) {
+	mfs := afero.NewMemMapFs()
+	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
+	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
+	p, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return nil, brev_errors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
+	if err != nil {
+		return nil, brev_errors.WrapAndTrace(err)
+	}
+	return fs, nil
 }
 
 // In order for 'go test' to run this suite, we need to create

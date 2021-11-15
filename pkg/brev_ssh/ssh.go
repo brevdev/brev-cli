@@ -22,7 +22,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/afero"
 )
@@ -48,6 +47,8 @@ type SSHStore interface {
 	WriteSSHConfig(config string) error
 	CreateNewSSHConfigBackup() error
 	WritePrivateKey(pem string) error
+
+	GetSSHPrivateKeyFilePath() string
 }
 
 type DefaultSSHConfigurer struct {
@@ -110,12 +111,12 @@ func (s *DefaultSSHConfigurer) Config() error {
 		workspaceNames = append(workspaceNames, workspace.Name)
 	}
 
-	cfg, err = CreateBrevSSHConfigEntries(*cfg, workspaceNames)
+	cfg, err = s.CreateBrevSSHConfigEntries(*cfg, workspaceNames)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
 
-	cfg, err = PruneInactiveWorkspaces(cfg, workspaceNames)
+	cfg, err = s.PruneInactiveWorkspaces(cfg, workspaceNames)
 	if err != nil {
 		return brev_errors.WrapAndTrace(err)
 	}
@@ -138,10 +139,10 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Work
 	return port, nil
 }
 
-func PruneInactiveWorkspaces(cfg *ssh_config.Config, activeWorkspacesNames []string) (*ssh_config.Config, error) {
+func (s DefaultSSHConfigurer) PruneInactiveWorkspaces(cfg *ssh_config.Config, activeWorkspacesNames []string) (*ssh_config.Config, error) {
 	newConfig := ""
 
-	privateKeyPath := files.GetSSHPrivateKeyFilePath()
+	privateKeyPath := s.sshStore.GetSSHPrivateKeyFilePath()
 
 	for _, host := range cfg.Hosts {
 		// if a host is not a brev entry, it should stay in the config and there
@@ -175,8 +176,8 @@ func PruneInactiveWorkspaces(cfg *ssh_config.Config, activeWorkspacesNames []str
 	return cfg, nil
 }
 
-func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (*ssh_config.Config, error) {
-	brevHostValues := GetBrevHostValues(cfg)
+func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifiers []string) (*ssh_config.Config, error) {
+	brevHostValues := s.GetBrevHostValues(cfg)
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
 		brevHostValuesSet[hostValue] = true
@@ -197,7 +198,7 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifie
 				port++
 			}
 			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
-			entry, err := makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
+			entry, err := s.makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
 			if err != nil {
 				return nil, brev_errors.WrapAndTrace(err)
 			}
@@ -207,18 +208,6 @@ func CreateBrevSSHConfigEntries(cfg ssh_config.Config, activeWorkspacesIdentifie
 	}
 
 	return ssh_config.Decode(strings.NewReader(sshConfigStr))
-}
-
-func writeConfigFile(fs afero.Fs, configFile string) error {
-	csp, err := files.GetUserSSHConfigPath()
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-	err = afero.WriteFile(fs, *csp, []byte(configFile), 0644)
-	if err != nil {
-		return brev_errors.WrapAndTrace(err)
-	}
-	return nil
 }
 
 func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
@@ -249,8 +238,8 @@ func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, e
 }
 
 // Hostname is a loaded term so using values
-func GetBrevHostValues(cfg ssh_config.Config) []string {
-	privateKeyPath := files.GetSSHPrivateKeyFilePath()
+func (s DefaultSSHConfigurer) GetBrevHostValues(cfg ssh_config.Config) []string {
+	privateKeyPath := s.sshStore.GetSSHPrivateKeyFilePath()
 	var brevHosts []string
 	for _, host := range cfg.Hosts {
 		hostname := hostnameFromString(host.String())
@@ -273,12 +262,12 @@ func hostnameFromString(hoststring string) string {
 	return strings.Split(strings.Split(hoststring, "\n")[0], " ")[1]
 }
 
-func makeSSHEntry(workspaceName, port string) (string, error) {
+func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, error) {
 	wsc := workspaceSSHConfig{
 		Host:         workspaceName,
 		Hostname:     "0.0.0.0",
 		User:         "brev",
-		IdentityFile: files.GetSSHPrivateKeyFilePath(),
+		IdentityFile: s.sshStore.GetSSHPrivateKeyFilePath(),
 		Port:         port,
 	}
 

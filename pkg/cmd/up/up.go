@@ -45,7 +45,7 @@ func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	fmt.Println("Setting up client...")
 	client, err := brev_api.NewCommandClient() // to resolve
 	if err != nil {
-		return err
+		return brev_errors.WrapAndTrace(err)
 	}
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
 	if err != nil {
@@ -56,6 +56,9 @@ func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	onStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient())
 
 	workspaces, err := GetActiveWorkspaces(client, fs)
+	if err != nil {
+		return brev_errors.WrapAndTrace(err)
+	}
 
 	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, onStore, workspaceGroupClientMapper.GetPrivateKey())
 
