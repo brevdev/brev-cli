@@ -3,7 +3,7 @@
 package get
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func getMe() brev_api.User {
-	client, err := brev_api.NewCommandClient()
+func getMe() brevapi.User {
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		panic(err)
 	}
@@ -23,8 +23,8 @@ func getMe() brev_api.User {
 	return *user
 }
 
-func getMeKeys() (*brev_api.UserKeys, error) {
-	client, err := brev_api.NewCommandClient()
+func getMeKeys() (*brevapi.UserKeys, error) {
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func NewCmdGet(t *terminal.Terminal) *cobra.Command {
 				return err
 			}
 
-			// _, err = brev_api.CheckOutsideBrevErrorMessage(t)
+			// _, err = brevapi.CheckOutsideBrevErrorMessage(t)
 			return err
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

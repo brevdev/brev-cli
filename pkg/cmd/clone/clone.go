@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -56,7 +56,7 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return brev_api.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
+		return brevapi.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
 	})
 	return cmd
 }
@@ -69,13 +69,13 @@ func clone(t *terminal.Terminal, url string, orgflag string) error {
 
 	var orgID string
 	if orgflag == "" {
-		activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
+		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 		if err != nil {
 			return err
 		}
 		orgID = activeorg.ID
 	} else {
-		org, err := brev_api.GetOrgFromName(orgflag)
+		org, err := brevapi.GetOrgFromName(orgflag)
 		if err != nil {
 			return err
 		}
@@ -124,7 +124,7 @@ func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
 
 func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string) error {
 
-	c, err := brev_api.NewClient()
+	c, err := brevapi.NewClient()
 	if err != nil {
 		return err
 	}

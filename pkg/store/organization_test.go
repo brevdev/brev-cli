@@ -1,7 +1,7 @@
 package store
 
-import "github.com/brevdev/brev-cli/pkg/brev_api"
+import "github.com/brevdev/brev-cli/pkg/brevapi"
 
-func (f FileStore) GetActiveOrganization() (*brev_api.Organization, error) {
+func (f FileStore) GetActiveOrganization() (*brevapi.Organization, error) {
 	return nil, nil
 }

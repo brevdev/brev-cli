@@ -4,7 +4,7 @@ package k8s
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -69,7 +69,7 @@ type DefaultWorkspaceGroupClientMapper struct {
 }
 
 type KeyResolver interface {
-	GetMeKeys() (*brev_api.UserKeys, error)
+	GetMeKeys() (*brevapi.UserKeys, error)
 }
 
 func NewDefaultWorkspaceGroupClientMapper(keyResolver KeyResolver) (*DefaultWorkspaceGroupClientMapper, error) {
@@ -122,7 +122,7 @@ type RemoteK8sClientConfig struct {
 }
 
 func NewRemoteK8sClientConfig(clusterID string) (*RemoteK8sClientConfig, error) {
-	c, err := brev_api.NewCommandClient()
+	c, err := brevapi.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}

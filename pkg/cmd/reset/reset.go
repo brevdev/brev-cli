@@ -4,7 +4,7 @@ package reset
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -24,7 +24,7 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             brev_api.GetCachedWorkspaceNames(),
+		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
 			err := resetWorkspace(args[0], t)
@@ -39,12 +39,12 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 }
 
 func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
-	client, err := brev_api.NewCommandClient()
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return err
 	}
 
-	workspace, err := brev_api.GetWorkspaceFromName(workspaceName)
+	workspace, err := brevapi.GetWorkspaceFromName(workspaceName)
 	if err != nil {
 		return err
 	}

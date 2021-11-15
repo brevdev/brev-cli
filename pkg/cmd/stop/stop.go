@@ -4,7 +4,7 @@ package stop
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -17,12 +17,12 @@ var (
 )
 
 func getWorkspaceNames() []string {
-	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs)
+	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil
 	}
 
-	client, err := brev_api.NewCommandClient()
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return nil
 	}
@@ -63,12 +63,12 @@ func NewCmdStop(t *terminal.Terminal) *cobra.Command {
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal) error {
-	client, err := brev_api.NewCommandClient()
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return err
 	}
 
-	workspace, err := brev_api.GetWorkspaceFromName(workspaceName)
+	workspace, err := brevapi.GetWorkspaceFromName(workspaceName)
 	if err != nil {
 		return err
 	}

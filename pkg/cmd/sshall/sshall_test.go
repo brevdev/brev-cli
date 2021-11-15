@@ -7,7 +7,7 @@ package sshall
 // }
 
 // func Test_getLocalPortForWorkspace(t *testing.T) {
-// 	port := getRandomLocalPortForWorkspace(brev_api.Workspace{})
+// 	port := getRandomLocalPortForWorkspace(brevapi.Workspace{})
 // 	assert.NotEmpty(t, port)
 // }
 

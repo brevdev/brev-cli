@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -18,11 +18,11 @@ import (
 )
 
 var (
-	noWorkspaces   = []brev_api.WorkspaceWithMeta{}
-	someWorkspaces = []brev_api.WorkspaceWithMeta{
+	noWorkspaces   = []brevapi.WorkspaceWithMeta{}
+	someWorkspaces = []brevapi.WorkspaceWithMeta{
 		{
-			WorkspaceMetaData: brev_api.WorkspaceMetaData{},
-			Workspace: brev_api.Workspace{
+			WorkspaceMetaData: brevapi.WorkspaceMetaData{},
+			Workspace: brevapi.Workspace{
 				ID:               "foo",
 				Name:             "testWork",
 				WorkspaceGroupID: "lkj",
@@ -36,8 +36,8 @@ var (
 			},
 		},
 		{
-			WorkspaceMetaData: brev_api.WorkspaceMetaData{},
-			Workspace: brev_api.Workspace{
+			WorkspaceMetaData: brevapi.WorkspaceMetaData{},
+			Workspace: brevapi.Workspace{
 				ID:               "bar",
 				Name:             "testWork",
 				WorkspaceGroupID: "lkj",

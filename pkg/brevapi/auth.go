@@ -1,4 +1,4 @@
-package brev_api
+package brevapi
 
 import (
 	"bufio"

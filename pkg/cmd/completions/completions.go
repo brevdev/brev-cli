@@ -4,19 +4,19 @@ package completions
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/files"
 )
 
 type CompletionHelpers struct{}
 
 func (c CompletionHelpers) GetWorkspaceNames() ([]string, error) {
-	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs)
+	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		return nil, err
 	}
 
-	wsCache, err := brev_api.GetWsCacheData()
+	wsCache, err := brevapi.GetWsCacheData()
 	if err != nil {
 		return nil, err
 	}

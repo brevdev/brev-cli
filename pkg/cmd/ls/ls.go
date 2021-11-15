@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -16,8 +16,8 @@ import (
 )
 
 // Helper functions.
-func getMe() brev_api.User {
-	client, err := brev_api.NewCommandClient()
+func getMe() brevapi.User {
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		panic(err)
 	}
@@ -28,8 +28,8 @@ func getMe() brev_api.User {
 	return *user
 }
 
-func getOrgs() ([]brev_api.Organization, error) {
-	client, err := brev_api.NewCommandClient()
+func getOrgs() ([]brevapi.Organization, error) {
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -40,8 +40,8 @@ func getOrgs() ([]brev_api.Organization, error) {
 	return orgs, nil
 }
 
-func GetAllWorkspaces(orgID string) ([]brev_api.Workspace, error) {
-	client, err := brev_api.NewCommandClient()
+func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 		Example: `
   brev ls
   brev ls orgs
-  brev ls --org <orgid> 
+  brev ls --org <orgid>
 		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
@@ -87,7 +87,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	cmd.RegisterFlagCompletionFunc("org", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return brev_api.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
+		return brevapi.GetOrgNames(), cobra.ShellCompDirectiveNoSpace
 	})
 
 	return cmd
@@ -105,7 +105,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 			return nil
 		}
 
-		activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
+		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 		if err != nil {
 			t.Vprint(t.Yellow("Your organizations:"))
 			err = printOrgTableWithoutActiveOrg(t, orgs)
@@ -121,7 +121,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	}
 
 	if orgflag != "" {
-		org, err := brev_api.GetOrgFromName(orgflag)
+		org, err := brevapi.GetOrgFromName(orgflag)
 		if err != nil {
 			return err
 		}
@@ -136,7 +136,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		return nil
 	}
 
-	activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
+	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 	// activeOrgFoundErr := brev_errors.ActiveOrgFileNotFound{}
 	// if errors.Is(err, &activeOrgFoundErr) {
 	if err != nil {
@@ -158,7 +158,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 				err := make(chan error)
 
 				o := o
-				go func(t *terminal.Terminal, org *brev_api.Organization) {
+				go func(t *terminal.Terminal, org *brevapi.Organization) {
 					_, _, err1 := fetchWorkspacesAndPrintTable(t, org)
 					err <- err1
 					defer wg.Done()
@@ -195,7 +195,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	return nil
 }
 
-func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
+func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) {
 	wss, err := GetAllWorkspaces(org.ID)
 	if err != nil {
 		return nil, nil, err
@@ -220,7 +220,7 @@ func truncateString(s string, delimterCount int) string {
 	}
 }
 
-func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, activeorg brev_api.Organization) ([]brev_api.Workspace, []brev_api.Workspace, error) {
+func printWorkspaceTable(t *terminal.Terminal, workspaces []brevapi.Workspace, activeorg brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) {
 	unjoinedWorkspaces, joinedWorkspaces := GetSortedUserWorkspaces(workspaces)
 
 	DELIMETER := 40
@@ -245,11 +245,11 @@ func printWorkspaceTable(t *terminal.Terminal, workspaces []brev_api.Workspace, 
 	return joinedWorkspaces, unjoinedWorkspaces, nil
 }
 
-func GetSortedUserWorkspaces(workspaces []brev_api.Workspace) ([]brev_api.Workspace, []brev_api.Workspace) {
+func GetSortedUserWorkspaces(workspaces []brevapi.Workspace) ([]brevapi.Workspace, []brevapi.Workspace) {
 	me := getMe()
 
-	var unjoinedWorkspaces []brev_api.Workspace
-	var joinedWorkspaces []brev_api.Workspace
+	var unjoinedWorkspaces []brevapi.Workspace
+	var joinedWorkspaces []brevapi.Workspace
 
 	for _, v := range workspaces {
 		if v.CreatedByUserID == me.Id {
@@ -274,7 +274,7 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, activeorg brev_api.Organization) error {
+func printOrgTable(t *terminal.Terminal, organizations []brevapi.Organization, activeorg brevapi.Organization) error {
 	ID_LEN := 9
 	if len(organizations) > 0 {
 		t.Vprint("  ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
@@ -289,7 +289,7 @@ func printOrgTable(t *terminal.Terminal, organizations []brev_api.Organization, 
 	return nil
 }
 
-func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brev_api.Organization) error {
+func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brevapi.Organization) error {
 	ID_LEN := 9
 	if len(organizations) > 0 {
 		t.Vprint("ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")

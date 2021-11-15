@@ -4,7 +4,7 @@ package delete
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -25,7 +25,7 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 		Long:                  deleteLong,
 		Example:               deleteExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             brev_api.GetCachedWorkspaceNames(),
+		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
 
 			err := deleteWorkspace(args[0], t)
@@ -40,12 +40,12 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 }
 
 func deleteWorkspace(name string, t *terminal.Terminal) error {
-	client, err := brev_api.NewCommandClient()
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		return err
 	}
 
-	workspace, err := brev_api.GetWorkspaceFromName(name)
+	workspace, err := brevapi.GetWorkspaceFromName(name)
 	if err != nil {
 		return err
 	}

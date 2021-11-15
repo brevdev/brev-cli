@@ -1,4 +1,4 @@
-package brev_api
+package brevapi
 
 import (
 	"github.com/brevdev/brev-cli/pkg/brev_errors"

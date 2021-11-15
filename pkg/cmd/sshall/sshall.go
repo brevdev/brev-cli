@@ -7,24 +7,24 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 )
 
 type SSHAll struct {
-	workspaces                 []brev_api.WorkspaceWithMeta
+	workspaces                 []brevapi.WorkspaceWithMeta
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
 }
 
 type SSHResolver interface {
-	GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error)
+	GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error)
 }
 
 func NewSSHAll(
-	workspaces []brev_api.WorkspaceWithMeta,
+	workspaces []brevapi.WorkspaceWithMeta,
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper,
 	sshResolver SSHResolver,
 
@@ -40,7 +40,7 @@ func (s SSHAll) Run() error {
 	fmt.Println()
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.DNS)
-		go func(workspace brev_api.WorkspaceWithMeta) {
+		go func(workspace brevapi.WorkspaceWithMeta) {
 			err := s.portforwardWorkspace(workspace)
 			if err != nil {
 				fmt.Printf("%v [workspace=%s]\n", err, workspace.DNS)
@@ -57,7 +57,7 @@ func (s SSHAll) Run() error {
 	return nil
 }
 
-func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta) error {
+func (s SSHAll) portforwardWorkspace(workspace brevapi.WorkspaceWithMeta) error {
 	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace)
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (s SSHAll) portforwardWorkspace(workspace brev_api.WorkspaceWithMeta) error
 	return nil
 }
 
-func (s SSHAll) portforwardWorkspaceAtPort(workspace brev_api.WorkspaceWithMeta, portMapping string) error {
+func (s SSHAll) portforwardWorkspaceAtPort(workspace brevapi.WorkspaceWithMeta, portMapping string) error {
 	dpf := portforward.NewDefaultPortForwarder()
 	pf := portforward.NewPortForwardOptions(
 		s.workspaceGroupClientMapper,
@@ -96,8 +96,8 @@ type (
 		WorkspaceResolver WorkspaceResolver
 	}
 	WorkspaceResolver interface {
-		GetMyWorkspaces(orgID string) ([]brev_api.Workspace, error)
-		GetWorkspaceMetaData(wsID string) (*brev_api.WorkspaceMetaData, error)
+		GetMyWorkspaces(orgID string) ([]brevapi.Workspace, error)
+		GetWorkspaceMetaData(wsID string) (*brevapi.WorkspaceMetaData, error)
 	}
 )
 
@@ -107,8 +107,8 @@ func NewRandomPortSSHResolver(workspaceResolver WorkspaceResolver) *RandomSSHRes
 	}
 }
 
-func (r RandomSSHResolver) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error) {
-	activeOrg, err := brev_api.GetActiveOrgContext(files.AppFs) // to inject
+func (r RandomSSHResolver) GetWorkspaces() ([]brevapi.WorkspaceWithMeta, error) {
+	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs) // to inject
 	if err != nil {
 		return nil, err
 	}
@@ -118,21 +118,21 @@ func (r RandomSSHResolver) GetWorkspaces() ([]brev_api.WorkspaceWithMeta, error)
 		return nil, err
 	}
 
-	var workspacesWithMeta []brev_api.WorkspaceWithMeta
+	var workspacesWithMeta []brevapi.WorkspaceWithMeta
 	for _, w := range wss {
 		wmeta, err := r.WorkspaceResolver.GetWorkspaceMetaData(w.ID)
 		if err != nil {
 			return nil, err
 		}
 
-		workspaceWithMeta := brev_api.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
+		workspaceWithMeta := brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
 		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
 	}
 
 	return workspacesWithMeta, nil
 }
 
-func (r RandomSSHResolver) GetConfiguredWorkspacePort(workspace brev_api.Workspace) (string, error) {
+func (r RandomSSHResolver) GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error) {
 	minPort := 1024
 	maxPort := 65535
 	port := rand.Intn(maxPort-minPort) + minPort

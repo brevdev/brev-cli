@@ -2,16 +2,16 @@
 package set
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brev_api"
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
-func getOrgs() []brev_api.Organization {
-	client, err := brev_api.NewCommandClient()
+func getOrgs() []brevapi.Organization {
+	client, err := brevapi.NewCommandClient()
 	if err != nil {
 		panic(err)
 	}
@@ -31,7 +31,7 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 		Long:        "Set your organization to view, open, create workspaces etc",
 		Example:     `brev set [org name]`,
 		Args:        cobra.MinimumNArgs(1),
-		ValidArgs:   brev_api.GetOrgNames(),
+		ValidArgs:   brevapi.GetOrgNames(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {

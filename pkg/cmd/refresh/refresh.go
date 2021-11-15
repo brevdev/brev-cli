@@ -2,7 +2,7 @@
 package refresh
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -38,7 +38,7 @@ func refresh(t *terminal.Terminal) error {
 	bar := t.NewProgressBar("Fetching orgs and workspaces", func() {})
 	bar.AdvanceTo(50)
 
-	_,_,err := brev_api.WriteCaches()
+	_,_,err := brevapi.WriteCaches()
 	if err != nil {
 		return err
 	}

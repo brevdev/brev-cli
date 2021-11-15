@@ -1,4 +1,4 @@
-package brev_api
+package brevapi
 
 import (
 	"sync"
@@ -116,7 +116,7 @@ func GetOrgCacheData() ([]Organization, error) {
 	}
 
 	if !exists {
-		_,_,err = WriteCaches()
+		_, _, err = WriteCaches()
 		if err != nil {
 			return nil, err
 		}
@@ -138,7 +138,7 @@ func GetWsCacheData() ([]CacheableWorkspace, error) {
 	}
 
 	if !exists {
-		_,_,err = WriteCaches()
+		_, _, err = WriteCaches()
 		if err != nil {
 			return nil, err
 		}

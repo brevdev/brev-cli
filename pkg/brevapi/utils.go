@@ -1,4 +1,4 @@
-package brev_api
+package brevapi
 
 import (
 	"errors"
@@ -230,6 +230,5 @@ func GetWorkspaceNames() []string {
 
 	return wsNames
 }
-
 
 // func PollWorkspaceForReadyState()

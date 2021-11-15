@@ -5,7 +5,7 @@ package ssh
 import (
 	"os/exec"
 
-	"github.com/brevdev/brev-cli/pkg/brev_api"
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -15,20 +15,20 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 	// opts := SshOptions{}
 
 	cmd := &cobra.Command{
-		Use: "ssh",
+		Use:         "ssh",
 		Annotations: map[string]string{"ssh": ""},
-		Short:   "SSH into your workspace",
-		Long:    "SSH into your workspace",
-		Example: `brev ssh [workspace_name]`,
-		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             brev_api.GetWorkspaceNames(),
+		Short:       "SSH into your workspace",
+		Long:        "SSH into your workspace",
+		Example:     `brev ssh [workspace_name]`,
+		Args:        cobra.ExactArgs(1),
+		ValidArgs:   brevapi.GetWorkspaceNames(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
 				return err
 			}
 
-			// _, err = brev_api.CheckOutsideBrevErrorMessage(t)
+			// _, err = brevapi.CheckOutsideBrevErrorMessage(t)
 			return err
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -40,18 +40,16 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 		},
 	}
 
-
 	return cmd
 }
 
 func ssh(t *terminal.Terminal, wsname string) error {
-
-	workspace, err := brev_api.GetWorkspaceFromName(wsname)
+	workspace, err := brevapi.GetWorkspaceFromName(wsname)
 	if err != nil {
 		return err
 	}
-	
+
 	t.Vprint(workspace.DNS)
-	exec.Command("ssh "+ workspace.DNS)
+	exec.Command("ssh " + workspace.DNS)
 	return nil
 }
