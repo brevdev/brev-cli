@@ -44,6 +44,7 @@ linters-settings:
     ignoreSigs:
       - .WrapAndTrace
       - .Errorf
+      - .Wrap
   stylecheck:
     checks: ["all", "-ST1020", "-ST1000"]
 
@@ -95,5 +96,5 @@ linters:
     # - goerr113
     - wrapcheck
 issues:
-  # enable issues excluded by default 
+  # enable issues excluded by default
   exclude-use-default: false
