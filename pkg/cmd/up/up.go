@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/brev_errors"
-	brevssh "github.com/brevdev/brev-cli/pkg/brev_ssh"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	brevssh "github.com/brevdev/brev-cli/pkg/brevssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/files"

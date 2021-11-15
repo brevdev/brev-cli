@@ -1,4 +1,4 @@
-// Package brev_ssh exists to provide an api to configure and read from
+// Package brevssh exists to provide an api to configure and read from
 // an ssh file
 //
 // brev ssh host file entry format:
@@ -11,7 +11,7 @@
 //
 // also think that file stuff should probably live in files package
 // TODO migrate to using dns name for hostname
-package brev_ssh
+package brevssh
 
 import (
 	"bytes"

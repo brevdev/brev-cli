@@ -1,4 +1,4 @@
-package brev_ssh
+package brevssh
 
 // Basic imports
 import (
