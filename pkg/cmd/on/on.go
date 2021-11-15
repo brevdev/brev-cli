@@ -3,8 +3,8 @@ package on
 import (
 	"fmt"
 
-	brevssh "github.com/brevdev/brev-cli/pkg/brev_ssh"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	brevssh "github.com/brevdev/brev-cli/pkg/brevssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
