@@ -166,7 +166,6 @@ func ReadJSON(unsafeFilePathString string, v interface{}) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer f.Close()
 
 	dataBytes, err := ioutil.ReadAll(f)
 	if err != nil {

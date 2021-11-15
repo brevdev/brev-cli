@@ -121,12 +121,12 @@ func (a *Authenticator) Start(ctx context.Context) (State, error) {
 }
 
 // Wait waits until the user is logged in on the browser.
-func (a *Authenticator) Wait(ctx context.Context, state State) (*Result, error) {
+func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 	t := time.NewTicker(state.IntervalDuration())
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, breverrors.WrapAndTrace(ctx.Err())
+			return Result{}, breverrors.WrapAndTrace(ctx.Err())
 		case <-t.C:
 			data := url.Values{
 				"client_id":   {a.ClientID},
@@ -135,7 +135,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (*Result, error) 
 			}
 			r, err := http.PostForm(a.OauthTokenEndpoint, data)
 			if err != nil {
-				return nil, breverrors.WrapAndTrace(err, "cannot get device code")
+				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
 			}
 
 			var res struct {
@@ -151,25 +151,25 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (*Result, error) 
 
 			err = json.NewDecoder(r.Body).Decode(&res)
 			if err != nil {
-				return nil, breverrors.WrapAndTrace(err, "cannot decode response")
+				return Result{}, breverrors.WrapAndTrace(err, "cannot decode response")
 			}
 
 			if res.Error != nil {
 				if *res.Error == "authorization_pending" {
 					continue
 				}
-				return nil, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
+				return Result{}, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
 			}
 
 			ten, domain, err := parseTenant(res.AccessToken)
 			if err != nil {
-				return nil, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
+				return Result{}, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
 			}
 
 			if err = r.Body.Close(); err != nil {
-				return nil, breverrors.WrapAndTrace(err)
+				return Result{}, breverrors.WrapAndTrace(err)
 			}
-			return &Result{
+			return Result{
 				RefreshToken: res.RefreshToken,
 				AccessToken:  res.AccessToken,
 				ExpiresIn:    res.ExpiresIn,
