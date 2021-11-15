@@ -29,7 +29,7 @@ func HandleNewClientErrors(err error) error {
 			return Login(true)
 		}
 	}
-	return err
+	return breverrors.WrapAndTrace(err)
 }
 
 func NewClient() (*Client, error) {

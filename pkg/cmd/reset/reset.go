@@ -3,6 +3,7 @@ package reset
 
 import (
 	"fmt"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -39,18 +40,18 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	workspace, err := brevapi.GetWorkspaceFromName(workspaceName)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	startedWorkspace, err := client.ResetWorkspace(workspace.ID)
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprintf("Workspace %s is resetting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)

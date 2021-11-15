@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
@@ -29,7 +30,7 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
@@ -69,13 +70,13 @@ func clone(t *terminal.Terminal, url string, orgflag string) error {
 	if orgflag == "" {
 		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 		orgID = activeorg.ID
 	} else {
 		org, err := brevapi.GetOrgFromName(orgflag)
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 		orgID = org.ID
 	}
@@ -122,12 +123,12 @@ func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
 func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string) error {
 	c, err := brevapi.NewClient()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	w, err := c.CreateWorkspace(orgID, newworkspace.Name, newworkspace.GitRepo)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprint(t.Green("Cloned workspace at %s", w.DNS))
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
@@ -60,12 +61,12 @@ func (s SSHAll) Run() error {
 func (s SSHAll) portforwardWorkspace(workspace brevapi.WorkspaceWithMeta) error {
 	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	portMapping := makeSSHPortMapping(port)
 	err = s.portforwardWorkspaceAtPort(workspace, portMapping)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -79,13 +80,13 @@ func (s SSHAll) portforwardWorkspaceAtPort(workspace brevapi.WorkspaceWithMeta, 
 
 	_, err := pf.WithWorkspace(workspace)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	pf.WithPort(portMapping)
 
 	err = pf.RunPortforward()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil

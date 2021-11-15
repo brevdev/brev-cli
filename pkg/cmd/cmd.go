@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
@@ -46,7 +47,7 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 				v, err := version.BuildVersionString(t)
 				if err != nil {
 					t.Errprint(err, "Failed to determine version")
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 				t.Vprint(v)
 				return nil

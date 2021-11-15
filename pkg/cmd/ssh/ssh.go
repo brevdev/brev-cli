@@ -25,11 +25,11 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			// _, err = brevapi.CheckOutsideBrevErrorMessage(t)
-			return err
+			return breverrors.WrapAndTrace(err)
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return []string{}, cobra.ShellCompDirectiveNoSpace | cobra.ShellCompDirectiveDefault
@@ -46,7 +46,7 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 func ssh(t *terminal.Terminal, wsname string) error {
 	workspace, err := brevapi.GetWorkspaceFromName(wsname)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprint(workspace.DNS)

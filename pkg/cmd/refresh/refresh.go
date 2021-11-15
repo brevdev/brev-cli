@@ -5,6 +5,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/spf13/cobra"
 )
@@ -19,14 +20,14 @@ func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := refresh(t)
-			return err
+			return breverrors.WrapAndTrace(err)
 			// return nil
 		},
 	}
@@ -40,7 +41,7 @@ func refresh(t *terminal.Terminal) error {
 
 	_, _, err := brevapi.WriteCaches()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	bar.AdvanceTo(100)

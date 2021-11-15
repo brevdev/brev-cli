@@ -4,6 +4,7 @@ package start
 import (
 	"fmt"
 	"time"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -40,18 +41,18 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	workspace, err := brevapi.GetWorkspaceFromName(workspaceName)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	startedWorkspace, err := client.StartWorkspace(workspace.ID)
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
@@ -73,7 +74,7 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		time.Sleep(time.Duration(stdIncrement) * time.Second)
 		ws, err := client.GetWorkspace(workspace.ID)
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 		if ws.Status == "RUNNING" {
 			bar.Describe("Workspace is ready!")

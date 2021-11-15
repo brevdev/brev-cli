@@ -97,13 +97,13 @@ func NewOn(workspaces []brevapi.WorkspaceWithMeta, sshConfigurer SSHConfigurer, 
 func (o On) Run() error {
 	err := o.sshConfigurer.Config()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	sshall := sshall.NewSSHAll(o.workspaces, o.workspaceGroupClientMapper, o.sshConfigurer)
 	err = sshall.Run()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil

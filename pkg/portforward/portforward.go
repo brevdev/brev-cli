@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/k8s"
@@ -95,7 +96,7 @@ func (o PortForwardOptions) RunPortforward() error {
 
 	url, err := url.Parse(urlStr)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return o.PortForwarder.ForwardPorts("POST", url, o)
 }
@@ -113,17 +114,17 @@ func NewDefaultPortForwarder() *DefaultPortForwarder {
 func (f *DefaultPortForwarder) ForwardPorts(method string, url *url.URL, opts PortForwardOptions) error {
 	transport, upgrader, err := spdy.RoundTripperFor(opts.K8sClient.GetK8sRestConfig())
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, method, url)
 	fw, err := toolsportforward.NewOnAddresses(dialer, opts.Address, opts.Ports, opts.StopChannel, opts.ReadyChannel, f.Out, f.ErrOut)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = fw.ForwardPorts()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

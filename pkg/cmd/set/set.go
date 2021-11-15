@@ -35,14 +35,14 @@ func NewCmdSet(t *terminal.Terminal) *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := set(t, args[0])
-			return err
+			return breverrors.WrapAndTrace(err)
 		},
 	}
 
@@ -58,7 +58,7 @@ func set(t *terminal.Terminal, orgName string) error {
 
 			err := files.OverwriteJSON(path, v)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			t.Vprint("Organization " + t.Green(v.Name) + " is now active.")

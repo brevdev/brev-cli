@@ -232,7 +232,7 @@ func OverwriteJSON(filepath string, v interface{}) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return err
+	return breverrors.WrapAndTrace(err)
 }
 
 // OverwriteString data in the target file with data from the given string
@@ -258,7 +258,7 @@ func OverwriteString(filepath string, data string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return err
+	return breverrors.WrapAndTrace(err)
 }
 
 func WriteSSHPrivateKey(fs afero.Fs, data string) error {

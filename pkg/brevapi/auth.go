@@ -334,7 +334,7 @@ func Login(prompt bool) error {
 	res, err = authenticator.Wait(ctx, state)
 
 	if err != nil {
-		return fmt.Errorf("login error: %w", err)
+		return breverrors.WrapAndTrace(err, "login error")
 	}
 
 	fmt.Print("\n")
@@ -347,7 +347,7 @@ func Login(prompt bool) error {
 	// store the refresh token
 	err = WriteTokenToBrevConfigFile(creds)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// hydrate the cache
@@ -359,7 +359,7 @@ func Login(prompt bool) error {
 func Logout() error {
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return files.DeleteFile(*brevCredentialsFile)
 }

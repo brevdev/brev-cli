@@ -3,6 +3,7 @@ package brevapi
 import (
 	"sync"
 
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 )
 
@@ -39,12 +40,12 @@ type CacheableWorkspace struct {
 func RefreshWorkspaceCacheForActiveOrg() error {
 	activeorg, err := GetActiveOrgContext(files.AppFs)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	wss := getWorkspaces(activeorg.ID)
 	err = WriteIndividualWorkspaceCache(activeorg.ID, wss)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -54,7 +55,7 @@ func WriteIndividualWorkspaceCache(orgID string, wss []Workspace) error {
 	path := files.GetWorkspacesCacheFilePath()
 	err := files.ReadJSON(path, &workspaceCache)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	var updatedCache []CacheableWorkspace
 	for _, v := range workspaceCache {
@@ -66,7 +67,7 @@ func WriteIndividualWorkspaceCache(orgID string, wss []Workspace) error {
 	}
 	err = files.OverwriteJSON(path, updatedCache)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -75,7 +76,7 @@ func WriteOrgCache(orgs []Organization) error {
 	path := files.GetOrgCacheFilePath()
 	err := files.OverwriteJSON(path, orgs)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

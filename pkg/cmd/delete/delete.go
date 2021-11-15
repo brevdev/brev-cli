@@ -3,6 +3,7 @@ package delete
 
 import (
 	"fmt"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -40,18 +41,18 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 func deleteWorkspace(name string, t *terminal.Terminal) error {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	workspace, err := brevapi.GetWorkspaceFromName(name)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	deletedWorkspace, err := client.DeleteWorkspace(workspace.ID)
 	if err != nil {
 		fmt.Println(err)
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprintf("Deleting workspace %s. \n Note: this can take a few minutes. Run 'brev ls' to check status", deletedWorkspace.Name)

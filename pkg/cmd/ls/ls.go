@@ -69,7 +69,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			return nil
@@ -79,7 +79,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := ls(t, args, org)
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
@@ -98,7 +98,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	if len(args) > 0 && (strings.Contains(args[0], "org")) {
 		orgs, err := getOrgs()
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 		if len(orgs) == 0 {
 			t.Vprint(t.Yellow("You don't have any orgs. Create one!"))
@@ -114,7 +114,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		t.Vprint(t.Yellow("Your organizations:"))
 		err = printOrgTable(t, orgs, *activeorg)
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 
 		return nil
@@ -123,11 +123,11 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	if orgflag != "" {
 		org, err := brevapi.GetOrgFromName(orgflag)
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 		joined, _, err := fetchWorkspacesAndPrintTable(t, org)
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 		if len(joined) > 0 {
 			t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
@@ -145,7 +145,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		if errors.Is(err, &activeOrgFoundErr) {
 			orgs, err := getOrgs()
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 			if len(orgs) == 0 {
 				t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
@@ -175,13 +175,13 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 
 			return nil
 		} else {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 
 	joined, _, err := fetchWorkspacesAndPrintTable(t, activeorg)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	if len(joined) > 0 {
 		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
@@ -189,7 +189,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	}
 
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil

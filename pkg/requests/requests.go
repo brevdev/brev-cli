@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 type RESTRequest struct {
@@ -147,7 +149,7 @@ func (r *RESTRequest) SubmitStrict() (*RESTResponse, error) {
 //   response.UnmarshalPayload(&foo)
 func (r *RESTResponse) UnmarshalPayload(v interface{}) error {
 	err := json.Unmarshal(r.Payload, v)
-	return err
+	return breverrors.WrapAndTrace(err)
 }
 
 // PayloadAsString returns the response body as a string.

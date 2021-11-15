@@ -1,6 +1,7 @@
 package cmdcontext
 
 import (
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,7 @@ func InvokeParentPersistentPreRun(cmd *cobra.Command, args []string) error {
 		err = parentPersistentPreRunE(parentCmd, args)
 	}
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// Invoke PersistentPreRun
