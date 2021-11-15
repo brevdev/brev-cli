@@ -61,7 +61,7 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 		Use:         "ls",
 		Short:       "List workspaces within active org",
 		Long:        "List workspaces within your active org. List all workspaces if no active org is set.",
-		Example:     `
+		Example: `
   brev ls
   brev ls orgs
   brev ls --org <orgid> 
@@ -130,8 +130,8 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 			return err
 		}
 		if len(joined) > 0 {
-			t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:")+ 
-			t.Yellow("\n\t$ brev on\n") )
+			t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
+				t.Yellow("\n\t$ brev on\n"))
 		}
 		return nil
 	}
@@ -184,8 +184,8 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		return err
 	}
 	if len(joined) > 0 {
-		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:")+ 
-		t.Yellow("\n\t$ brev on\n") )
+		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
+			t.Yellow("\n\t$ brev on\n"))
 	}
 
 	if err != nil {

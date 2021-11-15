@@ -85,10 +85,8 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		}
 	}
 
-
-	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:")+ 
-	t.Yellow("\n\t$ brev on\n") )
-	
+	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
+		t.Yellow("\n\t$ brev on\n"))
 
 	return nil
 

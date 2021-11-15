@@ -68,7 +68,7 @@ func clone(t *terminal.Terminal, url string, orgflag string) error {
 	formattedURL := validateGitUrl(t, url)
 
 	var orgID string
-	if orgflag=="" {
+	if orgflag == "" {
 		activeorg, err := brev_api.GetActiveOrgContext(files.AppFs)
 		if err != nil {
 			return err
