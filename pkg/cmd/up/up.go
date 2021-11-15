@@ -1,4 +1,4 @@
-package on
+package up
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -20,15 +21,15 @@ type onOptions struct {
 	on *On
 }
 
-func NewCmdOn() *cobra.Command {
+func NewCmdOn(t *terminal.Terminal) *cobra.Command {
 	opts := onOptions{}
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "on",
+		Use:                   "up",
 		DisableFlagsInUseLine: true,
-		Short:                 "on",
-		Long:                  "on",
+		Short:                 "Set up a connection to all of your Brev workspaces",
+		Long:                  "Set up a connection to all of your Brev workspaces",
 		Example:               "brev ssh-all",
 		Args:                  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
