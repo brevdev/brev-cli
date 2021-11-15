@@ -47,7 +47,6 @@ type SSHStore interface {
 	WriteSSHConfig(config string) error
 	CreateNewSSHConfigBackup() error
 	WritePrivateKey(pem string) error
-
 	GetPrivateKeyFilePath() string
 }
 

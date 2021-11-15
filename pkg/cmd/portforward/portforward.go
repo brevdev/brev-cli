@@ -19,8 +19,8 @@ import (
 )
 
 type promptContent struct {
-    errorMsg string
-    label    string
+	errorMsg string
+	label    string
 }
 
 var (
@@ -28,34 +28,35 @@ var (
 	sshLinkLong    = "Port forward your Brev machine's port to your local port"
 	sshLinkExample = "brev link <ws_name> -p local_port:remote_port"
 )
+
 func promptGetInput(pc promptContent) string {
-    validate := func(input string) error {
-        if len(input) <= 0 {
-            return errors.New(pc.errorMsg)
-        }
-        return nil
-    }
+	validate := func(input string) error {
+		if len(input) <= 0 {
+			return errors.New(pc.errorMsg)
+		}
+		return nil
+	}
 
-    templates := &promptui.PromptTemplates{
-        Prompt:  "{{ . }} ",
-        Valid:   "{{ . | green }} ",
-        Invalid: "{{ . | red }} ",
-        Success: "{{ . | bold }} ",
-    }
+	templates := &promptui.PromptTemplates{
+		Prompt:  "{{ . }} ",
+		Valid:   "{{ . | green }} ",
+		Invalid: "{{ . | red }} ",
+		Success: "{{ . | bold }} ",
+	}
 
-    prompt := promptui.Prompt{
-        Label:     pc.label,
-        Templates: templates,
-        Validate:  validate,
-    }
+	prompt := promptui.Prompt{
+		Label:     pc.label,
+		Templates: templates,
+		Validate:  validate,
+	}
 
-    result, err := prompt.Run()
-    if err != nil {
-        fmt.Printf("Prompt failed %v\n", err)
-        os.Exit(1)
-    }
+	result, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		os.Exit(1)
+	}
 
-    return result
+	return result
 }
 
 func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
@@ -70,20 +71,19 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			t.Vprintf(Port + "\n\n\n")
 			t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!"))
 			remoteInput := promptGetInput(promptContent{
-				label: "What port on your Brev machine would you like to forward?",
+				label:    "What port on your Brev machine would you like to forward?",
 				errorMsg: "error",
 			})
 			localInput := promptGetInput(promptContent{
-				label: "What port should it be on your local machine?",
+				label:    "What port should it be on your local machine?",
 				errorMsg: "error",
 			})
-			
+
 			Port = localInput + ":" + remoteInput
-			
+
 			t.Vprintf(t.Green("\n-p " + Port + "\n"))
 
 			t.Printf("\nStarting ssh link...\n")

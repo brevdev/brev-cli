@@ -27,12 +27,10 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			err := deleteWorkspace(args[0], t)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
-
 		},
 	}
 

@@ -26,12 +26,10 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			err := resetWorkspace(args[0], t)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
-
 		},
 	}
 
@@ -58,5 +56,4 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
 	t.Vprintf("Workspace %s is resetting. \n Note: this can take a few seconds. Run 'brev ls' to check status", startedWorkspace.Name)
 
 	return nil
-
 }

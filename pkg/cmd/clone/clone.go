@@ -18,7 +18,6 @@ func isValidGitUrl(url string) bool {
 }
 
 func NewCmdClone(t *terminal.Terminal) *cobra.Command {
-
 	var org string
 
 	cmd := &cobra.Command{
@@ -43,7 +42,6 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 				return errors.New("please use a valid git url")
 			}
 			return nil
-
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := clone(t, args[0], org)
@@ -83,7 +81,6 @@ func clone(t *terminal.Terminal, url string, orgflag string) error {
 	}
 
 	err := createWorkspace(t, formattedURL, orgID)
-
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -123,7 +120,6 @@ func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
 }
 
 func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string) error {
-
 	c, err := brevapi.NewClient()
 	if err != nil {
 		return err

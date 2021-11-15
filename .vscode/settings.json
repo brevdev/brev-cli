@@ -3,6 +3,7 @@
     "go.useLanguageServer": true,
     "gopls": {
         "gofumpt": true,
+        "formatting.gofumpt": true,
     },
     "[go]": {
         "editor.formatOnSave": true,

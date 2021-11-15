@@ -22,8 +22,8 @@ const (
 	kubeCertFileName              = "brev.crt"
 	sshPrivateKeyFileName         = "brev.pem"
 	backupSSHConfigFileNamePrefix = "config.bak"
-	sshPrivateKeyFilePermissions  = 0600
-	defaultFilePermission         = 0770
+	sshPrivateKeyFilePermissions  = 0o600
+	defaultFilePermission         = 0o770
 )
 
 var AppFs = afero.NewOsFs()
@@ -124,7 +124,7 @@ func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 	}
 	var file afero.File
 	if sshConfigExists {
-		file, err = fs.OpenFile(*sshConfigPath, os.O_RDWR, 0644)
+		file, err = fs.OpenFile(*sshConfigPath, os.O_RDWR, 0o644)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}

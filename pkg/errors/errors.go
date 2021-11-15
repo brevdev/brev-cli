@@ -8,7 +8,6 @@ import (
 )
 
 type BrevError interface {
-
 	// Error returns a user-facing string explaining the error
 	Error() string
 

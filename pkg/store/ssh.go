@@ -30,7 +30,7 @@ func (f FileStore) WriteSSHConfig(config string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = afero.WriteFile(f.fs, *csp, []byte(config), 0644)
+	err = afero.WriteFile(f.fs, *csp, []byte(config), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -58,7 +58,7 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = afero.WriteFile(f.fs, *backupFilePath, []byte(buf.String()), 0644)
+	err = afero.WriteFile(f.fs, *backupFilePath, []byte(buf.String()), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

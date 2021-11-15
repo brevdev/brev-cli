@@ -38,7 +38,7 @@ func refresh(t *terminal.Terminal) error {
 	bar := t.NewProgressBar("Fetching orgs and workspaces", func() {})
 	bar.AdvanceTo(50)
 
-	_,_,err := brevapi.WriteCaches()
+	_, _, err := brevapi.WriteCaches()
 	if err != nil {
 		return err
 	}
