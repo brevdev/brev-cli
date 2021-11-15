@@ -204,7 +204,7 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWi
 	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 	if err != nil {
 		// TODO: we sould just check all possible workspaces here
-		return nil, errors.New("please set your active org or link to a workspace by its ID")
+		return nil, breverrors.WrapAndTrace(errors.New("please set your active org or link to a workspace by its ID"))
 	} else {
 		workspaces, err := c.GetMyWorkspaces(activeorg.ID)
 		if err != nil {

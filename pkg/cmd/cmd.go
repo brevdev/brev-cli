@@ -52,7 +52,11 @@ func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
 				t.Vprint(v)
 				return nil
 			} else {
-				return cmd.Usage()
+				err := cmd.Usage()
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				return nil
 			}
 		},
 	}

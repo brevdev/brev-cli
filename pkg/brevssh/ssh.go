@@ -205,8 +205,11 @@ func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, 
 			ports[fmt.Sprint(port)] = true
 		}
 	}
-
-	return ssh_config.Decode(strings.NewReader(sshConfigStr))
+	conf, err := ssh_config.Decode(strings.NewReader(sshConfigStr))
+	if err != nil {
+		breverrors.WrapAndTrace(err)
+	}
+	return conf, nil
 }
 
 func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {

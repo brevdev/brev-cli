@@ -36,11 +36,11 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
-				return errors.New("requires a git url")
+				return breverrors.WrapAndTrace(errors.New("requires a git url"))
 			}
 
 			if !isValidGitUrl(args[0]) {
-				return errors.New("please use a valid git url")
+				return breverrors.WrapAndTrace(errors.New("please use a valid git url"))
 			}
 			return nil
 		},
