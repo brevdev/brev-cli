@@ -8,10 +8,10 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
-	"github.com/brevdev/brev-cli/pkg/cmd/link"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
+	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/reset"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
@@ -81,14 +81,14 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(clone.NewCmdClone(t))
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
-	cmd.AddCommand(link.NewCmdLink(t))
+	cmd.AddCommand(portforward.NewCmdPortForward(t))
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
-	// cmd.AddCommand(ssh.NewCmdSSH(t))
-
+	
 	// dev feature toggle
 	if isDev() {
+		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 	}
 
 	cmd.AddCommand(start.NewCmdStart(t))

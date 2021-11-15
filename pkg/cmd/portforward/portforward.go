@@ -1,5 +1,5 @@
 // Package link is for the ssh command
-package link
+package portforward
 
 import (
 	"errors"
@@ -17,16 +17,16 @@ import (
 
 var (
 	Port           string
-	sshLinkLong    = "Enable a local ssh tunnel, setup private key auth, and give connection string"
-	sshLinkExample = "brev link <ws_name>"
+	sshLinkLong    = "Port forward your Brev machine's port to your local port"
+	sshLinkExample = "brev link <ws_name> -p local_port:remote_port"
 )
 
 
-func NewCmdLink(t *terminal.Terminal) *cobra.Command {
+func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "link",
+		Use:                   "port-forward",
 		DisableFlagsInUseLine: true,
 		Short:                 "Enable a local ssh link tunnel",
 		Long:                  sshLinkLong,
@@ -97,6 +97,9 @@ func NewCmdLink(t *terminal.Terminal) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
+	cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveNoSpace
+	})
 
 	return cmd
 }
