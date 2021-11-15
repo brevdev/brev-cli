@@ -152,9 +152,9 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 
 		activeOrgFoundErr := breverrors.ActiveOrgFileNotFound{}
 		if errors.Is(err, &activeOrgFoundErr) {
-			orgs, err := getOrgs()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			orgs, err2 := getOrgs()
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
 			}
 			if len(orgs) == 0 {
 				t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
@@ -173,9 +173,9 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 					defer wg.Done()
 				}(t, &o)
 
-				err_ := <-err
-				if err_ != nil {
-					return err_
+				err2 := <-err
+				if err2 != nil {
+					return err2
 				}
 
 			}
@@ -214,10 +214,7 @@ func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organizatio
 		return nil, nil, nil
 	}
 	o := org
-	joined, unjoined, err := printWorkspaceTable(t, wss, *o)
-	if err != nil {
-		return nil, nil, breverrors.WrapAndTrace(err)
-	}
+	joined, unjoined := printWorkspaceTable(t, wss, *o)
 	return joined, unjoined, nil
 }
 
@@ -229,29 +226,29 @@ func truncateString(s string, delimterCount int) string {
 	}
 }
 
-func printWorkspaceTable(t *terminal.Terminal, workspaces []brevapi.Workspace, activeorg brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) {
+func printWorkspaceTable(t *terminal.Terminal, workspaces []brevapi.Workspace, activeorg brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace) {
 	unjoinedWorkspaces, joinedWorkspaces := GetSortedUserWorkspaces(workspaces)
 
-	DELIMETER := 40
-	LONGEST_STATUS := len("DEPLOYING") // longest name for a workspace status, used for table formatting
+	delimeter := 40
+	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
 	if len(joinedWorkspaces) > 0 {
 		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(activeorg.Name)+"\n", len(joinedWorkspaces))
 		t.Vprint(
-			"NAME" + strings.Repeat(" ", DELIMETER+1-len("NAME")) +
+			"NAME" + strings.Repeat(" ", delimeter+1-len("NAME")) +
 				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
-				"STATUS" + strings.Repeat(" ", LONGEST_STATUS+1+LONGEST_STATUS-len("STATUS")) +
+				"STATUS" + strings.Repeat(" ", longestStatus+1+longestStatus-len("STATUS")) +
 				"ID" + strings.Repeat(" ", len(joinedWorkspaces[0].ID)+5-len("ID")) +
 				"URL")
 		for _, v := range joinedWorkspaces {
 			t.Vprint(
-				truncateString(v.Name, DELIMETER) + strings.Repeat(" ", DELIMETER-len(truncateString(v.Name, DELIMETER))) + " " +
-					getStatusColoredText(t, v.Status) + strings.Repeat(" ", LONGEST_STATUS+LONGEST_STATUS-len(v.Status)) + " " +
+				truncateString(v.Name, delimeter) + strings.Repeat(" ", delimeter-len(truncateString(v.Name, delimeter))) + " " +
+					getStatusColoredText(t, v.Status) + strings.Repeat(" ", longestStatus+longestStatus-len(v.Status)) + " " +
 					v.ID + strings.Repeat(" ", 5) +
 					v.DNS)
 		}
 	}
 
-	return joinedWorkspaces, unjoinedWorkspaces, nil
+	return joinedWorkspaces, unjoinedWorkspaces
 }
 
 func GetSortedUserWorkspaces(workspaces []brevapi.Workspace) ([]brevapi.Workspace, []brevapi.Workspace) {
@@ -261,7 +258,7 @@ func GetSortedUserWorkspaces(workspaces []brevapi.Workspace) ([]brevapi.Workspac
 	var joinedWorkspaces []brevapi.Workspace
 
 	for _, v := range workspaces {
-		if v.CreatedByUserID == me.Id {
+		if v.CreatedByUserID == me.ID {
 			joinedWorkspaces = append(joinedWorkspaces, v)
 		} else {
 			unjoinedWorkspaces = append(unjoinedWorkspaces, v)
@@ -299,11 +296,11 @@ func printOrgTable(t *terminal.Terminal, organizations []brevapi.Organization, a
 }
 
 func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brevapi.Organization) error {
-	ID_LEN := 9
+	idLen := 9
 	if len(organizations) > 0 {
-		t.Vprint("ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
+		t.Vprint("ID" + strings.Repeat(" ", idLen+1-len("ID")) + "NAME")
 		for _, v := range organizations {
-			t.Vprint(truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
+			t.Vprint(truncateString(v.ID, idLen) + strings.Repeat(" ", idLen-len(truncateString(v.ID, idLen))) + " " + v.Name)
 		}
 	}
 	t.Vprint(t.Yellow("\nYou haven't set an active org. Use 'brev set [org_name]' to set one.\n"))

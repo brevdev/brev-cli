@@ -8,7 +8,7 @@ import (
 )
 
 type User struct {
-	Id string `json:"id"`
+	ID string `json:"id"`
 }
 
 func (a *Client) GetMe() (*User, error) {

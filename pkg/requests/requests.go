@@ -73,10 +73,10 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 		r.Endpoint,
 		payload,
 	)
-	req.WithContext(ctx)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	_ = req.WithContext(ctx)
 
 	// build query parameters and encode
 	q := req.URL.Query()
@@ -173,9 +173,9 @@ func (r *RESTResponse) PayloadAsPrettyJSONString() (string, error) {
 	var payloadStructJSON map[string]interface{}
 	err := json.Unmarshal(r.Payload, &payloadStructJSON)
 	if err == nil {
-		jsonBytes, err := json.MarshalIndent(payloadStructJSON, prefix, indent)
-		if err != nil {
-			return "", fmt.Errorf("failed to marhsal JSON struct: %s", err)
+		jsonBytes, err2 := json.MarshalIndent(payloadStructJSON, prefix, indent)
+		if err2 != nil {
+			return "", fmt.Errorf("failed to marhsal JSON struct: %s", err2)
 		}
 		return string(jsonBytes), nil
 	}

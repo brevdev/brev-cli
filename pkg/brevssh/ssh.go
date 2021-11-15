@@ -23,7 +23,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/kevinburke/ssh_config"
-	"github.com/spf13/afero"
 )
 
 type workspaceSSHConfig struct {
@@ -56,8 +55,6 @@ type DefaultSSHConfigurer struct {
 
 	workspaces []brevapi.WorkspaceWithMeta
 	sshConfig  ssh_config.Config
-
-	getActiveOrg func(fs afero.Fs) (*brevapi.Organization, error)
 }
 
 func NewDefaultSSHConfigurer(workspaces []brevapi.WorkspaceWithMeta, sshStore SSHStore, privateKey string) *DefaultSSHConfigurer {
@@ -197,9 +194,9 @@ func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, 
 				port++
 			}
 			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
-			entry, err := s.makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
-			if err != nil {
-				return nil, breverrors.WrapAndTrace(err)
+			entry, err2 := s.makeSSHEntry(workspaceIdentifier, fmt.Sprint(port))
+			if err2 != nil {
+				return nil, breverrors.WrapAndTrace(err2)
 			}
 			sshConfigStr += entry
 			ports[fmt.Sprint(port)] = true
@@ -207,7 +204,7 @@ func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, 
 	}
 	conf, err := ssh_config.Decode(strings.NewReader(sshConfigStr))
 	if err != nil {
-		breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return conf, nil
 }

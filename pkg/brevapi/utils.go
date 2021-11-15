@@ -103,7 +103,11 @@ func OpenBrowser(url string) error {
 		cmd = "xdg-open"
 	}
 	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
+	err := exec.Command(cmd, args...).Start()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func GetOrgFromName(name string) (*Organization, error) {

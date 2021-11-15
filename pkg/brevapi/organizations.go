@@ -33,10 +33,7 @@ func (a *Client) GetOrgs() ([]Organization, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	err = WriteOrgCache(payload)
-	if err != nil {
-		// do nothing, failure to cache shouldn't kill this command
-	}
+	_ = WriteOrgCache(payload)
 
 	return payload, nil
 }

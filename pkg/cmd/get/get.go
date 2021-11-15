@@ -29,7 +29,11 @@ func getMeKeys() (*brevapi.UserKeys, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	return client.GetMeKeys()
+	keys, err := client.GetMeKeys()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return keys, nil
 }
 
 func NewCmdGet(t *terminal.Terminal) *cobra.Command {
@@ -71,7 +75,7 @@ func newCmdMe(t *terminal.Terminal) *cobra.Command {
 		User ID: c0wj3ro`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			me := getMe()
-			t.Vprintf("User ID: %s", me.Id)
+			t.Vprintf("User ID: %s", me.ID)
 			return nil
 		},
 	}

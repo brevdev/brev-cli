@@ -101,10 +101,10 @@ func WriteCaches() ([]Organization, []CacheableWorkspace, error) {
 		}(v.ID)
 	}
 	wg.Wait()
-	path_ws := files.GetWorkspacesCacheFilePath()
-	err2 := files.OverwriteJSON(path_ws, workspaceCache)
-	if err2 != nil {
-		return nil, nil, breverrors.WrapAndTrace(err2)
+	pathWS := files.GetWorkspacesCacheFilePath()
+	err = files.OverwriteJSON(pathWS, workspaceCache)
+	if err != nil {
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 	return orgs, workspaceCache, nil
 }

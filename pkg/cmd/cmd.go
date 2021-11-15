@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"strings"
+
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
@@ -93,6 +94,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 
 	// dev feature toggle
 	if isDev() {
+		_ = 0 // noops
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 	}
 

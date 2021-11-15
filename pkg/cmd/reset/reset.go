@@ -3,11 +3,11 @@ package reset
 
 import (
 	"fmt"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
 )
 

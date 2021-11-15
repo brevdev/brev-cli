@@ -43,8 +43,8 @@ func (o *LogoutOptions) Validate(cmd *cobra.Command, args []string) error {
 
 func (o *LogoutOptions) RunLogout(cmd *cobra.Command, args []string) error {
 	err := brevapi.Logout()
-	if err != nil{
-		breverrors.WrapAndTrace(err)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

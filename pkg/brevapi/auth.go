@@ -23,7 +23,7 @@ const (
 	audiencePath           = "/api/v2/"
 	waitThresholdInSeconds = 3
 	// namespace used to set/get values from the keychain.
-	SecretsNamespace = "auth0-cli"
+	SecNamespace = "auth0-cli"
 )
 
 var requiredScopes = []string{

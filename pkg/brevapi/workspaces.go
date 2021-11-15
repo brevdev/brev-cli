@@ -23,7 +23,7 @@ type RequestCreateWorkspace struct {
 	GitRepo              string        `json:"gitRepo"`
 	IsStoppable          bool          `json:"isStoppable"`
 	WorkspaceTemplateID  string        `json:"workspaceTemplateId"`
-	PrimaryApplicationId string        `json:"primaryApplicationId"`
+	PrimaryApplicationID string        `json:"primaryApplicationId"`
 	Applications         []Application `json:"applications"`
 }
 
@@ -45,8 +45,8 @@ func (w Workspace) GetID() string {
 }
 
 var (
-	DEFAULT_APPLICATION_ID = "92f59a4yf"
-	DEFAULT_APPLICATION    = Application{
+	DefaultApplicationID = "92f59a4yf"
+	DefaultApplication   = Application{
 		ID:           "92f59a4yf",
 		Name:         "VSCode",
 		Port:         22778,
@@ -54,7 +54,7 @@ var (
 		Version:      "1.57.1",
 	}
 )
-var DEFAULT_APPLICATION_LIST = []Application{DEFAULT_APPLICATION}
+var DefaultApplicationList = []Application{DefaultApplication}
 
 // Note: this is the "projects" view
 func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
@@ -87,7 +87,7 @@ func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
 
 	var myWorkspaces []Workspace
 	for _, w := range payload {
-		if w.CreatedByUserID == me.Id {
+		if w.CreatedByUserID == me.ID {
 			myWorkspaces = append(myWorkspaces, w)
 		}
 	}
@@ -215,8 +215,8 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 			WorkspaceClassID:     "2x8",
 			GitRepo:              gitrepo,
 			WorkspaceTemplateID:  "4nbb4lg2s", // default ubuntu template
-			PrimaryApplicationId: DEFAULT_APPLICATION_ID,
-			Applications:         []Application{DEFAULT_APPLICATION},
+			PrimaryApplicationID: DefaultApplicationID,
+			Applications:         []Application{DefaultApplication},
 		},
 	}
 

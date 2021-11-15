@@ -1,5 +1,3 @@
-// Package get is for the get command
-// TODO: delete this file if getmeprivatekeys isn't needed
 package ssh
 
 import (
