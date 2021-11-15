@@ -1,4 +1,3 @@
-// Package link is for the ssh command
 package portforward
 
 import (
@@ -32,7 +31,7 @@ var (
 
 func promptGetInput(pc promptContent) string {
 	validate := func(input string) error {
-		if len(input) <= 0 {
+		if len(input) == 0 {
 			return breverrors.WrapAndTrace(errors.New(pc.errorMsg))
 		}
 		return nil
@@ -206,8 +205,8 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWi
 	// Check ActiveOrg's workspaces before checking every orgs workspaces as fallback
 	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 	if err != nil {
-		// TODO: we shoudl just check all possible workspaces here
-		return nil, breverrors.WrapAndTrace(errors.New("please set your active org or link to a workspace by its ID"))
+		// TODO: we should just check all possible workspaces here
+		return nil, errors.New("please set your active org or link to a workspace by its ID")
 	} else {
 		workspaces, err2 := c.GetMyWorkspaces(activeorg.ID)
 		if err2 != nil {
@@ -215,9 +214,9 @@ func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWi
 		}
 		for _, w := range workspaces {
 			if w.Name == name {
-				wmeta, err := c.GetWorkspaceMetaData(w.ID)
-				if err != nil {
-					return nil, breverrors.WrapAndTrace(err)
+				wmeta, err3 := c.GetWorkspaceMetaData(w.ID)
+				if err3 != nil {
+					return nil, breverrors.WrapAndTrace(err3)
 				}
 				return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
 			}

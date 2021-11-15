@@ -99,92 +99,24 @@ func NewCmdLs(t *terminal.Terminal) *cobra.Command {
 func ls(t *terminal.Terminal, args []string, orgflag string) error {
 	// If anyone mispells orgs/org/organizations we should just do it
 	if len(args) > 0 && (strings.Contains(args[0], "org")) {
-		orgs, err := getOrgs()
+		err := handleOrg(t)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		if len(orgs) == 0 {
-			t.Vprint(t.Yellow("You don't have any orgs. Create one!"))
-			return nil
-		}
-
-		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if err != nil {
-			t.Vprint(t.Yellow("Your organizations:"))
-			err = printOrgTableWithoutActiveOrg(t, orgs)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
-		}
-		t.Vprint(t.Yellow("Your organizations:"))
-		err = printOrgTable(t, orgs, *activeorg)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		return nil
 	}
 
 	if orgflag != "" {
-		org, err := brevapi.GetOrgFromName(orgflag)
+		err := handleOrgFlag(orgflag, t)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		joined, _, err := fetchWorkspacesAndPrintTable(t, org)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(joined) > 0 {
-			t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
-				t.Yellow("\n\t$ brev on\n"))
-		}
-		return nil
 	}
 
 	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
-	// activeOrgFoundErr := breverrors.ActiveOrgFileNotFound{}
-	// if errors.Is(err, &activeOrgFoundErr) {
 	if err != nil {
-
-		activeOrgFoundErr := breverrors.ActiveOrgFileNotFound{}
-		if errors.Is(err, &activeOrgFoundErr) {
-			orgs, err2 := getOrgs()
-			if err2 != nil {
-				return breverrors.WrapAndTrace(err2)
-			}
-			if len(orgs) == 0 {
-				t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
-				return nil
-			}
-			var wg sync.WaitGroup
-
-			for _, o := range orgs {
-				wg.Add(1)
-				err := make(chan error)
-
-				o := o
-				go func(t *terminal.Terminal, org *brevapi.Organization) {
-					_, _, err1 := fetchWorkspacesAndPrintTable(t, org)
-					err <- err1
-					defer wg.Done()
-				}(t, &o)
-
-				err2 := <-err
-				if err2 != nil {
-					return err2
-				}
-
-			}
-			wg.Wait()
-			t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
-
-			return nil
-		} else {
-			return breverrors.WrapAndTrace(err)
+		err2 := handleActiveOrgNotSet(err, t)
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
 	}
 
@@ -197,14 +129,90 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 			t.Yellow("\n\t$ brev on\n"))
 	}
 
+	return nil
+}
+
+func handleActiveOrgNotSet(err error, t *terminal.Terminal) error {
+	activeOrgFoundErr := breverrors.ActiveOrgFileNotFound{}
+	if errors.Is(err, &activeOrgFoundErr) {
+		orgs, err2 := getOrgs()
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
+		}
+		if len(orgs) == 0 {
+			t.Vprint(t.Yellow("You don't have any orgs or workspaces. Create an org to get started!"))
+			return nil
+		}
+		var wg sync.WaitGroup
+
+		for _, o := range orgs {
+			wg.Add(1)
+			err := make(chan error)
+
+			o := o
+			go func(t *terminal.Terminal, org *brevapi.Organization) {
+				_, _, err1 := fetchWorkspacesAndPrintTable(t, org)
+				err <- err1
+				defer wg.Done()
+			}(t, &o)
+
+			err2 := <-err
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
+			}
+
+		}
+		wg.Wait()
+		t.Vprint(t.Yellow("\nYou don't have any active org set. Run 'brev set <orgname>' to set one."))
+
+		return nil
+	} else {
+		return breverrors.WrapAndTrace(err)
+	}
+}
+
+func handleOrgFlag(orgflag string, t *terminal.Terminal) error {
+	org, err := brevapi.GetOrgFromName(orgflag)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	joined, _, err := fetchWorkspacesAndPrintTable(t, org)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(joined) > 0 {
+		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
+			t.Yellow("\n\t$ brev on\n"))
+	}
+	return nil
+}
+
+func handleOrg(t *terminal.Terminal) error {
+	orgs, err := getOrgs()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(orgs) == 0 {
+		t.Vprint(t.Yellow("You don't have any orgs. Create one!"))
+		return nil
+	}
+
+	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err != nil {
+		t.Vprint(t.Yellow("Your organizations:"))
+		printOrgTableWithoutActiveOrg(t, orgs)
+		return nil
+	}
+	t.Vprint(t.Yellow("Your organizations:"))
+	printOrgTable(t, orgs, *activeorg)
 
 	return nil
 }
 
-func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) {
+func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) { //nolint:unparam // want to keep an unused param for future
 	wss, err := GetAllWorkspaces(org.ID)
 	if err != nil {
 		return nil, nil, breverrors.WrapAndTrace(err)
@@ -280,22 +288,21 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-func printOrgTable(t *terminal.Terminal, organizations []brevapi.Organization, activeorg brevapi.Organization) error {
-	ID_LEN := 9
+func printOrgTable(t *terminal.Terminal, organizations []brevapi.Organization, activeorg brevapi.Organization) {
+	idLen := 9
 	if len(organizations) > 0 {
-		t.Vprint("  ID" + strings.Repeat(" ", ID_LEN+1-len("ID")) + "NAME")
+		t.Vprint("  ID" + strings.Repeat(" ", idLen+1-len("ID")) + "NAME")
 		for _, v := range organizations {
 			if activeorg.ID == v.ID {
-				t.Vprint(t.Green("* " + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name))
+				t.Vprint(t.Green("* " + truncateString(v.ID, idLen) + strings.Repeat(" ", idLen-len(truncateString(v.ID, idLen))) + " " + v.Name))
 			} else {
-				t.Vprint("  " + truncateString(v.ID, ID_LEN) + strings.Repeat(" ", ID_LEN-len(truncateString(v.ID, ID_LEN))) + " " + v.Name)
+				t.Vprint("  " + truncateString(v.ID, idLen) + strings.Repeat(" ", idLen-len(truncateString(v.ID, idLen))) + " " + v.Name)
 			}
 		}
 	}
-	return nil
 }
 
-func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brevapi.Organization) error {
+func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brevapi.Organization) {
 	idLen := 9
 	if len(organizations) > 0 {
 		t.Vprint("ID" + strings.Repeat(" ", idLen+1-len("ID")) + "NAME")
@@ -304,5 +311,4 @@ func printOrgTableWithoutActiveOrg(t *terminal.Terminal, organizations []brevapi
 		}
 	}
 	t.Vprint(t.Yellow("\nYou haven't set an active org. Use 'brev set [org_name]' to set one.\n"))
-	return nil
 }

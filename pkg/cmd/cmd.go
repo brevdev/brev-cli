@@ -2,11 +2,7 @@
 package cmd
 
 import (
-	"io"
-	"os"
 	"strings"
-
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/clone"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
@@ -23,14 +19,18 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
+
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 func NewDefaultBrevCommand() *cobra.Command {
-	cmd := NewBrevCommand(os.Stdin, os.Stdout, os.Stderr)
+	// cmd := NewBrevCommand(os.Stdin, os.Stdout, os.Stderr)
+	cmd := NewBrevCommand()
 	return cmd
 }
 
-func NewBrevCommand(in io.Reader, out io.Writer, err io.Writer) *cobra.Command {
+func NewBrevCommand() *cobra.Command {
+	// in io.Reader, out io.Writer, err io.Writer
 	t := terminal.New()
 	var printVersion bool
 
@@ -94,7 +94,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 
 	// dev feature toggle
 	if isDev() {
-		_ = 0 // noops
+		_ = 0 // noop
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 	}
 

@@ -68,7 +68,8 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	ctx := context.Background()
 
 	// set up request
-	req, err := http.NewRequest(
+	req, err := http.NewRequestWithContext(
+		ctx,
 		r.Method,
 		r.Endpoint,
 		payload,
@@ -76,7 +77,6 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	_ = req.WithContext(ctx)
 
 	// build query parameters and encode
 	q := req.URL.Query()

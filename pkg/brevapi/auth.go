@@ -133,7 +133,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 				"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 				"device_code": {state.DeviceCode},
 			}
-			r, err := http.PostForm(a.OauthTokenEndpoint, data)
+			r, err := http.PostForm(a.OauthTokenEndpoint, data) //nolint:noctx // ignoring api call since planning to refactor api
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
 			}
@@ -186,7 +186,7 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 		"scope":     {strings.Join(requiredScopes, " ")},
 		"audience":  {a.Audience},
 	}
-	r, err := http.PostForm(a.DeviceCodeEndpoint, data)
+	r, err := http.PostForm(a.DeviceCodeEndpoint, data) //nolint:noctx // ignoring noctx since planning on refactoring api calls
 	if err != nil {
 		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
 	}
@@ -213,7 +213,7 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	var payload struct {
 		AUDs []string `json:"aud"`
 	}
-	if err := json.Unmarshal([]byte(v), &payload); err != nil {
+	if err := json.Unmarshal(v, &payload); err != nil {
 		return "", "", breverrors.WrapAndTrace(err)
 	}
 

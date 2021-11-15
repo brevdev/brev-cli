@@ -1,13 +1,11 @@
-// Package link is for the ssh command
 package delete
 
 import (
 	"fmt"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-
 	"github.com/spf13/cobra"
 )
 

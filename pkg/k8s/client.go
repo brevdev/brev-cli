@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 type K8sClient interface {

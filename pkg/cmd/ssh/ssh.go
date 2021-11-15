@@ -1,8 +1,6 @@
 package ssh
 
 import (
-	"os/exec"
-
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -52,6 +50,6 @@ func ssh(t *terminal.Terminal, wsname string) error {
 	}
 
 	t.Vprint(workspace.DNS)
-	exec.Command("ssh " + workspace.DNS)
+	// exec.Command("ssh " + workspace.DNS)
 	return nil
 }

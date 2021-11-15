@@ -14,7 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-func isValidGitUrl(url string) bool {
+func isValidGitURL(_ string) bool {
 	return true
 }
 
@@ -39,7 +39,7 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 				return breverrors.WrapAndTrace(errors.New("requires a git url"))
 			}
 
-			if !isValidGitUrl(args[0]) {
+			if !isValidGitURL(args[0]) {
 				return breverrors.WrapAndTrace(errors.New("please use a valid git url"))
 			}
 			return nil
@@ -68,7 +68,7 @@ func NewCmdClone(t *terminal.Terminal) *cobra.Command {
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
 func clone(t *terminal.Terminal, url string, orgflag string) error {
-	formattedURL := validateGitUrl(t, url)
+	formattedURL := validateGitURL(t, url)
 
 	var orgID string
 	if orgflag == "" {
@@ -97,7 +97,8 @@ type NewWorkspace struct {
 	GitRepo string `json:"gitRepo"`
 }
 
-func validateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
+func validateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
+	// _ *terminal.Terminal
 	// gitlab.com:mygitlaborg/mycoolrepo.git
 	if strings.Contains(url, "http") {
 		split := strings.Split(url, ".com/")

@@ -4,6 +4,6 @@ package cmdcontext
 // upon being asked to write.
 type NoopWriter struct{}
 
-func (w NoopWriter) Write(p []byte) (n int, err error) {
+func (w NoopWriter) Write(_ []byte) (n int, err error) {
 	return 0, nil
 }

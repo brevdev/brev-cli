@@ -70,7 +70,7 @@ linters:
     - exportloopref
     - forcetypeassert
     - funlen
-    - gci
+    # - gci
     - gocognit
     - goconst
     - gocritic

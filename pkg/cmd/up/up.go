@@ -21,7 +21,8 @@ type onOptions struct {
 	on *On
 }
 
-func NewCmdOn(t *terminal.Terminal) *cobra.Command {
+func NewCmdOn(_ *terminal.Terminal) *cobra.Command {
+	// t *terminal.Terminal
 	opts := onOptions{}
 
 	cmd := &cobra.Command{
@@ -41,7 +42,8 @@ func NewCmdOn(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
+func (s *onOptions) Complete(_ *cobra.Command, _ []string) error {
+	// func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	fmt.Println("Setting up client...")
 	client, err := brevapi.NewCommandClient() // to resolve
 	if err != nil {

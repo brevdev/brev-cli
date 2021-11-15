@@ -133,10 +133,10 @@ func (r RandomSSHResolver) GetWorkspaces() ([]brevapi.WorkspaceWithMeta, error) 
 	return workspacesWithMeta, nil
 }
 
-func (r RandomSSHResolver) GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error) {
+func (r RandomSSHResolver) GetConfiguredWorkspacePort(_ brevapi.Workspace) (string, error) {
 	minPort := 1024
 	maxPort := 65535
-	port := rand.Intn(maxPort-minPort) + minPort
+	port := rand.Intn(maxPort-minPort) + minPort // #nosec no need to by cryptographically secure
 	return strconv.Itoa(port), nil
 }
 

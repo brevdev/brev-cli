@@ -4,10 +4,11 @@ package set
 import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
+
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 func getOrgs() []brevapi.Organization {

@@ -31,17 +31,18 @@ func NewCmdLogin() *cobra.Command {
 	return cmd
 }
 
-func (o *LoginOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *LoginOptions) Complete(_ *cobra.Command, _ []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *LoginOptions) Validate(cmd *cobra.Command, args []string) error {
+func (o *LoginOptions) Validate(_ *cobra.Command, _ []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
+func (o *LoginOptions) RunLogin(_ *cobra.Command, _ []string) error {
+	// func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
 	err := brevapi.Login(false)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

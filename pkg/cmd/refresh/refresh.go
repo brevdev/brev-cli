@@ -4,8 +4,8 @@ package refresh
 import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 )

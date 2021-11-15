@@ -1,4 +1,3 @@
-// config
 package config
 
 import (

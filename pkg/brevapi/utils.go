@@ -103,7 +103,7 @@ func OpenBrowser(url string) error {
 		cmd = "xdg-open"
 	}
 	args = append(args, url)
-	err := exec.Command(cmd, args...).Start()
+	err := exec.Command(cmd, args...).Start() //#nosec variables are hard coded
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

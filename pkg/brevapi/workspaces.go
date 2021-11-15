@@ -118,10 +118,7 @@ func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	err = WriteIndividualWorkspaceCache(orgID, payload)
-	if err != nil {
-		// do nothing, failure to cache shouldn't kill this command
-	}
+	_ = WriteIndividualWorkspaceCache(orgID, payload)
 
 	return payload, nil
 }

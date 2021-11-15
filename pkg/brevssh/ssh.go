@@ -211,7 +211,7 @@ func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries(cfg ssh_config.Config, 
 
 func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	for _, node := range host.Nodes {
-		switch n := node.(type) {
+		switch n := node.(type) { //nolint:gocritic // ignoring since want to keep options open for many cases
 		case *ssh_config.KV:
 			if strings.Compare(n.Key, "IdentityFile") == 0 {
 				if strings.Compare(privateKeyPath, n.Value) == 0 {

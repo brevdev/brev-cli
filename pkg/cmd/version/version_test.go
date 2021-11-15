@@ -4,7 +4,8 @@ import (
 	"testing"
 )
 
-func TestBuildVersionString(t *testing.T) {
+func TestBuildVersionString(_ *testing.T) {
+	// func TestBuildVersionString(t *testing.T) {
 	// terminalStub := &terminal.Terminal{}
 
 	// want := "unknown"

@@ -1,4 +1,3 @@
-// Package start is for starting Brev workspaces
 package reset
 
 import (

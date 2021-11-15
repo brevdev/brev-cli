@@ -192,7 +192,7 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 func makeMockSSHStore() (SSHStore, error) {
 	mfs := afero.NewMemMapFs()
 	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
-	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0644)
+	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -200,7 +200,7 @@ func makeMockSSHStore() (SSHStore, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	err = afero.WriteFile(mfs, *p, []byte(``), 0644)
+	err = afero.WriteFile(mfs, *p, []byte(``), 0o644)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
