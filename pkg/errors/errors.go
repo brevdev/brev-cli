@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/pkg/errors"
+	breverrors "github.com/pkg/errors"
 )
 
 type BrevError interface {

@@ -115,7 +115,7 @@ func (s *State) IntervalDuration() time.Duration {
 func (a *Authenticator) Start(ctx context.Context) (State, error) {
 	s, err := a.getDeviceCode(ctx)
 	if err != nil {
-		return State{}, fmt.Errorf("cannot get device code: %w", err)
+		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
 	}
 	return s, nil
 }
@@ -135,7 +135,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			}
 			r, err := http.PostForm(a.OauthTokenEndpoint, data)
 			if err != nil {
-				return Result{}, fmt.Errorf("cannot get device code: %w", err)
+				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
 			}
 			defer r.Body.Close()
 
@@ -152,7 +152,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 
 			err = json.NewDecoder(r.Body).Decode(&res)
 			if err != nil {
-				return Result{}, fmt.Errorf("cannot decode response: %w", err)
+				return Result{}, breverrors.WrapAndTrace(err, "cannot decode response")
 			}
 
 			if res.Error != nil {
@@ -164,7 +164,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 
 			ten, domain, err := parseTenant(res.AccessToken)
 			if err != nil {
-				return Result{}, fmt.Errorf("cannot parse tenant from the given access token: %w", err)
+				return Result{}, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
 			}
 
 			return Result{
@@ -186,13 +186,13 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	}
 	r, err := http.PostForm(a.DeviceCodeEndpoint, data)
 	if err != nil {
-		return State{}, fmt.Errorf("cannot get device code: %w", err)
+		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
 	}
 	defer r.Body.Close()
 	var res State
 	err = json.NewDecoder(r.Body).Decode(&res)
 	if err != nil {
-		return State{}, fmt.Errorf("cannot decode response: %w", err)
+		return State{}, breverrors.WrapAndTrace(err, "cannot decode response")
 	}
 	// TODO if status code > 399 handle errors
 	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
@@ -204,26 +204,26 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	parts := strings.Split(accessToken, ".")
 	v, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", "", err
+		return "", "", breverrors.WrapAndTrace(err)
 	}
 	var payload struct {
 		AUDs []string `json:"aud"`
 	}
 	if err := json.Unmarshal([]byte(v), &payload); err != nil {
-		return "", "", err
+		return "", "", breverrors.WrapAndTrace(err)
 	}
 
 	for _, aud := range payload.AUDs {
 		u, err := url.Parse(aud)
 		if err != nil {
-			return "", "", err
+			return "", "", breverrors.WrapAndTrace(err)
 		}
 		if u.Path == audiencePath {
 			parts := strings.Split(u.Host, ".")
 			return parts[0], u.Host, nil
 		}
 	}
-	return "", "", fmt.Errorf("audience not found for %s", audiencePath)
+	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
 }
 
 // GetToken reads the previously-persisted token from the filesystem,
@@ -231,17 +231,17 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 func GetToken() (*OauthToken, error) {
 	token, err := getTokenFromBrevConfigFile()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	if token == nil { // we have not logged in yet
 		err = Login(true)
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		// now that we have logged in, the file should contain the token
 		token, err = getTokenFromBrevConfigFile()
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 	}
 	return token, nil
@@ -250,7 +250,7 @@ func GetToken() (*OauthToken, error) {
 func getBrevCredentialsFile() (*string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
 	return &brevCredentialsFile, nil
@@ -259,11 +259,11 @@ func getBrevCredentialsFile() (*string, error) {
 func WriteTokenToBrevConfigFile(token *Credentials) error {
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	err = files.OverwriteJSON(*brevCredentialsFile, token)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil
@@ -272,12 +272,12 @@ func WriteTokenToBrevConfigFile(token *Credentials) error {
 func getTokenFromBrevConfigFile() (*OauthToken, error) {
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	exists, err := files.Exists(*brevCredentialsFile, false)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	if !exists {
 		return nil, &breverrors.CredentialsFileNotFound{}
@@ -286,7 +286,7 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 	var token OauthToken
 	err = files.ReadJSON(*brevCredentialsFile, &token)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &token, nil
@@ -312,7 +312,7 @@ func Login(prompt bool) error {
 	}
 	state, err := authenticator.Start(ctx)
 	if err != nil {
-		return fmt.Errorf("could not start the authentication process: %w", err)
+		return breverrors.WrapAndTrace(err, "could not start the authentication process")
 	}
 
 	// todo color library
