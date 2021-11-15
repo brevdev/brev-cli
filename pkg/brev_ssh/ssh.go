@@ -141,12 +141,14 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brev_api.Work
 func PruneInactiveWorkspaces(cfg *ssh_config.Config, activeWorkspacesNames []string) (*ssh_config.Config, error) {
 	newConfig := ""
 
+	privateKeyPath := files.GetSSHPrivateKeyFilePath()
+
 	for _, host := range cfg.Hosts {
 		// if a host is not a brev entry, it should stay in the config and there
 		// is nothing for us to do to it.
 		// if the host is a brev entry, make sure that it's hostname maps to an
 		// active workspace, otherwise this host should be deleted.
-		isBrevHost := checkIfBrevHost(*host)
+		isBrevHost := checkIfBrevHost(*host, privateKeyPath)
 		if isBrevHost {
 			// if this host does not match a workspacename, then delete since it belongs to an inactive
 			// workspace or deleted one.
@@ -219,12 +221,12 @@ func writeConfigFile(fs afero.Fs, configFile string) error {
 	return nil
 }
 
-func checkIfBrevHost(host ssh_config.Host) bool {
+func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	for _, node := range host.Nodes {
 		switch n := node.(type) {
 		case *ssh_config.KV:
 			if strings.Compare(n.Key, "IdentityFile") == 0 {
-				if strings.Compare(files.GetSSHPrivateKeyFilePath(), n.Value) == 0 {
+				if strings.Compare(privateKeyPath, n.Value) == 0 {
 					return true
 				}
 			}
@@ -248,12 +250,13 @@ func GetBrevPorts(cfg ssh_config.Config, hostnames []string) (map[string]bool, e
 
 // Hostname is a loaded term so using values
 func GetBrevHostValues(cfg ssh_config.Config) []string {
+	privateKeyPath := files.GetSSHPrivateKeyFilePath()
 	var brevHosts []string
 	for _, host := range cfg.Hosts {
 		hostname := hostnameFromString(host.String())
 		// is this host a brev entry? if not, we don't care, and on to the
 		// next one
-		if checkIfBrevHost(*host) {
+		if checkIfBrevHost(*host, privateKeyPath) {
 			brevHosts = append(brevHosts, hostname)
 		}
 	}

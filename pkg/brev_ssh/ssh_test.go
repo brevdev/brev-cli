@@ -94,7 +94,7 @@ func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
 func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 	for _, host := range suite.SSHConfig.Hosts {
 		if len(host.Nodes) > 0 {
-			isBrevHost := checkIfBrevHost(*host)
+			isBrevHost := checkIfBrevHost(*host, "/home/brev/.brev/brev.pem")
 			suite.True(isBrevHost)
 		}
 	}
