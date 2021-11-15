@@ -45,7 +45,7 @@ linters-settings:
       - .WrapAndTrace
       - .Errorf
   stylecheck:
-    checks: ["all", "-ST1020", "ST1000"]
+    checks: ["all", "-ST1020", "-ST1000"]
 
 linters:
   # please, do not use `enable-all`: it's deprecated and will be removed soon.

@@ -61,7 +61,7 @@ func (r *RESTRequest) BuildHTTPRequest() (*http.Request, error) {
 	case "DELETE":
 		payload = nil
 	default:
-		return nil, fmt.Errorf("Unknown method: %s", r.Method)
+		return nil, fmt.Errorf("unknown method: %s", r.Method)
 	}
 
 	// set up request

@@ -24,7 +24,7 @@ func HandleNewClientErrors(err error) error {
 	case *requests.RESTResponseError:
 		switch e.ResponseStatusCode {
 		case 404: // happens when user signs in to the cli using github but does not have an account on brev
-			return fmt.Errorf("Create an account on https://console.brev.dev")
+			return fmt.Errorf("create an account on https://console.brev.dev")
 		case 403: // possibly malformed credentials.json, try logging in
 			return Login(true)
 		}
