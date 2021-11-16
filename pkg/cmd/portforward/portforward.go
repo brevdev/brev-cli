@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/manifoldco/promptui"
 
 	"github.com/brevdev/brev-cli/pkg/k8s"
@@ -92,7 +94,11 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 				t.Errprint(err, "")
 				return
 			}
-			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
+
+			fs := files.AppFs
+			upStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient(client))
+
+			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
 			if err != nil {
 				switch err.(type) {
 				case *url.Error:

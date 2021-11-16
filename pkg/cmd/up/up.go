@@ -28,8 +28,8 @@ func NewCmdUp(_ *terminal.Terminal) *cobra.Command {
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
-		Short:                 "Set up a connection to all of your Brev workspaces",
-		Long:                  "Set up a connection to all of your Brev workspaces",
+		Short:                 "Set up ssh connections to all of your Brev workspaces",
+		Long:                  "Set up ssh connections to all of your Brev workspaces",
 		Example:               "brev ssh-all",
 		Args:                  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
@@ -48,13 +48,13 @@ func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(client) // to resolve
+	fs := files.AppFs
+	upStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient(client))
+
+	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	fs := files.AppFs
-	upStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient(client))
 
 	workspaces, err := GetActiveWorkspaces(upStore)
 	if err != nil {
