@@ -70,11 +70,11 @@ type DefaultWorkspaceGroupClientMapper struct {
 }
 
 type KeyResolver interface {
-	GetMeKeys() (*brevapi.UserKeys, error)
+	GetCurrentUserKeys() (*brevapi.UserKeys, error)
 }
 
 func NewDefaultWorkspaceGroupClientMapper(keyResolver KeyResolver) (*DefaultWorkspaceGroupClientMapper, error) {
-	keys, err := keyResolver.GetMeKeys()
+	keys, err := keyResolver.GetCurrentUserKeys()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
