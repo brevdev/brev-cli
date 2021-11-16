@@ -1,8 +1,6 @@
 package reset
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -49,7 +47,6 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
 
 	startedWorkspace, err := client.ResetWorkspace(workspace.ID)
 	if err != nil {
-		fmt.Println(err)
 		return breverrors.WrapAndTrace(err)
 	}
 

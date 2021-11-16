@@ -1,6 +1,9 @@
 package store
 
-import resty "github.com/go-resty/resty/v2"
+import (
+	"github.com/brevdev/brev-cli/pkg/brevapi"
+	resty "github.com/go-resty/resty/v2"
+)
 
 type NoAuthHTTPStore struct {
 	FileStore
@@ -31,8 +34,12 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	return &AuthHTTPStore{*n, c}
 }
 
-type AuthHTTPClient resty.Client
+type AuthHTTPClient struct {
+	restyClient       *resty.Client
+	toDeprecateClient *brevapi.Client
+}
 
-func NewAuthHTTPClient() *AuthHTTPClient {
-	return (*AuthHTTPClient)(resty.New())
+func NewAuthHTTPClient(client *brevapi.Client) *AuthHTTPClient {
+	restyClient := resty.New()
+	return &AuthHTTPClient{restyClient, client}
 }

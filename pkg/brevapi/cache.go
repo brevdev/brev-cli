@@ -53,7 +53,7 @@ func RefreshWorkspaceCacheForActiveOrg() error {
 func WriteIndividualWorkspaceCache(orgID string, wss []Workspace) error {
 	var workspaceCache []CacheableWorkspace
 	path := files.GetWorkspacesCacheFilePath()
-	err := files.ReadJSON(path, &workspaceCache)
+	err := files.ReadJSON(files.AppFs, path, &workspaceCache)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -124,7 +124,7 @@ func GetOrgCacheData() ([]Organization, error) {
 	}
 
 	var orgCache []Organization
-	err = files.ReadJSON(path, &orgCache)
+	err = files.ReadJSON(files.AppFs, path, &orgCache)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -146,7 +146,7 @@ func GetWsCacheData() ([]CacheableWorkspace, error) {
 	}
 
 	var wsCache []CacheableWorkspace
-	err = files.ReadJSON(path, &wsCache)
+	err = files.ReadJSON(files.AppFs, path, &wsCache)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

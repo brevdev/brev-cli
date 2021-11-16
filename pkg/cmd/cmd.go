@@ -102,7 +102,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(stop.NewCmdStop(t))
 	cmd.AddCommand(delete.NewCmdDelete(t))
 	cmd.AddCommand(reset.NewCmdReset(t))
-	cmd.AddCommand(up.NewCmdOn(t))
+	cmd.AddCommand(up.NewCmdUp(t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {

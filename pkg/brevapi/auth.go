@@ -288,7 +288,7 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 	}
 
 	var token OauthToken
-	err = files.ReadJSON(*brevCredentialsFile, &token)
+	err = files.ReadJSON(files.AppFs, *brevCredentialsFile, &token)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

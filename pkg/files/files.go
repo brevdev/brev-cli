@@ -160,9 +160,9 @@ func Exists(filepath string, isDir bool) (bool, error) {
 // Usage:
 //   var foo myStruct
 //   files.ReadJSON("tmp/a.json", &foo)
-func ReadJSON(unsafeFilePathString string, v interface{}) error {
+func ReadJSON(fs afero.Fs, unsafeFilePathString string, v interface{}) error {
 	safeFilePath := filepath.Clean(unsafeFilePathString)
-	f, err := os.Open(safeFilePath)
+	f, err := fs.Open(safeFilePath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

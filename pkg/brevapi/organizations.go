@@ -65,7 +65,7 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	}
 
 	var activeOrg Organization
-	err = files.ReadJSON(brevActiveOrgsFile, &activeOrg)
+	err = files.ReadJSON(fs, brevActiveOrgsFile, &activeOrg)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

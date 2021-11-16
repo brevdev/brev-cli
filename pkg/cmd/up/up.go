@@ -12,18 +12,17 @@ import (
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-type onOptions struct {
-	on *On
+type upOptions struct {
+	on *Up
 }
 
-func NewCmdOn(_ *terminal.Terminal) *cobra.Command {
+func NewCmdUp(_ *terminal.Terminal) *cobra.Command {
 	// t *terminal.Terminal
-	opts := onOptions{}
+	opts := upOptions{}
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -42,7 +41,7 @@ func NewCmdOn(_ *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func (s *onOptions) Complete(_ *cobra.Command, _ []string) error {
+func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 	// func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	fmt.Println("Setting up client...")
 	client, err := brevapi.NewCommandClient() // to resolve
@@ -55,25 +54,32 @@ func (s *onOptions) Complete(_ *cobra.Command, _ []string) error {
 	}
 
 	fs := files.AppFs
-	onStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient())
+	upStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient(client))
 
-	workspaces, err := GetActiveWorkspaces(client, fs)
+	workspaces, err := GetActiveWorkspaces(upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, onStore, workspaceGroupClientMapper.GetPrivateKey())
+	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, upStore, workspaceGroupClientMapper.GetPrivateKey())
 
-	s.on = NewOn(workspaces, sshConfigurer, workspaceGroupClientMapper)
+	s.on = NewUp(workspaces, sshConfigurer, workspaceGroupClientMapper)
 	return nil
 }
 
-func (s onOptions) Validate() error {
+type UpStore interface {
+	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
+	GetWorkspaces(organizationID string, options store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
+	GetWorkspaceMetaData(workspaceID string) (*brevapi.WorkspaceMetaData, error)
+	GetCurrentUser() (*brevapi.User, error)
+}
+
+func (s upOptions) Validate() error {
 	return nil
 }
 
-func (s onOptions) RunOn() error {
-	fmt.Println("Running on...")
+func (s upOptions) RunOn() error {
+	fmt.Println("Running up...")
 	return s.on.Run()
 }
 
@@ -82,21 +88,21 @@ type SSHConfigurer interface {
 	GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error)
 }
 
-type On struct {
+type Up struct {
 	sshConfigurer              SSHConfigurer
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	workspaces                 []brevapi.WorkspaceWithMeta
 }
 
-func NewOn(workspaces []brevapi.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *On {
-	return &On{
+func NewUp(workspaces []brevapi.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
+	return &Up{
 		workspaces:                 workspaces,
 		sshConfigurer:              sshConfigurer,
 		workspaceGroupClientMapper: workspaceGroupClientMapper,
 	}
 }
 
-func (o On) Run() error {
+func (o Up) Run() error {
 	err := o.sshConfigurer.Config()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -111,22 +117,29 @@ func (o On) Run() error {
 	return nil
 }
 
-func GetActiveWorkspaces(client *brevapi.Client, fs afero.Fs) ([]brevapi.WorkspaceWithMeta, error) {
+func GetActiveWorkspaces(upStore UpStore) ([]brevapi.WorkspaceWithMeta, error) {
 	fmt.Println("Resolving workspaces...")
 
-	org, err := brevapi.GetActiveOrgContext(fs)
+	org, err := upStore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	workspaces, err := client.GetMyWorkspaces(org.ID)
+	user, err := upStore.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	workspaces, err := upStore.GetWorkspaces(org.ID, store.GetWorkspacesOptions{
+		UserID: user.ID,
+	})
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	var workspacesWithMeta []brevapi.WorkspaceWithMeta
 	for _, w := range workspaces {
-		wmeta, err := client.GetWorkspaceMetaData(w.ID)
+		wmeta, err := upStore.GetWorkspaceMetaData(w.ID)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
