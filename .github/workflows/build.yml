@@ -45,7 +45,7 @@ jobs:
           flags: ${{ runner.os }}
 
       - name: Report Status
-        if: ${{ matrix.os == ubuntu-20.04 }}
+        if: ${{ matrix.os == "ubuntu-20.04" }}
         uses: ravsamhq/notify-slack-action@v1
         with:
           status: ${{ job.status }}
