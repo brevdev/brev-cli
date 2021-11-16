@@ -56,6 +56,12 @@ brev completion bash | sudo tee /usr/local/share/bash-completion/completions/bre
 source /usr/local/share/bash-completion/completions/brev
 ```
 
+### fish
+
+```
+mkdir -p ~/.config/fish/completions && brev completion fish > ~/.config/fish/completions/brev.fish && autoload -U compinit && compinit
+```
+
 # Development
 
 ## Build
