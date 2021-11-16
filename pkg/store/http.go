@@ -39,10 +39,10 @@ type AuthHTTPClient struct {
 	toDeprecateClient *brevapi.Client
 }
 
-func NewAuthHTTPClient(toDeprecateClient *brevapi.Client, accessToken string, brevApiURL string) *AuthHTTPClient {
+func NewAuthHTTPClient(toDeprecateClient *brevapi.Client, accessToken string, brevAPIURL string) *AuthHTTPClient {
 	restyClient := resty.New()
 	restyClient.SetAuthToken(accessToken)
 	restyClient.SetQueryParam("utm_source", "cli")
-	restyClient.SetBaseURL(brevApiURL)
+	restyClient.SetBaseURL(brevAPIURL)
 	return &AuthHTTPClient{restyClient, toDeprecateClient}
 }

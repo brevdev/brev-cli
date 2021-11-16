@@ -36,13 +36,12 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-
-			isUrl := false
+			isURL := false
 			if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
-				isUrl = true
+				isURL = true
 			}
 
-			if !isUrl {
+			if !isURL {
 				err := startWorkspace(args[0], t)
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
@@ -57,7 +56,6 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 					t.Vprint(t.Red(err.Error()))
 				}
 			}
-
 		},
 	}
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
@@ -133,7 +131,7 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
 func clone(t *terminal.Terminal, url string, orgflag string) error {
-	formattedURL := brevapi.ValidateGitUrl(t, url)
+	formattedURL := brevapi.ValidateGitURL(t, url)
 
 	var orgID string
 	if orgflag == "" {

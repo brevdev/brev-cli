@@ -244,7 +244,7 @@ type NewWorkspace struct {
 	GitRepo string `json:"gitRepo"`
 }
 
-func ValidateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
+func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
 	// gitlab.com:mygitlaborg/mycoolrepo.git
 	if strings.Contains(url, "http") {
 		split := strings.Split(url, ".com/")

@@ -73,22 +73,8 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetWorkspaceNames(),
 		Run: func(cmd *cobra.Command, args []string) {
-			t.Vprintf(Port + "\n\n\n")
-			t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!"))
-			remoteInput := promptGetInput(promptContent{
-				label:    "What port on your Brev machine would you like to forward?",
-				errorMsg: "error",
-			})
-			localInput := promptGetInput(promptContent{
-				label:    "What port should it be on your local machine?",
-				errorMsg: "error",
-			})
+			startInput(t)
 
-			Port = localInput + ":" + remoteInput
-
-			t.Vprintf(t.Green("\n-p " + Port + "\n"))
-
-			t.Printf("\nStarting ssh link...\n")
 			client, err := brevapi.NewCommandClient() // to inject
 			if err != nil {
 				t.Errprint(err, "")
@@ -120,7 +106,6 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 					return
 				}
 			}
-
 			pf := portforward.NewDefaultPortForwarder()
 
 			opts := portforward.NewPortForwardOptions(
@@ -151,13 +136,7 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 
 			opts.WithPort(Port)
 
-			t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
-			t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
-			t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
-			t.Printf(t.Green("\t2. Connect to workspace:\n"))
-			localPort := strings.Split(Port, ":")[0]
-			t.Printf(t.Yellow("\t\tssh -p %s brev@0.0.0.0\n\n", localPort))
-			err = opts.RunPortforward()
+			err = endText(t, sshPrivateKeyFilePath, opts)
 			if err != nil {
 				t.Errprint(err, "")
 				return
@@ -173,6 +152,39 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 	}
 
 	return cmd
+}
+
+func startInput(t *terminal.Terminal) {
+	t.Vprintf(Port + "\n\n\n")
+	t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!"))
+	remoteInput := promptGetInput(promptContent{
+		label:    "What port on your Brev machine would you like to forward?",
+		errorMsg: "error",
+	})
+	localInput := promptGetInput(promptContent{
+		label:    "What port should it be on your local machine?",
+		errorMsg: "error",
+	})
+
+	Port = localInput + ":" + remoteInput
+
+	t.Vprintf(t.Green("\n-p " + Port + "\n"))
+
+	t.Printf("\nStarting ssh link...\n")
+}
+
+func endText(t *terminal.Terminal, sshPrivateKeyFilePath string, opts *portforward.PortForwardOptions) error {
+	t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
+	t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
+	t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
+	t.Printf(t.Green("\t2. Connect to workspace:\n"))
+	localPort := strings.Split(Port, ":")[0]
+	t.Printf(t.Yellow("\t\tssh -p %s brev@0.0.0.0\n\n", localPort))
+	err := opts.RunPortforward()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 type WorkspaceResolver struct{}

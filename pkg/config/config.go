@@ -71,7 +71,6 @@ type InitConfig interface{}
 
 type AllConfig interface {
 	InitConfig
-
 	GetBrevAPIURl() string
 	GetVersion() string
 	GetDefaultClusterID() string
