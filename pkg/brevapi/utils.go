@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 type Client struct {
@@ -236,3 +238,35 @@ func GetWorkspaceNames() []string {
 }
 
 // func PollWorkspaceForReadyState()
+
+type NewWorkspace struct {
+	Name    string `json:"name"`
+	GitRepo string `json:"gitRepo"`
+}
+
+func ValidateGitUrl(t *terminal.Terminal, url string) NewWorkspace {
+	// gitlab.com:mygitlaborg/mycoolrepo.git
+	if strings.Contains(url, "http") {
+		split := strings.Split(url, ".com/")
+		provider := strings.Split(split[0], "://")[1]
+
+		if strings.Contains(split[1], ".git") {
+			return NewWorkspace{
+				GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
+				Name:    strings.Split(split[1], ".git")[0],
+			}
+		} else {
+			return NewWorkspace{
+				GitRepo: fmt.Sprintf("%s.com:%s.git", provider, split[1]),
+				Name:    split[1],
+			}
+		}
+	} else {
+		split := strings.Split(url, ".com:")
+		provider := strings.Split(split[0], "@")[1]
+		return NewWorkspace{
+			GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
+			Name:    strings.Split(split[1], ".git")[0],
+		}
+	}
+}
