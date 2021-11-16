@@ -50,7 +50,7 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 				return
 
 			} else {
-				
+
 				// CREATE A WORKSPACE
 				err := clone(t, args[0], org)
 				if err != nil {

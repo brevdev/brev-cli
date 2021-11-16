@@ -50,7 +50,6 @@ func (s AuthHTTPStore) GetOrganizations() ([]brevapi.Organization, error) {
 	var result []brevapi.Organization
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
-		// ForceContentType("application/json").
 		SetResult(&result).
 		Get(orgPath)
 	if err != nil {

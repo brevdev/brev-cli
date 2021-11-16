@@ -10,7 +10,6 @@ type GetWorkspacesOptions struct {
 }
 
 func (s AuthHTTPStore) GetWorkspaces(organizationID string, options GetWorkspacesOptions) ([]brevapi.Workspace, error) {
-	// func (s AuthHTTPStore) GetWorkspaces(options GetWorkspacesOptions) ([]brevapi.Workspace, error) {
 	workspaces, err := s.authHTTPClient.toDeprecateClient.GetWorkspaces(organizationID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
