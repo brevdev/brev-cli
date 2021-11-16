@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	startLong    = "Start a Brev machine that's in a paused or off state"
+	startLong    = "Start a Brev machine that's in a paused or off state or create one from a url"
 	startExample = `
   brev start <existing_ws_name>
   brev start <git url>
@@ -30,7 +30,7 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "start",
 		DisableFlagsInUseLine: true,
-		Short:                 "Start a workspace if it's stopped",
+		Short:                 "Start a workspace if it's stopped, or create one from url",
 		Long:                  startLong,
 		Example:               startExample,
 		Args:                  cobra.ExactArgs(1),
