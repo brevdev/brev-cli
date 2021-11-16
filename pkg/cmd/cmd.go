@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/reset"
+	"github.com/brevdev/brev-cli/pkg/cmd/secret"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
@@ -116,6 +117,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(delete.NewCmdDelete(t))
 	cmd.AddCommand(reset.NewCmdReset(t))
 	cmd.AddCommand(up.NewCmdUp(cmdStore, t))
+	cmd.AddCommand(secret.NewCmdSecret(t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
