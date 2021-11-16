@@ -1,7 +1,11 @@
 package store
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/jarcoal/httpmock"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -13,6 +17,36 @@ func TestGetActiveOrganization(t *testing.T) {
 		return
 	}
 	if !assert.Nil(t, org) {
+		return
+	}
+}
+
+func TestGetOrganizations(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	expected := []brevapi.Organization{{
+		ID:   "1",
+		Name: "test",
+	}}
+	res, err := httpmock.NewJsonResponder(200, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	httpmock.RegisterResponder("GET", fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath), res)
+
+	org, err := fs.GetOrganizations()
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, org) {
+		return
+	}
+	if !assert.Equal(t, []brevapi.Organization{{
+		ID:   "1",
+		Name: "test",
+	}}, org) {
 		return
 	}
 }

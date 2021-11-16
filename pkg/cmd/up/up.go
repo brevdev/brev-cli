@@ -48,8 +48,17 @@ func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	oauthToken, err := brevapi.GetToken()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	conf := config.NewConstants()
 	fs := files.AppFs
-	upStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient(client))
+	upStore := store.
+		NewBasicStore().
+		WithFileSystem(fs).
+		WithAuthHTTPClient(store.NewAuthHTTPClient(client, oauthToken.AccessToken, conf.GetBrevAPIURl()))
 
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
 	if err != nil {

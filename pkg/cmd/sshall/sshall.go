@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
+	"github.com/pkg/errors"
 )
 
 type SSHAll struct {
@@ -44,7 +45,8 @@ func (s SSHAll) Run() error {
 		go func(workspace brevapi.WorkspaceWithMeta) {
 			err := s.portforwardWorkspace(workspace)
 			if err != nil {
-				fmt.Printf("%v [workspace=%s]\n", err, workspace.DNS)
+				// todo have verbose version with trace
+				fmt.Printf("%v [workspace=%s]\n", errors.Cause(err), workspace.DNS)
 			}
 		}(w)
 	}

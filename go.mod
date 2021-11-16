@@ -6,6 +6,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/google/uuid v1.1.2
+	github.com/jarcoal/httpmock v1.0.8 // indirect
 	github.com/joho/godotenv v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0
 	github.com/manifoldco/promptui v0.9.0

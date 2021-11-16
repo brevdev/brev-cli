@@ -22,7 +22,7 @@ func TestWithHTTPClient(t *testing.T) {
 
 func MakeMockAuthHTTPStore() *AuthHTTPStore {
 	nh := MakeMockNoHTTPStore()
-	ah := nh.WithAuthHTTPClient(NewAuthHTTPClient(&brevapi.Client{}))
+	ah := nh.WithAuthHTTPClient(NewAuthHTTPClient(&brevapi.Client{}, "", ""))
 	return ah
 }
 
@@ -41,7 +41,7 @@ func TestNewNoAuthHTTPClient(t *testing.T) {
 }
 
 func TestNewAuthHTTPClient(t *testing.T) {
-	n := NewAuthHTTPClient(&brevapi.Client{})
+	n := NewAuthHTTPClient(&brevapi.Client{}, "", "")
 	if !assert.NotNil(t, n) {
 		return
 	}

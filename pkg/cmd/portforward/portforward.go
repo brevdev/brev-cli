@@ -95,8 +95,18 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 				return
 			}
 
+			oauthToken, err := brevapi.GetToken()
+			if err != nil {
+				t.Errprint(err, "")
+				return
+			}
+
+			config := config.NewConstants()
 			fs := files.AppFs
-			upStore := store.NewBasicStore(*config.NewConstants()).WithFileSystem(fs).WithAuthHTTPClient(store.NewAuthHTTPClient(client))
+			upStore := store.
+				NewBasicStore().
+				WithFileSystem(fs).
+				WithAuthHTTPClient(store.NewAuthHTTPClient(client, oauthToken.AccessToken, config.GetBrevAPIURl()))
 
 			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
 			if err != nil {

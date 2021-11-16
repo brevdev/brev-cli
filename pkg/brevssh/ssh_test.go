@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -191,7 +190,7 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 
 func makeMockSSHStore() (SSHStore, error) {
 	mfs := afero.NewMemMapFs()
-	fs := store.NewBasicStore(*config.NewConstants()).WithFileSystem(mfs)
+	fs := store.NewBasicStore().WithFileSystem(mfs)
 	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

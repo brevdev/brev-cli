@@ -66,3 +66,13 @@ type FlagsConfig struct {
 func (c *FileConfig) WithFlags() *FlagsConfig {
 	return &FlagsConfig{*c}
 }
+
+type InitConfig interface{}
+
+type AllConfig interface {
+	InitConfig
+
+	GetBrevAPIURl() string
+	GetVersion() string
+	GetDefaultClusterID() string
+}
