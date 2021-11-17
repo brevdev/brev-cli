@@ -44,9 +44,9 @@ func (s AuthHTTPStore) GetCurrentUserKeys() (*brevapi.UserKeys, error) {
 
 var usersPath = "api/users"
 
-func (s NoAuthHTTPStore) CreateUser(identityToken string) (*brevapi.User, error) {
+func (n NoAuthHTTPStore) CreateUser(identityToken string) (*brevapi.User, error) {
 	var result brevapi.User
-	res, err := s.noAuthHTTPClient.restyClient.R().
+	res, err := n.noAuthHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Identity", identityToken).
 		SetResult(&result).

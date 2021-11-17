@@ -30,7 +30,7 @@ func TestGetOrganizations(t *testing.T) {
 		ID:   "1",
 		Name: "test",
 	}}
-	res, err := httpmock.NewJsonResponder(500, expected)
+	res, err := httpmock.NewJsonResponder(200, expected)
 	if !assert.Nil(t, err) {
 		return
 	}

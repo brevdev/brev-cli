@@ -45,7 +45,7 @@ func TestGetWorkspaces(t *testing.T) {
 		return
 	}
 
-	u, err = s.GetWorkspaces("1", &GetWorkspacesOptions{
+	u, err = s.GetWorkspaces(orgID, &GetWorkspacesOptions{
 		UserID: "",
 	})
 	if !assert.Nil(t, err) {
