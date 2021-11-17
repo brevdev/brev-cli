@@ -27,7 +27,7 @@ func (s *BrevAPIAuthTestSuite) SetupTest() {
 }
 
 func (s *BrevAPIAuthTestSuite) TestGetTokenFromBrevConfigFile() {
-	token, err := getTokenFromBrevConfigFile(s.fs)
+	token, err := GetTokenFromBrevConfigFile(s.fs)
 	s.Nil(err)
 	s.Equal(token.AccessToken, "act")
 	s.Equal(token.IDToken, "idt")
