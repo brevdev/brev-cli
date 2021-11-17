@@ -20,7 +20,7 @@ func TestGetCurrentUser(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, userPath)
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, mePath)
 	httpmock.RegisterResponder("GET", url, res)
 
 	u, err := s.GetCurrentUser()
@@ -67,6 +67,32 @@ func TestGetCurrentUserKeys(t *testing.T) {
 		return
 	}
 
+	if !assert.Equal(t, expected, u) {
+		return
+	}
+}
+
+func TestCreateUser(t *testing.T) {
+	s := MakeMockNoHTTPStore()
+	httpmock.ActivateNonDefault(s.noAuthHTTPClient.restyClient.GetClient())
+
+	expected := &brevapi.User{
+		ID: "1",
+	}
+	res, err := httpmock.NewJsonResponder(200, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", s.noAuthHTTPClient.restyClient.BaseURL, usersPath)
+	httpmock.RegisterResponder("POST", url, res)
+
+	u, err := s.CreateUser("identityToken")
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, u) {
+		return
+	}
 	if !assert.Equal(t, expected, u) {
 		return
 	}

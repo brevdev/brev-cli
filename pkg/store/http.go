@@ -16,7 +16,7 @@ func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
 }
 
 type NoAuthHTTPClient struct {
-	client *resty.Client
+	restyClient *resty.Client
 }
 
 func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
@@ -37,7 +37,7 @@ type AuthHTTPStore struct {
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
-	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL)) // TODO pull from auth client
+	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
 	return &AuthHTTPStore{*na, c}
 }
 
@@ -46,7 +46,7 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 }
 
 func (n *NoAuthHTTPStore) WithAccessToken(accessToken string) *AuthHTTPStore {
-	return n.WithAuthHTTPClient(NewAuthHTTPClient(accessToken, n.noAuthHTTPClient.client.BaseURL))
+	return n.WithAuthHTTPClient(NewAuthHTTPClient(accessToken, n.noAuthHTTPClient.restyClient.BaseURL))
 }
 
 type AuthHTTPClient struct {

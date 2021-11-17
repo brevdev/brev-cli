@@ -7,14 +7,14 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-var userPath = "api/me"
+var mePath = "api/me"
 
 func (s AuthHTTPStore) GetCurrentUser() (*brevapi.User, error) {
 	var result brevapi.User
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
-		Get(userPath)
+		Get(mePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -25,7 +25,7 @@ func (s AuthHTTPStore) GetCurrentUser() (*brevapi.User, error) {
 	return &result, nil
 }
 
-var userKeysPath = fmt.Sprintf("%s/keys", userPath)
+var userKeysPath = fmt.Sprintf("%s/keys", mePath)
 
 func (s AuthHTTPStore) GetCurrentUserKeys() (*brevapi.UserKeys, error) {
 	var result brevapi.UserKeys
@@ -39,5 +39,24 @@ func (s AuthHTTPStore) GetCurrentUserKeys() (*brevapi.UserKeys, error) {
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
+	return &result, nil
+}
+
+var usersPath = "api/users"
+
+func (s NoAuthHTTPStore) CreateUser(identityToken string) (*brevapi.User, error) {
+	var result brevapi.User
+	res, err := s.noAuthHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Identity", identityToken).
+		SetResult(&result).
+		Post(usersPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
 	return &result, nil
 }

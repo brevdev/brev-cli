@@ -8,7 +8,7 @@ import (
 
 func MakeMockNoHTTPStore() *NoAuthHTTPStore {
 	fs := MakeMockFileStore()
-	nh := fs.WithNoAuthHTTPClient(NewNoAuthHTTPClient())
+	nh := fs.WithNoAuthHTTPClient(NewNoAuthHTTPClient(""))
 	return nh
 }
 
@@ -33,7 +33,7 @@ func TestWithAuthHTTPClient(t *testing.T) {
 }
 
 func TestNewNoAuthHTTPClient(t *testing.T) {
-	n := NewNoAuthHTTPClient()
+	n := NewNoAuthHTTPClient("")
 	if !assert.NotNil(t, n) {
 		return
 	}
