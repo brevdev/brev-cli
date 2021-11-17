@@ -118,7 +118,7 @@ func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	sshConfigExists, err := Exists(*sshConfigPath, false)
+	sshConfigExists, err := afero.Exists(fs, *sshConfigPath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -135,24 +135,6 @@ func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 		}
 	}
 	return file, nil
-}
-
-func Exists(filepath string, isDir bool) (bool, error) {
-	info, err := os.Stat(filepath)
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	if info == nil {
-		return false, fmt.Errorf("could not stat file %s", filepath)
-	}
-	if info.IsDir() {
-		// error?
-		if isDir {
-			return true, nil
-		}
-		return false, nil
-	}
-	return true, nil
 }
 
 // ReadJSON reads data from a file into the given struct

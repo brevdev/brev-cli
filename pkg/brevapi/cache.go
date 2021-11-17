@@ -5,6 +5,7 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/spf13/afero"
 )
 
 // Helper functions
@@ -111,7 +112,7 @@ func WriteCaches() ([]Organization, []CacheableWorkspace, error) {
 
 func GetOrgCacheData() ([]Organization, error) {
 	path := files.GetOrgCacheFilePath()
-	exists, err := files.Exists(path, false)
+	exists, err := afero.Exists(files.AppFs, path)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -133,7 +134,7 @@ func GetOrgCacheData() ([]Organization, error) {
 
 func GetWsCacheData() ([]CacheableWorkspace, error) {
 	path := files.GetWorkspacesCacheFilePath()
-	exists, err := files.Exists(path, false)
+	exists, err := afero.Exists(files.AppFs, path)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
