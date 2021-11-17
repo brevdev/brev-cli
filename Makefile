@@ -37,7 +37,7 @@ vet: ## go vet
 .PHONY: fmt
 fmt: ## go fmt
 	$(call print-target)
-	go fmt ./...
+	gofumpt -l -w .
 
 .PHONY: lint
 lint: ## golangci-lint
