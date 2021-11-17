@@ -65,6 +65,7 @@ type Result struct {
 	Domain       string
 	RefreshToken string
 	AccessToken  string
+	IDToken      string
 	ExpiresIn    int64
 }
 
@@ -175,6 +176,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 				ExpiresIn:    res.ExpiresIn,
 				Tenant:       ten,
 				Domain:       domain,
+				IDToken:      res.IDToken,
 			}, nil
 		}
 	}
@@ -347,6 +349,7 @@ func Login(prompt bool) error {
 		AccessToken:  res.AccessToken,
 		RefreshToken: res.RefreshToken,
 		ExpiresIn:    int(res.ExpiresIn),
+		IDToken:      res.IDToken,
 	}
 	// store the refresh token
 	err = WriteTokenToBrevConfigFile(creds)
