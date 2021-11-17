@@ -43,15 +43,7 @@ func NewClient() (*Client, error) {
 	client := Client{
 		Key: token,
 	}
-	// make sure the token we have is associated with a valid user
-	user, err := client.GetMe()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if user != nil {
-		return &client, nil
-	}
-	return nil, fmt.Errorf("error creating client")
+	return &client, nil
 }
 
 func NewCommandClient() (*Client, error) {
