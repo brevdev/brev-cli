@@ -30,11 +30,12 @@ func TestGetOrganizations(t *testing.T) {
 		ID:   "1",
 		Name: "test",
 	}}
-	res, err := httpmock.NewJsonResponder(200, expected)
+	res, err := httpmock.NewJsonResponder(500, expected)
 	if !assert.Nil(t, err) {
 		return
 	}
-	httpmock.RegisterResponder("GET", fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath), res)
+	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, res)
 
 	org, err := fs.GetOrganizations()
 	if !assert.Nil(t, err) {
@@ -43,10 +44,8 @@ func TestGetOrganizations(t *testing.T) {
 	if !assert.NotNil(t, org) {
 		return
 	}
-	if !assert.Equal(t, []brevapi.Organization{{
-		ID:   "1",
-		Name: "test",
-	}}, org) {
+
+	if !assert.Equal(t, expected, org) {
 		return
 	}
 }

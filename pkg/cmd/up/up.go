@@ -78,7 +78,7 @@ func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 
 type UpStore interface {
 	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
-	GetWorkspaces(organizationID string, options store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*brevapi.WorkspaceMetaData, error)
 	GetCurrentUser() (*brevapi.User, error)
 }
@@ -139,7 +139,7 @@ func GetActiveWorkspaces(upStore UpStore) ([]brevapi.WorkspaceWithMeta, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	workspaces, err := upStore.GetWorkspaces(org.ID, store.GetWorkspacesOptions{
+	workspaces, err := upStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
 		UserID: user.ID,
 	})
 	if err != nil {

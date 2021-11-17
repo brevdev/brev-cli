@@ -1,6 +1,8 @@
 package store
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	resty "github.com/go-resty/resty/v2"
 )
@@ -45,4 +47,18 @@ func NewAuthHTTPClient(toDeprecateClient *brevapi.Client, accessToken string, br
 	restyClient.SetQueryParam("utm_source", "cli")
 	restyClient.SetBaseURL(brevAPIURL)
 	return &AuthHTTPClient{restyClient, toDeprecateClient}
+}
+
+type HTTPResponseError struct {
+	response *resty.Response
+}
+
+func NewHTTPResponseError(response *resty.Response) *HTTPResponseError {
+	return &HTTPResponseError{
+		response: response,
+	}
+}
+
+func (e HTTPResponseError) Error() string {
+	return fmt.Sprintf("%s %s", e.response.Request.URL, e.response.Status())
 }

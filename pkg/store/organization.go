@@ -1,8 +1,6 @@
 package store
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -57,8 +55,8 @@ func (s AuthHTTPStore) GetOrganizations() ([]brevapi.Organization, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if res.StatusCode() > 299 {
-		return nil, fmt.Errorf("api error") // todo make better errors
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
 	}
 
 	return result, nil
