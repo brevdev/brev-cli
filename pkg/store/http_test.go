@@ -3,7 +3,6 @@ package store
 import (
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +21,7 @@ func TestWithHTTPClient(t *testing.T) {
 
 func MakeMockAuthHTTPStore() *AuthHTTPStore {
 	nh := MakeMockNoHTTPStore()
-	ah := nh.WithAuthHTTPClient(NewAuthHTTPClient(&brevapi.Client{}, "", ""))
+	ah := nh.WithAuthHTTPClient(NewAuthHTTPClient("", ""))
 	return ah
 }
 
@@ -41,7 +40,7 @@ func TestNewNoAuthHTTPClient(t *testing.T) {
 }
 
 func TestNewAuthHTTPClient(t *testing.T) {
-	n := NewAuthHTTPClient(&brevapi.Client{}, "", "")
+	n := NewAuthHTTPClient("", "")
 	if !assert.NotNil(t, n) {
 		return
 	}

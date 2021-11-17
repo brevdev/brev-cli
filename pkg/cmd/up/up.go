@@ -44,10 +44,6 @@ func NewCmdUp(_ *terminal.Terminal) *cobra.Command {
 func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 	// func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	fmt.Println("Setting up client...")
-	client, err := brevapi.NewCommandClient() // to resolve
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	oauthToken, err := brevapi.GetToken()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -58,7 +54,7 @@ func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 	upStore := store.
 		NewBasicStore().
 		WithFileSystem(fs).
-		WithAuthHTTPClient(store.NewAuthHTTPClient(client, oauthToken.AccessToken, conf.GetBrevAPIURl()))
+		WithAuthHTTPClient(store.NewAuthHTTPClient(oauthToken.AccessToken, conf.GetBrevAPIURl()))
 
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
 	if err != nil {

@@ -75,12 +75,6 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			startInput(t)
 
-			client, err := brevapi.NewCommandClient() // to inject
-			if err != nil {
-				t.Errprint(err, "")
-				return
-			}
-
 			oauthToken, err := brevapi.GetToken()
 			if err != nil {
 				t.Errprint(err, "")
@@ -92,7 +86,7 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 			upStore := store.
 				NewBasicStore().
 				WithFileSystem(fs).
-				WithAuthHTTPClient(store.NewAuthHTTPClient(client, oauthToken.AccessToken, config.GetBrevAPIURl()))
+				WithAuthHTTPClient(store.NewAuthHTTPClient(oauthToken.AccessToken, config.GetBrevAPIURl()))
 
 			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
 			if err != nil {

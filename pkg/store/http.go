@@ -3,7 +3,6 @@ package store
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	resty "github.com/go-resty/resty/v2"
 )
 
@@ -37,16 +36,15 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 }
 
 type AuthHTTPClient struct {
-	restyClient       *resty.Client
-	toDeprecateClient *brevapi.Client
+	restyClient *resty.Client
 }
 
-func NewAuthHTTPClient(toDeprecateClient *brevapi.Client, accessToken string, brevAPIURL string) *AuthHTTPClient {
+func NewAuthHTTPClient(accessToken string, brevAPIURL string) *AuthHTTPClient {
 	restyClient := resty.New()
 	restyClient.SetAuthToken(accessToken)
 	restyClient.SetQueryParam("utm_source", "cli")
 	restyClient.SetBaseURL(brevAPIURL)
-	return &AuthHTTPClient{restyClient, toDeprecateClient}
+	return &AuthHTTPClient{restyClient}
 }
 
 type HTTPResponseError struct {
