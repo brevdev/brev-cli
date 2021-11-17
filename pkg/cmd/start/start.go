@@ -88,41 +88,20 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 
 	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
-	loadingAdv := 5
-	bar := t.NewProgressBar("Loading...", func() {})
-	bar.AdvanceTo(loadingAdv)
-	bar.Describe("Workspace is starting")
-	startingBar := 15
-	bar.AdvanceTo(startingBar)
-
-	total := 100
-	stdIncrement := 1
-	startingIncrement := 2
-	startingIncrementThresh := 89
-
-	isReady := false
-	for !isReady {
-		time.Sleep(time.Duration(stdIncrement) * time.Second)
-		ws, err := client.GetWorkspace(workspace.ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if ws.Status == "RUNNING" {
-			bar.Describe("Workspace is ready!")
-			bar.AdvanceTo(total)
-			isReady = true
-		} else {
-			if startingBar < startingIncrementThresh {
-				startingBar += startingIncrement
-			} else {
-				bar.Describe("Still starting...")
-			}
-			bar.AdvanceTo(startingBar)
-		}
+	w,err := pollUntil(t, workspace.ID, "RUNNING")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+
+	t.Vprint(t.Green("\nYour workspace is ready!"))
 
 	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
 		t.Yellow("\n\t$ brev up\n"))
+
+	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.Name))
+
+
+	
 
 	return nil
 }
@@ -166,23 +145,10 @@ func createWorkspace(t *terminal.Terminal, newworkspace brevapi.NewWorkspace, or
 		return breverrors.WrapAndTrace(err)
 	}
 
-	s := t.NewSpinner()
-	isReady := false
-	for !isReady {
-		time.Sleep(5 * time.Second)
-		s.Start()
-		ws, err := c.GetWorkspace(w.ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
-		if ws.Status == "RUNNING" {
-			s.Suffix = "Workspace is ready!"
-			s.Stop()
-			isReady = true
-		}
+	_, err = pollUntil(t, w.ID, "RUNNING")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
-
 
 	t.Vprint(t.Green("\nYour workspace is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.Name))
@@ -191,3 +157,28 @@ func createWorkspace(t *terminal.Terminal, newworkspace brevapi.NewWorkspace, or
 	return nil
 }
 
+func pollUntil (t *terminal.Terminal, wsid string, state string) (*brevapi.Workspace, error) {
+	c, err := brevapi.NewClient()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	s := t.NewSpinner()
+	isReady := false
+	var ws *brevapi.Workspace
+	for !isReady {
+		time.Sleep(5 * time.Second)
+		s.Start()
+		ws, err = c.GetWorkspace(wsid)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
+		if ws.Status == state {
+			s.Suffix = "Workspace is ready!"
+			s.Stop()
+			isReady = true
+		}
+	}
+	return ws, nil
+}
