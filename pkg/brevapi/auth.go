@@ -282,7 +282,7 @@ func getTokenFromBrevConfigFile(fs afero.Fs) (*OauthToken, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	exists, err := files.Exists(*brevCredentialsFile, false)
+	exists, err := afero.Exists(fs, *brevCredentialsFile)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

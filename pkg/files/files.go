@@ -167,7 +167,7 @@ func ReadJSON(fs afero.Fs, unsafeFilePathString string, v interface{}) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	dataBytes, err := ioutil.ReadAll(f)
+	dataBytes, err := afero.ReadAll(f)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
