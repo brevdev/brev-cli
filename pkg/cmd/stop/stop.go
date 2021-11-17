@@ -88,7 +88,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	}
 
 	var workspace brevapi.Workspace
-	if len(workspaces) == 0 {
+	if len(workspaces) == 0 { //nolint:gocritic // gocritic recommends using a switch
 		return fmt.Errorf("no workspaces found with name %s", workspaceName)
 	} else if len(workspaces) > 1 {
 		return fmt.Errorf("multiple workspaces found with name %s", workspaceName)

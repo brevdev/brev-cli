@@ -60,7 +60,7 @@ func TestGetWorkspaces(t *testing.T) {
 	}
 }
 
-func TestGetWorkspacesWithName(t *testing.T) {
+func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor later, not fully duplicate code
 	s := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
@@ -116,7 +116,7 @@ func TestGetWorkspacesWithName(t *testing.T) {
 	}
 }
 
-func TestGetWorkspacesWithUser(t *testing.T) {
+func TestGetWorkspacesWithUser(t *testing.T) { //nolint:dupl // To refactor later, not fully duplicate code
 	s := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
