@@ -17,6 +17,7 @@ const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
 	activeOrgFile                 = "active_org.json"
+	credentialsFile               = "credentials.json"
 	orgCacheFile                  = "org_cache.json"
 	workspaceCacheFile            = "workspace_cache.json"
 	kubeCertFileName              = "brev.crt"
@@ -54,6 +55,10 @@ func GetSSHPrivateKeyFileName() string {
 
 func GetNewBackupSSHConfigFileName() string {
 	return fmt.Sprintf("%s.%s", backupSSHConfigFileNamePrefix, uuid.New())
+}
+
+func GetCredentialFileName() string {
+	return credentialsFile
 }
 
 func makeBrevFilePath(filename string) (*string, error) {
@@ -107,6 +112,14 @@ func GetUserSSHConfigPath() (*string, error) {
 
 func GetNewBackupSSHConfigFilePath() (*string, error) {
 	fp, err := makeBrevFilePath(GetNewBackupSSHConfigFileName())
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return fp, nil
+}
+
+func  GetCredentialFilePath() (*string, error){
+	fp, err := makeBrevFilePath(GetCredentialFileName())
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

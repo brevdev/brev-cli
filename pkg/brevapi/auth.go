@@ -15,7 +15,9 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/pkg/browser"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -50,6 +52,21 @@ type Authenticator struct {
 	ClientID           string
 	DeviceCodeEndpoint string
 	OauthTokenEndpoint string
+}
+type CredentialStore interface {
+	GetOauthTokenFromFile() (*OauthToken, error)
+	WriteCredentialsToFile(credentials *Credentials) error
+	GetCredentialsFromFile() (*Credentials, error)
+}
+
+type DefaultCredentialConfigurer struct {
+	credentialStore CredentialStore
+}
+
+func NewDefaultCredentialConfigurer(credentialStore CredentialStore) *DefaultCredentialConfigurer{
+	return &DefaultCredentialConfigurer{
+		credentialStore: credentialStore,
+	}
 }
 
 // SecretStore provides access to stored sensitive data.
@@ -230,72 +247,6 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 		}
 	}
 	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
-}
-
-// GetToken reads the previously-persisted token from the filesystem,
-// returning nil for a token if it does not exist
-func GetToken() (*OauthToken, error) {
-	token, err := getTokenFromBrevConfigFile()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if token == nil { // we have not logged in yet
-		err = Login(true)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		// now that we have logged in, the file should contain the token
-		token, err = getTokenFromBrevConfigFile()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-	return token, nil
-}
-
-func getBrevCredentialsFile() (*string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
-	return &brevCredentialsFile, nil
-}
-
-func WriteTokenToBrevConfigFile(token *Credentials) error {
-	brevCredentialsFile, err := getBrevCredentialsFile()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = files.OverwriteJSON(*brevCredentialsFile, token)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
-}
-
-func getTokenFromBrevConfigFile() (*OauthToken, error) {
-	brevCredentialsFile, err := getBrevCredentialsFile()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	exists, err := files.Exists(*brevCredentialsFile, false)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if !exists {
-		return nil, &breverrors.CredentialsFileNotFound{}
-	}
-
-	var token OauthToken
-	err = files.ReadJSON(files.AppFs, *brevCredentialsFile, &token)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &token, nil
 }
 
 func Login(prompt bool) error {
