@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
 	"github.com/schollz/progressbar/v3"
 
@@ -31,6 +32,8 @@ type Terminal struct {
 	Blue   func(format string, a ...interface{}) string
 
 	Bar ProgressBar
+
+	Spinner *spinner.Spinner
 }
 
 func New() (t *Terminal) {
@@ -101,6 +104,14 @@ type silentWriter struct{}
 
 func (w silentWriter) Write(_ []byte) (n int, err error) {
 	return 0, nil
+}
+
+func (t *Terminal) NewSpinner() *spinner.Spinner {
+	spinner := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+	spinner.Color("cyan", "bold")
+	spinner.Reverse()
+
+	return spinner
 }
 
 func (t *Terminal) NewProgressBar(description string, onComplete func()) *ProgressBar {

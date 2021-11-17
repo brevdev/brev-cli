@@ -47,5 +47,19 @@ func refresh(t *terminal.Terminal) error {
 	bar.AdvanceTo(100)
 	t.Vprintf(t.Green("\nCache has been refreshed\n"))
 
+	// s := t.NewSpinner()
+	// s.Start()
+	// s.Suffix = "  :updating the cache" // Append text after the spinner
+	
+	// s.Suffix = "  :updated ✅" // Append text after the spinner
+	// time.Sleep(4 * time.Second)  // Run for some time to simulate work
+	// s.Stop()
+	// s.Start()
+	// s.Suffix = "  :updating the cache2" // Append text after the spinner
+	
+	// s.Suffix = "  :updated2 ✅" // Append text after the spinner
+	// time.Sleep(4 * time.Second)  // Run for some time to simulate work
+	// s.Stop()
+
 	return nil
 }
