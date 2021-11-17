@@ -121,8 +121,8 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		}
 	}
 
-	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
-		t.Yellow("\n\t$ brev on\n"))
+	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
+		t.Yellow("\n\t$ brev up\n"))
 
 	return nil
 }
@@ -160,12 +160,34 @@ func createWorkspace(t *terminal.Terminal, newworkspace brevapi.NewWorkspace, or
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
+	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	w, err := c.CreateWorkspace(orgID, newworkspace.Name, newworkspace.GitRepo)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprint(t.Green("Cloned workspace at %s", w.DNS))
 
+	s := t.NewSpinner()
+	isReady := false
+	for !isReady {
+		time.Sleep(5 * time.Second)
+		s.Start()
+		ws, err := c.GetWorkspace(w.ID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
+		if ws.Status == "RUNNING" {
+			s.Suffix = "Workspace is ready!"
+			s.Stop()
+			isReady = true
+		}
+	}
+
+
+	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.Name))
+	// t.Vprintf("\nor use in browser: \n\thttps://%s", w.DNS)
+	
 	return nil
 }
+

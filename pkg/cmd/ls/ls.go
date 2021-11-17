@@ -125,8 +125,8 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(joined) > 0 {
-		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
-			t.Yellow("\n\t$ brev on\n"))
+		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
+			t.Yellow("\n\t$ brev up\n"))
 	}
 
 	return nil
@@ -181,8 +181,8 @@ func handleOrgFlag(orgflag string, t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(joined) > 0 {
-		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev on:") +
-			t.Yellow("\n\t$ brev on\n"))
+		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
+			t.Yellow("\n\t$ brev up\n"))
 	}
 	return nil
 }
