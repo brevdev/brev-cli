@@ -88,7 +88,7 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 
 	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
-	w,err := pollUntil(t, workspace.ID, "RUNNING")
+	w, err := pollUntil(t, workspace.ID, "RUNNING")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -99,9 +99,6 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 		t.Yellow("\n\t$ brev up\n"))
 
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.Name))
-
-
-	
 
 	return nil
 }
@@ -153,11 +150,11 @@ func createWorkspace(t *terminal.Terminal, newworkspace brevapi.NewWorkspace, or
 	t.Vprint(t.Green("\nYour workspace is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.Name))
 	// t.Vprintf("\nor use in browser: \n\thttps://%s", w.DNS)
-	
+
 	return nil
 }
 
-func pollUntil (t *terminal.Terminal, wsid string, state string) (*brevapi.Workspace, error) {
+func pollUntil(t *terminal.Terminal, wsid string, state string) (*brevapi.Workspace, error) {
 	c, err := brevapi.NewClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
