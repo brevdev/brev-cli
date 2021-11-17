@@ -15,10 +15,20 @@ func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
 	return &NoAuthHTTPStore{*f, c}
 }
 
-type NoAuthHTTPClient resty.Client
+type NoAuthHTTPClient struct {
+	client *resty.Client
+}
 
-func NewNoAuthHTTPClient() *NoAuthHTTPClient {
-	return (*NoAuthHTTPClient)(resty.New())
+func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
+	restyClient := NewRestyClient(brevAPIURL)
+	return &NoAuthHTTPClient{restyClient}
+}
+
+func NewRestyClient(brevAPIURL string) *resty.Client {
+	restyClient := resty.New()
+	restyClient.SetBaseURL(brevAPIURL)
+	restyClient.SetQueryParam("utm_source", "cli")
+	return restyClient
 }
 
 type AuthHTTPStore struct {
@@ -27,7 +37,7 @@ type AuthHTTPStore struct {
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
-	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient()) // TODO pull from auth client
+	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL)) // TODO pull from auth client
 	return &AuthHTTPStore{*na, c}
 }
 
@@ -35,15 +45,17 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	return &AuthHTTPStore{*n, c}
 }
 
+func (n *NoAuthHTTPStore) WithAccessToken(accessToken string) *AuthHTTPStore {
+	return n.WithAuthHTTPClient(NewAuthHTTPClient(accessToken, n.noAuthHTTPClient.client.BaseURL))
+}
+
 type AuthHTTPClient struct {
 	restyClient *resty.Client
 }
 
 func NewAuthHTTPClient(accessToken string, brevAPIURL string) *AuthHTTPClient {
-	restyClient := resty.New()
+	restyClient := NewRestyClient(brevAPIURL)
 	restyClient.SetAuthToken(accessToken)
-	restyClient.SetQueryParam("utm_source", "cli")
-	restyClient.SetBaseURL(brevAPIURL)
 	return &AuthHTTPClient{restyClient}
 }
 
