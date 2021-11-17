@@ -16,6 +16,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/pkg/browser"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -235,7 +236,7 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 // GetToken reads the previously-persisted token from the filesystem,
 // returning nil for a token if it does not exist
 func GetToken() (*OauthToken, error) {
-	token, err := getTokenFromBrevConfigFile()
+	token, err := getTokenFromBrevConfigFile(files.AppFs)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -245,7 +246,7 @@ func GetToken() (*OauthToken, error) {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 		// now that we have logged in, the file should contain the token
-		token, err = getTokenFromBrevConfigFile()
+		token, err = getTokenFromBrevConfigFile(files.AppFs)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -275,7 +276,7 @@ func WriteTokenToBrevConfigFile(token *Credentials) error {
 	return nil
 }
 
-func getTokenFromBrevConfigFile() (*OauthToken, error) {
+func getTokenFromBrevConfigFile(fs afero.Fs) (*OauthToken, error) {
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -290,7 +291,7 @@ func getTokenFromBrevConfigFile() (*OauthToken, error) {
 	}
 
 	var token OauthToken
-	err = files.ReadJSON(files.AppFs, *brevCredentialsFile, &token)
+	err = files.ReadJSON(fs, *brevCredentialsFile, &token)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
