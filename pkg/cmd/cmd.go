@@ -4,6 +4,7 @@ package cmd
 import (
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
@@ -16,6 +17,9 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 
@@ -82,10 +86,27 @@ func NewBrevCommand() *cobra.Command {
 	return cmds
 }
 
+type TempAuth struct{}
+
+func (t TempAuth) GetAccessToken() (string, error) {
+	return brevapi.GetAccessToken()
+}
+
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
+	conf := config.NewConstants()
+	auth := TempAuth{}
+	fs := files.AppFs
+	cmdStore := store.
+		NewBasicStore().
+		WithFileSystem(fs).
+		WithNoAuthHTTPClient(
+			store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+		).
+		WithAuth(auth)
+
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
-	cmd.AddCommand(portforward.NewCmdPortForward(t))
+	cmd.AddCommand(portforward.NewCmdPortForward(t)) // long
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
@@ -97,7 +118,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	}
 
 	cmd.AddCommand(start.NewCmdStart(t))
-	cmd.AddCommand(stop.NewCmdStop(t))
+	cmd.AddCommand(stop.NewCmdStop(cmdStore, t)) // long
 	cmd.AddCommand(delete.NewCmdDelete(t))
 	cmd.AddCommand(reset.NewCmdReset(t))
 	cmd.AddCommand(up.NewCmdUp(t))

@@ -63,6 +63,7 @@ func promptGetInput(pc promptContent) string {
 
 func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
+	w := brevapi.GetWorkspaceNames()
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forward",
@@ -71,7 +72,7 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             brevapi.GetWorkspaceNames(),
+		ValidArgs:             w,
 		Run: func(cmd *cobra.Command, args []string) {
 			startInput(t)
 
@@ -130,7 +131,7 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 
 			opts.WithPort(Port)
 
-			err = endText(t, sshPrivateKeyFilePath, opts)
+			err = portforwardWithMessage(t, sshPrivateKeyFilePath, opts)
 			if err != nil {
 				t.Errprint(err, "")
 				return
@@ -167,7 +168,7 @@ func startInput(t *terminal.Terminal) {
 	t.Printf("\nStarting ssh link...\n")
 }
 
-func endText(t *terminal.Terminal, sshPrivateKeyFilePath string, opts *portforward.PortForwardOptions) error {
+func portforwardWithMessage(t *terminal.Terminal, sshPrivateKeyFilePath string, opts *portforward.PortForwardOptions) error {
 	t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
 	t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
 	t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))

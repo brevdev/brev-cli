@@ -1,33 +1,48 @@
 package completions
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/brevapi"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/spf13/cobra"
 )
 
-type CompletionHelpers struct{}
+type CompletionStore interface {
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
+	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
+	GetCurrentUser() (*brevapi.User, error)
+}
 
-func (c CompletionHelpers) GetWorkspaceNames() ([]string, error) {
-	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+type CompletionHandler func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)
 
-	wsCache, err := brevapi.GetWsCacheData()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	for _, v := range wsCache {
-		if v.OrgID == activeOrg.ID {
-			var workspaceNames []string
-			for _, w := range v.Workspaces {
-				workspaceNames = append(workspaceNames, w.Name)
-			}
-			return workspaceNames, nil
+func GetAllWorkspaceNameCompletionHandler(completionStore CompletionStore, t *terminal.Terminal) CompletionHandler {
+	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		user, err := completionStore.GetCurrentUser()
+		if err != nil {
+			t.Errprint(err, "")
+			return nil, cobra.ShellCompDirectiveError
 		}
+
+		org, err := completionStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			t.Errprint(err, "")
+			return nil, cobra.ShellCompDirectiveError
+		}
+		if org == nil {
+			return []string{}, cobra.ShellCompDirectiveDefault
+		}
+
+		workspaces, err := completionStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+		if err != nil {
+			t.Errprint(err, "")
+			return nil, cobra.ShellCompDirectiveError
+		}
+
+		workspaceNames := []string{}
+		for _, w := range workspaces {
+			workspaceNames = append(workspaceNames, w.Name)
+		}
+
+		return workspaceNames, cobra.ShellCompDirectiveDefault
 	}
-	return nil, fmt.Errorf("cache error")
 }

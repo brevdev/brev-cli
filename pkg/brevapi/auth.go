@@ -27,6 +27,8 @@ const (
 	SecNamespace = "auth0-cli"
 )
 
+var Ta *time.Time
+
 var requiredScopes = []string{
 	"openid",
 	"offline_access", // <-- to get a refresh token.
@@ -252,6 +254,15 @@ func GetToken() (*OauthToken, error) {
 		}
 	}
 	return token, nil
+}
+
+func GetAccessToken() (string, error) {
+	oauthToken, err := GetToken()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return oauthToken.AccessToken, nil
 }
 
 func getBrevCredentialsFile() (*string, error) {

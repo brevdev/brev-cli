@@ -46,8 +46,6 @@ func NewCmdStart(t *terminal.Terminal) *cobra.Command {
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
 				}
-				return
-
 			} else {
 
 				// CREATE A WORKSPACE

@@ -6,9 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	brevssh "github.com/brevdev/brev-cli/pkg/brevssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -17,12 +15,12 @@ import (
 )
 
 type upOptions struct {
-	on *Up
+	on      *Up
+	upStore UpStore
 }
 
-func NewCmdUp(_ *terminal.Terminal) *cobra.Command {
-	// t *terminal.Terminal
-	opts := upOptions{}
+func NewCmdUp(upStore UpStore, _ *terminal.Terminal) *cobra.Command {
+	opts := upOptions{upStore: upStore}
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -42,37 +40,26 @@ func NewCmdUp(_ *terminal.Terminal) *cobra.Command {
 }
 
 func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
-	// func (s *onOptions) Complete(cmd *cobra.Command, args []string) error {
 	fmt.Println("Setting up client...")
-	oauthToken, err := brevapi.GetToken()
+	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(s.upStore) // to resolve
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	conf := config.NewConstants()
-	fs := files.AppFs
-	upStore := store.
-		NewBasicStore().
-		WithFileSystem(fs).
-		WithAuthHTTPClient(store.NewAuthHTTPClient(oauthToken.AccessToken, conf.GetBrevAPIURl()))
-
-	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
+	workspaces, err := GetActiveWorkspaces(s.upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspaces, err := GetActiveWorkspaces(upStore)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, upStore, workspaceGroupClientMapper.GetPrivateKey())
+	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
 
 	s.on = NewUp(workspaces, sshConfigurer, workspaceGroupClientMapper)
 	return nil
 }
 
 type UpStore interface {
+	brevssh.SSHStore
+	k8s.K8sStore
 	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*brevapi.WorkspaceMetaData, error)

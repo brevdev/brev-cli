@@ -69,12 +69,12 @@ type DefaultWorkspaceGroupClientMapper struct {
 	privateKey            string
 }
 
-type KeyResolver interface {
+type K8sStore interface {
 	GetCurrentUserKeys() (*brevapi.UserKeys, error)
 }
 
-func NewDefaultWorkspaceGroupClientMapper(keyResolver KeyResolver) (*DefaultWorkspaceGroupClientMapper, error) {
-	keys, err := keyResolver.GetCurrentUserKeys()
+func NewDefaultWorkspaceGroupClientMapper(k8sStore K8sStore) (*DefaultWorkspaceGroupClientMapper, error) {
+	keys, err := k8sStore.GetCurrentUserKeys()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

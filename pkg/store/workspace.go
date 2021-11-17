@@ -9,6 +9,7 @@ import (
 
 type GetWorkspacesOptions struct {
 	UserID string
+	Name   string
 }
 
 func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspacesOptions) ([]brevapi.Workspace, error) {
@@ -17,18 +18,49 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	if options == nil || options.UserID == "" {
+	if options == nil {
 		return workspaces, nil
 	}
 
-	var myWorkspaces []brevapi.Workspace
-	for _, w := range workspaces {
-		if w.CreatedByUserID == options.UserID {
-			myWorkspaces = append(myWorkspaces, w)
+	if options.UserID != "" {
+		myWorkspaces := []brevapi.Workspace{}
+		for _, w := range workspaces {
+			if w.CreatedByUserID == options.UserID {
+				myWorkspaces = append(myWorkspaces, w)
+			}
 		}
+		workspaces = myWorkspaces
 	}
 
-	return myWorkspaces, nil
+	if options.Name != "" {
+		myWorkspaces := []brevapi.Workspace{}
+		for _, w := range workspaces {
+			if w.Name == options.Name {
+				myWorkspaces = append(myWorkspaces, w)
+			}
+		}
+		workspaces = myWorkspaces
+	}
+
+	return workspaces, nil
+}
+
+func (s AuthHTTPStore) GetAllWorkspaces(options *GetWorkspacesOptions) ([]brevapi.Workspace, error) {
+	orgs, err := s.GetOrganizations()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	allWorkspaces := []brevapi.Workspace{}
+	for _, o := range orgs {
+		workspaces, err := s.GetWorkspaces(o.ID, options)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		allWorkspaces = append(allWorkspaces, workspaces...)
+	}
+
+	return allWorkspaces, nil
 }
 
 var (
@@ -55,7 +87,8 @@ func (s AuthHTTPStore) getWorkspaces(organizationID string) ([]brevapi.Workspace
 
 var (
 	workspaceIDParamName         = "workspaceID"
-	workspaceMetadataPathPattern = "api/workspaces/%s/metadata"
+	workspacePathPattern         = "api/workspaces/%s"
+	workspaceMetadataPathPattern = fmt.Sprintf("%s/metadata", workspacePathPattern)
 	workspaceMetadataPath        = fmt.Sprintf(workspaceMetadataPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
 )
 
@@ -66,6 +99,27 @@ func (s AuthHTTPStore) GetWorkspaceMetaData(workspaceID string) (*brevapi.Worksp
 		SetPathParam(workspaceIDParamName, workspaceID).
 		SetResult(&result).
 		Get(workspaceMetadataPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
+var (
+	workspaceStopPathPattern = fmt.Sprintf("%s/stop", workspacePathPattern)
+	workspaceStopPath        = fmt.Sprintf(workspaceStopPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+)
+
+func (s AuthHTTPStore) StopWorkspace(workspaceID string) (*brevapi.Workspace, error) {
+	var result brevapi.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		Put(workspaceStopPath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

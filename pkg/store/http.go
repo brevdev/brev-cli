@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	resty "github.com/go-resty/resty/v2"
 )
 
@@ -45,18 +46,30 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	return &AuthHTTPStore{*n, c}
 }
 
-func (n *NoAuthHTTPStore) WithAccessToken(accessToken string) *AuthHTTPStore {
-	return n.WithAuthHTTPClient(NewAuthHTTPClient(accessToken, n.noAuthHTTPClient.restyClient.BaseURL))
+func (n *NoAuthHTTPStore) WithAuth(auth Auth) *AuthHTTPStore {
+	return n.WithAuthHTTPClient(NewAuthHTTPClient(auth, n.noAuthHTTPClient.restyClient.BaseURL))
 }
 
 type AuthHTTPClient struct {
 	restyClient *resty.Client
+	auth        Auth
 }
 
-func NewAuthHTTPClient(accessToken string, brevAPIURL string) *AuthHTTPClient {
+type Auth interface {
+	GetAccessToken() (string, error)
+}
+
+func NewAuthHTTPClient(auth Auth, brevAPIURL string) *AuthHTTPClient {
 	restyClient := NewRestyClient(brevAPIURL)
-	restyClient.SetAuthToken(accessToken)
-	return &AuthHTTPClient{restyClient}
+	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
+		token, err := auth.GetAccessToken()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		r.SetAuthToken(token)
+		return nil
+	})
+	return &AuthHTTPClient{restyClient, auth}
 }
 
 type HTTPResponseError struct {
