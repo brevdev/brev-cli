@@ -19,7 +19,7 @@ func (s *BrevAPIAuthTestSuite) SetupTest() {
 	if err != nil {
 		panic(err)
 	}
-	err = afero.WriteFile(mmfs, *credentialFilePath, []byte(credentialFileContentes), 0644)
+	err = afero.WriteFile(mmfs, *credentialFilePath, []byte(credentialFileContentes), 0o644)
 	if err != nil {
 		panic(err)
 	}
