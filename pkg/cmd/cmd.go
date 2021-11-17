@@ -86,15 +86,9 @@ func NewBrevCommand() *cobra.Command {
 	return cmds
 }
 
-type TempAuth struct{}
-
-func (t TempAuth) GetAccessToken() (string, error) {
-	return brevapi.GetAccessToken()
-}
-
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	conf := config.NewConstants()
-	auth := TempAuth{}
+	auth := brevapi.TempAuth{}
 	fs := files.AppFs
 	cmdStore := store.
 		NewBasicStore().
@@ -106,7 +100,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
-	cmd.AddCommand(portforward.NewCmdPortForward(t)) // long
+	cmd.AddCommand(portforward.NewCmdPortForward(cmdStore, t)) // long
 	cmd.AddCommand(login.NewCmdLogin())
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
@@ -118,10 +112,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	}
 
 	cmd.AddCommand(start.NewCmdStart(t))
-	cmd.AddCommand(stop.NewCmdStop(cmdStore, t)) // long
+	cmd.AddCommand(stop.NewCmdStop(cmdStore, t))
 	cmd.AddCommand(delete.NewCmdDelete(t))
 	cmd.AddCommand(reset.NewCmdReset(t))
-	cmd.AddCommand(up.NewCmdUp(t))
+	cmd.AddCommand(up.NewCmdUp(cmdStore, t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {

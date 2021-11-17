@@ -8,10 +8,8 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/manifoldco/promptui"
 
 	"github.com/brevdev/brev-cli/pkg/k8s"
@@ -61,7 +59,11 @@ func promptGetInput(pc promptContent) string {
 	return result
 }
 
-func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
+type PortforwardStore interface {
+	k8s.K8sStore
+}
+
+func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
 	// link [resource id] -p 2222
 	w := brevapi.GetWorkspaceNames()
 	cmd := &cobra.Command{
@@ -76,20 +78,7 @@ func NewCmdPortForward(t *terminal.Terminal) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			startInput(t)
 
-			oauthToken, err := brevapi.GetToken()
-			if err != nil {
-				t.Errprint(err, "")
-				return
-			}
-
-			config := config.NewConstants()
-			fs := files.AppFs
-			upStore := store.
-				NewBasicStore().
-				WithFileSystem(fs).
-				WithAuthHTTPClient(store.NewAuthHTTPClient(oauthToken.AccessToken, config.GetBrevAPIURl()))
-
-			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(upStore) // to resolve
+			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(pfStore) // to resolve
 			if err != nil {
 				switch err.(type) {
 				case *url.Error:

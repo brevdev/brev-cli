@@ -256,6 +256,12 @@ func GetToken() (*OauthToken, error) {
 	return token, nil
 }
 
+type TempAuth struct{}
+
+func (t TempAuth) GetAccessToken() (string, error) {
+	return GetAccessToken()
+}
+
 func GetAccessToken() (string, error) {
 	oauthToken, err := GetToken()
 	if err != nil {
