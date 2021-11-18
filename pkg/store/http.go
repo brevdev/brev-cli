@@ -16,6 +16,11 @@ func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
 	return &NoAuthHTTPStore{*f, c}
 }
 
+// Used if need new instance to customize settings
+func (n NoAuthHTTPStore) NewNoAuthHTTPStore() *NoAuthHTTPStore {
+	return n.WithNoAuthHTTPClient(NewNoAuthHTTPClient(n.noAuthHTTPClient.restyClient.BaseURL))
+}
+
 type NoAuthHTTPClient struct {
 	restyClient *resty.Client
 }
@@ -48,6 +53,28 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 
 func (n *NoAuthHTTPStore) WithAuth(auth Auth) *AuthHTTPStore {
 	return n.WithAuthHTTPClient(NewAuthHTTPClient(auth, n.noAuthHTTPClient.restyClient.BaseURL))
+}
+
+// Used if need new instance to customize settings
+func (s AuthHTTPStore) NewAuthHTTPStore() *AuthHTTPStore {
+	return s.WithAuth(s.authHTTPClient.auth)
+}
+
+func (s AuthHTTPStore) SetOnAuthFailureHandler(handler func() error) {
+	s.authHTTPClient.restyClient.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
+		if r.StatusCode() == 403 {
+			err := handler()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
+		return nil
+	})
+	s.authHTTPClient.restyClient.AddRetryCondition(
+		func(r *resty.Response, e error) bool {
+			return r.StatusCode() == 403
+		})
+	s.authHTTPClient.restyClient.SetRetryCount(1)
 }
 
 type AuthHTTPClient struct {
