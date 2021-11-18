@@ -86,8 +86,28 @@ func (s AuthHTTPStore) getWorkspaces(organizationID string) ([]brevapi.Workspace
 }
 
 var (
-	workspaceIDParamName         = "workspaceID"
-	workspacePathPattern         = "api/workspaces/%s"
+	workspaceIDParamName = "workspaceID"
+	workspacePathPattern = "api/workspaces/%s"
+	workspacePath        = fmt.Sprintf(workspacePathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+)
+
+func (s AuthHTTPStore) GetWorkspace(workspaceID string) (*brevapi.Workspace, error) {
+	var result brevapi.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		Get(workspacePath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
+var (
 	workspaceMetadataPathPattern = fmt.Sprintf("%s/metadata", workspacePathPattern)
 	workspaceMetadataPath        = fmt.Sprintf(workspaceMetadataPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
 )

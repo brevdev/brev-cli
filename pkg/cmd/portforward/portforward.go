@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/manifoldco/promptui"
 
 	"github.com/brevdev/brev-cli/pkg/k8s"
@@ -61,11 +61,14 @@ func promptGetInput(pc promptContent) string {
 
 type PortforwardStore interface {
 	k8s.K8sStore
+	completions.CompletionStore
+	GetWorkspaceMetaData(workspaceID string) (*brevapi.WorkspaceMetaData, error)
+	GetWorkspace(workspaceID string) (*brevapi.Workspace, error)
+	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
+	GetCurrentUser() (*brevapi.User, error)
 }
 
 func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
-	// link [resource id] -p 2222
-	w := brevapi.GetWorkspaceNames()
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forward",
@@ -74,11 +77,11 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             w,
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			startInput(t)
 
-			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(pfStore) // to resolve
+			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(pfStore)
 			if err != nil {
 				switch err.(type) {
 				case *url.Error:
@@ -96,17 +99,8 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				k8sClientMapper,
 				pf,
 			)
-			err = files.WriteSSHPrivateKey(files.AppFs, k8sClientMapper.GetPrivateKey())
-			if err != nil {
-				t.Errprint(err, "")
-				return
-			}
-			sshPrivateKeyFilePath := files.GetSSHPrivateKeyFilePath()
-			if Port == "" {
-				Port = "2222:22"
-			}
 
-			workspace, err := GetWorkspaceByIDOrName(args[0], WorkspaceResolver{})
+			workspace, err := GetWorkspaceByIDOrName(args[0], pfStore)
 			if err != nil {
 				t.Errprint(err, "")
 				return
@@ -120,7 +114,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 
 			opts.WithPort(Port)
 
-			err = portforwardWithMessage(t, sshPrivateKeyFilePath, opts)
+			err = opts.RunPortforward()
 			if err != nil {
 				t.Errprint(err, "")
 				return
@@ -157,107 +151,35 @@ func startInput(t *terminal.Terminal) {
 	t.Printf("\nStarting ssh link...\n")
 }
 
-func portforwardWithMessage(t *terminal.Terminal, sshPrivateKeyFilePath string, opts *portforward.PortForwardOptions) error {
-	t.Printf("SSH Private Key: %s\n", sshPrivateKeyFilePath)
-	t.Printf(t.Green("\n\t1. Add SSH Key:\n"))
-	t.Printf(t.Yellow("\t\tssh-add %s\n", sshPrivateKeyFilePath))
-	t.Printf(t.Green("\t2. Connect to workspace:\n"))
-	localPort := strings.Split(Port, ":")[0]
-	t.Printf(t.Yellow("\t\tssh -p %s brev@0.0.0.0\n\n", localPort))
-	err := opts.RunPortforward()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
 type WorkspaceResolver struct{}
 
-func GetWorkspaceByIDOrName(workspaceIDOrName string, workspaceResolver WorkspaceResolver) (*brevapi.WorkspaceWithMeta, error) {
-	workspace, err := workspaceResolver.GetWorkspaceByID(workspaceIDOrName)
-	if err != nil {
-		wsByName, err2 := workspaceResolver.GetWorkspaceByName(workspaceIDOrName)
-		if err2 != nil {
-			return nil, err2
-		} else {
-			workspace = wsByName
-		}
-	}
-	if workspace == nil {
-		return nil, fmt.Errorf("workspace does not exist [identifier=%s]", workspaceIDOrName)
-	}
-	return workspace, nil
-}
-
-func (d WorkspaceResolver) GetWorkspaceByID(id string) (*brevapi.WorkspaceWithMeta, error) {
-	c, err := brevapi.NewCommandClient()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	w, err := c.GetWorkspace(id)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	wmeta, err := c.GetWorkspaceMetaData(id)
+func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) (*brevapi.WorkspaceWithMeta, error) {
+	currentUser, err := pfStore.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: *w}, nil
-}
-
-// This function will be long and messy, it's entirely built to check random error cases
-// func GetWorkspaceByName(name string) (*brevapi.AllWorkspaceData, error) {
-func (d WorkspaceResolver) GetWorkspaceByName(name string) (*brevapi.WorkspaceWithMeta, error) {
-	c, err := brevapi.NewCommandClient()
+	workspaces, err := pfStore.GetAllWorkspaces(&store.GetWorkspacesOptions{Name: workspaceIDOrName, UserID: currentUser.ID})
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	// Check ActiveOrg's workspaces before checking every orgs workspaces as fallback
-	activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
-	if err != nil {
-		// TODO: we should just check all possible workspaces here
-		return nil, errors.New("please set your active org or link to a workspace by its ID")
+	var workspace *brevapi.Workspace
+	if len(workspaces) > 1 { //nolint:gocritic // ok to use if else here
+		return nil, fmt.Errorf("multiple workspaces with found with name %s", workspaceIDOrName)
+	} else if len(workspaces) == 1 {
+		workspace = &workspaces[0]
 	} else {
-		workspaces, err2 := c.GetMyWorkspaces(activeorg.ID)
-		if err2 != nil {
-			return nil, breverrors.WrapAndTrace(err2)
-		}
-		for _, w := range workspaces {
-			if w.Name == name {
-				wmeta, err3 := c.GetWorkspaceMetaData(w.ID)
-				if err3 != nil {
-					return nil, breverrors.WrapAndTrace(err3)
-				}
-				return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
-			}
-		}
-		// if there wasn't a workspace in the org, check all the orgs
-	}
-
-	orgs, err := c.GetOrgs()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	for _, o := range orgs {
-		workspaces, err := c.GetWorkspaces(o.ID)
+		workspace, err = pfStore.GetWorkspace(workspaceIDOrName)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-
-		for _, w := range workspaces {
-			if w.Name == name {
-				// Assemble full object
-				wmeta, err := c.GetWorkspaceMetaData(w.ID)
-				if err != nil {
-					return nil, breverrors.WrapAndTrace(err)
-				}
-				return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}, nil
-			}
-		}
 	}
 
-	return nil, fmt.Errorf("workspace does not exist [name=%s]", name)
+	workspaceMetaData, err := pfStore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }

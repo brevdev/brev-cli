@@ -7,7 +7,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -17,29 +16,6 @@ var (
 	stopLong    = "Stop a Brev machine that's in a running state"
 	stopExample = "brev stop <ws_name>"
 )
-
-func getWorkspaceNames() []string {
-	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs)
-	if err != nil {
-		return nil
-	}
-
-	client, err := brevapi.NewCommandClient()
-	if err != nil {
-		return nil
-	}
-	wss, err := client.GetMyWorkspaces(activeOrg.ID)
-	if err != nil {
-		return nil
-	}
-
-	var wsNames []string
-	for _, w := range wss {
-		wsNames = append(wsNames, w.Name)
-	}
-
-	return wsNames
-}
 
 type StopStore interface {
 	completions.CompletionStore
@@ -56,7 +32,6 @@ func NewCmdStop(stopStore StopStore, t *terminal.Terminal) *cobra.Command {
 		Long:                  stopLong,
 		Example:               stopExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             getWorkspaceNames(),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(stopStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := stopWorkspace(args[0], t, stopStore)

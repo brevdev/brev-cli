@@ -60,9 +60,10 @@ func (s AuthHTTPStore) NewAuthHTTPStore() *AuthHTTPStore {
 	return s.WithAuth(s.authHTTPClient.auth)
 }
 
-func (s AuthHTTPStore) SetOnAuthFailureHandler(handler func() error) {
+func (s *AuthHTTPStore) SetOnAuthFailureHandler(handler func() error) {
+	attemptsThresh := 1
 	s.authHTTPClient.restyClient.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
-		if r.StatusCode() == 403 {
+		if r.StatusCode() == 403 && r.Request.Attempt < attemptsThresh+1 {
 			err := handler()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -74,7 +75,7 @@ func (s AuthHTTPStore) SetOnAuthFailureHandler(handler func() error) {
 		func(r *resty.Response, e error) bool {
 			return r.StatusCode() == 403
 		})
-	s.authHTTPClient.restyClient.SetRetryCount(1)
+	s.authHTTPClient.restyClient.SetRetryCount(attemptsThresh)
 }
 
 type AuthHTTPClient struct {
