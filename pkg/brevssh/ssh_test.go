@@ -188,6 +188,26 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 	}
 }
 
+func (suite *BrevSSHTestSuite) TestGetConfiguredWorkspacePort() {
+	s, err := makeMockSSHStore()
+	if !suite.Nil(err) {
+		return
+	}
+	sshConfigurer := NewDefaultSSHConfigurer(someWorkspaces, s, "lkjdflkj sld")
+	err = sshConfigurer.Config()
+	if !suite.Nil(err) {
+		return
+	}
+
+	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	if !suite.Nil(err) {
+		return
+	}
+	if !suite.NotEmpty(port) {
+		return
+	}
+}
+
 func makeMockSSHStore() (SSHStore, error) {
 	mfs := afero.NewMemMapFs()
 	fs := store.NewBasicStore().WithFileSystem(mfs)

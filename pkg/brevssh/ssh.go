@@ -128,7 +128,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error) {
-	port, err := s.sshConfig.Get(workspace.DNS, "Port")
+	port, err := s.sshConfig.Get(workspace.Name, "Port")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}

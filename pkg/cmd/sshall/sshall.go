@@ -65,6 +65,9 @@ func (s SSHAll) portforwardWorkspace(workspace brevapi.WorkspaceWithMeta) error 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if port == "" {
+		return fmt.Errorf("port not found")
+	}
 	portMapping := makeSSHPortMapping(port)
 	err = s.portforwardWorkspaceAtPort(workspace, portMapping)
 	if err != nil {
