@@ -41,7 +41,7 @@ func NewSSHAll(
 func (s SSHAll) Run() error {
 	fmt.Println()
 	for _, w := range s.workspaces {
-		fmt.Printf("ssh %s\n", w.DNS)
+		fmt.Printf("ssh %s\n", w.Name)
 		go func(workspace brevapi.WorkspaceWithMeta) {
 			err := s.portforwardWorkspace(workspace)
 			if err != nil {
