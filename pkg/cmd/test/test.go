@@ -4,6 +4,7 @@ import (
 	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/gen2brain/beeep"
 
 	"github.com/spf13/cobra"
 )
@@ -36,8 +37,24 @@ func NewCmdTest(t *terminal.Terminal) *cobra.Command {
 				if err != nil {
 					t.Vprintf("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n")
 				}
+
 			}
 
+			err = beeep.Notify("Title", "Message body", "assets/information.png")
+			t.Vprintf("we just setn the beeeep")
+			if err != nil {
+				panic(err)
+			}
+
+			err = beeep.Beep(beeep.DefaultFreq, beeep.DefaultDuration)
+			if err != nil {
+				panic(err)
+			}
+
+			err = beeep.Alert("Title", "Message body", "assets/warning.png")
+if err != nil {
+    panic(err)
+}
 
 
 		},
