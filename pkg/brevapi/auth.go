@@ -237,7 +237,7 @@ func GetToken() (*OauthToken, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if token == nil { // we have not logged in yet
-		err = Login(true)
+		_, err = Login(true)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -310,13 +310,16 @@ func GetTokenFromBrevConfigFile(fs afero.Fs) (*OauthToken, error) {
 	return &token, nil
 }
 
-func Login(prompt bool) error {
+// BANANA: this feels like a bad dependency loop
+// 		... should the user creation happen outside of this function?
+// func Login(prompt bool, loginStore login.LoginStore) error {
+func Login(prompt bool) (*string, error) {
 	if prompt {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
 		text, _ := reader.ReadString('\n')
 		if strings.Compare(text, "y") != 1 {
-			return &breverrors.DeclineToLoginError{}
+			return nil, &breverrors.DeclineToLoginError{}
 		}
 	}
 	ctx := context.Background()
@@ -330,7 +333,7 @@ func Login(prompt bool) error {
 	}
 	state, err := authenticator.Start(ctx)
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "could not start the authentication process")
+		return nil, breverrors.WrapAndTrace(err, "could not start the authentication process")
 	}
 
 	// todo color library
@@ -354,7 +357,7 @@ func Login(prompt bool) error {
 	
 
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "login error")
+		return nil, breverrors.WrapAndTrace(err, "login error")
 	}
 
 	fmt.Print("\n")
@@ -368,36 +371,16 @@ func Login(prompt bool) error {
 	// store the refresh token
 	err = WriteTokenToBrevConfigFile(creds)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// TODO: hit GetMe and if fails create user
-	client, err := NewCommandClient()
-	if err != nil {
-		fmt.Println("error on client")
-		return err
-	}
-	_, err = client.GetMe()
-	if err != nil {
-		fmt.Println("error on getting ME")
-		// TODO: if the error is not a network call create the account
-		_, err := client.CreateUser(creds.IDToken)
-
-		if err != nil {
-			fmt.Println("error on creating user")
-			return err
-		}
-		fmt.Println("created user")
-
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// hydrate the cache
 	_, _, err = WriteCaches()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	return nil
+	return &creds.IDToken, nil
 }
 
 func Logout() error {
