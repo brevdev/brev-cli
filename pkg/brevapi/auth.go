@@ -31,6 +31,8 @@ var Ta *time.Time
 
 var requiredScopes = []string{
 	"openid",
+	"profile",
+	"email",
 	"offline_access", // <-- to get a refresh token.
 	"create:clients", "delete:clients", "read:clients", "update:clients",
 	"create:resource_servers", "delete:resource_servers", "read:resource_servers", "update:resource_servers",
