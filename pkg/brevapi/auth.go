@@ -57,14 +57,6 @@ type Authenticator struct {
 	OauthTokenEndpoint string
 }
 
-// SecretStore provides access to stored sensitive data.
-type SecretStore interface {
-	// Get gets the secret
-	Get(namespace, key string) (string, error)
-	// Delete removes the secret
-	Delete(namespace, key string) error
-}
-
 type Result struct {
 	Tenant       string
 	Domain       string

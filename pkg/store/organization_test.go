@@ -49,3 +49,32 @@ func TestGetOrganizations(t *testing.T) {
 		return
 	}
 }
+
+func TestCreateOrganization(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	expected := &brevapi.Organization{
+		ID:   "1",
+		Name: "test",
+	}
+	res, err := httpmock.NewJsonResponder(201, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("POST", url, res)
+
+	org, err := fs.CreateOrganization(CreateOrganizationRequest{Name: expected.Name})
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, org) {
+		return
+	}
+
+	if !assert.Equal(t, expected, org) {
+		return
+	}
+}

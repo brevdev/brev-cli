@@ -62,6 +62,27 @@ func (s AuthHTTPStore) GetOrganizations() ([]brevapi.Organization, error) {
 	return result, nil
 }
 
+type CreateOrganizationRequest struct {
+	Name string `json:"name"`
+}
+
+func (s AuthHTTPStore) CreateOrganization(req CreateOrganizationRequest) (*brevapi.Organization, error) {
+	var result brevapi.Organization
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		SetBody(req).
+		Post(orgPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return &result, nil
+}
+
 func GetDefaultOrNilOrg(orgs []brevapi.Organization) *brevapi.Organization {
 	if len(orgs) > 0 {
 		return &orgs[0]

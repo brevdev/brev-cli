@@ -79,7 +79,7 @@ func TestCreateUser(t *testing.T) {
 	expected := &brevapi.User{
 		ID: "1",
 	}
-	res, err := httpmock.NewJsonResponder(200, expected)
+	res, err := httpmock.NewJsonResponder(201, expected)
 	if !assert.Nil(t, err) {
 		return
 	}
