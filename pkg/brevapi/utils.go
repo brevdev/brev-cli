@@ -262,3 +262,15 @@ func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
 		}
 	}
 }
+
+func GetMe() (*User, error) {
+	client, err := NewCommandClient()
+	if err != nil {
+		return nil, err
+	}
+	user, err := client.GetMe()
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}

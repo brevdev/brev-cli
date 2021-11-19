@@ -10,7 +10,12 @@ import (
 
 type LoginOptions struct{}
 
-func NewCmdLogin() *cobra.Command {
+type LoginStore interface {
+	CreateUser(idToken string) (*brevapi.User, error)
+}
+
+// func NewCmdLogin() *cobra.Command {
+func NewCmdLogin(loginStore LoginStore) *cobra.Command {
 	opts := LoginOptions{}
 
 	cmd := &cobra.Command{

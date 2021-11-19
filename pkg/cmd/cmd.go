@@ -101,7 +101,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
 	cmd.AddCommand(portforward.NewCmdPortForward(cmdStore, t)) // long
-	cmd.AddCommand(login.NewCmdLogin())
+	cmd.AddCommand(login.NewCmdLogin(cmdStore))
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
 
