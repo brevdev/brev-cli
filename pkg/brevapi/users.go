@@ -107,4 +107,3 @@ func (a *Client) CreateUser(identity string) (*User, error) {
 
 	return &payload, nil
 }
-

@@ -29,7 +29,7 @@ func HandleNewClientErrors(err error) error {
 		case 404: // happens when user signs in to the cli using github but does not have an account on brev
 			return fmt.Errorf("create an account on https://console.brev.dev")
 		case 403: // possibly malformed credentials.json, try logging in
-			_, err = Login(true)	
+			_, err = Login(true)
 			return err
 		}
 	}

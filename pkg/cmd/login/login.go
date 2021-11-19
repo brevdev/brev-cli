@@ -61,11 +61,11 @@ func (o *LoginOptions) RunLogin(_ *cobra.Command, _ []string, loginStore LoginSt
 	return nil
 }
 
-/* 
+/*
 After logging in:
 	> ensure the user is created /Me or create the user
 	> ensure there's an org, or create the first one "username-hq"
-	> 
+	>
 */
 func postLogin(token string, loginStore LoginStore) error {
 	// TODO: hit GetMe and if fails create user

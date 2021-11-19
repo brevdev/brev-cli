@@ -1,0 +1,258 @@
+diff --git a/.env b/.env
+index afe2ff8..3b08d98 100644
+--- a/.env
++++ b/.env
+@@ -2,6 +2,6 @@ VERSION=unknown
+ # BREV_API_URL=http://localhost:8080
+ 
+ # BREV_API_URL=http://192.168.86.64:3333
+-# BREV_API_URL=https://8080-brevdevbrevdeploy-5lpa-brevdev.brev.sh/
++# BREV_API_URL=https://8080-brevdevbrevdeploy-kdbg-brevdev.brev.sh
+ BREV_API_URL=https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com
+ # BREV_API_URL=http://localhost:8080
+\ No newline at end of file
+diff --git a/pkg/brevapi/auth.go b/pkg/brevapi/auth.go
+index 5049d3b..ebcbf96 100644
+--- a/pkg/brevapi/auth.go
++++ b/pkg/brevapi/auth.go
+@@ -245,7 +245,7 @@ func GetToken() (*OauthToken, error) {
+ 		return nil, breverrors.WrapAndTrace(err)
+ 	}
+ 	if token == nil { // we have not logged in yet
+-		err = Login(true)
++		_, err = Login(true)
+ 		if err != nil {
+ 			return nil, breverrors.WrapAndTrace(err)
+ 		}
+@@ -318,13 +318,16 @@ func GetTokenFromBrevConfigFile(fs afero.Fs) (*OauthToken, error) {
+ 	return &token, nil
+ }
+ 
+-func Login(prompt bool) error {
++// BANANA: this feels like a bad dependency loop
++// 		... should the user creation happen outside of this function?
++// func Login(prompt bool, loginStore login.LoginStore) error {
++func Login(prompt bool) (*string, error) {
+ 	if prompt {
+ 		reader := bufio.NewReader(os.Stdin)
+ 		fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+ 		text, _ := reader.ReadString('\n')
+ 		if strings.Compare(text, "y") != 1 {
+-			return &breverrors.DeclineToLoginError{}
++			return nil, &breverrors.DeclineToLoginError{}
+ 		}
+ 	}
+ 	ctx := context.Background()
+@@ -338,7 +341,7 @@ func Login(prompt bool) error {
+ 	}
+ 	state, err := authenticator.Start(ctx)
+ 	if err != nil {
+-		return breverrors.WrapAndTrace(err, "could not start the authentication process")
++		return nil, breverrors.WrapAndTrace(err, "could not start the authentication process")
+ 	}
+ 
+ 	// todo color library
+@@ -359,8 +362,10 @@ func Login(prompt bool) error {
+ 
+ 	res, err = authenticator.Wait(ctx, state)
+ 
++	
++
+ 	if err != nil {
+-		return breverrors.WrapAndTrace(err, "login error")
++		return nil, breverrors.WrapAndTrace(err, "login error")
+ 	}
+ 
+ 	fmt.Print("\n")
+@@ -374,16 +379,16 @@ func Login(prompt bool) error {
+ 	// store the refresh token
+ 	err = WriteTokenToBrevConfigFile(creds)
+ 	if err != nil {
+-		return breverrors.WrapAndTrace(err)
++		return nil, breverrors.WrapAndTrace(err)
+ 	}
+ 
+ 	// hydrate the cache
+ 	_, _, err = WriteCaches()
+ 	if err != nil {
+-		return breverrors.WrapAndTrace(err)
++		return nil, breverrors.WrapAndTrace(err)
+ 	}
+ 
+-	return nil
++	return &creds.IDToken, nil
+ }
+ 
+ func Logout() error {
+diff --git a/pkg/brevapi/users.go b/pkg/brevapi/users.go
+index 0dd2bae..6d8de0b 100644
+--- a/pkg/brevapi/users.go
++++ b/pkg/brevapi/users.go
+@@ -81,3 +81,30 @@ func (a *Client) GetMeKeys() (*UserKeys, error) {
+ 
+ 	return &payload, nil
+ }
++
++func (a *Client) CreateUser(identity string) (*User, error) {
++	request := requests.RESTRequest{
++		Method:   "POST",
++		Endpoint: buildBrevEndpoint("/api/users"),
++		QueryParams: []requests.QueryParam{
++			{Key: "utm_source", Value: "cli"},
++		},
++		Headers: []requests.Header{
++			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
++			{Key: "Identity", Value: identity},
++		},
++	}
++	response, err := request.SubmitStrict()
++	if err != nil {
++		return nil, breverrors.WrapAndTrace(err)
++	}
++
++	var payload User
++	err = response.UnmarshalPayload(&payload)
++	if err != nil {
++		return nil, breverrors.WrapAndTrace(err)
++	}
++
++	return &payload, nil
++}
++
+diff --git a/pkg/brevapi/utils.go b/pkg/brevapi/utils.go
+index 8bc3be6..830b4ae 100644
+--- a/pkg/brevapi/utils.go
++++ b/pkg/brevapi/utils.go
+@@ -22,13 +22,15 @@ func HandleNewClientErrors(err error) error {
+ 	switch e := err.(type) {
+ 	case *breverrors.CredentialsFileNotFound:
+ 		// TODO prompt
+-		return Login(true)
++		_, err = Login(true)
++		return err
+ 	case *requests.RESTResponseError:
+ 		switch e.ResponseStatusCode {
+ 		case 404: // happens when user signs in to the cli using github but does not have an account on brev
+ 			return fmt.Errorf("create an account on https://console.brev.dev")
+ 		case 403: // possibly malformed credentials.json, try logging in
+-			return Login(true)
++			_, err = Login(true)	
++			return err
+ 		}
+ 	}
+ 	return breverrors.WrapAndTrace(err)
+@@ -262,3 +264,15 @@ func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
+ 		}
+ 	}
+ }
++
++func GetMe() (*User, error) {
++	client, err := NewCommandClient()
++	if err != nil {
++		return nil, err
++	}
++	user, err := client.GetMe()
++	if err != nil {
++		return nil, err
++	}
++	return user, nil
++}
+\ No newline at end of file
+diff --git a/pkg/cmd/cmd.go b/pkg/cmd/cmd.go
+index c4714c3..9f509c0 100644
+--- a/pkg/cmd/cmd.go
++++ b/pkg/cmd/cmd.go
+@@ -101,7 +101,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
+ 	cmd.AddCommand(set.NewCmdSet(t))
+ 	cmd.AddCommand(ls.NewCmdLs(t))
+ 	cmd.AddCommand(portforward.NewCmdPortForward(cmdStore, t)) // long
+-	cmd.AddCommand(login.NewCmdLogin())
++	cmd.AddCommand(login.NewCmdLogin(cmdStore))
+ 	cmd.AddCommand(logout.NewCmdLogout())
+ 	cmd.AddCommand(refresh.NewCmdRefresh(t))
+ 
+diff --git a/pkg/cmd/login/login.go b/pkg/cmd/login/login.go
+index 983a506..0512957 100644
+--- a/pkg/cmd/login/login.go
++++ b/pkg/cmd/login/login.go
+@@ -2,6 +2,8 @@
+ package login
+ 
+ import (
++	"fmt"
++
+ 	"github.com/brevdev/brev-cli/pkg/brevapi"
+ 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+ 	"github.com/spf13/cobra"
+@@ -10,7 +12,12 @@ import (
+ 
+ type LoginOptions struct{}
+ 
+-func NewCmdLogin() *cobra.Command {
++type LoginStore interface {
++	CreateUser(idToken string) (*brevapi.User, error)
++}
++
++// func NewCmdLogin() *cobra.Command {
++func NewCmdLogin(loginStore LoginStore) *cobra.Command {
+ 	opts := LoginOptions{}
+ 
+ 	cmd := &cobra.Command{
+@@ -25,7 +32,7 @@ func NewCmdLogin() *cobra.Command {
+ 		Run: func(cmd *cobra.Command, args []string) {
+ 			cmdutil.CheckErr(opts.Complete(cmd, args))
+ 			cmdutil.CheckErr(opts.Validate(cmd, args))
+-			cmdutil.CheckErr(opts.RunLogin(cmd, args))
++			cmdutil.CheckErr(opts.RunLogin(cmd, args, loginStore))
+ 		},
+ 	}
+ 	return cmd
+@@ -41,11 +48,45 @@ func (o *LoginOptions) Validate(_ *cobra.Command, _ []string) error {
+ 	return nil
+ }
+ 
+-func (o *LoginOptions) RunLogin(_ *cobra.Command, _ []string) error {
++func (o *LoginOptions) RunLogin(_ *cobra.Command, _ []string, loginStore LoginStore) error {
+ 	// func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
+-	err := brevapi.Login(false)
++	token, err := brevapi.Login(false)
++	if err != nil {
++		return breverrors.WrapAndTrace(err)
++	}
++	err = postLogin(*token, loginStore)
+ 	if err != nil {
+ 		return breverrors.WrapAndTrace(err)
+ 	}
+ 	return nil
+ }
++
++/* 
++After logging in:
++	> ensure the user is created /Me or create the user
++	> ensure there's an org, or create the first one "username-hq"
++	> 
++*/
++func postLogin(token string, loginStore LoginStore) error {
++	// TODO: hit GetMe and if fails create user
++	client, err := brevapi.NewCommandClient()
++	if err != nil {
++		fmt.Println("error on client")
++		return err
++	}
++	_, err = client.GetMe()
++	if err != nil {
++		fmt.Println("error on getting ME")
++		// TODO: if the error is not a network call create the account
++		// _, err := client.CreateUser(creds.IDToken)
++		_, err = loginStore.CreateUser(token)
++
++		if err != nil {
++			fmt.Println("error on creating user")
++			return err
++		}
++		fmt.Println("created user")
++
++	}
++	return nil
++}
+\ No newline at end of file

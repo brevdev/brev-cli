@@ -354,8 +354,6 @@ func Login(prompt bool) (*string, error) {
 
 	res, err = authenticator.Wait(ctx, state)
 
-	
-
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, "login error")
 	}
