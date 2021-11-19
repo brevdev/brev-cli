@@ -2,8 +2,6 @@
 package login
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
@@ -71,21 +69,17 @@ func postLogin(token string, loginStore LoginStore) error {
 	// TODO: hit GetMe and if fails create user
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
-		fmt.Println("error on client")
 		return err
 	}
 	_, err = client.GetMe()
 	if err != nil {
-		fmt.Println("error on getting ME")
 		// TODO: if the error is not a network call create the account
 		// _, err := client.CreateUser(creds.IDToken)
 		_, err = loginStore.CreateUser(token)
 
 		if err != nil {
-			fmt.Println("error on creating user")
 			return err
 		}
-		fmt.Println("created user")
 
 	}
 	return nil
