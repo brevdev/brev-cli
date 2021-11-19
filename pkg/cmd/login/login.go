@@ -81,6 +81,9 @@ func postLogin(token string, loginStore LoginStore) error {
 			return err
 		}
 
+		// TODO: create org if none
+		// TODO: active org 
+
 	}
 	return nil
 }
