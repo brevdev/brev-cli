@@ -81,3 +81,30 @@ func (a *Client) GetMeKeys() (*UserKeys, error) {
 
 	return &payload, nil
 }
+
+func (a *Client) CreateUser(identity string) (*User, error) {
+	request := requests.RESTRequest{
+		Method:   "POST",
+		Endpoint: buildBrevEndpoint("/api/users"),
+		QueryParams: []requests.QueryParam{
+			{Key: "utm_source", Value: "cli"},
+		},
+		Headers: []requests.Header{
+			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
+			{Key: "Identity", Value: identity},
+		},
+	}
+	response, err := request.SubmitStrict()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	var payload User
+	err = response.UnmarshalPayload(&payload)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &payload, nil
+}
+

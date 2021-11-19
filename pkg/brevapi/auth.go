@@ -351,6 +351,8 @@ func Login(prompt bool) error {
 
 	res, err = authenticator.Wait(ctx, state)
 
+	
+
 	if err != nil {
 		return breverrors.WrapAndTrace(err, "login error")
 	}
@@ -367,6 +369,26 @@ func Login(prompt bool) error {
 	err = WriteTokenToBrevConfigFile(creds)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	// TODO: hit GetMe and if fails create user
+	client, err := NewCommandClient()
+	if err != nil {
+		fmt.Println("error on client")
+		return err
+	}
+	_, err = client.GetMe()
+	if err != nil {
+		fmt.Println("error on getting ME")
+		// TODO: if the error is not a network call create the account
+		_, err := client.CreateUser(creds.IDToken)
+
+		if err != nil {
+			fmt.Println("error on creating user")
+			return err
+		}
+		fmt.Println("created user")
+
 	}
 
 	// hydrate the cache
