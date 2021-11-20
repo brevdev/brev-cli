@@ -2,8 +2,12 @@
 package login
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -12,6 +16,8 @@ type LoginOptions struct{}
 
 type LoginStore interface {
 	CreateUser(idToken string) (*brevapi.User, error)
+	GetOrganizations() ([]brevapi.Organization, error) 
+	CreateOrganization(req store.CreateOrganizationRequest) (*brevapi.Organization, error)
 }
 
 // func NewCmdLogin() *cobra.Command {
@@ -75,13 +81,40 @@ func postLogin(token string, loginStore LoginStore) error {
 	if err != nil {
 		// TODO: if the error is not a network call create the account
 		// _, err := client.CreateUser(creds.IDToken)
-		_, err = loginStore.CreateUser(token)
+		_, err := loginStore.CreateUser(token)
 
 		if err != nil {
 			return err
 		}
 
 		// TODO: create org if none
+		orgs,err := loginStore.GetOrganizations()
+		if err != nil {
+			return err
+		}
+		
+		firstOrgName := "firstorg-hq"
+		if len(orgs) == 0 {
+			org, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
+				// TODO: get the username from GetMe function
+				Name: firstOrgName,
+			})
+		
+			fmt.Println("Created your first org " + firstOrgName)
+
+			path := files.GetActiveOrgsPath()
+			err = files.OverwriteJSON(path, org)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		} else {
+			// TODO: check that there's no active, but realistically, this should never happen.
+			path := files.GetActiveOrgsPath()
+			err = files.OverwriteJSON(path, orgs[0])
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
 		// TODO: active org 
 
 	}
