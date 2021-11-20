@@ -314,3 +314,31 @@ func PromptGetInput(pc PromptContent) string {
 
 	return result
 }
+
+type PromptSelectContent struct {
+	ErrorMsg string
+	Label    string
+	Items 	 []string
+}
+func PromptSelectInput(pc PromptSelectContent) string {
+	
+	// templates := &promptui.SelectTemplates{
+	// 	Label:  "{{ . }} ",
+	// 	Selected:   "{{ . | green }} ",
+	// 	Active: "{{ . | cyan }} ",
+	// }
+
+	prompt := promptui.Select{
+		Label:     pc.Label,
+		Items: 	   pc.Items,
+		// Templates: templates,
+	}
+
+	_, result, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		os.Exit(1)
+	}
+
+	return result
+}
