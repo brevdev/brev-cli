@@ -97,7 +97,14 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 
 func addSecret(t *terminal.Terminal, envtype string, name string, value string, path string) {
 
+	if envtype=="" || name=="" || value=="" || path == "" {
+		t.Vprintf(t.Yellow("\nSome flags omitted, running interactive mode!\n"))
+	}
+
 	if name == "" {
-		
+		name = brevapi.PromptGetInput(brevapi.PromptContent{
+			Label:    "Environment variable/secret name: ",
+			ErrorMsg: "error",
+		})
 	}
 }

@@ -296,7 +296,7 @@ func PromptGetInput(pc PromptContent) string {
 	templates := &promptui.PromptTemplates{
 		Prompt:  "{{ . }} ",
 		Valid:   "{{ . | green }} ",
-		Invalid: "{{ . | red }} ",
+		Invalid: "{{ . | yellow }} ",
 		Success: "{{ . | bold }} ",
 	}
 
