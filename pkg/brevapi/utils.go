@@ -283,6 +283,7 @@ func GetMe() (*User, error) {
 type PromptContent struct {
 	ErrorMsg string
 	Label    string
+	Default  string
 }
 
 func PromptGetInput(pc PromptContent) string {
@@ -304,6 +305,8 @@ func PromptGetInput(pc PromptContent) string {
 		Label:     pc.Label,
 		Templates: templates,
 		Validate:  validate,
+		Default: pc.Default,
+		AllowEdit: true,
 	}
 
 	result, err := prompt.Run()

@@ -128,6 +128,7 @@ func addSecret(t *terminal.Terminal, envtype string, name string, value string, 
 		path = brevapi.PromptGetInput(brevapi.PromptContent{
 			Label:    "Path for the file: ",
 			ErrorMsg: "error",
+			Default: "/home/brev/workspace/secret.txt",
 		})
 	}
 
