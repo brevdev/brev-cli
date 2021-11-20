@@ -3,6 +3,7 @@ package brevapi
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/manifoldco/promptui"
 )
 
 type Client struct {
@@ -275,4 +277,40 @@ func GetMe() (*User, error) {
 		return nil, err
 	}
 	return user, nil
+}
+
+
+type PromptContent struct {
+	ErrorMsg string
+	Label    string
+}
+
+func PromptGetInput(pc PromptContent) string {
+	validate := func(input string) error {
+		if len(input) == 0 {
+			return breverrors.WrapAndTrace(errors.New(pc.ErrorMsg))
+		}
+		return nil
+	}
+
+	templates := &promptui.PromptTemplates{
+		Prompt:  "{{ . }} ",
+		Valid:   "{{ . | green }} ",
+		Invalid: "{{ . | red }} ",
+		Success: "{{ . | bold }} ",
+	}
+
+	prompt := promptui.Prompt{
+		Label:     pc.Label,
+		Templates: templates,
+		Validate:  validate,
+	}
+
+	result, err := prompt.Run()
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		os.Exit(1)
+	}
+
+	return result
 }

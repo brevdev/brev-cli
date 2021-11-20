@@ -16,7 +16,7 @@ type LoginOptions struct{}
 
 type LoginStore interface {
 	CreateUser(idToken string) (*brevapi.User, error)
-	GetOrganizations() ([]brevapi.Organization, error) 
+	GetOrganizations() ([]brevapi.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*brevapi.Organization, error)
 }
 
@@ -88,18 +88,18 @@ func postLogin(token string, loginStore LoginStore) error {
 		}
 
 		// TODO: create org if none
-		orgs,err := loginStore.GetOrganizations()
+		orgs, err := loginStore.GetOrganizations()
 		if err != nil {
 			return err
 		}
-		
+
 		firstOrgName := "firstorg-hq"
 		if len(orgs) == 0 {
 			org, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
 				// TODO: get the username from GetMe function
 				Name: firstOrgName,
 			})
-		
+
 			fmt.Println("Created your first org " + firstOrgName)
 
 			path := files.GetActiveOrgsPath()
@@ -115,7 +115,7 @@ func postLogin(token string, loginStore LoginStore) error {
 				return breverrors.WrapAndTrace(err)
 			}
 		}
-		// TODO: active org 
+		// TODO: active org
 
 	}
 	return nil

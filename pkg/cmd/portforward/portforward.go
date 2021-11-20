@@ -1,16 +1,13 @@
 package portforward
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
-	"os"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/manifoldco/promptui"
 
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
@@ -18,10 +15,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type promptContent struct {
-	errorMsg string
-	label    string
-}
 
 var (
 	Port           string
@@ -29,35 +22,7 @@ var (
 	sshLinkExample = "brev link <ws_name> -p local_port:remote_port"
 )
 
-func promptGetInput(pc promptContent) string {
-	validate := func(input string) error {
-		if len(input) == 0 {
-			return breverrors.WrapAndTrace(errors.New(pc.errorMsg))
-		}
-		return nil
-	}
 
-	templates := &promptui.PromptTemplates{
-		Prompt:  "{{ . }} ",
-		Valid:   "{{ . | green }} ",
-		Invalid: "{{ . | red }} ",
-		Success: "{{ . | bold }} ",
-	}
-
-	prompt := promptui.Prompt{
-		Label:     pc.label,
-		Templates: templates,
-		Validate:  validate,
-	}
-
-	result, err := prompt.Run()
-	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-		os.Exit(1)
-	}
-
-	return result
-}
 
 type PortforwardStore interface {
 	k8s.K8sStore
@@ -135,13 +100,13 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 func startInput(t *terminal.Terminal) {
 	t.Vprintf(Port + "\n\n\n")
 	t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!"))
-	remoteInput := promptGetInput(promptContent{
-		label:    "What port on your Brev machine would you like to forward?",
-		errorMsg: "error",
+	remoteInput := brevapi.PromptGetInput(brevapi.PromptContent{
+		Label:    "What port on your Brev machine would you like to forward?",
+		ErrorMsg: "error",
 	})
-	localInput := promptGetInput(promptContent{
-		label:    "What port should it be on your local machine?",
-		errorMsg: "error",
+	localInput := brevapi.PromptGetInput(brevapi.PromptContent{
+		Label:    "What port should it be on your local machine?",
+		ErrorMsg: "error",
 	})
 
 	Port = localInput + ":" + remoteInput

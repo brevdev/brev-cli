@@ -58,7 +58,7 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "secret",
 		Short:       "Add a secret/environment variable",
-		Long:       "Add a secret/environment variable to your workspace, all workspaces in an org, or all of your workspaces",
+		Long:        "Add a secret/environment variable to your workspace, all workspaces in an org, or all of your workspaces",
 		Example: `
   brev secret --name naaamme --value vaaalluueee --type [file, env-var] --file-path 
   brev secret --name SERVER_URL --value https://brev.sh --type env-var
@@ -75,7 +75,7 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 		// Args:      cobra.MinimumNArgs(0),
 		// ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-
+			addSecret(t, envtype, name, value, path)
 			return nil
 		},
 	}
@@ -91,6 +91,13 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 	if err != nil {
 		t.Errprint(err, "cli err")
 	}
-	
+
 	return cmd
+}
+
+func addSecret(t *terminal.Terminal, envtype string, name string, value string, path string) {
+
+	if name == "" {
+		
+	}
 }
