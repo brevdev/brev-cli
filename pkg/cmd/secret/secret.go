@@ -97,10 +97,9 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 
 func addSecret(t *terminal.Terminal, envtype string, name string, value string, path string) {
 
-	if name=="" || envtype==""  || value=="" || path == "" {
+	if name == "" || envtype == "" || value == "" || path == "" {
 		t.Vprintf(t.Yellow("\nSome flags omitted, running interactive mode!\n"))
 	}
-
 
 	if name == "" {
 		name = brevapi.PromptGetInput(brevapi.PromptContent{
@@ -113,26 +112,26 @@ func addSecret(t *terminal.Terminal, envtype string, name string, value string, 
 		envtype = brevapi.PromptSelectInput(brevapi.PromptSelectContent{
 			Label:    "Type of variable: ",
 			ErrorMsg: "error",
-			Items: []string{"file", "variable"},
+			Items:    []string{"file", "variable"},
 		})
 	}
 
-	if value=="" {
+	if value == "" {
 		value = brevapi.PromptGetInput(brevapi.PromptContent{
 			Label:    "Environment variable/secret value: ",
 			ErrorMsg: "error",
 		})
 	}
 
-	if path=="" && envtype=="file" {
+	if path == "" && envtype == "file" {
 		path = brevapi.PromptGetInput(brevapi.PromptContent{
 			Label:    "Path for the file: ",
 			ErrorMsg: "error",
-			Default: "/home/brev/workspace/secret.txt",
+			Default:  "/home/brev/workspace/secret.txt",
 		})
 	}
 
-	if envtype=="file" {
+	if envtype == "file" {
 		t.Vprintf("brev secret --name %s --value %s --type %s --file-path %s", name, value, envtype, path)
 	} else {
 		t.Vprintf("brev secret --name %s --value %s --type %s", name, value, envtype)

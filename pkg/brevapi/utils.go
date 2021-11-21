@@ -279,7 +279,6 @@ func GetMe() (*User, error) {
 	return user, nil
 }
 
-
 type PromptContent struct {
 	ErrorMsg string
 	Label    string
@@ -305,7 +304,7 @@ func PromptGetInput(pc PromptContent) string {
 		Label:     pc.Label,
 		Templates: templates,
 		Validate:  validate,
-		Default: pc.Default,
+		Default:   pc.Default,
 		AllowEdit: true,
 	}
 
@@ -321,10 +320,11 @@ func PromptGetInput(pc PromptContent) string {
 type PromptSelectContent struct {
 	ErrorMsg string
 	Label    string
-	Items 	 []string
+	Items    []string
 }
+
 func PromptSelectInput(pc PromptSelectContent) string {
-	
+
 	// templates := &promptui.SelectTemplates{
 	// 	Label:  "{{ . }} ",
 	// 	Selected:   "{{ . | green }} ",
@@ -332,8 +332,8 @@ func PromptSelectInput(pc PromptSelectContent) string {
 	// }
 
 	prompt := promptui.Select{
-		Label:     pc.Label,
-		Items: 	   pc.Items,
+		Label: pc.Label,
+		Items: pc.Items,
 		// Templates: templates,
 	}
 

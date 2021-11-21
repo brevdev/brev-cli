@@ -15,14 +15,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 var (
 	Port           string
 	sshLinkLong    = "Port forward your Brev machine's port to your local port"
 	sshLinkExample = "brev link <ws_name> -p local_port:remote_port"
 )
-
-
 
 type PortforwardStore interface {
 	k8s.K8sStore
