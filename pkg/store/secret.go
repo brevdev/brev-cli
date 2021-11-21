@@ -4,7 +4,7 @@ import breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 type CreateSecretRequest struct {
 	Name          string        `json:"name"`
-	HierarchyType HierarchyType `json:"HierarchyType"`
+	HierarchyType HierarchyType `json:"hierarchyType"`
 	HierarchyId   string        `json:"hierarchyId"`
 	Src           SecretReqSrc  `json:"src"`
 	Dest          SecretReqDest `json:"dest"`
@@ -17,35 +17,35 @@ const (
 	User HierarchyType = "user"
 )
 
-type SecretReqSrc struct {
-	Type   SrcType   `json:"type"`
-	Config SrcConfig `json:"config"`
-}
-
 type SecretReqDest struct {
 	Type   DestType   `json:"type"`
 	Config DestConfig `json:"config"`
 }
 
-type SrcConfig struct {
-	Name string `json:"name"`
+type SecretReqSrc struct {
+	Type   SrcType   `json:"type"`
+	Config SrcConfig `json:"config"`
 }
 
 type DestConfig struct {
-	Value string `json:"value"`
+	Name string `json:"name"`
 }
 
-type DestType string
-
-const (
-	KeyValue DestType = "kv2"
-)
+type SrcConfig struct {
+	Value string `json:"value"`
+}
 
 type SrcType string
 
 const (
-	File        SrcType = "file"
-	EnvVariable SrcType = "env"
+	KeyValue SrcType = "kv2"
+)
+
+type DestType string
+
+const (
+	File        DestType = "file"
+	EnvVariable DestType = "env"
 )
 
 var secretsPath = "api/secrets"

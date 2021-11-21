@@ -2,9 +2,13 @@
 package secret
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -41,8 +45,8 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		Short:       "Add a secret/environment variable",
 		Long:        "Add a secret/environment variable to your workspace, all workspaces in an org, or all of your workspaces",
 		Example: `
-  brev secret --name naaamme --value vaaalluueee --type [file, env-var] --file-path --scope personal
-  brev secret --name SERVER_URL --value https://brev.sh --type env-var --scope personal
+  brev secret --name naaamme --value vaaalluueee --type [file, variable] --file-path --scope personal
+  brev secret --name SERVER_URL --value https://brev.sh --type variable --scope personal
   brev secret --name AWS_KEY --value ... --type file --file-path --scope personal
 		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -68,7 +72,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 	cmd.Flags().StringVarP(&scope, "scope", "s", "", "scope for env var (org or private)")
 
 	err := cmd.RegisterFlagCompletionFunc("type", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		return []string{"file", "env-var"}, cobra.ShellCompDirectiveNoSpace
+		return []string{"file", "variable"}, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
 		t.Errprint(err, "cli err")
@@ -120,7 +124,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	}
 
 	if scope == "" {
-		envtype = brevapi.PromptSelectInput(brevapi.PromptSelectContent{
+		scope = brevapi.PromptSelectInput(brevapi.PromptSelectContent{
 			Label:    "Scope: ",
 			ErrorMsg: "error",
 			Items:    []string{"org", "user"},
@@ -128,47 +132,71 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	}
 
 	if envtype == "file" {
-		t.Vprintf("brev secret --name %s --value %s --type %s --file-path %s --scope %s", name, value, envtype, path, scope)
+		t.Vprintf("brev secret --name %s --value %s --type %s --file-path %s --scope %s\n", name, value, envtype, path, scope)
 	} else {
-		t.Vprintf("brev secret --name %s --value %s --type %s --scope %s", name, value, envtype, scope)
+		t.Vprintf("brev secret --name %s --value %s --type %s --scope %s\n", name, value, envtype, scope)
 	}
+
 
 	s := t.NewSpinner()
 	s.Suffix = "  encrypting and saving secret var"
+	s.Start()
 
 	iScope := store.Org
+	var hierarchyId string
 	if scope == "user" {
 		iScope = store.User
+		// get user id
+		me, err := brevapi.GetMe()
+		if err != nil {
+			return err
+		}
+		hierarchyId = me.ID
+	} else {
+		// get org id 
+		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		hierarchyId = activeorg.ID
 	}
 	iType := store.File
 	if envtype == "variable" {
 		iType = store.EnvVariable
 	}
 
-	_, err := secretStore.CreateSecret(store.CreateSecretRequest{
+	// NOTE: hieararchyID needs to be the org ID user ID
+
+	b := store.CreateSecretRequest{
 		Name:          name,
 		HierarchyType: iScope,
-		HierarchyId:   string(store.KeyValue),
+		HierarchyId:   hierarchyId,
 		Src: store.SecretReqSrc{
-			Type: iType,
-			Config: store.SrcConfig{
-				Name: name,
-			},
-		},
-		Dest: store.SecretReqDest{
 			Type: store.KeyValue,
-			Config: store.DestConfig{
+			Config: store.SrcConfig{
 				Value: value,
 			},
 		},
-	})
+		Dest: store.SecretReqDest{
+			Type: iType,
+			Config: store.DestConfig{
+				Name: name,
+			},
+		},
+	}
+	asstring, _ := json.MarshalIndent(b, "", "\t")
+	fmt.Print(string(asstring))
+	secret, err := secretStore.CreateSecret(b)
 	if err != nil {
+		s.Stop()
+		t.Vprintf(t.Red(err.Error()))
 		return err
 	}
-
+	t.Vprintf(secret.Name)
+	s.Suffix = "  environment secret added"
 	s.Stop()
 
-	t.Vprintf("\n")
+	t.Vprintf(t.Green("\nEnvironment %s added\n") + t.Yellow("\tIt might take up to 2 minutes to load into your environment."))
 
 	return nil
 }
