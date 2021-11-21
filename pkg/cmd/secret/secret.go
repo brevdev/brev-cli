@@ -160,9 +160,18 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 		}
 		hierarchyId = activeorg.ID
 	}
+	
+	var configDest store.DestConfig
 	iType := store.File
 	if envtype == "variable" {
 		iType = store.EnvVariable
+		configDest = store.DestConfig{
+			Name: name,
+		}
+	} else {
+		configDest = store.DestConfig{
+			Path: path,
+		} 
 	}
 
 	// NOTE: hieararchyID needs to be the org ID user ID
@@ -179,9 +188,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 		},
 		Dest: store.SecretReqDest{
 			Type: iType,
-			Config: store.DestConfig{
-				Name: name,
-			},
+			Config: configDest,
 		},
 	}
 	asstring, _ := json.MarshalIndent(b, "", "\t")
@@ -196,7 +203,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	s.Suffix = "  environment secret added"
 	s.Stop()
 
-	t.Vprintf(t.Green("\nEnvironment %s added\n") + t.Yellow("\tIt might take up to 2 minutes to load into your environment."))
+	t.Vprintf(t.Green("\nEnvironment %s added\n", iType) + t.Yellow("\tNote: It might take up to 2 minutes to load into your environment."))
 
 	return nil
 }

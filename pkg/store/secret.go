@@ -22,13 +22,14 @@ type SecretReqDest struct {
 	Config DestConfig `json:"config"`
 }
 
+type DestConfig struct {
+	Name string `json:"name,omitempty"`
+	Path string `json:"path,omitempty"`
+}
+
 type SecretReqSrc struct {
 	Type   SrcType   `json:"type"`
 	Config SrcConfig `json:"config"`
-}
-
-type DestConfig struct {
-	Name string `json:"name"`
 }
 
 type SrcConfig struct {
