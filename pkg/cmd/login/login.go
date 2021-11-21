@@ -82,30 +82,32 @@ func postLogin(token string, loginStore LoginStore) error {
 		// TODO: if the error is not a network call create the account
 		// _, err := client.CreateUser(creds.IDToken)
 		_, err := loginStore.CreateUser(token)
-
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 
 		// TODO: create org if none
 		orgs, err := loginStore.GetOrganizations()
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 
 		firstOrgName := "firstorg-hq"
 		if len(orgs) == 0 {
-			org, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
+			org, innererr := loginStore.CreateOrganization(store.CreateOrganizationRequest{
 				// TODO: get the username from GetMe function
 				Name: firstOrgName,
 			})
+			if innererr != nil {
+				return breverrors.WrapAndTrace(innererr)
+			}
 
 			fmt.Println("Created your first org " + firstOrgName)
 
 			path := files.GetActiveOrgsPath()
-			err = files.OverwriteJSON(path, org)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			innererr = files.OverwriteJSON(path, org)
+			if innererr != nil {
+				return breverrors.WrapAndTrace(innererr)
 			}
 		} else {
 			// TODO: check that there's no active, but realistically, this should never happen.

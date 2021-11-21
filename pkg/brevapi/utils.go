@@ -324,7 +324,6 @@ type PromptSelectContent struct {
 }
 
 func PromptSelectInput(pc PromptSelectContent) string {
-
 	// templates := &promptui.SelectTemplates{
 	// 	Label:  "{{ . }} ",
 	// 	Selected:   "{{ . | green }} ",

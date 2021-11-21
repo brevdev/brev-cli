@@ -10,31 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Helper functions.
-func getMe() brevapi.User {
-	client, err := brevapi.NewCommandClient()
-	if err != nil {
-		panic(err)
-	}
-	user, err := client.GetMe()
-	if err != nil {
-		panic(err)
-	}
-	return *user
-}
-
-func getOrgs() ([]brevapi.Organization, error) {
-	client, err := brevapi.NewCommandClient()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	orgs, err := client.GetOrgs()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return orgs, nil
-}
-
 func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
@@ -60,9 +35,9 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 		Short:       "Add a secret/environment variable",
 		Long:        "Add a secret/environment variable to your workspace, all workspaces in an org, or all of your workspaces",
 		Example: `
-  brev secret --name naaamme --value vaaalluueee --type [file, env-var] --file-path 
+  brev secret --name naaamme --value vaaalluueee --type [file, env-var] --file-path
   brev secret --name SERVER_URL --value https://brev.sh --type env-var
-  brev secret --name AWS_KEY --value ... --type file --file-path 
+  brev secret --name AWS_KEY --value ... --type file --file-path
 		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
@@ -96,7 +71,6 @@ func NewCmdSecret(t *terminal.Terminal) *cobra.Command {
 }
 
 func addSecret(t *terminal.Terminal, envtype string, name string, value string, path string) {
-
 	if name == "" || envtype == "" || value == "" || path == "" {
 		t.Vprintf(t.Yellow("\nSome flags omitted, running interactive mode!\n"))
 	}
@@ -137,5 +111,4 @@ func addSecret(t *terminal.Terminal, envtype string, name string, value string, 
 		t.Vprintf("brev secret --name %s --value %s --type %s", name, value, envtype)
 	}
 	t.Vprintf("\n")
-
 }
