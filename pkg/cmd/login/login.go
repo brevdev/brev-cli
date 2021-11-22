@@ -8,6 +8,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -20,8 +21,7 @@ type LoginStore interface {
 	CreateOrganization(req store.CreateOrganizationRequest) (*brevapi.Organization, error)
 }
 
-// func NewCmdLogin() *cobra.Command {
-func NewCmdLogin(loginStore LoginStore) *cobra.Command {
+func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore) *cobra.Command {
 	opts := LoginOptions{}
 
 	cmd := &cobra.Command{
@@ -34,31 +34,31 @@ func NewCmdLogin(loginStore LoginStore) *cobra.Command {
 		Args:                  cobra.NoArgs,
 		// ValidArgsFunction: util.ResourceNameCompletionFunc(f, "pod"),
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(opts.Complete(cmd, args))
-			cmdutil.CheckErr(opts.Validate(cmd, args))
-			cmdutil.CheckErr(opts.RunLogin(cmd, args, loginStore))
+			cmdutil.CheckErr(opts.Complete(t, cmd, args))
+			cmdutil.CheckErr(opts.Validate(t, cmd, args))
+			cmdutil.CheckErr(opts.RunLogin(t, cmd, args, loginStore))
 		},
 	}
 	return cmd
 }
 
-func (o *LoginOptions) Complete(_ *cobra.Command, _ []string) error {
+func (o *LoginOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *LoginOptions) Validate(_ *cobra.Command, _ []string) error {
+func (o *LoginOptions) Validate(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *LoginOptions) RunLogin(_ *cobra.Command, _ []string, loginStore LoginStore) error {
+func (o *LoginOptions) RunLogin(t *terminal.Terminal, _ *cobra.Command, _ []string, loginStore LoginStore) error {
 	// func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
 	token, err := brevapi.Login(false)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = postLogin(*token, loginStore)
+	err = postLogin(*token, loginStore, t)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -71,7 +71,7 @@ After logging in:
 	> ensure there's an org, or create the first one "username-hq"
 	>
 */
-func postLogin(token string, loginStore LoginStore) error {
+func postLogin(token string, loginStore LoginStore, t *terminal.Terminal) error {
 	// TODO: hit GetMe and if fails create user
 	client, err := brevapi.NewCommandClient()
 	if err != nil {
@@ -117,7 +117,14 @@ func postLogin(token string, loginStore LoginStore) error {
 				return breverrors.WrapAndTrace(err)
 			}
 		}
-		// TODO: active org
+		
+		// SSH Keys
+		brevapi.DisplayBrevLogo(t)
+		t.Vprintf("\n")
+		err = brevapi.GetandDisplaySSHKeys(t)
+		if err != nil {
+			t.Vprintf(t.Red(err.Error()))
+		}
 
 	}
 	return nil

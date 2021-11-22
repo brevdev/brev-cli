@@ -344,3 +344,39 @@ func PromptSelectInput(pc PromptSelectContent) string {
 
 	return result
 }
+
+func GetandDisplaySSHKeys(t *terminal.Terminal) error {
+
+	client, err := NewCommandClient()
+	if err != nil {
+		return err
+	}
+
+	me, err := client.GetMe()
+	if err != nil {
+		return err
+	}
+
+
+	t.Eprint(t.Yellow("\nCreate an SSH Key with your git provider. Copy your public key: \n"))
+	t.Vprintf(me.PublicKey)
+	t.Eprintf(t.Yellow("\n\nand save it to your git provider."))
+	t.Eprintf(t.Yellow("\n\tClick here for Github: https://github.com/settings/keys"))
+	t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
+
+
+	return nil
+}
+
+func DisplayBrevLogo(t *terminal.Terminal) {
+	t.Vprint( "                               _  ")
+	t.Vprint( "              _        ,-.    / ) ")
+	t.Vprint( "             ( `.     // /-._/ / ")
+	t.Vprint( "              `\\ \\   /(_/ / / /  ")
+	t.Vprint( "                ; `-`  (_/ / /  ")
+	t.Vprint( "                |       (_/ /     ")
+	t.Vprint( "                \\          /      ")
+	t.Vprint( "Welcome to       )       /`      ")
+	t.Vprint( "      Brev.Dev   /      /`       ")
+
+}

@@ -46,7 +46,7 @@ func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
 		},
 		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := getSSHKeys(t)
+			err := brevapi.GetandDisplaySSHKeys(t)
 			if err != nil {
 				t.Vprintf(t.Red(err.Error()))
 			}
@@ -57,26 +57,3 @@ func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func getSSHKeys(t *terminal.Terminal) error {
-
-	client, err := brevapi.NewCommandClient()
-	if err != nil {
-		return err
-	}
-
-	me, err := client.GetMe()
-	if err != nil {
-		return err
-	}
-
-
-	t.Eprint(t.Yellow("\nCreate an SSH Key. Copy your public key: \n"))
-	t.Vprintf(me.PublicKey)
-	t.Eprintf(t.Yellow("\n\nHere for Github: https://github.com/settings/keys"))
-	t.Eprintf(t.Yellow("\nHere for Gitlab: https://gitlab.com/-/profile/keys\n"))
-
-
-
-
-	return nil
-}
