@@ -111,12 +111,11 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	// dev feature toggle
 	if isDev() {
 		_ = 0 // noop
-		cmd.AddCommand(secret.NewCmdSecret(cmdStore, t))
 
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 		cmd.AddCommand(test.NewCmdTest(t))
 	}
-
+	cmd.AddCommand(secret.NewCmdSecret(cmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t))
 	cmd.AddCommand(start.NewCmdStart(t))
 	cmd.AddCommand(stop.NewCmdStop(cmdStore, t))
