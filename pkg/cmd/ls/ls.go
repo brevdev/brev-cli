@@ -120,6 +120,7 @@ func ls(t *terminal.Terminal, args []string, orgflag string) error {
 		}
 	}
 
+	t.Vprintf("activeorg: %s \n", activeorg)
 	joined, _, err := fetchWorkspacesAndPrintTable(t, activeorg)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -213,11 +214,14 @@ func handleOrg(t *terminal.Terminal) error {
 }
 
 func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organization) ([]brevapi.Workspace, []brevapi.Workspace, error) { //nolint:unparam // want to keep an unused param for future
+	t.Vprintf("fetchWorkspacesAndPrintTable \n")
 	wss, err := GetAllWorkspaces(org.ID)
 	if err != nil {
 		return nil, nil, breverrors.WrapAndTrace(err)
 	}
-	if len(wss) == 0 {
+
+	_, joinedWs := GetSortedUserWorkspaces(wss)
+	if len(joinedWs) == 0 {
 		t.Vprint(t.Yellow("You don't have any workspaces in org %s.", org.Name))
 		return nil, nil, nil
 	}
