@@ -23,7 +23,6 @@ type Client struct {
 func HandleNewClientErrors(err error) error {
 	switch e := err.(type) {
 	case *breverrors.CredentialsFileNotFound:
-		// TODO prompt
 		_, err = Login(true)
 		return err
 	case *requests.RESTResponseError:
