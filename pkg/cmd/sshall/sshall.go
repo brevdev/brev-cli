@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -13,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
 type SSHAll struct {
@@ -38,10 +40,59 @@ func NewSSHAll(
 	}
 }
 
+// stringContainsOneOf returns the first match from a list of candidates to
+// check if a string contains, otherwise returning false
+func stringContainsOneOf(str string, candidates []string) (bool, *string) {
+	for _, candidate := range candidates {
+		if strings.Contains(str, candidate) {
+			return true, &candidate
+		}
+	}
+	return false, nil
+}
+
+func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) bool {
+	fmt.Sprintln(w)
+	return true
+}
+
+func workspaceSSHChannel(w brevapi.WorkspaceWithMeta) chan os.Signal {
+	fmt.Sprintln(w)
+	return make(chan os.Signal, 1)
+}
+
 func (s SSHAll) Run() error {
+	// set up error handling for the ssh connections, very much brute force
+	// since kubectl was not intended to be used a library like this
+	runtime.ErrorHandlers = append(runtime.ErrorHandlers, func(err error) {
+		match, _ := stringContainsOneOf(fmt.Sprint(err), []string{
+			"lost connection to pod",
+			"error creating stream",
+		})
+
+		if match {
+			for _, w := range s.workspaces {
+				isHealthy := workspaceSSHConnectionHealthCheck(w)
+				if !isHealthy {
+					close(workspaceSSHChannel(w))
+
+					// TODO: create new close channel and pass it here, also DRY
+					go func(workspace brevapi.WorkspaceWithMeta) {
+						err := s.portforwardWorkspace(workspace)
+						if err != nil {
+							// todo have verbose version with trace
+							fmt.Printf("%v [workspace=%s]\n", errors.Cause(err), workspace.DNS)
+						}
+					}(w)
+				}
+			}
+		}
+	})
+
 	fmt.Println()
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.Name)
+		// TODO: create new close channel and pass it here, also DRY
 		go func(workspace brevapi.WorkspaceWithMeta) {
 			err := s.portforwardWorkspace(workspace)
 			if err != nil {
