@@ -20,7 +20,7 @@ func NewCmdTest(t *terminal.Terminal) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		Run: func(cmd *cobra.Command, args []string) {			
+		Run: func(cmd *cobra.Command, args []string) {
 			var err error
 
 			// SSH Keys
@@ -36,16 +36,15 @@ func NewCmdTest(t *terminal.Terminal) *cobra.Command {
 			}
 
 			hasVSCode := brevapi.PromptSelectInput(brevapi.PromptSelectContent{
-				Label: "Do you use VS Code?",
+				Label:    "Do you use VS Code?",
 				ErrorMsg: "error",
-				Items: []string{"yes", "no"},
+				Items:    []string{"yes", "no"},
 			})
-			if hasVSCode=="yes" {
+			if hasVSCode == "yes" {
 				// TODO: check if user uses VSCode and intall extension for user
 				t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
 			}
 
-			
 			// brevapi.InstallVSCodeExtension(t)
 
 			// NOTE: this only works on Mac
@@ -64,8 +63,6 @@ func NewCmdTest(t *terminal.Terminal) *cobra.Command {
 			// if err != nil {
 			// 	fmt.Println(err)
 			// }
-
-
 		},
 	}
 

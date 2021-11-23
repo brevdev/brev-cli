@@ -42,12 +42,12 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore) *cobra.Command {
 	return cmd
 }
 
-func (o *LoginOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
+func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
 
-func (o *LoginOptions) Validate(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
+func (o *LoginOptions) Validate(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
 	// return fmt.Errorf("not implemented")
 	return nil
 }
@@ -117,7 +117,7 @@ func postLogin(token string, loginStore LoginStore, t *terminal.Terminal) error 
 				return breverrors.WrapAndTrace(err)
 			}
 		}
-		
+
 		// SSH Keys
 		brevapi.DisplayBrevLogo(t)
 		t.Vprintf("\n")
@@ -125,22 +125,21 @@ func postLogin(token string, loginStore LoginStore, t *terminal.Terminal) error 
 		spinner.Suffix = " fetching your public key"
 		spinner.Start()
 		err = brevapi.GetandDisplaySSHKeys(t)
-		spinner.Stop()		
+		spinner.Stop()
 		if err != nil {
 			t.Vprintf(t.Red(err.Error()))
 		}
-		
+
 		// TODO: check if user uses VSCode and intall extension for user
 		hasVSCode := brevapi.PromptSelectInput(brevapi.PromptSelectContent{
-			Label: "Do you use VS Code?",
+			Label:    "Do you use VS Code?",
 			ErrorMsg: "error",
-			Items: []string{"yes", "no"},
+			Items:    []string{"yes", "no"},
 		})
-		if hasVSCode=="yes" {
+		if hasVSCode == "yes" {
 			// TODO: check if user uses VSCode and intall extension for user
 			t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
 		}
 	}
 	return nil
 }
-

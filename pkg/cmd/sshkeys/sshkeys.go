@@ -1,4 +1,4 @@
-// Package secret lets you add secrests. Language Go makes you write extra.
+// Package sshkeys gets your public ssh key to add to github/gitlab
 package sshkeys
 
 import (
@@ -28,14 +28,12 @@ type SecretStore interface {
 }
 
 func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
-
-
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "ssh-key",
 		Short:       "Get your pulic SSH-Key",
 		Long:        "Get your pulic SSH-Key to add to pull and push from your git repository.",
-		Example: `brev ssh-key`,
+		Example:     `brev ssh-key`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -44,7 +42,7 @@ func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
 
 			return nil
 		},
-		Args:                  cobra.NoArgs,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := brevapi.GetandDisplaySSHKeys(t)
 			if err != nil {
@@ -56,4 +54,3 @@ func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
 
 	return cmd
 }
-

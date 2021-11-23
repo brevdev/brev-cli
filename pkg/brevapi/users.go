@@ -8,7 +8,7 @@ import (
 )
 
 type User struct {
-	ID string `json:"id"`
+	ID        string `json:"id"`
 	PublicKey string `json:"publicKey,omitempty"`
 }
 

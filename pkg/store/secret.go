@@ -5,7 +5,7 @@ import breverrors "github.com/brevdev/brev-cli/pkg/errors"
 type CreateSecretRequest struct {
 	Name          string        `json:"name"`
 	HierarchyType HierarchyType `json:"hierarchyType"`
-	HierarchyId   string        `json:"hierarchyId"`
+	HierarchyID   string        `json:"hierarchyID"`
 	Src           SecretReqSrc  `json:"src"`
 	Dest          SecretReqDest `json:"dest"`
 }

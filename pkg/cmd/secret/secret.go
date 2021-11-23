@@ -60,7 +60,10 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		// Args:      cobra.MinimumNArgs(0),
 		// ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			addSecret(secretStore, t, envtype, name, value, path, scope)
+			err := addSecret(secretStore, t, envtype, name, value, path, scope)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			return nil
 		},
 	}
@@ -137,30 +140,29 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 		t.Vprintf("brev secret --name %s --value %s --type %s --scope %s\n", name, value, envtype, scope)
 	}
 
-
 	s := t.NewSpinner()
 	s.Suffix = "  encrypting and saving secret var"
 	s.Start()
 
 	iScope := store.Org
-	var hierarchyId string
+	var hierarchyID string
 	if scope == "user" {
 		iScope = store.User
 		// get user id
 		me, err := brevapi.GetMe()
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
-		hierarchyId = me.ID
+		hierarchyID = me.ID
 	} else {
-		// get org id 
+		// get org id
 		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		hierarchyId = activeorg.ID
+		hierarchyID = activeorg.ID
 	}
-	
+
 	var configDest store.DestConfig
 	iType := store.File
 	if envtype == "variable" {
@@ -171,7 +173,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	} else {
 		configDest = store.DestConfig{
 			Path: path,
-		} 
+		}
 	}
 
 	// NOTE: hieararchyID needs to be the org ID user ID
@@ -179,7 +181,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	b := store.CreateSecretRequest{
 		Name:          name,
 		HierarchyType: iScope,
-		HierarchyId:   hierarchyId,
+		HierarchyID:   hierarchyID,
 		Src: store.SecretReqSrc{
 			Type: store.KeyValue,
 			Config: store.SrcConfig{
@@ -187,7 +189,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 			},
 		},
 		Dest: store.SecretReqDest{
-			Type: iType,
+			Type:   iType,
 			Config: configDest,
 		},
 	}
@@ -197,7 +199,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	if err != nil {
 		s.Stop()
 		t.Vprintf(t.Red(err.Error()))
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprintf(secret.Name)
 	s.Suffix = "  environment secret added"
