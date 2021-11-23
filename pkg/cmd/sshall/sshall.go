@@ -17,10 +17,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
+type connectionMap map[brevapi.WorkspaceWithMeta]chan struct{}
+
 type SSHAll struct {
 	workspaces                 []brevapi.WorkspaceWithMeta
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
+	workspaceConnections       connectionMap
 }
 
 type SSHResolver interface {
@@ -37,6 +40,7 @@ func NewSSHAll(
 		workspaces:                 workspaces,
 		workspaceGroupClientMapper: workspaceGroupClientMapper,
 		sshResolver:                sshResolver,
+		workspaceConnections:       make(connectionMap),
 	}
 }
 
@@ -56,9 +60,14 @@ func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) bool {
 	return true
 }
 
-func workspaceSSHChannel(w brevapi.WorkspaceWithMeta) chan os.Signal {
-	fmt.Sprintln(w)
-	return make(chan os.Signal, 1)
+func (s SSHAll) runPortForwardWorkspace(workspace brevapi.WorkspaceWithMeta) {
+	c := make(chan struct{}, 1)
+	s.workspaceConnections[workspace] = c
+	err := s.portforwardWorkspace(workspace)
+	if err != nil {
+		// todo have verbose version with trace
+		fmt.Printf("%v [workspace=%s]\n", errors.Cause(err), workspace.DNS)
+	}
 }
 
 func (s SSHAll) Run() error {
@@ -74,16 +83,9 @@ func (s SSHAll) Run() error {
 			for _, w := range s.workspaces {
 				isHealthy := workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
-					close(workspaceSSHChannel(w))
-
+					close(s.workspaceConnections[w])
 					// TODO: create new close channel and pass it here, also DRY
-					go func(workspace brevapi.WorkspaceWithMeta) {
-						err := s.portforwardWorkspace(workspace)
-						if err != nil {
-							// todo have verbose version with trace
-							fmt.Printf("%v [workspace=%s]\n", errors.Cause(err), workspace.DNS)
-						}
-					}(w)
+					go s.runPortForwardWorkspace(w)
 				}
 			}
 		}
@@ -93,13 +95,7 @@ func (s SSHAll) Run() error {
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.Name)
 		// TODO: create new close channel and pass it here, also DRY
-		go func(workspace brevapi.WorkspaceWithMeta) {
-			err := s.portforwardWorkspace(workspace)
-			if err != nil {
-				// todo have verbose version with trace
-				fmt.Printf("%v [workspace=%s]\n", errors.Cause(err), workspace.DNS)
-			}
-		}(w)
+		go s.runPortForwardWorkspace(w)
 	}
 	fmt.Println()
 
