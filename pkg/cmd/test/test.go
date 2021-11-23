@@ -1,8 +1,7 @@
 package test
 
 import (
-	"os/exec"
-
+	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -21,25 +20,33 @@ func NewCmdTest(t *terminal.Terminal) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		Run: func(cmd *cobra.Command, args []string) {
-			
+		Run: func(cmd *cobra.Command, args []string) {			
+			var err error
 
-			cmdd := exec.Command("which code")
-			output, _ := cmdd.Output()
-			t.Vprintf("%b", output)
-			_, err := cmdd.Output()
-
+			// SSH Keys
+			brevapi.DisplayBrevLogo(t)
+			t.Vprintf("\n")
+			spinner := t.NewSpinner()
+			spinner.Suffix = " fetching your public key"
+			spinner.Start()
+			err = brevapi.GetandDisplaySSHKeys(t)
+			spinner.Stop()
 			if err != nil {
-				t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
-
-			} else {
-				install := exec.Command("code --install-extension ms-vscode-remote.remote-ssh\n")
-				_, err := install.Output()
-				if err != nil {
-					t.Vprintf("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n")
-				}
-
+				t.Vprintf(t.Red(err.Error()))
 			}
+
+			hasVSCode := brevapi.PromptSelectInput(brevapi.PromptSelectContent{
+				Label: "Do you use VS Code?",
+				ErrorMsg: "error",
+				Items: []string{"yes", "no"},
+			})
+			if hasVSCode=="yes" {
+				// TODO: check if user uses VSCode and intall extension for user
+				t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
+			}
+
+			
+			// brevapi.InstallVSCodeExtension(t)
 
 			// NOTE: this only works on Mac
 			// err = beeep.Notify("Title", "Message body", "assets/information.png")

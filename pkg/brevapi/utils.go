@@ -380,3 +380,22 @@ func DisplayBrevLogo(t *terminal.Terminal) {
 	t.Vprint( "      Brev.Dev   /      /`       ")
 
 }
+
+func InstallVSCodeExtension(t *terminal.Terminal) {
+	cmdd := exec.Command("which code")
+	output, _ := cmdd.Output()
+	t.Vprintf("%b", output)
+	_, err := cmdd.Output()
+
+	if err != nil {
+		t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
+
+	} else {
+		install := exec.Command("code --install-extension ms-vscode-remote.remote-ssh\n")
+		_, err := install.Output()
+		if err != nil {
+			t.Vprintf("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n")
+		}
+
+	}
+}

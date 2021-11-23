@@ -121,11 +121,26 @@ func postLogin(token string, loginStore LoginStore, t *terminal.Terminal) error 
 		// SSH Keys
 		brevapi.DisplayBrevLogo(t)
 		t.Vprintf("\n")
+		spinner := t.NewSpinner()
+		spinner.Suffix = " fetching your public key"
+		spinner.Start()
 		err = brevapi.GetandDisplaySSHKeys(t)
+		spinner.Stop()		
 		if err != nil {
 			t.Vprintf(t.Red(err.Error()))
 		}
-
+		
+		// TODO: check if user uses VSCode and intall extension for user
+		hasVSCode := brevapi.PromptSelectInput(brevapi.PromptSelectContent{
+			Label: "Do you use VS Code?",
+			ErrorMsg: "error",
+			Items: []string{"yes", "no"},
+		})
+		if hasVSCode=="yes" {
+			// TODO: check if user uses VSCode and intall extension for user
+			t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
+		}
 	}
 	return nil
 }
+
