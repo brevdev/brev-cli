@@ -91,7 +91,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 	return cmd
 }
 
-func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, name string, value string, path string, scope string) error {
+func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, name string, value string, path string, scope string) error { //nolint:funlen, gocyclo // todo simplify me
 	if name == "" || envtype == "" || value == "" || path == "" {
 		t.Vprintf(t.Yellow("\nSome flags omitted, running interactive mode!\n"))
 	}
