@@ -217,7 +217,9 @@ func fetchWorkspacesAndPrintTable(t *terminal.Terminal, org *brevapi.Organizatio
 	if err != nil {
 		return nil, nil, breverrors.WrapAndTrace(err)
 	}
-	if len(wss) == 0 {
+
+	_, joinedWs := GetSortedUserWorkspaces(wss)
+	if len(joinedWs) == 0 {
 		t.Vprint(t.Yellow("You don't have any workspaces in org %s.", org.Name))
 		return nil, nil, nil
 	}
