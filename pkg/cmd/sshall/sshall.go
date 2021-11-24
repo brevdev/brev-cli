@@ -91,6 +91,11 @@ func (s SSHAll) Run() error {
 		}
 	})
 
+	if len(s.workspaces) == 0 {
+		// todo set one for the user
+		return breverrors.WrapAndTrace(errors.New("please set an active workspace"))
+	}
+
 	fmt.Println()
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.Name)
