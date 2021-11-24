@@ -33,7 +33,9 @@ You're up to date!
 # Uninstall
 
 ```
-sudo rm -rf /usr/local/bin/brev /tmp/brev ~/.brev
+sudo rm -rf /usr/local/bin/brev
+rm -rf /tmp/brev
+rm -rf ~/.brev
 ```
 
 # Usage
