@@ -17,13 +17,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
-type connectionMap map[brevapi.WorkspaceWithMeta]chan struct{}
+type (
+	connectionMap map[brevapi.WorkspaceWithMeta]chan struct{}
+	retrymap      map[brevapi.WorkspaceWithMeta]int
+)
 
 type SSHAll struct {
 	workspaces                 []brevapi.WorkspaceWithMeta
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
 	workspaceConnections       connectionMap
+	retries                    retrymap
 }
 
 type SSHResolver interface {
@@ -41,6 +45,7 @@ func NewSSHAll(
 		workspaceGroupClientMapper: workspaceGroupClientMapper,
 		sshResolver:                sshResolver,
 		workspaceConnections:       make(connectionMap),
+		retries:                    make(retrymap),
 	}
 }
 
@@ -84,8 +89,10 @@ func (s SSHAll) Run() error {
 				isHealthy := workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
 					close(s.workspaceConnections[w])
-					// TODO: create new close channel and pass it here, also DRY
-					go s.runPortForwardWorkspace(w)
+					if s.retries[w] > 0 {
+						s.retries[w]--
+						go s.runPortForwardWorkspace(w)
+					}
 				}
 			}
 		}
@@ -99,7 +106,7 @@ func (s SSHAll) Run() error {
 	fmt.Println()
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.Name)
-		// TODO: create new close channel and pass it here, also DRY
+		s.retries[w] = 3 // TODO magic number
 		go s.runPortForwardWorkspace(w)
 	}
 	fmt.Println()
