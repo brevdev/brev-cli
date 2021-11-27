@@ -21,6 +21,7 @@ type StopStore interface {
 	completions.CompletionStore
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
 	StopWorkspace(workspaceID string) (*brevapi.Workspace, error)
+	GetCurrentUser() (*brevapi.User, error)
 }
 
 func NewCmdStop(stopStore StopStore, t *terminal.Terminal) *cobra.Command {
@@ -56,11 +57,11 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		me, err := brevapi.GetMe()
-		if err != nil {
-			return err
+		currentUser, err2 := stopStore.GetCurrentUser()
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
-		workspaces, err = stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: me.ID})
+		workspaces, err = stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: currentUser.ID})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
