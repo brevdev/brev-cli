@@ -19,7 +19,7 @@ type upOptions struct {
 	upStore UpStore
 }
 
-func NewCmdUp(upStore UpStore, _ *terminal.Terminal) *cobra.Command {
+func NewCmdUp(upStore UpStore, t *terminal.Terminal) *cobra.Command {
 	opts := upOptions{upStore: upStore}
 
 	cmd := &cobra.Command{
@@ -28,24 +28,28 @@ func NewCmdUp(upStore UpStore, _ *terminal.Terminal) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Set up ssh connections to all of your Brev workspaces",
 		Long:                  "Set up ssh connections to all of your Brev workspaces",
-		Example:               "brev ssh-all",
+		Example:               "brev up",
 		Args:                  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(opts.Complete(cmd, args))
-			cmdutil.CheckErr(opts.Validate())
-			cmdutil.CheckErr(opts.RunOn())
+			cmdutil.CheckErr(opts.Complete(t, cmd, args))
+			cmdutil.CheckErr(opts.Validate(t))
+			cmdutil.CheckErr(opts.RunOn(t))
 		},
 	}
 	return cmd
 }
 
-func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
-	fmt.Println("Setting up client...")
+func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
+	spinner := t.NewSpinner()
+	spinner.Suffix = "  Setting up client"
+	spinner.Start()
+
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(s.upStore) // to resolve
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	spinner.Suffix = "  Resolving workspaces"
 	workspaces, err := GetActiveWorkspaces(s.upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -54,6 +58,7 @@ func (s *upOptions) Complete(_ *cobra.Command, _ []string) error {
 	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
 
 	s.on = NewUp(workspaces, sshConfigurer, workspaceGroupClientMapper)
+	spinner.Stop()
 	return nil
 }
 
@@ -66,11 +71,11 @@ type UpStore interface {
 	GetCurrentUser() (*brevapi.User, error)
 }
 
-func (s upOptions) Validate() error {
+func (s upOptions) Validate(_ *terminal.Terminal) error {
 	return nil
 }
 
-func (s upOptions) RunOn() error {
+func (s upOptions) RunOn(_ *terminal.Terminal) error {
 	fmt.Println("Running up...")
 	return s.on.Run()
 }
@@ -110,7 +115,7 @@ func (o Up) Run() error {
 }
 
 func GetActiveWorkspaces(upStore UpStore) ([]brevapi.WorkspaceWithMeta, error) {
-	fmt.Println("Resolving workspaces...")
+	// fmt.Println("Resolving workspaces...")
 
 	org, err := upStore.GetActiveOrganizationOrDefault()
 	if err != nil {
