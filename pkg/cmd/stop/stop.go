@@ -56,7 +56,11 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		workspaces, err = stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName})
+		me, err := brevapi.GetMe()
+		if err != nil {
+			return err
+		}
+		workspaces, err = stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: me.ID})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
