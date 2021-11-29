@@ -39,16 +39,17 @@ func NewRestyClient(brevAPIURL string) *resty.Client {
 
 type AuthHTTPStore struct {
 	NoAuthHTTPStore
-	authHTTPClient *AuthHTTPClient
+	authHTTPClient           *AuthHTTPClient
+	isRefreshTokenHandlerSet bool
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
-	return &AuthHTTPStore{*na, c}
+	return &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
 }
 
 func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
-	return &AuthHTTPStore{*n, c}
+	return &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
 }
 
 func (n *NoAuthHTTPStore) WithAuth(auth Auth) *AuthHTTPStore {
@@ -60,14 +61,18 @@ func (s AuthHTTPStore) NewAuthHTTPStore() *AuthHTTPStore {
 	return s.WithAuth(s.authHTTPClient.auth)
 }
 
-func (s *AuthHTTPStore) SetOnAuthFailureHandler(handler func() error) {
+func (s *AuthHTTPStore) SetRefreshTokenHandler(handler func() (string, error)) error {
+	if s.isRefreshTokenHandlerSet { // need to create a way to idempotently set this
+		return fmt.Errorf("refresh token handler alreay set")
+	}
 	attemptsThresh := 1
 	s.authHTTPClient.restyClient.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
 		if r.StatusCode() == 403 && r.Request.Attempt < attemptsThresh+1 {
-			err := handler()
+			token, err := handler()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			c.SetAuthToken(token)
 		}
 		return nil
 	})
@@ -76,6 +81,9 @@ func (s *AuthHTTPStore) SetOnAuthFailureHandler(handler func() error) {
 			return r.StatusCode() == 403
 		})
 	s.authHTTPClient.restyClient.SetRetryCount(attemptsThresh)
+
+	s.isRefreshTokenHandlerSet = true
+	return nil
 }
 
 type AuthHTTPClient struct {

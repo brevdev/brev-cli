@@ -56,6 +56,7 @@ func TestNewAuthHTTPClient(t *testing.T) {
 
 func TestRetryAuthSuccess(t *testing.T) {
 	s := MakeMockAuthHTTPStore()
+	s.authHTTPClient.restyClient.SetAuthToken("1")
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	url := "/test"
@@ -63,17 +64,23 @@ func TestRetryAuthSuccess(t *testing.T) {
 	httpmock.RegisterResponder("GET", url, res)
 
 	calledTimes := 0
-	s.SetOnAuthFailureHandler(func() error {
+	err := s.SetRefreshTokenHandler(func() (string, error) {
 		calledTimes++
 		res := httpmock.NewStringResponder(200, "")
 		httpmock.RegisterResponder("GET", url, res)
-		return nil
+		return "2", nil
 	})
-	_, err := s.authHTTPClient.restyClient.R().Get(url)
+	if !assert.Nil(t, err) {
+		return
+	}
+	_, err = s.authHTTPClient.restyClient.R().Get(url)
 	if !assert.Nil(t, err) {
 		return
 	}
 	if !assert.Equal(t, 1, calledTimes) {
+		return
+	}
+	if !assert.Equal(t, "2", s.authHTTPClient.restyClient.Token) {
 		return
 	}
 }
@@ -87,11 +94,14 @@ func TestRetryAuthFailure(t *testing.T) {
 	httpmock.RegisterResponder("GET", url, res)
 
 	calledTimes := 0
-	s.SetOnAuthFailureHandler(func() error {
+	err := s.SetRefreshTokenHandler(func() (string, error) {
 		calledTimes++
-		return nil
+		return "2", nil
 	})
-	_, err := s.authHTTPClient.restyClient.R().Get(url)
+	if !assert.Nil(t, err) {
+		return
+	}
+	_, err = s.authHTTPClient.restyClient.R().Get(url)
 	if !assert.Nil(t, err) {
 		return
 	}
