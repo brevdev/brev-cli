@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -47,17 +46,6 @@ func NewSSHAll(
 		workspaceConnections:       make(connectionMap),
 		retries:                    make(retrymap),
 	}
-}
-
-// stringContainsOneOf returns the first match from a list of candidates to
-// check if a string contains, otherwise returning false
-func stringContainsOneOf(str string, candidates []string) (bool, *string) {
-	for _, candidate := range candidates {
-		if strings.Contains(str, candidate) {
-			return true, &candidate
-		}
-	}
-	return false, nil
 }
 
 func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) bool {
