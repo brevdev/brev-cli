@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	auth "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -17,20 +18,20 @@ import (
 )
 
 type Client struct {
-	Key *OauthToken
+	Key *auth.OauthToken
 }
 
 func HandleNewClientErrors(err error) error {
 	switch e := err.(type) {
 	case *breverrors.CredentialsFileNotFound:
-		_, err = Login(true)
+		_, err = auth.Login(true)
 		return err
 	case *requests.RESTResponseError:
 		switch e.ResponseStatusCode {
 		case 404: // happens when user signs in to the cli using github but does not have an account on brev
 			return fmt.Errorf("create an account on https://console.brev.dev")
 		case 403: // possibly malformed credentials.json, try logging in
-			_, err = Login(true)
+			_, err = auth.Login(true)
 			return err
 		}
 	}
@@ -39,7 +40,7 @@ func HandleNewClientErrors(err error) error {
 
 func NewClient() (*Client, error) {
 	// get token and use it to create a client
-	token, err := GetToken()
+	token, err := auth.GetToken()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

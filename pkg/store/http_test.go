@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
@@ -48,7 +48,7 @@ func TestNewNoAuthHTTPClient(t *testing.T) {
 }
 
 func TestNewAuthHTTPClient(t *testing.T) {
-	n := NewAuthHTTPClient(brevapi.TempAuth{}, "")
+	n := NewAuthHTTPClient(auth.TempAuth{}, "")
 	if !assert.NotNil(t, n) {
 		return
 	}

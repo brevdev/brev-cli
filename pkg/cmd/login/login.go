@@ -4,6 +4,7 @@ package login
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -54,7 +55,7 @@ func (o *LoginOptions) Validate(_ *terminal.Terminal, _ *cobra.Command, _ []stri
 
 func (o *LoginOptions) RunLogin(t *terminal.Terminal, _ *cobra.Command, _ []string, loginStore LoginStore) error {
 	// func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
-	token, err := brevapi.Login(false)
+	token, err := auth.Login(false)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

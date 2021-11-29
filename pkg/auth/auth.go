@@ -1,4 +1,4 @@
-package brevapi
+package auth
 
 import (
 	"bufio"
@@ -373,10 +373,10 @@ func Login(prompt bool) (*string, error) {
 	}
 
 	// hydrate the cache
-	_, _, err = WriteCaches()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+	// _, _, err = WriteCaches()
+	// if err != nil {
+	// 	return nil, breverrors.WrapAndTrace(err)
+	// }
 
 	return &creds.IDToken, nil
 }

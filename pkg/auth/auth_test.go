@@ -1,4 +1,4 @@
-package brevapi
+package auth
 
 import (
 	"testing"

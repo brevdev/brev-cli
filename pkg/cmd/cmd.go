@@ -4,7 +4,7 @@ package cmd
 import (
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
@@ -91,7 +91,7 @@ func NewBrevCommand() *cobra.Command {
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	conf := config.NewConstants()
-	auth := brevapi.TempAuth{}
+	auth := auth.TempAuth{}
 	fs := files.AppFs
 	cmdStore := store.
 		NewBasicStore().
