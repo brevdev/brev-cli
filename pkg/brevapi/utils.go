@@ -25,14 +25,14 @@ func HandleNewClientErrors(err error) error {
 	switch e := err.(type) {
 	case *breverrors.CredentialsFileNotFound:
 		_, err = auth.Login(true)
-		return err
+		return breverrors.WrapAndTrace(err)
 	case *requests.RESTResponseError:
 		switch e.ResponseStatusCode {
 		case 404: // happens when user signs in to the cli using github but does not have an account on brev
 			return fmt.Errorf("create an account on https://console.brev.dev")
 		case 403: // possibly malformed credentials.json, try logging in
 			_, err = auth.Login(true)
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 	return breverrors.WrapAndTrace(err)

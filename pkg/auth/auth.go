@@ -3,15 +3,9 @@ package auth
 import (
 	"bufio"
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -19,268 +13,117 @@ import (
 	"github.com/spf13/afero"
 )
 
-const (
-	brevCredentialsFile    = "credentials.json"
-	audiencePath           = "/api/v2/"
-	waitThresholdInSeconds = 3
-	// namespace used to set/get values from the keychain.
-	SecNamespace = "auth0-cli"
-)
-
-var Ta *time.Time
-
-var requiredScopes = []string{
-	"openid",
-	"profile",
-	"email",
-	"offline_access", // <-- to get a refresh token.
-	"create:clients", "delete:clients", "read:clients", "update:clients",
-	"create:resource_servers", "delete:resource_servers", "read:resource_servers", "update:resource_servers",
-	"create:roles", "delete:roles", "read:roles", "update:roles",
-	"create:rules", "delete:rules", "read:rules", "update:rules",
-	"create:users", "delete:users", "read:users", "update:users",
-	"read:branding", "update:branding",
-	"read:email_templates", "update:email_templates",
-	"read:connections", "update:connections",
-	"read:client_keys", "read:logs", "read:tenant_settings",
-	"read:custom_domains", "create:custom_domains", "update:custom_domains", "delete:custom_domains",
-	"read:anomaly_blocks", "delete:anomaly_blocks",
-	"create:log_streams", "delete:log_streams", "read:log_streams", "update:log_streams",
-	"create:actions", "delete:actions", "read:actions", "update:actions",
-	"create:organizations", "delete:organizations", "read:organizations", "update:organizations",
-}
-
-type Authenticator struct {
-	Audience           string
-	ClientID           string
-	DeviceCodeEndpoint string
-	OauthTokenEndpoint string
-}
-
-type Result struct {
-	Tenant       string
-	Domain       string
-	RefreshToken string
-	AccessToken  string
-	IDToken      string
-	ExpiresIn    int64
-}
-
-type State struct {
-	DeviceCode      string `json:"device_code"`
-	UserCode        string `json:"user_code"`
-	VerificationURI string `json:"verification_uri_complete"`
-	ExpiresIn       int    `json:"expires_in"`
-	Interval        int    `json:"interval"`
-}
-
-type Credentials struct {
-	AccessToken  string `json:"access_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-type OauthToken struct {
-	AccessToken  string `json:"access_token"`
-	AuthMethod   string `json:"auth_method"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// RequiredScopes returns the scopes used for login.
-func RequiredScopes() []string { return requiredScopes }
-
-// RequiredScopesMin returns minimum scopes used for login in integration tests.
-func RequiredScopesMin() []string {
-	min := []string{}
-	for _, s := range requiredScopes {
-		if s != "offline_access" && s != "openid" {
-			min = append(min, s)
-		}
-	}
-	return min
-}
-
-func (s *State) IntervalDuration() time.Duration {
-	return time.Duration(s.Interval+waitThresholdInSeconds) * time.Second
-}
-
-// Start kicks-off the device authentication flow
-// by requesting a device code from Auth0,
-// The returned state contains the URI for the next step of the flow.
-func (a *Authenticator) Start(ctx context.Context) (State, error) {
-	s, err := a.getDeviceCode(ctx)
-	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
-	}
-	return s, nil
-}
-
-// Wait waits until the user is logged in on the browser.
-func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
-	t := time.NewTicker(state.IntervalDuration())
-	for {
-		select {
-		case <-ctx.Done():
-			return Result{}, breverrors.WrapAndTrace(ctx.Err())
-		case <-t.C:
-			data := url.Values{
-				"client_id":   {a.ClientID},
-				"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
-				"device_code": {state.DeviceCode},
-			}
-			r, err := http.PostForm(a.OauthTokenEndpoint, data) //nolint:noctx // ignoring api call since planning to refactor api
-			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
-			}
-
-			var res struct {
-				AccessToken      string  `json:"access_token"`
-				IDToken          string  `json:"id_token"`
-				RefreshToken     string  `json:"refresh_token"`
-				Scope            string  `json:"scope"`
-				ExpiresIn        int64   `json:"expires_in"`
-				TokenType        string  `json:"token_type"`
-				Error            *string `json:"error,omitempty"`
-				ErrorDescription string  `json:"error_description,omitempty"`
-			}
-
-			err = json.NewDecoder(r.Body).Decode(&res)
-			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot decode response")
-			}
-
-			if res.Error != nil {
-				if *res.Error == "authorization_pending" {
-					continue
-				}
-				return Result{}, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
-			}
-
-			ten, domain, err := parseTenant(res.AccessToken)
-			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
-			}
-
-			if err = r.Body.Close(); err != nil {
-				return Result{}, breverrors.WrapAndTrace(err)
-			}
-			return Result{
-				RefreshToken: res.RefreshToken,
-				AccessToken:  res.AccessToken,
-				ExpiresIn:    res.ExpiresIn,
-				Tenant:       ten,
-				Domain:       domain,
-				IDToken:      res.IDToken,
-			}, nil
-		}
-	}
-}
-
-func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
-	data := url.Values{
-		"client_id": {a.ClientID},
-		"scope":     {strings.Join(requiredScopes, " ")},
-		"audience":  {a.Audience},
-	}
-	r, err := http.PostForm(a.DeviceCodeEndpoint, data) //nolint:noctx // ignoring noctx since planning on refactoring api calls
-	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
-	}
-	var res State
-	err = json.NewDecoder(r.Body).Decode(&res)
-	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, "cannot decode response")
-	}
-	// TODO if status code > 399 handle errors
-	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
-
-	if err = r.Body.Close(); err != nil {
-		return State{}, breverrors.WrapAndTrace(err)
-	}
-	return res, nil
-}
-
-func parseTenant(accessToken string) (tenant, domain string, err error) {
-	parts := strings.Split(accessToken, ".")
-	v, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", "", breverrors.WrapAndTrace(err)
-	}
-	var payload struct {
-		AUDs []string `json:"aud"`
-	}
-	if err := json.Unmarshal(v, &payload); err != nil {
-		return "", "", breverrors.WrapAndTrace(err)
-	}
-
-	for _, aud := range payload.AUDs {
-		u, err := url.Parse(aud)
-		if err != nil {
-			return "", "", breverrors.WrapAndTrace(err)
-		}
-		if u.Path == audiencePath {
-			parts := strings.Split(u.Host, ".")
-			return parts[0], u.Host, nil
-		}
-	}
-	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
-}
-
-// GetToken reads the previously-persisted token from the filesystem,
-// returning nil for a token if it does not exist
-func GetToken() (*OauthToken, error) {
-	token, err := GetTokenFromBrevConfigFile(files.AppFs)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if token == nil { // we have not logged in yet
-		_, err = Login(true)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		// now that we have logged in, the file should contain the token
-		token, err = GetTokenFromBrevConfigFile(files.AppFs)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-	return token, nil
-}
-
 type TempAuth struct{}
 
 func (t TempAuth) GetAccessToken() (string, error) {
 	return GetAccessToken()
 }
 
-type Auth struct {
-	authStore AuthStore
+type AuthStore interface {
+	SaveAuthTokens(tokens AuthTokens) error
+	GetAuthTokens() (*AuthTokens, error)
+	DeleteAuthTokens() error
 }
 
-type AuthStore interface{}
+type OAuth interface {
+	DoDeviceAuthFlow(onStateRetrieve func(url string, code string)) (*LoginTokens, error)
+	GetNewAuthTokensWithRefresh(refreshToken string) (*AuthTokens, error)
+}
 
-func NewAuth(authStore AuthStore) *Auth {
+type Auth struct {
+	authStore AuthStore
+	oauth     OAuth
+}
+
+func NewAuth(authStore AuthStore, oauth OAuth) *Auth {
 	return &Auth{
 		authStore: authStore,
+		oauth:     oauth,
 	}
 }
 
+// Gets fresh access token and prompts for login and saves to store
 func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
-	return "", nil
+	token, err := t.GetFreshAccessTokenOrNil()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if token == "" {
+		lt, err := t.PromptForLogin()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		token = lt.accessToken
+	}
+	return token, nil
 }
 
+// Gets fresh access token or returns nil and saves to store
 func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
-	return "", nil
+	tokens, err := t.getSavedTokensOrNil()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		return "", nil
+	}
+	isAccessTokenExpired, err := t.isTokenExpired(tokens.accessToken)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if isAccessTokenExpired {
+		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.refreshToken)
+		if tokens == nil {
+			return "", nil
+		}
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+	}
+	return tokens.accessToken, nil
 }
 
-func (t Auth) PromptForLogin() error {
-	return nil
+// Prompts for login and returns tokens, and saves to store
+func (t Auth) PromptForLogin() (*LoginTokens, error) {
+	reader := bufio.NewReader(os.Stdin) // TODO inject?
+	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+	text, _ := reader.ReadString('\n')
+	if strings.Compare(text, "y") != 1 {
+		return nil, &breverrors.DeclineToLoginError{}
+	}
+
+	tokens, err := t.oauth.DoDeviceAuthFlow(
+		func(url, code string) {
+			fmt.Println("Your Device Confirmation Code is", code)
+
+			err := browser.OpenURL(url)
+			if err != nil {
+				fmt.Println("please open: ", url)
+			}
+
+			fmt.Println("waiting for auth to complete")
+		},
+	)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err, "login error")
+	}
+
+	err = t.authStore.SaveAuthTokens(tokens.AuthTokens)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	fmt.Print("\n")
+	fmt.Println("Successfully logged in.")
+
+	return tokens, nil
 }
 
 func (t Auth) Logout() error {
+	err := t.authStore.DeleteAuthTokens()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -289,17 +132,50 @@ type AuthTokens struct {
 	refreshToken string
 }
 
-func (t Auth) getSavedTokensOrNil() (AuthTokens, error) {
-	return AuthTokens{}, nil
+type LoginTokens struct {
+	AuthTokens
+	// idToken string
 }
 
-func (t Auth) saveTokens(tokens AuthTokens) error {
-	return nil
+func (t Auth) getSavedTokensOrNil() (*AuthTokens, error) {
+	tokens, err := t.authStore.GetAuthTokens()
+	// TODO handle certain errors and return nil
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return tokens, nil
 }
 
-func (t Auth) getFreshAccessToken(refreshToken string) (string, error) {
-	return "", nil
+// gets new access and refresh token or returns nil if refresh token expired, and updates store
+func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*AuthTokens, error) {
+	isRefreshTokenExpired, err := t.isTokenExpired(refreshToken)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if isRefreshTokenExpired {
+		return nil, nil
+	}
+	tokens, err := t.oauth.GetNewAuthTokensWithRefresh(refreshToken)
+	// TODO handle if 403
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	err = t.authStore.SaveAuthTokens(*tokens)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return tokens, nil
 }
+
+func (t Auth) isTokenExpired(_ string) (bool, error) {
+	// TODO
+	return false, nil
+}
+
+// #########################################################
+const brevCredentialsFile = "credentials.json"
 
 func GetAccessToken() (string, error) {
 	oauthToken, err := GetToken()
@@ -433,4 +309,25 @@ func Logout() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+// GetToken reads the previously-persisted token from the filesystem,
+// returning nil for a token if it does not exist
+func GetToken() (*OauthToken, error) {
+	token, err := GetTokenFromBrevConfigFile(files.AppFs)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if token == nil { // we have not logged in yet
+		_, err = Login(true)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		// now that we have logged in, the file should contain the token
+		token, err = GetTokenFromBrevConfigFile(files.AppFs)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	}
+	return token, nil
 }
