@@ -79,20 +79,13 @@ func (s SSHAll) Run() error {
 	// set up error handling for the ssh connections, very much brute force
 	// since kubectl was not intended to be used a library like this
 	runtime.ErrorHandlers = append(runtime.ErrorHandlers, func(err error) {
-		match, _ := stringContainsOneOf(fmt.Sprint(err), []string{
-			"lost connection to pod",
-			"error creating stream",
-		})
-
-		if match {
-			for _, w := range s.workspaces {
-				isHealthy := workspaceSSHConnectionHealthCheck(w)
-				if !isHealthy {
-					close(s.workspaceConnections[w])
-					if s.retries[w] > 0 {
-						s.retries[w]--
-						go s.runPortForwardWorkspace(w)
-					}
+		for _, w := range s.workspaces {
+			isHealthy := workspaceSSHConnectionHealthCheck(w)
+			if !isHealthy {
+				close(s.workspaceConnections[w])
+				if s.retries[w] > 0 {
+					s.retries[w]--
+					go s.runPortForwardWorkspace(w)
 				}
 			}
 		}
