@@ -256,6 +256,51 @@ func (t TempAuth) GetAccessToken() (string, error) {
 	return GetAccessToken()
 }
 
+type Auth struct {
+	authStore AuthStore
+}
+
+type AuthStore interface{}
+
+func NewAuth(authStore AuthStore) *Auth {
+	return &Auth{
+		authStore: authStore,
+	}
+}
+
+func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
+	return "", nil
+}
+
+func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
+	return "", nil
+}
+
+func (t Auth) PromptForLogin() error {
+	return nil
+}
+
+func (t Auth) Logout() error {
+	return nil
+}
+
+type AuthTokens struct {
+	accessToken  string
+	refreshToken string
+}
+
+func (t Auth) getSavedTokensOrNil() (AuthTokens, error) {
+	return AuthTokens{}, nil
+}
+
+func (t Auth) saveTokens(tokens AuthTokens) error {
+	return nil
+}
+
+func (t Auth) getFreshAccessToken(refreshToken string) (string, error) {
+	return "", nil
+}
+
 func GetAccessToken() (string, error) {
 	oauthToken, err := GetToken()
 	if err != nil {
@@ -310,9 +355,6 @@ func GetTokenFromBrevConfigFile(fs afero.Fs) (*OauthToken, error) {
 	return &token, nil
 }
 
-// BANANA: this feels like a bad dependency loop
-// 		... should the user creation happen outside of this function?
-// func Login(prompt bool, loginStore login.LoginStore) error {
 func Login(prompt bool) (*string, error) {
 	if prompt {
 		reader := bufio.NewReader(os.Stdin)

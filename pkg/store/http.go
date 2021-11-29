@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"net/http"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	resty "github.com/go-resty/resty/v2"
@@ -61,24 +62,23 @@ func (s AuthHTTPStore) NewAuthHTTPStore() *AuthHTTPStore {
 	return s.WithAuth(s.authHTTPClient.auth)
 }
 
-func (s *AuthHTTPStore) SetRefreshTokenHandler(handler func() (string, error)) error {
+func (s *AuthHTTPStore) SetForbiddenStatusRetryHandler(handler func() error) error {
 	if s.isRefreshTokenHandlerSet { // need to create a way to idempotently set this
 		return fmt.Errorf("refresh token handler alreay set")
 	}
 	attemptsThresh := 1
 	s.authHTTPClient.restyClient.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
-		if r.StatusCode() == 403 && r.Request.Attempt < attemptsThresh+1 {
-			token, err := handler()
+		if r.StatusCode() == http.StatusForbidden && r.Request.Attempt < attemptsThresh+1 {
+			err := handler()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			c.SetAuthToken(token)
 		}
 		return nil
 	})
 	s.authHTTPClient.restyClient.AddRetryCondition(
 		func(r *resty.Response, e error) bool {
-			return r.StatusCode() == 403
+			return r.StatusCode() == http.StatusForbidden
 		})
 	s.authHTTPClient.restyClient.SetRetryCount(attemptsThresh)
 
