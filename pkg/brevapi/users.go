@@ -13,7 +13,7 @@ type User struct {
 	Username  string `json:"username"`
 }
 
-func (a *Client) GetMe() (*User, error) {
+func (a *DeprecatedClient) GetMe() (*User, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: buildBrevEndpoint("/api/me"),
@@ -60,7 +60,7 @@ func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGrou
 	return nil, fmt.Errorf("group id %s not found", groupID)
 }
 
-func (a *Client) GetMeKeys() (*UserKeys, error) {
+func (a *DeprecatedClient) GetMeKeys() (*UserKeys, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: buildBrevEndpoint("/api/me/keys"),
@@ -84,7 +84,7 @@ func (a *Client) GetMeKeys() (*UserKeys, error) {
 	return &payload, nil
 }
 
-func (a *Client) CreateUser(identity string) (*User, error) {
+func (a *DeprecatedClient) CreateUser(identity string) (*User, error) {
 	request := requests.RESTRequest{
 		Method:   "POST",
 		Endpoint: buildBrevEndpoint("/api/users"),

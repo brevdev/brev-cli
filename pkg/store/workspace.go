@@ -148,3 +148,24 @@ func (s AuthHTTPStore) StopWorkspace(workspaceID string) (*brevapi.Workspace, er
 	}
 	return &result, nil
 }
+
+var (
+	workspaceStartPathPattern = fmt.Sprintf("%s/start", workspacePathPattern)
+	workspaceStartPath        = fmt.Sprintf(workspaceStartPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+)
+
+func (s AuthHTTPStore) StartWorkspace(workspaceID string) (*brevapi.Workspace, error) {
+	var result brevapi.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		Put(workspaceStartPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}

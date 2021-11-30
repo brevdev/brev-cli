@@ -3,17 +3,15 @@ package brevapi
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/deprecatedauth"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/requests"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-type Client struct {
+type DeprecatedClient struct {
 	Key *deprecatedauth.OauthToken
 }
 
@@ -34,28 +32,28 @@ func HandleNewClientErrors(err error) error {
 	return breverrors.WrapAndTrace(err)
 }
 
-func NewClient() (*Client, error) {
+func NewDeprecatedClient() (*DeprecatedClient, error) {
 	// get token and use it to create a client
 	token, err := deprecatedauth.GetToken()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	client := Client{
+	client := DeprecatedClient{
 		Key: token,
 	}
 	return &client, nil
 }
 
-func NewCommandClient() (*Client, error) {
-	var client *Client
+func NewCommandClient() (*DeprecatedClient, error) {
+	var client *DeprecatedClient
 	var err error
-	client, err = NewClient()
+	client, err = NewDeprecatedClient()
 	if err != nil {
 		err = HandleNewClientErrors(err)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		} else {
-			client, err = NewClient()
+			client, err = NewDeprecatedClient()
 			if err != nil {
 				return nil, breverrors.WrapAndTrace(err)
 			}
@@ -208,38 +206,6 @@ func GetWorkspaceNames() []string {
 }
 
 // func PollWorkspaceForReadyState()
-
-type NewWorkspace struct {
-	Name    string `json:"name"`
-	GitRepo string `json:"gitRepo"`
-}
-
-func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
-	// gitlab.com:mygitlaborg/mycoolrepo.git
-	if strings.Contains(url, "http") {
-		split := strings.Split(url, ".com/")
-		provider := strings.Split(split[0], "://")[1]
-
-		if strings.Contains(split[1], ".git") {
-			return NewWorkspace{
-				GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
-				Name:    strings.Split(split[1], ".git")[0],
-			}
-		} else {
-			return NewWorkspace{
-				GitRepo: fmt.Sprintf("%s.com:%s.git", provider, split[1]),
-				Name:    split[1],
-			}
-		}
-	} else {
-		split := strings.Split(url, ".com:")
-		provider := strings.Split(split[0], "@")[1]
-		return NewWorkspace{
-			GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
-			Name:    strings.Split(split[1], ".git")[0],
-		}
-	}
-}
 
 func GetMe() (*User, error) {
 	client, err := NewCommandClient()

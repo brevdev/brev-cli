@@ -12,7 +12,7 @@ type Organization struct {
 	Name string `json:"name"`
 }
 
-func (a *Client) GetOrgs() ([]Organization, error) {
+func (a *DeprecatedClient) GetOrgs() ([]Organization, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: buildBrevEndpoint("/api/organizations"),
@@ -46,7 +46,7 @@ func GetActiveOrgContext(fs afero.Fs) (*Organization, error) {
 	}
 
 	if !exists {
-		client, err2 := NewClient()
+		client, err2 := NewDeprecatedClient()
 		if err2 != nil {
 			return nil, breverrors.WrapAndTrace(err2)
 		}

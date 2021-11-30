@@ -25,7 +25,7 @@ func TestWithHTTPClient(t *testing.T) {
 type MockAuth struct{ token *string }
 
 func (a MockAuth) GetAccessToken() (string, error) {
-	if *a.token == "" {
+	if a.token == nil {
 		return "mock-token", nil
 	} else {
 		return *a.token, nil

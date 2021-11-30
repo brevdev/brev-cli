@@ -126,7 +126,7 @@ func validateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
 }
 
 func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string) error {
-	c, err := brevapi.NewClient()
+	c, err := brevapi.NewDeprecatedClient()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

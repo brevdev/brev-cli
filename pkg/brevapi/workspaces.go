@@ -57,7 +57,7 @@ var (
 var DefaultApplicationList = []Application{DefaultApplication}
 
 // Note: this is the "projects" view
-func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
+func (a *DeprecatedClient) GetMyWorkspaces(orgID string) ([]Workspace, error) {
 	me, err := a.GetMe()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -95,7 +95,7 @@ func (a *Client) GetMyWorkspaces(orgID string) ([]Workspace, error) {
 	return myWorkspaces, nil
 }
 
-func (a *Client) GetWorkspaces(orgID string) ([]Workspace, error) {
+func (a *DeprecatedClient) GetWorkspaces(orgID string) ([]Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
@@ -136,7 +136,7 @@ func (w WorkspaceMetaData) GetNamespaceName() string {
 	return w.NamespaceName
 }
 
-func (a *Client) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
+func (a *DeprecatedClient) GetWorkspaceMetaData(wsID string) (*WorkspaceMetaData, error) {
 	ep := buildBrevEndpoint("/api/workspaces/" + wsID + "/metadata")
 	request := requests.RESTRequest{
 		Method:   "GET",
@@ -168,7 +168,7 @@ type WorkspaceWithMeta struct {
 	Workspace
 }
 
-func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
+func (a *DeprecatedClient) GetWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "GET",
 		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID),
@@ -194,7 +194,7 @@ func (a *Client) GetWorkspace(wsID string) (*Workspace, error) {
 	return &payload, nil
 }
 
-func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
+func (a *DeprecatedClient) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	request := &requests.RESTRequest{
@@ -232,7 +232,7 @@ func (a *Client) CreateWorkspace(orgID string, name string, gitrepo string) (*Wo
 	return &payload, nil
 }
 
-func (a *Client) DeleteWorkspace(wsID string) (*Workspace, error) {
+func (a *DeprecatedClient) DeleteWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "DELETE",
 		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID),
@@ -258,7 +258,7 @@ func (a *Client) DeleteWorkspace(wsID string) (*Workspace, error) {
 	return &payload, nil
 }
 
-func (a *Client) StartWorkspace(wsID string) (*Workspace, error) {
+func (a *DeprecatedClient) StartWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "PUT",
 		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/start"),
@@ -284,7 +284,7 @@ func (a *Client) StartWorkspace(wsID string) (*Workspace, error) {
 	return &payload, nil
 }
 
-func (a *Client) StopWorkspace(wsID string) (*Workspace, error) {
+func (a *DeprecatedClient) StopWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "PUT",
 		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/stop"),
@@ -310,7 +310,7 @@ func (a *Client) StopWorkspace(wsID string) (*Workspace, error) {
 	return &payload, nil
 }
 
-func (a *Client) ResetWorkspace(wsID string) (*Workspace, error) {
+func (a *DeprecatedClient) ResetWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "PUT",
 		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/reset"),

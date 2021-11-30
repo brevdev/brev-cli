@@ -10,7 +10,7 @@ import (
 
 // Helper functions
 func getOrgs() []Organization {
-	client, err := NewClient()
+	client, err := NewDeprecatedClient()
 	if err != nil {
 		return []Organization{}
 	}
@@ -22,7 +22,7 @@ func getOrgs() []Organization {
 }
 
 func getWorkspaces(orgID string) []Workspace {
-	client, err := NewClient()
+	client, err := NewDeprecatedClient()
 	if err != nil {
 		return []Workspace{}
 	}

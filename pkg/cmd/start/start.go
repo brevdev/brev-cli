@@ -105,7 +105,7 @@ func startWorkspace(workspaceName string, t *terminal.Terminal) error {
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
 func clone(t *terminal.Terminal, url string, orgflag string) error {
-	formattedURL := brevapi.ValidateGitURL(t, url)
+	formattedURL := ValidateGitURL(t, url)
 
 	var orgID string
 	if orgflag == "" {
@@ -129,8 +129,40 @@ func clone(t *terminal.Terminal, url string, orgflag string) error {
 	return nil
 }
 
-func createWorkspace(t *terminal.Terminal, newworkspace brevapi.NewWorkspace, orgID string) error {
-	c, err := brevapi.NewClient()
+type NewWorkspace struct {
+	Name    string `json:"name"`
+	GitRepo string `json:"gitRepo"`
+}
+
+func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
+	// gitlab.com:mygitlaborg/mycoolrepo.git
+	if strings.Contains(url, "http") {
+		split := strings.Split(url, ".com/")
+		provider := strings.Split(split[0], "://")[1]
+
+		if strings.Contains(split[1], ".git") {
+			return NewWorkspace{
+				GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
+				Name:    strings.Split(split[1], ".git")[0],
+			}
+		} else {
+			return NewWorkspace{
+				GitRepo: fmt.Sprintf("%s.com:%s.git", provider, split[1]),
+				Name:    split[1],
+			}
+		}
+	} else {
+		split := strings.Split(url, ".com:")
+		provider := strings.Split(split[0], "@")[1]
+		return NewWorkspace{
+			GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
+			Name:    strings.Split(split[1], ".git")[0],
+		}
+	}
+}
+
+func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string) error {
+	c, err := brevapi.NewDeprecatedClient()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -153,7 +185,7 @@ func createWorkspace(t *terminal.Terminal, newworkspace brevapi.NewWorkspace, or
 }
 
 func pollUntil(t *terminal.Terminal, wsid string, state string) (*brevapi.Workspace, error) {
-	c, err := brevapi.NewClient()
+	c, err := brevapi.NewDeprecatedClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
