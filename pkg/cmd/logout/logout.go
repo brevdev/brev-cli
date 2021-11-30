@@ -2,6 +2,8 @@
 package logout
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -48,7 +50,9 @@ func (o *LogoutOptions) RunLogout() error {
 	// func (o *LogoutOptions) RunLogout(cmd *cobra.Command, args []string) error {
 	err := o.auth.Logout()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if !strings.Contains(err.Error(), ".brev/credentials.json: no such file or directory") {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	return nil
 }

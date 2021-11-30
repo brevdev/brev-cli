@@ -24,7 +24,7 @@ type StopStore interface {
 	GetCurrentUser() (*brevapi.User, error)
 }
 
-func NewCmdStop(stopStore StopStore, t *terminal.Terminal) *cobra.Command {
+func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "stop",
@@ -33,9 +33,9 @@ func NewCmdStop(stopStore StopStore, t *terminal.Terminal) *cobra.Command {
 		Long:                  stopLong,
 		Example:               stopExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(stopStore, t),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := stopWorkspace(args[0], t, stopStore)
+			err := stopWorkspace(args[0], t, loginStopStore)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}

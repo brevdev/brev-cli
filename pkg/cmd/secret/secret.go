@@ -16,7 +16,7 @@ import (
 )
 
 func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

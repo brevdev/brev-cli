@@ -13,7 +13,7 @@ import (
 )
 
 func getMe() brevapi.User {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		panic(err)
 	}
@@ -25,7 +25,7 @@ func getMe() brevapi.User {
 }
 
 func getMeKeys() (*brevapi.UserKeys, error) {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

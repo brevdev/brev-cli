@@ -17,7 +17,7 @@ import (
 
 // Helper functions.
 func getMe() brevapi.User {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		panic(err)
 	}
@@ -29,7 +29,7 @@ func getMe() brevapi.User {
 }
 
 func getOrgs() ([]brevapi.Organization, error) {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -41,7 +41,7 @@ func getOrgs() ([]brevapi.Organization, error) {
 }
 
 func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

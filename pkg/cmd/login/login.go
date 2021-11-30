@@ -21,7 +21,7 @@ type LoginOptions struct {
 type LoginStore interface {
 	GetCurrentUser() (*brevapi.User, error)
 	CreateUser(idToken string) (*brevapi.User, error)
-	GetOrganizations() ([]brevapi.Organization, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]brevapi.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*brevapi.Organization, error)
 }
 
@@ -75,18 +75,20 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 }
 
 func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
+	t.Print("Creating your user...")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	orgs, err := loginStore.GetOrganizations()
+	orgs, err := loginStore.GetOrganizations(nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	if len(orgs) == 0 {
 		orgName := makeFirstOrgName(user)
+		t.Printf("Creating your first org %s", orgName)
 		_, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
 			Name: orgName,
 		})

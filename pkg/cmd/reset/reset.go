@@ -35,7 +35,7 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 }
 
 func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

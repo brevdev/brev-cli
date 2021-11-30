@@ -37,7 +37,7 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 }
 
 func deleteWorkspace(name string, t *terminal.Terminal) error {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -119,7 +119,7 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 }
 
 func (s AuthHTTPStore) GetAllWorkspaces(options *GetWorkspacesOptions) ([]brevapi.Workspace, error) {
-	orgs, err := s.GetOrganizations()
+	orgs, err := s.GetOrganizations(nil)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

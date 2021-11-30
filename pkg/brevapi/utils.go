@@ -44,7 +44,7 @@ func NewDeprecatedClient() (*DeprecatedClient, error) {
 	return &client, nil
 }
 
-func NewCommandClient() (*DeprecatedClient, error) {
+func NewDeprecatedCommandClient() (*DeprecatedClient, error) {
 	var client *DeprecatedClient
 	var err error
 	client, err = NewDeprecatedClient()
@@ -81,7 +81,7 @@ func StringInList(a string, list []string) bool {
 }
 
 func GetOrgFromName(name string) (*Organization, error) {
-	client, err := NewCommandClient()
+	client, err := NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -102,7 +102,7 @@ func GetOrgFromName(name string) (*Organization, error) {
 }
 
 func GetWorkspaceFromName(name string) (*Workspace, error) {
-	client, err := NewCommandClient()
+	client, err := NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -188,7 +188,7 @@ func GetWorkspaceNames() []string {
 		return nil
 	}
 
-	client, err := NewCommandClient()
+	client, err := NewDeprecatedCommandClient()
 	if err != nil {
 		return nil
 	}
@@ -208,7 +208,7 @@ func GetWorkspaceNames() []string {
 // func PollWorkspaceForReadyState()
 
 func GetMe() (*User, error) {
-	client, err := NewCommandClient()
+	client, err := NewDeprecatedCommandClient()
 	if err != nil {
 		return nil, err
 	}

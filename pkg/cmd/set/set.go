@@ -12,7 +12,7 @@ import (
 )
 
 func getOrgs() []brevapi.Organization {
-	client, err := brevapi.NewCommandClient()
+	client, err := brevapi.NewDeprecatedCommandClient()
 	if err != nil {
 		panic(err)
 	}

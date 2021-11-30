@@ -37,7 +37,7 @@ func TestGetOrganizations(t *testing.T) {
 	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
 	httpmock.RegisterResponder("GET", url, res)
 
-	org, err := fs.GetOrganizations()
+	org, err := fs.GetOrganizations(nil)
 	if !assert.Nil(t, err) {
 		return
 	}

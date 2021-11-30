@@ -36,7 +36,7 @@ func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*brevapi.Organization, 
 		return org, nil
 	}
 
-	orgs, err := s.GetOrganizations()
+	orgs, err := s.GetOrganizations(nil)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -46,7 +46,30 @@ func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*brevapi.Organization, 
 
 var orgPath = "api/organizations"
 
-func (s AuthHTTPStore) GetOrganizations() ([]brevapi.Organization, error) {
+type GetOrganizationsOptions struct {
+	Name string
+}
+
+func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]brevapi.Organization, error) {
+	orgs, err := s.getOrganizations()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	if options == nil || options.Name == "" {
+		return orgs, nil
+	}
+
+	filteredOrgs := []brevapi.Organization{}
+	for _, o := range orgs {
+		if o.Name == options.Name {
+			filteredOrgs = append(filteredOrgs, o)
+		}
+	}
+	return filteredOrgs, nil
+}
+
+func (s AuthHTTPStore) getOrganizations() ([]brevapi.Organization, error) {
 	var result []brevapi.Organization
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
