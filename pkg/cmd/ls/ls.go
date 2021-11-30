@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -16,11 +16,11 @@ import (
 )
 
 type LsStore interface {
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
-	GetCurrentUser() (*brevapi.User, error)
-	GetWorkspace(workspaceID string) (*brevapi.Workspace, error)
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]brevapi.Organization, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetCurrentUser() (*entity.User, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 }
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
@@ -76,7 +76,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string)
 		return fmt.Errorf("too many args provided")
 	}
 
-	var org *brevapi.Organization
+	var org *entity.Organization
 	if orgflag != "" {
 		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
 		if err != nil {
@@ -140,7 +140,7 @@ func (ls Ls) RunOrgs() error {
 	return nil
 }
 
-func (ls Ls) RunWorkspaces(org *brevapi.Organization) error {
+func (ls Ls) RunWorkspaces(org *entity.Organization) error {
 	user, err := ls.lsStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -162,7 +162,7 @@ func (ls Ls) RunWorkspaces(org *brevapi.Organization) error {
 	return nil
 }
 
-func displayOrgWorkspaces(t *terminal.Terminal, workspaces []brevapi.Workspace, org *brevapi.Organization) {
+func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
 	delimeter := 40
 	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
 	if len(workspaces) > 0 {
@@ -196,7 +196,7 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-func displayOrgs(t *terminal.Terminal, organizations []brevapi.Organization, defaultOrg *brevapi.Organization) {
+func displayOrgs(t *terminal.Terminal, organizations []entity.Organization, defaultOrg *entity.Organization) {
 	idLen := 9
 	if len(organizations) > 0 {
 		t.Vprint("  ID" + strings.Repeat(" ", idLen+1-len("ID")) + "NAME")

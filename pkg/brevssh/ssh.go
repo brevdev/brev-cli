@@ -20,7 +20,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/kevinburke/ssh_config"
 )
@@ -53,11 +53,11 @@ type DefaultSSHConfigurer struct {
 	sshStore   SSHStore
 	privateKey string
 
-	workspaces []brevapi.WorkspaceWithMeta
+	workspaces []entity.WorkspaceWithMeta
 	sshConfig  ssh_config.Config
 }
 
-func NewDefaultSSHConfigurer(workspaces []brevapi.WorkspaceWithMeta, sshStore SSHStore, privateKey string) *DefaultSSHConfigurer {
+func NewDefaultSSHConfigurer(workspaces []entity.WorkspaceWithMeta, sshStore SSHStore, privateKey string) *DefaultSSHConfigurer {
 	return &DefaultSSHConfigurer{
 		workspaces: workspaces,
 		sshStore:   sshStore,
@@ -127,7 +127,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 	return nil
 }
 
-func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error) {
+func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
 	port, err := s.sshConfig.Get(workspace.Name, "Port")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)

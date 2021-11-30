@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
@@ -19,12 +19,12 @@ import (
 )
 
 type (
-	connectionMap map[brevapi.WorkspaceWithMeta]chan struct{}
-	retrymap      map[brevapi.WorkspaceWithMeta]int
+	connectionMap map[entity.WorkspaceWithMeta]chan struct{}
+	retrymap      map[entity.WorkspaceWithMeta]int
 )
 
 type SSHAll struct {
-	workspaces                 []brevapi.WorkspaceWithMeta
+	workspaces                 []entity.WorkspaceWithMeta
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
 	workspaceConnections       connectionMap
@@ -32,11 +32,11 @@ type SSHAll struct {
 }
 
 type SSHResolver interface {
-	GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error)
+	GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 }
 
 func NewSSHAll(
-	workspaces []brevapi.WorkspaceWithMeta,
+	workspaces []entity.WorkspaceWithMeta,
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper,
 	sshResolver SSHResolver,
 
@@ -50,7 +50,7 @@ func NewSSHAll(
 	}
 }
 
-func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) (bool, error) {
+func workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (bool, error) {
 	var hostKey ssh.PublicKey
 	// A public key may be used to authenticate against the remote
 	// 	var hostKey ssh.PublicKey
@@ -91,7 +91,7 @@ func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) (bool, error
 	return true, nil
 }
 
-func (s SSHAll) runPortForwardWorkspace(workspace brevapi.WorkspaceWithMeta) {
+func (s SSHAll) runPortForwardWorkspace(workspace entity.WorkspaceWithMeta) {
 	err := s.portforwardWorkspace(workspace)
 	if err != nil {
 		// todo have verbose version with trace
@@ -136,7 +136,7 @@ func (s SSHAll) Run() error {
 	return nil
 }
 
-func (s SSHAll) portforwardWorkspace(workspace brevapi.WorkspaceWithMeta) error {
+func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
 	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -152,7 +152,7 @@ func (s SSHAll) portforwardWorkspace(workspace brevapi.WorkspaceWithMeta) error 
 	return nil
 }
 
-func (s SSHAll) portforwardWorkspaceAtPort(workspace brevapi.WorkspaceWithMeta, portMapping string) error {
+func (s SSHAll) portforwardWorkspaceAtPort(workspace entity.WorkspaceWithMeta, portMapping string) error {
 	dpf := portforward.NewDefaultPortForwarder()
 	pf := portforward.NewPortForwardOptions(
 		s.workspaceGroupClientMapper,
@@ -179,9 +179,9 @@ type (
 		WorkspaceResolver WorkspaceResolver
 	}
 	WorkspaceResolver interface {
-		GetMyWorkspaces(orgID string) ([]brevapi.Workspace, error)
-		GetWorkspaceMetaData(wsID string) (*brevapi.WorkspaceMetaData, error)
-		GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
+		GetMyWorkspaces(orgID string) ([]entity.Workspace, error)
+		GetWorkspaceMetaData(wsID string) (*entity.WorkspaceMetaData, error)
+		GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	}
 )
 
@@ -191,7 +191,7 @@ func NewRandomPortSSHResolver(workspaceResolver WorkspaceResolver) *RandomSSHRes
 	}
 }
 
-func (r RandomSSHResolver) GetWorkspaces() ([]brevapi.WorkspaceWithMeta, error) {
+func (r RandomSSHResolver) GetWorkspaces() ([]entity.WorkspaceWithMeta, error) {
 	activeOrg, err := r.WorkspaceResolver.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -202,21 +202,21 @@ func (r RandomSSHResolver) GetWorkspaces() ([]brevapi.WorkspaceWithMeta, error) 
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	var workspacesWithMeta []brevapi.WorkspaceWithMeta
+	var workspacesWithMeta []entity.WorkspaceWithMeta
 	for _, w := range wss {
 		wmeta, err := r.WorkspaceResolver.GetWorkspaceMetaData(w.ID)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 
-		workspaceWithMeta := brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
+		workspaceWithMeta := entity.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
 		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
 	}
 
 	return workspacesWithMeta, nil
 }
 
-func (r RandomSSHResolver) GetConfiguredWorkspacePort(_ brevapi.Workspace) (string, error) {
+func (r RandomSSHResolver) GetConfiguredWorkspacePort(_ entity.Workspace) (string, error) {
 	minPort := 1024
 	maxPort := 65535
 	port := rand.Intn(maxPort-minPort) + minPort // #nosec no need to by cryptographically secure

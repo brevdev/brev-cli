@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/jarcoal/httpmock"
 
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ func TestGetOrganizations(t *testing.T) {
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
 	defer httpmock.DeactivateAndReset()
 
-	expected := []brevapi.Organization{{
+	expected := []entity.Organization{{
 		ID:   "1",
 		Name: "test",
 	}}
@@ -55,7 +55,7 @@ func TestCreateOrganization(t *testing.T) {
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
 	defer httpmock.DeactivateAndReset()
 
-	expected := &brevapi.Organization{
+	expected := &entity.Organization{
 		ID:   "1",
 		Name: "test",
 	}

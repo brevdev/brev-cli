@@ -4,9 +4,9 @@ package set
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -16,8 +16,8 @@ import (
 
 type SetStore interface {
 	completions.CompletionStore
-	SetDefaultOrganization(org *brevapi.Organization) error
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]brevapi.Organization, error)
+	SetDefaultOrganization(org *entity.Organization) error
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 }
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {

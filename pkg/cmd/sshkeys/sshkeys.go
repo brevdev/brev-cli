@@ -2,8 +2,8 @@
 package sshkeys
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -11,7 +11,7 @@ import (
 )
 
 type SSHKeyStore interface {
-	GetCurrentUser() (*brevapi.User, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command {

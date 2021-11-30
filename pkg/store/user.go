@@ -3,14 +3,14 @@ package store
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 var mePath = "api/me"
 
-func (s AuthHTTPStore) GetCurrentUser() (*brevapi.User, error) {
-	var result brevapi.User
+func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
+	var result entity.User
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
@@ -27,8 +27,8 @@ func (s AuthHTTPStore) GetCurrentUser() (*brevapi.User, error) {
 
 var userKeysPath = fmt.Sprintf("%s/keys", mePath)
 
-func (s AuthHTTPStore) GetCurrentUserKeys() (*brevapi.UserKeys, error) {
-	var result brevapi.UserKeys
+func (s AuthHTTPStore) GetCurrentUserKeys() (*entity.UserKeys, error) {
+	var result entity.UserKeys
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
@@ -44,8 +44,8 @@ func (s AuthHTTPStore) GetCurrentUserKeys() (*brevapi.UserKeys, error) {
 
 var usersPath = "api/users"
 
-func (n NoAuthHTTPStore) CreateUser(identityToken string) (*brevapi.User, error) {
-	var result brevapi.User
+func (n NoAuthHTTPStore) CreateUser(identityToken string) (*entity.User, error) {
+	var result entity.User
 	res, err := n.noAuthHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Identity", identityToken).

@@ -1,13 +1,13 @@
 package store
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
 )
 
-func (s AuthHTTPStore) SetDefaultOrganization(org *brevapi.Organization) error {
+func (s AuthHTTPStore) SetDefaultOrganization(org *entity.Organization) error {
 	path := files.GetActiveOrgsPath()
 
 	err := files.OverwriteJSON(path, org)
@@ -19,7 +19,7 @@ func (s AuthHTTPStore) SetDefaultOrganization(org *brevapi.Organization) error {
 }
 
 // returns the 'set'/active organization or nil if not set
-func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*brevapi.Organization, error) {
+func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
 	exists, err := afero.Exists(s.fs, brevActiveOrgsFile)
 	if err != nil {
@@ -29,7 +29,7 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*brevapi.Organization, erro
 		return nil, nil
 	}
 
-	var activeOrg brevapi.Organization
+	var activeOrg entity.Organization
 	err = files.ReadJSON(s.fs, brevActiveOrgsFile, &activeOrg)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -38,7 +38,7 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*brevapi.Organization, erro
 }
 
 // returns the 'set'/active organization or the default one or nil if no orgs exist
-func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*brevapi.Organization, error) {
+func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
 	org, err := s.GetActiveOrganizationOrNil()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -61,7 +61,7 @@ type GetOrganizationsOptions struct {
 	Name string
 }
 
-func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]brevapi.Organization, error) {
+func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]entity.Organization, error) {
 	orgs, err := s.getOrganizations()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -71,7 +71,7 @@ func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]bre
 		return orgs, nil
 	}
 
-	filteredOrgs := []brevapi.Organization{}
+	filteredOrgs := []entity.Organization{}
 	for _, o := range orgs {
 		if o.Name == options.Name {
 			filteredOrgs = append(filteredOrgs, o)
@@ -80,8 +80,8 @@ func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]bre
 	return filteredOrgs, nil
 }
 
-func (s AuthHTTPStore) getOrganizations() ([]brevapi.Organization, error) {
-	var result []brevapi.Organization
+func (s AuthHTTPStore) getOrganizations() ([]entity.Organization, error) {
+	var result []entity.Organization
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
@@ -100,8 +100,8 @@ type CreateOrganizationRequest struct {
 	Name string `json:"name"`
 }
 
-func (s AuthHTTPStore) CreateOrganization(req CreateOrganizationRequest) (*brevapi.Organization, error) {
-	var result brevapi.Organization
+func (s AuthHTTPStore) CreateOrganization(req CreateOrganizationRequest) (*entity.Organization, error) {
+	var result entity.Organization
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
@@ -117,7 +117,7 @@ func (s AuthHTTPStore) CreateOrganization(req CreateOrganizationRequest) (*breva
 	return &result, nil
 }
 
-func GetDefaultOrNilOrg(orgs []brevapi.Organization) *brevapi.Organization {
+func GetDefaultOrNilOrg(orgs []entity.Organization) *entity.Organization {
 	if len(orgs) > 0 {
 		return &orgs[0]
 	} else {

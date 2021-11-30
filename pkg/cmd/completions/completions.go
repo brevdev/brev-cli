@@ -1,17 +1,17 @@
 package completions
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
 type CompletionStore interface {
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
-	GetCurrentUser() (*brevapi.User, error)
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]brevapi.Organization, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetCurrentUser() (*entity.User, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 }
 
 type CompletionHandler func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective)

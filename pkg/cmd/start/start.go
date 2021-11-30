@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -26,13 +26,13 @@ var (
 )
 
 type StartStore interface {
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
-	GetCurrentUser() (*brevapi.User, error)
-	StartWorkspace(workspaceID string) (*brevapi.Workspace, error)
-	GetWorkspace(workspaceID string) (*brevapi.Workspace, error)
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]brevapi.Organization, error)
-	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*brevapi.Workspace, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetCurrentUser() (*entity.User, error)
+	StartWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {

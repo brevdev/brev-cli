@@ -3,8 +3,8 @@ package reset
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -19,9 +19,9 @@ var (
 
 type ResetStore interface {
 	completions.CompletionStore
-	ResetWorkspace(workspaceID string) (*brevapi.Workspace, error)
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
+	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 }
 
 func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {

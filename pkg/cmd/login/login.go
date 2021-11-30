@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -24,10 +24,10 @@ type LoginOptions struct {
 }
 
 type LoginStore interface {
-	GetCurrentUser() (*brevapi.User, error)
-	CreateUser(idToken string) (*brevapi.User, error)
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]brevapi.Organization, error)
-	CreateOrganization(req store.CreateOrganizationRequest) (*brevapi.Organization, error)
+	GetCurrentUser() (*entity.User, error)
+	CreateUser(idToken string) (*entity.User, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 }
 
 type Auth interface {
@@ -235,6 +235,6 @@ func CreateDownloadPathAndInstallScript(localOS string) (jetBrainsDirectory stri
 	return jetBrainsDirectory, installScript, nil
 }
 
-func makeFirstOrgName(user *brevapi.User) string {
+func makeFirstOrgName(user *entity.User) string {
 	return fmt.Sprintf("%s-hq", user.Username)
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,7 +13,7 @@ func TestGetCurrentUser(t *testing.T) {
 	s := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
-	expected := &brevapi.User{
+	expected := &entity.User{
 		ID: "1",
 	}
 	res, err := httpmock.NewJsonResponder(200, expected)
@@ -40,10 +40,10 @@ func TestGetCurrentUserKeys(t *testing.T) {
 	s := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
-	expected := &brevapi.UserKeys{
+	expected := &entity.UserKeys{
 		PrivateKey: "priv",
 		PublicKey:  "pub",
-		WorkspaceGroups: []brevapi.WorkspaceGroupKeys{
+		WorkspaceGroups: []entity.WorkspaceGroupKeys{
 			{
 				GroupID: "gi",
 				Cert:    "cert",
@@ -76,7 +76,7 @@ func TestCreateUser(t *testing.T) {
 	s := MakeMockNoHTTPStore()
 	httpmock.ActivateNonDefault(s.noAuthHTTPClient.restyClient.GetClient())
 
-	expected := &brevapi.User{
+	expected := &entity.User{
 		ID: "1",
 	}
 	res, err := httpmock.NewJsonResponder(201, expected)

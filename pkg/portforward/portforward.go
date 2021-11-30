@@ -9,7 +9,7 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/transport/spdy"
@@ -50,7 +50,7 @@ func NewPortForwardOptions(workspaceGroupClientMapper k8s.WorkspaceGroupClientMa
 	return p
 }
 
-func (o *PortForwardOptions) WithWorkspace(workspace brevapi.WorkspaceWithMeta) (*PortForwardOptions, error) {
+func (o *PortForwardOptions) WithWorkspace(workspace entity.WorkspaceWithMeta) (*PortForwardOptions, error) {
 	o.Namespace = workspace.GetNamespaceName()
 	o.PodName = workspace.GetPodName()
 

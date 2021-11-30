@@ -3,9 +3,9 @@ package up
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	brevssh "github.com/brevdev/brev-cli/pkg/brevssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -65,10 +65,10 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 type UpStore interface {
 	brevssh.SSHStore
 	k8s.K8sStore
-	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	GetWorkspaceMetaData(workspaceID string) (*brevapi.WorkspaceMetaData, error)
-	GetCurrentUser() (*brevapi.User, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func (s upOptions) Validate(_ *terminal.Terminal) error {
@@ -82,16 +82,16 @@ func (s upOptions) RunOn(_ *terminal.Terminal) error {
 
 type SSHConfigurer interface {
 	Config() error
-	GetConfiguredWorkspacePort(workspace brevapi.Workspace) (string, error)
+	GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 }
 
 type Up struct {
 	sshConfigurer              SSHConfigurer
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
-	workspaces                 []brevapi.WorkspaceWithMeta
+	workspaces                 []entity.WorkspaceWithMeta
 }
 
-func NewUp(workspaces []brevapi.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
+func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
 	return &Up{
 		workspaces:                 workspaces,
 		sshConfigurer:              sshConfigurer,
@@ -114,7 +114,7 @@ func (o Up) Run() error {
 	return nil
 }
 
-func GetActiveWorkspaces(upStore UpStore) ([]brevapi.WorkspaceWithMeta, error) {
+func GetActiveWorkspaces(upStore UpStore) ([]entity.WorkspaceWithMeta, error) {
 	// fmt.Println("Resolving workspaces...")
 
 	org, err := upStore.GetActiveOrganizationOrDefault()
@@ -137,14 +137,14 @@ func GetActiveWorkspaces(upStore UpStore) ([]brevapi.WorkspaceWithMeta, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	var workspacesWithMeta []brevapi.WorkspaceWithMeta
+	var workspacesWithMeta []entity.WorkspaceWithMeta
 	for _, w := range workspaces {
 		wmeta, err := upStore.GetWorkspaceMetaData(w.ID)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 
-		workspaceWithMeta := brevapi.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
+		workspaceWithMeta := entity.WorkspaceWithMeta{WorkspaceMetaData: *wmeta, Workspace: w}
 		workspacesWithMeta = append(workspacesWithMeta, workspaceWithMeta)
 	}
 	return workspacesWithMeta, nil

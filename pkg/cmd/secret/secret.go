@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -16,8 +16,8 @@ import (
 
 type SecretStore interface {
 	CreateSecret(req store.CreateSecretRequest) (*store.CreateSecretRequest, error)
-	GetCurrentUser() (*brevapi.User, error)
-	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
+	GetCurrentUser() (*entity.User, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 }
 
 func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command {

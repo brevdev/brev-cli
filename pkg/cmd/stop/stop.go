@@ -4,8 +4,8 @@ package stop
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -19,9 +19,9 @@ var (
 
 type StopStore interface {
 	completions.CompletionStore
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	StopWorkspace(workspaceID string) (*brevapi.Workspace, error)
-	GetCurrentUser() (*brevapi.User, error)
+	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	StopWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
@@ -46,7 +46,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
-	var workspaces []brevapi.Workspace
+	var workspaces []entity.Workspace
 	org, err := stopStore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -64,7 +64,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		}
 	}
 
-	var workspace brevapi.Workspace
+	var workspace entity.Workspace
 	if len(workspaces) == 0 { //nolint:gocritic // gocritic recommends using a switch
 		return fmt.Errorf("no workspaces found with name %s", workspaceName)
 	} else if len(workspaces) > 1 {

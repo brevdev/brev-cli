@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +14,7 @@ func TestGetWorkspaces(t *testing.T) {
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	orgID := "o1"
-	expected := []brevapi.Workspace{{
+	expected := []entity.Workspace{{
 		ID:               "1",
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -65,7 +65,7 @@ func TestCreateWorkspace(t *testing.T) {
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	orgID := "o1"
-	expected := &brevapi.Workspace{
+	expected := &entity.Workspace{
 		ID:               "1",
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -102,7 +102,7 @@ func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor late
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	orgID := "o1"
-	expected := []brevapi.Workspace{{
+	expected := []entity.Workspace{{
 		ID:               "1",
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -115,7 +115,7 @@ func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor late
 		GitRepo:          "g",
 	}}
 
-	body := append([]brevapi.Workspace{
+	body := append([]entity.Workspace{
 		{
 			ID:               "2",
 			Name:             "n2",
@@ -158,7 +158,7 @@ func TestGetWorkspacesWithUser(t *testing.T) { //nolint:dupl // To refactor late
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	orgID := "o1"
-	expected := []brevapi.Workspace{{
+	expected := []entity.Workspace{{
 		ID:               "1",
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -171,7 +171,7 @@ func TestGetWorkspacesWithUser(t *testing.T) { //nolint:dupl // To refactor late
 		GitRepo:          "g",
 	}}
 
-	body := append([]brevapi.Workspace{
+	body := append([]entity.Workspace{
 		{
 			ID:               "2",
 			Name:             "n2",
@@ -214,7 +214,7 @@ func TestGetWorkspaceMetaData(t *testing.T) {
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	workspaceID := "1"
-	expected := &brevapi.WorkspaceMetaData{
+	expected := &entity.WorkspaceMetaData{
 		PodName:       "pn",
 		NamespaceName: "nsn",
 	}
@@ -243,7 +243,7 @@ func TestStopWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupli
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	workspaceID := "1"
-	expected := &brevapi.Workspace{
+	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -280,7 +280,7 @@ func TestStartWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupl
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	workspaceID := "1"
-	expected := &brevapi.Workspace{
+	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -317,7 +317,7 @@ func TestResetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupl
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	workspaceID := "1"
-	expected := &brevapi.Workspace{
+	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -354,7 +354,7 @@ func TestGetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be duplic
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	workspaceID := "1"
-	expected := &brevapi.Workspace{
+	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
 		WorkspaceGroupID: "wgi",
@@ -391,7 +391,7 @@ func TestDeleteWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dup
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	workspaceID := "1"
-	expected := &brevapi.Workspace{
+	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
 		WorkspaceGroupID: "wgi",

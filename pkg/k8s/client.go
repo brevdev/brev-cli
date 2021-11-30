@@ -3,7 +3,7 @@ package k8s
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -70,7 +70,7 @@ type DefaultWorkspaceGroupClientMapper struct {
 }
 
 type K8sStore interface {
-	GetCurrentUserKeys() (*brevapi.UserKeys, error)
+	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
 func NewDefaultWorkspaceGroupClientMapper(k8sStore K8sStore) (*DefaultWorkspaceGroupClientMapper, error) {

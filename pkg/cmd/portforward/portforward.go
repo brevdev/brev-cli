@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 
@@ -24,10 +24,10 @@ var (
 type PortforwardStore interface {
 	k8s.K8sStore
 	completions.CompletionStore
-	GetWorkspaceMetaData(workspaceID string) (*brevapi.WorkspaceMetaData, error)
-	GetWorkspace(workspaceID string) (*brevapi.Workspace, error)
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
-	GetCurrentUser() (*brevapi.User, error)
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
@@ -116,7 +116,7 @@ func startInput(t *terminal.Terminal) {
 
 type WorkspaceResolver struct{}
 
-func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) (*brevapi.WorkspaceWithMeta, error) {
+func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) (*entity.WorkspaceWithMeta, error) {
 	currentUser, err := pfStore.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -127,7 +127,7 @@ func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) 
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	var workspace *brevapi.Workspace
+	var workspace *entity.Workspace
 	if len(workspaces) > 1 { //nolint:gocritic // ok to use if else here
 		return nil, fmt.Errorf("multiple workspaces with found with name %s", workspaceIDOrName)
 	} else if len(workspaces) == 1 {
@@ -144,5 +144,5 @@ func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) 
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	return &brevapi.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }
