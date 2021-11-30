@@ -54,8 +54,6 @@ func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) bool {
 }
 
 func (s SSHAll) runPortForwardWorkspace(workspace brevapi.WorkspaceWithMeta) {
-	c := make(chan struct{}, 1)
-	s.workspaceConnections[workspace] = c
 	err := s.portforwardWorkspace(workspace)
 	if err != nil {
 		// todo have verbose version with trace
@@ -123,6 +121,7 @@ func (s SSHAll) portforwardWorkspaceAtPort(workspace brevapi.WorkspaceWithMeta, 
 		dpf,
 	)
 
+	s.workspaceConnections[workspace] = pf.StopChannel
 	_, err := pf.WithWorkspace(workspace)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
