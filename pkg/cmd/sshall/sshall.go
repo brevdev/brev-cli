@@ -86,7 +86,7 @@ func (s SSHAll) Run() error {
 
 	fmt.Println()
 	for _, w := range s.workspaces {
-		fmt.Printf("ssh %s\n", w.Name)
+		fmt.Printf("ssh %s\n", w.DNS)
 		s.retries[w] = 3 // TODO magic number
 		go s.runPortForwardWorkspace(w)
 	}
