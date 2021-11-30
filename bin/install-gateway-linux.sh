@@ -9,10 +9,10 @@ wget --show-progress -qO ./gateway.tar.gz "https://data.services.jetbrains.com/p
 GATEWAY_TEMP_DIR=$(mktemp -d)
 
 tar -C "$GATEWAY_TEMP_DIR" -xf gateway.tar.gz
-rm ./toolbox.tar.gz
+rm ./gateway.tar.gz
 
 "$GATEWAY_TEMP_DIR"/*/bin/gateway.sh
 
 rm -r "$GATEWAY_TEMP_DIR"
 
-echo "JetBrains Gateway was successfully installed"
+echo "JetBrains Gateway was successfully installed!"

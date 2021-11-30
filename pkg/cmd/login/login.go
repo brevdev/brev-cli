@@ -2,7 +2,12 @@
 package login
 
 import (
+	"bufio"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/brevapi"
@@ -75,6 +80,9 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 }
 
 func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
+	t.Print("")
+	t.Print("Welcome to Brev 🤙 ")
+	t.Print("")
 	t.Print("Creating your user...")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
@@ -97,49 +105,115 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		}
 	}
 
-	// SSH Keys
+	// // SSH Keys
 	terminal.DisplayBrevLogo(t)
-	t.Vprintf("\n")
+	t.Print("")
 	terminal.DisplaySSHKeys(t, user.PublicKey)
 
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "What is your preferred IDE?",
 		ErrorMsg: "error",
-		Items:    []string{"VSCode", "JetBrains"},
+		Items:    []string{"VSCode", "JetBrains IDEs"},
 	})
 	if ide == "VSCode" {
 		// TODO: check if user uses VSCode and intall extension for user
-		t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
+		t.Print("Run the following steps")
+		t.Print("")
+		t.Print("\t1) Install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".")
+		t.Print("\t2) Run " + t.Green("brev up") + " and then open VSCode.")
+		t.Print("\t3) Open the Command Palette and type in " + t.Yellow("Remote-SSH: Connect to Host...") + "to begin.")
 		return nil
 	}
 
-	// which operating system
+	if ide == "JetBrains IDEs" {
+		localOS := terminal.PromptSelectInput(terminal.PromptSelectContent{
+			Label:    "Which operating system does your local computer have?",
+			ErrorMsg: "error",
+			Items:    []string{"Mac OS (Intel)", "Mac OS (M1 Chip)", "Linux"},
+		})
 
-	// linux, mac m1, mac. In each do the path of where it's installed.
-	// macOS: ~/Library/Application Support/JetBrains
-	// Linux: ~/.local/share/JetBrains
-	// home directory involved
-	// os.HomeDirectory
-	// check actual jetbrains gateway
-	// filepath.Glob(home directory, middle, /JetBrainsGateway*)
-	// f (to check print all the strings it returns)
-	// return list of strings.. hmmm. if len(existingGateway) > 0.. f just print it. list of folder names that start with jetbrainsgateway*
-	// check toolbox
-	// os.Stat(/Toolbox)
-	// check in toolbox apps
-	// os.Stat(/Toolbox/apps/JetBrainsGateway)
-	// run exec.Command("/bin/sh", "-c", installScript)
+		homeDirectory, err := os.UserHomeDir()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		var jetBrainsDirectory string
+		var installScript string
+		switch localOS {
+		case "Mac OS (Intel)":
+			jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
+			installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=mac&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
+		case "Mac OS (M1 Chip)":
+			jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
+			installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=macM1&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
+		case "Linux":
+			jetBrainsDirectory = homeDirectory + `/.local/share/JetBrains`
+			installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.tar.gz "https://data.services.jetbrains.com/products/download?code=GW&platform=linux&type=eap,rc,release,beta"; GATEWAY_TEMP_DIR=$(mktemp -d); tar -C "$GATEWAY_TEMP_DIR" -xf gateway.tar.gz; rm ./gateway.tar.gz; "$GATEWAY_TEMP_DIR"/*/bin/gateway.sh; rm -r "$GATEWAY_TEMP_DIR"; echo "JetBrains Gateway was successfully installed";`
+		}
 
-	// `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=mac&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
-	// `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=macM1&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
-	// `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.tar.gz "https://data.services.jetbrains.com/products/download?code=GW&platform=linux&type=eap,rc,release,beta"; GATEWAY_TEMP_DIR=$(mktemp -d); tar -C "$GATEWAY_TEMP_DIR" -xf gateway.tar.gz; rm ./toolbox.tar.gz; "$GATEWAY_TEMP_DIR"/*/bin/gateway.sh; rm -r "$GATEWAY_TEMP_DIR"; echo "JetBrains Gateway was successfully installed";`
+		t.Print("Searching for JetBrains Gateway...")
+		t.Print("")
 
-	// t.Vprintf("\nYou already have JetBrains Gateway installed through JetBrains Toolbox! Run " + t.Green("brev up") + " and then open Gateway to begin!. \n")
-	// t.Vprintf("\nError installing JetBrains Gateway. Click here to install manually: \n")
-	// t.Vprintf("\n\thttps://www.jetbrains.com/remote-development/gateway \n")
+		// Check if Gateway is already installed
+		matches, err := filepath.Glob(jetBrainsDirectory + `/JetBrainsGateway*`)
+		if len(matches) > 0 {
+			t.Print(t.Yellow("You already have JetBrains Gateway installed!"))
+			t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
+			return nil
+		}
 
-	// after this, was going to add loading bar here during this part
-	// and then change configs which are located at (see installing on linux and go to the right directory and look through the install script before deleting)
+		// Check if Toolbox is already installed
+		_, err = os.Stat(jetBrainsDirectory + `/Toolbox`)
+		if !os.IsNotExist(err) {
+			// Check if Gateway is already installed in Toolbox
+			_, err = os.Stat(jetBrainsDirectory + `/Toolbox/apps/JetBrainsGateway`)
+			if !os.IsNotExist(err) {
+				t.Print(t.Yellow("You already have JetBrains Gateway installed!"))
+				t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
+				return nil
+			}
+			t.Print(t.Yellow("You already have JetBrains Toolbox installed!"))
+			t.Print("")
+			t.Print("\t1) Install JetBrains Gateway from Toolbox.")
+			t.Print("\t2) Run " + t.Green("brev up") + " and then open Gateway to begin.")
+			return nil
+		}
+
+		// Install Gateway
+		reader := bufio.NewReader(os.Stdin)
+		t.Print("You will need to install JetBrains Gateway to use JetBrains IDEs.")
+		t.Print(`Would you like to install JetBrains Gateway? [y/n]: `)
+		text, _ := reader.ReadString('\n')
+		if strings.Compare(text, "y") != 1 {
+			// n
+			t.Print("")
+			t.Print(t.Yellow("Click here to install manually: "))
+			t.Print("https://www.jetbrains.com/remote-development/gateway")
+			t.Print("")
+		} else {
+			// y
+			spinner := t.NewSpinner()
+			spinner.Suffix = " Installing JetBrains Gateway..."
+			spinner.Start()
+			cmd := exec.Command("/bin/sh", "-c", installScript)
+			_, err := cmd.Output()
+			spinner.Stop()
+			if err != nil {
+				t.Errprint(err, "Error installing JetBrains Gateway")
+				t.Print("")
+				t.Print(t.Yellow("Click here to install manually: "))
+				t.Print("https://www.jetbrains.com/remote-development/gateway")
+				t.Print("")
+			} else {
+				t.Print("")
+				t.Print("")
+				t.Print(t.Yellow("JetBrains Gateway successfully installed!"))
+				t.Print("")
+				t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
+				t.Print("")
+			}
+		}
+		return nil
+	}
 	return nil
 }
 
