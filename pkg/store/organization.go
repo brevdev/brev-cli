@@ -7,6 +7,17 @@ import (
 	"github.com/spf13/afero"
 )
 
+func (s AuthHTTPStore) SetDefaultOrganization(org *brevapi.Organization) error {
+	path := files.GetActiveOrgsPath()
+
+	err := files.OverwriteJSON(path, org)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*brevapi.Organization, error) {
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
