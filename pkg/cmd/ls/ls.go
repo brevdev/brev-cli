@@ -66,11 +66,12 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string) error {
 	ls := NewLs(lsStore, t)
-	if len(args) == 0 && (strings.Contains(args[0], "org")) { // handle org, orgs, and organization(s)
+	if len(args) == 1 && (strings.Contains(args[0], "org")) { // handle org, orgs, and organization(s)
 		err := ls.RunOrgs()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+		return nil
 	} else if len(args) > 1 {
 		return fmt.Errorf("too many args provided")
 	}
