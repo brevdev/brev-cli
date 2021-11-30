@@ -42,7 +42,7 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func ssh(_ *terminal.Terminal, wsname string) error {
+func ssh(_ *terminal.Terminal, _ string) error {
 	// exec.Command("ssh " + workspace.DNS)
 	return nil
 }

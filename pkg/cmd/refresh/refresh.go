@@ -2,7 +2,8 @@
 package refresh
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -39,13 +40,8 @@ func refresh(t *terminal.Terminal) error {
 	bar := t.NewProgressBar("Fetching orgs and workspaces", func() {})
 	bar.AdvanceTo(50)
 
-	_, _, err := brevapi.WriteCaches()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	bar.AdvanceTo(100)
 	t.Vprintf(t.Green("\nCache has been refreshed\n"))
 
-	return nil
+	return fmt.Errorf("not implemented")
 }

@@ -1,10 +1,5 @@
 package brevapi
 
-import (
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/requests"
-)
-
 type Application struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -69,42 +64,4 @@ func (w WorkspaceMetaData) GetNamespaceName() string {
 type WorkspaceWithMeta struct {
 	WorkspaceMetaData
 	Workspace
-}
-
-func (a *DeprecatedClient) GetMyWorkspaces(orgID string) ([]Workspace, error) {
-	me, err := a.GetMe()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	request := requests.RESTRequest{
-		Method:   "GET",
-		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
-		QueryParams: []requests.QueryParam{
-			{Key: "utm_source", Value: "cli"},
-		},
-		Headers: []requests.Header{
-			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
-		},
-	}
-
-	response, err := request.SubmitStrict()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var payload []Workspace
-	err = response.UnmarshalPayload(&payload)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var myWorkspaces []Workspace
-	for _, w := range payload {
-		if w.CreatedByUserID == me.ID {
-			myWorkspaces = append(myWorkspaces, w)
-		}
-	}
-
-	return myWorkspaces, nil
 }
