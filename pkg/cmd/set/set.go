@@ -14,19 +14,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-func getOrgs() []brevapi.Organization {
-	client, err := brevapi.NewDeprecatedCommandClient()
-	if err != nil {
-		panic(err)
-	}
-	orgs, err := client.GetOrgs()
-	if err != nil {
-		panic(err)
-	}
-
-	return orgs
-}
-
 type SetStore interface {
 	completions.CompletionStore
 	SetDefaultOrganization(org *brevapi.Organization) error

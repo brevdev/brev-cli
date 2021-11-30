@@ -1,7 +1,6 @@
 package ssh
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -18,7 +17,7 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 		Long:        "SSH into your workspace",
 		Example:     `brev ssh [workspace_name]`,
 		Args:        cobra.ExactArgs(1),
-		ValidArgs:   brevapi.GetWorkspaceNames(),
+		// ValidArgs:   brevapi.GetWorkspaceNames(),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -43,13 +42,7 @@ func NewCmdSSH(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func ssh(t *terminal.Terminal, wsname string) error {
-	workspace, err := brevapi.GetWorkspaceFromName(wsname)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprint(workspace.DNS)
+func ssh(_ *terminal.Terminal, wsname string) error {
 	// exec.Command("ssh " + workspace.DNS)
 	return nil
 }

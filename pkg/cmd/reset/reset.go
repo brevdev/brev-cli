@@ -33,7 +33,6 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Long:                  startLong,
 		Example:               startExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := resetWorkspace(args[0], t, loginResetStore)
