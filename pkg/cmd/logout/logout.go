@@ -2,7 +2,7 @@
 package logout
 
 import (
-	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/deprecatedauth"
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -46,7 +46,7 @@ func (o *LogoutOptions) Validate(_ *cobra.Command, _ []string) error {
 
 func (o *LogoutOptions) RunLogout(_ *cobra.Command, _ []string) error {
 	// func (o *LogoutOptions) RunLogout(cmd *cobra.Command, args []string) error {
-	err := auth.Logout()
+	err := deprecatedauth.Logout()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -21,6 +21,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/deprecatedauth"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -89,11 +90,11 @@ func NewBrevCommand() *cobra.Command {
 	return cmds
 }
 
-var _ store.Auth = auth.TempAuth{}
+var _ store.Auth = deprecatedauth.TempAuth{}
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	conf := config.NewConstants()
-	auth := auth.TempAuth{}
+	auth := deprecatedauth.TempAuth{}
 	fs := files.AppFs
 	cmdStore := store.
 		NewBasicStore().

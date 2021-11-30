@@ -69,21 +69,6 @@ type State struct {
 	Interval        int    `json:"interval"`
 }
 
-type Credentials struct {
-	AccessToken  string `json:"access_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-type OauthToken struct {
-	AccessToken  string `json:"access_token"`
-	AuthMethod   string `json:"auth_method"`
-	ExpiresIn    int    `json:"expires_in"`
-	IDToken      string `json:"id_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
 // RequiredScopes returns the scopes used for login.
 func RequiredScopes() []string { return requiredScopes }
 
@@ -248,7 +233,7 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
 }
 
-func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
+func (a Authenticator) GetNewAuthTokensWithRefresh(_ string) (*entity.AuthTokens, error) {
 	// TODO
 	return nil, nil
 }
