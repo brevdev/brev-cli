@@ -275,6 +275,43 @@ func TestStartWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupl
 	}
 }
 
+func TestResetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be duplicate
+	s := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+
+	workspaceID := "1"
+	expected := &brevapi.Workspace{
+		ID:               workspaceID,
+		Name:             "name",
+		WorkspaceGroupID: "wgi",
+		OrganizationID:   "oi",
+		WorkspaceClassID: "wci",
+		CreatedByUserID:  "cui",
+		DNS:              "dns",
+		Status:           "s",
+		Password:         "p",
+		GitRepo:          "g",
+	}
+
+	res, err := httpmock.NewJsonResponder(200, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(workspaceResetPathPattern, workspaceID))
+	httpmock.RegisterResponder("PUT", url, res)
+
+	u, err := s.ResetWorkspace(workspaceID)
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, u) {
+		return
+	}
+	if !assert.Equal(t, expected, u) {
+		return
+	}
+}
+
 func TestGetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be duplicate
 	s := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
