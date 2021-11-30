@@ -1,9 +1,6 @@
 package brevapi
 
 import (
-	"fmt"
-
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/requests"
 )
@@ -194,100 +191,10 @@ func (a *DeprecatedClient) GetWorkspace(wsID string) (*Workspace, error) {
 	return &payload, nil
 }
 
-func (a *DeprecatedClient) CreateWorkspace(orgID string, name string, gitrepo string) (*Workspace, error) {
-	clusterID := config.GlobalConfig.GetDefaultClusterID()
-
-	request := &requests.RESTRequest{
-		Method:   "POST",
-		Endpoint: buildBrevEndpoint("/api/organizations/" + orgID + "/workspaces"),
-		QueryParams: []requests.QueryParam{
-			{Key: "utm_source", Value: "cli"},
-		},
-		Headers: []requests.Header{
-			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
-		},
-		Payload: RequestCreateWorkspace{
-			Name:                 name,
-			WorkspaceGroupID:     clusterID,
-			WorkspaceClassID:     "2x8",
-			GitRepo:              gitrepo,
-			WorkspaceTemplateID:  "4nbb4lg2s", // default ubuntu template
-			PrimaryApplicationID: DefaultApplicationID,
-			Applications:         []Application{DefaultApplication},
-		},
-	}
-
-	response, err := request.SubmitStrict()
-	if err != nil {
-		fmt.Println(err.Error())
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var payload Workspace
-	err = response.UnmarshalPayload(&payload)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &payload, nil
-}
-
 func (a *DeprecatedClient) DeleteWorkspace(wsID string) (*Workspace, error) {
 	request := requests.RESTRequest{
 		Method:   "DELETE",
 		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID),
-		QueryParams: []requests.QueryParam{
-			{Key: "utm_source", Value: "cli"},
-		},
-		Headers: []requests.Header{
-			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
-		},
-	}
-
-	response, err := request.SubmitStrict()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var payload Workspace
-	err = response.UnmarshalPayload(&payload)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &payload, nil
-}
-
-func (a *DeprecatedClient) StartWorkspace(wsID string) (*Workspace, error) {
-	request := requests.RESTRequest{
-		Method:   "PUT",
-		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/start"),
-		QueryParams: []requests.QueryParam{
-			{Key: "utm_source", Value: "cli"},
-		},
-		Headers: []requests.Header{
-			{Key: "Authorization", Value: "Bearer " + a.Key.AccessToken},
-		},
-	}
-
-	response, err := request.SubmitStrict()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var payload Workspace
-	err = response.UnmarshalPayload(&payload)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &payload, nil
-}
-
-func (a *DeprecatedClient) StopWorkspace(wsID string) (*Workspace, error) {
-	request := requests.RESTRequest{
-		Method:   "PUT",
-		Endpoint: buildBrevEndpoint("/api/workspaces/" + wsID + "/stop"),
 		QueryParams: []requests.QueryParam{
 			{Key: "utm_source", Value: "cli"},
 		},

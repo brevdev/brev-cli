@@ -15,19 +15,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
-	client, err := brevapi.NewDeprecatedCommandClient()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	wss, err := client.GetWorkspaces(orgID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return wss, nil
-}
-
 type SecretStore interface {
 	CreateSecret(req store.CreateSecretRequest) (*store.CreateSecretRequest, error)
 }

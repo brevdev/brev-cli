@@ -118,7 +118,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 		WithAuth(noLoginAuth)
 
 	cmd.AddCommand(set.NewCmdSet(t))
-	cmd.AddCommand(ls.NewCmdLs(t))
+	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForward(loginCmdStore, t))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth))

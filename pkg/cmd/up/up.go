@@ -121,6 +121,9 @@ func GetActiveWorkspaces(upStore UpStore) ([]brevapi.WorkspaceWithMeta, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if org == nil {
+		return nil, fmt.Errorf("no orgs exist")
+	}
 
 	user, err := upStore.GetCurrentUser()
 	if err != nil {

@@ -52,10 +52,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	}
 	if org == nil {
-		workspaces, err = stopStore.GetAllWorkspaces(nil)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		return fmt.Errorf("no orgs exist")
 	} else {
 		currentUser, err2 := stopStore.GetCurrentUser()
 		if err2 != nil {

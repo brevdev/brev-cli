@@ -81,6 +81,9 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if org == nil {
+		return fmt.Errorf("no orgs exist")
+	}
 
 	user, err := startStore.GetCurrentUser()
 	if err != nil {
@@ -136,6 +139,9 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		activeorg, err := startStore.GetActiveOrganizationOrDefault()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
+		}
+		if activeorg == nil {
+			return fmt.Errorf("no org exist")
 		}
 		orgID = activeorg.ID
 	} else {
