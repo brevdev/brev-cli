@@ -89,6 +89,8 @@ func NewBrevCommand() *cobra.Command {
 	return cmds
 }
 
+var _ store.Auth = auth.TempAuth{}
+
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	conf := config.NewConstants()
 	auth := auth.TempAuth{}
@@ -274,3 +276,9 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
+
+var (
+	_ store.Auth     = auth.LoginAuth{}
+	_ store.Auth     = auth.NoLoginAuth{}
+	_ auth.AuthStore = store.FileStore{}
+)

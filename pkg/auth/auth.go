@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/pkg/browser"
@@ -19,15 +20,39 @@ func (t TempAuth) GetAccessToken() (string, error) {
 	return GetAccessToken()
 }
 
+type LoginAuth struct {
+	Auth
+}
+
+func (l LoginAuth) GetAccessToken() (string, error) {
+	token, err := l.GetFreshAccessTokenOrLogin()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return token, nil
+}
+
+type NoLoginAuth struct {
+	Auth
+}
+
+func (l NoLoginAuth) GetAccessToken() (string, error) {
+	token, err := l.GetFreshAccessTokenOrNil()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return token, nil
+}
+
 type AuthStore interface {
-	SaveAuthTokens(tokens AuthTokens) error
-	GetAuthTokens() (*AuthTokens, error)
+	SaveAuthTokens(tokens entity.AuthTokens) error
+	GetAuthTokens() (*entity.AuthTokens, error)
 	DeleteAuthTokens() error
 }
 
 type OAuth interface {
-	DoDeviceAuthFlow(onStateRetrieve func(url string, code string)) (*LoginTokens, error)
-	GetNewAuthTokensWithRefresh(refreshToken string) (*AuthTokens, error)
+	DoDeviceAuthFlow(onStateRetrieved func(url string, code string)) (*LoginTokens, error)
+	GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error)
 }
 
 type Auth struct {
@@ -53,7 +78,7 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		token = lt.accessToken
+		token = lt.AccessToken
 	}
 	return token, nil
 }
@@ -67,12 +92,12 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if tokens == nil {
 		return "", nil
 	}
-	isAccessTokenExpired, err := t.isTokenExpired(tokens.accessToken)
+	isAccessTokenExpired, err := t.isTokenExpired(tokens.AccessToken)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	if isAccessTokenExpired {
-		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.refreshToken)
+		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
 		if tokens == nil {
 			return "", nil
 		}
@@ -80,7 +105,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 			return "", breverrors.WrapAndTrace(err)
 		}
 	}
-	return tokens.accessToken, nil
+	return tokens.AccessToken, nil
 }
 
 // Prompts for login and returns tokens, and saves to store
@@ -127,17 +152,12 @@ func (t Auth) Logout() error {
 	return nil
 }
 
-type AuthTokens struct {
-	accessToken  string
-	refreshToken string
-}
-
 type LoginTokens struct {
-	AuthTokens
-	// idToken string
+	entity.AuthTokens
+	IDToken string
 }
 
-func (t Auth) getSavedTokensOrNil() (*AuthTokens, error) {
+func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 	tokens, err := t.authStore.GetAuthTokens()
 	// TODO handle certain errors and return nil
 	if err != nil {
@@ -147,7 +167,7 @@ func (t Auth) getSavedTokensOrNil() (*AuthTokens, error) {
 }
 
 // gets new access and refresh token or returns nil if refresh token expired, and updates store
-func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*AuthTokens, error) {
+func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTokens, error) {
 	isRefreshTokenExpired, err := t.isTokenExpired(refreshToken)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

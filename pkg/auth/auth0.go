@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -48,6 +49,8 @@ type Authenticator struct {
 	DeviceCodeEndpoint string
 	OauthTokenEndpoint string
 }
+
+var _ OAuth = Authenticator{}
 
 type Result struct {
 	Tenant       string
@@ -97,6 +100,30 @@ func RequiredScopesMin() []string {
 
 func (s *State) IntervalDuration() time.Duration {
 	return time.Duration(s.Interval+waitThresholdInSeconds) * time.Second
+}
+
+func (a Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, code string)) (*LoginTokens, error) {
+	ctx := context.Background()
+
+	state, err := a.Start(ctx)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	onStateRetrieved(state.VerificationURI, state.UserCode)
+
+	res, err := a.Wait(ctx, state)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &LoginTokens{
+		AuthTokens: entity.AuthTokens{
+			AccessToken:  res.AccessToken,
+			RefreshToken: res.RefreshToken,
+		},
+		IDToken: res.IDToken,
+	}, nil
 }
 
 // Start kicks-off the device authentication flow
@@ -219,4 +246,9 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 		}
 	}
 	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
+}
+
+func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
+	// TODO
+	return nil, nil
 }
