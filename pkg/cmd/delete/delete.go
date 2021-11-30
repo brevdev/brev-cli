@@ -23,8 +23,7 @@ type DeleteStore interface {
 	GetCurrentUser() (*brevapi.User, error)
 }
 
-func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore) *cobra.Command {
-	// link [resource id] -p 2222
+func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDeleteStore DeleteStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "delete",
@@ -33,7 +32,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore) *cobra.Com
 		Long:                  deleteLong,
 		Example:               deleteExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(loginDeleteStore, t),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := deleteWorkspace(args[0], t, loginDeleteStore)
 			if err != nil {
@@ -52,10 +51,7 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 		return breverrors.WrapAndTrace(err)
 	}
 	if org == nil {
-		workspaces, err = deleteStore.GetAllWorkspaces(nil)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		return fmt.Errorf("no orgs exist")
 	} else {
 		currentUser, err2 := deleteStore.GetCurrentUser()
 		if err2 != nil {
@@ -78,7 +74,6 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 
 	deletedWorkspace, err := deleteStore.DeleteWorkspace(workspace.ID)
 	if err != nil {
-		fmt.Println(err)
 		return breverrors.WrapAndTrace(err)
 	}
 

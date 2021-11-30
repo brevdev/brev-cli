@@ -181,6 +181,7 @@ type (
 	WorkspaceResolver interface {
 		GetMyWorkspaces(orgID string) ([]brevapi.Workspace, error)
 		GetWorkspaceMetaData(wsID string) (*brevapi.WorkspaceMetaData, error)
+		GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
 	}
 )
 
@@ -191,7 +192,7 @@ func NewRandomPortSSHResolver(workspaceResolver WorkspaceResolver) *RandomSSHRes
 }
 
 func (r RandomSSHResolver) GetWorkspaces() ([]brevapi.WorkspaceWithMeta, error) {
-	activeOrg, err := brevapi.GetActiveOrgContext(files.AppFs) // to inject
+	activeOrg, err := r.WorkspaceResolver.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

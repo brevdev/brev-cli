@@ -8,7 +8,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -17,6 +16,8 @@ import (
 
 type SecretStore interface {
 	CreateSecret(req store.CreateSecretRequest) (*store.CreateSecretRequest, error)
+	GetCurrentUser() (*brevapi.User, error)
+	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
 }
 
 func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command {
@@ -136,18 +137,21 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	if scope == "user" {
 		iScope = store.User
 		// get user id
-		me, err := brevapi.GetMe()
+		me, err := secretStore.GetCurrentUser()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		hierarchyID = me.ID
 	} else {
 		// get org id
-		activeorg, err := brevapi.GetActiveOrgContext(files.AppFs)
+		defaultOrg, err := secretStore.GetActiveOrganizationOrDefault()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		hierarchyID = activeorg.ID
+		if defaultOrg == nil {
+			return fmt.Errorf("no orgs exist")
+		}
+		hierarchyID = defaultOrg.ID
 	}
 
 	var configDest store.DestConfig

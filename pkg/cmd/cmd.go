@@ -10,7 +10,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
-	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/reset"
 	"github.com/brevdev/brev-cli/pkg/cmd/secret"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
@@ -117,12 +116,11 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	).
 		WithAuth(noLoginAuth)
 
-	cmd.AddCommand(set.NewCmdSet(t))
+	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForward(loginCmdStore, t))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth))
-	cmd.AddCommand(refresh.NewCmdRefresh(t))
 
 	// dev feature toggle
 	if isDev() {
@@ -135,8 +133,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(stop.NewCmdStop(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore))
-	cmd.AddCommand(reset.NewCmdReset(t))
+	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(up.NewCmdUp(loginCmdStore, t))
 }
 
