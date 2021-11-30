@@ -1,7 +1,6 @@
 package test
 
 import (
-	"github.com/brevdev/brev-cli/pkg/brevapi"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -24,18 +23,18 @@ func NewCmdTest(t *terminal.Terminal) *cobra.Command {
 			var err error
 
 			// SSH Keys
-			brevapi.DisplayBrevLogo(t)
+			terminal.DisplayBrevLogo(t)
 			t.Vprintf("\n")
 			spinner := t.NewSpinner()
 			spinner.Suffix = " fetching your public key"
 			spinner.Start()
-			err = brevapi.GetandDisplaySSHKeys(t)
+			terminal.DisplaySSHKeys(t, "blahhhh fake key")
 			spinner.Stop()
 			if err != nil {
 				t.Vprintf(t.Red(err.Error()))
 			}
 
-			hasVSCode := brevapi.PromptSelectInput(brevapi.PromptSelectContent{
+			hasVSCode := terminal.PromptSelectInput(terminal.PromptSelectContent{
 				Label:    "Do you use VS Code?",
 				ErrorMsg: "error",
 				Items:    []string{"yes", "no"},

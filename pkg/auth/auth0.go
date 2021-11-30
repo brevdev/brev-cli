@@ -198,7 +198,7 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	if err != nil {
 		return State{}, breverrors.WrapAndTrace(err, "cannot decode response")
 	}
-	// TODO if status code > 399 handle errors
+	// TODO 9 if status code > 399 handle errors
 	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
 
 	if err = r.Body.Close(); err != nil {
@@ -234,6 +234,6 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 }
 
 func (a Authenticator) GetNewAuthTokensWithRefresh(_ string) (*entity.AuthTokens, error) {
-	// TODO
+	// TODO 2
 	return nil, nil
 }

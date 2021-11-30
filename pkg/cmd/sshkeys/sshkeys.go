@@ -10,24 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func GetAllWorkspaces(orgID string) ([]brevapi.Workspace, error) {
-	client, err := brevapi.NewCommandClient()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	wss, err := client.GetWorkspaces(orgID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return wss, nil
+type SSHKeyStore interface {
+	GetCurrentUser() (*brevapi.User, error)
 }
 
-type SecretStore interface {
-	GetSSHKeys() (string, error)
-}
-
-func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
+func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "ssh-key",
@@ -44,10 +31,11 @@ func NewCmdSSHKeys(t *terminal.Terminal) *cobra.Command {
 		},
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := brevapi.GetandDisplaySSHKeys(t)
+			user, err := sshKeyStore.GetCurrentUser()
 			if err != nil {
 				t.Vprintf(t.Red(err.Error()))
 			}
+			terminal.DisplaySSHKeys(t, user.PublicKey)
 			return nil
 		},
 	}

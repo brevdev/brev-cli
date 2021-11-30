@@ -15,6 +15,12 @@ type LoginAuth struct {
 	Auth
 }
 
+func NewLoginAuth(authStore AuthStore, oauth OAuth) *LoginAuth {
+	return &LoginAuth{
+		Auth: *NewAuth(authStore, oauth),
+	}
+}
+
 func (l LoginAuth) GetAccessToken() (string, error) {
 	token, err := l.GetFreshAccessTokenOrLogin()
 	if err != nil {
@@ -25,6 +31,12 @@ func (l LoginAuth) GetAccessToken() (string, error) {
 
 type NoLoginAuth struct {
 	Auth
+}
+
+func NewNoLoginAuth(authStore AuthStore, oauth OAuth) *NoLoginAuth {
+	return &NoLoginAuth{
+		Auth: *NewAuth(authStore, oauth),
+	}
 }
 
 func (l NoLoginAuth) GetAccessToken() (string, error) {
@@ -101,13 +113,22 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 
 // Prompts for login and returns tokens, and saves to store
 func (t Auth) PromptForLogin() (*LoginTokens, error) {
-	reader := bufio.NewReader(os.Stdin) // TODO inject?
+	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
 	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
 	text, _ := reader.ReadString('\n')
 	if strings.Compare(text, "y") != 1 {
 		return nil, &breverrors.DeclineToLoginError{}
 	}
 
+	tokens, err := t.Login()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return tokens, nil
+}
+
+func (t Auth) Login() (*LoginTokens, error) {
 	tokens, err := t.oauth.DoDeviceAuthFlow(
 		func(url, code string) {
 			fmt.Println("Your Device Confirmation Code is", code)
@@ -121,7 +142,7 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 		},
 	)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, "login error")
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	err = t.authStore.SaveAuthTokens(tokens.AuthTokens)
@@ -150,7 +171,7 @@ type LoginTokens struct {
 
 func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 	tokens, err := t.authStore.GetAuthTokens()
-	// TODO handle certain errors and return nil
+	// TODO 2 handle certain errors and return nil
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -160,7 +181,7 @@ func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 // gets new access and refresh token or returns nil if refresh token expired, and updates store
 func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTokens, error) {
 	tokens, err := t.oauth.GetNewAuthTokensWithRefresh(refreshToken)
-	// TODO handle if 403 invalid grant
+	// TODO 2 handle if 403 invalid grant
 	// https://stackoverflow.com/questions/57383523/how-to-detect-when-an-oauth2-refresh-token-expired
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -175,6 +196,6 @@ func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTok
 }
 
 func (t Auth) isAccessTokenExpired(_ string) (bool, error) {
-	// TODO
+	// TODO 1
 	return false, nil
 }

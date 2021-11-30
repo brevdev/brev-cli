@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/afero"
 )
 
+// TODO 1 test cov
+
 const brevCredentialsFile = "credentials.json"
 
 func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
@@ -43,7 +45,7 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	return nil, nil
+	return &token, nil
 }
 
 func getBrevCredentialsFile() (*string, error) {

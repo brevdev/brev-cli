@@ -10,6 +10,7 @@ import (
 type User struct {
 	ID        string `json:"id"`
 	PublicKey string `json:"publicKey,omitempty"`
+	Username  string `json:"username"`
 }
 
 func (a *Client) GetMe() (*User, error) {

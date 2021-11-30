@@ -97,14 +97,14 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	}
 
 	if name == "" {
-		name = brevapi.PromptGetInput(brevapi.PromptContent{
+		name = terminal.PromptGetInput(terminal.PromptContent{
 			Label:    "Environment variable/secret name: ",
 			ErrorMsg: "error",
 		})
 	}
 
 	if envtype == "" {
-		envtype = brevapi.PromptSelectInput(brevapi.PromptSelectContent{
+		envtype = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "Type of variable: ",
 			ErrorMsg: "error",
 			Items:    []string{"file", "variable"},
@@ -112,14 +112,14 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	}
 
 	if value == "" {
-		value = brevapi.PromptGetInput(brevapi.PromptContent{
+		value = terminal.PromptGetInput(terminal.PromptContent{
 			Label:    "Environment variable/secret value: ",
 			ErrorMsg: "error",
 		})
 	}
 
 	if path == "" && envtype == "file" {
-		path = brevapi.PromptGetInput(brevapi.PromptContent{
+		path = terminal.PromptGetInput(terminal.PromptContent{
 			Label:    "Path for the file: ",
 			ErrorMsg: "error",
 			Default:  "/home/brev/workspace/secret.txt",
@@ -127,7 +127,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	}
 
 	if scope == "" {
-		scope = brevapi.PromptSelectInput(brevapi.PromptSelectContent{
+		scope = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "Scope: ",
 			ErrorMsg: "error",
 			Items:    []string{"org", "user"},

@@ -98,11 +98,11 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 
 func startInput(t *terminal.Terminal) {
 	t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!\n"))
-	remoteInput := brevapi.PromptGetInput(brevapi.PromptContent{
+	remoteInput := terminal.PromptGetInput(terminal.PromptContent{
 		Label:    "What port on your Brev machine would you like to forward?",
 		ErrorMsg: "error",
 	})
-	localInput := brevapi.PromptGetInput(brevapi.PromptContent{
+	localInput := terminal.PromptGetInput(terminal.PromptContent{
 		Label:    "What port should it be on your local machine?",
 		ErrorMsg: "error",
 	})

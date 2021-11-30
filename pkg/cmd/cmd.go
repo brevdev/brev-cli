@@ -94,20 +94,33 @@ var _ store.Auth = deprecatedauth.TempAuth{}
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 	conf := config.NewConstants()
-	auth := deprecatedauth.TempAuth{}
 	fs := files.AppFs
-	cmdStore := store.
+	authenticator := auth.Authenticator{
+		Audience:           "https://brevdev.us.auth0.com/api/v2/",
+		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+	}
+
+	fsStore := store.
 		NewBasicStore().
-		WithFileSystem(fs).
-		WithNoAuthHTTPClient(
-			store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-		).
-		WithAuth(auth)
+		WithFileSystem(fs)
+	loginAuth := auth.NewLoginAuth(fsStore, authenticator)
+	noLoginAuth := auth.NewNoLoginAuth(fsStore, authenticator)
+
+	loginCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).
+		WithAuth(loginAuth)
+	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).
+		WithAuth(noLoginAuth)
 
 	cmd.AddCommand(set.NewCmdSet(t))
 	cmd.AddCommand(ls.NewCmdLs(t))
-	cmd.AddCommand(portforward.NewCmdPortForward(cmdStore, t)) // long
-	cmd.AddCommand(login.NewCmdLogin(t, cmdStore))
+	cmd.AddCommand(portforward.NewCmdPortForward(loginCmdStore, t))
+	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout())
 	cmd.AddCommand(refresh.NewCmdRefresh(t))
 
@@ -118,13 +131,13 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 		cmd.AddCommand(test.NewCmdTest(t))
 	}
-	cmd.AddCommand(secret.NewCmdSecret(cmdStore, t))
-	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t))
+	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
+	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t))
-	cmd.AddCommand(stop.NewCmdStop(cmdStore, t))
+	cmd.AddCommand(stop.NewCmdStop(loginCmdStore, t))
 	cmd.AddCommand(delete.NewCmdDelete(t))
 	cmd.AddCommand(reset.NewCmdReset(t))
-	cmd.AddCommand(up.NewCmdUp(cmdStore, t))
+	cmd.AddCommand(up.NewCmdUp(loginCmdStore, t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
