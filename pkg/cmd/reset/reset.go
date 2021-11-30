@@ -1,7 +1,11 @@
 package reset
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -13,7 +17,14 @@ var (
 	startExample = "brev reset <ws_name>"
 )
 
-func NewCmdReset(t *terminal.Terminal) *cobra.Command {
+type ResetStore interface {
+	completions.CompletionStore
+	ResetWorkspace(workspaceID string) (*brevapi.Workspace, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
+	GetActiveOrganizationOrDefault() (*brevapi.Organization, error)
+}
+
+func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "reset",
@@ -23,8 +34,9 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 		Example:               startExample,
 		Args:                  cobra.ExactArgs(1),
 		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := resetWorkspace(args[0], t)
+			err := resetWorkspace(args[0], t, loginResetStore)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -34,18 +46,29 @@ func NewCmdReset(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func resetWorkspace(workspaceName string, t *terminal.Terminal) error {
-	client, err := brevapi.NewDeprecatedCommandClient()
+func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
+	org, err := resetStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return fmt.Errorf("no orgs exist")
+	}
+
+	workspaces, err := resetStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err := brevapi.GetWorkspaceFromName(workspaceName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	if len(workspaces) == 0 {
+		return fmt.Errorf("no workspace exist with name %s", workspaceName)
+	} else if len(workspaces) > 1 {
+		return fmt.Errorf("more than 1 workspace exist with name %s", workspaceName)
 	}
 
-	startedWorkspace, err := client.ResetWorkspace(workspace.ID)
+	workspace := workspaces[0]
+
+	startedWorkspace, err := resetStore.ResetWorkspace(workspace.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
