@@ -80,9 +80,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 }
 
 func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
-	t.Print("")
-	t.Print("Welcome to Brev 🤙 ")
-	t.Print("")
+	t.Print("\n Welcome to Brev 🤙 \n")
 	t.Print("Creating your user...")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
@@ -105,11 +103,12 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		}
 	}
 
-	// // SSH Keys
+	// SSH Keys
 	terminal.DisplayBrevLogo(t)
 	t.Print("")
 	terminal.DisplaySSHKeys(t, user.PublicKey)
 
+	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "What is your preferred IDE?",
 		ErrorMsg: "error",
@@ -117,104 +116,123 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	})
 	if ide == "VSCode" {
 		// TODO: check if user uses VSCode and intall extension for user
-		t.Print("Run the following steps")
-		t.Print("")
-		t.Print("\t1) Install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".")
-		t.Print("\t2) Run " + t.Green("brev up") + " and then open VSCode.")
-		t.Print("\t3) Open the Command Palette and type in " + t.Yellow("Remote-SSH: Connect to Host...") + "to begin.")
+		terminal.DisplayVSCodeInstructions(t)
 		return nil
 	}
 
 	if ide == "JetBrains IDEs" {
-		localOS := terminal.PromptSelectInput(terminal.PromptSelectContent{
-			Label:    "Which operating system does your local computer have?",
-			ErrorMsg: "error",
-			Items:    []string{"Mac OS (Intel)", "Mac OS (M1 Chip)", "Linux"},
-		})
+		return CheckAndInstallGateway(t)
+	}
+	return nil
+}
 
-		homeDirectory, err := os.UserHomeDir()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		var jetBrainsDirectory string
-		var installScript string
-		switch localOS {
-		case "Mac OS (Intel)":
-			jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
-			installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=mac&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
-		case "Mac OS (M1 Chip)":
-			jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
-			installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=macM1&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
-		case "Linux":
-			jetBrainsDirectory = homeDirectory + `/.local/share/JetBrains`
-			installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.tar.gz "https://data.services.jetbrains.com/products/download?code=GW&platform=linux&type=eap,rc,release,beta"; GATEWAY_TEMP_DIR=$(mktemp -d); tar -C "$GATEWAY_TEMP_DIR" -xf gateway.tar.gz; rm ./gateway.tar.gz; "$GATEWAY_TEMP_DIR"/*/bin/gateway.sh; rm -r "$GATEWAY_TEMP_DIR"; echo "JetBrains Gateway was successfully installed";`
-		}
+func CheckAndInstallGateway(t *terminal.Terminal) (err error) {
+	localOS := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		Label:    "Which operating system does your local computer have?",
+		ErrorMsg: "error",
+		Items:    []string{"Mac OS (Intel)", "Mac OS (M1 Chip)", "Linux"},
+	})
 
-		t.Print("Searching for JetBrains Gateway...")
+	jetBrainsDirectory, installScript, err := CreateDownloadPathAndInstallScript(localOS)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	t.Print("Searching for JetBrains Gateway...")
+	t.Print("")
+
+	// Check if Gateway is already installed
+	gatewayInstalled := IsGatewayInstalled(jetBrainsDirectory)
+	if gatewayInstalled {
+		terminal.DisplayGatewayAlreadyInstalledInstructions(t)
+		return nil
+	}
+
+	// Check if Toolbox is already installed
+	toolboxInstalled, gatewayInToolboxInstalled := IsToolboxInstalled(jetBrainsDirectory)
+	if gatewayInToolboxInstalled {
+		terminal.DisplayGatewayAlreadyInstalledInstructions(t)
+		return nil
+	}
+
+	if toolboxInstalled {
+		terminal.DisplayToolboxInstalledInstructions(t)
+		return nil
+	}
+
+	InstallGateway(installScript, t)
+	return nil
+}
+
+func IsToolboxInstalled(jetBrainsBaseDirectory string) (toolboxInstalled bool, gatewayInToolboxInstalled bool) {
+	_, err := os.Stat(jetBrainsBaseDirectory + `/Toolbox`)
+	if !os.IsNotExist(err) {
+		// Check if Gateway is already installed in Toolbox
+		_, err = os.Stat(jetBrainsBaseDirectory + `/Toolbox/apps/JetBrainsGateway`)
+		return true, !os.IsNotExist(err)
+	}
+	return false, false
+}
+
+func IsGatewayInstalled(jetBrainsBaseDirectory string) bool {
+	matches, _ := filepath.Glob(jetBrainsBaseDirectory + `/JetBrainsGateway*`)
+	return len(matches) > 0
+}
+
+func InstallGateway(installScript string, t *terminal.Terminal) {
+	reader := bufio.NewReader(os.Stdin)
+	t.Print("You will need to install JetBrains Gateway to use JetBrains IDEs.")
+	t.Print(`Would you like to install JetBrains Gateway? [y/n]: `)
+	text, _ := reader.ReadString('\n')
+	if strings.Compare(text, "y") != 1 {
+		// n
 		t.Print("")
-
-		// Check if Gateway is already installed
-		matches, err := filepath.Glob(jetBrainsDirectory + `/JetBrainsGateway*`)
-		if len(matches) > 0 {
-			t.Print(t.Yellow("You already have JetBrains Gateway installed!"))
-			t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
-			return nil
-		}
-
-		// Check if Toolbox is already installed
-		_, err = os.Stat(jetBrainsDirectory + `/Toolbox`)
-		if !os.IsNotExist(err) {
-			// Check if Gateway is already installed in Toolbox
-			_, err = os.Stat(jetBrainsDirectory + `/Toolbox/apps/JetBrainsGateway`)
-			if !os.IsNotExist(err) {
-				t.Print(t.Yellow("You already have JetBrains Gateway installed!"))
-				t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
-				return nil
-			}
-			t.Print(t.Yellow("You already have JetBrains Toolbox installed!"))
-			t.Print("")
-			t.Print("\t1) Install JetBrains Gateway from Toolbox.")
-			t.Print("\t2) Run " + t.Green("brev up") + " and then open Gateway to begin.")
-			return nil
-		}
-
-		// Install Gateway
-		reader := bufio.NewReader(os.Stdin)
-		t.Print("You will need to install JetBrains Gateway to use JetBrains IDEs.")
-		t.Print(`Would you like to install JetBrains Gateway? [y/n]: `)
-		text, _ := reader.ReadString('\n')
-		if strings.Compare(text, "y") != 1 {
-			// n
+		t.Print(t.Yellow("Click here to install manually: "))
+		t.Print("https://www.jetbrains.com/remote-development/gateway")
+		t.Print("")
+	} else {
+		// y
+		spinner := t.NewSpinner()
+		spinner.Suffix = " Installing JetBrains Gateway..."
+		spinner.Start()
+		// #nosec
+		cmd := exec.Command("/bin/sh", "-c", installScript)
+		_, err := cmd.Output()
+		spinner.Stop()
+		if err != nil {
+			t.Errprint(err, "Error installing JetBrains Gateway")
 			t.Print("")
 			t.Print(t.Yellow("Click here to install manually: "))
 			t.Print("https://www.jetbrains.com/remote-development/gateway")
 			t.Print("")
 		} else {
-			// y
-			spinner := t.NewSpinner()
-			spinner.Suffix = " Installing JetBrains Gateway..."
-			spinner.Start()
-			cmd := exec.Command("/bin/sh", "-c", installScript)
-			_, err := cmd.Output()
-			spinner.Stop()
-			if err != nil {
-				t.Errprint(err, "Error installing JetBrains Gateway")
-				t.Print("")
-				t.Print(t.Yellow("Click here to install manually: "))
-				t.Print("https://www.jetbrains.com/remote-development/gateway")
-				t.Print("")
-			} else {
-				t.Print("")
-				t.Print("")
-				t.Print(t.Yellow("JetBrains Gateway successfully installed!"))
-				t.Print("")
-				t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
-				t.Print("")
-			}
+			t.Print("")
+			t.Print("")
+			t.Print(t.Yellow("JetBrains Gateway successfully installed!"))
+			t.Print("")
+			t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
+			t.Print("")
 		}
-		return nil
 	}
-	return nil
+}
+
+func CreateDownloadPathAndInstallScript(localOS string) (jetBrainsDirectory string, installScript string, err error) {
+	homeDirectory, err := os.UserHomeDir()
+	if err != nil {
+		return "", "", breverrors.WrapAndTrace(err)
+	}
+	switch localOS {
+	case "Mac OS (Intel)":
+		jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
+		installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=mac&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
+	case "Mac OS (M1 Chip)":
+		jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
+		installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=macM1&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
+	case "Linux":
+		jetBrainsDirectory = homeDirectory + `/.local/share/JetBrains`
+		installScript = `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.tar.gz "https://data.services.jetbrains.com/products/download?code=GW&platform=linux&type=eap,rc,release,beta"; GATEWAY_TEMP_DIR=$(mktemp -d); tar -C "$GATEWAY_TEMP_DIR" -xf gateway.tar.gz; rm ./gateway.tar.gz; "$GATEWAY_TEMP_DIR"/*/bin/gateway.sh; rm -r "$GATEWAY_TEMP_DIR"; echo "JetBrains Gateway was successfully installed";`
+	}
+	return jetBrainsDirectory, installScript, nil
 }
 
 func makeFirstOrgName(user *brevapi.User) string {

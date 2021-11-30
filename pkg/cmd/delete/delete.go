@@ -23,7 +23,7 @@ type DeleteStore interface {
 	GetCurrentUser() (*brevapi.User, error)
 }
 
-func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDeleteStore DeleteStore) *cobra.Command {
+func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore) *cobra.Command {
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
