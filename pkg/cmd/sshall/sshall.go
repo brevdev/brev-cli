@@ -2,6 +2,7 @@ package sshall
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -13,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/ssh"
 	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
@@ -48,9 +50,45 @@ func NewSSHAll(
 	}
 }
 
-func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) bool {
-	fmt.Sprintln(w)
-	return true
+func workspaceSSHConnectionHealthCheck(w brevapi.WorkspaceWithMeta) (bool, error) {
+	var hostKey ssh.PublicKey
+	// A public key may be used to authenticate against the remote
+	// 	var hostKey ssh.PublicKey
+	// A public key may be used to authenticate against the remote
+	// server by using an unencrypted PEM-encoded private key file.
+	//
+	// If you have an encrypted private key, the crypto/x509 package
+	// can be used to decrypt it.
+	key, err := ioutil.ReadFile(files.GetSSHPrivateKeyFilePath())
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err, "unable to read private key: %v")
+	}
+
+	// Create the Signer for this private key.
+	signer, err := ssh.ParsePrivateKey(key)
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err, "unable to parse private key: %v")
+	}
+
+	config := &ssh.ClientConfig{
+		User: "brev",
+		Auth: []ssh.AuthMethod{
+			// Use the PublicKeys method for remote authentication.
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: ssh.FixedHostKey(hostKey),
+	}
+
+	// Connect to the remote server and perform the SSH handshake.
+	client, err := ssh.Dial("tcp", w.DNS, config)
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err, "unable to connect: %v")
+	}
+	err = client.Close()
+	if err != nil {
+		return true, breverrors.WrapAndTrace(err)
+	}
+	return true, nil
 }
 
 func (s SSHAll) runPortForwardWorkspace(workspace brevapi.WorkspaceWithMeta) {
@@ -66,7 +104,7 @@ func (s SSHAll) Run() error {
 	// since kubectl was not intended to be used a library like this
 	runtime.ErrorHandlers = append(runtime.ErrorHandlers, func(err error) {
 		for _, w := range s.workspaces {
-			isHealthy := workspaceSSHConnectionHealthCheck(w)
+			isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
 			if !isHealthy {
 				close(s.workspaceConnections[w])
 				if s.retries[w] > 0 {
