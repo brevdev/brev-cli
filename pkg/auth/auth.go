@@ -171,9 +171,15 @@ type LoginTokens struct {
 
 func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 	tokens, err := t.authStore.GetAuthTokens()
-	// TODO 2 handle certain errors and return nil
 	if err != nil {
+		switch err.(type) { //nolint:gocritic // like the ability to extend
+		case *breverrors.CredentialsFileNotFound:
+			return nil, nil
+		}
 		return nil, breverrors.WrapAndTrace(err)
+	}
+	if tokens != nil && tokens.AccessToken == "" {
+		return nil, nil
 	}
 	return tokens, nil
 }
