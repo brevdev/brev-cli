@@ -29,10 +29,11 @@ type Auth interface {
 	Login() (*auth.LoginTokens, error)
 }
 
-func NewCmdLogin(t *terminal.Terminal, loginStoreNoLogin LoginStore, auth Auth) *cobra.Command {
+// loginStore must be a no prompt store
+func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.Command {
 	opts := LoginOptions{
 		auth:       auth,
-		loginStore: loginStoreNoLogin,
+		loginStore: loginStore,
 	}
 
 	cmd := &cobra.Command{
@@ -43,7 +44,6 @@ func NewCmdLogin(t *terminal.Terminal, loginStoreNoLogin LoginStore, auth Auth) 
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		Args:                  cobra.NoArgs,
-		// ValidArgsFunction: util.ResourceNameCompletionFunc(f, "pod"),
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(t, cmd, args))
 			cmdutil.CheckErr(opts.RunLogin(t))
