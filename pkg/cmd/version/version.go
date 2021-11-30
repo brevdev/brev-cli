@@ -6,12 +6,8 @@ import (
 	"github.com/fatih/color"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/requests"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-)
-
-const (
-	cliReleaseURL = "https://api.github.com/repos/brevdev/brev-cli/releases/latest"
 )
 
 var Version = ""
@@ -37,16 +33,12 @@ Details: %s
 %s
 `
 
-type githubReleaseMetadata struct {
-	TagName      string `json:"tag_name"`
-	IsDraft      bool   `json:"draft"`
-	IsPrerelease bool   `json:"prerelease"`
-	Name         string `json:"name"`
-	Body         string `json:"body"`
+type VersionStore interface {
+	GetLatestReleaseMetadata() (*store.GithubReleaseMetadata, error)
 }
 
-func BuildVersionString(t *terminal.Terminal) (string, error) {
-	githubRelease, err := getLatestGithubReleaseMetadata()
+func BuildVersionString(t *terminal.Terminal, versionStore VersionStore) (string, error) {
+	githubRelease, err := versionStore.GetLatestReleaseMetadata()
 	if err != nil {
 		t.Errprint(err, "Failed to retrieve latest version")
 		return "", breverrors.WrapAndTrace(err)
@@ -68,23 +60,4 @@ func BuildVersionString(t *terminal.Terminal) (string, error) {
 		)
 	}
 	return versionString, nil
-}
-
-func getLatestGithubReleaseMetadata() (*githubReleaseMetadata, error) {
-	request := &requests.RESTRequest{
-		Method:   "GET",
-		Endpoint: cliReleaseURL,
-	}
-	response, err := request.SubmitStrict()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var payload githubReleaseMetadata
-	err = response.UnmarshalPayload(&payload)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &payload, nil
 }

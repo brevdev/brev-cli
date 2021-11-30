@@ -20,7 +20,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/config"
-	"github.com/brevdev/brev-cli/pkg/deprecatedauth"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -40,6 +39,30 @@ func NewBrevCommand() *cobra.Command {
 	t := terminal.New()
 	var printVersion bool
 
+	conf := config.NewConstants()
+	fs := files.AppFs
+	authenticator := auth.Authenticator{
+		Audience:           "https://brevdev.us.auth0.com/api/v2/",
+		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+	}
+
+	fsStore := store.
+		NewBasicStore().
+		WithFileSystem(fs)
+	loginAuth := auth.NewLoginAuth(fsStore, authenticator)
+	noLoginAuth := auth.NewNoLoginAuth(fsStore, authenticator)
+
+	loginCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).
+		WithAuth(loginAuth)
+	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).
+		WithAuth(noLoginAuth)
+
 	cmds := &cobra.Command{
 		Use:   "brev",
 		Short: "brev client for managing workspaces",
@@ -51,7 +74,7 @@ func NewBrevCommand() *cobra.Command {
 		Run: runHelp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printVersion {
-				v, err := version.BuildVersionString(t)
+				v, err := version.BuildVersionString(t, noLoginCmdStore)
 				if err != nil {
 					t.Errprint(err, "Failed to determine version")
 					return breverrors.WrapAndTrace(err)
@@ -84,38 +107,12 @@ func NewBrevCommand() *cobra.Command {
 
 	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 
-	createCmdTree(cmds, t)
+	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth)
 
 	return cmds
 }
 
-var _ store.Auth = deprecatedauth.TempAuth{}
-
-func createCmdTree(cmd *cobra.Command, t *terminal.Terminal) {
-	conf := config.NewConstants()
-	fs := files.AppFs
-	authenticator := auth.Authenticator{
-		Audience:           "https://brevdev.us.auth0.com/api/v2/",
-		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
-		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
-		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
-	}
-
-	fsStore := store.
-		NewBasicStore().
-		WithFileSystem(fs)
-	loginAuth := auth.NewLoginAuth(fsStore, authenticator)
-	noLoginAuth := auth.NewNoLoginAuth(fsStore, authenticator)
-
-	loginCmdStore := fsStore.WithNoAuthHTTPClient(
-		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).
-		WithAuth(loginAuth)
-	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
-		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).
-		WithAuth(noLoginAuth)
-
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) {
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForward(loginCmdStore, t))
