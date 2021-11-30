@@ -4,7 +4,9 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/brevapi"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +16,14 @@ var (
 	deleteExample = "brev delete <ws_name>"
 )
 
-func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
+type DeleteStore interface {
+	completions.CompletionStore
+	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]brevapi.Workspace, error)
+	DeleteWorkspace(workspaceID string) (*brevapi.Workspace, error)
+	GetCurrentUser() (*brevapi.User, error)
+}
+
+func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDeleteStore DeleteStore) *cobra.Command {
 	// link [resource id] -p 2222
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -24,9 +33,9 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 		Long:                  deleteLong,
 		Example:               deleteExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgs:             brevapi.GetCachedWorkspaceNames(),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(loginDeleteStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := deleteWorkspace(args[0], t)
+			err := deleteWorkspace(args[0], t, loginDeleteStore)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -36,18 +45,38 @@ func NewCmdDelete(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func deleteWorkspace(name string, t *terminal.Terminal) error {
-	client, err := brevapi.NewDeprecatedCommandClient()
+func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
+	var workspaces []brevapi.Workspace
+	org, err := deleteStore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	workspace, err := brevapi.GetWorkspaceFromName(name)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	if org == nil {
+		workspaces, err = deleteStore.GetAllWorkspaces(nil)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		currentUser, err2 := deleteStore.GetCurrentUser()
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
+		}
+		workspaces, err = deleteStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: currentUser.ID})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
-	deletedWorkspace, err := client.DeleteWorkspace(workspace.ID)
+	var workspace brevapi.Workspace
+	if len(workspaces) == 0 { //nolint:gocritic // gocritic recommends using a switch
+		return fmt.Errorf("no workspaces found with name %s", workspaceName)
+	} else if len(workspaces) > 1 {
+		return fmt.Errorf("multiple workspaces found with name %s", workspaceName)
+	} else {
+		workspace = workspaces[0]
+	}
+
+	deletedWorkspace, err := deleteStore.DeleteWorkspace(workspace.ID)
 	if err != nil {
 		fmt.Println(err)
 		return breverrors.WrapAndTrace(err)
