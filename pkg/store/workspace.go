@@ -7,6 +7,79 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+var (
+	orgIDParamName          = "organizationID"
+	workspaceOrgPathPattern = "api/organizations/%s/workspaces"
+	workspaceOrgPath        = fmt.Sprintf(workspaceOrgPathPattern, fmt.Sprintf("{%s}", orgIDParamName))
+)
+
+type CreateWorkspacesOptions struct {
+	Name                 string                `json:"name"`
+	WorkspaceGroupID     string                `json:"workspaceGroupId"`
+	WorkspaceClassID     string                `json:"workspaceClassId"`
+	GitRepo              string                `json:"gitRepo"`
+	IsStoppable          bool                  `json:"isStoppable"`
+	WorkspaceTemplateID  string                `json:"workspaceTemplateId"`
+	PrimaryApplicationID string                `json:"primaryApplicationId"`
+	Applications         []brevapi.Application `json:"applications"`
+}
+
+const (
+	DefaultWorkspaceClassID    = "2x8"
+	DefaultWorkspaceTemplateID = "4nbb4lg2s"
+)
+
+var (
+	DefaultApplicationID = "92f59a4yf"
+	DefaultApplication   = brevapi.Application{
+		ID:           DefaultApplicationID,
+		Name:         "VSCode",
+		Port:         22778,
+		StartCommand: "",
+		Version:      "1.57.1",
+	}
+)
+var DefaultApplicationList = []brevapi.Application{DefaultApplication}
+
+func NewCreateWorkspacesOptions(clusterID string, name string) *CreateWorkspacesOptions {
+	return &CreateWorkspacesOptions{
+		Name:                 name,
+		WorkspaceGroupID:     clusterID,
+		WorkspaceClassID:     DefaultWorkspaceClassID,
+		GitRepo:              "",
+		IsStoppable:          false,
+		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
+		PrimaryApplicationID: DefaultApplicationID,
+		Applications:         DefaultApplicationList,
+	}
+}
+
+func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesOptions {
+	c.GitRepo = gitRepo
+	return c
+}
+
+func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWorkspacesOptions) (*brevapi.Workspace, error) {
+	if options == nil {
+		return nil, fmt.Errorf("options can not be nil")
+	}
+
+	var result brevapi.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(orgIDParamName, organizationID).
+		SetBody(options).
+		SetResult(&result).
+		Post(workspaceOrgPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
 type GetWorkspacesOptions struct {
 	UserID string
 	Name   string
@@ -63,12 +136,6 @@ func (s AuthHTTPStore) GetAllWorkspaces(options *GetWorkspacesOptions) ([]brevap
 	return allWorkspaces, nil
 }
 
-var (
-	orgIDParamName          = "organizationID"
-	workspaceOrgPathPattern = "api/organizations/%s/workspaces"
-	workspaceOrgPath        = fmt.Sprintf(workspaceOrgPathPattern, fmt.Sprintf("{%s}", orgIDParamName))
-)
-
 func (s AuthHTTPStore) getWorkspaces(organizationID string) ([]brevapi.Workspace, error) {
 	var result []brevapi.Workspace
 	res, err := s.authHTTPClient.restyClient.R().
@@ -98,6 +165,22 @@ func (s AuthHTTPStore) GetWorkspace(workspaceID string) (*brevapi.Workspace, err
 		SetPathParam(workspaceIDParamName, workspaceID).
 		SetResult(&result).
 		Get(workspacePath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
+func (s AuthHTTPStore) DeleteWorkspace(workspaceID string) (*brevapi.Workspace, error) {
+	var result brevapi.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		Delete(workspacePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

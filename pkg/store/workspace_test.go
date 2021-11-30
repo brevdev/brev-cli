@@ -60,6 +60,43 @@ func TestGetWorkspaces(t *testing.T) {
 	}
 }
 
+func TestCreateWorkspace(t *testing.T) {
+	s := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+
+	orgID := "o1"
+	expected := &brevapi.Workspace{
+		ID:               "1",
+		Name:             "name",
+		WorkspaceGroupID: "wgi",
+		OrganizationID:   orgID,
+		WorkspaceClassID: "wci",
+		CreatedByUserID:  "cbuid",
+		DNS:              "dns",
+		Status:           "s",
+		Password:         "pw",
+		GitRepo:          "g",
+	}
+	res, err := httpmock.NewJsonResponder(201, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(workspaceOrgPathPattern, orgID))
+	httpmock.RegisterResponder("POST", url, res)
+
+	u, err := s.CreateWorkspace(orgID, NewCreateWorkspacesOptions("wgi", "name"))
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, u) {
+		return
+	}
+
+	if !assert.Equal(t, expected, u) {
+		return
+	}
+}
+
 func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor later, not fully duplicate code
 	s := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
@@ -338,6 +375,43 @@ func TestGetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be duplic
 	httpmock.RegisterResponder("GET", url, res)
 
 	u, err := s.GetWorkspace(workspaceID)
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, u) {
+		return
+	}
+	if !assert.Equal(t, expected, u) {
+		return
+	}
+}
+
+func TestDeleteWorkspace(t *testing.T) { //nolint:dupl // ok to have this be duplicate
+	s := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+
+	workspaceID := "1"
+	expected := &brevapi.Workspace{
+		ID:               workspaceID,
+		Name:             "name",
+		WorkspaceGroupID: "wgi",
+		OrganizationID:   "oi",
+		WorkspaceClassID: "wci",
+		CreatedByUserID:  "cui",
+		DNS:              "dns",
+		Status:           "s",
+		Password:         "p",
+		GitRepo:          "g",
+	}
+
+	res, err := httpmock.NewJsonResponder(200, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(workspacePathPattern, workspaceID))
+	httpmock.RegisterResponder("DELETE", url, res)
+
+	u, err := s.DeleteWorkspace(workspaceID)
 	if !assert.Nil(t, err) {
 		return
 	}

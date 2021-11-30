@@ -122,30 +122,6 @@ type RemoteK8sClientConfig struct {
 	ca   []byte
 }
 
-func NewRemoteK8sClientConfig(clusterID string) (*RemoteK8sClientConfig, error) {
-	c, err := brevapi.NewCommandClient()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	keys, err := c.GetMeKeys()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	cluserKeys, err := keys.GetWorkspaceGroupKeysByGroupID(clusterID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &RemoteK8sClientConfig{
-		host: cluserKeys.APIURL,
-		cert: []byte(cluserKeys.Cert),
-		key:  []byte(keys.PrivateKey),
-		ca:   []byte(cluserKeys.CA),
-	}, nil
-}
-
 func (k RemoteK8sClientConfig) GetHost() string {
 	return k.host
 }
