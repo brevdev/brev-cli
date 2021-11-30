@@ -102,16 +102,44 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	t.Vprintf("\n")
 	terminal.DisplaySSHKeys(t, user.PublicKey)
 
-	hasVSCode := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label:    "Do you use VS Code?",
+	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		Label:    "What is your preferred IDE?",
 		ErrorMsg: "error",
-		Items:    []string{"yes", "no"},
+		Items:    []string{"VSCode", "JetBrains"},
 	})
-	if hasVSCode == "yes" {
+	if ide == "VSCode" {
 		// TODO: check if user uses VSCode and intall extension for user
 		t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
+		return nil
 	}
 
+	// which operating system
+
+	// linux, mac m1, mac. In each do the path of where it's installed.
+	// macOS: ~/Library/Application Support/JetBrains
+	// Linux: ~/.local/share/JetBrains
+	// home directory involved
+	// os.HomeDirectory
+	// check actual jetbrains gateway
+	// filepath.Glob(home directory, middle, /JetBrainsGateway*)
+	// f (to check print all the strings it returns)
+	// return list of strings.. hmmm. if len(existingGateway) > 0.. f just print it. list of folder names that start with jetbrainsgateway*
+	// check toolbox
+	// os.Stat(/Toolbox)
+	// check in toolbox apps
+	// os.Stat(/Toolbox/apps/JetBrainsGateway)
+	// run exec.Command("/bin/sh", "-c", installScript)
+
+	// `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=mac&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
+	// `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.dmg "https://data.services.jetbrains.com/products/download?code=GW&platform=macM1&type=eap,rc,release,beta"; hdiutil attach gateway.dmg; cp -R "/Volumes/JetBrains Gateway/JetBrains Gateway.app" /Applications; hdiutil unmount "/Volumes/JetBrains Gateway"; rm ./gateway.dmg; echo "JetBrains Gateway successfully installed"`
+	// `set -e; echo "Start installation..."; wget --show-progress -qO ./gateway.tar.gz "https://data.services.jetbrains.com/products/download?code=GW&platform=linux&type=eap,rc,release,beta"; GATEWAY_TEMP_DIR=$(mktemp -d); tar -C "$GATEWAY_TEMP_DIR" -xf gateway.tar.gz; rm ./toolbox.tar.gz; "$GATEWAY_TEMP_DIR"/*/bin/gateway.sh; rm -r "$GATEWAY_TEMP_DIR"; echo "JetBrains Gateway was successfully installed";`
+
+	// t.Vprintf("\nYou already have JetBrains Gateway installed through JetBrains Toolbox! Run " + t.Green("brev up") + " and then open Gateway to begin!. \n")
+	// t.Vprintf("\nError installing JetBrains Gateway. Click here to install manually: \n")
+	// t.Vprintf("\n\thttps://www.jetbrains.com/remote-development/gateway \n")
+
+	// after this, was going to add loading bar here during this part
+	// and then change configs which are located at (see installing on linux and go to the right directory and look through the install script before deleting)
 	return nil
 }
 
