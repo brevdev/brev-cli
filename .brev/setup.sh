@@ -57,5 +57,5 @@ cd -
  
 ##### Custom commands #####
 # (echo ""; echo "##### Custom commands #####"; echo "";)
-
+git config --global pull.ff only
 make install
