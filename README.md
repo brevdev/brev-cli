@@ -104,7 +104,6 @@ The release workflow is triggered each time a tag with `v` prefix is pushed.
 
 when releasing make sure to
 
-1. [ ]  update `bin/install-latest.sh`
 2. [ ]  release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
 _CAUTION_: Make sure to understand the consequences before you bump the major version. More info: [Go Wiki](https://github.com/golang/go/wiki/Modules#releasing-modules-v2-or-higher), [Go Blog](https://blog.golang.org/v2-go-modules).
