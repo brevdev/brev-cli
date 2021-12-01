@@ -39,9 +39,10 @@ func NewCmdUp(upStore UpStore, t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func (s *upOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
+func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
 	// spinner := t.NewSpinner()
 	// spinner.Suffix = "  Setting up client"
+	t.Print("Setting up client...")
 	// spinner.Start()
 
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(s.upStore) // to resolve
@@ -50,6 +51,7 @@ func (s *upOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string)
 	}
 
 	// spinner.Suffix = "  Resolving workspaces"
+	t.Print("Resolving workspaces...")
 	workspaces, err := GetActiveWorkspaces(s.upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
