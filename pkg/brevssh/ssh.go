@@ -102,17 +102,17 @@ func (s *DefaultSSHConfigurer) Config() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	var workspaceNames []string
+	var workspaceDNSNames []string
 	for _, workspace := range s.workspaces {
-		workspaceNames = append(workspaceNames, workspace.Name)
+		workspaceDNSNames = append(workspaceDNSNames, workspace.DNS)
 	}
 
-	cfg, err = s.CreateBrevSSHConfigEntries(*cfg, workspaceNames)
+	cfg, err = s.CreateBrevSSHConfigEntries(*cfg, workspaceDNSNames)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cfg, err = s.PruneInactiveWorkspaces(cfg, workspaceNames)
+	cfg, err = s.PruneInactiveWorkspaces(cfg, workspaceDNSNames)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -128,7 +128,7 @@ func (s *DefaultSSHConfigurer) Config() error {
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
-	port, err := s.sshConfig.Get(workspace.Name, "Port")
+	port, err := s.sshConfig.Get(workspace.DNS, "Port")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
