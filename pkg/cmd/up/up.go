@@ -39,17 +39,17 @@ func NewCmdUp(upStore UpStore, t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string) error {
-	spinner := t.NewSpinner()
-	spinner.Suffix = "  Setting up client"
-	spinner.Start()
+func (s *upOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
+	// spinner := t.NewSpinner()
+	// spinner.Suffix = "  Setting up client"
+	// spinner.Start()
 
 	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(s.upStore) // to resolve
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	spinner.Suffix = "  Resolving workspaces"
+	// spinner.Suffix = "  Resolving workspaces"
 	workspaces, err := GetActiveWorkspaces(s.upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -58,7 +58,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
 
 	s.on = NewUp(workspaces, sshConfigurer, workspaceGroupClientMapper)
-	spinner.Stop()
+	// spinner.Stop()
 	return nil
 }
 
