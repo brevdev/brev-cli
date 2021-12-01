@@ -3,10 +3,12 @@ package sshall
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -28,6 +30,7 @@ type SSHAll struct {
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
 	workspaceConnections       connectionMap
+	workspaceConnectionsMutex  sync.RWMutex
 	retries                    retrymap
 }
 
@@ -46,6 +49,7 @@ func NewSSHAll(
 		workspaceGroupClientMapper: workspaceGroupClientMapper,
 		sshResolver:                sshResolver,
 		workspaceConnections:       make(connectionMap),
+		workspaceConnectionsMutex:  sync.RWMutex{},
 		retries:                    make(retrymap),
 	}
 }
@@ -100,20 +104,29 @@ func (s SSHAll) runPortForwardWorkspace(workspace entity.WorkspaceWithMeta) {
 }
 
 func (s SSHAll) Run() error {
+	errorQueue := make(chan error, 1)
+
 	// set up error handling for the ssh connections, very much brute force
 	// since kubectl was not intended to be used a library like this
 	runtime.ErrorHandlers = append(runtime.ErrorHandlers, func(err error) {
-		for _, w := range s.workspaces {
-			isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
-			if !isHealthy {
-				close(s.workspaceConnections[w])
-				if s.retries[w] > 0 {
-					s.retries[w]--
-					go s.runPortForwardWorkspace(w)
+		errorQueue <- err
+	})
+
+	go func() {
+		for {
+			<-errorQueue
+			for _, w := range s.workspaces {
+				isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
+				if !isHealthy {
+					close(s.workspaceConnections[w])
+					if s.retries[w] > 0 {
+						s.retries[w]--
+						s.runPortForwardWorkspace(w)
+					}
 				}
 			}
 		}
-	})
+	}()
 
 	if len(s.workspaces) == 0 {
 		// todo set one for the user
@@ -124,7 +137,7 @@ func (s SSHAll) Run() error {
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.DNS)
 		s.retries[w] = 3 // TODO magic number
-		go s.runPortForwardWorkspace(w)
+		s.runPortForwardWorkspace(w)
 	}
 	fmt.Println()
 
@@ -159,17 +172,21 @@ func (s SSHAll) portforwardWorkspaceAtPort(workspace entity.WorkspaceWithMeta, p
 		dpf,
 	)
 
+	s.workspaceConnectionsMutex.Lock()
 	s.workspaceConnections[workspace] = pf.StopChannel
+	s.workspaceConnectionsMutex.Unlock()
 	_, err := pf.WithWorkspace(workspace)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	pf.WithPort(portMapping)
 
-	err = pf.RunPortforward()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	go func() {
+		err = pf.RunPortforward()
+		if err != nil {
+			log.Println(err)
+		}
+	}()
 
 	return nil
 }
