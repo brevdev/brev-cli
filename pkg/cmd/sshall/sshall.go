@@ -30,7 +30,7 @@ type SSHAll struct {
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	sshResolver                SSHResolver
 	workspaceConnections       connectionMap
-	workspaceConnectionsMutex  sync.RWMutex
+	workspaceConnectionsMutex  *sync.RWMutex
 	retries                    retrymap
 }
 
@@ -49,7 +49,7 @@ func NewSSHAll(
 		workspaceGroupClientMapper: workspaceGroupClientMapper,
 		sshResolver:                sshResolver,
 		workspaceConnections:       make(connectionMap),
-		workspaceConnectionsMutex:  sync.RWMutex{},
+		workspaceConnectionsMutex:  &sync.RWMutex{},
 		retries:                    make(retrymap),
 	}
 }
