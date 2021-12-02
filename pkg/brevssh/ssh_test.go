@@ -10,7 +10,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/afero"
 
 	"github.com/stretchr/testify/assert"
@@ -29,22 +28,7 @@ var (
 				OrganizationID:   "lkjlasd",
 				WorkspaceClassID: "lkjas'lkf",
 				CreatedByUserID:  "lkasfjas",
-				DNS:              "lksajdalk",
-				Status:           "lkjgdflk",
-				Password:         "sdfal",
-				GitRepo:          "lkdfjlksadf",
-			},
-		},
-		{
-			WorkspaceMetaData: entity.WorkspaceMetaData{},
-			Workspace: entity.Workspace{
-				ID:               "bar",
-				Name:             "testWork",
-				WorkspaceGroupID: "lkj",
-				OrganizationID:   "lkjlasd",
-				WorkspaceClassID: "lkjas'lkf",
-				CreatedByUserID:  "lkasfjas",
-				DNS:              "lksajdalk",
+				DNS:              "brev",
 				Status:           "lkjgdflk",
 				Password:         "sdfal",
 				GitRepo:          "lkdfjlksadf",
@@ -58,8 +42,8 @@ var (
 // returns the current testing context
 type BrevSSHTestSuite struct {
 	suite.Suite
-	SSHConfig ssh_config.Config
-	store     SSHStore
+	store      store.FileStore
+	Configurer *DefaultSSHConfigurer
 }
 
 var userConfigStr = `Host user-host
@@ -71,9 +55,9 @@ func (suite *BrevSSHTestSuite) SetupTest() {
 	if !suite.Nil(err) {
 		return
 	}
-	suite.store = s
+	suite.store = *s
 
-	r := strings.NewReader(fmt.Sprintf(`%[2]s
+	userSSHConfigStr := fmt.Sprintf(`%[2]s
 Host brev
 	 Hostname 0.0.0.0
 	 IdentityFile %[1]s
@@ -88,24 +72,27 @@ Host brevdev/brev-deploy
 	 Hostname 0.0.0.0
 	 IdentityFile %[1]s
 	 User brev
-	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr))
-	SSHConfig, err := ssh_config.Decode(r)
-	if err != nil {
-		panic(err)
+	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr)
+	s.WriteSSHConfig(userSSHConfigStr)
+	suite.Configurer, err = NewDefaultSSHConfigurer(someWorkspaces, *s, s.GetPrivateKeyFilePath())
+	suite.Nil(err)
+	if !suite.Nil(err) {
+		return
 	}
-	suite.SSHConfig = *SSHConfig
 }
 
 func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
-	ports, err := GetBrevPorts(suite.SSHConfig, []string{"brev", "workspace-images", "brevdev/brev-deploy"})
+	ports, err := suite.Configurer.GetBrevPorts([]string{"brev", "workspace-images", "brevdev/brev-deploy"})
+	if !suite.Nil(err) {
+		return
+	}
 	suite.True(ports["2222"])
 	suite.True(ports["2223"])
 	suite.True(ports["2224"])
-	suite.Nil(err)
 }
 
 func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
-	for _, host := range suite.SSHConfig.Hosts[2:] {
+	for _, host := range suite.Configurer.sshConfig.Hosts[2:] {
 		if len(host.Nodes) > 0 {
 			isBrevHost := checkIfBrevHost(*host, suite.store.GetPrivateKeyFilePath())
 			suite.True(isBrevHost)
@@ -114,25 +101,35 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 }
 
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
-	s, err := makeMockSSHStore()
+	userSSHConfigStr := fmt.Sprintf(`%[2]s
+Host brev
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2222
+Host workspace-images
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2223
+Host brevdev/brev-deploy
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2224
+`, suite.store.GetPrivateKeyFilePath(), userConfigStr)
+	suite.Equal(userSSHConfigStr, suite.Configurer.sshConfig.String())
+	err := suite.Configurer.PruneInactiveWorkspaces()
 	if !suite.Nil(err) {
 		return
 	}
-
-	newConfig, err := DefaultSSHConfigurer{sshStore: s}.PruneInactiveWorkspaces(&suite.SSHConfig, []string{"brev"})
-	if !suite.Nil(err) {
-		return
-	}
-
-	configStr := newConfig.String()
-
 	suite.Equal(fmt.Sprintf(`%s
 Host brev
   Hostname 0.0.0.0
   IdentityFile %s
   User brev
   Port 2222
-`, userConfigStr, s.GetPrivateKeyFilePath()), configStr)
+`, userConfigStr, suite.store.GetPrivateKeyFilePath()), suite.Configurer.sshConfig.String())
 }
 
 func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
@@ -141,25 +138,16 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 		return
 	}
 
-	_, err = DefaultSSHConfigurer{sshStore: s}.makeSSHEntry("bar", "2222")
+	_, err = DefaultSSHConfigurer{sshStore: *s}.makeSSHEntry("bar", "2222")
 	if !suite.Nil(err) {
 		return
 	}
 }
 
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
-	s, err := makeMockSSHStore()
-	if !suite.Nil(err) {
-		return
-	}
-
-	configFile, err := DefaultSSHConfigurer{sshStore: s}.CreateBrevSSHConfigEntries(suite.SSHConfig, []string{"foo", "bar", "baz"})
-	if !suite.Nil(err) {
-		return
-	}
-
+	suite.Configurer.CreateBrevSSHConfigEntries()
 	templateLen := len(strings.Split(workspaceSSHConfigTemplate, "\n"))
-	actualLen := len(strings.Split(configFile.String(), "\n"))
+	actualLen := len(strings.Split(suite.Configurer.sshConfig.String(), "\n"))
 	suite.Greater(actualLen, (templateLen))
 }
 
@@ -170,7 +158,10 @@ func (suite *BrevSSHTestSuite) TestConfigureSSH() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshConfigurer := NewDefaultSSHConfigurer(noWorkspaces, s, "lkjdflkj sld")
+	sshConfigurer, err := NewDefaultSSHConfigurer(noWorkspaces, *s, "lkjdflkj sld")
+	if !suite.Nil(err) {
+		return
+	}
 	err = sshConfigurer.Config()
 	if !suite.Nil(err) {
 		return
@@ -182,7 +173,10 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshConfigurer := NewDefaultSSHConfigurer(someWorkspaces, s, "lkjdflkj sld")
+	sshConfigurer, err := NewDefaultSSHConfigurer(someWorkspaces, *s, "lkjdflkj sld")
+	if !suite.Nil(err) {
+		return
+	}
 	err = sshConfigurer.Config()
 	if !suite.Nil(err) {
 		return
@@ -190,17 +184,9 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 }
 
 func (suite *BrevSSHTestSuite) TestGetConfiguredWorkspacePort() {
-	s, err := makeMockSSHStore()
-	if !suite.Nil(err) {
-		return
-	}
-	sshConfigurer := NewDefaultSSHConfigurer(someWorkspaces, s, "lkjdflkj sld")
-	err = sshConfigurer.Config()
-	if !suite.Nil(err) {
-		return
-	}
+	suite.Configurer.Config()
 
-	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	port, err := suite.Configurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
 	if !suite.Nil(err) {
 		return
 	}
@@ -209,7 +195,7 @@ func (suite *BrevSSHTestSuite) TestGetConfiguredWorkspacePort() {
 	}
 }
 
-func makeMockSSHStore() (SSHStore, error) {
+func makeMockSSHStore() (*store.FileStore, error) {
 	mfs := afero.NewMemMapFs()
 	fs := store.NewBasicStore().WithFileSystem(mfs)
 	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
@@ -246,6 +232,33 @@ func TestHostnameFromString(t *testing.T) {
 	if !assert.Equal(t, "testtime-1bxl-brevdev.brev.sh", res) {
 		return
 	}
+}
+
+func TestCheckIfHostIsActive(t *testing.T) {
+	hostIsActive := checkIfHostIsActive(
+		"Host workspace-images\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
+		[]string{"brev"},
+	)
+	assert.False(t, hostIsActive, "assert workspace-images is not an active host")
+
+	hostIsActive = checkIfHostIsActive(
+		"Host brev\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
+		[]string{"brev"},
+	)
+	assert.True(t, hostIsActive, "assert brev is an active host")
+}
+
+func TestCreateConfigEntry(t *testing.T) {
+	assert.Equal(t, createConfigEntry("foo", true, true), "foo")
+	assert.Equal(t, createConfigEntry("foo", true, false), "")
+	assert.Equal(t, createConfigEntry("foo", false, true), "foo")
+	assert.Equal(t, createConfigEntry("foo", false, false), "foo")
+}
+
+func TestSSHConfigFromString(t *testing.T) {
+	sshConfig, err := sshConfigFromString("Host user-host\nHostname 172.0.0.0\n\nHost brev\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2222\n")
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(sshConfig.Hosts), 3)
 }
 
 // In order for 'go test' to run this suite, we need to create
