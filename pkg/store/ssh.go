@@ -10,8 +10,16 @@ import (
 	"github.com/spf13/afero"
 )
 
+type SSHConfigFileStore struct {
+	AuthHTTPStore
+}
+
+func (b *AuthHTTPStore) WithSSHConfigFile() *SSHConfigFileStore {
+	return &SSHConfigFileStore{*b}
+}
+
 // !! need something to resolve file path of user ssh
-func (f FileStore) GetSSHConfig() (string, error) {
+func (f SSHConfigFileStore) GetSSHConfig() (string, error) {
 	file, err := files.GetOrCreateSSHConfigFile(f.fs)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -25,7 +33,7 @@ func (f FileStore) GetSSHConfig() (string, error) {
 	return buf.String(), nil
 }
 
-func (f FileStore) WriteSSHConfig(config string) error {
+func (f SSHConfigFileStore) WriteSSHConfig(config string) error {
 	csp, err := files.GetUserSSHConfigPath()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -37,7 +45,7 @@ func (f FileStore) WriteSSHConfig(config string) error {
 	return nil
 }
 
-func (f FileStore) CreateNewSSHConfigBackup() error {
+func (f SSHConfigFileStore) CreateNewSSHConfigBackup() error {
 	backupFilePath, err := files.GetNewBackupSSHConfigFilePath()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -67,7 +75,7 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 	return nil
 }
 
-func (f FileStore) WritePrivateKey(pem string) error {
+func (f SSHConfigFileStore) WritePrivateKey(pem string) error {
 	err := files.WriteSSHPrivateKey(f.fs, pem)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -75,6 +83,6 @@ func (f FileStore) WritePrivateKey(pem string) error {
 	return nil
 }
 
-func (f FileStore) GetPrivateKeyFilePath() string {
+func (f SSHConfigFileStore) GetPrivateKeyFilePath() string {
 	return files.GetSSHPrivateKeyFilePath()
 }

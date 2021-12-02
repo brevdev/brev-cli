@@ -53,11 +53,10 @@ func NewBrevCommand() *cobra.Command {
 		WithFileSystem(fs)
 	loginAuth := auth.NewLoginAuth(fsStore, authenticator)
 	noLoginAuth := auth.NewNoLoginAuth(fsStore, authenticator)
-
 	loginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).
-		WithAuth(loginAuth)
+	).WithAuth(loginAuth).WithSSHConfigFile()
+
 	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
