@@ -90,12 +90,30 @@ func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	return false
 }
 
-func NewDefaultSSHConfigurer(workspaces []entity.WorkspaceWithMeta, sshStore SSHStore, privateKey string) *DefaultSSHConfigurer {
-	return &DefaultSSHConfigurer{
+func NewDefaultSSHConfigurer(workspaces []entity.WorkspaceWithMeta, sshStore SSHStore, privateKey string) (*DefaultSSHConfigurer, error) {
+	d := &DefaultSSHConfigurer{
 		workspaces: workspaces,
 		sshStore:   sshStore,
 		privateKey: privateKey,
 	}
+	err := d.Init()
+	if err != nil {
+		return d, breverrors.WrapAndTrace(err)
+	}
+	return d, nil
+}
+
+func (s *DefaultSSHConfigurer) Init() error {
+	configStr, err := s.sshStore.GetSSHConfig()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	s.sshConfig, err = ssh_config.Decode(strings.NewReader(configStr))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func (s *DefaultSSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
@@ -129,16 +147,6 @@ func (s *DefaultSSHConfigurer) Config() error {
 
 	// before doing potentially destructive work, backup the config
 	err = s.sshStore.CreateNewSSHConfigBackup()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	configStr, err := s.sshStore.GetSSHConfig()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	s.sshConfig, err = ssh_config.Decode(strings.NewReader(configStr))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
