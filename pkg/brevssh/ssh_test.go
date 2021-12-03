@@ -13,6 +13,7 @@ import (
 	"github.com/kevinburke/ssh_config"
 	"github.com/spf13/afero"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -224,6 +225,27 @@ func makeMockSSHStore() (SSHStore, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return fs, nil
+}
+
+func TestHostnameFromString(t *testing.T) {
+	res := hostnameFromString("")
+	if !assert.Equal(t, "", res) {
+		return
+	}
+	res = hostnameFromString("\n")
+	if !assert.Equal(t, "", res) {
+		return
+	}
+	res = hostnameFromString("\n\n")
+	if !assert.Equal(t, "", res) {
+		return
+	}
+
+	value := "Host testtime-1bxl-brevdev.brev.sh\n  Hostname 0.0.0.0\n  IdentityFile /Users/alecfong/.brev/brev.pem\n  User brev\n  Port 2222\n\n"
+	res = hostnameFromString(value)
+	if !assert.Equal(t, "testtime-1bxl-brevdev.brev.sh", res) {
+		return
+	}
 }
 
 // In order for 'go test' to run this suite, we need to create

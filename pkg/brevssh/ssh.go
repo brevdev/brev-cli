@@ -252,13 +252,21 @@ func (s DefaultSSHConfigurer) GetBrevHostValues(cfg ssh_config.Config) []string 
 }
 
 func hostnameFromString(hoststring string) string {
-	switch hoststring {
-	case "":
-		return hoststring
-	case "\n":
-		return hoststring
+	hoststring = strings.TrimSpace(hoststring)
+	if hoststring == "" {
+		return ""
 	}
-	return strings.Split(strings.Split(hoststring, "\n")[0], " ")[1]
+
+	newLineSplit := strings.Split(hoststring, "\n")
+	if len(newLineSplit) < 1 {
+		return ""
+	}
+	spaceSplit := strings.Split(newLineSplit[0], " ")
+	if len(spaceSplit) < 2 {
+		return ""
+	}
+
+	return spaceSplit[1]
 }
 
 func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, error) {
