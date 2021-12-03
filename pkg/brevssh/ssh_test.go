@@ -221,12 +221,18 @@ func TestCheckIfHostIsActive(t *testing.T) {
 	)
 	assert.False(t, hostIsActive, "assert workspace-images is not an active host")
 
-
 	hostIsActive = checkIfHostIsActive(
 		"Host brev\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
 		[]string{"brev"},
 	)
 	assert.True(t, hostIsActive, "assert brev is an active host")
+}
+
+func TestCreateConfigEntry(t *testing.T) {
+	assert.Equal(t, createConfigEntry("foo", true, true), "foo")
+	assert.Equal(t, createConfigEntry("foo", true, false), "")
+	assert.Equal(t, createConfigEntry("foo", false, true), "")
+	assert.Equal(t, createConfigEntry("foo", false, false), "")
 }
 
 // In order for 'go test' to run this suite, we need to create
