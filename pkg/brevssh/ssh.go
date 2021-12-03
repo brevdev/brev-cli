@@ -193,9 +193,11 @@ func (s DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 			// workspace or deleted one.
 			foundMatch := false
 			for _, name := range s.GetActiveWorkspaceIdentifiers() {
-				if host.Matches(name) {
-					foundMatch = true
-					break
+				for _, line := range strings.Split(host.String(), "\n") {
+					if strings.Compare(name, hostnameFromString(line)) == 0 {
+						foundMatch = true
+						break
+					}
 				}
 			}
 			if foundMatch {
