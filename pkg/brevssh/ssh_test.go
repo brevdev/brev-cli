@@ -34,7 +34,6 @@ var (
 				GitRepo:          "lkdfjlksadf",
 			},
 		},
-	
 	}
 )
 
@@ -213,6 +212,21 @@ func TestHostnameFromString(t *testing.T) {
 	if !assert.Equal(t, "testtime-1bxl-brevdev.brev.sh", res) {
 		return
 	}
+}
+
+func TestCheckIfHostIsActive(t *testing.T) {
+	hostIsActive := checkIfHostIsActive(
+		"Host workspace-images\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
+		[]string{"brev"},
+	)
+	assert.False(t, hostIsActive, "assert workspace-images is not an active host")
+
+
+	hostIsActive = checkIfHostIsActive(
+		"Host brev\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
+		[]string{"brev"},
+	)
+	assert.True(t, hostIsActive, "assert brev is an active host")
 }
 
 // In order for 'go test' to run this suite, we need to create

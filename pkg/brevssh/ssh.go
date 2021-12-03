@@ -177,35 +177,41 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Worksp
 	return port, nil
 }
 
+func checkIfHostIsActive(hoststring string, activeWorksSpaces []string) bool {
+	maybeHostname := hostnameFromString(hoststring)
+	for _, name := range activeWorksSpaces {
+		if name == maybeHostname {
+			return true
+		}
+	}
+	return false
+}
+
+// if a host is not a brev entry, it should stay in the config and there
+// is nothing for us to do to it.
+// if the host is a brev entry, make sure that it's hostname maps to an
+// active workspace, otherwise this host should be deleted.
+func createConfigEntry(hoststring string, isBrevHost, isActiveHost bool) string {
+	if !isBrevHost {
+		return hoststring
+	}
+	if isBrevHost && isActiveHost {
+		return hoststring
+	}
+	return ""
+}
+
 func (s DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 	newConfig := ""
 
 	privateKeyPath := s.sshStore.GetPrivateKeyFilePath()
+	activeWorksSpaces := s.GetActiveWorkspaceIdentifiers()
 
 	for _, host := range s.sshConfig.Hosts {
-		// if a host is not a brev entry, it should stay in the config and there
-		// is nothing for us to do to it.
-		// if the host is a brev entry, make sure that it's hostname maps to an
-		// active workspace, otherwise this host should be deleted.
+		hoststring := host.String()
 		isBrevHost := checkIfBrevHost(*host, privateKeyPath)
-		if isBrevHost {
-			// if this host does not match a workspacename, then delete since it belongs to an inactive
-			// workspace or deleted one.
-			foundMatch := false
-			for _, name := range s.GetActiveWorkspaceIdentifiers() {
-				for _, line := range strings.Split(host.String(), "\n") {
-					if strings.Compare(name, hostnameFromString(line)) == 0 {
-						foundMatch = true
-						break
-					}
-				}
-			}
-			if foundMatch {
-				newConfig += host.String()
-			}
-		} else {
-			newConfig += host.String()
-		}
+		isActiveHost := checkIfHostIsActive(hoststring, activeWorksSpaces)
+		newConfig += createConfigEntry(hoststring, isBrevHost, isActiveHost)
 	}
 
 	var err error
