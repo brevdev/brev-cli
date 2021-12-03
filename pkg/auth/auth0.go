@@ -235,5 +235,5 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 
 func (a Authenticator) GetNewAuthTokensWithRefresh(_ string) (*entity.AuthTokens, error) {
 	// TODO 2
-	return nil, nil
+	return nil, fmt.Errorf("refresh token not implemented")
 }

@@ -2,12 +2,14 @@ package auth
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/golang-jwt/jwt"
 	"github.com/pkg/browser"
 )
 
@@ -95,17 +97,17 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if tokens == nil {
 		return "", nil
 	}
-	isAccessTokenExpired, err := t.isAccessTokenExpired(tokens.AccessToken)
+	isAccessTokenValid, err := isAccessTokenValid(tokens.AccessToken)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	if isAccessTokenExpired {
+	if !isAccessTokenValid {
 		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
-		if tokens == nil {
-			return "", nil
-		}
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
+		}
+		if tokens == nil {
+			return "", nil
 		}
 	}
 	return tokens.AccessToken, nil
@@ -190,7 +192,13 @@ func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTok
 	// TODO 2 handle if 403 invalid grant
 	// https://stackoverflow.com/questions/57383523/how-to-detect-when-an-oauth2-refresh-token-expired
 	if err != nil {
+		if strings.Contains(err.Error(), "not implemented") {
+			return nil, nil
+		}
 		return nil, breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		return nil, nil
 	}
 
 	err = t.authStore.SaveAuthTokens(*tokens)
@@ -201,7 +209,19 @@ func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTok
 	return tokens, nil
 }
 
-func (t Auth) isAccessTokenExpired(_ string) (bool, error) {
-	// TODO 1
-	return false, nil
+func isAccessTokenValid(token string) (bool, error) {
+	parser := jwt.Parser{}
+	ptoken, _, err := parser.ParseUnverified(token, jwt.MapClaims{})
+	if err != nil {
+		ve := &jwt.ValidationError{}
+		if errors.As(err, &ve) {
+			return false, nil
+		}
+		return false, breverrors.WrapAndTrace(err)
+	}
+	err = ptoken.Claims.Valid()
+	if err != nil {
+		return false, nil
+	}
+	return true, nil
 }

@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -58,6 +59,16 @@ func NewBrevCommand() *cobra.Command {
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(loginAuth)
+	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
+		_, err := loginAuth.GetAccessToken()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
