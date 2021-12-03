@@ -231,8 +231,8 @@ func TestCheckIfHostIsActive(t *testing.T) {
 func TestCreateConfigEntry(t *testing.T) {
 	assert.Equal(t, createConfigEntry("foo", true, true), "foo")
 	assert.Equal(t, createConfigEntry("foo", true, false), "")
-	assert.Equal(t, createConfigEntry("foo", false, true), "")
-	assert.Equal(t, createConfigEntry("foo", false, false), "")
+	assert.Equal(t, createConfigEntry("foo", false, true), "foo")
+	assert.Equal(t, createConfigEntry("foo", false, false), "foo")
 }
 
 // In order for 'go test' to run this suite, we need to create
