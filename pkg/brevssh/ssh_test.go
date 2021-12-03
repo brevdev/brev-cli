@@ -56,7 +56,8 @@ func (suite *BrevSSHTestSuite) SetupTest() {
 		return
 	}
 	suite.store = s
-	s.WriteSSHConfig(fmt.Sprintf(`%[2]s
+
+	userSSHConfigStr := fmt.Sprintf(`%[2]s
 Host brev
 	 Hostname 0.0.0.0
 	 IdentityFile %[1]s
@@ -71,7 +72,8 @@ Host brevdev/brev-deploy
 	 Hostname 0.0.0.0
 	 IdentityFile %[1]s
 	 User brev
-	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr))
+	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr)
+	s.WriteSSHConfig(userSSHConfigStr)
 	suite.Configurer, err = NewDefaultSSHConfigurer(someWorkspaces, s, s.GetPrivateKeyFilePath())
 	suite.Nil(err)
 	if !suite.Nil(err) {
@@ -99,6 +101,24 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 }
 
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
+	userSSHConfigStr := fmt.Sprintf(`%[2]s
+Host brev
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2222
+Host workspace-images
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2223
+Host brevdev/brev-deploy
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2224
+`, suite.store.GetPrivateKeyFilePath(), userConfigStr)
+	suite.Equal(userSSHConfigStr, suite.Configurer.sshConfig.String())
 	err := suite.Configurer.PruneInactiveWorkspaces()
 	if !suite.Nil(err) {
 		return
@@ -233,6 +253,12 @@ func TestCreateConfigEntry(t *testing.T) {
 	assert.Equal(t, createConfigEntry("foo", true, false), "")
 	assert.Equal(t, createConfigEntry("foo", false, true), "foo")
 	assert.Equal(t, createConfigEntry("foo", false, false), "foo")
+}
+
+func TestSSHConfigFromString(t *testing.T) {
+	sshConfig, err := sshConfigFromString("Host user-host\nHostname 172.0.0.0\n\nHost brev\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2222\n")
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(sshConfig.Hosts), 3)
 }
 
 // In order for 'go test' to run this suite, we need to create

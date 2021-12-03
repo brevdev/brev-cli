@@ -201,6 +201,14 @@ func createConfigEntry(hoststring string, isBrevHost, isActiveHost bool) string 
 	return ""
 }
 
+func sshConfigFromString(config string) (*ssh_config.Config, error) {
+	sshConfig, err := ssh_config.Decode(strings.NewReader(config))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return sshConfig, nil
+}
+
 func (s DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 	newConfig := ""
 
@@ -214,11 +222,11 @@ func (s DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 		newConfig += createConfigEntry(hoststring, isBrevHost, isActiveHost)
 	}
 
-	var err error
-	s.sshConfig, err = ssh_config.Decode(strings.NewReader(newConfig))
+	sshConfig, err := sshConfigFromString(newConfig)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	s.sshConfig = sshConfig
 	return nil
 }
 
