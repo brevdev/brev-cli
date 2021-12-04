@@ -61,15 +61,24 @@ type OAuth interface {
 }
 
 type Auth struct {
-	authStore AuthStore
-	oauth     OAuth
+	authStore            AuthStore
+	oauth                OAuth
+	accessTokenValidator func(string) (bool, error)
+	shouldLogin          func() (bool, error)
 }
 
 func NewAuth(authStore AuthStore, oauth OAuth) *Auth {
 	return &Auth{
-		authStore: authStore,
-		oauth:     oauth,
+		authStore:            authStore,
+		oauth:                oauth,
+		accessTokenValidator: isAccessTokenValid,
+		shouldLogin:          shouldLogin,
 	}
+}
+
+func (t *Auth) WithAccessTokenValidator(val func(string) (bool, error)) *Auth {
+	t.accessTokenValidator = val
+	return t
 }
 
 // Gets fresh access token and prompts for login and saves to store
@@ -97,7 +106,8 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if tokens == nil {
 		return "", nil
 	}
-	isAccessTokenValid, err := isAccessTokenValid(tokens.AccessToken)
+
+	isAccessTokenValid, err := t.accessTokenValidator(tokens.AccessToken)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -115,10 +125,11 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 
 // Prompts for login and returns tokens, and saves to store
 func (t Auth) PromptForLogin() (*LoginTokens, error) {
-	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
-	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
-	text, _ := reader.ReadString('\n')
-	if strings.Compare(text, "y") != 1 {
+	shouldLogin, err := t.shouldLogin()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if !shouldLogin {
 		return nil, &breverrors.DeclineToLoginError{}
 	}
 
@@ -128,6 +139,16 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 	}
 
 	return tokens, nil
+}
+
+func shouldLogin() (bool, error) {
+	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
+	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+	text, err := reader.ReadString('\n')
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return strings.ToLower(strings.TrimSpace(text)) == "y", nil
 }
 
 func (t Auth) Login() (*LoginTokens, error) {
