@@ -42,7 +42,7 @@ var (
 // returns the current testing context
 type BrevSSHTestSuite struct {
 	suite.Suite
-	store      SSHStore
+	store      store.FileStore
 	Configurer *DefaultSSHConfigurer
 }
 
@@ -55,7 +55,7 @@ func (suite *BrevSSHTestSuite) SetupTest() {
 	if !suite.Nil(err) {
 		return
 	}
-	suite.store = s
+	suite.store = *s
 
 	userSSHConfigStr := fmt.Sprintf(`%[2]s
 Host brev
@@ -74,7 +74,7 @@ Host brevdev/brev-deploy
 	 User brev
 	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr)
 	s.WriteSSHConfig(userSSHConfigStr)
-	suite.Configurer, err = NewDefaultSSHConfigurer(someWorkspaces, s, s.GetPrivateKeyFilePath())
+	suite.Configurer, err = NewDefaultSSHConfigurer(someWorkspaces, *s, s.GetPrivateKeyFilePath())
 	suite.Nil(err)
 	if !suite.Nil(err) {
 		return
@@ -138,7 +138,7 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 		return
 	}
 
-	_, err = DefaultSSHConfigurer{sshStore: s}.makeSSHEntry("bar", "2222")
+	_, err = DefaultSSHConfigurer{sshStore: *s}.makeSSHEntry("bar", "2222")
 	if !suite.Nil(err) {
 		return
 	}
@@ -158,7 +158,7 @@ func (suite *BrevSSHTestSuite) TestConfigureSSH() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshConfigurer, err := NewDefaultSSHConfigurer(noWorkspaces, s, "lkjdflkj sld")
+	sshConfigurer, err := NewDefaultSSHConfigurer(noWorkspaces, *s, "lkjdflkj sld")
 	if !suite.Nil(err) {
 		return
 	}
@@ -173,7 +173,7 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshConfigurer, err := NewDefaultSSHConfigurer(someWorkspaces, s, "lkjdflkj sld")
+	sshConfigurer, err := NewDefaultSSHConfigurer(someWorkspaces, *s, "lkjdflkj sld")
 	if !suite.Nil(err) {
 		return
 	}
@@ -195,7 +195,7 @@ func (suite *BrevSSHTestSuite) TestGetConfiguredWorkspacePort() {
 	}
 }
 
-func makeMockSSHStore() (SSHStore, error) {
+func makeMockSSHStore() (*store.FileStore, error) {
 	mfs := afero.NewMemMapFs()
 	fs := store.NewBasicStore().WithFileSystem(mfs)
 	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)

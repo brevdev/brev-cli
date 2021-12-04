@@ -41,7 +41,6 @@ type (
 		IdentityFile string
 		Port         string
 	}
-
 	SSHStore interface {
 		GetSSHConfig() (string, error)
 		WriteSSHConfig(config string) error
@@ -49,26 +48,8 @@ type (
 		WritePrivateKey(pem string) error
 		GetPrivateKeyFilePath() string
 	}
-
-	SSHConfig interface {
-		Get(alias, key string) (string, error)
-		checkIfBrevHost(host ssh_config.Host)
-	}
-
-	DefaultSSHHost struct {
-		ssh_config.Host
-	}
-
-	SSHConfigurer interface {
-		Config() error
-		GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
-		GetActiveWorkspaceIdentifiers() []string
-		CreateBrevSSHConfigEntries(cfg SSHConfig) (*SSHConfig, error)
-		PruneInactiveWorkspaces(cfg *SSHConfig) (*SSHConfig, error)
-	}
-
 	DefaultSSHConfigurer struct {
-		sshStore   SSHStore
+		sshStore  SSHStore
 		privateKey string
 
 		workspaces []entity.WorkspaceWithMeta
@@ -209,7 +190,7 @@ func sshConfigFromString(config string) (*ssh_config.Config, error) {
 	return sshConfig, nil
 }
 
-func (s DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
+func (s *DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 	newConfig := ""
 
 	privateKeyPath := s.sshStore.GetPrivateKeyFilePath()
