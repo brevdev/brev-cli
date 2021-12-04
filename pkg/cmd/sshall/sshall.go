@@ -118,7 +118,7 @@ func (s SSHAll) Run() error {
 			for _, w := range s.workspaces {
 				isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
-					close(s.workspaceConnections[w])
+					TryClose(s.workspaceConnections[w])
 					if s.retries[w] > 0 {
 						s.retries[w]--
 						s.runPortForwardWorkspace(w)
@@ -147,6 +147,15 @@ func (s SSHAll) Run() error {
 	<-signals
 
 	return nil
+}
+
+func TryClose(toClose chan struct{}) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+		}
+	}()
+	close(toClose)
 }
 
 func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
