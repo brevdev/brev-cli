@@ -49,7 +49,7 @@ type (
 		GetPrivateKeyFilePath() string
 	}
 	DefaultSSHConfigurer struct {
-		sshStore  SSHStore
+		sshStore   SSHStore
 		privateKey string
 
 		workspaces []entity.WorkspaceWithMeta

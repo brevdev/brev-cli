@@ -73,7 +73,10 @@ Host brevdev/brev-deploy
 	 IdentityFile %[1]s
 	 User brev
 	 Port 2224`, s.GetPrivateKeyFilePath(), userConfigStr)
-	s.WriteSSHConfig(userSSHConfigStr)
+	err = s.WriteSSHConfig(userSSHConfigStr)
+	if !suite.Nil(err) {
+		return
+	}
 	suite.Configurer, err = NewDefaultSSHConfigurer(someWorkspaces, *s, s.GetPrivateKeyFilePath())
 	suite.Nil(err)
 	if !suite.Nil(err) {
@@ -145,7 +148,10 @@ func (suite *BrevSSHTestSuite) TestAppendBrevEntry() {
 }
 
 func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
-	suite.Configurer.CreateBrevSSHConfigEntries()
+	err := suite.Configurer.CreateBrevSSHConfigEntries()
+	if !suite.Nil(err) {
+		return
+	}
 	templateLen := len(strings.Split(workspaceSSHConfigTemplate, "\n"))
 	actualLen := len(strings.Split(suite.Configurer.sshConfig.String(), "\n"))
 	suite.Greater(actualLen, (templateLen))
@@ -184,7 +190,10 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
 }
 
 func (suite *BrevSSHTestSuite) TestGetConfiguredWorkspacePort() {
-	suite.Configurer.Config()
+	err := suite.Configurer.Config()
+	if !suite.Nil(err) {
+		return
+	}
 
 	port, err := suite.Configurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
 	if !suite.Nil(err) {
