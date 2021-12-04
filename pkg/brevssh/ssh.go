@@ -71,6 +71,56 @@ func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	return false
 }
 
+func checkIfHostIsActive(hoststring string, activeWorksSpaces []string) bool {
+	maybeHostname := hostnameFromString(hoststring)
+	for _, name := range activeWorksSpaces {
+		if name == maybeHostname {
+			return true
+		}
+	}
+	return false
+}
+
+// if a host is not a brev entry, it should stay in the config and there
+// is nothing for us to do to it.
+// if the host is a brev entry, make sure that it's hostname maps to an
+// active workspace, otherwise this host should be deleted.
+func createConfigEntry(hoststring string, isBrevHost, isActiveHost bool) string {
+	if !isBrevHost {
+		return hoststring
+	}
+	if isBrevHost && isActiveHost {
+		return hoststring
+	}
+	return ""
+}
+
+func sshConfigFromString(config string) (*ssh_config.Config, error) {
+	sshConfig, err := ssh_config.Decode(strings.NewReader(config))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return sshConfig, nil
+}
+
+func hostnameFromString(hoststring string) string {
+	hoststring = strings.TrimSpace(hoststring)
+	if hoststring == "" {
+		return ""
+	}
+
+	newLineSplit := strings.Split(hoststring, "\n")
+	if len(newLineSplit) < 1 {
+		return ""
+	}
+	spaceSplit := strings.Split(newLineSplit[0], " ")
+	if len(spaceSplit) < 2 {
+		return ""
+	}
+
+	return spaceSplit[1]
+}
+
 func NewDefaultSSHConfigurer(workspaces []entity.WorkspaceWithMeta, sshStore SSHStore, privateKey string) (*DefaultSSHConfigurer, error) {
 	d := &DefaultSSHConfigurer{
 		workspaces: workspaces,
@@ -158,38 +208,6 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Worksp
 	return port, nil
 }
 
-func checkIfHostIsActive(hoststring string, activeWorksSpaces []string) bool {
-	maybeHostname := hostnameFromString(hoststring)
-	for _, name := range activeWorksSpaces {
-		if name == maybeHostname {
-			return true
-		}
-	}
-	return false
-}
-
-// if a host is not a brev entry, it should stay in the config and there
-// is nothing for us to do to it.
-// if the host is a brev entry, make sure that it's hostname maps to an
-// active workspace, otherwise this host should be deleted.
-func createConfigEntry(hoststring string, isBrevHost, isActiveHost bool) string {
-	if !isBrevHost {
-		return hoststring
-	}
-	if isBrevHost && isActiveHost {
-		return hoststring
-	}
-	return ""
-}
-
-func sshConfigFromString(config string) (*ssh_config.Config, error) {
-	sshConfig, err := ssh_config.Decode(strings.NewReader(config))
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return sshConfig, nil
-}
-
 func (s *DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 	newConfig := ""
 
@@ -274,24 +292,6 @@ func (s DefaultSSHConfigurer) GetBrevHostValues() []string {
 		}
 	}
 	return brevHosts
-}
-
-func hostnameFromString(hoststring string) string {
-	hoststring = strings.TrimSpace(hoststring)
-	if hoststring == "" {
-		return ""
-	}
-
-	newLineSplit := strings.Split(hoststring, "\n")
-	if len(newLineSplit) < 1 {
-		return ""
-	}
-	spaceSplit := strings.Split(newLineSplit[0], " ")
-	if len(spaceSplit) < 2 {
-		return ""
-	}
-
-	return spaceSplit[1]
 }
 
 func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, error) {
