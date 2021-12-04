@@ -182,11 +182,12 @@ func (s *DefaultSSHConfigurer) Config() error {
 }
 
 func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
-	port, err := s.sshConfig.Get(workspace.DNS, "Port")
+	identityPortMap, err := s.GetIdentityPortMap()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	return port, nil
+	ipm := *identityPortMap
+	return ipm[workspace.DNS], nil
 }
 
 func (s *SSHConfig) PruneInactiveWorkspaces(activeWorkspaces []string) error {
@@ -248,7 +249,7 @@ func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
 	sshConfigString := s.sshConfig.String()
 	var activeWorkspaces []string
 	for key, value := range identityPortMap {
-		entry, err := MakeSSHEntry(key, value)
+		entry, err := MakeSSHEntry(key, value, s.store.GetPrivateKeyFilePath())
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -295,12 +296,12 @@ func (s DefaultSSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
 	return &identifierPortMapping, nil
 }
 
-func MakeSSHEntry(workspaceName, port string) (string, error) {
+func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
 	wsc := workspaceSSHConfig{
 		Host:         workspaceName,
 		Hostname:     "0.0.0.0",
 		User:         "brev",
-		IdentityFile: s.sshStore.GetPrivateKeyFilePath(),
+		IdentityFile: privateKeyPath,
 		Port:         port,
 	}
 
