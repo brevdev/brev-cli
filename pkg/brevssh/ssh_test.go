@@ -75,7 +75,7 @@ Host brevdev/brev-deploy
 	if !suite.Nil(err) {
 		return
 	}
-	suite.Configurer, err = NewDefaultSSHConfigurer(someWorkspaces, *s, s.GetPrivateKeyFilePath())
+	suite.Configurer = NewDefaultSSHConfigurer(someWorkspaces, *s, s.GetPrivateKeyFilePath())
 	suite.Nil(err)
 	if !suite.Nil(err) {
 		return

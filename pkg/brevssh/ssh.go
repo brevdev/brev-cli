@@ -134,6 +134,28 @@ func hostnameFromString(hoststring string) string {
 	return spaceSplit[1]
 }
 
+func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
+	wsc := workspaceSSHConfig{
+		Host:         workspaceName,
+		Hostname:     "0.0.0.0",
+		User:         "brev",
+		IdentityFile: privateKeyPath,
+		Port:         port,
+	}
+
+	tmpl, err := template.New(workspaceName).Parse(workspaceSSHConfigTemplate)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	buf := &bytes.Buffer{}
+	err = tmpl.Execute(buf, wsc)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return buf.String(), nil
+}
+
 func NewDefaultSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writers []Writer) *DefaultSSHConfigurer {
 	return &DefaultSSHConfigurer{
 		workspaces: workspaces,
@@ -190,6 +212,27 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Worksp
 	return ipm[workspace.DNS], nil
 }
 
+func (s DefaultSSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
+	var identifierPortMapping IdentityPortMap
+	brevHostValuesSet := s.Reader.GetBrevHostValueSet()
+	ports, err := s.Reader.GetBrevPorts()
+	if err != nil {
+		return nil, err
+	}
+
+	port := 2222
+	for _, workspaceIdentifier := range s.GetActiveWorkspaceIdentifiers() {
+		if !brevHostValuesSet[workspaceIdentifier] {
+			for ports[fmt.Sprint(port)] {
+				port++
+			}
+			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
+			ports[fmt.Sprint(port)] = true
+		}
+	}
+	return &identifierPortMapping, nil
+}
+
 func (s *SSHConfig) PruneInactiveWorkspaces(activeWorkspaces []string) error {
 	newConfig := ""
 
@@ -224,27 +267,6 @@ func (s SSHConfig) GetBrevHostValues() []string {
 	return brevHosts
 }
 
-func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
-	var brevHostValuesSet BrevHostValuesSet
-	brevHostValues := s.GetBrevHostValues()
-	for _, hostValue := range brevHostValues {
-		brevHostValuesSet[hostValue] = true
-	}
-	return brevHostValuesSet
-}
-
-func (s SSHConfig) GetBrevPorts(hostnames []string) (BrevPorts, error) {
-	var portSet BrevPorts
-	for _, name := range hostnames {
-		port, err := s.sshConfig.Get(name, "Port")
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		portSet[port] = true
-	}
-	return portSet, nil
-}
-
 func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
 	sshConfigString := s.sshConfig.String()
 	var activeWorkspaces []string
@@ -275,45 +297,23 @@ func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
 	return nil
 }
 
-func (s DefaultSSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
-	var identifierPortMapping IdentityPortMap
-	brevHostValuesSet := s.Reader.GetBrevHostValueSet()
-	ports, err := s.Reader.GetBrevPorts()
-	if err != nil {
-		return nil, err
-	}
-
-	port := 2222
-	for _, workspaceIdentifier := range s.GetActiveWorkspaceIdentifiers() {
-		if !brevHostValuesSet[workspaceIdentifier] {
-			for ports[fmt.Sprint(port)] {
-				port++
-			}
-			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
-			ports[fmt.Sprint(port)] = true
+func (s SSHConfig) GetBrevPorts(hostnames []string) (BrevPorts, error) {
+	var portSet BrevPorts
+	for _, name := range hostnames {
+		port, err := s.sshConfig.Get(name, "Port")
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
 		}
+		portSet[port] = true
 	}
-	return &identifierPortMapping, nil
+	return portSet, nil
 }
 
-func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
-	wsc := workspaceSSHConfig{
-		Host:         workspaceName,
-		Hostname:     "0.0.0.0",
-		User:         "brev",
-		IdentityFile: privateKeyPath,
-		Port:         port,
+func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
+	var brevHostValuesSet BrevHostValuesSet
+	brevHostValues := s.GetBrevHostValues()
+	for _, hostValue := range brevHostValues {
+		brevHostValuesSet[hostValue] = true
 	}
-
-	tmpl, err := template.New(workspaceName).Parse(workspaceSSHConfigTemplate)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	buf := &bytes.Buffer{}
-	err = tmpl.Execute(buf, wsc)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-
-	return buf.String(), nil
+	return brevHostValuesSet
 }

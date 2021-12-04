@@ -57,7 +57,13 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		return breverrors.WrapAndTrace(err)
 	}
 
-	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
+	reader := brevssh.SSHConfig{
+		s.upStore,
+		
+
+	}
+
+	sshConfigurer := brevssh.NewDefaultSSHConfigurer(workspaces, )
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
