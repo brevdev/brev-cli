@@ -1,6 +1,5 @@
 package brevssh
 
-// Basic imports
 import (
 	"fmt"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/spf13/afero"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -85,7 +83,7 @@ Host brevdev/brev-deploy
 }
 
 func (suite *BrevSSHTestSuite) TestGetBrevPorts() {
-	ports, err := suite.Configurer.GetBrevPorts([]string{"brev", "workspace-images", "brevdev/brev-deploy"})
+	ports, err := suite.Configurer.GetBrevPorts([]string{"test-dns.brev.sh", "workspace-images", "brevdev/brev-deploy"})
 	if !suite.Nil(err) {
 		return
 	}
@@ -105,7 +103,7 @@ func (suite *BrevSSHTestSuite) TestCheckIfBrevHost() {
 
 func (suite *BrevSSHTestSuite) TestPruneInactiveWorkspaces() {
 	userSSHConfigStr := fmt.Sprintf(`%[2]s
-Host brev
+Host test-dns.brev.sh
   Hostname 0.0.0.0
   IdentityFile %[1]s
   User brev
@@ -127,7 +125,7 @@ Host brevdev/brev-deploy
 		return
 	}
 	suite.Equal(fmt.Sprintf(`%s
-Host brev
+Host test-dns.brev.sh
   Hostname 0.0.0.0
   IdentityFile %s
   User brev
