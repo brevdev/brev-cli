@@ -159,32 +159,57 @@ func (suite *BrevSSHTestSuite) TestCreateBrevSSHConfigEntries() {
 
 // TODO abstract out setup
 // TODO add in more meaningful assertions
-func (suite *BrevSSHTestSuite) TestConfigureSSH() {
+func (suite *BrevSSHTestSuite) TestConfigureSSHNoWorkspaces() {
 	s, err := makeMockSSHStore()
 	if !suite.Nil(err) {
 		return
 	}
-	sshConfigurer, err := NewDefaultSSHConfigurer(noWorkspaces, *s, "lkjdflkj sld")
+	sshFileOrig, err := suite.store.GetSSHConfig()
+	if !suite.Nil(err) {
+		return
+	}
+	sshConfigurer, err := NewDefaultSSHConfigurer(noWorkspaces, *s, "mock-priv-key")
 	if !suite.Nil(err) {
 		return
 	}
 	err = sshConfigurer.Config()
 	if !suite.Nil(err) {
+		return
+	}
+	sshFileAfter, err := suite.store.GetSSHConfig()
+	if !suite.Nil(err) {
+		return
+	}
+
+	if !suite.Equal(sshFileOrig, sshFileAfter) {
 		return
 	}
 }
 
-func (suite *BrevSSHTestSuite) TestConfigureSSHWithActiveOrgs() {
+func (suite *BrevSSHTestSuite) TestConfigureSSHWithWorkspaces() {
 	s, err := makeMockSSHStore()
 	if !suite.Nil(err) {
 		return
 	}
-	sshConfigurer, err := NewDefaultSSHConfigurer(someWorkspaces, *s, "lkjdflkj sld")
+	sshFileOrig, err := suite.store.GetSSHConfig()
+	if !suite.Nil(err) {
+		return
+	}
+	sshConfigurer, err := NewDefaultSSHConfigurer(someWorkspaces, *s, "mock-priv-key")
 	if !suite.Nil(err) {
 		return
 	}
 	err = sshConfigurer.Config()
 	if !suite.Nil(err) {
+		return
+	}
+	sshFileAfter, err := suite.store.GetSSHConfig()
+	if !suite.Nil(err) {
+		return
+	}
+	fmt.Println(sshFileOrig)
+	fmt.Println(sshFileAfter)
+	if !suite.NotEqual(sshFileOrig, sshFileAfter) {
 		return
 	}
 }
