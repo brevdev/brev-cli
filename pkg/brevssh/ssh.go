@@ -52,8 +52,8 @@ type (
 		GetPrivateKeyFilePath() string
 	}
 	Reader interface {
-		GetBrevHostValueSet() BrevHostValuesSet
 		GetBrevPorts() (BrevPorts, error)
+		GetBrevHostValueSet() BrevHostValuesSet
 	}
 	Writer interface {
 		Sync(identityPortMap IdentityPortMap) error
@@ -233,6 +233,23 @@ func (s DefaultSSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
 	return &identifierPortMapping, nil
 }
 
+func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
+	configStr, err := store.GetSSHConfig()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig, err := ssh_config.Decode(strings.NewReader(configStr))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &SSHConfig{
+		store:      store,
+		sshConfig:  sshConfig,
+		privateKey: store.GetPrivateKeyFilePath(),
+	}, nil
+}
+
 func (s *SSHConfig) PruneInactiveWorkspaces(activeWorkspaces []string) error {
 	newConfig := ""
 
@@ -297,8 +314,9 @@ func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
 	return nil
 }
 
-func (s SSHConfig) GetBrevPorts(hostnames []string) (BrevPorts, error) {
+func (s SSHConfig) GetBrevPorts() (BrevPorts, error) {
 	var portSet BrevPorts
+	hostnames := s.GetBrevHostValues()
 	for _, name := range hostnames {
 		port, err := s.sshConfig.Get(name, "Port")
 		if err != nil {
