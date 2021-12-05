@@ -22,16 +22,16 @@ var (
 		{
 			WorkspaceMetaData: entity.WorkspaceMetaData{},
 			Workspace: entity.Workspace{
-				ID:               "foo",
-				Name:             "testWork",
-				WorkspaceGroupID: "lkj",
-				OrganizationID:   "lkjlasd",
-				WorkspaceClassID: "lkjas'lkf",
-				CreatedByUserID:  "lkasfjas",
-				DNS:              "brev",
-				Status:           "lkjgdflk",
+				ID:               "test-id",
+				Name:             "testName",
+				WorkspaceGroupID: "wgi",
+				OrganizationID:   "oi",
+				WorkspaceClassID: "wci",
+				CreatedByUserID:  "cui",
+				DNS:              "test-dns.brev.sh",
+				Status:           "RUNNING",
 				Password:         "sdfal",
-				GitRepo:          "lkdfjlksadf",
+				GitRepo:          "gitrepo",
 			},
 		},
 	}
@@ -58,7 +58,7 @@ func (suite *BrevSSHTestSuite) SetupTest() {
 	suite.store = *s
 
 	userSSHConfigStr := fmt.Sprintf(`%[2]s
-Host brev
+Host test-dns.brev.sh
 	 Hostname 0.0.0.0
 	 IdentityFile %[1]s
 	 User brev
@@ -164,7 +164,7 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHNoWorkspaces() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshFileOrig, err := suite.store.GetSSHConfig()
+	sshFileOrig, err := s.GetSSHConfig()
 	if !suite.Nil(err) {
 		return
 	}
@@ -176,11 +176,12 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHNoWorkspaces() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshFileAfter, err := suite.store.GetSSHConfig()
+	sshFileAfter, err := s.GetSSHConfig()
 	if !suite.Nil(err) {
 		return
 	}
 
+	// should be totally empty except for user values
 	if !suite.Equal(sshFileOrig, sshFileAfter) {
 		return
 	}
@@ -191,7 +192,7 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithWorkspaces() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshFileOrig, err := suite.store.GetSSHConfig()
+	sshFileOrig, err := s.GetSSHConfig()
 	if !suite.Nil(err) {
 		return
 	}
@@ -203,12 +204,10 @@ func (suite *BrevSSHTestSuite) TestConfigureSSHWithWorkspaces() {
 	if !suite.Nil(err) {
 		return
 	}
-	sshFileAfter, err := suite.store.GetSSHConfig()
+	sshFileAfter, err := s.GetSSHConfig()
 	if !suite.Nil(err) {
 		return
 	}
-	fmt.Println(sshFileOrig)
-	fmt.Println(sshFileAfter)
 	if !suite.NotEqual(sshFileOrig, sshFileAfter) {
 		return
 	}

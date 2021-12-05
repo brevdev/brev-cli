@@ -211,7 +211,7 @@ func (s *DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
 	return nil
 }
 
-func (s DefaultSSHConfigurer) CreateBrevSSHConfigEntries() error {
+func (s *DefaultSSHConfigurer) CreateBrevSSHConfigEntries() error {
 	brevHostValues := s.GetBrevHostValues()
 	brevHostValuesSet := make(map[string]bool)
 	for _, hostValue := range brevHostValues {
