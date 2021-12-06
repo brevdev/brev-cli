@@ -63,6 +63,11 @@ type (
 		sshConfig  *ssh_config.Config
 		privateKey string
 	}
+	SSHConfigurer struct {
+		workspaces []entity.WorkspaceWithMeta
+		Reader
+		Writers []Writer
+	}
 	DefaultSSHConfigurer struct {
 		workspaces []entity.WorkspaceWithMeta
 		sshStore   SSHStore
@@ -453,4 +458,12 @@ func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
 		brevHostValuesSet[hostValue] = true
 	}
 	return brevHostValuesSet
+}
+
+func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writers []Writer) *SSHConfigurer {
+	return &SSHConfigurer{
+		workspaces: workspaces,
+		Reader:     reader,
+		Writers:    writers,
+	}
 }

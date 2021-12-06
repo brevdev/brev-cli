@@ -297,3 +297,8 @@ func TestSSHConfigFromString(t *testing.T) {
 func TestSSH(t *testing.T) {
 	suite.Run(t, new(BrevSSHTestSuite))
 }
+
+func TestNewSShConfgiurer(t *testing.T) {
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, nil, []Writer{})
+	assert.NotEqual(t, sshConfigurer, nil)
+}
