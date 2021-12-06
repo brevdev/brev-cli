@@ -85,6 +85,60 @@ func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	return false
 }
 
+func checkIfHostIsActive(hoststring string, activeWorksSpaces []string) bool {
+	maybeHostname := hostnameFromString(hoststring)
+	for _, name := range activeWorksSpaces {
+		if name == maybeHostname {
+			return true
+		}
+	}
+	return false
+}
+
+// if a host is not a brev entry, it should stay in the config and there
+// is nothing for us to do to it.
+// if the host is a brev entry, make sure that it's hostname maps to an
+// active workspace, otherwise this host should be deleted.
+func createConfigEntry(hoststring string, isBrevHost, isActiveHost bool) string {
+	if !isBrevHost {
+		return hoststring
+	}
+	if isBrevHost && isActiveHost {
+		return hoststring
+	}
+	return ""
+}
+
+func sshConfigFromString(config string) (*ssh_config.Config, error) {
+	sshConfig, err := ssh_config.Decode(strings.NewReader(config))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return sshConfig, nil
+}
+
+func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
+	wsc := workspaceSSHConfig{
+		Host:         workspaceName,
+		Hostname:     "0.0.0.0",
+		User:         "brev",
+		IdentityFile: privateKeyPath,
+		Port:         port,
+	}
+
+	tmpl, err := template.New(workspaceName).Parse(workspaceSSHConfigTemplate)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	buf := &bytes.Buffer{}
+	err = tmpl.Execute(buf, wsc)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return buf.String(), nil
+}
+
 func NewDefaultSSHConfigurer(workspaces []entity.WorkspaceWithMeta, sshStore SSHStore, privateKey string) (*DefaultSSHConfigurer, error) {
 	d := &DefaultSSHConfigurer{
 		workspaces: workspaces,
@@ -170,38 +224,6 @@ func (s DefaultSSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Worksp
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return port, nil
-}
-
-func checkIfHostIsActive(hoststring string, activeWorksSpaces []string) bool {
-	maybeHostname := hostnameFromString(hoststring)
-	for _, name := range activeWorksSpaces {
-		if name == maybeHostname {
-			return true
-		}
-	}
-	return false
-}
-
-// if a host is not a brev entry, it should stay in the config and there
-// is nothing for us to do to it.
-// if the host is a brev entry, make sure that it's hostname maps to an
-// active workspace, otherwise this host should be deleted.
-func createConfigEntry(hoststring string, isBrevHost, isActiveHost bool) string {
-	if !isBrevHost {
-		return hoststring
-	}
-	if isBrevHost && isActiveHost {
-		return hoststring
-	}
-	return ""
-}
-
-func sshConfigFromString(config string) (*ssh_config.Config, error) {
-	sshConfig, err := ssh_config.Decode(strings.NewReader(config))
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return sshConfig, nil
 }
 
 func (s *DefaultSSHConfigurer) PruneInactiveWorkspaces() error {
