@@ -57,12 +57,25 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		return breverrors.WrapAndTrace(err)
 	}
 
-	sshConfigurer, err := brevssh.NewDefaultSSHConfigurer(workspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
+	var runningWorkspaces []entity.WorkspaceWithMeta
+	for _, w := range workspaces {
+		if w.Status == "RUNNING" {
+			runningWorkspaces = append(runningWorkspaces, w)
+		} else {
+			t.Vprint(t.Yellow("\tSkipping %s\n\t\tStatus: %s\n", w.Name, w.Status))
+		}
+	}
+	if len(runningWorkspaces) != len(workspaces) {
+		// if above message of skipped workspaces was displayed, show how to start:
+		t.Vprint(t.Yellow("\tYou can start a workspace with %s", t.Green("$ brev start <name>")))
+	}
+
+	sshConfigurer, err := brevssh.NewDefaultSSHConfigurer(runningWorkspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	s.on = NewUp(workspaces, sshConfigurer, workspaceGroupClientMapper)
+	s.on = NewUp(runningWorkspaces, sshConfigurer, workspaceGroupClientMapper)
 	// spinner.Stop()
 	return nil
 }
