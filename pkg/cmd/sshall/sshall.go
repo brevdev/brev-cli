@@ -176,7 +176,7 @@ func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
 	return nil
 }
 
-func (s SSHAll) portforwardWorkspaceAtPort(workspace entity.WorkspaceWithMeta, portMapping string) error {
+func (s *SSHAll) portforwardWorkspaceAtPort(workspace entity.WorkspaceWithMeta, portMapping string) error {
 	dpf := portforward.NewDefaultPortForwarder()
 	pf := portforward.NewPortForwardOptions(
 		s.workspaceGroupClientMapper,
@@ -186,6 +186,7 @@ func (s SSHAll) portforwardWorkspaceAtPort(workspace entity.WorkspaceWithMeta, p
 	s.workspaceConnectionsMutex.Lock()
 	s.workspaceConnections[workspace] = pf.StopChannel
 	s.workspaceConnectionsMutex.Unlock()
+
 	_, err := pf.WithWorkspace(workspace)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
