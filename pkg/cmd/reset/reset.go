@@ -22,6 +22,7 @@ type ResetStore interface {
 	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {
@@ -54,7 +55,12 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 		return fmt.Errorf("no orgs exist")
 	}
 
-	workspaces, err := resetStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName})
+	currentUser, err2 := resetStore.GetCurrentUser()
+	if err2 != nil {
+		return breverrors.WrapAndTrace(err2)
+	}
+
+	workspaces, err := resetStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: currentUser.ID})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
