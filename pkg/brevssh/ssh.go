@@ -34,6 +34,9 @@ Host {{ .Host }}
 `
 
 type (
+	BrevPorts          map[string]bool
+	BrevHostValuesSet  map[string]bool
+	IdentityPortMap    map[string]string
 	workspaceSSHConfig struct {
 		Host         string
 		Hostname     string
