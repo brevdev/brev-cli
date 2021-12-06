@@ -51,12 +51,24 @@ type (
 		WritePrivateKey(pem string) error
 		GetPrivateKeyFilePath() string
 	}
-	DefaultSSHConfigurer struct {
 		sshStore   SSHStore
-		privateKey string
-
-		workspaces []entity.WorkspaceWithMeta
+	Reader interface {
+		GetBrevPorts() (BrevPorts, error)
+		GetBrevHostValueSet() BrevHostValuesSet
+	}
+	Writer interface {
+		Sync(identityPortMap IdentityPortMap) error
+	}
+	SSHConfig struct {
+		store      SSHStore
 		sshConfig  *ssh_config.Config
+		privateKey string
+	}
+	DefaultSSHConfigurer struct {
+		workspaces []entity.WorkspaceWithMeta
+		sshStore   SSHStore
+		sshConfig  *ssh_config.Config
+		privateKey string
 	}
 )
 
