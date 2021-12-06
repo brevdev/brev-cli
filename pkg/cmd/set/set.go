@@ -63,5 +63,7 @@ func set(orgName string, setStore SetStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	// Print workspaces within org
+
 	return nil
 }
