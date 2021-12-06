@@ -351,3 +351,106 @@ func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, 
 
 	return buf.String(), nil
 }
+
+func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
+	configStr, err := store.GetSSHConfig()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig, err := ssh_config.Decode(strings.NewReader(configStr))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &SSHConfig{
+		store:      store,
+		sshConfig:  sshConfig,
+		privateKey: store.GetPrivateKeyFilePath(),
+	}, nil
+}
+
+func (s *SSHConfig) PruneInactiveWorkspaces(activeWorkspaces []string) error {
+	newConfig := ""
+
+	privateKeyPath := s.store.GetPrivateKeyFilePath()
+	for _, host := range s.sshConfig.Hosts {
+		hoststring := host.String()
+		isBrevHost := checkIfBrevHost(*host, privateKeyPath)
+		isActiveHost := checkIfHostIsActive(hoststring, activeWorkspaces)
+		newConfig += createConfigEntry(hoststring, isBrevHost, isActiveHost)
+	}
+
+	sshConfig, err := sshConfigFromString(newConfig)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	s.sshConfig = sshConfig
+	return nil
+}
+
+// Hostname is a loaded term so using values
+func (s SSHConfig) GetBrevHostValues() []string {
+	privateKeyPath := s.store.GetPrivateKeyFilePath()
+	var brevHosts []string
+	for _, host := range s.sshConfig.Hosts {
+		hostname := hostnameFromString(host.String())
+		// is this host a brev entry? if not, we don't care, and on to the
+		// next one
+		if checkIfBrevHost(*host, privateKeyPath) {
+			brevHosts = append(brevHosts, hostname)
+		}
+	}
+	return brevHosts
+}
+
+func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
+	sshConfigString := s.sshConfig.String()
+	var activeWorkspaces []string
+	for key, value := range identityPortMap {
+		entry, err := MakeSSHEntry(key, value, s.store.GetPrivateKeyFilePath())
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		sshConfigString += entry
+		activeWorkspaces = append(activeWorkspaces, key)
+
+	}
+	var err error
+	s.sshConfig, err = ssh_config.Decode(strings.NewReader(sshConfigString))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = s.PruneInactiveWorkspaces(activeWorkspaces)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = s.store.WriteSSHConfig(s.sshConfig.String())
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+func (s SSHConfig) GetBrevPorts() (BrevPorts, error) {
+	var portSet BrevPorts
+	hostnames := s.GetBrevHostValues()
+	for _, name := range hostnames {
+		port, err := s.sshConfig.Get(name, "Port")
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		portSet[port] = true
+	}
+	return portSet, nil
+}
+
+func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
+	var brevHostValuesSet BrevHostValuesSet
+	brevHostValues := s.GetBrevHostValues()
+	for _, hostValue := range brevHostValues {
+		brevHostValuesSet[hostValue] = true
+	}
+	return brevHostValuesSet
+}
