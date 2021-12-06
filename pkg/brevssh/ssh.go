@@ -51,7 +51,6 @@ type (
 		WritePrivateKey(pem string) error
 		GetPrivateKeyFilePath() string
 	}
-		sshStore   SSHStore
 	Reader interface {
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
