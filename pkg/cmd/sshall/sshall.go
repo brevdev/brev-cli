@@ -115,9 +115,11 @@ func (s SSHAll) Run() error {
 	go func() {
 		for {
 			<-errorQueue
+			fmt.Println("reseting unhealthy connections")
 			for _, w := range s.workspaces {
 				isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
+					fmt.Printf("reseting [w=%s]\n", w.DNS)
 					TryClose(s.workspaceConnections[w])
 					if s.retries[w] > 0 {
 						s.retries[w]--
@@ -152,7 +154,7 @@ func (s SSHAll) Run() error {
 func TryClose(toClose chan struct{}) {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
+			fmt.Println("recovered panic:", r)
 		}
 	}()
 	close(toClose)
