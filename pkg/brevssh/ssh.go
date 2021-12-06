@@ -71,6 +71,24 @@ type (
 	}
 )
 
+func hostnameFromString(hoststring string) string {
+	hoststring = strings.TrimSpace(hoststring)
+	if hoststring == "" {
+		return ""
+	}
+
+	newLineSplit := strings.Split(hoststring, "\n")
+	if len(newLineSplit) < 1 {
+		return ""
+	}
+	spaceSplit := strings.Split(newLineSplit[0], " ")
+	if len(spaceSplit) < 2 {
+		return ""
+	}
+
+	return spaceSplit[1]
+}
+
 func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	for _, node := range host.Nodes {
 		switch n := node.(type) { //nolint:gocritic // ignoring since want to keep options open for many cases
@@ -310,24 +328,6 @@ func (s DefaultSSHConfigurer) GetBrevHostValues() []string {
 		}
 	}
 	return brevHosts
-}
-
-func hostnameFromString(hoststring string) string {
-	hoststring = strings.TrimSpace(hoststring)
-	if hoststring == "" {
-		return ""
-	}
-
-	newLineSplit := strings.Split(hoststring, "\n")
-	if len(newLineSplit) < 1 {
-		return ""
-	}
-	spaceSplit := strings.Split(newLineSplit[0], " ")
-	if len(spaceSplit) < 2 {
-		return ""
-	}
-
-	return spaceSplit[1]
 }
 
 func (s DefaultSSHConfigurer) makeSSHEntry(workspaceName, port string) (string, error) {
