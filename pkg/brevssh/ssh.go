@@ -64,9 +64,10 @@ type (
 		privateKey string
 	}
 	SSHConfigurer struct {
-		workspaces []entity.WorkspaceWithMeta
 		Reader
-		Writers []Writer
+		Writer
+		Writers    []Writer
+		workspaces []entity.WorkspaceWithMeta
 	}
 	DefaultSSHConfigurer struct {
 		workspaces []entity.WorkspaceWithMeta
@@ -460,10 +461,56 @@ func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
 	return brevHostValuesSet
 }
 
-func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writers []Writer) *SSHConfigurer {
+func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer) *SSHConfigurer {
 	return &SSHConfigurer{
 		workspaces: workspaces,
 		Reader:     reader,
+		Writer:     writer,
 		Writers:    writers,
 	}
+}
+
+func (sshConfigurer *SSHConfigurer) Sync() error {
+	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	for _, writer := range sshConfigurer.Writers {
+		err := writer.Sync(*identityPortMap)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+	}
+
+	return nil
+}
+
+func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
+	var workspaceDNSNames []string
+	for _, workspace := range sshConfigurer.workspaces {
+		workspaceDNSNames = append(workspaceDNSNames, workspace.DNS)
+	}
+	return workspaceDNSNames
+}
+
+func (sshConfigurer SSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
+	var identifierPortMapping IdentityPortMap
+	brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
+	ports, err := sshConfigurer.Reader.GetBrevPorts()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	port := 2222
+	for _, workspaceIdentifier := range sshConfigurer.GetActiveWorkspaceIdentifiers() {
+		if !brevHostValuesSet[workspaceIdentifier] {
+			for ports[fmt.Sprint(port)] {
+				port++
+			}
+			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
+			ports[fmt.Sprint(port)] = true
+		}
+	}
+	return &identifierPortMapping, nil
 }

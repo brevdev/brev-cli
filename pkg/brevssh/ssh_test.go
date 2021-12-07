@@ -44,6 +44,22 @@ type BrevSSHTestSuite struct {
 	Configurer *DefaultSSHConfigurer
 }
 
+type BrevTestReader struct {
+	Reader
+}
+
+func (btr BrevTestReader) GetBrevPorts() (BrevPorts, error) {
+	return make(BrevPorts), nil
+}
+
+func (btr BrevTestReader) GetBrevHostValueSet() BrevHostValuesSet {
+	return make(BrevHostValuesSet)
+}
+
+type BrevTestWriter struct {
+	Writer
+}
+
 var userConfigStr = `Host user-host
 Hostname 172.0.0.0
 `
@@ -305,13 +321,13 @@ func (suite *BrevSSHTestSuite) TestMakeSSHEntry() {
 		return
 	}
 	suite.Equal(entry,
-`Host bar
+		`Host bar
   Hostname 0.0.0.0
   IdentityFile /home/brev/.brev/brev.pem
   User brev
   Port 2222
 
-`,)
+`)
 }
 
 // In order for 'go test' to run this suite, we need to create
@@ -321,6 +337,8 @@ func TestSSH(t *testing.T) {
 }
 
 func TestNewSShConfgiurer(t *testing.T) {
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, nil, []Writer{})
+	reader := BrevTestReader{}
+	writer := BrevTestWriter{}
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
 	assert.NotEqual(t, sshConfigurer, nil)
 }
