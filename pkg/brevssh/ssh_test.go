@@ -292,6 +292,28 @@ func TestSSHConfigFromString(t *testing.T) {
 	assert.Equal(t, len(sshConfig.Hosts), 3)
 }
 
+func (suite *BrevSSHTestSuite) TestMakeSSHEntry() {
+	s, err := makeMockSSHStore()
+	if !suite.Nil(err) {
+		return
+	}
+	privateKeyFilePath := s.GetPrivateKeyFilePath()
+
+	entry, err := MakeSSHEntry("bar", "2222", privateKeyFilePath)
+
+	if !suite.Nil(err) {
+		return
+	}
+	suite.Equal(entry,
+`Host bar
+  Hostname 0.0.0.0
+  IdentityFile /home/brev/.brev/brev.pem
+  User brev
+  Port 2222
+
+`,)
+}
+
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestSSH(t *testing.T) {

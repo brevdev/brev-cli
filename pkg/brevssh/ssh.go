@@ -25,12 +25,12 @@ import (
 	"github.com/kevinburke/ssh_config"
 )
 
-const workspaceSSHConfigTemplate = `
-Host {{ .Host }}
-	 Hostname {{ .Hostname }}
-	 IdentityFile {{ .IdentityFile }}
-	 User brev
-	 Port {{ .Port }}
+const workspaceSSHConfigTemplate = `Host {{ .Host }}
+  Hostname {{ .Hostname }}
+  IdentityFile {{ .IdentityFile }}
+  User brev
+  Port {{ .Port }}
+
 `
 
 type (
