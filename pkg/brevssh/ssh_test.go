@@ -64,6 +64,61 @@ var userConfigStr = `Host user-host
 Hostname 172.0.0.0
 `
 
+func makeMockSSHStore() (*store.FileStore, error) {
+	mfs := afero.NewMemMapFs()
+	fs := store.NewBasicStore().WithFileSystem(mfs)
+	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	p, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(mfs, *p, []byte(``), 0o644)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return fs, nil
+}
+
+func makeTestUserSSHConfigString() (string, error) {
+	store, err := makeMockSSHStore()
+	if err != nil {
+		return "", err
+	}
+	userSSHConfigStr := fmt.Sprintf(`%[2]s
+Host test-dns.brev.sh
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2222
+Host workspace-images
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2223
+Host brevdev/brev-deploy
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2224
+
+`, store.GetPrivateKeyFilePath(), userConfigStr)
+	return userSSHConfigStr, err
+}
+
+func makeTestSSHConfig() (*SSHConfig, error) {
+	store, err := makeMockSSHStore()
+	userSSHConfigStr, err := makeTestUserSSHConfigString()
+	err = store.WriteSSHConfig(userSSHConfigStr)
+	sshConfig, err := NewSSHConfig(store)
+	if err != nil {
+		return nil, err
+	}
+	return sshConfig, err
+}
+
 func (suite *BrevSSHTestSuite) SetupTest() {
 	s, err := makeMockSSHStore()
 	if !suite.Nil(err) {
@@ -242,24 +297,6 @@ func (suite *BrevSSHTestSuite) TestGetConfiguredWorkspacePort() {
 	}
 }
 
-func makeMockSSHStore() (*store.FileStore, error) {
-	mfs := afero.NewMemMapFs()
-	fs := store.NewBasicStore().WithFileSystem(mfs)
-	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	p, err := files.GetUserSSHConfigPath()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	err = afero.WriteFile(mfs, *p, []byte(``), 0o644)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return fs, nil
-}
-
 func TestHostnameFromString(t *testing.T) {
 	res := hostnameFromString("")
 	if !assert.Equal(t, "", res) {
@@ -344,30 +381,9 @@ func TestNewSShConfgiurer(t *testing.T) {
 }
 
 func TestNewSSHConfg(t *testing.T) {
-	store, err := makeMockSSHStore()
-
-	userSSHConfigStr := fmt.Sprintf(`%[2]s
-Host test-dns.brev.sh
-  Hostname 0.0.0.0
-  IdentityFile %[1]s
-  User brev
-  Port 2222
-Host workspace-images
-  Hostname 0.0.0.0
-  IdentityFile %[1]s
-  User brev
-  Port 2223
-Host brevdev/brev-deploy
-  Hostname 0.0.0.0
-  IdentityFile %[1]s
-  User brev
-  Port 2224
-
-`, store.GetPrivateKeyFilePath(), userConfigStr)
+	sshConfig, err := makeTestSSHConfig()
 	assert.Equal(t, err, nil)
-	err = store.WriteSSHConfig(userSSHConfigStr)
-	assert.Equal(t, err, nil)
-	sshConfig, err := NewSSHConfig(store)
+	userSSHConfigStr, err := makeTestUserSSHConfigString()
 	assert.Equal(t, err, nil)
 	assert.NotEqual(t, sshConfig, nil)
 	assert.Equal(t, len(sshConfig.sshConfig.Hosts), 5)
