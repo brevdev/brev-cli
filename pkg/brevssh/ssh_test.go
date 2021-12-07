@@ -342,3 +342,34 @@ func TestNewSShConfgiurer(t *testing.T) {
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
 	assert.NotEqual(t, sshConfigurer, nil)
 }
+
+func TestNewSSHConfg(t *testing.T) {
+	store, err := makeMockSSHStore()
+
+	userSSHConfigStr := fmt.Sprintf(`%[2]s
+Host test-dns.brev.sh
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2222
+Host workspace-images
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2223
+Host brevdev/brev-deploy
+  Hostname 0.0.0.0
+  IdentityFile %[1]s
+  User brev
+  Port 2224
+
+`, store.GetPrivateKeyFilePath(), userConfigStr)
+	assert.Equal(t, err, nil)
+	err = store.WriteSSHConfig(userSSHConfigStr)
+	assert.Equal(t, err, nil)
+	sshConfig, err := NewSSHConfig(store)
+	assert.Equal(t, err, nil)
+	assert.NotEqual(t, sshConfig, nil)
+	assert.Equal(t, len(sshConfig.sshConfig.Hosts), 5)
+	assert.Equal(t, sshConfig.sshConfig.String(), userSSHConfigStr)
+}
