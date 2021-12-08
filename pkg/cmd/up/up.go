@@ -70,12 +70,16 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		t.Vprint(t.Yellow("\tYou can start a workspace with %s", t.Green("$ brev start <name>")))
 	}
 
-	sshConfigurer, err := brevssh.NewDefaultSSHConfigurer(runningWorkspaces, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
+	sshConfig, err := brevssh.NewSSHConfig(s.upStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	sshConfigurer := brevssh.NewSSHConfigurer(runningWorkspaces, sshConfig, sshConfig, []brevssh.Writer{sshConfig})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	s.on = NewUp(runningWorkspaces, sshConfigurer, workspaceGroupClientMapper)
+	s.on = NewUp(runningWorkspaces, *sshConfigurer, workspaceGroupClientMapper)
 	// spinner.Stop()
 	return nil
 }
@@ -99,17 +103,18 @@ func (s upOptions) RunOn(_ *terminal.Terminal) error {
 }
 
 type SSHConfigurer interface {
-	Config() error
+	GetIdentityPortMap() (*brevssh.IdentityPortMap, error)
+	Sync() error
 	GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 }
 
 type Up struct {
-	sshConfigurer              SSHConfigurer
+	sshConfigurer              brevssh.SSHConfigurer
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	workspaces                 []entity.WorkspaceWithMeta
 }
 
-func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
+func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer brevssh.SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
 	return &Up{
 		workspaces:                 workspaces,
 		sshConfigurer:              sshConfigurer,
@@ -118,7 +123,7 @@ func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer SSHConfigurer, w
 }
 
 func (o Up) Run() error {
-	err := o.sshConfigurer.Config()
+	err := o.sshConfigurer.Sync()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

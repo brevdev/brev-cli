@@ -54,6 +54,7 @@ type (
 	Reader interface {
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
+		GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 	}
 	Writer interface {
 		Sync(identityPortMap IdentityPortMap) error
@@ -435,7 +436,6 @@ func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
 	return nil
 }
 
@@ -459,6 +459,18 @@ func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
 		brevHostValuesSet[hostValue] = true
 	}
 	return brevHostValuesSet
+}
+
+func (s SSHConfig) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
+	config, err := NewSSHConfig(s.store) // forces load from disk
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	port, err := config.sshConfig.Get(workspace.DNS, "Port")
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return port, nil
 }
 
 func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer) *SSHConfigurer {
@@ -513,4 +525,13 @@ func (sshConfigurer SSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error
 		}
 	}
 	return &identifierPortMapping, nil
+}
+
+func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
+	// garuntee an accurate reading here by reloading the value
+	port, err := sshConfigurer.Reader.GetConfiguredWorkspacePort(workspace)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return port, nil
 }
