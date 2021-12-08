@@ -429,3 +429,14 @@ func TestGetBrevPorts(t *testing.T) {
 	brevhosts := sshConfig.GetBrevHostValues()
 	assert.Equal(t, brevhosts, []string{"test-dns.brev.sh", "workspace-images", "brevdev/brev-deploy"})
 }
+
+func TestGetBrevHostValueSet(t *testing.T) {
+	sshConfig, err := makeTestSSHConfig()
+	assert.Equal(t, err, nil)
+	brevhosts := sshConfig.GetBrevHostValueSet()
+	expectedValueSet := make(BrevHostValuesSet)
+	expectedValueSet["test-dns.brev.sh"] = true
+	expectedValueSet["workspace-images"] = true
+	expectedValueSet["brevdev/brev-deploy"] = true
+	assert.Equal(t, brevhosts, expectedValueSet)
+}

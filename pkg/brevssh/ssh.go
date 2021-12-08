@@ -453,7 +453,7 @@ func (s SSHConfig) GetBrevPorts() (BrevPorts, error) {
 }
 
 func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
-	var brevHostValuesSet BrevHostValuesSet
+	brevHostValuesSet := make(BrevHostValuesSet)
 	brevHostValues := s.GetBrevHostValues()
 	for _, hostValue := range brevHostValues {
 		brevHostValuesSet[hostValue] = true
