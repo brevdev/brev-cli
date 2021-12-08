@@ -382,7 +382,7 @@ func TestSSH(t *testing.T) {
 	suite.Run(t, new(BrevSSHTestSuite))
 }
 
-func TestNewSShConfgiurer(t *testing.T) {
+func TestNewSShConfigurer(t *testing.T) {
 	reader := BrevTestReader{}
 	writer := BrevTestWriter{}
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
