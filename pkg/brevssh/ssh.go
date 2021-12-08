@@ -495,7 +495,7 @@ func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
 }
 
 func (sshConfigurer SSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
-	var identifierPortMapping IdentityPortMap
+	identifierPortMapping := make(IdentityPortMap)
 	brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
 	ports, err := sshConfigurer.Reader.GetBrevPorts()
 	if err != nil {
