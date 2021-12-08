@@ -404,6 +404,20 @@ func TestGetIdentityPortMap(t *testing.T) {
 	assert.Equal(t, identityPortMap, &expectedIdentityPortMap)
 }
 
+func TestSyncSSHConfigurer(t *testing.T) {
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
+	assert.Nil(t, err)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
+	err = sshConfigurer.Sync()
+	assert.Nil(t, err)
+	// reread sshConfig
+	sshConfig, err = NewSSHConfig(store)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 2, len(sshConfig.sshConfig.Hosts))
+}
+
 func TestNewSSHConfg(t *testing.T) {
 	store, err := makeMockSSHStore()
 	assert.Nil(t, err)
