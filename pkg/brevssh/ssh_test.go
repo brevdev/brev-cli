@@ -110,8 +110,17 @@ Host brevdev/brev-deploy
 
 func makeTestSSHConfig() (*SSHConfig, error) {
 	store, err := makeMockSSHStore()
+	if err != nil {
+		return nil, err
+	}
 	userSSHConfigStr, err := makeTestUserSSHConfigString()
+	if err != nil {
+		return nil, err
+	}
 	err = store.WriteSSHConfig(userSSHConfigStr)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 	sshConfig, err := NewSSHConfig(store)
 	if err != nil {
 		return nil, err
