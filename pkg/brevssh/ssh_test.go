@@ -398,3 +398,20 @@ func TestNewSSHConfg(t *testing.T) {
 	assert.Equal(t, len(sshConfig.sshConfig.Hosts), 5)
 	assert.Equal(t, sshConfig.sshConfig.String(), userSSHConfigStr)
 }
+
+func TestPruneInactiveWorkspaces(t *testing.T) {
+	activeWorkspace := "test-dns.brev.sh"
+	sshConfig, err := makeTestSSHConfig()
+	assert.Equal(t, err, nil)
+	err = sshConfig.PruneInactiveWorkspaces([]string{activeWorkspace})
+	if !assert.Nil(t, err) {
+		return
+	}
+	assert.Equal(t, fmt.Sprintf(`%s
+Host %s
+  Hostname 0.0.0.0
+  IdentityFile %s
+  User brev
+  Port 2222
+`, userConfigStr, activeWorkspace, sshConfig.store.GetPrivateKeyFilePath()), sshConfig.sshConfig.String())
+}
