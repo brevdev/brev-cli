@@ -415,3 +415,10 @@ Host %s
   Port 2222
 `, userConfigStr, activeWorkspace, sshConfig.store.GetPrivateKeyFilePath()), sshConfig.sshConfig.String())
 }
+
+func TestGetBrevHostValues(t *testing.T) {
+	sshConfig, err := makeTestSSHConfig()
+	assert.Equal(t, err, nil)
+	brevhosts := sshConfig.GetBrevHostValues()
+	assert.Equal(t, brevhosts, []string{"test-dns.brev.sh", "workspace-images", "brevdev/brev-deploy"})
+}
