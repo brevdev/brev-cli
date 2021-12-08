@@ -436,7 +436,11 @@ func TestGetBrevPorts(t *testing.T) {
 	assert.Equal(t, err, nil)
 	brevports, err := sshConfig.GetBrevPorts()
 	assert.Nil(t, err)
-	assert.Equal(t, brevports, []string{"2222", "2223", "2224"})
+	expectedBrevPorts := make(BrevPorts)
+	expectedBrevPorts["2222"] = true
+	expectedBrevPorts["2223"] = true
+	expectedBrevPorts["2224"] = true
+	assert.Equal(t, brevports, expectedBrevPorts)
 }
 
 func TestGetBrevHostValueSet(t *testing.T) {
