@@ -108,11 +108,7 @@ Host brevdev/brev-deploy
 	return userSSHConfigStr, err
 }
 
-func makeTestSSHConfig() (*SSHConfig, error) {
-	store, err := makeMockSSHStore()
-	if err != nil {
-		return nil, err
-	}
+func makeTestSSHConfig(store SSHStore) (*SSHConfig, error) {
 	userSSHConfigStr, err := makeTestUserSSHConfigString()
 	if err != nil {
 		return nil, err
@@ -409,7 +405,9 @@ func TestGetIdentityPortMap(t *testing.T) {
 }
 
 func TestNewSSHConfg(t *testing.T) {
-	sshConfig, err := makeTestSSHConfig()
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
 	userSSHConfigStr, err := makeTestUserSSHConfigString()
 	assert.Nil(t, err)
@@ -420,7 +418,9 @@ func TestNewSSHConfg(t *testing.T) {
 
 func TestPruneInactiveWorkspaces(t *testing.T) {
 	activeWorkspace := "test-dns.brev.sh"
-	sshConfig, err := makeTestSSHConfig()
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
 	err = sshConfig.PruneInactiveWorkspaces([]string{activeWorkspace})
 	if !assert.Nil(t, err) {
@@ -436,14 +436,18 @@ Host %s
 }
 
 func TestGetBrevHostValues(t *testing.T) {
-	sshConfig, err := makeTestSSHConfig()
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
 	brevhosts := sshConfig.GetBrevHostValues()
 	assert.Equal(t, brevhosts, []string{"test-dns.brev.sh", "workspace-images", "brevdev/brev-deploy"})
 }
 
 func TestGetBrevPorts(t *testing.T) {
-	sshConfig, err := makeTestSSHConfig()
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
 	brevports, err := sshConfig.GetBrevPorts()
 	assert.Nil(t, err)
@@ -455,7 +459,9 @@ func TestGetBrevPorts(t *testing.T) {
 }
 
 func TestGetBrevHostValueSet(t *testing.T) {
-	sshConfig, err := makeTestSSHConfig()
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
 	brevhosts := sshConfig.GetBrevHostValueSet()
 	expectedValueSet := make(BrevHostValuesSet)
