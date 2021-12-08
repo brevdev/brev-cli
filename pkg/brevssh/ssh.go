@@ -440,7 +440,7 @@ func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
 }
 
 func (s SSHConfig) GetBrevPorts() (BrevPorts, error) {
-	var portSet BrevPorts
+	portSet := make(BrevPorts)
 	hostnames := s.GetBrevHostValues()
 	for _, name := range hostnames {
 		port, err := s.sshConfig.Get(name, "Port")
