@@ -470,3 +470,18 @@ func TestGetBrevHostValueSet(t *testing.T) {
 	expectedValueSet["brevdev/brev-deploy"] = true
 	assert.Equal(t, brevhosts, expectedValueSet)
 }
+
+func TestSyncSSHConfig(t *testing.T) {
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
+	assert.Equal(t, err, nil)
+	identPortMap := make(IdentityPortMap)
+	identPortMap["test-dns.brev.sh"] = "2222"
+	err = sshConfig.Sync(identPortMap)
+	assert.Equal(t, err, nil)
+	// reread sshConfig
+	sshConfig, err = NewSSHConfig(store)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, 4, len(sshConfig.sshConfig.Hosts))
+}
