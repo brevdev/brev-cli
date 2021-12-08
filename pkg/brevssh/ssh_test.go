@@ -389,6 +389,14 @@ func TestNewSShConfigurer(t *testing.T) {
 	assert.NotNil(t, sshConfigurer)
 }
 
+func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
+	reader := BrevTestReader{}
+	writer := BrevTestWriter{}
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
+	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
+	assert.Equal(t, activeWorkspaces, []string{"test-dns.brev.sh"})
+}
+
 func TestNewSSHConfg(t *testing.T) {
 	sshConfig, err := makeTestSSHConfig()
 	assert.Nil(t, err)
