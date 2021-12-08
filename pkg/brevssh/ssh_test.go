@@ -386,15 +386,15 @@ func TestNewSShConfgiurer(t *testing.T) {
 	reader := BrevTestReader{}
 	writer := BrevTestWriter{}
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
-	assert.NotEqual(t, sshConfigurer, nil)
+	assert.NotNil(t, sshConfigurer)
 }
 
 func TestNewSSHConfg(t *testing.T) {
 	sshConfig, err := makeTestSSHConfig()
-	assert.Equal(t, err, nil)
+	assert.Nil(t, err)
 	userSSHConfigStr, err := makeTestUserSSHConfigString()
-	assert.Equal(t, err, nil)
-	assert.NotEqual(t, sshConfig, nil)
+	assert.Nil(t, err)
+	assert.NotNil(t, sshConfig)
 	assert.Equal(t, len(sshConfig.sshConfig.Hosts), 5)
 	assert.Equal(t, sshConfig.sshConfig.String(), userSSHConfigStr)
 }
