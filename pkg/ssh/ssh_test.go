@@ -191,7 +191,7 @@ func TestSyncSSHConfigurer(t *testing.T) {
 	sshConfig, err = NewSSHConfig(store)
 	assert.Equal(t, err, nil)
 
-	assert.Equal(t, `Host user-host
+	assert.Equal(t, fmt.Sprintf(`Host user-host
   Hostname 172.0.0.0
 
 Host test-dns.brev.sh
@@ -199,7 +199,7 @@ Host test-dns.brev.sh
   IdentityFile %s
   User brev
   Port 2222
-`, sshConfig.sshConfig.String(), sshConfig.privateKey)
+`, sshConfig.privateKey), sshConfig.sshConfig.String())
 	assert.Equal(t, 3, len(sshConfig.sshConfig.Hosts))
 }
 
