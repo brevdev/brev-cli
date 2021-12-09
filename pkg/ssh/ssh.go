@@ -70,14 +70,10 @@ type (
 		Writers    []Writer
 		workspaces []entity.WorkspaceWithMeta
 	}
-	JetBrainsGatewayConfigStore interface {
-		GetConfig() (string, error)
-		WriteConfig(config string) error
-		CreatConfigBackup() error
-	}
-	JetBrainsGatewayConfig struct {
+	JetBrainsGatewayConfigStore interface{}
+	JetBrainsGatewayConfig      struct {
 		Writer
-		store  JetBrainsGatewayConfigStore
+		store JetBrainsGatewayConfigStore
 	}
 )
 
@@ -334,4 +330,11 @@ func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace entity.W
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return port, nil
+}
+
+func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore) *JetBrainsGatewayConfig {
+	return &JetBrainsGatewayConfig{
+		Writer: writer,
+		store:  store,
+	}
 }

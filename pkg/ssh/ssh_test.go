@@ -68,6 +68,12 @@ func makeMockSSHStore() (*store.FileStore, error) {
 	return fs, nil
 }
 
+func makeMockJetBrainsGateWayStore() *store.FileStore {
+	mfs := afero.NewMemMapFs()
+	fs := store.NewBasicStore().WithFileSystem(mfs)
+	return fs
+}
+
 func makeTestUserSSHConfigString() (string, error) {
 	store, err := makeMockSSHStore()
 	if err != nil {
@@ -310,4 +316,10 @@ func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
 	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
 	assert.Nil(t, err)
 	assert.Equal(t, "2222", port)
+}
+
+func TestNewJetBrainsGateWayConfig(t *testing.T) {
+	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
+	jetBrainsGatewayConfig := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	assert.NotNil(t, jetBrainsGatewayConfig)
 }
