@@ -47,7 +47,7 @@ type BrevTestWriter struct {
 }
 
 var userConfigStr = `Host user-host
-Hostname 172.0.0.0
+  Hostname 172.0.0.0
 `
 
 func makeMockSSHStore() (*store.FileStore, error) {
@@ -195,7 +195,17 @@ func TestSyncSSHConfigurer(t *testing.T) {
 	// reread sshConfig
 	sshConfig, err = NewSSHConfig(store)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, 2, len(sshConfig.sshConfig.Hosts))
+
+	assert.Equal(t, `Host user-host
+  Hostname 172.0.0.0
+
+Host test-dns.brev.sh
+  Hostname 0.0.0.0
+  IdentityFile /home/brev/.brev/brev.pem
+  User brev
+  Port 2222
+`, sshConfig.sshConfig.String())
+	assert.Equal(t, 3, len(sshConfig.sshConfig.Hosts))
 }
 
 func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
@@ -283,17 +293,24 @@ func TestSyncSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
-	identPortMap := make(IdentityPortMap)
-	identPortMap["test-dns.brev.sh"] = "2222"
-	err = sshConfig.Sync(identPortMap)
+	err = sshConfig.Sync([]string{"test-dns.brev.sh"})
 	assert.Equal(t, err, nil)
 	// reread sshConfig
 	sshConfig, err = NewSSHConfig(store)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, 4, len(sshConfig.sshConfig.Hosts))
+	// assert.Equal(t, 4, len(sshConfig.sshConfig.Hosts))
+	assert.Equal(t, `Host user-host
+  Hostname 172.0.0.0
+
+Host test-dns.brev.sh
+  Hostname 0.0.0.0
+  IdentityFile /home/brev/.brev/brev.pem
+  User brev
+  Port 2222
+`, sshConfig.sshConfig.String())
 }
 
-func TestGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
+func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
 	store, err := makeMockSSHStore()
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
@@ -301,9 +318,7 @@ func TestGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
-	sshConfig, err = makeTestSSHConfig(store)
-	assert.Nil(t, err)
-	port, err := sshConfig.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
 	assert.Nil(t, err)
 	assert.Equal(t, "2222", port)
 }

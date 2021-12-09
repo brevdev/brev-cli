@@ -74,7 +74,12 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, sshConfig, sshConfig, []ssh.Writer{sshConfig})
+	// copy values so we aren't modifying eachother
+	reader := sshConfig
+	writer := sshConfig
+	sshConfigWriter := sshConfig
+
+	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

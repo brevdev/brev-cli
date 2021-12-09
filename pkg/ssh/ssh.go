@@ -57,7 +57,7 @@ type (
 		GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 	}
 	Writer interface {
-		Sync(identityPortMap IdentityPortMap) error
+		Sync([]string) error
 	}
 	SSHConfig struct {
 		store      SSHStore
@@ -212,20 +212,37 @@ func (s SSHConfig) GetBrevHostValues() []string {
 	return brevHosts
 }
 
-func (s *SSHConfig) Sync(identityPortMap IdentityPortMap) error {
-	sshConfigString := s.sshConfig.String()
-	var activeWorkspaces []string
-	for key, value := range identityPortMap {
-		entry, err := MakeSSHEntry(key, value, s.store.GetPrivateKeyFilePath())
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		sshConfigString += entry
-		activeWorkspaces = append(activeWorkspaces, key)
-
+func (s *SSHConfig) Sync(activeWorkspaces []string) error {
+	brevHostValues := s.GetBrevHostValues()
+	brevHostValuesSet := make(map[string]bool)
+	for _, hostValue := range brevHostValues {
+		brevHostValuesSet[hostValue] = true
 	}
-	var err error
-	s.sshConfig, err = ssh_config.Decode(strings.NewReader(sshConfigString))
+
+	sshConfigStr := s.sshConfig.String()
+
+	ports, err := s.GetBrevPorts()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	port := 2222
+
+	identifierPortMapping := make(map[string]string)
+	for _, workspaceIdentifier := range activeWorkspaces {
+		if !brevHostValuesSet[workspaceIdentifier] {
+			for ports[fmt.Sprint(port)] {
+				port++
+			}
+			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
+			entry, err2 := MakeSSHEntry(workspaceIdentifier, fmt.Sprint(port), s.privateKey)
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
+			}
+			sshConfigStr += entry
+			ports[fmt.Sprint(port)] = true
+		}
+	}
+	s.sshConfig, err = ssh_config.Decode(strings.NewReader(sshConfigStr))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -285,12 +302,9 @@ func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writ
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
-	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
 	for _, writer := range sshConfigurer.Writers {
-		err := writer.Sync(*identityPortMap)
+		err := writer.Sync(activeWorkspaces)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
