@@ -323,3 +323,11 @@ func TestNewJetBrainsGateWayConfig(t *testing.T) {
 	jetBrainsGatewayConfig := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 }
+
+func TestSyncJetBrainsGateWayConfig(t *testing.T) {
+	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
+	jetBrainsGatewayConfig := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	assert.NotNil(t, jetBrainsGatewayConfig)
+	err := jetBrainsGatewayConfig.Sync([]string{"test-dns.brev.sh"}, make(BrevHostValuesSet))
+	assert.Nil(t, err)
+}

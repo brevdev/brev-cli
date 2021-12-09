@@ -333,3 +333,7 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 		store:  store,
 	}
 }
+
+func (jbgc *JetBrainsGatewayConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet) error {
+	return nil
+}
