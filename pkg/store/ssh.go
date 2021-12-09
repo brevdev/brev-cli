@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -12,7 +13,14 @@ import (
 
 // !! need something to resolve file path of user ssh
 func (f FileStore) GetSSHConfig() (string, error) {
-	file, err := files.GetOrCreateSSHConfigFile(f.fs)
+	path, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if path == nil {
+		return "", errors.New("nil path when getting ssh config")
+	}
+	file, err := f.GetOrCreateFile(*path)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
