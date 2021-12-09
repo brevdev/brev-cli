@@ -54,10 +54,10 @@ type (
 	Reader interface {
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
-		GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
+		GetConfiguredWorkspacePort(workspace string) (string, error)
 	}
 	Writer interface {
-		Sync(activeWorkspaces []string, brevHostValues BrevHostValuesSet, ports BrevPorts) error
+		Sync(IdentityPortMap) error
 	}
 	SSHConfig struct {
 		store      SSHStore
@@ -70,8 +70,11 @@ type (
 		Writers    []Writer
 		workspaces []entity.WorkspaceWithMeta
 	}
-	JetBrainsGatewayConfigStore interface{}
-	JetBrainsGatewayConfig      struct {
+	JetBrainsGatewayConfigStore interface {
+		GetJetBrainsConfigPath() (string, error)
+		GetJetBrainsConfig() (string, error)
+	}
+	JetBrainsGatewayConfig struct {
 		Writer
 		store JetBrainsGatewayConfigStore
 	}
@@ -180,8 +183,12 @@ func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
 	}, nil
 }
 
-func (s *SSHConfig) PruneInactiveWorkspaces(activeWorkspaces []string) error {
+func (s *SSHConfig) PruneInactiveWorkspaces(identityPortMap IdentityPortMap) error {
 	newConfig := ""
+	var activeWorkspaces []string
+	for key := range identityPortMap {
+		activeWorkspaces = append(activeWorkspaces, key)
+	}
 
 	privateKeyPath := s.store.GetPrivateKeyFilePath()
 	for _, host := range s.sshConfig.Hosts {
@@ -214,32 +221,27 @@ func (s SSHConfig) GetBrevHostValues() []string {
 	return brevHosts
 }
 
-func (s *SSHConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet, ports BrevPorts) error {
+func (s *SSHConfig) Sync(identifierPortMapping IdentityPortMap) error {
 	sshConfigStr := s.sshConfig.String()
-	port := 2222
+	brevhosts := s.GetBrevHostValueSet()
 
-	identifierPortMapping := make(map[string]string)
-	for _, workspaceIdentifier := range activeWorkspaces {
-		if !brevHostValuesSet[workspaceIdentifier] {
-			for ports[fmt.Sprint(port)] {
-				port++
-			}
-			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
-			entry, err2 := MakeSSHEntry(workspaceIdentifier, fmt.Sprint(port), s.privateKey)
+	for key, value := range identifierPortMapping {
+		if !brevhosts[key] {
+			entry, err2 := MakeSSHEntry(key, value, s.privateKey)
 			if err2 != nil {
 				return breverrors.WrapAndTrace(err2)
 			}
 			sshConfigStr += entry
-			ports[fmt.Sprint(port)] = true
 		}
 	}
+
 	var err error
 	s.sshConfig, err = ssh_config.Decode(strings.NewReader(sshConfigStr))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = s.PruneInactiveWorkspaces(activeWorkspaces)
+	err = s.PruneInactiveWorkspaces(identifierPortMapping)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -272,12 +274,12 @@ func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
 	return brevHostValuesSet
 }
 
-func (s SSHConfig) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
+func (s SSHConfig) GetConfiguredWorkspacePort(workspace string) (string, error) {
 	config, err := NewSSHConfig(s.store) // forces load from disk
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	port, err := config.sshConfig.Get(workspace.DNS, "Port")
+	port, err := config.sshConfig.Get(workspace, "Port")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -293,15 +295,45 @@ func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writ
 	}
 }
 
-func (sshConfigurer *SSHConfigurer) Sync() error {
+func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error) {
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
 	brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
-	brevPorts, err := sshConfigurer.Reader.GetBrevPorts()
+	ports, err := sshConfigurer.Reader.GetBrevPorts()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	port := 2222
+	identifierPortMapping := make(map[string]string)
+	for _, workspaceIdentifier := range activeWorkspaces {
+		if !brevHostValuesSet[workspaceIdentifier] {
+			for ports[fmt.Sprint(port)] {
+				port++
+			}
+			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
+			ports[fmt.Sprint(port)] = true
+		} else {
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+			p, err := sshConfigurer.GetConfiguredWorkspacePort(workspaceIdentifier)
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+			identifierPortMapping[workspaceIdentifier] = p
+			ports[fmt.Sprint(port)] = true
+
+		}
+	}
+	return identifierPortMapping, nil
+}
+
+func (sshConfigurer *SSHConfigurer) Sync() error {
+	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	for _, writer := range sshConfigurer.Writers {
-		err := writer.Sync(activeWorkspaces, brevHostValuesSet, brevPorts)
+		err := writer.Sync(identityPortMap)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -319,7 +351,7 @@ func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
 	return workspaceDNSNames
 }
 
-func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
+func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace string) (string, error) {
 	port, err := sshConfigurer.Reader.GetConfiguredWorkspacePort(workspace)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -334,6 +366,6 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 	}
 }
 
-func (jbgc *JetBrainsGatewayConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet, ports BrevPorts) error {
+func (jbgc *JetBrainsGatewayConfig) Sync(identityPortMap IdentityPortMap) error {
 	return nil
 }

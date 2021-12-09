@@ -185,6 +185,7 @@ func TestSyncSSHConfigurer(t *testing.T) {
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
+
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
 	// reread sshConfig
@@ -211,7 +212,7 @@ func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
-	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace.DNS)
 	assert.Nil(t, err)
 	assert.Equal(t, "2222", port)
 }
@@ -234,7 +235,9 @@ func TestPruneInactiveWorkspaces(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
-	err = sshConfig.PruneInactiveWorkspaces([]string{activeWorkspace})
+	identityPortMap := make(IdentityPortMap)
+	identityPortMap[activeWorkspace] = "2222"
+	err = sshConfig.PruneInactiveWorkspaces(identityPortMap)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -288,9 +291,10 @@ func TestSyncSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
-	brevports, err := sshConfig.GetBrevPorts()
-	assert.Nil(t, err)
-	err = sshConfig.Sync([]string{"test-dns.brev.sh"}, sshConfig.GetBrevHostValueSet(), brevports)
+
+	identityPortMap := make(IdentityPortMap)
+	identityPortMap["test-dns.brev.sh"] = "2222"
+	err = sshConfig.Sync(identityPortMap)
 	assert.Equal(t, err, nil)
 	// reread sshConfig
 	sshConfig, err = NewSSHConfig(store)
@@ -315,7 +319,7 @@ func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
-	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace.DNS)
 	assert.Nil(t, err)
 	assert.Equal(t, "2222", port)
 }
@@ -330,6 +334,9 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
 	jetBrainsGatewayConfig := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
 	assert.NotNil(t, jetBrainsGatewayConfig)
-	err := jetBrainsGatewayConfig.Sync([]string{"test-dns.brev.sh"}, make(BrevHostValuesSet), make(BrevPorts))
+
+	identityPortMap := make(IdentityPortMap)
+	identityPortMap["test-dns.brev.sh"] = "2222"
+	err := jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
 }
