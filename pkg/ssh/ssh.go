@@ -330,7 +330,6 @@ func (sshConfigurer SSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error
 }
 
 func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
-	// garuntee an accurate reading here by reloading the value
 	port, err := sshConfigurer.Reader.GetConfiguredWorkspacePort(workspace)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
