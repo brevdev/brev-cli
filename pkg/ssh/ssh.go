@@ -328,27 +328,6 @@ func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
 	return workspaceDNSNames
 }
 
-func (sshConfigurer SSHConfigurer) GetIdentityPortMap() (*IdentityPortMap, error) {
-	identifierPortMapping := make(IdentityPortMap)
-	brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
-	ports, err := sshConfigurer.Reader.GetBrevPorts()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	port := 2222
-	for _, workspaceIdentifier := range sshConfigurer.GetActiveWorkspaceIdentifiers() {
-		if !brevHostValuesSet[workspaceIdentifier] {
-			for ports[fmt.Sprint(port)] {
-				port++
-			}
-			identifierPortMapping[workspaceIdentifier] = strconv.Itoa(port)
-			ports[fmt.Sprint(port)] = true
-		}
-	}
-	return &identifierPortMapping, nil
-}
-
 func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error) {
 	port, err := sshConfigurer.Reader.GetConfiguredWorkspacePort(workspace)
 	if err != nil {

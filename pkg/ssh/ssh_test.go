@@ -173,17 +173,6 @@ func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
 	assert.Equal(t, activeWorkspaces, []string{"test-dns.brev.sh"})
 }
 
-func TestGetIdentityPortMap(t *testing.T) {
-	reader := BrevTestReader{}
-	writer := BrevTestWriter{}
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
-	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
-	assert.Nil(t, err)
-	expectedIdentityPortMap := make(IdentityPortMap)
-	expectedIdentityPortMap["test-dns.brev.sh"] = "2222"
-	assert.Equal(t, identityPortMap, &expectedIdentityPortMap)
-}
-
 func TestSyncSSHConfigurer(t *testing.T) {
 	store, err := makeMockSSHStore()
 	assert.Nil(t, err)
