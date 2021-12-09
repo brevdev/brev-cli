@@ -363,13 +363,13 @@ func (suite *BrevSSHTestSuite) TestMakeSSHEntry() {
 		return
 	}
 	suite.Equal(entry,
-		`Host bar
+		fmt.Sprintf(`Host bar
   Hostname 0.0.0.0
-  IdentityFile /home/brev/.brev/brev.pem
+  IdentityFile %s
   User brev
   Port 2222
 
-`)
+`, privateKeyFilePath))
 }
 
 // In order for 'go test' to run this suite, we need to create
