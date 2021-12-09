@@ -70,8 +70,14 @@ type (
 		Writers    []Writer
 		workspaces []entity.WorkspaceWithMeta
 	}
+	JetBrainsGatewayConfigStore interface {
+		GetConfig() (string, error)
+		WriteConfig(config string) error
+		CreatConfigBackup() error
+	}
 	JetBrainsGatewayConfig struct {
 		Writer
+		store  JetBrainsGatewayConfigStore
 	}
 )
 
