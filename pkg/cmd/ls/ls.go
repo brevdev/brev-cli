@@ -166,32 +166,48 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 		ls.terminal.Yellow("\n\t$ brev up\n"))
 
 	// SHOW UNJOINED
-	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	listByGitUrl := make(map[string][]entity.Workspace);
+	if showAll {
+		listJoinedByGitUrl := make(map[string][]entity.Workspace);
+		for _, w := range workspaces {
+			l := listJoinedByGitUrl[w.GitRepo]
+			l = append(l, w)
+			listJoinedByGitUrl[w.GitRepo] = l
+		}
+		
+		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		listByGitUrl := make(map[string][]entity.Workspace);
+		
+		for _, w := range wss {
 
-	for _, w := range wss {
-		l := listByGitUrl[w.GitRepo]
-		l = append(l, w)
-		listByGitUrl[w.GitRepo] = l
-	}
+			_, exist := listJoinedByGitUrl[w.GitRepo]
+
+			// unjoined workspaces only: check it's not a joined one
+			if !exist {
+				l := listByGitUrl[w.GitRepo]
+				l = append(l, w)
+				listByGitUrl[w.GitRepo] = l
+			}
+
+		}
+		var unjoinedWorkspaces []entity.Workspace
+		for gitUrl := range listByGitUrl {
+			unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitUrl[gitUrl][0])
+		}
 	
-	for gitUrl := range listByGitUrl {
-		workspaces = append(workspaces, listByGitUrl[gitUrl][0])
+		displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitUrl)
+		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
+			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 	}
-
-	displayUnjoinedProjects(ls.terminal, workspaces, org, listByGitUrl)
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
-		ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 
 	return nil
 }
 
 func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitUrl map[string][]entity.Workspace) {
 	if len(workspaces) > 0 {
-		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
+		t.Vprintf("\nThere are %d other projects in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
 		t.Vprint(
 			"NUM MEMBERS" + strings.Repeat(" ", 2+len("NUM MEMBERS")) +
 				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
