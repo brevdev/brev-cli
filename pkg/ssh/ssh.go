@@ -57,7 +57,7 @@ type (
 		GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 	}
 	Writer interface {
-		Sync(activeWorkspaces []string, brevHostValues BrevHostValuesSet) error
+		Sync(activeWorkspaces []string, brevHostValues BrevHostValuesSet, ports BrevPorts) error
 	}
 	SSHConfig struct {
 		store      SSHStore
@@ -214,13 +214,8 @@ func (s SSHConfig) GetBrevHostValues() []string {
 	return brevHosts
 }
 
-func (s *SSHConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet) error {
+func (s *SSHConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet, ports BrevPorts) error {
 	sshConfigStr := s.sshConfig.String()
-
-	ports, err := s.GetBrevPorts()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	port := 2222
 
 	identifierPortMapping := make(map[string]string)
@@ -238,6 +233,7 @@ func (s *SSHConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostVa
 			ports[fmt.Sprint(port)] = true
 		}
 	}
+	var err error
 	s.sshConfig, err = ssh_config.Decode(strings.NewReader(sshConfigStr))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -299,9 +295,13 @@ func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writ
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
+	brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
+	brevPorts, err := sshConfigurer.Reader.GetBrevPorts()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	for _, writer := range sshConfigurer.Writers {
-		brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
-		err := writer.Sync(activeWorkspaces, brevHostValuesSet)
+		err := writer.Sync(activeWorkspaces, brevHostValuesSet, brevPorts)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -334,6 +334,6 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 	}
 }
 
-func (jbgc *JetBrainsGatewayConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet) error {
+func (jbgc *JetBrainsGatewayConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet, ports BrevPorts) error {
 	return nil
 }
