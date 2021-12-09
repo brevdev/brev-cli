@@ -3,11 +3,11 @@ package up
 import (
 	"fmt"
 
-	brevssh "github.com/brevdev/brev-cli/pkg/brevssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/k8s"
+	ssh "github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -70,11 +70,11 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		t.Vprint(t.Yellow("\tYou can start a workspace with %s", t.Green("$ brev start <name>")))
 	}
 
-	sshConfig, err := brevssh.NewSSHConfig(s.upStore)
+	sshConfig, err := ssh.NewSSHConfig(s.upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	sshConfigurer := brevssh.NewSSHConfigurer(runningWorkspaces, sshConfig, sshConfig, []brevssh.Writer{sshConfig})
+	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, sshConfig, sshConfig, []ssh.Writer{sshConfig})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -85,7 +85,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 }
 
 type UpStore interface {
-	brevssh.SSHStore
+	ssh.SSHStore
 	k8s.K8sStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -103,18 +103,18 @@ func (s upOptions) RunOn(_ *terminal.Terminal) error {
 }
 
 type SSHConfigurer interface {
-	GetIdentityPortMap() (*brevssh.IdentityPortMap, error)
+	GetIdentityPortMap() (*ssh.IdentityPortMap, error)
 	Sync() error
 	GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 }
 
 type Up struct {
-	sshConfigurer              brevssh.SSHConfigurer
+	sshConfigurer              ssh.SSHConfigurer
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	workspaces                 []entity.WorkspaceWithMeta
 }
 
-func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer brevssh.SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
+func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer ssh.SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
 	return &Up{
 		workspaces:                 workspaces,
 		sshConfigurer:              sshConfigurer,

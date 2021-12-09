@@ -1,4 +1,4 @@
-// Package brevssh exists to provide an api to configure and read from
+// Package ssh exists to provide an api to configure and read from
 // an ssh file
 //
 // brev ssh host file entry format:
@@ -11,7 +11,7 @@
 //
 // also think that file stuff should probably live in files package
 // TODO migrate to using dns name for hostname
-package brevssh
+package ssh
 
 import (
 	"bytes"
@@ -69,6 +69,9 @@ type (
 		Writer
 		Writers    []Writer
 		workspaces []entity.WorkspaceWithMeta
+	}
+	JetBrainsGatewayConfig struct {
+		Writer
 	}
 )
 

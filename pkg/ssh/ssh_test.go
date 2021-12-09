@@ -1,4 +1,4 @@
-package brevssh
+package ssh
 
 import (
 	"fmt"
@@ -12,26 +12,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	noWorkspaces   = []entity.WorkspaceWithMeta{}
-	someWorkspaces = []entity.WorkspaceWithMeta{
-		{
-			WorkspaceMetaData: entity.WorkspaceMetaData{},
-			Workspace: entity.Workspace{
-				ID:               "test-id",
-				Name:             "testName",
-				WorkspaceGroupID: "wgi",
-				OrganizationID:   "oi",
-				WorkspaceClassID: "wci",
-				CreatedByUserID:  "cui",
-				DNS:              "test-dns.brev.sh",
-				Status:           "RUNNING",
-				Password:         "sdfal",
-				GitRepo:          "gitrepo",
-			},
+var someWorkspaces = []entity.WorkspaceWithMeta{
+	{
+		WorkspaceMetaData: entity.WorkspaceMetaData{},
+		Workspace: entity.Workspace{
+			ID:               "test-id",
+			Name:             "testName",
+			WorkspaceGroupID: "wgi",
+			OrganizationID:   "oi",
+			WorkspaceClassID: "wci",
+			CreatedByUserID:  "cui",
+			DNS:              "test-dns.brev.sh",
+			Status:           "RUNNING",
+			Password:         "sdfal",
+			GitRepo:          "gitrepo",
 		},
-	}
-)
+	},
+}
 
 type BrevTestReader struct {
 	Reader
@@ -112,7 +109,6 @@ func makeTestSSHConfig(store SSHStore) (*SSHConfig, error) {
 	}
 	return sshConfig, err
 }
-
 
 func TestHostnameFromString(t *testing.T) {
 	res := hostnameFromString("")
