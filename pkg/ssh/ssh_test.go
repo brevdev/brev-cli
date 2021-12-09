@@ -201,10 +201,10 @@ func TestSyncSSHConfigurer(t *testing.T) {
 
 Host test-dns.brev.sh
   Hostname 0.0.0.0
-  IdentityFile /home/brev/.brev/brev.pem
+  IdentityFile %s
   User brev
   Port 2222
-`, sshConfig.sshConfig.String())
+`, sshConfig.sshConfig.String(), sshConfig.privateKey)
 	assert.Equal(t, 3, len(sshConfig.sshConfig.Hosts))
 }
 
@@ -299,15 +299,15 @@ func TestSyncSSHConfig(t *testing.T) {
 	sshConfig, err = NewSSHConfig(store)
 	assert.Equal(t, err, nil)
 	// assert.Equal(t, 4, len(sshConfig.sshConfig.Hosts))
-	assert.Equal(t, `Host user-host
+	assert.Equal(t, fmt.Sprintf(`Host user-host
   Hostname 172.0.0.0
 
 Host test-dns.brev.sh
   Hostname 0.0.0.0
-  IdentityFile /home/brev/.brev/brev.pem
+  IdentityFile %s
   User brev
   Port 2222
-`, sshConfig.sshConfig.String())
+`, sshConfig.privateKey), sshConfig.sshConfig.String())
 }
 
 func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
