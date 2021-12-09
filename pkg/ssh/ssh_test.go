@@ -198,7 +198,7 @@ func TestSyncSSHConfigurer(t *testing.T) {
 	assert.Equal(t, 2, len(sshConfig.sshConfig.Hosts))
 }
 
-func TestGetConfiguredWorkspacePort(t *testing.T) {
+func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
 	store, err := makeMockSSHStore()
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
@@ -206,9 +206,7 @@ func TestGetConfiguredWorkspacePort(t *testing.T) {
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
-	sshConfig, err = makeTestSSHConfig(store)
-	assert.Nil(t, err)
-	port, err := sshConfig.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
 	assert.Nil(t, err)
 	assert.Equal(t, "2222", port)
 }
@@ -293,4 +291,19 @@ func TestSyncSSHConfig(t *testing.T) {
 	sshConfig, err = NewSSHConfig(store)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, 4, len(sshConfig.sshConfig.Hosts))
+}
+
+func TestGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	sshConfig, err := makeTestSSHConfig(store)
+	assert.Nil(t, err)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
+	err = sshConfigurer.Sync()
+	assert.Nil(t, err)
+	sshConfig, err = makeTestSSHConfig(store)
+	assert.Nil(t, err)
+	port, err := sshConfig.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace)
+	assert.Nil(t, err)
+	assert.Equal(t, "2222", port)
 }
