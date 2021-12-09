@@ -57,7 +57,7 @@ type (
 		GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
 	}
 	Writer interface {
-		Sync([]string) error
+		Sync(activeWorkspaces []string, brevHostValues BrevHostValuesSet) error
 	}
 	SSHConfig struct {
 		store      SSHStore
@@ -214,13 +214,7 @@ func (s SSHConfig) GetBrevHostValues() []string {
 	return brevHosts
 }
 
-func (s *SSHConfig) Sync(activeWorkspaces []string) error {
-	brevHostValues := s.GetBrevHostValues()
-	brevHostValuesSet := make(map[string]bool)
-	for _, hostValue := range brevHostValues {
-		brevHostValuesSet[hostValue] = true
-	}
-
+func (s *SSHConfig) Sync(activeWorkspaces []string, brevHostValuesSet BrevHostValuesSet) error {
 	sshConfigStr := s.sshConfig.String()
 
 	ports, err := s.GetBrevPorts()
@@ -306,7 +300,8 @@ func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writ
 func (sshConfigurer *SSHConfigurer) Sync() error {
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
 	for _, writer := range sshConfigurer.Writers {
-		err := writer.Sync(activeWorkspaces)
+		brevHostValuesSet := sshConfigurer.Reader.GetBrevHostValueSet()
+		err := writer.Sync(activeWorkspaces, brevHostValuesSet)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

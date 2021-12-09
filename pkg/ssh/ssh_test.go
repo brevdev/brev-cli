@@ -288,7 +288,7 @@ func TestSyncSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
-	err = sshConfig.Sync([]string{"test-dns.brev.sh"})
+	err = sshConfig.Sync([]string{"test-dns.brev.sh"}, sshConfig.GetBrevHostValueSet())
 	assert.Equal(t, err, nil)
 	// reread sshConfig
 	sshConfig, err = NewSSHConfig(store)
