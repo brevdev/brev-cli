@@ -156,20 +156,26 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showUnjoined bool) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		listByGitUrl := make(map[string]entity.Workspace);
+		listByGitUrl := make(map[string][]entity.Workspace);
 
 		for _, w := range wss {
-			_, exist := listByGitUrl[w.GitRepo]
-			if !exist {
-				listByGitUrl[w.GitRepo] = w
-			}
+			// _, exist := listByGitUrl[w.GitRepo]
+			// if !exist {
+				l := listByGitUrl[w.GitRepo]
+				l = append(l, w)
+				listByGitUrl[w.GitRepo] = l
+			// } else {
+				// l := listByGitUrl[w.GitRepo]
+				// l = append(l, w)
+				// listByGitUrl[w.GitRepo] = l
+			// }
 		}
 		
 		for gitUrl := range listByGitUrl {
-			workspaces = append(workspaces, listByGitUrl[gitUrl])
+			workspaces = append(workspaces, listByGitUrl[gitUrl][0])
 		}
 
-		displayUnjoinedProjects(ls.terminal, workspaces, org)
+		displayUnjoinedProjects(ls.terminal, workspaces, org, listByGitUrl)
 		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
 			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 
@@ -190,16 +196,15 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showUnjoined bool) error {
 	return nil
 }
 
-func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
-	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
+func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitUrl map[string][]entity.Workspace) {
 	if len(workspaces) > 0 {
 		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
 		t.Vprint(
 			"NUM MEMBERS" + strings.Repeat(" ", 2+len("NUM MEMBERS")) +
 				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
-				"NAME" + strings.Repeat(" ", longestStatus+1+longestStatus-len("NAME")))
+				"NAME")
 		for _, v := range workspaces {
-			t.Vprint("5 " + strings.Repeat(" ", 2*len("NUM MEMBERS")) + v.Name)
+			t.Vprintf("%d people %s %s\n", len(listByGitUrl[v.GitRepo]), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), v.Name)
 		}
 	}
 }
