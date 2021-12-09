@@ -24,7 +24,8 @@ type LsStore interface {
 }
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
-	var org string
+	var showUnjoined bool
+   var org string
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
@@ -47,7 +48,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Args:      cobra.MinimumNArgs(0),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org)
+			err := RunLs(t, loginLsStore, args, org, showUnjoined)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -61,10 +62,13 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		t.Errprint(err, "cli err")
 	}
 
+	cmd.Flags().BoolVar(&showUnjoined, "unjoined", false, "show unjoined workspaces in org")
+
 	return cmd
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string) error {
+func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showUnjoined bool) error {
+
 	ls := NewLs(lsStore, t)
 	if len(args) == 1 && (strings.Contains(args[0], "org")) { // handle org, orgs, and organization(s)
 		err := ls.RunOrgs()
@@ -100,7 +104,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string)
 		org = currOrg
 	}
 
-	err := ls.RunWorkspaces(org)
+	err := ls.RunWorkspaces(org, showUnjoined)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -140,26 +144,64 @@ func (ls Ls) RunOrgs() error {
 	return nil
 }
 
-func (ls Ls) RunWorkspaces(org *entity.Organization) error {
+func (ls Ls) RunWorkspaces(org *entity.Organization, showUnjoined bool) error {
 	user, err := ls.lsStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspaces, err := ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if len(workspaces) == 0 {
-		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
-		return nil
+	var workspaces []entity.Workspace
+	if showUnjoined {
+		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		listByGitUrl := make(map[string]entity.Workspace);
+
+		for _, w := range wss {
+			_, exist := listByGitUrl[w.GitRepo]
+			if !exist {
+				listByGitUrl[w.GitRepo] = w
+			}
+		}
+		
+		for gitUrl := range listByGitUrl {
+			workspaces = append(workspaces, listByGitUrl[gitUrl])
+		}
+
+		displayUnjoinedProjects(ls.terminal, workspaces, org)
+		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
+			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
+
+	} else {
+		workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if len(workspaces) == 0 {
+			ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
+			return nil
+		}
+		displayOrgWorkspaces(ls.terminal, workspaces, org)
+		ls.terminal.Vprintf(ls.terminal.Green("\n\nTo connect to your machine:") +
+			ls.terminal.Yellow("\n\t$ brev up\n"))
 	}
 
-	displayOrgWorkspaces(ls.terminal, workspaces, org)
-
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nTo connect to your machine:") +
-		ls.terminal.Yellow("\n\t$ brev up\n"))
 	return nil
+}
+
+func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
+	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
+	if len(workspaces) > 0 {
+		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
+		t.Vprint(
+			"NUM MEMBERS" + strings.Repeat(" ", 2+len("NUM MEMBERS")) +
+				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
+				"NAME" + strings.Repeat(" ", longestStatus+1+longestStatus-len("NAME")))
+		for _, v := range workspaces {
+			t.Vprint("5 " + strings.Repeat(" ", 2*len("NUM MEMBERS")) + v.Name)
+		}
+	}
 }
 
 func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
