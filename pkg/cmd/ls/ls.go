@@ -24,7 +24,7 @@ type LsStore interface {
 }
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
-	var showUnjoined bool
+	var showAll bool
    var org string
 
 	cmd := &cobra.Command{
@@ -48,7 +48,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Args:      cobra.MinimumNArgs(0),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org, showUnjoined)
+			err := RunLs(t, loginLsStore, args, org, showAll)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -62,13 +62,12 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		t.Errprint(err, "cli err")
 	}
 
-	cmd.Flags().BoolVar(&showUnjoined, "unjoined", false, "show unjoined workspaces in org")
+	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
 
 	return cmd
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showUnjoined bool) error {
-
+func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
 	ls := NewLs(lsStore, t)
 	if len(args) == 1 && (strings.Contains(args[0], "org")) { // handle org, orgs, and organization(s)
 		err := ls.RunOrgs()
@@ -104,7 +103,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		org = currOrg
 	}
 
-	err := ls.RunWorkspaces(org, showUnjoined)
+	err := ls.RunWorkspaces(org, showAll)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -144,54 +143,48 @@ func (ls Ls) RunOrgs() error {
 	return nil
 }
 
-func (ls Ls) RunWorkspaces(org *entity.Organization, showUnjoined bool) error {
+func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 	user, err := ls.lsStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	var workspaces []entity.Workspace
-	if showUnjoined {
-		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		listByGitUrl := make(map[string][]entity.Workspace);
-
-		for _, w := range wss {
-			// _, exist := listByGitUrl[w.GitRepo]
-			// if !exist {
-				l := listByGitUrl[w.GitRepo]
-				l = append(l, w)
-				listByGitUrl[w.GitRepo] = l
-			// } else {
-				// l := listByGitUrl[w.GitRepo]
-				// l = append(l, w)
-				// listByGitUrl[w.GitRepo] = l
-			// }
-		}
-		
-		for gitUrl := range listByGitUrl {
-			workspaces = append(workspaces, listByGitUrl[gitUrl][0])
-		}
-
-		displayUnjoinedProjects(ls.terminal, workspaces, org, listByGitUrl)
-		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
-			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
-
-	} else {
-		workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(workspaces) == 0 {
-			ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
+	workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(workspaces) == 0 {
+		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
+		if !showAll {
+			// note: if showAll flag is set, proceed to show unjoined workspaces
 			return nil
 		}
-		displayOrgWorkspaces(ls.terminal, workspaces, org)
-		ls.terminal.Vprintf(ls.terminal.Green("\n\nTo connect to your machine:") +
-			ls.terminal.Yellow("\n\t$ brev up\n"))
 	}
+	displayOrgWorkspaces(ls.terminal, workspaces, org)
+	ls.terminal.Vprintf(ls.terminal.Green("\n\nTo connect to your machine:") +
+		ls.terminal.Yellow("\n\t$ brev up\n"))
+
+	// SHOW UNJOINED
+	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	listByGitUrl := make(map[string][]entity.Workspace);
+
+	for _, w := range wss {
+		l := listByGitUrl[w.GitRepo]
+		l = append(l, w)
+		listByGitUrl[w.GitRepo] = l
+	}
+	
+	for gitUrl := range listByGitUrl {
+		workspaces = append(workspaces, listByGitUrl[gitUrl][0])
+	}
+
+	displayUnjoinedProjects(ls.terminal, workspaces, org, listByGitUrl)
+	ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
+		ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 
 	return nil
 }
