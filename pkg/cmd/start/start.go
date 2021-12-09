@@ -54,10 +54,11 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 
 			if !isURL {
-				err := startWorkspace(args[0], loginStartStore, t)
-				if err != nil {
-					t.Vprint(t.Red(err.Error()))
-				}
+				SAMPLE(args[0], loginStartStore, t)
+				// err := startWorkspace(args[0], loginStartStore, t)
+				// if err != nil {
+				// 	t.Vprint(t.Red(err.Error()))
+				// }
 			} else {
 				// CREATE A WORKSPACE
 				err := clone(t, args[0], org, loginStartStore)
@@ -74,6 +75,18 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	}
 
 	return cmd
+}
+
+func SAMPLE(workspaceName string, startStore StartStore, t *terminal.Terminal) {
+	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", workspaceName))
+
+
+	s := t.NewSpinner()
+	s.Start()
+	s.Suffix = "  workspace is starting"
+	time.Sleep(25 * time.Second)
+	s.Stop()
+
 }
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal) error {
