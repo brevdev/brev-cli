@@ -442,5 +442,7 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
 </application>
 `)
 	assert.Nil(t, err)
-	assert.Equal(t, len(xml.Application.Component), 1)
+	assert.Equal(t, len(xml.SSHConfigs), 1)
+	assert.Equal(t, xml.SSHConfigs[0].Host, "test-dns.brev.sh")
+	assert.Equal(t, xml.SSHConfigs[0].Port, "2222")
 }
