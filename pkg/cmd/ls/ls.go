@@ -25,7 +25,7 @@ type LsStore interface {
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
-   var org string
+	var org string
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
@@ -167,19 +167,19 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 
 	// SHOW UNJOINED
 	if showAll {
-		listJoinedByGitUrl := make(map[string][]entity.Workspace);
+		listJoinedByGitUrl := make(map[string][]entity.Workspace)
 		for _, w := range workspaces {
 			l := listJoinedByGitUrl[w.GitRepo]
 			l = append(l, w)
 			listJoinedByGitUrl[w.GitRepo] = l
 		}
-		
+
 		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		listByGitUrl := make(map[string][]entity.Workspace);
-		
+		listByGitUrl := make(map[string][]entity.Workspace)
+
 		for _, w := range wss {
 
 			_, exist := listJoinedByGitUrl[w.GitRepo]
@@ -196,7 +196,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 		for gitUrl := range listByGitUrl {
 			unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitUrl[gitUrl][0])
 		}
-	
+
 		displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitUrl)
 		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
 			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))

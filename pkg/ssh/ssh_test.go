@@ -337,7 +337,7 @@ func TestNewJetBrainsGateWayConfig(t *testing.T) {
 </application>
 `)
 	assert.Nil(t, err)
-	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 
 	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
@@ -356,7 +356,7 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 </application>
 `)
 	assert.Nil(t, err)
-	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 
@@ -364,7 +364,7 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	identityPortMap["test-dns.brev.sh"] = "2222"
 	err = jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
-	configpath, err := mockJetbrainsGatewayStore.GetJetBrainsConfigPath()
+	privatekeypath := mockJetbrainsGatewayStore.GetPrivateKeyFilePath()
 	assert.Nil(t, err)
 	config, err := mockJetbrainsGatewayStore.GetJetBrainsConfig()
 	assert.Nil(t, err)
@@ -374,10 +374,12 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
       <sshConfig id="f72d6499-1376-47df-b274-94de782a7dd2" customName="test-manual-install" nameFormat="CUSTOM" useOpenSSHConfig="true" host="foo" port="2225" keyPath="bar" username="sfdfls">
         <option name="customName" value="test-manual-install"></option>
       </sshConfig>
-      <sshConfig host="test-dns.brev.sh" port="2222" keyPath="%s" username="brev"></sshConfig>
+      <sshConfig customName="test-dns.brev.sh" nameFormat="CUSTOM" host="localhost" port="2222" keyPath="%s" username="brev">
+        <option name="CustomName" value="test-dns.brev.sh"></option>
+      </sshConfig>
     </configs>
   </component>
-</application>`, configpath))
+</application>`, privatekeypath))
 }
 
 func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
@@ -393,7 +395,7 @@ func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
 </application>
 `)
 	assert.Nil(t, err)
-	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 	ports, err := jetBrainsGatewayConfig.GetBrevPorts()
@@ -415,7 +417,7 @@ func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
 </application>
 `, mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
 	assert.Nil(t, err)
-	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 	hostValues := jetBrainsGatewayConfig.GetBrevHostValueSet()
@@ -436,7 +438,7 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
 </application>
 `, mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
 	assert.Nil(t, err)
-	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 	port, err := jetBrainsGatewayConfig.GetConfiguredWorkspacePort("test-dns.brev.sh")
