@@ -348,7 +348,7 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="$USER_HOME$/.brev/brev.pem" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+      <sshConfig host="foo" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="bar" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="sfdfls" useOpenSSHConfig="true">
         <option name="customName" value="test-manual-install" />
       </sshConfig>
     </configs>
@@ -364,6 +364,22 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	identityPortMap["test-dns.brev.sh"] = "2222"
 	err = jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
+	configpath, err := mockJetbrainsGatewayStore.GetJetBrainsConfigPath()
+	assert.Nil(t, err)
+	config, err := mockJetbrainsGatewayStore.GetJetBrainsConfig()
+	assert.Nil(t, err)
+	assert.Equal(t, config, fmt.Sprintf(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="foo" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="bar" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="sfdfls" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+      <sshConfig host="test-dns.brev.sh" keyPath="%s" port="2222"  username="brev" />
+    </configs>
+  </component>
+</application>
+
+`, configpath))
 }
 
 func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
