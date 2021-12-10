@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/spf13/afero"
 )
 
 const (
@@ -49,4 +50,16 @@ func (f FileStore) GetJetBrainsConfig() (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return buf.String(), nil
+}
+
+func (f FileStore) WriteJetBrainsConfig(config string) error {
+	path, err := f.GetJetBrainsConfigPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(f.fs, path, []byte(config), 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
