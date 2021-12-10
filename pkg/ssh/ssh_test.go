@@ -365,3 +365,67 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	err = jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
 }
+
+func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
+	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
+	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="test-dns.brev.sh" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="$USER_HOME$/.brev/brev.pem" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+    </configs>
+  </component>
+</application>
+`)
+	assert.Nil(t, err)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	assert.Nil(t, err)
+	assert.NotNil(t, jetBrainsGatewayConfig)
+	ports, err := jetBrainsGatewayConfig.GetBrevPorts()
+	assert.Nil(t, err)
+	assert.True(t, ports["2222"])
+	assert.Equal(t, len(ports), 1)
+}
+
+func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
+	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
+	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="test-dns.brev.sh" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+    </configs>
+  </component>
+</application>
+`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
+	assert.Nil(t, err)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	assert.Nil(t, err)
+	assert.NotNil(t, jetBrainsGatewayConfig)
+	hostValues := jetBrainsGatewayConfig.GetBrevHostValueSet()
+	assert.True(t, hostValues["test-dns.brev.sh"])
+	assert.Equal(t, len(hostValues), 1)
+}
+
+func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
+	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
+	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="test-dns.brev.sh" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+    </configs>
+  </component>
+</application>
+`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
+	assert.Nil(t, err)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	assert.Nil(t, err)
+	assert.NotNil(t, jetBrainsGatewayConfig)
+	port, err := jetBrainsGatewayConfig.GetConfiguredWorkspacePort("test-dns.brev.sh")
+	assert.Nil(t, err)
+	assert.Equal(t, port, "2222")
+}

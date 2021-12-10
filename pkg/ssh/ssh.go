@@ -397,3 +397,15 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 func (jbgc *JetBrainsGatewayConfig) Sync(_ IdentityPortMap) error {
 	return nil
 }
+
+func (jbgc *JetBrainsGatewayConfig) GetBrevPorts() (BrevPorts, error) {
+	return make(BrevPorts), nil
+}
+
+func (jbgc *JetBrainsGatewayConfig) GetBrevHostValueSet() BrevHostValuesSet {
+	return make(BrevHostValuesSet)
+}
+
+func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspace string) (string, error) {
+	return "", nil
+}
