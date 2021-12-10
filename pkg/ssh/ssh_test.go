@@ -326,17 +326,42 @@ func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
 
 func TestNewJetBrainsGateWayConfig(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
-	jetBrainsGatewayConfig := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="$USER_HOME$/.brev/brev.pem" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+    </configs>
+  </component>
+</application>
+`)
+	assert.Nil(t, err)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+
+	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 }
 
 func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
-	jetBrainsGatewayConfig := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="$USER_HOME$/.brev/brev.pem" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+    </configs>
+  </component>
+</application>
+`)
+	assert.Nil(t, err)
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(BrevTestWriter{}, mockJetbrainsGatewayStore)
+	assert.Nil(t, err)
 	assert.NotNil(t, jetBrainsGatewayConfig)
 
 	identityPortMap := make(IdentityPortMap)
 	identityPortMap["test-dns.brev.sh"] = "2222"
-	err := jetBrainsGatewayConfig.Sync(identityPortMap)
+	err = jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
 }

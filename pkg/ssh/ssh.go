@@ -15,6 +15,7 @@ package ssh
 
 import (
 	"bytes"
+	"encoding/xml"
 	"fmt"
 	"strconv"
 	"strings"
@@ -75,8 +76,26 @@ type (
 		GetJetBrainsConfig() (string, error)
 	}
 	JetBrainsGatewayConfig struct {
+		config JetbrainsGatewayConfigXML
+		Reader
 		Writer
 		store JetBrainsGatewayConfigStore
+	}
+	JetbrainsGatewayConfigXML struct {
+		Application struct {
+			Component []struct {
+				Configs []struct {
+					SSHConfig []struct {
+						Host   string `xml:"host,attr"`
+						ID     string `xml:"id,attr"`
+						Option []struct {
+							Name  string `xml:"name,attr"`
+							Value string `xml:"value,attr"`
+						}
+					} `xml:"sshConfig"`
+				} `xml:"configs"`
+			} `xml:"component"`
+		} `xml:"application"`
 	}
 )
 
@@ -359,13 +378,22 @@ func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace string) 
 	return port, nil
 }
 
-func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore) *JetBrainsGatewayConfig {
+func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore) (*JetBrainsGatewayConfig, error) {
+	config, err := store.GetJetBrainsConfig()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	var jetbrainsGatewayConfigXML JetbrainsGatewayConfigXML
+	if err := xml.Unmarshal([]byte(config), &jetbrainsGatewayConfigXML); err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 	return &JetBrainsGatewayConfig{
+		config: jetbrainsGatewayConfigXML,
 		Writer: writer,
 		store:  store,
-	}
+	}, nil
 }
 
-func (jbgc *JetBrainsGatewayConfig) Sync(identityPortMap IdentityPortMap) error {
+func (jbgc *JetBrainsGatewayConfig) Sync(_ IdentityPortMap) error {
 	return nil
 }
