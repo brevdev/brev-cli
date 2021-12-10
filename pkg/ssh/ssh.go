@@ -88,6 +88,7 @@ type (
 					SSHConfig []struct {
 						Host   string `xml:"host,attr"`
 						ID     string `xml:"id,attr"`
+						Port   string `xml:"port,attr"`
 						Option []struct {
 							Name  string `xml:"name,attr"`
 							Value string `xml:"value,attr"`
@@ -183,6 +184,14 @@ func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+func parseJetbrainsGatewayXml(config string) (*JetbrainsGatewayConfigXML, error) {
+	var jetbrainsGatewayConfigXML JetbrainsGatewayConfigXML
+	if err := xml.Unmarshal([]byte(config), &jetbrainsGatewayConfigXML); err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &jetbrainsGatewayConfigXML, nil
 }
 
 func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
@@ -383,12 +392,12 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	var jetbrainsGatewayConfigXML JetbrainsGatewayConfigXML
-	if err := xml.Unmarshal([]byte(config), &jetbrainsGatewayConfigXML); err != nil {
+	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXml(config)
+	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &JetBrainsGatewayConfig{
-		config: jetbrainsGatewayConfigXML,
+		config: *jetbrainsGatewayConfigXML,
 		Writer: writer,
 		store:  store,
 	}, nil
@@ -399,7 +408,15 @@ func (jbgc *JetBrainsGatewayConfig) Sync(_ IdentityPortMap) error {
 }
 
 func (jbgc *JetBrainsGatewayConfig) GetBrevPorts() (BrevPorts, error) {
-	return make(BrevPorts), nil
+	ports := make(BrevPorts)
+	for _, component := range jbgc.config.Application.Component {
+		for _, conf := range component.Configs {
+			for _, sshConf := range conf.SSHConfig {
+				ports[sshConf.Port] = true
+			}
+		}
+	}
+	return ports, nil
 }
 
 func (jbgc *JetBrainsGatewayConfig) GetBrevHostValueSet() BrevHostValuesSet {

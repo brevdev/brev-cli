@@ -429,3 +429,18 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, port, "2222")
 }
+
+func TestParseJetbrainsGatewayXml(t *testing.T) {
+	xml, err := parseJetbrainsGatewayXml(`<application>
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig host="test-dns.brev.sh" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="test-manual-install" />
+      </sshConfig>
+    </configs>
+  </component>
+</application>
+`)
+	assert.Nil(t, err)
+	assert.Equal(t, len(xml.Application.Component), 1)
+}
