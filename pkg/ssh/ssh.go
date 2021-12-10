@@ -178,7 +178,7 @@ func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
 	return buf.String(), nil
 }
 
-func parseJetbrainsGatewayXml(config string) (*JetbrainsGatewayConfigXML, error) {
+func parseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error) {
 	var jetbrainsGatewayConfigXML JetbrainsGatewayConfigXML
 	if err := xml.Unmarshal([]byte(config), &jetbrainsGatewayConfigXML); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -384,7 +384,7 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXml(config)
+	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -408,9 +408,27 @@ func (jbgc *JetBrainsGatewayConfig) GetBrevPorts() (BrevPorts, error) {
 }
 
 func (jbgc *JetBrainsGatewayConfig) GetBrevHostValueSet() BrevHostValuesSet {
-	return make(BrevHostValuesSet)
+	brevHostValueSet := make(BrevHostValuesSet)
+	for _, sshConf := range jbgc.config.SSHConfigs {
+		brevHostValueSet[sshConf.Host] = true
+	}
+	return brevHostValueSet
 }
 
 func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspace string) (string, error) {
+	// load config from disk
+	config, err := jbgc.store.GetJetBrainsConfig()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	for _, sshConf := range jetbrainsGatewayConfigXML.SSHConfigs {
+		if sshConf.Host == workspace {
+			return sshConf.Port, nil
+		}
+	}
 	return "", nil
 }

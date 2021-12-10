@@ -431,7 +431,7 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
 }
 
 func TestParseJetbrainsGatewayXml(t *testing.T) {
-	xml, err := parseJetbrainsGatewayXml(`<application>
+	xml, err := parseJetbrainsGatewayXML(`<application>
   <component name="SshConfigs">
     <configs>
       <sshConfig host="test-dns.brev.sh" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
