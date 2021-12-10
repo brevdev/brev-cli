@@ -74,9 +74,10 @@ type (
 	JetBrainsGatewayConfigStore interface {
 		GetJetBrainsConfigPath() (string, error)
 		GetJetBrainsConfig() (string, error)
+		WriteJetBrainsConfig(config string) error
 	}
 	JetBrainsGatewayConfig struct {
-		config JetbrainsGatewayConfigXML
+		config *JetbrainsGatewayConfigXML
 		Reader
 		Writer
 		store JetBrainsGatewayConfigStore
@@ -389,13 +390,31 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &JetBrainsGatewayConfig{
-		config: *jetbrainsGatewayConfigXML,
+		config: jetbrainsGatewayConfigXML,
 		Writer: writer,
 		store:  store,
 	}, nil
 }
 
-func (jbgc *JetBrainsGatewayConfig) Sync(_ IdentityPortMap) error {
+func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) error {
+	brevhosts := jbgc.GetBrevHostValueSet()
+
+	for key, value := range identifierPortMapping {
+		if !brevhosts[key] {
+			jbgc.config.SSHConfigs = append(jbgc.config.SSHConfigs, JetbrainsGatewayConfigXMLSSHConfig{
+				Host: key,
+				Port: value,
+			})
+		}
+	}
+	output, err := xml.MarshalIndent(jbgc.config, "  ", "    ")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = jbgc.store.WriteJetBrainsConfig(string(output))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
