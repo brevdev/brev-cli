@@ -79,7 +79,12 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	writer := sshConfig
 	sshConfigWriter := sshConfig
 
-	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter})
+	jetBrainsGatewayConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter, jetBrainsGatewayConfig})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -91,6 +96,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 
 type UpStore interface {
 	ssh.SSHStore
+	ssh.JetBrainsGatewayConfigStore
 	k8s.K8sStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
