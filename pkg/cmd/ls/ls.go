@@ -167,37 +167,37 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 
 	// SHOW UNJOINED
 	if showAll {
-		listJoinedByGitUrl := make(map[string][]entity.Workspace)
+		listJoinedByGitURL := make(map[string][]entity.Workspace)
 		for _, w := range workspaces {
-			l := listJoinedByGitUrl[w.GitRepo]
+			l := listJoinedByGitURL[w.GitRepo]
 			l = append(l, w)
-			listJoinedByGitUrl[w.GitRepo] = l
+			listJoinedByGitURL[w.GitRepo] = l
 		}
 
 		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		listByGitUrl := make(map[string][]entity.Workspace)
+		listByGitURL := make(map[string][]entity.Workspace)
 
 		for _, w := range wss {
 
-			_, exist := listJoinedByGitUrl[w.GitRepo]
+			_, exist := listJoinedByGitURL[w.GitRepo]
 
 			// unjoined workspaces only: check it's not a joined one
 			if !exist {
-				l := listByGitUrl[w.GitRepo]
+				l := listByGitURL[w.GitRepo]
 				l = append(l, w)
-				listByGitUrl[w.GitRepo] = l
+				listByGitURL[w.GitRepo] = l
 			}
 
 		}
 		var unjoinedWorkspaces []entity.Workspace
-		for gitUrl := range listByGitUrl {
-			unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitUrl[gitUrl][0])
+		for gitURL := range listByGitURL {
+			unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitURL[gitURL][0])
 		}
 
-		displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitUrl)
+		displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitURL)
 		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
 			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 	}
@@ -205,7 +205,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 	return nil
 }
 
-func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitUrl map[string][]entity.Workspace) {
+func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitURL map[string][]entity.Workspace) {
 	if len(workspaces) > 0 {
 		t.Vprintf("\nThere are %d other projects in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
 		t.Vprint(
@@ -213,7 +213,7 @@ func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace
 				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
 				"NAME")
 		for _, v := range workspaces {
-			t.Vprintf("%d people %s %s\n", len(listByGitUrl[v.GitRepo]), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), v.Name)
+			t.Vprintf("%d people %s %s\n", len(listByGitURL[v.GitRepo]), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), v.Name)
 		}
 	}
 }
