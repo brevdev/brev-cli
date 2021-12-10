@@ -83,15 +83,26 @@ type (
 		store JetBrainsGatewayConfigStore
 	}
 	JetbrainsGatewayConfigXMLSSHConfig struct {
-		Host     string `xml:"host,attr"`
-		Port     string `xml:"port,attr"`
-		KeyPath  string `xml:"keyPath,attr"`
-		Username string `xml:"username,attr"`
+		ID               string `xml:"id,attr,omitempty"`
+		CustomName       string `xml:"customName,attr,omitempty"`
+		NameFormat       string `xml:"nameFormat,attr,omitempty"`
+		UseOpenSSHConfig string `xml:"useOpenSSHConfig,attr,omitempty"`
+		Host             string `xml:"host,attr,omitempty"`
+		Port             string `xml:"port,attr,omitempty"`
+		KeyPath          string `xml:"keyPath,attr,omitempty"`
+		Username         string `xml:"username,attr,omitempty"`
 	}
-	JetbrainsGatewayConfigXML struct {
-		XMLName xml.Name `xml:"application"`
+	JetbrainsGatewayConfigXMLConfigs struct {
+		SSHConfigs []JetbrainsGatewayConfigXMLSSHConfig `xml:"sshConfig"`
+	}
+	JetbrainsGatewayConfigXMLComponent struct {
+		Configs JetbrainsGatewayConfigXMLConfigs `xml:"configs"`
+		Name    string                           `xml:"name,attr,omitempty"`
+	}
 
-		SSHConfigs []JetbrainsGatewayConfigXMLSSHConfig `xml:"component>configs>sshConfig"`
+	JetbrainsGatewayConfigXML struct {
+		XMLName   xml.Name                           `xml:"application"`
+		Component JetbrainsGatewayConfigXMLComponent `xml:"component"`
 	}
 )
 
@@ -407,7 +418,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 	}
 	for key, value := range identifierPortMapping {
 		if !brevhosts[key] {
-			jbgc.config.SSHConfigs = append(jbgc.config.SSHConfigs, JetbrainsGatewayConfigXMLSSHConfig{
+			jbgc.config.Component.Configs.SSHConfigs = append(jbgc.config.Component.Configs.SSHConfigs, JetbrainsGatewayConfigXMLSSHConfig{
 				Host:     key,
 				Port:     value,
 				KeyPath:  privateKeyPath,
@@ -417,7 +428,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 		activeWorkspaces[key] = true
 	}
 	var sshConfigs []JetbrainsGatewayConfigXMLSSHConfig
-	for _, conf := range jbgc.config.SSHConfigs {
+	for _, conf := range jbgc.config.Component.Configs.SSHConfigs {
 		isBrevHost := conf.KeyPath == privateKeyPath
 		isActiveWorkspace := activeWorkspaces[conf.Host]
 		if !isBrevHost {
@@ -426,7 +437,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 			sshConfigs = append(sshConfigs, conf)
 		}
 	}
-	jbgc.config.SSHConfigs = sshConfigs
+	jbgc.config.Component.Configs.SSHConfigs = sshConfigs
 	output, err := xml.MarshalIndent(jbgc.config, "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -440,7 +451,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 
 func (jbgc *JetBrainsGatewayConfig) GetBrevPorts() (BrevPorts, error) {
 	ports := make(BrevPorts)
-	for _, sshConf := range jbgc.config.SSHConfigs {
+	for _, sshConf := range jbgc.config.Component.Configs.SSHConfigs {
 		ports[sshConf.Port] = true
 	}
 	return ports, nil
@@ -448,7 +459,7 @@ func (jbgc *JetBrainsGatewayConfig) GetBrevPorts() (BrevPorts, error) {
 
 func (jbgc *JetBrainsGatewayConfig) GetBrevHostValueSet() BrevHostValuesSet {
 	brevHostValueSet := make(BrevHostValuesSet)
-	for _, sshConf := range jbgc.config.SSHConfigs {
+	for _, sshConf := range jbgc.config.Component.Configs.SSHConfigs {
 		brevHostValueSet[sshConf.Host] = true
 	}
 	return brevHostValueSet
@@ -464,7 +475,7 @@ func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspace string)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	for _, sshConf := range jetbrainsGatewayConfigXML.SSHConfigs {
+	for _, sshConf := range jetbrainsGatewayConfigXML.Component.Configs.SSHConfigs {
 		if sshConf.Host == workspace {
 			return sshConf.Port, nil
 		}

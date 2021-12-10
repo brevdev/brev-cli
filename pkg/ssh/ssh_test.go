@@ -371,15 +371,13 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	assert.Equal(t, config, fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
+      <sshConfig host="test-dns.brev.sh" port="2222" keyPath="%s" username="brev"></sshConfig>
       <sshConfig host="foo" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="bar" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="sfdfls" useOpenSSHConfig="true">
         <option name="customName" value="test-manual-install" />
       </sshConfig>
-      <sshConfig host="test-dns.brev.sh" keyPath="%s" port="2222"  username="brev" />
     </configs>
   </component>
-</application>
-
-`, configpath))
+</application>`, configpath))
 }
 
 func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
@@ -458,7 +456,7 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
 </application>
 `)
 	assert.Nil(t, err)
-	assert.Equal(t, len(xml.SSHConfigs), 1)
-	assert.Equal(t, xml.SSHConfigs[0].Host, "test-dns.brev.sh")
-	assert.Equal(t, xml.SSHConfigs[0].Port, "2222")
+	assert.Equal(t, len(xml.Component.Configs.SSHConfigs), 1)
+	assert.Equal(t, xml.Component.Configs.SSHConfigs[0].Host, "test-dns.brev.sh")
+	assert.Equal(t, xml.Component.Configs.SSHConfigs[0].Port, "2222")
 }
