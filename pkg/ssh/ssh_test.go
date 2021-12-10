@@ -371,10 +371,10 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	assert.Equal(t, config, fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="test-dns.brev.sh" port="2222" keyPath="%s" username="brev"></sshConfig>
-      <sshConfig host="foo" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="bar" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="sfdfls" useOpenSSHConfig="true">
-        <option name="customName" value="test-manual-install" />
+      <sshConfig id="f72d6499-1376-47df-b274-94de782a7dd2" customName="test-manual-install" nameFormat="CUSTOM" useOpenSSHConfig="true" host="foo" port="2225" keyPath="bar" username="sfdfls">
+        <option name="customName" value="test-manual-install"></option>
       </sshConfig>
+      <sshConfig host="test-dns.brev.sh" port="2222" keyPath="%s" username="brev"></sshConfig>
     </configs>
   </component>
 </application>`, configpath))

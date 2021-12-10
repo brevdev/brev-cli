@@ -82,15 +82,20 @@ type (
 		Writer
 		store JetBrainsGatewayConfigStore
 	}
+	JetbrainsGatewayConfigXMLSSHOption struct {
+		Name  string `xml:"name,attr,omitempty"`
+		Value string `xml:"value,attr,omitempty"`
+	}
 	JetbrainsGatewayConfigXMLSSHConfig struct {
-		ID               string `xml:"id,attr,omitempty"`
-		CustomName       string `xml:"customName,attr,omitempty"`
-		NameFormat       string `xml:"nameFormat,attr,omitempty"`
-		UseOpenSSHConfig string `xml:"useOpenSSHConfig,attr,omitempty"`
-		Host             string `xml:"host,attr,omitempty"`
-		Port             string `xml:"port,attr,omitempty"`
-		KeyPath          string `xml:"keyPath,attr,omitempty"`
-		Username         string `xml:"username,attr,omitempty"`
+		ID               string                               `xml:"id,attr,omitempty"`
+		CustomName       string                               `xml:"customName,attr,omitempty"`
+		NameFormat       string                               `xml:"nameFormat,attr,omitempty"`
+		UseOpenSSHConfig string                               `xml:"useOpenSSHConfig,attr,omitempty"`
+		Host             string                               `xml:"host,attr,omitempty"`
+		Port             string                               `xml:"port,attr,omitempty"`
+		KeyPath          string                               `xml:"keyPath,attr,omitempty"`
+		Username         string                               `xml:"username,attr,omitempty"`
+		Options          []JetbrainsGatewayConfigXMLSSHOption `xml:"option,omitempty"`
 	}
 	JetbrainsGatewayConfigXMLConfigs struct {
 		SSHConfigs []JetbrainsGatewayConfigXMLSSHConfig `xml:"sshConfig"`
