@@ -179,7 +179,7 @@ func sshConfigFromString(config string) (*ssh_config.Config, error) {
 func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
 	wsc := workspaceSSHConfig{
 		Host:         workspaceName,
-		Hostname:     "0.0.0.0",
+		Hostname:     "localhost",
 		User:         "brev",
 		IdentityFile: privateKeyPath,
 		Port:         port,
