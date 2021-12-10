@@ -83,8 +83,9 @@ type (
 		store JetBrainsGatewayConfigStore
 	}
 	JetbrainsGatewayConfigXMLSSHConfig struct {
-		Host string `xml:"host,attr"`
-		Port string `xml:"port,attr"`
+		Host    string `xml:"host,attr"`
+		Port    string `xml:"port,attr"`
+		KeyPath string `xml:"keyPath"`
 	}
 	JetbrainsGatewayConfigXML struct {
 		XMLName xml.Name `xml:"application"`
@@ -398,15 +399,32 @@ func NewJetBrainsGatewayConfig(writer Writer, store JetBrainsGatewayConfigStore)
 
 func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) error {
 	brevhosts := jbgc.GetBrevHostValueSet()
-
+	var activeWorkspaces map[string]bool
+	privateKeyPath, err := jbgc.store.GetJetBrainsConfigPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	for key, value := range identifierPortMapping {
 		if !brevhosts[key] {
 			jbgc.config.SSHConfigs = append(jbgc.config.SSHConfigs, JetbrainsGatewayConfigXMLSSHConfig{
-				Host: key,
-				Port: value,
+				Host:    key,
+				Port:    value,
+				KeyPath: privateKeyPath,
 			})
 		}
+		activeWorkspaces[key] = true
 	}
+	var sshConfigs []JetbrainsGatewayConfigXMLSSHConfig
+	for _, conf := range jbgc.config.SSHConfigs {
+		isBrevHost := conf.KeyPath == privateKeyPath
+		isActiveWorkspace := activeWorkspaces[conf.Host]
+		if !isBrevHost {
+			sshConfigs = append(sshConfigs, conf)
+		} else if isBrevHost && isActiveWorkspace {
+			sshConfigs = append(sshConfigs, conf)
+		}
+	}
+	jbgc.config.SSHConfigs = sshConfigs
 	output, err := xml.MarshalIndent(jbgc.config, "  ", "    ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
