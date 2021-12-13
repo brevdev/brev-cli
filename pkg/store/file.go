@@ -2,6 +2,7 @@ package store
 
 import (
 	"os"
+	"path/filepath"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/afero"
@@ -16,19 +17,22 @@ func (b *BasicStore) WithFileSystem(fs afero.Fs) *FileStore {
 	return &FileStore{*b, fs}
 }
 
-func (f FileStore) GetOrCreateFile(filepath string) (afero.File, error) {
-	fileExists, err := afero.Exists(f.fs, filepath)
+func (f FileStore) GetOrCreateFile(path string) (afero.File, error) {
+	fileExists, err := afero.Exists(f.fs, path)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	var file afero.File
 	if fileExists {
-		file, err = f.fs.OpenFile(filepath, os.O_RDWR, 0o644)
+		file, err = f.fs.OpenFile(path, os.O_RDWR, 0o644)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 	} else {
-		file, err = f.fs.Create(filepath)
+		if err = f.fs.MkdirAll(filepath.Dir(path), os.ModeDir); err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		file, err = f.fs.Create(path)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
