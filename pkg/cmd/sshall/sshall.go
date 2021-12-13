@@ -135,6 +135,14 @@ func (s SSHAll) Run() error {
 		return nil
 	}
 
+	fmt.Println(`Please add the following to your ssh config to
+avoid false positives for user host key checking.
+
+Host *
+  NoHostAuthenticationForLocalhost yes
+
+	`)
+
 	fmt.Println()
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.DNS)
