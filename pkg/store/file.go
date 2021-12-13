@@ -35,3 +35,11 @@ func (f FileStore) GetOrCreateFile(filepath string) (afero.File, error) {
 	}
 	return file, nil
 }
+
+func (f FileStore) FileExists(filepath string) (bool, error) {
+	fileExists, err := afero.Exists(f.fs, filepath)
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return fileExists, nil
+}
