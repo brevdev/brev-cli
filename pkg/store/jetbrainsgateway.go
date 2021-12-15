@@ -57,7 +57,7 @@ func (f FileStore) WriteJetBrainsConfig(config string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = afero.WriteFile(f.fs, path, []byte(config), 0o644)
+	err = afero.WriteFile(f.fs, path, []byte(config), 0o770)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
