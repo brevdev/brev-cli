@@ -30,22 +30,6 @@ var someWorkspaces = []entity.WorkspaceWithMeta{
 	},
 }
 
-type BrevTestReader struct {
-	Reader
-}
-
-func (btr BrevTestReader) GetBrevPorts() (BrevPorts, error) {
-	return make(BrevPorts), nil
-}
-
-func (btr BrevTestReader) GetBrevHostValueSet() BrevHostValuesSet {
-	return make(BrevHostValuesSet)
-}
-
-type BrevTestWriter struct {
-	Writer
-}
-
 var userConfigStr = `Host user-host
   Hostname 172.0.0.0
 `
@@ -165,15 +149,22 @@ func TestSSHConfigFromString(t *testing.T) {
 }
 
 func TestNewSShConfigurer(t *testing.T) {
-	reader := BrevTestReader{}
-	writer := BrevTestWriter{}
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	reader, err := makeTestSSHConfig(store)
+	assert.Nil(t, err)
+	writer := reader
+
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
 	assert.NotNil(t, sshConfigurer)
 }
 
 func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
-	reader := BrevTestReader{}
-	writer := BrevTestWriter{}
+	store, err := makeMockSSHStore()
+	assert.Nil(t, err)
+	reader, err := makeTestSSHConfig(store)
+	assert.Nil(t, err)
+	writer := reader
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer})
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
 	assert.Equal(t, activeWorkspaces, []string{"test-dns.brev.sh"})
@@ -202,6 +193,9 @@ Host test-dns.brev.sh
   Port 2222
 `, sshConfig.privateKey), sshConfig.sshConfig.String())
 	assert.Equal(t, 3, len(sshConfig.sshConfig.Hosts))
+	privateKeyExists, err := store.FileExists(sshConfig.privateKey)
+	assert.Nil(t, err)
+	assert.True(t, privateKeyExists)
 }
 
 func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {

@@ -56,9 +56,11 @@ type (
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
 		GetConfiguredWorkspacePort(workspace string) (string, error)
+		GetPrivateKeyFilePath() string
 	}
 	Writer interface {
 		Sync(IdentityPortMap) error
+		WritePrivateKey(pem string) error
 	}
 	SSHConfig struct {
 		store      SSHStore
@@ -68,8 +70,9 @@ type (
 	SSHConfigurer struct {
 		Reader
 		Writer
-		Writers    []Writer
-		workspaces []entity.WorkspaceWithMeta
+		Writers            []Writer
+		workspaces         []entity.WorkspaceWithMeta
+		privateKeyFilepath string
 	}
 	JetBrainsGatewayConfigStore interface {
 		GetJetBrainsConfigPath() (string, error)
@@ -326,12 +329,18 @@ func (s SSHConfig) GetConfiguredWorkspacePort(workspace string) (string, error) 
 	return port, nil
 }
 
+func (s SSHConfig) GetPrivateKeyFilePath() string {
+	return s.privateKey
+}
+
 func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer) *SSHConfigurer {
+	privateKeyFilePath := reader.GetPrivateKeyFilePath()
 	return &SSHConfigurer{
-		workspaces: workspaces,
-		Reader:     reader,
-		Writer:     writer,
-		Writers:    writers,
+		workspaces:         workspaces,
+		Reader:             reader,
+		Writer:             writer,
+		Writers:            writers,
+		privateKeyFilepath: privateKeyFilePath,
 	}
 }
 
@@ -368,6 +377,12 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
+	keypath := sshConfigurer.Reader.GetPrivateKeyFilePath()
+	err := sshConfigurer.WritePrivateKey(keypath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -397,6 +412,14 @@ func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace string) 
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return port, nil
+}
+
+func (s *SSHConfig) WritePrivateKey(pem string) error {
+	err := s.store.WritePrivateKey(pem)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGatewayConfig, error) {
