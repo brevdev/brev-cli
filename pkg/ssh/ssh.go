@@ -205,6 +205,9 @@ func MakeSSHEntry(workspaceName, port, privateKeyPath string) (string, error) {
 }
 
 func parseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error) {
+	if config == "" {
+		return nil, nil
+	}
 	var jetbrainsGatewayConfigXML JetbrainsGatewayConfigXML
 	if err := xml.Unmarshal([]byte(config), &jetbrainsGatewayConfigXML); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -380,7 +383,10 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
-	sshConfigurer.WritePrivateKey(sshConfigurer.privateKeyFilepath)
+	err := sshConfigurer.WritePrivateKey(sshConfigurer.privateKeyFilepath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
