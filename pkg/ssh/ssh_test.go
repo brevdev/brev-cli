@@ -202,6 +202,9 @@ Host test-dns.brev.sh
   Port 2222
 `, sshConfig.privateKey), sshConfig.sshConfig.String())
 	assert.Equal(t, 3, len(sshConfig.sshConfig.Hosts))
+	privateKeyExists, err := store.FileExists(sshConfig.privateKey)
+	assert.Nil(t, err)
+	assert.True(t, privateKeyExists)
 }
 
 func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {

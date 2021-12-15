@@ -56,6 +56,7 @@ type (
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
 		GetConfiguredWorkspacePort(workspace string) (string, error)
+		GetPrivateKeyFilePath() string
 	}
 	Writer interface {
 		Sync(IdentityPortMap) error
@@ -65,11 +66,16 @@ type (
 		sshConfig  *ssh_config.Config
 		privateKey string
 	}
+	Configurer interface {
+		WritePrivateKey(pem string) error
+	}
 	SSHConfigurer struct {
 		Reader
 		Writer
-		Writers    []Writer
-		workspaces []entity.WorkspaceWithMeta
+		Configurer
+		Writers            []Writer
+		workspaces         []entity.WorkspaceWithMeta
+		privateKeyFilepath string
 	}
 	JetBrainsGatewayConfigStore interface {
 		GetJetBrainsConfigPath() (string, error)
@@ -326,12 +332,18 @@ func (s SSHConfig) GetConfiguredWorkspacePort(workspace string) (string, error) 
 	return port, nil
 }
 
+func (s SSHConfig) GetPrivateKeyFilePath() string {
+	return s.store.GetPrivateKeyFilePath()
+}
+
 func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer) *SSHConfigurer {
+	privateKeyFilePath := reader.GetPrivateKeyFilePath()
 	return &SSHConfigurer{
-		workspaces: workspaces,
-		Reader:     reader,
-		Writer:     writer,
-		Writers:    writers,
+		workspaces:         workspaces,
+		Reader:             reader,
+		Writer:             writer,
+		Writers:            writers,
+		privateKeyFilepath: privateKeyFilePath,
 	}
 }
 
@@ -368,6 +380,7 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
+	sshConfigurer.WritePrivateKey(sshConfigurer.privateKeyFilepath)
 	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
