@@ -29,7 +29,7 @@ func (f FileStore) GetOrCreateFile(path string) (afero.File, error) {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 	} else {
-		if err = f.fs.MkdirAll(filepath.Dir(path), os.ModeDir); err != nil {
+		if err = f.fs.MkdirAll(filepath.Dir(path), 0o775); err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 		file, err = f.fs.Create(path)

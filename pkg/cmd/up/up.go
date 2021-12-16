@@ -79,12 +79,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	writer := sshConfig
 	sshConfigWriter := sshConfig
 
-	jetBrainsGatewayConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter, jetBrainsGatewayConfig})
+	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
