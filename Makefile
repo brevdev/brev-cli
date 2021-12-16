@@ -101,3 +101,18 @@ help:
 define print-target
     @printf "Executing target: \033[36m$@\033[0m\n"
 endef
+
+.PHONY: smoketest
+smoketest: fast-build
+	rm -rf ~/.brev ~/.config/Jetbrains
+	./brev login
+	./brev set brev.dev
+	./brev ls
+	./brev start https://github.com/brevdev/todo-template
+	./brev stop brevdev/todo-template
+	echo "may have to run this again in a different term"
+	./brev start brevdev/todo-template
+	./brev reset brevdev/todo-template
+	./brev delete brevdev/todo-template
+	sleep 5
+	./brev up
