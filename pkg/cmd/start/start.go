@@ -123,7 +123,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
 		t.Yellow("\n\t$ brev up\n"))
 
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", workspace.Name))
+	t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.Name)
 
 	return nil
 }
