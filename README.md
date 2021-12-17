@@ -20,6 +20,20 @@ Linux & Mac
 ```
 sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`"
 ```
+
+ZSH
+```
+export PATH=/opt/brev/bin:$PATH
+echo PATH=/opt/brev/bin:$PATH >> ~/.zshrc
+```
+
+Bash
+```
+export PATH=/opt/brev/bin:$PATH
+echo PATH=/opt/brev/bin:$PATH >> ~/.bashrc
+```
+
+
 check that you have installed brev successfully by running
 
 ```
