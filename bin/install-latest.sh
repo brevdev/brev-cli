@@ -6,3 +6,5 @@ curl -L https://github.com/brevdev/brev-cli/releases/download/${LATEST_TAG_FULL}
 tar -xzvf /tmp/brev/brev.tar.gz -C /tmp/brev
 sudo mkdir -p /opt/brev/bin
 sudo cp /tmp/brev/brev /opt/brev/bin
+export PATH=/opt/brev/bin:$PATH
+echo PATH=/opt/brev/bin:$PATH >> ~/.zshrc
