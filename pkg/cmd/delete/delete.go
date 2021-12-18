@@ -78,6 +78,7 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 			return fmt.Errorf("no workspaces found with name %s", workspaceName)
 		}
 	} else if len(workspaces) > 1 {
+		// TODO: print a table of all the workspaces here
 		return fmt.Errorf("multiple workspaces found with name %s\n\nTry deleting by id:\n\tbrev delete <id>", workspaceName)
 	} else {
 		workspace = workspaces[0]
