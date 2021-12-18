@@ -132,7 +132,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
 func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore) error {
-	formattedURL := ValidateGitURL(t, url)
+	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	var orgID string
 	if orgflag == "" {
@@ -157,7 +157,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, formattedURL, orgID, startStore)
+	err := createWorkspace(t, newWorkspace, orgID, startStore)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -169,8 +169,7 @@ type NewWorkspace struct {
 	GitRepo string `json:"gitRepo"`
 }
 
-func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
-	// gitlab.com:mygitlaborg/mycoolrepo.git
+func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	if strings.Contains(url, "http") {
 		split := strings.Split(url, ".com/")
 		provider := strings.Split(split[0], "://")[1]
@@ -196,10 +195,10 @@ func ValidateGitURL(_ *terminal.Terminal, url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, newworkspace NewWorkspace, orgID string, startStore StartStore) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	options := store.NewCreateWorkspacesOptions(clusterID, newworkspace.Name).WithGitRepo(newworkspace.GitRepo)
+	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {
