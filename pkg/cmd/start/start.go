@@ -111,11 +111,9 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
-	t.Vprintf("You can safely ctrl+c to exit\n")
-
-	err = pollUntil(t, workspace.ID, "RUNNING", startStore)
+	err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -207,9 +205,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("You can safely ctrl+c to exit\n")
-
-	err = pollUntil(t, w.ID, "RUNNING", startStore)
+	err = pollUntil(t, w.ID, "RUNNING", startStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -220,12 +216,16 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	return nil
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore) error {
+func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {
 	s := t.NewSpinner()
 	isReady := false
+	if canSafelyExit {
+		t.Vprintf("You can safely ctrl+c to exit\n")
+	}
+	s.Suffix = " hang tight 🤙"
+	s.Start()
 	for !isReady {
 		time.Sleep(5 * time.Second)
-		s.Start()
 		ws, err := startStore.GetWorkspace(wsid)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
