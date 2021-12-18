@@ -111,7 +111,9 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n", startedWorkspace.Name))
+
+	t.Vprintf("You can safely ctrl+c to exit\n")
 
 	err = pollUntil(t, workspace.ID, "RUNNING", startStore)
 	if err != nil {
@@ -204,6 +206,8 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	t.Vprintf("You can safely ctrl+c to exit\n")
 
 	err = pollUntil(t, w.ID, "RUNNING", startStore)
 	if err != nil {
