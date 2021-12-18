@@ -9,6 +9,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt"
 	"github.com/pkg/browser"
 )
@@ -154,7 +155,8 @@ func shouldLogin() (bool, error) {
 func (t Auth) Login() (*LoginTokens, error) {
 	tokens, err := t.oauth.DoDeviceAuthFlow(
 		func(url, code string) {
-			fmt.Println("Your Device Confirmation Code is", code)
+			codeType := color.New(color.FgYellow, color.Bold).SprintFunc()
+			fmt.Println("Your Device Confirmation Code is", codeType(code))
 
 			err := browser.OpenURL(url)
 			if err != nil {
