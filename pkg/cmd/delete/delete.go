@@ -19,6 +19,7 @@ var (
 type DeleteStore interface {
 	completions.CompletionStore
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetWorkspace(id string) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
 }
@@ -65,9 +66,19 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 
 	var workspace entity.Workspace
 	if len(workspaces) == 0 { //nolint:gocritic // gocritic recommends using a switch
-		return fmt.Errorf("no workspaces found with name %s", workspaceName)
+		wsbyid, err := deleteStore.GetWorkspace(workspaceName) // Note: workspaceName is ID in this case
+		if err != nil {
+			// TODO: am I returning the right error here?
+			// return breverrors.WrapAndTrace(err)
+			return fmt.Errorf("no workspaces found with name or id %s", workspaceName)
+		}
+		if wsbyid != nil {
+			workspace = *wsbyid
+		} else {
+			return fmt.Errorf("no workspaces found with name %s", workspaceName)
+		}
 	} else if len(workspaces) > 1 {
-		return fmt.Errorf("multiple workspaces found with name %s", workspaceName)
+		return fmt.Errorf("multiple workspaces found with name %s\n\nTry deleting by id:\n\tbrev delete <id>", workspaceName)
 	} else {
 		workspace = workspaces[0]
 	}
