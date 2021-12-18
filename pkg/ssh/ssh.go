@@ -398,10 +398,19 @@ func (sshConfigurer *SSHConfigurer) Sync() error {
 	return nil
 }
 
+func SlashToDash(s string) string {
+
+	splitBySlash := strings.Split(s, "/")
+
+	concatenated := strings.Join(splitBySlash[:], "-")
+
+	return concatenated
+}
+
 func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
 	var workspaceDNSNames []string
 	for _, workspace := range sshConfigurer.workspaces {
-		workspaceDNSNames = append(workspaceDNSNames, workspace.DNS)
+		workspaceDNSNames = append(workspaceDNSNames, SlashToDash(workspace.Name))
 	}
 	return workspaceDNSNames
 }
