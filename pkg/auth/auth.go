@@ -156,7 +156,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 	tokens, err := t.oauth.DoDeviceAuthFlow(
 		func(url, code string) {
 			codeType := color.New(color.FgYellow, color.Bold).SprintFunc()
-			fmt.Println("Your Device Confirmation Code is", codeType(code))
+			fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 
 			err := browser.OpenURL(url)
 			if err != nil {
