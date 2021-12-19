@@ -60,3 +60,20 @@ func (n NoAuthHTTPStore) CreateUser(identityToken string) (*entity.User, error) 
 
 	return &result, nil
 }
+
+func (s AuthHTTPStore) SetWorkspaceConfigRepo(userID string, updatedUser *entity.UpdateUser) (error) {
+	var result entity.User
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		SetBody(updatedUser).
+		Put(usersPath+"/"+userID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return NewHTTPResponseError(res)
+	}
+
+	return nil
+}

@@ -7,10 +7,21 @@ type AuthTokens struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type UpdateUser struct {
+	Username  string `json:"username"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	BaseWorkspaceRepo  string `json:"baseWorkspaceRepo"`
+}
+
 type User struct {
 	ID        string `json:"id"`
 	PublicKey string `json:"publicKey,omitempty"`
 	Username  string `json:"username"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	WorkspacePassword  string `json:"workspacePassword"`
+	BaseWorkspaceRepo  string `json:"baseWorkspaceRepo"`
 }
 
 type UserKeys struct {
