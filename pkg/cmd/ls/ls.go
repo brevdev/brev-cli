@@ -9,6 +9,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -69,12 +70,19 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
 	ls := NewLs(lsStore, t)
-	if len(args) == 1 && (strings.Contains(args[0], "org")) { // handle org, orgs, and organization(s)
-		err := ls.RunOrgs()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+	if len(args) == 1 { // handle org, orgs, and organization(s)
+		if strings.Contains(args[0], "org") {
+			err := ls.RunOrgs()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		} else if strings.Contains(args[0], "user") && featureflag.IsDev() {
+			err := ls.RunUser(showAll)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
-		return nil
 	} else if len(args) > 1 {
 		return fmt.Errorf("too many args provided")
 	}
@@ -141,6 +149,10 @@ func (ls Ls) RunOrgs() error {
 	displayOrgs(ls.terminal, orgs, defaultOrg)
 
 	return nil
+}
+
+func (ls Ls) RunUser(showAll bool) error {
+	return fmt.Errorf("no imp")
 }
 
 func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {

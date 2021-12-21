@@ -3,9 +3,9 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/cmd/approve"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
@@ -23,6 +23,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -134,11 +135,12 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth))
 
 	// dev feature toggle
-	if isDev() {
+	if featureflag.IsDev() {
 		_ = 0 // noop
 
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 		cmd.AddCommand(test.NewCmdTest(t))
+		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 	}
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
@@ -155,10 +157,6 @@ func runHelp(cmd *cobra.Command, _ []string) {
 	if err != nil {
 		panic(err)
 	}
-}
-
-func isDev() bool {
-	return version.Version == "" || strings.HasPrefix(version.Version, "dev")
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
