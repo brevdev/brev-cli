@@ -19,8 +19,8 @@ import (
 )
 
 type LoginOptions struct {
-	auth       Auth
-	loginStore LoginStore
+	Auth       Auth
+	LoginStore LoginStore
 }
 
 type LoginStore interface {
@@ -37,8 +37,8 @@ type Auth interface {
 // loginStore must be a no prompt store
 func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.Command {
 	opts := LoginOptions{
-		auth:       auth,
-		loginStore: loginStore,
+		Auth:       auth,
+		LoginStore: loginStore,
 	}
 
 	cmd := &cobra.Command{
@@ -63,15 +63,15 @@ func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []stri
 
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	// func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
-	tokens, err := o.auth.Login()
+	tokens, err := o.Auth.Login()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err = o.loginStore.GetCurrentUser()
+	_, err = o.LoginStore.GetCurrentUser()
 	if err != nil {
 		// TODO 1 check if 400/404
-		err := CreateNewUser(o.loginStore, tokens.IDToken, t)
+		err := CreateNewUser(o.LoginStore, tokens.IDToken, t)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -80,7 +80,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 }
 
 func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
-	t.Print("\n Welcome to Brev 🤙 \n")
+	t.Print("\nWelcome to Brev 🤙\n")
 	t.Print("Creating your user...")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {

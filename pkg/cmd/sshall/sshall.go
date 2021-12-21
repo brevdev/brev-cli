@@ -115,11 +115,11 @@ func (s SSHAll) Run() error {
 	go func() {
 		for {
 			<-errorQueue
-			fmt.Println("reseting unhealthy connections")
+			fmt.Println("resetting unhealthy connections")
 			for _, w := range s.workspaces {
 				isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
-					fmt.Printf("reseting [w=%s]\n", w.DNS)
+					fmt.Printf("resetting [w=%s]\n", w.DNS)
 					TryClose(s.workspaceConnections[w])
 					if s.retries[w] > 0 {
 						s.retries[w]--
