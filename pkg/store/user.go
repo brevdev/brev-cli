@@ -90,7 +90,7 @@ var usersIDPathPattern = fmt.Sprintf("%s/%s", usersPath, "%s")
 
 func (s AuthHTTPStore) ApproveUserByID(userID string) (*entity.User, error) {
 	var result entity.User
-	res, err := s.noAuthHTTPClient.restyClient.R().
+	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		// SetPathParam(userIDParamName, userID).
 		SetResult(&result).
