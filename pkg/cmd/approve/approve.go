@@ -20,7 +20,7 @@ type ApproveStore interface {
 func NewCmdApprove(t *terminal.Terminal, approveStore ApproveStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "reset",
+		Use:                   "approve",
 		DisableFlagsInUseLine: true,
 		Short:                 approveDescriptionShort,
 		Long:                  approveDescriptionLong,
