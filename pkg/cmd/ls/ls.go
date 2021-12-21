@@ -20,6 +20,7 @@ type LsStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
+	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 }
