@@ -21,7 +21,7 @@ var (
 type ProfileStore interface {
 	completions.CompletionStore
 	GetCurrentUser() (*entity.User, error)
-	SetWorkspaceConfigRepo(userID string, updatedUser *entity.UpdateUser) (error)
+	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 }
 
 func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLoginProfileStore ProfileStore) *cobra.Command {
@@ -43,7 +43,7 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 			}
 		},
 	}
-	
+
 	cmd.Flags().StringVarP(&personalSettingsRepo, "set-personal-config", "p", "", "set your personal config repo")
 
 	return cmd
@@ -70,16 +70,16 @@ func profile(personalSettingsRepo string, t *terminal.Terminal, profileStore Pro
 
 	// TODO: make sure the git repo format works!!!!!!!
 
-	err = profileStore.SetWorkspaceConfigRepo(user.ID, &entity.UpdateUser{
-		Username: user.Username,
-		Name: user.Name,
-		Email: user.Email,
+	_, err = profileStore.UpdateUser(user.ID, &entity.UpdateUser{
+		Username:          user.Username,
+		Name:              user.Name,
+		Email:             user.Email,
 		BaseWorkspaceRepo: temp.GitRepo,
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	
+
 	t.Vprintf("Your personal config has been updated. All new workspaces will run this script.\n")
 	return nil
 }

@@ -1,8 +1,8 @@
 package approve
 
 import (
-	"fmt"
-
+	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -13,7 +13,9 @@ var (
 	approveExample          = "brev approve <user id>"
 )
 
-type ApproveStore interface{}
+type ApproveStore interface {
+	ApproveUserByID(userID string) (*entity.User, error)
+}
 
 func NewCmdApprove(t *terminal.Terminal, approveStore ApproveStore) *cobra.Command {
 	cmd := &cobra.Command{
@@ -35,6 +37,10 @@ func NewCmdApprove(t *terminal.Terminal, approveStore ApproveStore) *cobra.Comma
 	return cmd
 }
 
-func approveUser(userID string, t *terminal.Terminal, approveStore ApproveStore) error {
-	return fmt.Errorf("no imp")
+func approveUser(userID string, _ *terminal.Terminal, approveStore ApproveStore) error {
+	_, err := approveStore.ApproveUserByID(userID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
