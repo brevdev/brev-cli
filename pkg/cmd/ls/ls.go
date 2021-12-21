@@ -83,6 +83,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		}
 	} else if len(args) > 1 {
 		return fmt.Errorf("too many args provided")
@@ -152,8 +153,18 @@ func (ls Ls) RunOrgs() error {
 	return nil
 }
 
-func (ls Ls) RunUser(_ bool) error {
-	return fmt.Errorf("no imp")
+func (ls Ls) RunUser(showAll bool) error {
+	params := make(map[string]string)
+	params["verificationStatus"] = "UnVerified"
+	users, err := ls.lsStore.GetUsers(params)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	for _, user := range users {
+		fmt.Printf("%s	%s	%s\n", user.ID, user.Name, user.Email)
+	}
+
+	return nil
 }
 
 func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
