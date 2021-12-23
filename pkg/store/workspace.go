@@ -59,6 +59,11 @@ func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesO
 	return c
 }
 
+func (c *CreateWorkspacesOptions) WithWorkspaceClassID(workspaceClassId string) *CreateWorkspacesOptions {
+	c.WorkspaceClassID = workspaceClassId
+	return c
+}
+
 func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWorkspacesOptions) (*entity.Workspace, error) {
 	if options == nil {
 		return nil, fmt.Errorf("options can not be nil")

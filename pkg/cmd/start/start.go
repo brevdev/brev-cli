@@ -91,7 +91,6 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	}
 
 	workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
-		UserID: user.ID,
 		Name:   workspaceName,
 	})
 	if err != nil {
@@ -100,11 +99,29 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 
 	if len(workspaces) == 0 {
 		return fmt.Errorf("no workspace found of name %s", workspaceName)
-	} else if len(workspaces) > 1 {
-		return fmt.Errorf("more than 1 workspace found of name %s", workspaceName)
 	}
 
-	workspace := workspaces[0]
+	var myWorkspaces []entity.Workspace
+	for _, v := range workspaces {
+		if v.CreatedByUserID == user.ID {
+			myWorkspaces = append(myWorkspaces, v)
+		}
+	}
+
+	// Join workspace if user doesn't have it and it exists in the team
+	if len(myWorkspaces) == 0 {
+		t.Vprintf("")
+		err = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		
+		return nil
+	} else if len(myWorkspaces) > 1 {
+		return fmt.Errorf("more than 1 of your workspaces found with name %s", workspaceName)
+	}
+
+	workspace := myWorkspaces[0]
 
 	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
 	if err != nil {
@@ -123,7 +140,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
 		t.Yellow("\n\t$ brev up\n"))
 
-	t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.Name)
+	t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.DNS)
 
 	return nil
 }
@@ -131,6 +148,32 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
+func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore) error {
+	clusterID := config.GlobalConfig.GetDefaultClusterID()
+	
+	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(templateWorkspace.WorkspaceClassID)
+
+	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+
+	w, err := startStore.CreateWorkspace(orgID, options)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = pollUntil(t, w.ID, "RUNNING", startStore, true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
+		t.Yellow("\n\t$ brev up\n"))
+
+	t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", w.DNS)
+
+	return nil
+}
+		
+
 func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 

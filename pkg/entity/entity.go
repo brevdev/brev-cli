@@ -93,12 +93,22 @@ type Workspace struct {
 	Name             string `json:"name"`
 	WorkspaceGroupID string `json:"workspaceGroupId"`
 	OrganizationID   string `json:"organizationId"`
+	// WorkspaceClassID is resources, like "2x8"
 	WorkspaceClassID string `json:"workspaceClassId"`
 	CreatedByUserID  string `json:"createdByUserId"`
 	DNS              string `json:"dns"`
 	Status           string `json:"status"`
 	Password         string `json:"password"`
 	GitRepo          string `json:"gitRepo"`
+	// The below are other fields that might not be needed yet so commented out
+	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
+	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
+	// HealthStatus         string `json:"healthStatus,omitempty"`
+	// CreatedAt         string `json:"createdAt,omitempty"`
+	// UpdatedAt         string `json:"updatedAt,omitempty"`
+	// Version         string `json:"version,omitempty"`
+	// IsStoppable         string `json:"isStoppable,omitempty"`
+	// StatusMessage         string `json:"statusMessage,omitempty"`
 }
 
 func (w Workspace) GetID() string {
