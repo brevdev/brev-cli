@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	startLong    = "Reset your machine if it's acting up. This deletes the machine and gets you a fresh one."
-	startExample = "brev reset <ws_name>"
+	startLong    = "Make changes to your profile"
+	startExample = "brev profile --set-personal-config <git_url>"
 )
 
 type ProfileStore interface {
