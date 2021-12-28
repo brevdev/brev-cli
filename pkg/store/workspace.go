@@ -59,8 +59,8 @@ func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesO
 	return c
 }
 
-func (c *CreateWorkspacesOptions) WithWorkspaceClassID(workspaceClassId string) *CreateWorkspacesOptions {
-	c.WorkspaceClassID = workspaceClassId
+func (c *CreateWorkspacesOptions) WithWorkspaceClassID(workspaceClassID string) *CreateWorkspacesOptions {
+	c.WorkspaceClassID = workspaceClassID
 	return c
 }
 

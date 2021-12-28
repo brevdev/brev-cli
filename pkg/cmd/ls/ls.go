@@ -153,7 +153,7 @@ func (ls Ls) RunOrgs() error {
 	return nil
 }
 
-func (ls Ls) RunUser(showAll bool) error {
+func (ls Ls) RunUser(_ bool) error {
 	params := make(map[string]string)
 	params["verificationStatus"] = "UnVerified"
 	users, err := ls.lsStore.GetUsers(params)
