@@ -91,7 +91,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	}
 
 	workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
-		Name:   workspaceName,
+		Name: workspaceName,
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -115,7 +115,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		
+
 		return nil
 	} else if len(myWorkspaces) > 1 {
 		return fmt.Errorf("more than 1 of your workspaces found with name %s", workspaceName)
@@ -150,7 +150,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 // "git@github.com:brevdev/microservices-demo.git"
 func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	
+
 	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(templateWorkspace.WorkspaceClassID)
 
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
@@ -172,7 +172,6 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 
 	return nil
 }
-		
 
 func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
