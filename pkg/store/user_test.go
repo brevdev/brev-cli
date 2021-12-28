@@ -100,7 +100,7 @@ func TestCreateUser(t *testing.T) {
 
 func TestUpdateUser(t *testing.T) {
 	s := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(s.noAuthHTTPClient.restyClient.GetClient())
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	expected := &entity.User{
 		ID: "testUserId",
@@ -109,7 +109,7 @@ func TestUpdateUser(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	url := fmt.Sprintf("%s/%s", s.noAuthHTTPClient.restyClient.BaseURL, fmt.Sprintf(usersIDPathPattern, expected.ID))
+	url := fmt.Sprintf("%s/%s?utm_source=cli", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(usersIDPathPattern, expected.ID))
 	httpmock.RegisterResponder("PUT", url, res)
 
 	u, err := s.UpdateUser(expected.ID, &entity.UpdateUser{
@@ -131,7 +131,7 @@ func TestUpdateUser(t *testing.T) {
 
 func TestApproveUser(t *testing.T) {
 	s := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(s.noAuthHTTPClient.restyClient.GetClient())
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
 
 	expected := &entity.User{
 		ID: "1",
@@ -140,7 +140,7 @@ func TestApproveUser(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	url := fmt.Sprintf("%s/%s/%s/approve", s.noAuthHTTPClient.restyClient.BaseURL, usersPath, expected.ID)
+	url := fmt.Sprintf("%s/%s/%s/approve?utm_source=cli", s.authHTTPClient.restyClient.BaseURL, usersPath, expected.ID)
 	httpmock.RegisterResponder("POST", url, res)
 
 	u, err := s.ApproveUserByID(expected.ID)
