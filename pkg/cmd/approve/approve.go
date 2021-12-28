@@ -35,6 +35,6 @@ func NewCmdApprove(t *terminal.Terminal, approveStore ApproveStore) *cobra.Comma
 	return cmd
 }
 
-func approveUser(userID string, t *terminal.Terminal, approveStore ApproveStore) error {
+func approveUser(_ string, _ *terminal.Terminal, _ ApproveStore) error {
 	return fmt.Errorf("no imp")
 }

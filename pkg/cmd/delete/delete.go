@@ -66,8 +66,8 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 
 	var workspace entity.Workspace
 	if len(workspaces) == 0 { //nolint:gocritic // gocritic recommends using a switch
-		wsbyid, err := deleteStore.GetWorkspace(workspaceName) // Note: workspaceName is ID in this case
-		if err != nil {
+		wsbyid, othererr := deleteStore.GetWorkspace(workspaceName) // Note: workspaceName is ID in this case
+		if othererr != nil {
 			// TODO: am I returning the right error here?
 			// return breverrors.WrapAndTrace(err)
 			return fmt.Errorf("no workspaces found with name or id %s", workspaceName)
