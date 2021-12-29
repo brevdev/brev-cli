@@ -103,8 +103,15 @@ define print-target
 endef
 
 .PHONY: smoketest
-smoketest: fast-build
-	rm -rf ~/.brev ~/.config/Jetbrains
+smoketest: ci fast-build
+	# relocate directories used by cli if they exist
+	[ ! -d ~/.ssh ] || mv ~/.ssh ~/.ssh.bak
+	[ ! -d  ~/.config/Jetbrains ] || mv ~/.config/Jetbrains ~/.config/Jetbrains.bak
+	[ ! -d ~/.brev ] || mv ~/.brev ~/.brev.bak
+
+	# cli user flows to smoke test
+
+	# login, set org, list workspaces, start, stop, start, reset, delete & brev up
 	./brev login
 	./brev set brev.dev
 	./brev ls
@@ -116,3 +123,8 @@ smoketest: fast-build
 	./brev delete brevdev/todo-template
 	sleep 5
 	./brev up
+
+	# restore directories used by cli
+	[ ! -d ~/.ssh.bak ] || mv ~/.ssh.bak ~/.ssh
+	[ ! -d ~/.config/Jetbrains.bak ] || mv ~/.config/Jetbrains.bak ~/.config/Jetbrains
+	[ ! -d ~/.brev.bak ] || mv ~/.brev.bak ~/.brev
