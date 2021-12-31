@@ -116,37 +116,9 @@ func startInput(t *terminal.Terminal) {
 
 type WorkspaceResolver struct{}
 
-func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) (*entity.WorkspaceWithMeta, error) {
-	currentUser, err := pfStore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	workspaces, err := pfStore.GetAllWorkspaces(&store.GetWorkspacesOptions{Name: workspaceIDOrName, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	var workspace *entity.Workspace
-	if len(workspaces) > 1 { //nolint:gocritic // ok to use if else here
-		return nil, fmt.Errorf("multiple workspaces with found with name %s", workspaceIDOrName)
-	} else if len(workspaces) == 1 {
-		workspace = &workspaces[0]
-	} else {
-		workspace, err = pfStore.GetWorkspace(workspaceIDOrName)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-
-	workspaceMetaData, err := pfStore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-}
-
+// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
+// Reasoning: there wasn't a utils file so I didn't know where to put it
+//                + not sure how to pass a generic "store" object
 func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()

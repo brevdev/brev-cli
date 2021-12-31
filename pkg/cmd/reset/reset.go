@@ -65,6 +65,9 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 	return nil
 }
 
+// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
+// Reasoning: there wasn't a utils file so I didn't know where to put it
+//                + not sure how to pass a generic "store" object
 func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()

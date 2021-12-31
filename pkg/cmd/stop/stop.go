@@ -64,6 +64,9 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	return nil
 }
 
+// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
+// Reasoning: there wasn't a utils file so I didn't know where to put it
+//                + not sure how to pass a generic "store" object
 func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
