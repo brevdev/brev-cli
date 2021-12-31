@@ -38,6 +38,7 @@ type StartStore interface {
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
 	var org string
+	var detached bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -55,7 +56,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 
 			if !isURL {
-				err := startWorkspace(args[0], loginStartStore, t)
+				err := startWorkspace(args[0], loginStartStore, t, detached)
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
 				}
@@ -68,6 +69,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 		},
 	}
+	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
@@ -77,7 +79,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal) error {
+func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
 		t.Vprint(err.Error())
@@ -89,6 +91,11 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	}
 
 	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+
+	// Don't poll and block the shell if detached flag is set 
+	if detached {
+		return nil
+	}
 
 	err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
 	if err != nil {
