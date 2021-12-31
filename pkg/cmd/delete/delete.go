@@ -47,7 +47,6 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 }
 
 func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
-
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, deleteStore)
 	if err != nil {
 		t.Vprint(err.Error())
@@ -115,5 +114,4 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore DeleteStore) (*entity.Work
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-
 }

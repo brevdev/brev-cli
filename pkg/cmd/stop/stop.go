@@ -48,7 +48,6 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
-
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
 	if err != nil {
 		t.Vprint(err.Error())
@@ -117,5 +116,4 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.Worksp
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-
 }

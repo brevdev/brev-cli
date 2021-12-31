@@ -78,13 +78,10 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 }
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal) error {
-
-
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
 		t.Vprint(err.Error())
 	}
-
 
 	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
 	if err != nil {
@@ -297,5 +294,4 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-
 }

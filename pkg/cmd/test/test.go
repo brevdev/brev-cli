@@ -17,7 +17,6 @@ var (
 	startExample = "[internal] test"
 )
 
-
 type TestStore interface {
 	completions.CompletionStore
 	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
@@ -45,9 +44,6 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			}
 
 			t.Vprintf("%s %s %s", wsmeta.Name, wsmeta.DNS, wsmeta.ID)
-
-
-
 
 			// var err error
 
@@ -149,5 +145,4 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.Worksp
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-
 }

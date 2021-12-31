@@ -70,7 +70,6 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				return
 			}
 
-			
 			opts, err = opts.WithWorkspace(*workspace)
 			if err != nil {
 				t.Errprint(err, "")
@@ -148,7 +147,6 @@ func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }
 
-
 func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
@@ -201,5 +199,4 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-
 }
