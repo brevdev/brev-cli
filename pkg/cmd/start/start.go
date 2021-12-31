@@ -77,51 +77,13 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 }
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal) error {
-	org, err := startStore.GetActiveOrganizationOrDefault()
+
+
+	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return fmt.Errorf("no orgs exist")
+		t.Vprint(err.Error())
 	}
 
-	user, err := startStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
-		Name: workspaceName,
-	})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	if len(workspaces) == 0 {
-		return fmt.Errorf("no workspace found of name %s", workspaceName)
-	}
-
-	var myWorkspaces []entity.Workspace
-	for _, v := range workspaces {
-		if v.CreatedByUserID == user.ID {
-			myWorkspaces = append(myWorkspaces, v)
-		}
-	}
-
-	// Join workspace if user doesn't have it and it exists in the team
-	if len(myWorkspaces) == 0 {
-		t.Vprintf("")
-		err = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		return nil
-	} else if len(myWorkspaces) > 1 {
-		return fmt.Errorf("more than 1 of your workspaces found with name %s", workspaceName)
-	}
-
-	workspace := myWorkspaces[0]
 
 	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
 	if err != nil {
@@ -280,4 +242,52 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 		}
 	}
 	return nil
+}
+
+func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Workspace, error) {
+	// Get Active Org
+	org, err := sstore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return nil, fmt.Errorf("no orgs exist")
+	}
+
+	// Get Current User
+	currentUser, err := sstore.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	// Get Workspaces for User
+	var workspace *entity.Workspace // this will be the returned workspace
+	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	if len(workspaces) == 0 {
+		// In this case, check workspace by ID
+		wsbyid, err := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		if err != nil {
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+		if wsbyid != nil {
+			workspace = wsbyid
+		} else {
+			// Can this case happen?
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+	} else if len(workspaces) > 1 {
+		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+	} else {
+		workspace = &workspaces[0]
+	}
+
+	if workspace == nil {
+		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+	}
+
+	return workspace, nil
 }

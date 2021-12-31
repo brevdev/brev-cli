@@ -70,6 +70,16 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				return
 			}
 
+
+			// workspace, err := getWorkspaceFromNameOrID(args[0], pfStore)
+			// if err != nil {
+			// 	t.Errprint(err, "")
+			// 	return
+			// }
+
+			
+
+
 			opts, err = opts.WithWorkspace(*workspace)
 			if err != nil {
 				t.Errprint(err, "")
@@ -145,4 +155,53 @@ func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) 
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+}
+
+
+func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity.Workspace, error) {
+	// Get Active Org
+	org, err := sstore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return nil, fmt.Errorf("no orgs exist")
+	}
+
+	// Get Current User
+	currentUser, err := sstore.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	// Get Workspaces for User
+	var workspace *entity.Workspace // this will be the returned workspace
+	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	if len(workspaces) == 0 {
+		// In this case, check workspace by ID
+		wsbyid, err := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		if err != nil {
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+		if wsbyid != nil {
+			workspace = wsbyid
+		} else {
+			// Can this case happen?
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+	} else if len(workspaces) > 1 {
+		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+	} else {
+		workspace = &workspaces[0]
+	}
+
+	if workspace == nil {
+		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+	}
+
+	return workspace, nil
 }

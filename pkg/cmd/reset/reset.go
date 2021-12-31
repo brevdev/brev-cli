@@ -20,9 +20,11 @@ var (
 type ResetStore interface {
 	completions.CompletionStore
 	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
+	GetWorkspace(id string) (*entity.Workspace, error)
 }
 
 func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {
@@ -47,31 +49,13 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 }
 
 func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
-	org, err := resetStore.GetActiveOrganizationOrDefault()
+
+
+	workspace, err := getWorkspaceFromNameOrID(workspaceName, resetStore)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return fmt.Errorf("no orgs exist")
+		t.Vprint(err.Error())
 	}
 
-	currentUser, err2 := resetStore.GetCurrentUser()
-	if err2 != nil {
-		return breverrors.WrapAndTrace(err2)
-	}
-
-	workspaces, err := resetStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: currentUser.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	if len(workspaces) == 0 {
-		return fmt.Errorf("no workspace exist with name %s", workspaceName)
-	} else if len(workspaces) > 1 {
-		return fmt.Errorf("more than 1 workspace exist with name %s", workspaceName)
-	}
-
-	workspace := workspaces[0]
 
 	startedWorkspace, err := resetStore.ResetWorkspace(workspace.ID)
 	if err != nil {
@@ -81,4 +65,52 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 	t.Vprintf("Workspace %s is resetting. \n Note: this can take a few seconds. Run 'brev ls' to check status\n", startedWorkspace.Name)
 
 	return nil
+}
+
+func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.Workspace, error) {
+	// Get Active Org
+	org, err := sstore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return nil, fmt.Errorf("no orgs exist")
+	}
+
+	// Get Current User
+	currentUser, err := sstore.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	// Get Workspaces for User
+	var workspace *entity.Workspace // this will be the returned workspace
+	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	if len(workspaces) == 0 {
+		// In this case, check workspace by ID
+		wsbyid, err := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		if err != nil {
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+		if wsbyid != nil {
+			workspace = wsbyid
+		} else {
+			// Can this case happen?
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+	} else if len(workspaces) > 1 {
+		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+	} else {
+		workspace = &workspaces[0]
+	}
+
+	if workspace == nil {
+		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+	}
+
+	return workspace, nil
 }

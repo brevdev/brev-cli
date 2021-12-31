@@ -139,7 +139,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		_ = 0 // noop
 
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
-		cmd.AddCommand(test.NewCmdTest(t))
+		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 	}
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))

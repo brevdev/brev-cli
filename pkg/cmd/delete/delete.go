@@ -46,43 +46,10 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 }
 
 func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
-	var workspaces []entity.Workspace
-	org, err := deleteStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return fmt.Errorf("no orgs exist")
-	} else {
-		currentUser, err2 := deleteStore.GetCurrentUser()
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
-		}
-		workspaces, err = deleteStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName, UserID: currentUser.ID})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
 
-	var workspace entity.Workspace
-	if len(workspaces) == 0 { //nolint:gocritic // gocritic recommends using a switch
-		var wsbyid *entity.Workspace
-		wsbyid, err = deleteStore.GetWorkspace(workspaceName) // Note: workspaceName is ID in this case
-		if err != nil {
-			// TODO: am I returning the right error here?
-			// return breverrors.WrapAndTrace(err)
-			return fmt.Errorf("no workspaces found with name or id %s", workspaceName)
-		}
-		if wsbyid != nil {
-			workspace = *wsbyid
-		} else {
-			return fmt.Errorf("no workspaces found with name %s", workspaceName)
-		}
-	} else if len(workspaces) > 1 {
-		// TODO: print a table of all the workspaces here
-		return fmt.Errorf("multiple workspaces found with name %s\n\nTry deleting by id:\n\tbrev delete <id>", workspaceName)
-	} else {
-		workspace = workspaces[0]
+	workspace, err := getWorkspaceFromNameOrID(workspaceName, deleteStore)
+	if err != nil {
+		t.Vprint(err.Error())
 	}
 
 	deletedWorkspace, err := deleteStore.DeleteWorkspace(workspace.ID)
@@ -93,4 +60,52 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 	t.Vprintf("Deleting workspace %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
 
 	return nil
+}
+
+func getWorkspaceFromNameOrID(nameOrID string, sstore DeleteStore) (*entity.Workspace, error) {
+	// Get Active Org
+	org, err := sstore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return nil, fmt.Errorf("no orgs exist")
+	}
+
+	// Get Current User
+	currentUser, err := sstore.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	// Get Workspaces for User
+	var workspace *entity.Workspace // this will be the returned workspace
+	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	if len(workspaces) == 0 {
+		// In this case, check workspace by ID
+		wsbyid, err := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		if err != nil {
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+		if wsbyid != nil {
+			workspace = wsbyid
+		} else {
+			// Can this case happen?
+			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		}
+	} else if len(workspaces) > 1 {
+		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+	} else {
+		workspace = &workspaces[0]
+	}
+
+	if workspace == nil {
+		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+	}
+
+	return workspace, nil
 }
