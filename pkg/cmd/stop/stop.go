@@ -23,7 +23,7 @@ type StopStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	StopWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
-
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
 func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
@@ -65,7 +65,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	return nil
 }
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.Workspace, error) {
+func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -110,5 +110,12 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.Worksp
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
-	return workspace, nil
+	// Get WorkspaceMetaData
+	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+
 }

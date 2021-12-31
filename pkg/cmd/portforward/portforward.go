@@ -64,22 +64,13 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				pf,
 			)
 
-			workspace, err := GetWorkspaceByIDOrName(args[0], pfStore)
+			workspace, err := getWorkspaceFromNameOrID(args[0], pfStore)
 			if err != nil {
 				t.Errprint(err, "")
 				return
 			}
 
-
-			// workspace, err := getWorkspaceFromNameOrID(args[0], pfStore)
-			// if err != nil {
-			// 	t.Errprint(err, "")
-			// 	return
-			// }
-
 			
-
-
 			opts, err = opts.WithWorkspace(*workspace)
 			if err != nil {
 				t.Errprint(err, "")
@@ -158,7 +149,7 @@ func GetWorkspaceByIDOrName(workspaceIDOrName string, pfStore PortforwardStore) 
 }
 
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity.Workspace, error) {
+func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -203,5 +194,12 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
-	return workspace, nil
+	// Get WorkspaceMetaData
+	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+
 }

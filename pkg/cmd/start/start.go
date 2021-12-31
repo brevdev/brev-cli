@@ -33,6 +33,7 @@ type StartStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -244,7 +245,7 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 	return nil
 }
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Workspace, error) {
+func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -289,5 +290,12 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
-	return workspace, nil
+	// Get WorkspaceMetaData
+	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+
 }

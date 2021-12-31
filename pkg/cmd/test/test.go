@@ -26,6 +26,7 @@ type TestStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(id string) (*entity.Workspace, error)
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
 func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
@@ -38,12 +39,12 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			t.Vprint(args[0] + "\n")
-			ws, err := getWorkspaceFromNameOrID(args[0], store)
+			wsmeta, err := getWorkspaceFromNameOrID(args[0], store)
 			if err != nil {
 				t.Vprint(err.Error())
 			}
 
-			t.Vprintf("%s %s %s", ws.Name, ws.DNS, ws.ID)
+			t.Vprintf("%s %s %s", wsmeta.Name, wsmeta.DNS, wsmeta.ID)
 
 
 
@@ -96,7 +97,7 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 	return cmd
 }
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.Workspace, error) {
+func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -141,5 +142,12 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.Worksp
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
-	return workspace, nil
+	// Get WorkspaceMetaData
+	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+
 }

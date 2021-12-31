@@ -25,6 +25,7 @@ type ResetStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(id string) (*entity.Workspace, error)
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
 func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {
@@ -67,7 +68,7 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 	return nil
 }
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.Workspace, error) {
+func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -112,5 +113,12 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.Works
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
-	return workspace, nil
+	// Get WorkspaceMetaData
+	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+
 }

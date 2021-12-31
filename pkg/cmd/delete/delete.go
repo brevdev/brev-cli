@@ -22,6 +22,7 @@ type DeleteStore interface {
 	GetWorkspace(id string) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
 func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDeleteStore DeleteStore) *cobra.Command {
@@ -62,7 +63,7 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 	return nil
 }
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore DeleteStore) (*entity.Workspace, error) {
+func getWorkspaceFromNameOrID(nameOrID string, sstore DeleteStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -107,5 +108,12 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore DeleteStore) (*entity.Work
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
-	return workspace, nil
+	// Get WorkspaceMetaData
+	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+
 }
