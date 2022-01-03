@@ -82,32 +82,51 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		// This is not an error yet-- the user might be trying to join a team's workspace
+		org, err := startStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if org == nil {
+			return fmt.Errorf("no orgs exist")
+		}
+		workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
+			Name: workspaceName,
+		})
+		if len(workspaces) == 0 {
+			return fmt.Errorf("Your team has no projects named %s", workspaceName)
+		}
+		err = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+	} else {
+		startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	
+		t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+	
+		// Don't poll and block the shell if detached flag is set 
+		if detached {
+			return nil
+		}
+	
+		err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	
+		t.Vprint(t.Green("\nYour workspace is ready!"))
+	
+		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
+			t.Yellow("\n\t$ brev up\n"))
+	
+		t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.DNS)
+		
 	}
-
-	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
-
-	// Don't poll and block the shell if detached flag is set 
-	if detached {
-		return nil
-	}
-
-	err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprint(t.Green("\nYour workspace is ready!"))
-
-	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
-		t.Yellow("\n\t$ brev up\n"))
-
-	t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.DNS)
 
 	return nil
 }
