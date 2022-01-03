@@ -212,20 +212,7 @@ func parseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error)
 	return &jetbrainsGatewayConfigXML, nil
 }
 
-func VerifyPrivateKey(key []byte) error {
-	block, rest := pem.Decode(key)
-	if block == nil || block.Type != "RSA PRIVATE KEY" {
-		return errors.New("failed to decode PEM block")
-	}
-	if len(rest) > 0 {
-		return errors.New("extra data in key")
-	}
-	_, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
+
 
 func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
 	configStr, err := store.GetSSHConfig()

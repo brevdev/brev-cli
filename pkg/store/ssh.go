@@ -1,6 +1,8 @@
 package store
 
 import (
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -85,4 +87,19 @@ func (f FileStore) WritePrivateKey(pem string) error {
 
 func (f FileStore) GetPrivateKeyFilePath() string {
 	return files.GetSSHPrivateKeyFilePath()
+}
+
+func VerifyPrivateKey(key []byte) error {
+	block, rest := pem.Decode(key)
+	if block == nil || block.Type != "RSA PRIVATE KEY" {
+		return errors.New("failed to decode PEM block")
+	}
+	if len(rest) > 0 {
+		return errors.New("extra data in key")
+	}
+	_, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
