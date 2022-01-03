@@ -15,10 +15,7 @@ package ssh
 
 import (
 	"bytes"
-	"crypto/x509"
-	"encoding/pem"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -211,8 +208,6 @@ func parseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error)
 	}
 	return &jetbrainsGatewayConfigXML, nil
 }
-
-
 
 func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
 	configStr, err := store.GetSSHConfig()

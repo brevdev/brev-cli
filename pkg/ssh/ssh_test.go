@@ -171,16 +171,16 @@ func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
 }
 
 func TestSyncSSHConfigurer(t *testing.T) {
-	store, err := makeMockSSHStore()
+	mockStore, err := makeMockSSHStore()
 	assert.Nil(t, err)
-	sshConfig, err := makeTestSSHConfig(store)
+	sshConfig, err := makeTestSSHConfig(mockStore)
 	assert.Nil(t, err)
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig})
 
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
 	// reread sshConfig
-	sshConfig, err = NewSSHConfig(store)
+	sshConfig, err = NewSSHConfig(mockStore)
 	assert.Equal(t, err, nil)
 
 	assert.Equal(t, fmt.Sprintf(`Host user-host
@@ -193,9 +193,19 @@ Host %s
   Port 2222
 `, someWorkspaces[0].GetLocalIdentifier(), sshConfig.privateKey), sshConfig.sshConfig.String())
 	assert.Equal(t, 3, len(sshConfig.sshConfig.Hosts))
-	privateKeyExists, err := store.FileExists(sshConfig.privateKey)
+	privateKeyExists, err := mockStore.FileExists(sshConfig.privateKey)
 	assert.Nil(t, err)
 	assert.True(t, privateKeyExists)
+	privateKeyFilePath := mockStore.GetPrivateKeyFilePath()
+	pk, err := mockStore.GetOrCreateFile(privateKeyFilePath)
+	if !assert.Nil(t, err) {
+		return
+	}
+	data, err := afero.ReadAll(pk)
+	if !assert.Nil(t, err) {
+		return
+	}
+	assert.Nil(t, store.VerifyPrivateKey(data))
 }
 
 func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
@@ -457,4 +467,3 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
 	assert.Equal(t, xml.Component.Configs.SSHConfigs[0].Host, someWorkspaces[0].GetLocalIdentifier())
 	assert.Equal(t, xml.Component.Configs.SSHConfigs[0].Port, "2222")
 }
-
