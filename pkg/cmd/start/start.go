@@ -82,7 +82,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
-		t.Vprint(err.Error())
+		return breverrors.WrapAndTrace(err)
 	}
 
 	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)

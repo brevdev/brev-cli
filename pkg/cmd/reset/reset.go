@@ -52,7 +52,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, resetStore)
 	if err != nil {
-		t.Vprint(err.Error())
+		return breverrors.WrapAndTrace(err)
 	}
 
 	startedWorkspace, err := resetStore.ResetWorkspace(workspace.ID)

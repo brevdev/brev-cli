@@ -50,7 +50,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
 	if err != nil {
-		t.Vprint(err.Error())
+		return breverrors.WrapAndTrace(err)
 	}
 
 	_, err = stopStore.StopWorkspace(workspace.ID)
