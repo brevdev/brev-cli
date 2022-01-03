@@ -404,11 +404,11 @@ func (sshConfigurer *SSHConfigurer) Sync() error {
 }
 
 func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
-	var workspaceDNSNames []string
+	var workspaceIdentifiers []string
 	for _, workspace := range sshConfigurer.workspaces {
-		workspaceDNSNames = append(workspaceDNSNames, workspace.DNS)
+		workspaceIdentifiers = append(workspaceIdentifiers, workspace.GetLocalIdentifier())
 	}
-	return workspaceDNSNames
+	return workspaceIdentifiers
 }
 
 func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspace string) (string, error) {

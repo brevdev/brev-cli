@@ -1,6 +1,9 @@
 package entity
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
@@ -109,6 +112,11 @@ type Workspace struct {
 	// Version         string `json:"version,omitempty"`
 	// IsStoppable         string `json:"isStoppable,omitempty"`
 	// StatusMessage         string `json:"statusMessage,omitempty"`
+}
+
+func (w Workspace) GetLocalIdentifier() string {
+	dnsSplit := strings.Split(w.DNS, "-")
+	return strings.Join(dnsSplit[:2], "-")
 }
 
 func (w Workspace) GetID() string {
