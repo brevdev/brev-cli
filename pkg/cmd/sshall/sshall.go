@@ -35,7 +35,7 @@ type SSHAll struct {
 }
 
 type SSHResolver interface {
-	GetConfiguredWorkspacePort(string) (string, error)
+	GetConfiguredWorkspacePort(entity.WorkspaceLocalID) (string, error)
 }
 
 func NewSSHAll(
@@ -145,7 +145,7 @@ Host *
 
 	fmt.Println()
 	for _, w := range s.workspaces {
-		fmt.Printf("ssh %s\n", w.DNS)
+		fmt.Printf("ssh %s\n", w.GetLocalIdentifier())
 		s.retries[w] = 3 // TODO magic number
 		s.runPortForwardWorkspace(w)
 	}
@@ -169,7 +169,7 @@ func TryClose(toClose chan struct{}) {
 }
 
 func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
-	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.DNS)
+	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.GetLocalIdentifier())
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -91,6 +91,8 @@ type RequestCreateWorkspace struct {
 	Applications         []Application `json:"applications"`
 }
 
+type WorkspaceLocalID string
+
 type Workspace struct {
 	ID               string `json:"id"`
 	Name             string `json:"name"`
@@ -114,9 +116,9 @@ type Workspace struct {
 	// StatusMessage         string `json:"statusMessage,omitempty"`
 }
 
-func (w Workspace) GetLocalIdentifier() string {
+func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
 	dnsSplit := strings.Split(w.DNS, "-")
-	return strings.Join(dnsSplit[:2], "-")
+	return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
 }
 
 func (w Workspace) GetID() string {

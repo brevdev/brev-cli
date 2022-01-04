@@ -181,21 +181,21 @@ func makeTestSSHConfig(store SSHStore) (*SSHConfig, error) {
 }
 
 func TestHostnameFromString(t *testing.T) {
-	res := hostnameFromString("")
+	res := workspaceIdentifierFromHost("")
 	if !assert.Equal(t, "", res) {
 		return
 	}
-	res = hostnameFromString("\n")
+	res = workspaceIdentifierFromHost("\n")
 	if !assert.Equal(t, "", res) {
 		return
 	}
-	res = hostnameFromString("\n\n")
+	res = workspaceIdentifierFromHost("\n\n")
 	if !assert.Equal(t, "", res) {
 		return
 	}
 
 	value := "Host test-ident\n  Hostname 0.0.0.0\n  IdentityFile /Users/alecfong/.brev/brev.pem\n  User brev\n  Port 2222\n\n"
-	res = hostnameFromString(value)
+	res = workspaceIdentifierFromHost(value)
 	if !assert.Equal(t, "test-ident", res) {
 		return
 	}
@@ -204,13 +204,13 @@ func TestHostnameFromString(t *testing.T) {
 func TestCheckIfHostIsActive(t *testing.T) {
 	hostIsActive := checkIfHostIsActive(
 		"Host workspace-images\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
-		[]string{"brev"},
+		[]entity.WorkspaceLocalID{"brev"},
 	)
 	assert.False(t, hostIsActive, "assert workspace-images is not an active host")
 
 	hostIsActive = checkIfHostIsActive(
 		"Host brev\n  Hostname 0.0.0.0\n  IdentityFile /home/brev/.brev/brev.pem\n  User brev\n  Port 2223",
-		[]string{"brev"},
+		[]entity.WorkspaceLocalID{"brev"},
 	)
 	assert.True(t, hostIsActive, "assert brev is an active host")
 }
@@ -247,7 +247,7 @@ func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
 	writer := reader
 	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WorkingRSAPrivateKey)
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
-	assert.Equal(t, activeWorkspaces, []string{someWorkspaces[0].GetLocalIdentifier()})
+	assert.Equal(t, activeWorkspaces, []entity.WorkspaceLocalID{someWorkspaces[0].GetLocalIdentifier()})
 }
 
 func TestSyncSSHConfigurer(t *testing.T) {
@@ -340,7 +340,7 @@ func TestGetBrevHostValues(t *testing.T) {
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Equal(t, err, nil)
 	brevhosts := sshConfig.GetBrevHostValues()
-	assert.Equal(t, brevhosts, []string{someWorkspaces[0].GetLocalIdentifier(), "workspace-images", "brevdev/brev-deploy"})
+	assert.Equal(t, brevhosts, []entity.WorkspaceLocalID{someWorkspaces[0].GetLocalIdentifier(), "workspace-images", "brevdev/brev-deploy"})
 }
 
 func TestGetBrevPorts(t *testing.T) {
