@@ -27,6 +27,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -51,6 +52,8 @@ func NewBrevCommand() *cobra.Command {
 		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
 		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
 	}
+	// super annoying. this is needed to make the import stay
+	_ = color.New(color.FgYellow, color.Bold).SprintFunc()
 
 	fsStore := store.
 		NewBasicStore().
@@ -273,7 +276,7 @@ Context Commands:
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
-SSH Commands:
+SSH Commands (we're actively working on getting rid of these commands):
 {{- range sshCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}

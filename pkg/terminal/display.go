@@ -39,7 +39,7 @@ func PromptSelectInput(pc PromptSelectContent) string {
 }
 
 func DisplaySSHKeys(t *Terminal, publicKey string) {
-	t.Eprint(t.Yellow("\nCreate an SSH Key with your git provider. Copy your public key: \n"))
+	t.Eprint(t.Yellow("\nCreate an SSH Key with your git provider. Copy your public key 👇\n"))
 	t.Vprintf(publicKey)
 	t.Eprintf(t.Yellow("\n\nand save it to your git provider."))
 	t.Eprintf(t.Yellow("\n\tClick here for Github: https://github.com/settings/keys"))

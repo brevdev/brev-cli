@@ -37,13 +37,25 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
-			t.Vprint(args[0] + "\n")
-			wsmeta, err := getWorkspaceFromNameOrID(args[0], store)
-			if err != nil {
-				t.Vprint(err.Error())
+			// Check IDE requirements
+			doneAddingKey := terminal.PromptSelectInput(terminal.PromptSelectContent{
+				Label:    "Done adding your SSH key?",
+				ErrorMsg: "error",
+				Items:    []string{"yes", "no", "skip"},
+			})
+
+			if doneAddingKey == "skip" {
+				t.Vprint(t.Yellow("\nFeel free to proceed but you will not be able to pull or push your private repos. Run 'brev ssh-key' to do this step later."))
 			}
 
-			t.Vprintf("%s %s %s", wsmeta.Name, wsmeta.DNS, wsmeta.ID)
+
+			// t.Vprint(args[0] + "\n")
+			// wsmeta, err := getWorkspaceFromNameOrID(args[0], store)
+			// if err != nil {
+			// 	t.Vprint(err.Error())
+			// }
+
+			// t.Vprintf("%s %s %s", wsmeta.Name, wsmeta.DNS, wsmeta.ID)
 
 			// var err error
 
