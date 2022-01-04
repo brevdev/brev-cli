@@ -117,6 +117,7 @@ func NewBrevCommand() *cobra.Command {
 	cobra.AddTemplateFunc("isWorkspaceCommand", isWorkspaceCommand)
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
 	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
+	cobra.AddTemplateFunc("printCautiousMetaCmdMessage", printCautiousMetaCmdMessage)
 	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
 	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
 
@@ -164,6 +165,11 @@ func runHelp(cmd *cobra.Command, _ []string) {
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
 	return len(housekeepingCommands(cmd)) > 0
+}
+
+func printCautiousMetaCmdMessage() string {
+	yellow := color.New(color.FgYellow, color.Bold).SprintFunc()
+	return yellow("(we're actively working on getting rid of these commands)")
 }
 
 func hasSSHCommands(cmd *cobra.Command) bool {
@@ -276,7 +282,8 @@ Context Commands:
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
-SSH Commands (we're actively working on getting rid of these commands):
+SSH Commands:
+{{ printCautiousMetaCmdMessage }}
 {{- range sshCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
