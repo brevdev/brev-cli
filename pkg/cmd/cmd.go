@@ -283,7 +283,6 @@ Context Commands:
 {{- end}}{{- end}}
 
 SSH Commands:
-{{ printCautiousMetaCmdMessage }}
 {{- range sshCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
