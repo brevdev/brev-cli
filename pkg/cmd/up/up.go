@@ -79,7 +79,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	writer := sshConfig
 	sshConfigWriter := sshConfig
 
-	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter})
+	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

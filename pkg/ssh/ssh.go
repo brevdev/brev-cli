@@ -70,9 +70,9 @@ type (
 	SSHConfigurer struct {
 		Reader
 		Writer
-		Writers            []Writer
-		workspaces         []entity.WorkspaceWithMeta
-		privateKeyFilepath string
+		Writers    []Writer
+		workspaces []entity.WorkspaceWithMeta
+		privateKey string
 	}
 	JetBrainsGatewayConfigStore interface {
 		GetJetBrainsConfigPath() (string, error)
@@ -333,14 +333,13 @@ func (s SSHConfig) GetPrivateKeyFilePath() string {
 	return s.privateKey
 }
 
-func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer) *SSHConfigurer {
-	privateKeyFilePath := reader.GetPrivateKeyFilePath()
+func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer, privateKey string) *SSHConfigurer {
 	return &SSHConfigurer{
-		workspaces:         workspaces,
-		Reader:             reader,
-		Writer:             writer,
-		Writers:            writers,
-		privateKeyFilepath: privateKeyFilePath,
+		workspaces: workspaces,
+		Reader:     reader,
+		Writer:     writer,
+		Writers:    writers,
+		privateKey: privateKey,
 	}
 }
 
@@ -377,8 +376,7 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
-	keypath := sshConfigurer.Reader.GetPrivateKeyFilePath()
-	err := sshConfigurer.WritePrivateKey(keypath)
+	err := sshConfigurer.WritePrivateKey(sshConfigurer.privateKey)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
