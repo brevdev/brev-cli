@@ -9,7 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const ( WORKING_RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY----- MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
+const (
+	WorkingRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
+MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
 vOGim0HAehX8Baz0hdS4/knbq6bRiQdn2UTsva7oOSIHogWcuk+1TWyIdAQsaQDQ
 N+fxMY06857kG/+TDcNUBs7QJN9Dw2UYaUm1DII6IhyklAB73zCMzLun6qWmJOds
 x8PotN1Bx256nXBYUdJAEWK77V1XOm5B6NLlAu9ZG4i3y7sBaYtmzjGGkhulPwL8
@@ -47,7 +49,7 @@ avoJXjhV2MjygKvyzjQZuSaEbCoUCVpplJYvsWIWerGqG99ik9wsIQJvDD/9wizb
 bSxJbPINZ64y3aAeK50EEuzdDiG4pUkkDFfcwD/8/USW+kiAac5PKLF3DaDkzfgi
 bsVMEVXkW9a34JZKUtAacBGtC25BNkxeaw24Y6lV5y0Jzz4Kuza4og==
 -----END RSA PRIVATE KEY-----`
-	CORRUPT_RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
+	CorruptRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
 vOGim0HAehX8Baz0hdS4/knbq6bRiQdn2UTsva7oOSIHogWcuk+1TWyIdAQsaQDQ
 N+fxMY06857kG/+TDcNUBs7QJN9Dw2UYaUm1DII6IhyklAB73zCMzLun6qWmJOds
@@ -136,7 +138,7 @@ func TestCreateNewSSHConfigBackup(t *testing.T) {
 
 func TestWritePrivateKey(t *testing.T) {
 	fs := MakeMockFileStore()
-	err := fs.WritePrivateKey(WORKING_RSA_PRIVATE_KEY)
+	err := fs.WritePrivateKey(WorkingRSAPrivateKey)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -146,6 +148,9 @@ func TestWritePrivateKey(t *testing.T) {
 		return
 	}
 	data, err := afero.ReadAll(pk)
+	if !assert.Nil(t, err) {
+		return
+	}
 	assert.Nil(t, VerifyPrivateKey(data))
 }
 
@@ -162,23 +167,20 @@ func TestVerifyPrivateKey(t *testing.T) {
 		{
 			name: "Valid Private Key Parses",
 			args: args{
-
-				key: []byte(WORKING_RSA_PRIVATE_KEY),
+				key: []byte(WorkingRSAPrivateKey),
 			},
 			wantErr: false,
 		},
 		{
 			name: "looks valid but actually not",
 			args: args{
-
-				key: []byte(CORRUPT_RSA_PRIVATE_KEY),
+				key: []byte(CorruptRSAPrivateKey),
 			},
 			wantErr: true,
 		},
 		{
 			name: "empty key fails",
 			args: args{
-
 				key: []byte(``),
 			},
 			wantErr: true,
@@ -186,7 +188,6 @@ func TestVerifyPrivateKey(t *testing.T) {
 		{
 			name: "incorrectly formatted key fails",
 			args: args{
-
 				key: []byte(`slfkjafalkjfas`),
 			},
 			wantErr: true,

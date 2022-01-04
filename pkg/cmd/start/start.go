@@ -83,22 +83,25 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
 		// This is not an error yet-- the user might be trying to join a team's workspace
-		org, err := startStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		org, othererr := startStore.GetActiveOrganizationOrDefault()
+		if othererr != nil {
+			return breverrors.WrapAndTrace(othererr)
 		}
 		if org == nil {
 			return fmt.Errorf("no orgs exist")
 		}
-		workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
+		workspaces, othererr := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
 			Name: workspaceName,
 		})
-		if len(workspaces) == 0 {
-			return fmt.Errorf("Your team has no projects named %s", workspaceName)
+		if othererr != nil {
+			return breverrors.WrapAndTrace(othererr)
 		}
-		err = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		if len(workspaces) == 0 {
+			return fmt.Errorf("your team has no projects named %s", workspaceName)
+		}
+		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore)
+		if othererr != nil {
+			return breverrors.WrapAndTrace(othererr)
 		}
 
 	} else {
@@ -106,26 +109,26 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	
+
 		t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
-	
-		// Don't poll and block the shell if detached flag is set 
+
+		// Don't poll and block the shell if detached flag is set
 		if detached {
 			return nil
 		}
-	
+
 		err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	
+
 		t.Vprint(t.Green("\nYour workspace is ready!"))
-	
+
 		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
 			t.Yellow("\n\t$ brev up\n"))
-	
+
 		t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.DNS)
-		
+
 	}
 
 	return nil
@@ -294,10 +297,11 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	if len(workspaces) == 0 {
+	switch len(workspaces) {
+	case 0:
 		// In this case, check workspace by ID
-		wsbyid, err := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if err != nil {
+		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		if othererr != nil {
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
 		if wsbyid != nil {
@@ -306,9 +310,9 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 			// Can this case happen?
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
-	} else if len(workspaces) > 1 {
+	case 1:
 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	} else {
+	default:
 		workspace = &workspaces[0]
 	}
 

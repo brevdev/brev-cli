@@ -34,7 +34,7 @@ const (
 	userConfigStr = `Host user-host
   Hostname 172.0.0.0
 `
-	WORKING_RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
+	WorkingRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
 vOGim0HAehX8Baz0hdS4/knbq6bRiQdn2UTsva7oOSIHogWcuk+1TWyIdAQsaQDQ
 N+fxMY06857kG/+TDcNUBs7QJN9Dw2UYaUm1DII6IhyklAB73zCMzLun6qWmJOds
@@ -73,7 +73,7 @@ avoJXjhV2MjygKvyzjQZuSaEbCoUCVpplJYvsWIWerGqG99ik9wsIQJvDD/9wizb
 bSxJbPINZ64y3aAeK50EEuzdDiG4pUkkDFfcwD/8/USW+kiAac5PKLF3DaDkzfgi
 bsVMEVXkW9a34JZKUtAacBGtC25BNkxeaw24Y6lV5y0Jzz4Kuza4og==
 -----END RSA PRIVATE KEY-----`
-	CORRUPT_RSA_PRIVATE_KEY = `-----BEGIN RSA PRIVATE KEY-----
+	CorruptRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
 vOGim0HAehX8Baz0hdS4/knbq6bRiQdn2UTsva7oOSIHogWcuk+1TWyIdAQsaQDQ
 N+fxMY06857kG/+TDcNUBs7QJN9Dw2UYaUm1DII6IhyklAB73zCMzLun6qWmJOds
@@ -235,7 +235,7 @@ func TestNewSShConfigurer(t *testing.T) {
 	assert.Nil(t, err)
 	writer := reader
 
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WORKING_RSA_PRIVATE_KEY)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WorkingRSAPrivateKey)
 	assert.NotNil(t, sshConfigurer)
 }
 
@@ -245,7 +245,7 @@ func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
 	reader, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
 	writer := reader
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WORKING_RSA_PRIVATE_KEY)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WorkingRSAPrivateKey)
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
 	assert.Equal(t, activeWorkspaces, []string{someWorkspaces[0].GetLocalIdentifier()})
 }
@@ -255,7 +255,7 @@ func TestSyncSSHConfigurer(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(mockStore)
 	assert.Nil(t, err)
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WORKING_RSA_PRIVATE_KEY)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WorkingRSAPrivateKey)
 
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
@@ -293,7 +293,7 @@ func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WORKING_RSA_PRIVATE_KEY)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WorkingRSAPrivateKey)
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
 	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace.GetLocalIdentifier())
@@ -400,7 +400,7 @@ func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WORKING_RSA_PRIVATE_KEY)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WorkingRSAPrivateKey)
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
 	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace.GetLocalIdentifier())

@@ -142,10 +142,11 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	if len(workspaces) == 0 {
+	switch len(workspaces) {
+	case 0:
 		// In this case, check workspace by ID
-		wsbyid, err := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if err != nil {
+		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		if othererr != nil {
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
 		if wsbyid != nil {
@@ -154,9 +155,9 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity
 			// Can this case happen?
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
-	} else if len(workspaces) > 1 {
+	case 1:
 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	} else {
+	default:
 		workspace = &workspaces[0]
 	}
 
