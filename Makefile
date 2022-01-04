@@ -97,8 +97,13 @@ define print-target
     @printf "Executing target: \033[36m$@\033[0m\n"
 endef
 
+.PHONY: smoke-test
+smoke-test: ## runs `brev version`
+	$(call print-target)
+	go run main.go --version
+
 .PHONY: smoketest
-smoketest: ci fast-build
+full-smoke-test: ci fast-build
 	# relocate directories used by cli if they exist
 	[ ! -d ~/.ssh ] || mv ~/.ssh ~/.ssh.bak
 	[ ! -d  ~/.config/Jetbrains ] || mv ~/.config/Jetbrains ~/.config/Jetbrains.bak
