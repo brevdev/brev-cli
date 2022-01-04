@@ -182,23 +182,15 @@ func makeTestSSHConfig(store SSHStore) (*SSHConfig, error) {
 
 func TestHostnameFromString(t *testing.T) {
 	res := workspaceIdentifierFromHost("")
-	if !assert.Equal(t, "", res) {
-		return
-	}
+	assert.Equal(t, entity.WorkspaceLocalID(""), res)
 	res = workspaceIdentifierFromHost("\n")
-	if !assert.Equal(t, "", res) {
-		return
-	}
+	assert.Equal(t, entity.WorkspaceLocalID(""), res)
 	res = workspaceIdentifierFromHost("\n\n")
-	if !assert.Equal(t, "", res) {
-		return
-	}
+	assert.Equal(t, entity.WorkspaceLocalID(""), res)
 
 	value := "Host test-ident\n  Hostname 0.0.0.0\n  IdentityFile /Users/alecfong/.brev/brev.pem\n  User brev\n  Port 2222\n\n"
 	res = workspaceIdentifierFromHost(value)
-	if !assert.Equal(t, "test-ident", res) {
-		return
-	}
+	assert.Equal(t, entity.WorkspaceLocalID("test-ident"), res)
 }
 
 func TestCheckIfHostIsActive(t *testing.T) {
@@ -432,8 +424,8 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="foo" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="bar" port="2225" customName="test-manual-install" nameFormat="CUSTOM" username="sfdfls" useOpenSSHConfig="true">
-        <option name="customName" value="test-manual-install" />
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="bar" port="2225" customName="foo" nameFormat="CUSTOM" username="sfdfls" useOpenSSHConfig="true">
+        <option name="customName" value="foo" />
       </sshConfig>
     </configs>
   </component>
@@ -452,18 +444,18 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	assert.Nil(t, err)
 	config, err := mockJetbrainsGatewayStore.GetJetBrainsConfig()
 	assert.Nil(t, err)
-	assert.Equal(t, config, fmt.Sprintf(`<application>
+	assert.Equal(t, fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig id="f72d6499-1376-47df-b274-94de782a7dd2" customName="test-manual-install" nameFormat="CUSTOM" useOpenSSHConfig="true" host="foo" port="2225" keyPath="bar" username="sfdfls">
-        <option name="customName" value="test-manual-install"></option>
+      <sshConfig id="f72d6499-1376-47df-b274-94de782a7dd2" customName="foo" nameFormat="CUSTOM" useOpenSSHConfig="true" host="localhost" port="2225" keyPath="bar" username="sfdfls">
+        <option name="customName" value="foo"></option>
       </sshConfig>
-      <sshConfig customName="%s" nameFormat="CUSTOM" host="localhost" port="2222" keyPath="%s" username="brev">
-        <option name="CustomName" value="%s"></option>
+      <sshConfig customName="%[1]s" nameFormat="CUSTOM" host="localhost" port="2222" keyPath="%[2]s" username="brev">
+        <option name="CustomName" value="%[1]s"></option>
       </sshConfig>
     </configs>
   </component>
-</application>`, someWorkspaces[0].GetLocalIdentifier(), privatekeypath, someWorkspaces[0].GetLocalIdentifier()))
+</application>`, someWorkspaces[0].GetLocalIdentifier(), privatekeypath), config)
 }
 
 func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
@@ -471,13 +463,13 @@ func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
 	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="%s" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="$USER_HOME$/.brev/brev.pem" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
-        <option name="customName" value="test-manual-install" />
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="$USER_HOME$/.brev/brev.pem" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="%s" />
       </sshConfig>
     </configs>
   </component>
 </application>
-`, someWorkspaces[0].GetLocalIdentifier()))
+`, someWorkspaces[0].GetLocalIdentifier(), someWorkspaces[0].GetLocalIdentifier()))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -493,13 +485,13 @@ func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
 	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="%s" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
-        <option name="customName" value="test-manual-install" />
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="%s" />
       </sshConfig>
     </configs>
   </component>
 </application>
-`, someWorkspaces[0].GetLocalIdentifier(), mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
+`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath(), someWorkspaces[0].GetLocalIdentifier(), someWorkspaces[0].GetLocalIdentifier()))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -514,13 +506,13 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
 	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="%s" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
-        <option name="customName" value="test-manual-install" />
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="%s" />
       </sshConfig>
     </configs>
   </component>
 </application>
-`, someWorkspaces[0].GetLocalIdentifier(), mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
+`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath(), someWorkspaces[0].GetLocalIdentifier(), someWorkspaces[0].GetLocalIdentifier()))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -535,15 +527,15 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
 	xml, err := parseJetbrainsGatewayXML(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
-      <sshConfig host="%s" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="test-manual-install" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
-        <option name="customName" value="test-manual-install" />
+      <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
+        <option name="customName" value="%s" />
       </sshConfig>
     </configs>
   </component>
 </application>
-`, someWorkspaces[0].GetLocalIdentifier(), mockJetbrainsGatewayStore.GetPrivateKeyFilePath()))
+`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath(), someWorkspaces[0].GetLocalIdentifier(), someWorkspaces[0].GetLocalIdentifier()))
 	assert.Nil(t, err)
 	assert.Equal(t, len(xml.Component.Configs.SSHConfigs), 1)
-	assert.Equal(t, xml.Component.Configs.SSHConfigs[0].Host, someWorkspaces[0].GetLocalIdentifier())
-	assert.Equal(t, xml.Component.Configs.SSHConfigs[0].Port, "2222")
+	assert.Equal(t, someWorkspaces[0].GetLocalIdentifier(), xml.Component.Configs.SSHConfigs[0].CustomName)
+	assert.Equal(t, "2222", xml.Component.Configs.SSHConfigs[0].Port)
 }
