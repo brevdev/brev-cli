@@ -25,6 +25,9 @@ func TestGetLocalIdentifierClean(t *testing.T) {
 	w = Workspace{DNS: "test-rand-org.brev.sh", Name: "\\abc"}
 	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
 
+	w = Workspace{DNS: "test-rand-org.brev.sh", Name: "/abc"}
+	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+
 	w = Workspace{DNS: "test-rand-org.brev.sh", Name: ".abc"}
 	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
 
@@ -33,8 +36,8 @@ func TestGetLocalIdentifierClean(t *testing.T) {
 }
 
 func TestGetLocalIdentifierDeterminism(t *testing.T) {
-	w1 := WorkspaceWithMeta{Workspace: Workspace{ID: "1", DNS: "main-abc-org.brev.sh", Name: "main"}}
-	w2 := WorkspaceWithMeta{Workspace: Workspace{ID: "2", DNS: "main-def-org.brev.sh", Name: "main"}}
+	w1 := WorkspaceWithMeta{Workspace: Workspace{ID: "1", DNS: "main-abc-org.brev.sh", Name: "main", CreatedByUserID: "user"}}
+	w2 := WorkspaceWithMeta{Workspace: Workspace{ID: "2", DNS: "main-def-org.brev.sh", Name: "main", CreatedByUserID: "user"}}
 	ws := []WorkspaceWithMeta{w1, w2}
 
 	// same id must be returned across time
