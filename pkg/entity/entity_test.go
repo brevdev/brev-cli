@@ -13,26 +13,27 @@ func TestGetLocalIdentifier(t *testing.T) {
 
 func TestGetLocalIdentifierClean(t *testing.T) {
 	// safest https://www.saveonhosting.com/scripts/index.php?rp=/knowledgebase/52/What-are-the-valid-characters-for-a-domain-name-and-how-long-can-a-domain-name-be.html
+	correctID := WorkspaceLocalID("test-rand")
 	w := Workspace{DNS: "test-rand-org.brev.sh", Name: "abc/def"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 
-	w = Workspace{DNS: "test-rand-org.brev.sh", Name: "'abc"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	w.Name = "'abc"
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 
-	w = Workspace{DNS: "test-rand-org.brev.sh", Name: "\"abc"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	w.Name = "\"abc"
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 
-	w = Workspace{DNS: "test-rand-org.brev.sh", Name: "\\abc"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	w.Name = "\\abc"
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 
-	w = Workspace{DNS: "test-rand-org.brev.sh", Name: "/abc"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	w.Name = "/abc"
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 
-	w = Workspace{DNS: "test-rand-org.brev.sh", Name: ".abc"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	w.Name = ".abc"
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 
-	w = Workspace{DNS: "test-rand-org.brev.sh", Name: ":abc"}
-	assert.Equal(t, WorkspaceLocalID("abc"), w.GetLocalIdentifier(nil))
+	w.Name = ":abc"
+	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
 }
 
 func TestGetLocalIdentifierDeterminism(t *testing.T) {
@@ -56,8 +57,8 @@ func TestGetLocalIdentifierDeterminism(t *testing.T) {
 	ws = []WorkspaceWithMeta{w1}
 	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
 
-	// // sometime later -- user changes name
-	// w1.Name = "new name"
-	// ws = []WorkspaceWithMeta{w1, w2}
-	// assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
+	// sometime later -- user changes name
+	w1.Name = "new name"
+	ws = []WorkspaceWithMeta{w1, w2}
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
 }
