@@ -61,8 +61,6 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	for _, w := range workspaces {
 		if w.Status == "RUNNING" {
 			runningWorkspaces = append(runningWorkspaces, w)
-		} else {
-			t.Vprint(t.Yellow("\tSkipping %s\n\t\tStatus: %s\n", w.Name, w.Status))
 		}
 	}
 	if len(runningWorkspaces) != len(workspaces) {
