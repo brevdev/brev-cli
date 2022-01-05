@@ -116,9 +116,31 @@ type Workspace struct {
 	// StatusMessage         string `json:"statusMessage,omitempty"`
 }
 
-func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
-	dnsSplit := strings.Split(w.DNS, "-")
-	return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
+func (w Workspace) GetLocalIdentifier(workspaces []WorkspaceWithMeta) WorkspaceLocalID {
+	isUnique := true
+	if len(workspaces) > 0 {
+		for _, v := range workspaces {
+			/*
+					If it's a:
+						- different workspace
+						- for the same user
+						- with the same name
+				    it needs the jumbled characters
+			*/
+
+			if v.ID != w.ID && v.CreatedByUserID == w.CreatedByUserID && v.Name == w.Name {
+				isUnique = false
+				break
+			}
+		}
+	}
+
+	if isUnique {
+		return WorkspaceLocalID(w.Name)
+	} else {
+		dnsSplit := strings.Split(w.DNS, "-")
+		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
+	}
 }
 
 func (w Workspace) GetID() string {

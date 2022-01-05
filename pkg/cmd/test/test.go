@@ -1,14 +1,11 @@
 package test
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +25,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
+func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -47,7 +44,6 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			if doneAddingKey == "skip" {
 				t.Vprint(t.Yellow("\nFeel free to proceed but you will not be able to pull or push your private repos. Run 'brev ssh-key' to do this step later."))
 			}
-
 
 			// t.Vprint(args[0] + "\n")
 			// wsmeta, err := getWorkspaceFromNameOrID(args[0], store)
@@ -105,57 +101,57 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 	return cmd
 }
 
-func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, error) {
-	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, fmt.Errorf("no orgs exist")
-	}
+// func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, error) {
+// 	// Get Active Org
+// 	org, err := sstore.GetActiveOrganizationOrDefault()
+// 	if err != nil {
+// 		return nil, breverrors.WrapAndTrace(err)
+// 	}
+// 	if org == nil {
+// 		return nil, fmt.Errorf("no orgs exist")
+// 	}
 
-	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+// 	// Get Current User
+// 	currentUser, err := sstore.GetCurrentUser()
+// 	if err != nil {
+// 		return nil, breverrors.WrapAndTrace(err)
+// 	}
 
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+// 	// Get Workspaces for User
+// 	var workspace *entity.Workspace // this will be the returned workspace
+// 	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
+// 	if err != nil {
+// 		return nil, breverrors.WrapAndTrace(err)
+// 	}
 
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-		}
-	case 1:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	default:
-		workspace = &workspaces[0]
-	}
+// 	switch len(workspaces) {
+// 	case 0:
+// 		// In this case, check workspace by ID
+// 		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+// 		if othererr != nil {
+// 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+// 		}
+// 		if wsbyid != nil {
+// 			workspace = wsbyid
+// 		} else {
+// 			// Can this case happen?
+// 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+// 		}
+// 	case 1:
+// 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+// 	default:
+// 		workspace = &workspaces[0]
+// 	}
 
-	if workspace == nil {
-		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-	}
+// 	if workspace == nil {
+// 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+// 	}
 
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+// 	// Get WorkspaceMetaData
+// 	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+// 	if err != nil {
+// 		return nil, breverrors.WrapAndTrace(err)
+// 	}
 
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-}
+// 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+// }

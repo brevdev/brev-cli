@@ -399,7 +399,8 @@ func (sshConfigurer *SSHConfigurer) Sync() error {
 func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []entity.WorkspaceLocalID {
 	var workspaceIdentifiers []entity.WorkspaceLocalID
 	for _, workspace := range sshConfigurer.workspaces {
-		workspaceIdentifiers = append(workspaceIdentifiers, workspace.GetLocalIdentifier())
+		fmt.Println(workspace.Name)
+		workspaceIdentifiers = append(workspaceIdentifiers, workspace.GetLocalIdentifier(sshConfigurer.workspaces))
 	}
 	return workspaceIdentifiers
 }

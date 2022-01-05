@@ -110,7 +110,6 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 
 	t.Vprint("\n")
 
-
 	// Check IDE requirements
 	doneAddingKey := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "Finished adding your SSH key (above)?",
@@ -118,7 +117,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		Items:    []string{"Yes", "No", "Skip"},
 	})
 
-	if doneAddingKey == "skip" ||  doneAddingKey == "no" {
+	if doneAddingKey == "skip" || doneAddingKey == "no" {
 		t.Vprint(t.Red("\nFeel free to proceed but you will not be able to pull or push your private repos. Run 'brev ssh-key' to do this step later\n"))
 	}
 

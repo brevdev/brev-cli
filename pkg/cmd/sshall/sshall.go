@@ -95,7 +95,8 @@ func workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (bool, error)
 	return true, nil
 }
 
-func (s SSHAll) runPortForwardWorkspace(workspace entity.WorkspaceWithMeta) {
+// NOTE: not sure if passing in all the workspaces to check for name is useful here, like in entity.go: GetLocalIdentifier
+func (s SSHAll) runPortForwardWorkspace(workspace entity.WorkspaceWithMeta, _ []entity.WorkspaceWithMeta) {
 	err := s.portforwardWorkspace(workspace)
 	if err != nil {
 		// todo have verbose version with trace
@@ -123,7 +124,7 @@ func (s SSHAll) Run() error {
 					TryClose(s.workspaceConnections[w])
 					if s.retries[w] > 0 {
 						s.retries[w]--
-						s.runPortForwardWorkspace(w)
+						s.runPortForwardWorkspace(w, s.workspaces)
 					}
 				}
 			}
@@ -145,9 +146,9 @@ Host *
 
 	fmt.Println()
 	for _, w := range s.workspaces {
-		fmt.Printf("ssh %s\n", w.GetLocalIdentifier())
+		fmt.Printf("ssh %s\n", w.GetLocalIdentifier(s.workspaces))
 		s.retries[w] = 3 // TODO magic number
-		s.runPortForwardWorkspace(w)
+		s.runPortForwardWorkspace(w, s.workspaces)
 	}
 	fmt.Println()
 
@@ -169,7 +170,7 @@ func TryClose(toClose chan struct{}) {
 }
 
 func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
-	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.GetLocalIdentifier())
+	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.GetLocalIdentifier(nil))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
