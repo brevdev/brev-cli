@@ -55,4 +55,9 @@ func TestGetLocalIdentifierDeterminism(t *testing.T) {
 	// sometime later -- w2 deleted
 	ws = []WorkspaceWithMeta{w1}
 	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
+
+	// // sometime later -- user changes name
+	// w1.Name = "new name"
+	// ws = []WorkspaceWithMeta{w1, w2}
+	// assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
 }
