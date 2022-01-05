@@ -37,15 +37,19 @@ func TestGetLocalIdentifierDeterminism(t *testing.T) {
 	w2 := WorkspaceWithMeta{Workspace: Workspace{ID: "2", DNS: "main-def-org.brev.sh", Name: "main"}}
 	ws := []WorkspaceWithMeta{w1, w2}
 
-	assert.Equal(t, WorkspaceLocalID("main-abc"), w1.GetLocalIdentifier(ws))
-	assert.Equal(t, WorkspaceLocalID("main-def"), w2.GetLocalIdentifier(ws))
+	// same id must be returned across time
+	w1CorrectID := WorkspaceLocalID("main-abc")
+	w2CorrectID := WorkspaceLocalID("main-def")
+
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
+	assert.Equal(t, w2CorrectID, w2.GetLocalIdentifier(ws))
 
 	// sometime later -- re-arranged
 	ws = []WorkspaceWithMeta{w2, w1}
-	assert.Equal(t, WorkspaceLocalID("main-abc"), w1.GetLocalIdentifier(ws))
-	assert.Equal(t, WorkspaceLocalID("main-def"), w2.GetLocalIdentifier(ws))
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
+	assert.Equal(t, w2CorrectID, w2.GetLocalIdentifier(ws))
 
 	// sometime later -- w2 deleted
 	ws = []WorkspaceWithMeta{w1}
-	assert.Equal(t, WorkspaceLocalID("main-abc"), w1.GetLocalIdentifier(ws))
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(ws))
 }
