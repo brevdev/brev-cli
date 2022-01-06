@@ -38,6 +38,7 @@ type StartStore interface {
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
 	var org string
+	var name string
 	var detached bool
 
 	cmd := &cobra.Command{
@@ -55,21 +56,24 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 				isURL = true
 			}
 
-			if !isURL {
-				err := startWorkspace(args[0], loginStartStore, t, detached)
+			if isURL {
+				// CREATE A WORKSPACE
+				err := clone(t, args[0], org, loginStartStore, name)
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
 				}
 			} else {
-				// CREATE A WORKSPACE
-				err := clone(t, args[0], org, loginStartStore)
+				// Start an existing one (either theirs or someone elses)
+				err := startWorkspace(args[0], loginStartStore, t, detached, name)
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
 				}
 			}
+
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
@@ -79,7 +83,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool) error {
+func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	if err != nil {
 		// This is not an error yet-- the user might be trying to join a team's workspace
@@ -99,12 +103,23 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		if len(workspaces) == 0 {
 			return fmt.Errorf("your team has no projects named %s", workspaceName)
 		}
-		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore)
+		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name)
 		if othererr != nil {
 			return breverrors.WrapAndTrace(othererr)
 		}
 
 	} else {
+		if workspace.Status == "RUNNING" {
+			t.Vprint(t.Yellow("Workspace is already running"))
+			return nil
+		}
+		// TODO: check the workspace isn't running first!!!
+
+
+		if len(name) > 0 {
+			t.Vprint("Existing workspace found. Name flag ignored.")
+		}
+
 		startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -137,10 +152,15 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
-func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore) error {
+func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore, name string) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(templateWorkspace.WorkspaceClassID)
+	if len(name) > 0 {
+		options.Name = name
+	} else {
+		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(options.Name))
+	}
 
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
@@ -162,8 +182,14 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore) error {
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
+
+	if len(name) > 0 {
+		newWorkspace.Name = name
+	} else {
+		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(newWorkspace.Name))
+	}
 
 	var orgID string
 	if orgflag == "" {
@@ -311,10 +337,11 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
 	case 1:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	default:
 		workspace = &workspaces[0]
+	default:
+		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
 	}
+	
 
 	if workspace == nil {
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
