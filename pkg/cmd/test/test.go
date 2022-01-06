@@ -1,6 +1,9 @@
 package test
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -35,15 +38,15 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			// Check IDE requirements
-			doneAddingKey := terminal.PromptSelectInput(terminal.PromptSelectContent{
-				Label:    "Done adding your SSH key?",
-				ErrorMsg: "error",
-				Items:    []string{"yes", "no", "skip"},
-			})
+			// doneAddingKey := terminal.PromptSelectInput(terminal.PromptSelectContent{
+			// 	Label:    "Done adding your SSH key?",
+			// 	ErrorMsg: "error",
+			// 	Items:    []string{"yes", "no", "skip"},
+			// })
 
-			if doneAddingKey == "skip" {
-				t.Vprint(t.Yellow("\nFeel free to proceed but you will not be able to pull or push your private repos. Run 'brev ssh-key' to do this step later."))
-			}
+			// if doneAddingKey == "skip" {
+			// 	t.Vprint(t.Yellow("\nFeel free to proceed but you will not be able to pull or push your private repos. Run 'brev ssh-key' to do this step later."))
+			// }
 
 			// t.Vprint(args[0] + "\n")
 			// wsmeta, err := getWorkspaceFromNameOrID(args[0], store)
@@ -95,64 +98,25 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 			// if err != nil {
 			// 	fmt.Println(err)
 			// }
+			fmt.Println(SlashToDash("heyyyyy"))
+			fmt.Println(SlashToDash("heyyyyy-testttt"))
+			fmt.Println(SlashToDash("heyyyyy///:testttt"))
+			fmt.Println(SlashToDash("heyyyy:testttt"))
 		},
 	}
 
 	return cmd
 }
 
-// func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, error) {
-// 	// Get Active Org
-// 	org, err := sstore.GetActiveOrganizationOrDefault()
-// 	if err != nil {
-// 		return nil, breverrors.WrapAndTrace(err)
-// 	}
-// 	if org == nil {
-// 		return nil, fmt.Errorf("no orgs exist")
-// 	}
 
-// 	// Get Current User
-// 	currentUser, err := sstore.GetCurrentUser()
-// 	if err != nil {
-// 		return nil, breverrors.WrapAndTrace(err)
-// 	}
+func SlashToDash(s string) string {
+	splitBySlash := strings.Split(s, "/")
 
-// 	// Get Workspaces for User
-// 	var workspace *entity.Workspace // this will be the returned workspace
-// 	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-// 	if err != nil {
-// 		return nil, breverrors.WrapAndTrace(err)
-// 	}
+	concatenated := strings.Join(splitBySlash, "-")
 
-// 	switch len(workspaces) {
-// 	case 0:
-// 		// In this case, check workspace by ID
-// 		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-// 		if othererr != nil {
-// 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-// 		}
-// 		if wsbyid != nil {
-// 			workspace = wsbyid
-// 		} else {
-// 			// Can this case happen?
-// 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-// 		}
-// 	case 1:
-//      workspace = &workspaces[0]
-// 		
-// 	default:
-// 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-// 	}
+	splitByColon := strings.Split(concatenated, ":")
 
-// 	if workspace == nil {
-// 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-// 	}
+	emacsSafeString := strings.Join(splitByColon, "-")
 
-// 	// Get WorkspaceMetaData
-// 	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-// 	if err != nil {
-// 		return nil, breverrors.WrapAndTrace(err)
-// 	}
-
-// 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-// }
+	return emacsSafeString
+}

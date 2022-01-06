@@ -116,7 +116,7 @@ type Workspace struct {
 	// StatusMessage         string `json:"statusMessage,omitempty"`
 }
 
-const featureSimpleNames = false
+const featureSimpleNames = true
 
 func (w Workspace) GetLocalIdentifier(workspaces []WorkspaceWithMeta) WorkspaceLocalID {
 	if featureSimpleNames {
@@ -139,7 +139,8 @@ func (w Workspace) GetLocalIdentifier(workspaces []WorkspaceWithMeta) WorkspaceL
 		}
 
 		if isUnique {
-			return WorkspaceLocalID(w.Name)
+			sanitizedName := makeNameSafeForEmacs(w.Name)
+			return WorkspaceLocalID(sanitizedName)
 		} else {
 			dnsSplit := strings.Split(w.DNS, "-")
 			return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
@@ -153,4 +154,16 @@ func (w Workspace) GetLocalIdentifier(workspaces []WorkspaceWithMeta) WorkspaceL
 
 func (w Workspace) GetID() string {
 	return w.ID
+}
+
+func makeNameSafeForEmacs(name string) string {
+	splitBySlash := strings.Split(name, "/")
+
+	concatenated := strings.Join(splitBySlash, "-")
+
+	splitByColon := strings.Split(concatenated, ":")
+
+	emacsSafeString := strings.Join(splitByColon, "-")
+
+	return emacsSafeString
 }
