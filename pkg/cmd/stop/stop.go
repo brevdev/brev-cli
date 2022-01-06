@@ -104,9 +104,9 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.Worksp
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
 	case 1:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	default:
 		workspace = &workspaces[0]
+	default:
+		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
 	}
 
 	if workspace == nil {

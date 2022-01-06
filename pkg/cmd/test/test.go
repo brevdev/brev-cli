@@ -138,9 +138,10 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 // 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 // 		}
 // 	case 1:
-// 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+//      workspace = &workspaces[0]
+// 		
 // 	default:
-// 		workspace = &workspaces[0]
+// 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
 // 	}
 
 // 	if workspace == nil {
