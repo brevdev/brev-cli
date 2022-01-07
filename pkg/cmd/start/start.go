@@ -69,7 +69,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 					t.Vprint(t.Red(err.Error()))
 				}
 			}
-
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -114,7 +113,6 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 			return nil
 		}
 		// TODO: check the workspace isn't running first!!!
-
 
 		if len(name) > 0 {
 			t.Vprint("Existing workspace found. Name flag ignored.")
@@ -341,7 +339,6 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	default:
 		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
 	}
-	
 
 	if workspace == nil {
 		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
