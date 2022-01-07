@@ -116,7 +116,7 @@ type Workspace struct {
 	// StatusMessage         string `json:"statusMessage,omitempty"`
 }
 
-const featureSimpleNames = true
+const featureSimpleNames = false
 
 func (w Workspace) GetLocalIdentifier(workspaces []WorkspaceWithMeta) WorkspaceLocalID {
 	if featureSimpleNames {
