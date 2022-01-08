@@ -9,13 +9,17 @@ require (
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/google/uuid v1.1.2
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/jarcoal/httpmock v1.0.8
 	github.com/joho/godotenv v1.4.0
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/kevinburke/ssh_config v1.1.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/errors v0.9.1
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/schollz/progressbar/v3 v3.8.3
+	github.com/sevlyar/go-daemon v0.1.5 // indirect
 	github.com/spf13/afero v1.6.0
 	github.com/spf13/cobra v1.2.1
 	github.com/stretchr/testify v1.7.0

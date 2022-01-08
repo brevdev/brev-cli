@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -98,10 +99,11 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 			// if err != nil {
 			// 	fmt.Println(err)
 			// }
-			fmt.Println(SlashToDash("heyyyyy"))
-			fmt.Println(SlashToDash("heyyyyy-testttt"))
-			fmt.Println(SlashToDash("heyyyyy///:testttt"))
-			fmt.Println(SlashToDash("heyyyy:testttt"))
+			err := ssh.RunTasks()
+			// err := ssh.RunTaskAsDaemon()
+			if err != nil {
+				fmt.Println(err)
+			}
 		},
 	}
 
