@@ -2,7 +2,6 @@
     // gopls with gofumpt and import ordering
     "go.useLanguageServer": true,
     "gopls": {
-        "gofumpt": true,
         "formatting.gofumpt": true,
     },
     "[go]": {

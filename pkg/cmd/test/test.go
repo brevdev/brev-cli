@@ -99,8 +99,8 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 			// if err != nil {
 			// 	fmt.Println(err)
 			// }
-			err := ssh.RunTasks()
-			// err := ssh.RunTaskAsDaemon()
+			// err := ssh.RunTasks()
+			err := ssh.RunTaskAsDaemon(".")
 			if err != nil {
 				fmt.Println(err)
 			}

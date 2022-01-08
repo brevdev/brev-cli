@@ -1,13 +1,15 @@
 package ssh
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/hashicorp/go-multierror"
 	cron "github.com/robfig/cron/v3"
 	daemon "github.com/sevlyar/go-daemon"
@@ -21,38 +23,57 @@ func (d DummyStore) GetWorkspaces() ([]entity.Workspace, error) {
 
 type DummySSHConfigurerV2Store struct{}
 
-func (d DummySSHConfigurerV2Store) OverrideWriteSSHConfig(config string) error {
+func (d DummySSHConfigurerV2Store) OverrideWriteSSHConfig(_ string) error {
 	return nil
 }
 
-func RunTaskAsDaemon() error {
+func (d DummySSHConfigurerV2Store) WriteBrevSSHConfig(_ string) error {
+	return nil
+}
+
+func (d DummySSHConfigurerV2Store) ReadUserSSHConfig() (string, error) {
+	return "", nil
+}
+
+func (d DummySSHConfigurerV2Store) WriteUserSSHConfig(_ string) error {
+	return nil
+}
+
+func RunTaskAsDaemon(brevHome string) error {
 	cntxt := &daemon.Context{
-		PidFileName: "sample.pid",
-		PidFilePerm: 0644,
-		LogFileName: "sample.log",
-		LogFilePerm: 0640,
-		WorkDir:     "./",
-		Umask:       027,
+		PidFileName: fmt.Sprintf("%s/daemon.pid", brevHome),
+		PidFilePerm: 0o644,
+		LogFileName: fmt.Sprintf("%s/daemon.log", brevHome),
+		LogFilePerm: 0o640,
+		WorkDir:     brevHome,
+		Umask:       0o27,
 		Args:        []string{},
 	}
 
 	d, err := cntxt.Reborn()
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		if errors.Is(err, daemon.ErrWouldBlock) {
+			log.Print("daemon already running")
+			return nil
+		}
+		return breverrors.WrapAndTrace(err)
 	}
 	if d != nil {
 		return nil
 	}
-	defer cntxt.Release()
 
 	log.Print("- - - - - - - - - - - - - - -")
 	log.Print("daemon started")
 
 	err = RunTasks()
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
+	err = cntxt.Release()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -65,7 +86,7 @@ func RunTasks() error {
 
 	err := d.Run()
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil
@@ -84,32 +105,35 @@ func LogErr(f func() error) func() {
 	return func() {
 		err := f()
 		if err != nil {
-			fmt.Println(err)
+			log.Print(err)
 		}
 	}
 }
-
-var signals = make(chan os.Signal, 1)
 
 func (tr TaskRunner) Run() error {
 	c := cron.New()
 	for _, t := range tr.Tasks {
 		_, err := c.AddFunc(t.CronSpec(), LogErr(t.Run))
 		if err != nil {
-			return errors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 
 	c.Start()
 
-	// signal.Notify(signals, os.Interrupt)
-	signal.Notify(signals, os.Interrupt)
+	signals := make(chan os.Signal, 1)
+
+	signal.Notify(signals, syscall.SIGQUIT)
+	signal.Notify(signals, syscall.SIGTERM)
+	signal.Notify(signals, syscall.SIGHUP)
+	signal.Notify(signals, syscall.SIGINT)
+
 	defer signal.Stop(signals)
 	<-signals
-	fmt.Println("interrupt signal")
+	log.Print("interrupt signal")
 	<-c.Stop().Done()
 
-	fmt.Println("done")
+	log.Print("done")
 	return nil
 }
 
@@ -131,7 +155,7 @@ var _ Task = ConfigUpdater{}
 func (c ConfigUpdater) Run() error {
 	workspaces, err := c.Store.GetWorkspaces()
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	var res error
@@ -143,7 +167,7 @@ func (c ConfigUpdater) Run() error {
 	}
 
 	if res != nil {
-		return errors.WrapAndTrace(res)
+		return breverrors.WrapAndTrace(res)
 	}
 	return nil
 }
@@ -158,7 +182,9 @@ type SSHConfigurerV2 struct {
 }
 
 type SSHConfigurerV2Store interface {
-	OverrideWriteSSHConfig(config string) error
+	WriteBrevSSHConfig(config string) error
+	ReadUserSSHConfig() (string, error)
+	WriteUserSSHConfig(config string) error
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -172,29 +198,29 @@ func NewSSHConfigurerV2(store SSHConfigurerV2Store) *SSHConfigurerV2 {
 func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	newConfig, err := s.CreateNewSSHConfig(workspaces)
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
-	err = s.store.OverrideWriteSSHConfig(newConfig)
+	err = s.store.WriteBrevSSHConfig(newConfig)
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = s.EnsureConfigHasInclude()
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil
 }
 
-func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
-	fmt.Println("creating new ssh config")
+func (s SSHConfigurerV2) CreateNewSSHConfig(_ []entity.Workspace) (string, error) {
+	log.Print("creating new ssh config")
 	return "", nil
 }
 
 func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 	// openssh-7.3
-	fmt.Println("ensuring has include")
+	log.Print("ensuring has include")
 	return nil
 }
