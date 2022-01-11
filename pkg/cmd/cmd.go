@@ -145,7 +145,11 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		// cmd.AddCommand(ssh.NewCmdSSH(t)) NOTE: this just isn't finished being built yet
 		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
+		cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, true))
+	} else {
+		cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, false))
 	}
+
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
@@ -153,7 +157,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(up.NewCmdUp(loginCmdStore, t))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {

@@ -15,12 +15,13 @@ import (
 )
 
 type upOptions struct {
-	on      *Up
-	upStore UpStore
+	on            *Up
+	upStore       UpStore
+	jetbrainsOnly bool
 }
 
-func NewCmdUp(upStore UpStore, t *terminal.Terminal) *cobra.Command {
-	opts := upOptions{upStore: upStore}
+func NewCmdUp(upStore UpStore, t *terminal.Terminal, jetbrainsOnly bool) *cobra.Command {
+	opts := upOptions{upStore: upStore, jetbrainsOnly: jetbrainsOnly}
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -77,12 +78,21 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	writer := sshConfig
 	sshConfigWriter := sshConfig
 
-	sshConfigurer := ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	var sshConfigurer SSHConfigurer
+	if !s.jetbrainsOnly { //nolint:gocritic // placeholder code for when implement toggle
+		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+	} else {
+		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
-	s.on = NewUp(runningWorkspaces, *sshConfigurer, workspaceGroupClientMapper)
+	s.on = NewUp(runningWorkspaces, sshConfigurer, workspaceGroupClientMapper)
 	// spinner.Stop()
 	return nil
 }
@@ -107,18 +117,17 @@ func (s upOptions) RunOn(_ *terminal.Terminal) error {
 }
 
 type SSHConfigurer interface {
-	GetIdentityPortMap() (*ssh.IdentityPortMap, error)
 	Sync() error
-	GetConfiguredWorkspacePort(workspace entity.Workspace) (string, error)
+	sshall.SSHResolver
 }
 
 type Up struct {
-	sshConfigurer              ssh.SSHConfigurer
+	sshConfigurer              SSHConfigurer
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
 	workspaces                 []entity.WorkspaceWithMeta
 }
 
-func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer ssh.SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
+func NewUp(workspaces []entity.WorkspaceWithMeta, sshConfigurer SSHConfigurer, workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper) *Up {
 	return &Up{
 		workspaces:                 workspaces,
 		sshConfigurer:              sshConfigurer,
