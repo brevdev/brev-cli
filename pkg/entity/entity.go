@@ -156,6 +156,10 @@ func (w Workspace) GetID() string {
 	return w.ID
 }
 
+func (w Workspace) GetSSHURL() string {
+	return "ssh-" + w.DNS
+}
+
 func makeNameSafeForEmacs(name string) string {
 	splitBySlash := strings.Split(name, "/")
 
