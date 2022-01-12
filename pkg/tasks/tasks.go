@@ -70,7 +70,7 @@ type Task interface {
 
 type TaskSpec struct {
 	Cron               string // can be "" if want to run once // https://pkg.go.dev/github.com/robfig/cron?utm_source=godoc#hdr-CRON_Expression_Format
-	RunCronImmediately bool
+	RunCronImmediately bool   // only applied if cron not ""
 }
 
 type TaskRunner struct {

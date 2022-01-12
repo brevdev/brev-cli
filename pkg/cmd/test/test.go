@@ -1,12 +1,10 @@
 package test
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -100,10 +98,10 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 			// 	fmt.Println(err)
 			// }
 			// err := ssh.RunTasks()
-			err := ssh.RunTaskAsDaemon(".")
-			if err != nil {
-				fmt.Println(err)
-			}
+			// err := ssh.RunTaskAsDaemon(".")
+			// if err != nil {
+			// 	fmt.Println(err)
+			// }
 		},
 	}
 

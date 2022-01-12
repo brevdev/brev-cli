@@ -2,20 +2,15 @@ package ssh
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"text/template"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/hashicorp/go-multierror"
-	cron "github.com/robfig/cron/v3"
-	daemon "github.com/sevlyar/go-daemon"
 )
 
 type DummyStore struct{}
@@ -54,104 +49,6 @@ func (d DummySSHConfigurerV2Store) GetBrevSSHConfigPath() string {
 	return "/my/brev/config"
 }
 
-func RunTaskAsDaemon(brevHome string) error {
-	cntxt := &daemon.Context{
-		PidFileName: fmt.Sprintf("%s/daemon.pid", brevHome),
-		PidFilePerm: 0o644,
-		LogFileName: fmt.Sprintf("%s/daemon.log", brevHome),
-		LogFilePerm: 0o640,
-		WorkDir:     brevHome,
-		Umask:       0o27,
-		Args:        []string{},
-	}
-
-	d, err := cntxt.Reborn()
-	if err != nil {
-		if errors.Is(err, daemon.ErrWouldBlock) {
-			log.Print("daemon already running")
-			return nil
-		}
-		return breverrors.WrapAndTrace(err)
-	}
-	if d != nil {
-		return nil
-	}
-
-	log.Print("- - - - - - - - - - - - - - -")
-	log.Print("daemon started")
-
-	err = RunTasks()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = cntxt.Release()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func RunTasks() error {
-	c := ConfigUpdater{
-		Store:   DummyStore{},
-		Configs: []Config{NewSSHConfigurerV2(DummySSHConfigurerV2Store{})},
-	}
-	d := TaskRunner{Tasks: []Task{c}}
-
-	err := d.Run()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
-}
-
-type Task interface {
-	Run() error
-	CronSpec() string // https://pkg.go.dev/github.com/robfig/cron?utm_source=godoc#hdr-CRON_Expression_Format
-}
-
-type TaskRunner struct {
-	Tasks []Task
-}
-
-func LogErr(f func() error) func() {
-	return func() {
-		err := f()
-		if err != nil {
-			log.Print(err)
-		}
-	}
-}
-
-func (tr TaskRunner) Run() error {
-	c := cron.New()
-	for _, t := range tr.Tasks {
-		_, err := c.AddFunc(t.CronSpec(), LogErr(t.Run))
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-
-	c.Start()
-
-	signals := make(chan os.Signal, 1)
-
-	signal.Notify(signals, syscall.SIGQUIT)
-	signal.Notify(signals, syscall.SIGTERM)
-	signal.Notify(signals, syscall.SIGHUP)
-	signal.Notify(signals, syscall.SIGINT)
-
-	defer signal.Stop(signals)
-	<-signals
-	log.Print("interrupt signal")
-	<-c.Stop().Done()
-
-	log.Print("done")
-	return nil
-}
-
 type ConfigUpdaterStore interface {
 	GetWorkspaces() ([]entity.Workspace, error)
 }
@@ -165,7 +62,7 @@ type ConfigUpdater struct {
 	Configs []Config
 }
 
-var _ Task = ConfigUpdater{}
+var _ tasks.Task = ConfigUpdater{}
 
 func (c ConfigUpdater) Run() error {
 	workspaces, err := c.Store.GetWorkspaces()
@@ -187,8 +84,8 @@ func (c ConfigUpdater) Run() error {
 	return nil
 }
 
-func (c ConfigUpdater) CronSpec() string {
-	return "@every 3s"
+func (c ConfigUpdater) GetTaskSpec() tasks.TaskSpec {
+	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 3s"}
 }
 
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand
