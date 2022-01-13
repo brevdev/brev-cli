@@ -152,7 +152,7 @@ func makeSSHConfigEntry(alias string, url string, privateKeyPath string) (string
 }
 
 func makeProxyCommand(url string) string {
-	huproxyExec := "huproxyclient"
+	huproxyExec := "brev proxy"
 	return fmt.Sprintf("%s wss://%s/proxy/localhost/22", huproxyExec, url)
 }
 
