@@ -125,7 +125,7 @@ func makeMockSSHStore() (*store.FileStore, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	err = afero.WriteFile(mfs, *p, []byte(``), 0o644)
+	err = afero.WriteFile(mfs, p, []byte(``), 0o644)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -160,7 +160,7 @@ Host brevdev/brev-deploy
   User brev
   Port 2224
 
-`, store.GetPrivateKeyFilePath(), userConfigStr, someWorkspaces[0].GetLocalIdentifier(nil))
+`, store.GetPrivateKeyPath(), userConfigStr, someWorkspaces[0].GetLocalIdentifier(nil))
 	return userSSHConfigStr, err
 }
 
@@ -169,7 +169,7 @@ func makeTestSSHConfig(store SSHStore) (*SSHConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = store.WriteSSHConfig(userSSHConfigStr)
+	err = store.WriteUserSSHConfig(userSSHConfigStr)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -268,7 +268,7 @@ Host %s
 	privateKeyExists, err := mockStore.FileExists(sshConfig.privateKey)
 	assert.Nil(t, err)
 	assert.True(t, privateKeyExists)
-	privateKeyFilePath := mockStore.GetPrivateKeyFilePath()
+	privateKeyFilePath := mockStore.GetPrivateKeyPath()
 	pk, err := mockStore.GetOrCreateFile(privateKeyFilePath)
 	if !assert.Nil(t, err) {
 		return
@@ -323,7 +323,7 @@ Host %s
   IdentityFile %s
   User brev
   Port 2222
-`, userConfigStr, activeWorkspace, sshConfig.store.GetPrivateKeyFilePath()), sshConfig.sshConfig.String())
+`, userConfigStr, activeWorkspace, sshConfig.store.GetPrivateKeyPath()), sshConfig.sshConfig.String())
 }
 
 func TestGetBrevHostValues(t *testing.T) {
@@ -440,7 +440,7 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	identityPortMap[someWorkspaces[0].GetLocalIdentifier(nil)] = "2222"
 	err = jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
-	privatekeypath := mockJetbrainsGatewayStore.GetPrivateKeyFilePath()
+	privatekeypath := mockJetbrainsGatewayStore.GetPrivateKeyPath()
 	assert.Nil(t, err)
 	config, err := mockJetbrainsGatewayStore.GetJetBrainsConfig()
 	assert.Nil(t, err)
@@ -491,7 +491,7 @@ func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
     </configs>
   </component>
 </application>
-`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
+`, mockJetbrainsGatewayStore.GetPrivateKeyPath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -512,7 +512,7 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
     </configs>
   </component>
 </application>
-`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
+`, mockJetbrainsGatewayStore.GetPrivateKeyPath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -533,7 +533,7 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
     </configs>
   </component>
 </application>
-`, mockJetbrainsGatewayStore.GetPrivateKeyFilePath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
+`, mockJetbrainsGatewayStore.GetPrivateKeyPath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
 	assert.Nil(t, err)
 	assert.Equal(t, len(xml.Component.Configs.SSHConfigs), 1)
 	assert.Equal(t, someWorkspaces[0].GetLocalIdentifier(nil), xml.Component.Configs.SSHConfigs[0].CustomName)

@@ -14,15 +14,15 @@ import (
 )
 
 // !! need something to resolve file path of user ssh
-func (f FileStore) GetSSHConfig() (string, error) {
+func (f FileStore) GetUserSSHConfig() (string, error) {
 	path, err := files.GetUserSSHConfigPath()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	if path == nil {
+	if path == "" {
 		return "", errors.New("nil path when getting ssh config")
 	}
-	file, err := f.GetOrCreateFile(*path)
+	file, err := f.GetOrCreateFile(path)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -35,12 +35,40 @@ func (f FileStore) GetSSHConfig() (string, error) {
 	return buf.String(), nil
 }
 
-func (f FileStore) WriteSSHConfig(config string) error {
+func (f FileStore) GetUserSSHConfigPath() (string, error) {
+	path, err := files.GetUserSSHConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return path, nil
+}
+
+func (f FileStore) GetBrevSSHConfigPath() (string, error) {
+	path, err := files.GetBrevSSHConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return path, nil
+}
+
+func (f FileStore) WriteUserSSHConfig(config string) error {
 	csp, err := files.GetUserSSHConfigPath()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = afero.WriteFile(f.fs, *csp, []byte(config), 0o644)
+	err = afero.WriteFile(f.fs, csp, []byte(config), 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (f FileStore) WriteBrevSSHConfig(config string) error {
+	bsp, err := files.GetBrevSSHConfigPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(f.fs, bsp, []byte(config), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -57,7 +85,7 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	file, err := f.fs.Open(*csp)
+	file, err := f.fs.Open(csp)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -85,8 +113,8 @@ func (f FileStore) WritePrivateKey(pem string) error {
 	return nil
 }
 
-func (f FileStore) GetPrivateKeyFilePath() string {
-	return files.GetSSHPrivateKeyFilePath()
+func (f FileStore) GetPrivateKeyPath() string {
+	return files.GetSSHPrivateKeyPath()
 }
 
 func VerifyPrivateKey(key []byte) error {

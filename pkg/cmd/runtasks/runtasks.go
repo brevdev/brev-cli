@@ -2,12 +2,14 @@ package runtasks
 
 import (
 	"github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
-func NewCmdRunTasks(t *terminal.Terminal) *cobra.Command {
+func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	var detached bool
 
 	cmd := &cobra.Command{
@@ -19,7 +21,7 @@ func NewCmdRunTasks(t *terminal.Terminal) *cobra.Command {
 		// Example:               startExample,
 		Args: cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := RunTasks(t, detached)
+			err := RunTasks(t, store, detached)
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -30,10 +32,19 @@ func NewCmdRunTasks(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func RunTasks(_ *terminal.Terminal, detached bool) error {
-	ts := getDefaultTasks()
+type RunTasksStore interface {
+	ssh.ConfigUpdaterStore
+	ssh.SSHConfigurerV2Store
+}
+
+func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
+	ts := getDefaultTasks(store)
+	home, err := files.GetBrevHome()
+	if err != nil {
+		return errors.WrapAndTrace(err)
+	}
 	if detached {
-		err := tasks.RunTaskAsDaemon(ts, "") // TODO
+		err := tasks.RunTaskAsDaemon(ts, home)
 		if err != nil {
 			return errors.WrapAndTrace(err)
 		}
@@ -46,6 +57,14 @@ func RunTasks(_ *terminal.Terminal, detached bool) error {
 	return nil
 }
 
-func getDefaultTasks() []tasks.Task {
-	return nil
+func getDefaultTasks(store RunTasksStore) []tasks.Task {
+	cu := ssh.ConfigUpdater{
+		Store: store,
+		Configs: []ssh.Config{
+			ssh.NewSSHConfigurerV2(
+				store,
+			),
+		},
+	}
+	return []tasks.Task{cu}
 }

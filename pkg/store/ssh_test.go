@@ -95,7 +95,7 @@ func setupSSHConfigFile(fs afero.Fs) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	_, err = fs.Create(*sshConfigPath)
+	_, err = fs.Create(sshConfigPath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -109,7 +109,7 @@ func TestGetSSHConfig(t *testing.T) {
 		return
 	}
 
-	_, err = fs.GetSSHConfig()
+	_, err = fs.GetUserSSHConfig()
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -117,7 +117,7 @@ func TestGetSSHConfig(t *testing.T) {
 
 func TestWriteSSHConfig(t *testing.T) {
 	fs := MakeMockFileStore()
-	err := fs.WriteSSHConfig(``)
+	err := fs.WriteUserSSHConfig(``)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -142,7 +142,7 @@ func TestWritePrivateKey(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	privateKeyFilePath := fs.GetPrivateKeyFilePath()
+	privateKeyFilePath := fs.GetPrivateKeyPath()
 	pk, err := fs.GetOrCreateFile(privateKeyFilePath)
 	if !assert.Nil(t, err) {
 		return

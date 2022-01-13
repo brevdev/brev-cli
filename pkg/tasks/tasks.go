@@ -15,15 +15,20 @@ import (
 )
 
 func RunTaskAsDaemon(tasks []Task, brevHome string) error {
+	pidFile := fmt.Sprintf("%s/task_daemon.pid", brevHome)
+	logFile := fmt.Sprintf("%s/task_daemon.log", brevHome)
 	cntxt := &daemon.Context{
-		PidFileName: fmt.Sprintf("%s/daemon.pid", brevHome),
+		PidFileName: pidFile,
 		PidFilePerm: 0o644,
-		LogFileName: fmt.Sprintf("%s/daemon.log", brevHome),
+		LogFileName: logFile,
 		LogFilePerm: 0o640,
 		WorkDir:     brevHome,
 		Umask:       0o27,
 		Args:        []string{},
 	}
+
+	fmt.Printf("PID File: %s\n", pidFile)
+	fmt.Printf("Log File: %s\n", logFile)
 
 	d, err := cntxt.Reborn()
 	if err != nil {
@@ -53,7 +58,7 @@ func RunTaskAsDaemon(tasks []Task, brevHome string) error {
 }
 
 func RunTasks(tasks []Task) error {
-	d := TaskRunner{Tasks: tasks}
+	d := NewTaskRunner(tasks)
 
 	err := d.Run()
 	if err != nil {
@@ -120,6 +125,7 @@ func (tr TaskRunner) Run() error {
 	c.Start()
 
 	tr.WaitTillSignal(c.Stop)
+	log.Print("stopped")
 
 	return nil
 }
@@ -132,6 +138,7 @@ func (tr TaskRunner) WaitTillSignal(ctxfn func() context.Context) {
 
 	defer signal.Stop(tr.StopSignals)
 	<-tr.StopSignals
+	log.Print("stopping")
 	<-ctxfn().Done()
 }
 

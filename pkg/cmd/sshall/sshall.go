@@ -63,7 +63,7 @@ func workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (bool, error)
 	//
 	// If you have an encrypted private key, the crypto/x509 package
 	// can be used to decrypt it.
-	key, err := ioutil.ReadFile(files.GetSSHPrivateKeyFilePath())
+	key, err := ioutil.ReadFile(files.GetSSHPrivateKeyPath())
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err, "unable to read private key: %v")
 	}

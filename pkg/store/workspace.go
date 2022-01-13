@@ -123,6 +123,22 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 	return workspaces, nil
 }
 
+func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
+	org, err := s.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	user, err := s.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := s.GetWorkspaces(org.ID, &GetWorkspacesOptions{UserID: user.ID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return workspaces, nil
+}
+
 func (s AuthHTTPStore) GetAllWorkspaces(options *GetWorkspacesOptions) ([]entity.Workspace, error) {
 	orgs, err := s.GetOrganizations(nil)
 	if err != nil {

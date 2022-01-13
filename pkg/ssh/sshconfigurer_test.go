@@ -34,6 +34,42 @@ var somePlainWorkspaces = []entity.Workspace{
 	},
 }
 
+type DummyStore struct{}
+
+func (d DummyStore) GetWorkspaces() ([]entity.Workspace, error) {
+	return []entity.Workspace{}, nil
+}
+
+type DummySSHConfigurerV2Store struct{}
+
+func (d DummySSHConfigurerV2Store) OverrideWriteSSHConfig(_ string) error {
+	return nil
+}
+
+func (d DummySSHConfigurerV2Store) WriteBrevSSHConfig(_ string) error {
+	return nil
+}
+
+func (d DummySSHConfigurerV2Store) GetUserSSHConfig() (string, error) {
+	return "", nil
+}
+
+func (d DummySSHConfigurerV2Store) WriteUserSSHConfig(_ string) error {
+	return nil
+}
+
+func (d DummySSHConfigurerV2Store) GetPrivateKeyPath() string {
+	return "/my/priv/key.pem"
+}
+
+func (d DummySSHConfigurerV2Store) GetUserSSHConfigPath() (string, error) {
+	return "/my/user/config", nil
+}
+
+func (d DummySSHConfigurerV2Store) GetBrevSSHConfigPath() (string, error) {
+	return "/my/brev/config", nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
@@ -69,25 +105,36 @@ func TestEnsureConfigHasInclude(t *testing.T) {
 
 func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+	bscp, err := c.store.GetBrevSSHConfigPath()
+	if !assert.Nil(t, err) {
+		return
+	}
 
 	userConf := ``
-	assert.False(t, c.doesUserSSHConfigIncludeBrevConfig(userConf))
+	assert.False(t, c.doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 
 	userConf = `Include /my/brev/config
 `
-	assert.True(t, c.doesUserSSHConfigIncludeBrevConfig(userConf))
+	assert.True(t, c.doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 
 	userConf = `# blahdlkfadlfa
 Include /my/brev/config
 # baldfhaldjf`
-	assert.True(t, c.doesUserSSHConfigIncludeBrevConfig(userConf))
+	assert.True(t, c.doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+	bscp, err := c.store.GetBrevSSHConfigPath()
+	if !assert.Nil(t, err) {
+		return
+	}
 
 	userConf := ``
-	newConf := c.AddIncludeToUserConfig(userConf)
+	newConf, err := c.AddIncludeToUserConfig(userConf, bscp)
+	if !assert.Nil(t, err) {
+		return
+	}
 	correct := `Include /my/brev/config
 `
 	assert.Equal(t, correct, newConf)
@@ -95,7 +142,10 @@ func TestAddIncludeToUserConfig(t *testing.T) {
 	userConf = `b;kasdfa;dsl;afd;kl
 blaksdf;asdf;
 `
-	newConf = c.AddIncludeToUserConfig(userConf)
+	newConf, err = c.AddIncludeToUserConfig(userConf, bscp)
+	if !assert.Nil(t, err) {
+		return
+	}
 	correct = `Include /my/brev/config
 ` + userConf
 	assert.Equal(t, correct, newConf)

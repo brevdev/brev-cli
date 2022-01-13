@@ -13,44 +13,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-type DummyStore struct{}
-
-func (d DummyStore) GetWorkspaces() ([]entity.Workspace, error) {
-	return []entity.Workspace{}, nil
-}
-
-type DummySSHConfigurerV2Store struct{}
-
-func (d DummySSHConfigurerV2Store) OverrideWriteSSHConfig(_ string) error {
-	return nil
-}
-
-func (d DummySSHConfigurerV2Store) WriteBrevSSHConfig(_ string) error {
-	return nil
-}
-
-func (d DummySSHConfigurerV2Store) ReadUserSSHConfig() (string, error) {
-	return "", nil
-}
-
-func (d DummySSHConfigurerV2Store) WriteUserSSHConfig(_ string) error {
-	return nil
-}
-
-func (d DummySSHConfigurerV2Store) GetPrivateKeyPath() string {
-	return "/my/priv/key.pem"
-}
-
-func (d DummySSHConfigurerV2Store) GetUserSSHConfigPath() string {
-	return "/my/user/config"
-}
-
-func (d DummySSHConfigurerV2Store) GetBrevSSHConfigPath() string {
-	return "/my/brev/config"
-}
-
 type ConfigUpdaterStore interface {
-	GetWorkspaces() ([]entity.Workspace, error)
+	GetContextWorkspaces() ([]entity.Workspace, error)
 }
 
 type Config interface {
@@ -65,7 +29,7 @@ type ConfigUpdater struct {
 var _ tasks.Task = ConfigUpdater{}
 
 func (c ConfigUpdater) Run() error {
-	workspaces, err := c.Store.GetWorkspaces()
+	workspaces, err := c.Store.GetContextWorkspaces()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -95,11 +59,11 @@ type SSHConfigurerV2 struct {
 
 type SSHConfigurerV2Store interface {
 	WriteBrevSSHConfig(config string) error
-	ReadUserSSHConfig() (string, error)
+	GetUserSSHConfig() (string, error)
 	WriteUserSSHConfig(config string) error
 	GetPrivateKeyPath() string
-	GetUserSSHConfigPath() string
-	GetBrevSSHConfigPath() string
+	GetUserSSHConfigPath() (string, error)
+	GetBrevSSHConfigPath() (string, error)
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -132,7 +96,12 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
 	log.Print("creating new ssh config")
 
-	sshConfig := fmt.Sprintf("# included in %s\n", s.store.GetUserSSHConfigPath())
+	configPath, err := s.store.GetUserSSHConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 		// need to make getlocalidentifier conformal
 		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(nil)), w.GetSSHURL(), s.store.GetPrivateKeyPath())
@@ -191,13 +160,20 @@ func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 	// openssh-7.3
 	log.Print("ensuring has include")
 
-	conf, err := s.store.ReadUserSSHConfig()
+	brevConfigPath, err := s.store.GetBrevSSHConfigPath()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if !s.doesUserSSHConfigIncludeBrevConfig(conf) {
-		newConf := s.AddIncludeToUserConfig(conf)
-		err := s.store.WriteUserSSHConfig(newConf)
+	conf, err := s.store.GetUserSSHConfig()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !s.doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
+		newConf, err := s.AddIncludeToUserConfig(conf, brevConfigPath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = s.store.WriteUserSSHConfig(newConf)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -206,16 +182,15 @@ func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 	return nil
 }
 
-func (s SSHConfigurerV2) AddIncludeToUserConfig(conf string) string {
-	newConf := makeIncludeBrevStr(s.store.GetBrevSSHConfigPath()) + conf
-
-	return newConf
+func (s SSHConfigurerV2) AddIncludeToUserConfig(conf string, brevConfigPath string) (string, error) {
+	newConf := makeIncludeBrevStr(brevConfigPath) + conf
+	return newConf, nil
 }
 
 func makeIncludeBrevStr(brevSSHConfigPath string) string {
 	return fmt.Sprintf("Include %s\n", brevSSHConfigPath)
 }
 
-func (s SSHConfigurerV2) doesUserSSHConfigIncludeBrevConfig(conf string) bool {
-	return strings.Contains(conf, makeIncludeBrevStr(s.store.GetBrevSSHConfigPath()))
+func (s SSHConfigurerV2) doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
+	return strings.Contains(conf, makeIncludeBrevStr(brevConfigPath))
 }

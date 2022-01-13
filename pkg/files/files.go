@@ -57,15 +57,21 @@ func GetNewBackupSSHConfigFileName() string {
 }
 
 func makeBrevFilePath(filename string) (*string, error) {
+	brevHome, err := GetBrevHome()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	fpath := filepath.Join(brevHome, filename)
+
+	return &fpath, nil
+}
+
+func GetBrevHome() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
-	fpath, err := filepath.Join(home, brevDirectory, filename), nil
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return &fpath, nil
+	return filepath.Join(home, brevDirectory), nil
 }
 
 func makeBrevFilePathOrPanic(filename string) string {
@@ -92,17 +98,26 @@ func GetCertFilePath() string {
 	return makeBrevFilePathOrPanic(GetKubeCertFileName())
 }
 
-func GetSSHPrivateKeyFilePath() string {
+func GetSSHPrivateKeyPath() string {
 	return makeBrevFilePathOrPanic(GetSSHPrivateKeyFileName())
 }
 
-func GetUserSSHConfigPath() (*string, error) {
+func GetUserSSHConfigPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 	sshConfigPath := filepath.Join(home, ".ssh", "config")
-	return &sshConfigPath, nil
+	return sshConfigPath, nil
+}
+
+func GetBrevSSHConfigPath() (string, error) {
+	path, err := GetBrevHome()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	brevSSHConfigPath := filepath.Join(path, "ssh_config")
+	return brevSSHConfigPath, nil
 }
 
 func GetNewBackupSSHConfigFilePath() (*string, error) {
@@ -118,18 +133,18 @@ func GetOrCreateSSHConfigFile(fs afero.Fs) (afero.File, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	sshConfigExists, err := afero.Exists(fs, *sshConfigPath)
+	sshConfigExists, err := afero.Exists(fs, sshConfigPath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	var file afero.File
 	if sshConfigExists {
-		file, err = fs.OpenFile(*sshConfigPath, os.O_RDWR, 0o644)
+		file, err = fs.OpenFile(sshConfigPath, os.O_RDWR, 0o644)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 	} else {
-		file, err = fs.Create(*sshConfigPath)
+		file, err = fs.Create(sshConfigPath)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -255,7 +270,7 @@ func OverwriteString(filepath string, data string) error {
 
 func WriteSSHPrivateKey(fs afero.Fs, data string) error {
 	// write
-	err := afero.WriteFile(fs, GetSSHPrivateKeyFilePath(), []byte(data), sshPrivateKeyFilePermissions)
+	err := afero.WriteFile(fs, GetSSHPrivateKeyPath(), []byte(data), sshPrivateKeyFilePermissions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
