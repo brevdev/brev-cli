@@ -26,7 +26,7 @@ type CreateWorkspacesOptions struct {
 
 const (
 	DefaultWorkspaceClassID    = "2x8"
-	DefaultWorkspaceTemplateID = "4nbb4lg2s"
+	DefaultWorkspaceTemplateID = "test-template-aws"
 )
 
 var (

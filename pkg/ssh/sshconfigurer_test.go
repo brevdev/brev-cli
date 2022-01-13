@@ -78,12 +78,14 @@ func TestCreateNewSSHConfig(t *testing.T) {
 Host test1-dns
   IdentityFile /my/priv/key.pem
   User brev
-  ProxyCommand huproxyclient wss://ssh-test1-dns-org.brev.sh/proxy/localhost/22
+  ProxyCommand brev proxy wss://ssh-test1-dns-org.brev.sh/proxy/localhost/22
+  ServerAliveInterval 30
 
 Host test2-dns
   IdentityFile /my/priv/key.pem
   User brev
-  ProxyCommand huproxyclient wss://ssh-test2-dns-org.brev.sh/proxy/localhost/22
+  ProxyCommand brev proxy wss://ssh-test2-dns-org.brev.sh/proxy/localhost/22
+  ServerAliveInterval 30
 
 `
 	assert.Equal(t, correct, cStr)

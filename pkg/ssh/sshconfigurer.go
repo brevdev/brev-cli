@@ -119,6 +119,7 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   IdentityFile {{ .IdentityFile }}
   User {{ .User }}
   ProxyCommand {{ .ProxyCommand }}
+  ServerAliveInterval 30
 
 `
 
