@@ -69,23 +69,30 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		t.Vprint(t.Yellow("\tYou can start a workspace with %s", t.Green("$ brev start <name>")))
 	}
 
-	sshConfig, err := ssh.NewSSHConfig(s.upStore)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	// copy values so we aren't modifying eachother
-	reader := sshConfig
-	writer := sshConfig
-	sshConfigWriter := sshConfig
-
 	var sshConfigurer SSHConfigurer
-	if !s.jetbrainsOnly { //nolint:gocritic // placeholder code for when implement toggle
+	if !s.jetbrainsOnly {
+		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		// copy values so we aren't modifying eachother
+		reader := jbConfig
+		writer := jbConfig
+		sshConfigWriter := jbConfig
 		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 
 	} else {
+		sshConfig, err := ssh.NewSSHConfig(s.upStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		// copy values so we aren't modifying eachother
+		reader := sshConfig
+		writer := sshConfig
+		sshConfigWriter := sshConfig
 		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
 		if err != nil {
 			return breverrors.WrapAndTrace(err)

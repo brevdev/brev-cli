@@ -209,6 +209,11 @@ func parseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error)
 	return &jetbrainsGatewayConfigXML, nil
 }
 
+var (
+	_ Reader = SSHConfig{}
+	_ Writer = &SSHConfig{}
+)
+
 func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
 	configStr, err := store.GetUserSSHConfig()
 	if err != nil {
@@ -420,6 +425,11 @@ func (s *SSHConfig) WritePrivateKey(pem string) error {
 	}
 	return nil
 }
+
+var (
+	_ Reader = &JetBrainsGatewayConfig{}
+	_ Writer = &JetBrainsGatewayConfig{}
+)
 
 func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGatewayConfig, error) {
 	config, err := store.GetJetBrainsConfig()
