@@ -104,7 +104,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 		// need to make getlocalidentifier conformal
-		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(nil)), w.GetSSHURL(), s.store.GetPrivateKeyPath())
+		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(nil)), w.ID, w.GetSSHURL(), s.store.GetPrivateKeyPath())
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -130,8 +130,8 @@ type SSHConfigEntryV2 struct {
 	ProxyCommand string
 }
 
-func makeSSHConfigEntry(alias string, url string, privateKeyPath string) (string, error) {
-	proxyCommand := makeProxyCommand(url)
+func makeSSHConfigEntry(alias string, workspaceID string, url string, privateKeyPath string) (string, error) {
+	proxyCommand := makeProxyCommand(url, workspaceID)
 	entry := SSHConfigEntryV2{
 		Alias:        alias,
 		IdentityFile: privateKeyPath,
@@ -152,9 +152,9 @@ func makeSSHConfigEntry(alias string, url string, privateKeyPath string) (string
 	return buf.String(), nil
 }
 
-func makeProxyCommand(url string) string {
+func makeProxyCommand(workspaceID string, url string) string {
 	huproxyExec := "brev proxy"
-	return fmt.Sprintf("%s wss://%s/proxy/localhost/22", huproxyExec, url)
+	return fmt.Sprintf("%s %s wss://%s/proxy/localhost/22", huproxyExec, workspaceID, url)
 }
 
 func (s SSHConfigurerV2) EnsureConfigHasInclude() error {

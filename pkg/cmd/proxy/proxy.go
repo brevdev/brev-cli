@@ -14,9 +14,9 @@ func NewCmdProxy(t *terminal.Terminal) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "http upgrade proxy",
 		Long:                  "http upgrade proxy for ssh ProxyCommand directive to use",
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cobra.ExactArgs(2),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := Proxy(t, args[0])
+			err := Proxy(t, args[0], args[1])
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -26,10 +26,18 @@ func NewCmdProxy(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func Proxy(_ *terminal.Terminal, url string) error {
-	err := huproxyclient.Run(url)
+func Proxy(_ *terminal.Terminal, workspaceID string, url string) error {
+	err := CheckWorkspaceCanSSH(workspaceID)
 	if err != nil {
 		return errors.WrapAndTrace(err)
 	}
+	err = huproxyclient.Run(url)
+	if err != nil {
+		return errors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func CheckWorkspaceCanSSH(workspaceID string) error {
 	return nil
 }
