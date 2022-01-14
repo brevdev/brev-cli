@@ -2,16 +2,20 @@
 package refresh
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 )
 
-func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
+type RefreshStore interface {
+	ssh.ConfigUpdaterStore
+	ssh.SSHConfigurerV2Store
+}
+
+func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "refresh",
@@ -27,7 +31,7 @@ func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := refresh(t)
+			err := refresh(t, store)
 			return breverrors.WrapAndTrace(err)
 			// return nil
 		},
@@ -36,12 +40,22 @@ func NewCmdRefresh(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func refresh(t *terminal.Terminal) error {
+func refresh(t *terminal.Terminal, store RefreshStore) error {
 	bar := t.NewProgressBar("Fetching orgs and workspaces", func() {})
 	bar.AdvanceTo(50)
 
+	cu := ssh.ConfigUpdater{
+		Store: store,
+		Configs: []ssh.Config{
+			ssh.NewSSHConfigurerV2(
+				store,
+			),
+		},
+	}
+
+	cu.Run()
 	bar.AdvanceTo(100)
 	t.Vprintf(t.Green("\nCache has been refreshed\n"))
 
-	return fmt.Errorf("not implemented")
+	return nil
 }
