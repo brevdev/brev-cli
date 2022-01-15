@@ -151,7 +151,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, true))
 		cmd.AddCommand(refresh.NewCmdRefresh(t, noLoginCmdStore))
 		cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
-		cmd.AddCommand(proxy.NewCmdProxy(t))
+		cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	} else {
 		cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, false))
 	}

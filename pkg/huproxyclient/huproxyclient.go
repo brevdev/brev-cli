@@ -11,6 +11,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -19,6 +20,10 @@ import (
 )
 
 var writeTimeout = 10 * time.Second
+
+type HubProxyStore interface {
+	GetAuthTokens() (*entity.AuthTokens, error)
+}
 
 func dialError(url string, resp *http.Response, err error) {
 	if resp != nil {
@@ -34,7 +39,7 @@ func dialError(url string, resp *http.Response, err error) {
 	log.Fatalf("Dial to %q fail: %v", url, err)
 }
 
-func Run(url string) error {
+func Run(url string, store HubProxyStore) error {
 	log.Warnf("huproxyclient %s", huproxy.Version)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -44,6 +49,15 @@ func Run(url string) error {
 	dialer.TLSClientConfig = new(tls.Config)
 
 	head := map[string][]string{}
+
+	token, err := store.GetAuthTokens()
+	if err != nil {
+		return errors.WrapAndTrace(err)
+	}
+
+	head["Authorization"] = []string{
+		"Bearer " + token.AccessToken,
+	}
 
 	conn, resp, err := dialer.Dial(url, head)
 	if err != nil {
