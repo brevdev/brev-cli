@@ -43,6 +43,6 @@ func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string, url strin
 	return nil
 }
 
-func CheckWorkspaceCanSSH(workspaceID string) error {
+func CheckWorkspaceCanSSH(_ string) error {
 	return nil
 }

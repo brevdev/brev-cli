@@ -53,7 +53,10 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 		},
 	}
 
-	cu.Run()
+	err := cu.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	bar.AdvanceTo(100)
 	t.Vprintf(t.Green("\nCache has been refreshed\n"))
 
