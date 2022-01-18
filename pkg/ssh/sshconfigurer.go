@@ -131,7 +131,7 @@ type SSHConfigEntryV2 struct {
 }
 
 func makeSSHConfigEntry(alias string, workspaceID string, url string, privateKeyPath string) (string, error) {
-	proxyCommand := makeProxyCommand(url, workspaceID)
+	proxyCommand := makeProxyCommand(workspaceID, url)
 	entry := SSHConfigEntryV2{
 		Alias:        alias,
 		IdentityFile: privateKeyPath,
