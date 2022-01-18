@@ -59,10 +59,13 @@ func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string, url strin
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 	// todo greater than
 	if workspaceInfraVersion != workspace.Version {
-		return fmt.Errorf("invalid workspace worksapce group id ")
+		return fmt.Errorf("invalid workspace worksapce version %s", workspace.Version)
 	}
 	if workspaceTemplateVersion != workspace.WorkspaceTemplateID {
-		return fmt.Errorf("invalid workspace worksapce Template id ")
+		return fmt.Errorf("invalid workspace worksapce Template id %s", workspace.WorkspaceTemplateID)
+	}
+	if workspace.Status != "RUNNING" {
+		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)
 	}
 	return nil
 }
