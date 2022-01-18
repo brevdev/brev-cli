@@ -99,12 +99,14 @@ type Workspace struct {
 	WorkspaceGroupID string `json:"workspaceGroupId"`
 	OrganizationID   string `json:"organizationId"`
 	// WorkspaceClassID is resources, like "2x8"
-	WorkspaceClassID string `json:"workspaceClassId"`
-	CreatedByUserID  string `json:"createdByUserId"`
-	DNS              string `json:"dns"`
-	Status           string `json:"status"`
-	Password         string `json:"password"`
-	GitRepo          string `json:"gitRepo"`
+	WorkspaceClassID    string `json:"workspaceClassId"`
+	CreatedByUserID     string `json:"createdByUserId"`
+	DNS                 string `json:"dns"`
+	Status              string `json:"status"`
+	Password            string `json:"password"`
+	GitRepo             string `json:"gitRepo"`
+	Version             string `json:"version"`
+	WorkspaceTemplateID string `json:"workspaceTemplateId"`
 	// The below are other fields that might not be needed yet so commented out
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`

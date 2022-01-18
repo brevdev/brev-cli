@@ -1,15 +1,23 @@
 package proxy
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/huproxyclient"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
+const (
+	workspaceTemplateVersion = "placeholder"
+	workspaceInfraVersion    = "placeholder"
+)
+
 type ProxyStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
@@ -32,17 +40,29 @@ func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 }
 
 func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string, url string) error {
-	err := CheckWorkspaceCanSSH(workspaceID)
+	workspace, err := store.GetWorkspace(workspaceID)
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = CheckWorkspaceCanSSH(workspace)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	err = huproxyclient.Run(url, store)
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func CheckWorkspaceCanSSH(_ string) error {
+func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
+	// todo greater than
+	if workspaceInfraVersion != workspace.Version {
+		return fmt.Errorf("invalid workspace worksapce group id ")
+	}
+	if workspaceTemplateVersion != workspace.WorkspaceTemplateID {
+		return fmt.Errorf("invalid workspace worksapce Template id ")
+	}
 	return nil
 }
