@@ -6,6 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/huproxyclient"
+	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -18,6 +19,8 @@ const (
 type ProxyStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	WritePrivateKey(pem string) error
+	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
 func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
@@ -49,6 +52,12 @@ func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string, url strin
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	err = WriteUserPrivateKey(store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = huproxyclient.Run(url, store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -66,6 +75,21 @@ func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 	}
 	if workspace.Status != "RUNNING" {
 		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)
+	}
+	return nil
+}
+
+func WriteUserPrivateKey(store ProxyStore) error {
+	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(
+		store,
+	)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	privateKey := workspaceGroupClientMapper.GetPrivateKey()
+	err = store.WritePrivateKey(privateKey)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
