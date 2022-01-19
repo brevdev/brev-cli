@@ -40,8 +40,6 @@ func dialError(url string, resp *http.Response, err error) {
 }
 
 func Run(url string, store HubProxyStore) error {
-	log.Warnf("huproxyclient %s", huproxy.Version)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

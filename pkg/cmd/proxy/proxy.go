@@ -8,12 +8,13 @@ import (
 	"github.com/brevdev/brev-cli/pkg/huproxyclient"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 const (
-	workspaceTemplateVersion = "placeholder"
-	workspaceInfraVersion    = "placeholder"
+	allowedWorkspaceImage        = "public.ecr.aws/r3q7i5p9/ubuntu-proxy:test"
+	allowedWorkspaceInfraVersion = "v1.7.0-beta.ff2afb3d"
 )
 
 type ProxyStore interface {
@@ -34,7 +35,7 @@ func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			err := Proxy(t, store, args[0])
 			if err != nil {
-				t.Vprint(t.Red(err.Error()))
+				log.Error(err.Error())
 			}
 		},
 	}
@@ -71,11 +72,11 @@ func makeProxyURL(w *entity.Workspace) string {
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 	// todo greater than
-	if workspaceInfraVersion != workspace.Version {
-		return fmt.Errorf("invalid workspace worksapce version %s", workspace.Version)
+	if allowedWorkspaceInfraVersion != workspace.Version {
+		return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.Version)
 	}
-	if workspaceTemplateVersion != workspace.WorkspaceTemplateID {
-		return fmt.Errorf("invalid workspace worksapce Template id %s", workspace.WorkspaceTemplateID)
+	if allowedWorkspaceImage != workspace.WorkspaceTemplate.Image {
+		return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
 	}
 	if workspace.Status != "RUNNING" {
 		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)

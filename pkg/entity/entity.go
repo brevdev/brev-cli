@@ -99,14 +99,14 @@ type Workspace struct {
 	WorkspaceGroupID string `json:"workspaceGroupId"`
 	OrganizationID   string `json:"organizationId"`
 	// WorkspaceClassID is resources, like "2x8"
-	WorkspaceClassID    string `json:"workspaceClassId"`
-	CreatedByUserID     string `json:"createdByUserId"`
-	DNS                 string `json:"dns"`
-	Status              string `json:"status"`
-	Password            string `json:"password"`
-	GitRepo             string `json:"gitRepo"`
-	Version             string `json:"version"`
-	WorkspaceTemplateID string `json:"workspaceTemplateId"`
+	WorkspaceClassID  string            `json:"workspaceClassId"`
+	CreatedByUserID   string            `json:"createdByUserId"`
+	DNS               string            `json:"dns"`
+	Status            string            `json:"status"`
+	Password          string            `json:"password"`
+	GitRepo           string            `json:"gitRepo"`
+	Version           string            `json:"version"`
+	WorkspaceTemplate WorkspaceTemplate `json:"workspaceTemplate"`
 	// The below are other fields that might not be needed yet so commented out
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
@@ -116,6 +116,16 @@ type Workspace struct {
 	// Version         string `json:"version,omitempty"`
 	// IsStoppable         string `json:"isStoppable,omitempty"`
 	// StatusMessage         string `json:"statusMessage,omitempty"`
+}
+
+type WorkspaceTemplate struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Name        string `json:"name"`
+	RegistryURI string `json:"registryUri"`
+	Image       string `json:"image"`
+	Public      bool   `json:"public"`
+	Port        int    `json:"port"`
 }
 
 const featureSimpleNames = false
