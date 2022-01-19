@@ -147,13 +147,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 
 		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
-
-		cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, true))
-		cmd.AddCommand(refresh.NewCmdRefresh(t, noLoginCmdStore))
-		cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
-		cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	} else {
-		cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, false))
+		_ = 0 // noop
 	}
 
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
@@ -163,6 +158,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(up.NewCmdUp(loginCmdStore, t, true))
+	cmd.AddCommand(refresh.NewCmdRefresh(t, noLoginCmdStore))
+	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
+	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
