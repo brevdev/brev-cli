@@ -59,7 +59,8 @@ func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = huproxyclient.Run(makeProxyURL(workspace), store)
+	url := makeProxyURL(workspace)
+	err = huproxyclient.Run(url, store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
