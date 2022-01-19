@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -24,9 +25,9 @@ type CreateWorkspacesOptions struct {
 	Applications         []entity.Application `json:"applications"`
 }
 
-const (
-	DefaultWorkspaceClassID    = "2x8"
-	DefaultWorkspaceTemplateID = "test-template-aws"
+var (
+	DefaultWorkspaceClassID    = config.GlobalConfig.GetDefaultWorkspaceClass()
+	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
 )
 
 var (

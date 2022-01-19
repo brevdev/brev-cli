@@ -266,7 +266,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	}
 
 	t.Vprint(t.Green("\nYour workspace is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.DNS))
+	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
 
 	return nil
 }

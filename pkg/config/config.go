@@ -9,9 +9,11 @@ import (
 type EnvVarName string // should be caps with underscore
 
 const (
-	brevAPIURL EnvVarName = "BREV_API_URL"
-	version    EnvVarName = "VERSION"
-	clusterID  EnvVarName = "DEFAULT_CLUSTER_ID"
+	brevAPIURL               EnvVarName = "BREV_API_URL"
+	version                  EnvVarName = "VERSION"
+	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
+	defaultWorkspaceClass    EnvVarName = "DEFAULT_WORKSPACE_CLASS"
+	defaultWorkspaceTemplate EnvVarName = "DEFAULT_WORKSPACE_TEMPLATE"
 )
 
 type ConstantsConfig struct{}
@@ -31,6 +33,15 @@ func (c ConstantsConfig) GetVersion() string {
 
 func (c ConstantsConfig) GetDefaultClusterID() string {
 	return getEnvOrDefault(clusterID, "k8s.brevstack.com")
+}
+
+func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
+	return getEnvOrDefault(defaultWorkspaceClass, "2x8")
+}
+
+func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {
+	// "test-template-aws"
+	return getEnvOrDefault(defaultWorkspaceTemplate, "nbb4lg2s")
 }
 
 func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {

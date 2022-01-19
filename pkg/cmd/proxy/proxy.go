@@ -30,9 +30,9 @@ func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "http upgrade proxy",
 		Long:                  "http upgrade proxy for ssh ProxyCommand directive to use",
-		Args:                  cobra.ExactArgs(2),
+		Args:                  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := Proxy(t, store, args[0], args[1])
+			err := Proxy(t, store, args[0])
 			if err != nil {
 				t.Vprint(t.Red(err.Error()))
 			}
@@ -42,7 +42,7 @@ func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 	return cmd
 }
 
-func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string, url string) error {
+func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string) error {
 	workspace, err := store.GetWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -58,11 +58,15 @@ func Proxy(_ *terminal.Terminal, store ProxyStore, workspaceID string, url strin
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = huproxyclient.Run(url, store)
+	err = huproxyclient.Run(makeProxyURL(workspace), store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func makeProxyURL(w *entity.Workspace) string {
+	return fmt.Sprintf("wss://%s/proxy", w.GetSSHURL())
 }
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
