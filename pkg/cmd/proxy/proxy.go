@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	allowedWorkspaceImage        = "public.ecr.aws/r3q7i5p9/ubuntu-proxy:test"
-	allowedWorkspaceInfraVersion = "v1.7.0-beta.ff2afb3d"
+	allowedWorkspaceImage        = "brevdev/ubuntu-proxy:0.3.0"
+	allowedWorkspaceInfraVersion = "v1.7.0"
 )
 
 type ProxyStore interface {
