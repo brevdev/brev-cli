@@ -33,10 +33,16 @@ func (c ConfigUpdater) Run() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	var runningWorkspaces []entity.Workspace
+	for _, workspace := range workspaces {
+		if workspace.Status == "RUNNING" {
+			runningWorkspaces = append(runningWorkspaces, workspace)
+		}
+	}
 
 	var res error
 	for _, c := range c.Configs {
-		err := c.Update(workspaces)
+		err := c.Update(runningWorkspaces)
 		if err != nil {
 			res = multierror.Append(res, err)
 		}
