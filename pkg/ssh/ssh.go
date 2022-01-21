@@ -453,6 +453,12 @@ func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGat
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if config == "" {
+		return &JetBrainsGatewayConfig{
+			config: &JetbrainsGatewayConfigXML{},
+			store:  store,
+		}, nil
+	}
 	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
