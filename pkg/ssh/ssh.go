@@ -49,27 +49,27 @@ type (
 		GetUserSSHConfig() (string, error)
 		WriteUserSSHConfig(config string) error
 		CreateNewSSHConfigBackup() error
-		WritePrivateKey(pem string) error
 		GetPrivateKeyPath() string
 	}
 	Reader interface {
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
 		GetConfiguredWorkspacePort(workspaceIdentifier entity.WorkspaceLocalID) (string, error)
-		GetPrivateKeyFilePath() string
 	}
 	Writer interface {
 		Sync(IdentityPortMap) error
-		WritePrivateKey(pem string) error
 	}
 	SSHConfig struct {
 		store      SSHStore
 		sshConfig  *ssh_config.Config
 		privateKey string
 	}
+	SSHConfigurerStore interface {
+		WritePrivateKey(pem string) error
+	}
 	SSHConfigurer struct {
-		Reader
-		Writer
+		store      SSHConfigurerStore
+		Reader     Reader
 		Writers    []Writer
 		workspaces []entity.WorkspaceWithMeta
 		privateKey string
@@ -338,12 +338,12 @@ func (s SSHConfig) GetPrivateKeyFilePath() string {
 	return s.privateKey
 }
 
-func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writer Writer, writers []Writer, privateKey string) *SSHConfigurer {
+func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writers []Writer, store SSHConfigurerStore, privateKey string) *SSHConfigurer {
 	return &SSHConfigurer{
 		workspaces: workspaces,
 		Reader:     reader,
-		Writer:     writer,
 		Writers:    writers,
+		store:      store,
 		privateKey: privateKey,
 	}
 }
@@ -381,7 +381,7 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
-	err := sshConfigurer.WritePrivateKey(sshConfigurer.privateKey)
+	err := sshConfigurer.store.WritePrivateKey(sshConfigurer.privateKey) // this is kinda silly since the private key does not change
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -443,13 +443,13 @@ func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspaceIdentifie
 	return port, nil
 }
 
-func (s *SSHConfig) WritePrivateKey(pem string) error {
-	err := s.store.WritePrivateKey(pem)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
+// func (s *SSHConfig) WritePrivateKey(pem string) error {
+// 	err := s.store.WritePrivateKey(pem)
+// 	if err != nil {
+// 		return breverrors.WrapAndTrace(err)
+// 	}
+// 	return nil
+// }
 
 var (
 	_ Reader = &JetBrainsGatewayConfig{}
@@ -461,14 +461,21 @@ func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGat
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	if config == "" {
+		return &JetBrainsGatewayConfig{
+			config: &JetbrainsGatewayConfigXML{},
+			store:  store,
+		}, nil
+	} else {
+		jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return &JetBrainsGatewayConfig{
+			config: jetbrainsGatewayConfigXML,
+			store:  store,
+		}, nil
 	}
-	return &JetBrainsGatewayConfig{
-		config: jetbrainsGatewayConfigXML,
-		store:  store,
-	}, nil
 }
 
 func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) error {

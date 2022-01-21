@@ -70,16 +70,15 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	}
 
 	var sshConfigurer SSHConfigurer
-	if !s.jetbrainsOnly {
+	if s.jetbrainsOnly {
 		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		// copy values so we aren't modifying eachother
 		reader := jbConfig
-		writer := jbConfig
 		sshConfigWriter := jbConfig
-		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
+		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, []ssh.Writer{sshConfigWriter}, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -91,9 +90,8 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		}
 		// copy values so we aren't modifying eachother
 		reader := sshConfig
-		writer := sshConfig
 		sshConfigWriter := sshConfig
-		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, writer, []ssh.Writer{sshConfigWriter}, workspaceGroupClientMapper.GetPrivateKey())
+		sshConfigurer = ssh.NewSSHConfigurer(runningWorkspaces, reader, []ssh.Writer{sshConfigWriter}, s.upStore, workspaceGroupClientMapper.GetPrivateKey())
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -106,6 +104,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 
 type UpStore interface {
 	ssh.SSHStore
+	ssh.SSHConfigurerStore
 	ssh.JetBrainsGatewayConfigStore
 	k8s.K8sStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)

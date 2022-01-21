@@ -227,7 +227,7 @@ func TestNewSShConfigurer(t *testing.T) {
 	assert.Nil(t, err)
 	writer := reader
 
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WorkingRSAPrivateKey)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, []Writer{writer}, store, WorkingRSAPrivateKey)
 	assert.NotNil(t, sshConfigurer)
 }
 
@@ -237,7 +237,7 @@ func TestGetActiveWorkspaceIdentifiers(t *testing.T) {
 	reader, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
 	writer := reader
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, writer, []Writer{writer}, WorkingRSAPrivateKey)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, reader, []Writer{writer}, store, WorkingRSAPrivateKey)
 	activeWorkspaces := sshConfigurer.GetActiveWorkspaceIdentifiers()
 	assert.Equal(t, activeWorkspaces, []entity.WorkspaceLocalID{someWorkspaces[0].GetLocalIdentifier(nil)})
 }
@@ -247,7 +247,7 @@ func TestSyncSSHConfigurer(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(mockStore)
 	assert.Nil(t, err)
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WorkingRSAPrivateKey)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, []Writer{sshConfig}, mockStore, WorkingRSAPrivateKey)
 
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
@@ -285,7 +285,7 @@ func TestSSHConfigurerGetConfiguredWorkspacePortSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WorkingRSAPrivateKey)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, []Writer{sshConfig}, store, WorkingRSAPrivateKey)
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
 	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace.GetLocalIdentifier(nil))
@@ -392,7 +392,7 @@ func TestGetConfigurerWorkspacePortSSHConfig(t *testing.T) {
 	assert.Nil(t, err)
 	sshConfig, err := makeTestSSHConfig(store)
 	assert.Nil(t, err)
-	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, sshConfig, []Writer{sshConfig}, WorkingRSAPrivateKey)
+	sshConfigurer := NewSSHConfigurer(someWorkspaces, sshConfig, []Writer{sshConfig}, store, WorkingRSAPrivateKey)
 	err = sshConfigurer.Sync()
 	assert.Nil(t, err)
 	port, err := sshConfigurer.GetConfiguredWorkspacePort(someWorkspaces[0].Workspace.GetLocalIdentifier(nil))
