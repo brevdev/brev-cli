@@ -76,7 +76,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
 		if err != nil {
 			if strings.Contains(err.Error(), "sshConfigs.xml: no such file or directory") {
-				return fmt.Errorf("jet brains config does not exist -- please install jetbrains gateway [message=%s]", errors.Cause(err).Error())
+				return fmt.Errorf("JetBrains config does not exist -- please install Gateway here: https://www.jetbrains.com/remote-development/gateway", errors.Cause(err).Error())
 			}
 			return breverrors.WrapAndTrace(err)
 		}
