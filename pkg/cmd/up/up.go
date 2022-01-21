@@ -20,7 +20,7 @@ type upOptions struct {
 	jetbrainsOnly bool
 }
 
-func NewCmdUp(upStore UpStore, t *terminal.Terminal, jetbrainsOnly bool) *cobra.Command {
+func NewCmdJetbrains(upStore UpStore, t *terminal.Terminal, jetbrainsOnly bool) *cobra.Command {
 	opts := upOptions{upStore: upStore, jetbrainsOnly: jetbrainsOnly}
 
 	cmd := &cobra.Command{
