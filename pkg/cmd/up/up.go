@@ -24,12 +24,12 @@ func NewCmdUp(upStore UpStore, t *terminal.Terminal, jetbrainsOnly bool) *cobra.
 	opts := upOptions{upStore: upStore, jetbrainsOnly: jetbrainsOnly}
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "up",
+		Annotations:           map[string]string{"housekeeping": ""},
+		Use:                   "jetbrains",
 		DisableFlagsInUseLine: true,
-		Short:                 "Set up ssh connections to all of your Brev workspaces",
-		Long:                  "Set up ssh connections to all of your Brev workspaces",
-		Example:               "brev up",
+		Short:                 "jetbrains runs a helper proxy",
+		Long:                  "jetbrains runs a helper proxy that allows your jetbrains IDEs ssh access. It does not update if new workspaces are created or deleted so stop the process and re-run it.",
+		Example:               "brev jetbrains",
 		Args:                  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(t, cmd, args))

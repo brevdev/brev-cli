@@ -16,10 +16,10 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "run-tasks",
 		DisableFlagsInUseLine: true,
-		Short:                 "manually run tasks",
-		// Long:                  startLong,
-		// Example:               startExample,
-		Args: cobra.ExactArgs(0),
+		Short:                 "Run tasks keeps the ssh config up to date.",
+		Long:                  "Run tasks keeps the ssh config up to date. Run with -d to run as a detached daemon in the background. To force a refresh to your config use the refresh command.",
+		Example:               "brev run-tasks -d",
+		Args:                  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
 			err := RunTasks(t, store, detached)
 			if err != nil {
