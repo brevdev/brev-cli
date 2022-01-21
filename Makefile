@@ -111,7 +111,7 @@ full-smoke-test: ci fast-build
 
 	# cli user flows to smoke test
 
-	# login, set org, list workspaces, start, stop, start, reset, delete & brev up
+	# login, set org, list workspaces, start, stop, start, reset, delete & brev jetbrains
 	./brev login
 	./brev set brev.dev
 	./brev ls
@@ -122,7 +122,7 @@ full-smoke-test: ci fast-build
 	./brev reset brevdev/todo-template
 	./brev delete brevdev/todo-template
 	sleep 5
-	./brev up
+	./brev jetbrains
 
 	# restore directories used by cli
 	[ ! -d ~/.ssh.bak ] || mv ~/.ssh.bak ~/.ssh

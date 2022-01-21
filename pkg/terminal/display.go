@@ -67,14 +67,14 @@ func DisplayVSCodeInstructions(t *Terminal) {
 
 func DisplayGatewayAlreadyInstalledInstructions(t *Terminal) {
 	t.Print(t.Yellow("You already have JetBrains Gateway installed!"))
-	t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
+	t.Print("Run " + t.Green("brev jetbrains") + " and then open Gateway to begin.")
 }
 
 func DisplayToolboxInstalledInstructions(t *Terminal) {
 	t.Print(t.Yellow("You already have JetBrains Toolbox installed!"))
 	t.Print("")
 	t.Print("\t1) Install JetBrains Gateway from Toolbox.")
-	t.Print("\t2) Run " + t.Green("brev up") + " and then open Gateway to begin.")
+	t.Print("\t2) Run " + t.Green("brev jetbrains") + " and then open Gateway to begin.")
 }
 
 func InstallVSCodeExtension(t *Terminal) {
