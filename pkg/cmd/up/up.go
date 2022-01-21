@@ -81,7 +81,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 			t.Print(t.Yellow("Click here to install manually: "))
 			t.Print("https://www.jetbrains.com/remote-development/gateway")
 			t.Print("")
-			return fmt.Errorf("jetbrains dne")
+			return nil
 		}
 		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
 		if err != nil {
