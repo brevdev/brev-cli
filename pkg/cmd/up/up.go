@@ -2,7 +2,6 @@ package up
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -72,16 +71,20 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 
 	var sshConfigurer SSHConfigurer
 	if s.jetbrainsOnly {
+		doesJbPathExist, err := s.upStore.DoesJetbrainsFilePathExist()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if !doesJbPathExist {
+			t.Errprint(err, "\n\nYou do not have JetBrains Gateway installed.")
+			t.Print("")
+			t.Print(t.Yellow("Click here to install manually: "))
+			t.Print("https://www.jetbrains.com/remote-development/gateway")
+			t.Print("")
+			return fmt.Errorf("jetbrains dne")
+		}
 		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
 		if err != nil {
-			if strings.Contains(err.Error(), "sshConfigs.xml: no such file or directory") {
-				t.Errprint(err, "\n\nYou do not have JetBrains Gateway installed.")
-				t.Print("")
-				t.Print(t.Yellow("Click here to install manually: "))
-				t.Print("https://www.jetbrains.com/remote-development/gateway")
-				t.Print("")
-				return breverrors.WrapAndTrace(nil)
-			}
 			return breverrors.WrapAndTrace(err)
 		}
 		// copy values so we aren't modifying eachother
@@ -120,6 +123,7 @@ type UpStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	GetCurrentUser() (*entity.User, error)
+	DoesJetbrainsFilePathExist() (bool, error)
 }
 
 func (s upOptions) Validate(_ *terminal.Terminal) error {

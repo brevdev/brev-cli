@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,7 +17,7 @@ const (
 	JetbrainsGatewayConfigFileName = "sshConfigs.xml"
 )
 
-func (f FileStore) GetJetBrainsConfigPath() (string, error) {
+func getJebrainsConfigDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -30,8 +31,18 @@ func (f FileStore) GetJetBrainsConfigPath() (string, error) {
 		infix = filepath.Join(".config", infixSuffix)
 	case "darwin":
 		infix = filepath.Join("Library", "Application Support", infixSuffix)
+	default:
+		return "", fmt.Errorf("invalid goos")
 	}
-	sshConfigPath := filepath.Join(home, infix, JetbrainsGatewayConfigFileName)
+	return filepath.Join(home, infix), nil
+}
+
+func (f FileStore) GetJetBrainsConfigPath() (string, error) {
+	configDir, err := getJebrainsConfigDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	sshConfigPath := filepath.Join(configDir, JetbrainsGatewayConfigFileName)
 	return sshConfigPath, nil
 }
 
@@ -40,7 +51,7 @@ func (f FileStore) GetJetBrainsConfig() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	file, err := f.fs.Open(path)
+	file, err := f.GetOrCreateFile(path)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -50,6 +61,15 @@ func (f FileStore) GetJetBrainsConfig() (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return buf.String(), nil
+}
+
+func (f FileStore) DoesJetbrainsFilePathExist() (bool, error) {
+	path, err := getJebrainsConfigDir()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	_, err = os.Stat(path)
+	return !os.IsNotExist(err), nil
 }
 
 func (f FileStore) WriteJetBrainsConfig(config string) error {
