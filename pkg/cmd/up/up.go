@@ -76,12 +76,12 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 			return breverrors.WrapAndTrace(err)
 		}
 		if !doesJbPathExist {
-			t.Red("\n\nYou do not have JetBrains Gateway installed.")
+			t.Print(t.Red("\n\nYou do not have JetBrains Gateway installed."))
 			t.Print("")
 			t.Print(t.Yellow("Click here to install manually: "))
 			t.Print("https://www.jetbrains.com/remote-development/gateway")
 			t.Print("")
-			return nil
+			return fmt.Errorf("jetbrains dne")
 		}
 		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
 		if err != nil {
