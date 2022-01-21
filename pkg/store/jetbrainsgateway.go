@@ -65,6 +65,7 @@ func (f FileStore) GetJetBrainsConfig() (string, error) {
 
 func (f FileStore) DoesJetbrainsFilePathExist() (bool, error) {
 	path, err := getJebrainsConfigDir()
+	path = filepath.Join(path, "..")
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
