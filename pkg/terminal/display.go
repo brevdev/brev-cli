@@ -62,8 +62,7 @@ func DisplayVSCodeInstructions(t *Terminal) {
 	t.Print("Run the following steps")
 	t.Print("")
 	t.Print("\t1) Install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".")
-	t.Print("\t2) Run " + t.Green("brev up") + " and then open VSCode.")
-	t.Print("\t3) Open the Command Palette and type in " + t.Yellow("Remote-SSH: Connect to Host...") + "to begin.")
+	t.Print("\t2) In VS Code, open the Command Palette and type in " + t.Yellow("Remote-SSH: Connect to Host...") + "to begin.")
 }
 
 func DisplayGatewayAlreadyInstalledInstructions(t *Terminal) {

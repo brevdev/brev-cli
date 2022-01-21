@@ -84,12 +84,16 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
+	org, othererr := startStore.GetActiveOrganizationOrDefault()
+	if othererr != nil {
+		return breverrors.WrapAndTrace(othererr)
+	}
+	user, usererr := startStore.GetCurrentUser()
+	if usererr != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if err != nil {
 		// This is not an error yet-- the user might be trying to join a team's workspace
-		org, othererr := startStore.GetActiveOrganizationOrDefault()
-		if othererr != nil {
-			return breverrors.WrapAndTrace(othererr)
-		}
 		if org == nil {
 			return fmt.Errorf("no orgs exist")
 		}
@@ -102,7 +106,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		if len(workspaces) == 0 {
 			return fmt.Errorf("your team has no projects named %s", workspaceName)
 		}
-		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name)
+		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name, user)
 		if othererr != nil {
 			return breverrors.WrapAndTrace(othererr)
 		}
@@ -137,11 +141,13 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 
 		t.Vprint(t.Green("\nYour workspace is ready!"))
 
-		t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
-			t.Yellow("\n\t$ brev up\n"))
+		workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 
-		t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", workspace.DNS)
-
+		t.Vprintf(t.Green("\n\nConnect to your machine with:") +
+			t.Yellow("\n\tssh %s\n", startedWorkspace.GetLocalIdentifier(workspaces)))
 	}
 
 	return nil
@@ -150,7 +156,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
-func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore, name string) error {
+func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore, name string, user *entity.User) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(templateWorkspace.WorkspaceClassID)
@@ -172,10 +178,12 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Green("\n\nTo connect to your machine, make sure to Brev up:") +
-		t.Yellow("\n\t$ brev up\n"))
+	workspaces, err := startStore.GetWorkspaces(orgID, &store.GetWorkspacesOptions{UserID: user.ID})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	t.Vprintf("\nIf you have 'brev up' running, SSH into your machine:\n\tssh %s\n", w.DNS)
+	t.Vprintf("\nConnect to your machine with:\n\tssh %s\n", w.GetLocalIdentifier(workspaces))
 
 	return nil
 }
@@ -351,4 +359,29 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+}
+
+// NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
+// IF YOU MODIFY IT MODIFY IT EVERYWHERE OR PLEASE PUT IT IN ITS PROPER PLACE. thank you you're the best <3
+func WorkspacesFromWorkspaceWithMeta(wwm []entity.WorkspaceWithMeta) []entity.Workspace {
+	var workspaces []entity.Workspace
+
+	for _, v := range wwm {
+		workspaces = append(workspaces, entity.Workspace{
+			ID:                v.ID,
+			Name:              v.Name,
+			WorkspaceGroupID:  v.WorkspaceGroupID,
+			OrganizationID:    v.OrganizationID,
+			WorkspaceClassID:  v.WorkspaceClassID,
+			CreatedByUserID:   v.CreatedByUserID,
+			DNS:               v.DNS,
+			Status:            v.Status,
+			Password:          v.Password,
+			GitRepo:           v.GitRepo,
+			Version:           v.Version,
+			WorkspaceTemplate: v.WorkspaceTemplate,
+		})
+	}
+
+	return workspaces
 }
