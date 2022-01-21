@@ -186,13 +186,13 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 		}
 	}
 	displayOrgWorkspaces(ls.terminal, workspaces, org)
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nTo connect to your machine with one of the following:"))
+	ls.terminal.Vprintf(ls.terminal.Green("\n\nConnect to your machine with one of the following:\n"))
 	for _, v := range workspaces {
-		if v.Status == "CREATED" {
-			ls.terminal.Yellow("\n\t$ brev %s\n", v.GetLocalIdentifier(workspaces))
+		if v.Status == "RUNNING" {
+			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier(workspaces)))
 		}
 	}
-	// ls.terminal.Yellow("\n\t$ brev up\n")
+	ls.terminal.Vprint("\n")
 
 	// SHOW UNJOINED
 	if showAll {
