@@ -223,7 +223,7 @@ func InstallGateway(installScript string, t *terminal.Terminal) {
 			t.Print("")
 			t.Print(t.Yellow("JetBrains Gateway successfully installed!"))
 			t.Print("")
-			t.Print("Run " + t.Green("brev up") + " and then open Gateway to begin.")
+			t.Print("Run " + t.Green("brev jetbrains") + " and then open Gateway to begin.")
 			t.Print("")
 		}
 	}

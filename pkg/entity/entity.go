@@ -130,7 +130,7 @@ type WorkspaceTemplate struct {
 
 const featureSimpleNames = false
 
-func (w Workspace) GetLocalIdentifier(workspaces []WorkspaceWithMeta) WorkspaceLocalID {
+func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
 	if featureSimpleNames {
 		isUnique := true
 		if len(workspaces) > 0 {
