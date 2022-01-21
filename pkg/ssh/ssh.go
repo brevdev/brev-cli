@@ -443,14 +443,6 @@ func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspaceIdentifie
 	return port, nil
 }
 
-// func (s *SSHConfig) WritePrivateKey(pem string) error {
-// 	err := s.store.WritePrivateKey(pem)
-// 	if err != nil {
-// 		return breverrors.WrapAndTrace(err)
-// 	}
-// 	return nil
-// }
-
 var (
 	_ Reader = &JetBrainsGatewayConfig{}
 	_ Writer = &JetBrainsGatewayConfig{}

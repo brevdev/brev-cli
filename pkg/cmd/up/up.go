@@ -2,6 +2,7 @@ package up
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -10,6 +11,7 @@ import (
 	ssh "github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -73,6 +75,9 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	if s.jetbrainsOnly {
 		jbConfig, err := ssh.NewJetBrainsGatewayConfig(s.upStore)
 		if err != nil {
+			if strings.Contains(err.Error(), "sshConfigs.xml: no such file or directory") {
+				return fmt.Errorf("jet brains config does not exist -- please install jetbrains gateway [message=%s]", errors.Cause(err).Error())
+			}
 			return breverrors.WrapAndTrace(err)
 		}
 		// copy values so we aren't modifying eachother

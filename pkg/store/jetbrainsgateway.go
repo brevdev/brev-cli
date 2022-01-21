@@ -40,7 +40,7 @@ func (f FileStore) GetJetBrainsConfig() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	file, err := f.GetOrCreateFile(path)
+	file, err := f.fs.Open(path)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
