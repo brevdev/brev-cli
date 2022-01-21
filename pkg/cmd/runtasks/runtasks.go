@@ -13,7 +13,7 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	var detached bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"housekeeping": ""},
 		Use:                   "run-tasks",
 		DisableFlagsInUseLine: true,
 		Short:                 "Run tasks keeps the ssh config up to date.",

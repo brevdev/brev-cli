@@ -26,7 +26,7 @@ type ProxyStore interface {
 
 func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "proxy",
 		DisableFlagsInUseLine: true,
 		Short:                 "http upgrade proxy",
