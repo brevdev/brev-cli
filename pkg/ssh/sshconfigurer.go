@@ -109,8 +109,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
-		// need to make getlocalidentifier conformal
-		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(nil)), w.ID, s.store.GetPrivateKeyPath())
+		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, s.store.GetPrivateKeyPath())
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
