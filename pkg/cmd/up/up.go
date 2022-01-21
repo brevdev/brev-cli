@@ -11,7 +11,6 @@ import (
 	ssh "github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
@@ -81,7 +80,6 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 				t.Print(t.Yellow("Click here to install manually: "))
 				t.Print("https://www.jetbrains.com/remote-development/gateway")
 				t.Print("")
-				return fmt.Errorf(errors.Cause(err).Error())
 			}
 			return breverrors.WrapAndTrace(err)
 		}
