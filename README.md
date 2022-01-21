@@ -20,7 +20,8 @@ Linux & Mac
 install brev on your computer with:
 
 ```
-sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`"
+sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`"  &&
+export PATH=/opt/brev/bin:$PATH && brev run-tasks -d
 ```
 
 add brev to your path:

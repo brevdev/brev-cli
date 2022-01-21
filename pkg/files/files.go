@@ -56,6 +56,17 @@ func GetNewBackupSSHConfigFileName() string {
 	return fmt.Sprintf("%s.%s", backupSSHConfigFileNamePrefix, uuid.New())
 }
 
+func MakeBrevHome() error {
+	brevHome, err := GetBrevHome()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err := os.MkdirAll(brevHome, defaultFilePermission); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func makeBrevFilePath(filename string) (*string, error) {
 	brevHome, err := GetBrevHome()
 	if err != nil {
@@ -82,20 +93,8 @@ func makeBrevFilePathOrPanic(filename string) string {
 	return *fpath
 }
 
-func GetWorkspacesCacheFilePath() string {
-	return makeBrevFilePathOrPanic(workspaceCacheFile)
-}
-
-func GetOrgCacheFilePath() string {
-	return makeBrevFilePathOrPanic(orgCacheFile)
-}
-
 func GetActiveOrgsPath() string {
 	return makeBrevFilePathOrPanic(activeOrgFile)
-}
-
-func GetCertFilePath() string {
-	return makeBrevFilePathOrPanic(GetKubeCertFileName())
 }
 
 func GetSSHPrivateKeyPath() string {

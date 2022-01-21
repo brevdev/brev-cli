@@ -10,11 +10,16 @@ import (
 	"syscall"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	cron "github.com/robfig/cron/v3"
 	"github.com/sevlyar/go-daemon"
 )
 
 func RunTaskAsDaemon(tasks []Task, brevHome string) error {
+	err := files.MakeBrevHome()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	pidFile := fmt.Sprintf("%s/task_daemon.pid", brevHome)
 	logFile := fmt.Sprintf("%s/task_daemon.log", brevHome)
 	cntxt := &daemon.Context{
