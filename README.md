@@ -17,7 +17,7 @@
 
 Linux & Mac
 
-install brev on your computer with: 
+install brev on your computer with:
 
 ```
 sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`"
@@ -119,6 +119,12 @@ Don't forget to add a debug command to `.vscode/launch.json`
 ## Release
 
 The release workflow is triggered each time a tag with `v` prefix is pushed.
+
+get the latest tag git
+
+```
+git describe --tags --abbrev=0
+```
 
 when releasing make sure to
 
