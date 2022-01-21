@@ -76,7 +76,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 			return breverrors.WrapAndTrace(err)
 		}
 		if !doesJbPathExist {
-			t.Errprint(err, "\n\nYou do not have JetBrains Gateway installed.")
+			t.Red("\n\nYou do not have JetBrains Gateway installed.")
 			t.Print("")
 			t.Print(t.Yellow("Click here to install manually: "))
 			t.Print("https://www.jetbrains.com/remote-development/gateway")
