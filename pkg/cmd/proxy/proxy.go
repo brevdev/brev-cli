@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -13,8 +14,8 @@ import (
 )
 
 const (
-	allowedWorkspaceImage        = "brevdev/ubuntu-proxy:0.3.0"
-	allowedWorkspaceInfraVersion = "v1.7.0"
+	allowedWorkspaceImage        = "brevdev/ubuntu-proxy:0.3.*"
+	allowedWorkspaceInfraVersion = "v1.7.*"
 )
 
 type ProxyStore interface {
@@ -73,10 +74,18 @@ func makeProxyURL(w *entity.Workspace) string {
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 	// todo greater than
-	if allowedWorkspaceInfraVersion != workspace.Version {
+	allowedInfra, err := regexp.Match(allowedWorkspaceInfraVersion, []byte(workspace.Version))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !allowedInfra {
 		return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.Version)
 	}
-	if allowedWorkspaceImage != workspace.WorkspaceTemplate.Image {
+	allowedImage, err := regexp.Match(allowedWorkspaceImage, []byte(workspace.WorkspaceTemplate.Image))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !allowedImage {
 		return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
 	}
 	if workspace.Status != "RUNNING" {
