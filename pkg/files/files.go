@@ -16,9 +16,11 @@ import (
 const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
-	activeOrgFile                 = "active_org.json"
-	orgCacheFile                  = "org_cache.json"
-	workspaceCacheFile            = "workspace_cache.json"
+	activeOrgFile      = "active_org.json"
+	orgCacheFile       = "org_cache.json"
+	workspaceCacheFile = "workspace_cache.json"
+	// WIP: This will be used to let people "brev open" with editors other than VS Code
+	personalSettingsCache         = "personal_settings.json"
 	kubeCertFileName              = "brev.crt"
 	sshPrivateKeyFileName         = "brev.pem"
 	backupSSHConfigFileNamePrefix = "config.bak"
@@ -34,6 +36,10 @@ func GetBrevDirectory() string {
 
 func GetActiveOrgFile() string {
 	return activeOrgFile
+}
+
+func GetPersonalSettingsCache() string {
+	return personalSettingsCache
 }
 
 func GetOrgCacheFile() string {
@@ -95,6 +101,10 @@ func makeBrevFilePathOrPanic(filename string) string {
 
 func GetActiveOrgsPath() string {
 	return makeBrevFilePathOrPanic(activeOrgFile)
+}
+
+func GetPersonalSettingsCachePath() string {
+	return makeBrevFilePathOrPanic(personalSettingsCache)
 }
 
 func GetSSHPrivateKeyPath() string {

@@ -3,6 +3,7 @@ package open
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -14,8 +15,8 @@ import (
 )
 
 var (
-	startLong    = "[internal] test"
-	startExample = "[internal] test"
+	openLong    = "[command in beta] This will open VS Code SSH-ed in to your workspace. You must have 'code' installed in your path."
+	openExample = "brev start workspace_id_or_name\nbrev start my-app\nbrev start h9fp5vxwe"
 )
 
 type TestStore interface {
@@ -31,12 +32,12 @@ type TestStore interface {
 
 func NewCmdOpen(t *terminal.Terminal, store TestStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"devonly": ""},
+		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[internal- WIP] open command",
-		Long:                  startLong,
-		Example:               startExample,
+		Short:                 "[beta] open VSCode to ",
+		Long:                  openLong,
+		Example:               openExample,
 		Args:                  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			getWorkspaceSSHName(t, store, args[0])
@@ -47,27 +48,18 @@ func NewCmdOpen(t *terminal.Terminal, store TestStore) *cobra.Command {
 }
 
 func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName string) error {
-	user, err := tstore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	org, err := tstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	workspaces, err := tstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	workspace, err := getWorkspaceFromNameOrID(wsIDOrName, tstore)
+	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
 		t.Errprint(err, "")
 	}
 
-	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace", workspace.GetLocalIdentifier(workspaces))
+	// Get base repo path
+	splitBySlash := strings.Split(workspace.GitRepo, "/")[1]
+	repoPath := strings.Split(splitBySlash, ".git")[0]
+
+	// note: intentional decision to just assume the parent folder and inner folder are the same
+	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), repoPath)
+	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", repoPath))
 
 	cmd := exec.Command("code", "--folder-uri", vscodeString)
 	err = cmd.Run()
@@ -82,27 +74,28 @@ func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName stri
 // NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
 // Reasoning: there wasn't a utils file so I didn't know where to put it
 //                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, error) {
+// NOTE2: small modification on this one-- returning all the workspaces too in case they're needed and shouldn't be fetched twice.
+func getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, *[]entity.Workspace, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 	if org == nil {
-		return nil, fmt.Errorf("no orgs exist")
+		return nil, nil, fmt.Errorf("no orgs exist")
 	}
 
 	// Get Current User
 	currentUser, err := sstore.GetCurrentUser()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
 	// Get Workspaces for User
 	var workspace *entity.Workspace // this will be the returned workspace
 	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
 	switch len(workspaces) {
@@ -110,29 +103,29 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore TestStore) (*entity.Worksp
 		// In this case, check workspace by ID
 		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
 		if othererr != nil {
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
 		if wsbyid != nil {
 			workspace = wsbyid
 		} else {
 			// Can this case happen?
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
 	case 1:
 		workspace = &workspaces[0]
 	default:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+		return nil, nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
 	}
 
 	if workspace == nil {
-		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		return nil, nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 	}
 
 	// Get WorkspaceMetaData
 	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
+	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, &workspaces, nil
 }
