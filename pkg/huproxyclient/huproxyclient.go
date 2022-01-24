@@ -80,6 +80,7 @@ func RunProxy(ctx context.Context, conn *websocket.Conn, cancel context.CancelFu
 				return
 			}
 			if err != nil {
+				log.Warn("Workspace disconnect: may be from network failure or workspace was stopped/deleted")
 				log.Fatal(err)
 			}
 			if mt != websocket.BinaryMessage {
