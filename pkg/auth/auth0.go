@@ -233,7 +233,33 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
 }
 
-func (a Authenticator) GetNewAuthTokensWithRefresh(_ string) (*entity.AuthTokens, error) {
-	// TODO 2
-	return nil, fmt.Errorf("refresh token not implemented")
+// https://auth0.com/docs/get-started/authentication-and-authorization-flow/call-your-api-using-the-authorization-code-flow#example-post-to-token-url
+func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
+	payload := url.Values{
+		"grant_type":    {"refresh_token"},
+		"client_id":     {a.ClientID},
+		"refresh_token": {refreshToken},
+	}
+
+	r, err := http.PostForm(a.OauthTokenEndpoint, payload) //nolint:noctx // this is copied from above
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err, "error calling refresh")
+	}
+
+	var authTokens *entity.AuthTokens
+
+	err = json.NewDecoder(r.Body).Decode(authTokens)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err, "cannot decode response")
+	}
+
+	_, _, err = parseTenant(authTokens.AccessToken)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
+	}
+
+	if err = r.Body.Close(); err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return authTokens, nil
 }
