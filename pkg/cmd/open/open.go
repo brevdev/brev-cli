@@ -16,7 +16,7 @@ import (
 
 var (
 	openLong    = "[command in beta] This will open VS Code SSH-ed in to your workspace. You must have 'code' installed in your path."
-	openExample = "brev start workspace_id_or_name\nbrev start my-app\nbrev start h9fp5vxwe"
+	openExample = "brev open workspace_id_or_name\nbrev open my-app\nbrev open h9fp5vxwe"
 )
 
 type TestStore interface {
@@ -48,6 +48,10 @@ func NewCmdOpen(t *terminal.Terminal, store TestStore) *cobra.Command {
 }
 
 func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName string) {
+	s := t.NewSpinner()
+	s.Suffix = " finding your workspace"
+	s.Start()
+
 	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
 		t.Errprint(err, "")
@@ -59,6 +63,7 @@ func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName stri
 
 	// note: intentional decision to just assume the parent folder and inner folder are the same
 	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), repoPath)
+	s.Stop()
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", repoPath))
 
 	// see https://github.com/securego/gosec/issues/106#issuecomment-269714902
