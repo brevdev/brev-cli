@@ -3,7 +3,7 @@ module github.com/brevdev/brev-cli
 go 1.16
 
 require (
-	github.com/alessio/shellescape v1.4.1 // indirect
+	github.com/alessio/shellescape v1.4.1
 	github.com/briandowns/spinner v1.16.0
 	github.com/fatih/color v1.13.0
 	github.com/go-resty/resty/v2 v2.7.0
