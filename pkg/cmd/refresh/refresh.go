@@ -19,8 +19,8 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "refresh",
-		Short:       "Force a refresh to the ssh config and start daemon if not already started",
-		Long:        "Force a refresh to the ssh config and start daemon if not already started",
+		Short:       "Force a refresh to the ssh config",
+		Long:        "Force a refresh to the ssh config",
 		Example:     `brev refresh`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
@@ -57,7 +57,7 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	bar.AdvanceTo(100)
-	t.Vprintf(t.Green("\nCache has been refreshed\n"))
+	t.Vprintf(t.Green("\nbrev has been refreshed\n"))
 
 	return nil
 }
