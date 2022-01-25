@@ -47,7 +47,7 @@ func NewCmdOpen(t *terminal.Terminal, store TestStore) *cobra.Command {
 	return cmd
 }
 
-func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName string) error {
+func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName string) {
 	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
 		t.Errprint(err, "")
@@ -61,14 +61,19 @@ func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName stri
 	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), repoPath)
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", repoPath))
 
-	cmd := exec.Command("code", "--folder-uri", vscodeString)
+	// see https://github.com/securego/gosec/issues/106#issuecomment-269714902
+	// G204: Audit use of command execution
+	// I believe the intent of this rule is to assist when performing code
+	// audits of Go source code. It may not necessarily be an issue that
+	// introduces command injection but you may want to know which external
+	// executables are being called by an application when performing a security
+	// review.
+	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
 	err = cmd.Run()
 
 	if err != nil {
 		t.Errprint(err, "")
 	}
-
-	return nil
 }
 
 // NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
