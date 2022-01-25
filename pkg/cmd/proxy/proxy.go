@@ -73,7 +73,6 @@ func makeProxyURL(w *entity.Workspace) string {
 }
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
-	// todo greater than
 	allowedInfra, err := regexp.Match(allowedWorkspaceInfraVersion, []byte(workspace.Version))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
