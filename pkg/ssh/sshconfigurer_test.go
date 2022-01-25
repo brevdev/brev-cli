@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -74,20 +75,21 @@ func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
 	assert.Nil(t, err)
-	correct := `# included in /my/user/config
-Host test1-dns
+	correct := fmt.Sprintf(`# included in /my/user/config
+Host %s
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-1
   ServerAliveInterval 30
 
-Host test2-dns
+Host %s
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-2
   ServerAliveInterval 30
 
-`
+`, somePlainWorkspaces[0].GetLocalIdentifier(somePlainWorkspaces),
+		somePlainWorkspaces[1].GetLocalIdentifier(somePlainWorkspaces))
 	assert.Equal(t, correct, cStr)
 
 	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})

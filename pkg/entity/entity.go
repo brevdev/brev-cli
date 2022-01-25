@@ -72,6 +72,14 @@ type WorkspaceWithMeta struct {
 	Workspace
 }
 
+func WorkspacesWithMetaToWorkspaces(wms []WorkspaceWithMeta) []Workspace {
+	ws := []Workspace{}
+	for _, wm := range wms {
+		ws = append(ws, wm.Workspace)
+	}
+	return ws
+}
+
 type Application struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -128,7 +136,7 @@ type WorkspaceTemplate struct {
 	Port        int    `json:"port"`
 }
 
-const featureSimpleNames = true
+const featureSimpleNames = false
 
 func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
 	if featureSimpleNames {
@@ -140,7 +148,7 @@ func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
 						- different workspace
 						- for the same user
 						- with the same name
-					it needs the jumbled characters
+					it needs entropy
 				*/
 
 				if v.ID != w.ID && v.CreatedByUserID == w.CreatedByUserID && v.Name == w.Name {
