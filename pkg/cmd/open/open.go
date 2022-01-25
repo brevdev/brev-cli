@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -20,9 +20,6 @@ var (
 )
 
 type OpenStore interface {
-	completions.CompletionStore
-	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
@@ -40,21 +37,24 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Example:               openExample,
 		Args:                  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			getWorkspaceSSHName(t, store, args[0])
+			err := getWorkspaceSSHName(t, store, args[0])
+			if err != nil {
+				t.Errprint(err, "")
+			}
 		},
 	}
 
 	return cmd
 }
 
-func getWorkspaceSSHName(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) {
+func getWorkspaceSSHName(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
 	s := t.NewSpinner()
 	s.Suffix = " finding your workspace"
 	s.Start()
 
 	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
-		t.Errprint(err, "")
+		return errors.WrapAndTrace(err)
 	}
 
 	// Get base repo path
@@ -66,19 +66,13 @@ func getWorkspaceSSHName(t *terminal.Terminal, tstore OpenStore, wsIDOrName stri
 	s.Stop()
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", repoPath))
 
-	// see https://github.com/securego/gosec/issues/106#issuecomment-269714902
-	// G204: Audit use of command execution
-	// I believe the intent of this rule is to assist when performing code
-	// audits of Go source code. It may not necessarily be an issue that
-	// introduces command injection but you may want to know which external
-	// executables are being called by an application when performing a security
-	// review.
-	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
+	cmd := exec.Command("code", "--folder-uri", vscodeString) // TODO notice vulnerability since git name can be used and may be untrusted
 	err = cmd.Run()
 
 	if err != nil {
-		t.Errprint(err, "")
+		return errors.WrapAndTrace(err)
 	}
+	return nil
 }
 
 // NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
