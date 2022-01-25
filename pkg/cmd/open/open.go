@@ -6,11 +6,11 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/errors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
+	"github.com/alessio/shellescape"
 	"github.com/spf13/cobra"
 )
 
@@ -37,7 +37,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Example:               openExample,
 		Args:                  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := getWorkspaceSSHName(t, store, args[0])
+			err := runOpenCommand(t, store, args[0])
 			if err != nil {
 				t.Errprint(err, "")
 			}
@@ -47,14 +47,14 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 	return cmd
 }
 
-func getWorkspaceSSHName(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
 	s := t.NewSpinner()
 	s.Suffix = " finding your workspace"
 	s.Start()
 
 	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// Get base repo path
@@ -66,11 +66,12 @@ func getWorkspaceSSHName(t *terminal.Terminal, tstore OpenStore, wsIDOrName stri
 	s.Stop()
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", repoPath))
 
-	cmd := exec.Command("code", "--folder-uri", vscodeString) // TODO notice vulnerability since git name can be used and may be untrusted
+	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
+	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
 	err = cmd.Run()
 
 	if err != nil {
-		return errors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
