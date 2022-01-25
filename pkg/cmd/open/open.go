@@ -19,7 +19,7 @@ var (
 	openExample = "brev open workspace_id_or_name\nbrev open my-app\nbrev open h9fp5vxwe"
 )
 
-type TestStore interface {
+type OpenStore interface {
 	completions.CompletionStore
 	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -30,7 +30,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdOpen(t *terminal.Terminal, store TestStore) *cobra.Command {
+func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
@@ -47,7 +47,7 @@ func NewCmdOpen(t *terminal.Terminal, store TestStore) *cobra.Command {
 	return cmd
 }
 
-func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName string) {
+func getWorkspaceSSHName(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) {
 	s := t.NewSpinner()
 	s.Suffix = " finding your workspace"
 	s.Start()
@@ -85,7 +85,7 @@ func getWorkspaceSSHName(t *terminal.Terminal, tstore TestStore, wsIDOrName stri
 // Reasoning: there wasn't a utils file so I didn't know where to put it
 //                + not sure how to pass a generic "store" object
 // NOTE2: small modification on this one-- returning all the workspaces too in case they're needed and shouldn't be fetched twice.
-func getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(nameOrID string, sstore TestStore) (*entity.WorkspaceWithMeta, *[]entity.Workspace, error) {
+func getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(nameOrID string, sstore OpenStore) (*entity.WorkspaceWithMeta, *[]entity.Workspace, error) {
 	// Get Active Org
 	org, err := sstore.GetActiveOrganizationOrDefault()
 	if err != nil {
