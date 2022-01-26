@@ -137,7 +137,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			}
 			r, err := http.PostForm(a.OauthTokenEndpoint, data) //nolint:noctx // ignoring api call since planning to refactor api
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
+				return Result{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 			}
 			err = ErrorIfBadHTTP(r)
 			if err != nil {
@@ -195,7 +195,7 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	}
 	r, err := http.PostForm(a.DeviceCodeEndpoint, data) //nolint:noctx // ignoring noctx since planning on refactoring api calls
 	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
+		return State{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}
 	err = ErrorIfBadHTTP(r)
 	if err != nil {
@@ -252,7 +252,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 
 	r, err := http.PostForm(a.OauthTokenEndpoint, payload) //nolint:noctx // this is copied from above
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, "error calling refresh")
+		return nil, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}
 	err = ErrorIfBadHTTP(r)
 	if err != nil {

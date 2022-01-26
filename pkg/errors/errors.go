@@ -132,3 +132,5 @@ func MakeErrorMessage(message string) string {
 	_, fn, line, _ := runtime.Caller(2)
 	return fmt.Sprintf("[error] %s:%d %s\n\t", fn, line, message)
 }
+
+var NetworkErrorMessage = "possible internet connection problem"
