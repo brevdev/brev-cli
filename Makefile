@@ -1,6 +1,11 @@
 .DEFAULT_GOAL := dev
 VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 
+.PHONY: fast-build
+fast-build: ## go build -o brev
+	$(call print-target)
+	go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+
 .PHONY: version
 version:
 	echo ${VERSION}
@@ -67,12 +72,6 @@ build: ## goreleaser --snapshot --skip-publish --rm-dist
 build: install
 	$(call print-target)
 	goreleaser --snapshot --skip-publish --rm-dist
-
-.PHONY: fast-build
-fast-build: ## go build -o brev
-	$(call print-target)
-	go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
-
 
 .PHONY: release
 release: ## goreleaser --rm-dist

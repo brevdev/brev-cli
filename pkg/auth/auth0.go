@@ -259,9 +259,9 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	var authTokens *entity.AuthTokens
+	var authTokens entity.AuthTokens
 
-	err = json.NewDecoder(r.Body).Decode(authTokens)
+	err = json.NewDecoder(r.Body).Decode(&authTokens)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, "cannot decode response")
 	}
@@ -274,7 +274,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 	if err = r.Body.Close(); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	return authTokens, nil
+	return &authTokens, nil
 }
 
 func ErrorIfBadHTTP(r *http.Response) error {
