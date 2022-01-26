@@ -10,6 +10,7 @@ builds:
       - windows
     goarch:
       - amd64
+      - arm64
     binary: brev
     ldflags:
       - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
