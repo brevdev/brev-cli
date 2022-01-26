@@ -42,7 +42,7 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 }
 
 func refresh(t *terminal.Terminal, store RefreshStore) error {
-	fmt.Println("refreshing brev")
+	fmt.Println("refreshing brev...")
 	cu := ssh.ConfigUpdater{
 		Store: store,
 		Configs: []ssh.Config{
