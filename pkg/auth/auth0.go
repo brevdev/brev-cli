@@ -139,6 +139,10 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err, "cannot get device code")
 			}
+			err = ErrorIfBadHTTP(r)
+			if err != nil {
+				return Result{}, breverrors.WrapAndTrace(err)
+			}
 
 			var res struct {
 				AccessToken      string  `json:"access_token"`
@@ -193,6 +197,11 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 	if err != nil {
 		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
 	}
+	err = ErrorIfBadHTTP(r)
+	if err != nil {
+		return State{}, breverrors.WrapAndTrace(err)
+	}
+
 	var res State
 	err = json.NewDecoder(r.Body).Decode(&res)
 	if err != nil {
@@ -245,6 +254,10 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, "error calling refresh")
 	}
+	err = ErrorIfBadHTTP(r)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 
 	var authTokens *entity.AuthTokens
 
@@ -262,4 +275,16 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return authTokens, nil
+}
+
+func ErrorIfBadHTTP(r *http.Response) error {
+	if IsError(r.StatusCode) {
+		return fmt.Errorf("bad http [url: %s, status: %s]", r.Request.URL.String(), r.Status)
+	}
+	return nil
+}
+
+// IsError method returns true if HTTP status `code >= 400` otherwise false.
+func IsError(statusCode int) bool {
+	return statusCode > 399
 }
