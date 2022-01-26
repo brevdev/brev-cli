@@ -5,20 +5,20 @@
 class BrevCli < Formula
   desc ""
   homepage ""
-  version "0.6.7"
+  version "0.6.8"
   bottle :unneeded
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.7/brev-cli_0.6.7_darwin_amd64.tar.gz"
-      sha256 "62ce8e46b96c09d661be01866ccb5b1a45234d14297f9e63316fd1f1ce4d3299"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.8/brev-cli_0.6.8_darwin_amd64.tar.gz"
+      sha256 "7af9dd3eb56a6fea34c908737e98d70874ef4b90fe30e95631cd1b92a001533d"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.7/brev-cli_0.6.7_linux_amd64.tar.gz"
-      sha256 "cc94a32dc702fe2240419def39e54264c4f93c09935fef36addd489a263eb983"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.8/brev-cli_0.6.8_linux_amd64.tar.gz"
+      sha256 "bc3ad35e42e466cd7a379f5fa74fc0736076c44baa90575313467f453a2c4485"
     end
   end
 
