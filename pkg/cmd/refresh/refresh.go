@@ -2,6 +2,8 @@
 package refresh
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
@@ -40,9 +42,7 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 }
 
 func refresh(t *terminal.Terminal, store RefreshStore) error {
-	bar := t.NewProgressBar("Fetching orgs and workspaces", func() {})
-	bar.AdvanceTo(50)
-
+	fmt.Println("refreshing brev")
 	cu := ssh.ConfigUpdater{
 		Store: store,
 		Configs: []ssh.Config{
@@ -56,7 +56,6 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	bar.AdvanceTo(100)
 	t.Vprintf(t.Green("\nbrev has been refreshed\n"))
 
 	return nil
