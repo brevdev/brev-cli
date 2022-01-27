@@ -172,7 +172,7 @@ brew install --verbose --debug brev-cli.rb
 
 audit the formula with
 ```
-brew audit --strict --online brev-cli
+brew audit --strict --online brev-cli.rb
 ```
 
 
