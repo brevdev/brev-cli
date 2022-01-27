@@ -150,10 +150,10 @@ after creating a release edit `brev-cli.rb`
 @@ -34,7 +34,7 @@
      bin.install "brev-cli"
    end
- 
+
 -  plist_options :startup => false
 +  plist_options :startup => true
- 
+
    def plist; <<~EOS
      <?xml version="1.0" encoding="UTF-8"?>
 ```
@@ -167,6 +167,11 @@ test the formula with
 
 ```sh
 brew install --verbose --debug brev-cli.rb
+```
+
+audit the formula with
+```
+brew audit --strict --online brev-cli
 ```
 
 
