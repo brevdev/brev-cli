@@ -5,36 +5,36 @@
 class BrevCli < Formula
   desc ""
   homepage "https://docs.brev.dev"
-  version "0.6.9"
+  version "0.6.10"
   bottle :unneeded
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.9/brev-cli_0.6.9_darwin_amd64.tar.gz"
-      sha256 "7f0ffb44c6f380d30ef7cacd84420f68ff6f1f65763c261ba3fdfefd04254d97"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_darwin_amd64.tar.gz"
+      sha256 "e87399d76aebeaebf8d3d00a3efd38bccedfb7c49b35c90b4d339bf67bbbaa7f"
     end
     if Hardware::CPU.arm?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.9/brev-cli_0.6.9_darwin_arm64.tar.gz"
-      sha256 "3dd5a655c9b7bd79c6bf5fb7ec1e2684328e776f3af191abb90e49153e751efc"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_darwin_arm64.tar.gz"
+      sha256 "6014aef67b927187e3320bfeccac1c450ed852bf99aea2cb12ae454d3bfb9e3b"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.9/brev-cli_0.6.9_linux_amd64.tar.gz"
-      sha256 "2e5a75920e9c2b0db3cb8ffcdc7eaaf628b8799fb1a1e7f71b8205b04b9f1eb6"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_linux_amd64.tar.gz"
+      sha256 "07f71663cbaae1d7cb5f4efb8862885ebfc42f74b7350d2add30b307684bac58"
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.9/brev-cli_0.6.9_linux_arm64.tar.gz"
-      sha256 "a4f2b329c186110c21aca4e9a792bcce9eb7246fcefb9238a83b7d08dd3940f2"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_linux_arm64.tar.gz"
+      sha256 "fe3666fba5fffed80d43f9aae47105b4481c2d8219586387839f80c61cf2e2a3"
     end
   end
 
   def install
-    bin.install "brev-cli"
+    bin.install "brev"
   end
 
-  plist_options :startup => true
+  plist_options :startup => false
 
   def plist; <<~EOS
     <?xml version="1.0" encoding="UTF-8"?>
