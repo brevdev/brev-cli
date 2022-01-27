@@ -135,6 +135,32 @@ when releasing make sure to
 
 _CAUTION_: Make sure to understand the consequences before you bump the major version. More info: [Go Wiki](https://github.com/golang/go/wiki/Modules#releasing-modules-v2-or-higher), [Go Blog](https://blog.golang.org/v2-go-modules).
 
+### Homebrew
+
+goreleaser's template has a
+[plist_option](https://github.com/goreleaser/goreleaser/pull/308/commits/a3db024e9827691838e44c9f395ebe872b6efa5e#diff-81cea945c5e841bffb93bf4415613f6f998afe18c64efd3bb54ae8c7d2807538R56)
+specified that is not configureable as of now, so there are some
+manual proccesses to be done for releasing to homebrew.
+
+after creating a release edit `brev-cli.rb`
+
+```diff
+--- before	2022-01-27 11:39:28.809234894 -0800
++++ after	2022-01-27 11:39:28.809234894 -0800
+@@ -34,7 +34,7 @@
+     bin.install "brev-cli"
+   end
+ 
+-  plist_options :startup => false
++  plist_options :startup => true
+ 
+   def plist; <<~EOS
+     <?xml version="1.0" encoding="UTF-8"?>
+```
+
+
+
+
 ## Maintainance
 
 Remember to update Go version in [.github/workflows](.github/workflows), [Makefile](Makefile) and [devcontainer.json](.devcontainer/devcontainer.json).
