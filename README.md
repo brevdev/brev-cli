@@ -52,8 +52,9 @@ You're up to date!
 # Uninstall
 
 ```
-sudo rm -rf /usr/local/bin/brev
-rm -rf /tmp/brev
+sudo rm -rf `which brev`
+# optional
+rm -rf /tmp/brev # may not exist
 rm -rf ~/.brev
 ```
 
