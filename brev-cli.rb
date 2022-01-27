@@ -5,28 +5,28 @@
 class BrevCli < Formula
   desc ""
   homepage "https://docs.brev.dev"
-  version "0.6.10"
+  version "0.6.12"
   bottle :unneeded
 
   on_macos do
     if Hardware::CPU.intel?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_darwin_amd64.tar.gz"
-      sha256 "e87399d76aebeaebf8d3d00a3efd38bccedfb7c49b35c90b4d339bf67bbbaa7f"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.12/brev-cli_0.6.12_darwin_amd64.tar.gz"
+      sha256 "a0e7981f5448af1f9584455bd47f8f6ed3b8d56532fe3d34a7ef1c36ac503613"
     end
     if Hardware::CPU.arm?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_darwin_arm64.tar.gz"
-      sha256 "6014aef67b927187e3320bfeccac1c450ed852bf99aea2cb12ae454d3bfb9e3b"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.12/brev-cli_0.6.12_darwin_arm64.tar.gz"
+      sha256 "1d8a9895729075cd874945baa12bc5755225fe2c5954354144273489abf03015"
     end
   end
 
   on_linux do
     if Hardware::CPU.intel?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_linux_amd64.tar.gz"
-      sha256 "07f71663cbaae1d7cb5f4efb8862885ebfc42f74b7350d2add30b307684bac58"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.12/brev-cli_0.6.12_linux_amd64.tar.gz"
+      sha256 "b360fa31c6558f54018311ddd1ca205dd52fa0b88b7a74a711b926c8cc9911e5"
     end
     if Hardware::CPU.arm? && Hardware::CPU.is_64_bit?
-      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.10/brev-cli_0.6.10_linux_arm64.tar.gz"
-      sha256 "fe3666fba5fffed80d43f9aae47105b4481c2d8219586387839f80c61cf2e2a3"
+      url "https://github.com/brevdev/brev-cli/releases/download/v0.6.12/brev-cli_0.6.12_linux_arm64.tar.gz"
+      sha256 "3c1caee04f1c1f2d2ac2b9bea93dced061f0bd685efe8017b168d4c1e5bfb7da"
     end
   end
 
@@ -54,5 +54,9 @@ class BrevCli < Formula
 </plist>
 
   EOS
+  end
+
+  test do
+    system "#{bin}/brev --version"
   end
 end
