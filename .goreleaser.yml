@@ -26,10 +26,11 @@ brews:
     # The project name and current git tag are used in the format string.
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     homepage: "https://docs.brev.dev"
+    description: "CLI tool for managing workspaces provided by brev.dev"
     install: |
       bin.install "brev"
     test: |
-      system "#{bin}/brev --version"
+      system "#{bin}/brev" "--version"
 
 archives:
   - format_overrides:
