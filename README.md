@@ -158,7 +158,16 @@ after creating a release edit `brev-cli.rb`
      <?xml version="1.0" encoding="UTF-8"?>
 ```
 
+if brew is not already installed on your workspace install it with
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
+test the formula with
+
+```sh
+brew install --verbose --debug brev-cli.rb
+```
 
 
 ## Maintainance
