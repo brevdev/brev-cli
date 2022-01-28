@@ -21,7 +21,7 @@ install brev on your computer with:
 
 ```
 curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | bash  &&
-brev run-tasks -d
+brev run-tasks -d && brev login
 ```
 
 add brev to your path:
