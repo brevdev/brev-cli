@@ -139,7 +139,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 			}
-			err = ErrorIfBadHTTP(r)
+			err = ErrorIfBadHTTP(r, 403)
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err)
 			}
@@ -277,8 +277,16 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 	return &authTokens, nil
 }
 
-func ErrorIfBadHTTP(r *http.Response) error {
-	if IsError(r.StatusCode) {
+func ErrorIfBadHTTP(r *http.Response, exceptStatus ...int) error {
+	shouldExcept := false
+	for _, s := range exceptStatus {
+		if r.StatusCode == s {
+			shouldExcept = true
+			break
+		}
+	}
+
+	if IsError(r.StatusCode) && !shouldExcept {
 		return fmt.Errorf("bad http [url: %s, status: %s]", r.Request.URL.String(), r.Status)
 	}
 	return nil
