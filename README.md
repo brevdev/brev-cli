@@ -104,6 +104,11 @@ if brew is not already installed on your workspace install it with
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
+or if you need to uninstall brew
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
+```
+
 test the formula with
 
 ```sh
@@ -145,19 +150,3 @@ Notable files:
 ## Contributing
 
 Simply create an issue or a pull request.
-
-## Distribute to Homebrew
-
-Step 1: bump version (see top of Makefile)
-
-Step 2: create homebrew distribution
-```
-> make dist-homebrew
-```
-
-Step 3: create GitHub release
-
-Step 4: upload resultant tar.gz to GitHub release
-
-Step 5: copy sha256 (output from step 2) and use it in a new update to https://github.com/brevdev/homebrew-tap
-

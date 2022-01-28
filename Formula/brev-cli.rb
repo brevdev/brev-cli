@@ -7,12 +7,8 @@ class BrevCli < Formula
   depends_on "go" => :build
 
   def install
-    system "go",
-           "build",
-           "-o",
-           "brev",
-           "-ldflags",
-           "\"-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=v.0.6.12\""
+    ldflags = "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=v#{version}"
+    system "go", "build", *std_go_args(output: bin/"brev", ldflags: ldflags)
     bin.install "brev"
   end
 
