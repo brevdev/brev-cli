@@ -15,7 +15,11 @@
 
 # Install
 
-Linux & Mac
+Make sure that you have brew installed
+
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
 install brev on your computer with:
 
@@ -175,6 +179,15 @@ audit the formula with
 brew audit --strict --online brev-cli.rb
 ```
 
+```
+brew update # required in more ways than you think (initialises the brew git repository if you don't already have it)
+cd "$(brew --repository homebrew/core)"
+# Create a new git branch for your formula so your pull request is easy to
+# modify if any changes come up during review.
+git checkout -b <some-descriptive-name> origin/master
+git add Formula/brev-cli.rb
+git commit
+```
 
 ## Maintainance
 
