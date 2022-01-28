@@ -1,67 +1,3 @@
-# brev CLI
-
-[![Keep a Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-%23E05735)](CHANGELOG.md)
-[![GitHub Release](https://img.shields.io/github/v/release/brevdev/brev-cli)](https://github.com/brevdev/brev-cli/releases)
-[![Go Reference](https://pkg.go.dev/badge/github.com/brevdev/brev-cli.svg)](https://pkg.go.dev/github.com/brevdev/brev-cli)
-[![go.mod](https://img.shields.io/github/go-mod/go-version/brevdev/brev-cli)](go.mod)
-[![LICENSE](https://img.shields.io/github/license/brevdev/brev-cli)](LICENSE)
-[![Build Status](https://img.shields.io/github/workflow/status/brevdev/brev-cli/build)](https://github.com/brevdev/brev-cli/actions?query=workflow%3Abuild+branch%3Amain)
-[![Go Report Card](https://goreportcard.com/badge/github.com/brevdev/brev-cli)](https://goreportcard.com/report/github.com/brevdev/brev-cli)
-[![Codecov](https://codecov.io/gh/brevdev/brev-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/brevdev/brev-cli)
-
-`Star` this repository if you find it valuable and worth maintaining.
-
-`Watch` this repository to get notified about new releases, issues, etc.
-
-# Install
-
-Make sure that you have brew installed
-
-```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-install brev on your computer with:
-
-```
-curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | bash  &&
-brev run-tasks -d && brev login
-```
-
-add brev to your path:
-
-ZSH
-```
-export PATH=/opt/brev/bin:$PATH
-echo PATH=/opt/brev/bin:$PATH >> ~/.zshrc
-```
-
-Bash
-```
-export PATH=/opt/brev/bin:$PATH
-echo PATH=/opt/brev/bin:$PATH >> ~/.bashrc
-```
-
-
-check that you have installed brev successfully by running
-
-```
-$ brev --version
-
-Current version: v0.1.5
-
-You're up to date!
-
-```
-# Uninstall
-
-```
-sudo rm -rf `which brev`
-# optional
-rm -rf /tmp/brev # may not exist
-rm -rf ~/.brev
-```
-
 # Usage
 
 ## Completion
@@ -224,3 +160,4 @@ Step 3: create GitHub release
 Step 4: upload resultant tar.gz to GitHub release
 
 Step 5: copy sha256 (output from step 2) and use it in a new update to https://github.com/brevdev/homebrew-tap
+
