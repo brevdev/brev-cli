@@ -78,27 +78,6 @@ _CAUTION_: Make sure to understand the consequences before you bump the major ve
 
 ### Homebrew
 
-goreleaser's template has a
-[plist_option](https://github.com/goreleaser/goreleaser/pull/308/commits/a3db024e9827691838e44c9f395ebe872b6efa5e#diff-81cea945c5e841bffb93bf4415613f6f998afe18c64efd3bb54ae8c7d2807538R56)
-specified that is not configureable as of now, so there are some
-manual proccesses to be done for releasing to homebrew.
-
-after creating a release edit `brev-cli.rb`
-
-```diff
---- before	2022-01-27 11:39:28.809234894 -0800
-+++ after	2022-01-27 11:39:28.809234894 -0800
-@@ -34,7 +34,7 @@
-     bin.install "brev-cli"
-   end
-
--  plist_options :startup => false
-+  plist_options :startup => true
-
-   def plist; <<~EOS
-     <?xml version="1.0" encoding="UTF-8"?>
-```
-
 if brew is not already installed on your workspace install it with
 ```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -108,6 +87,8 @@ or if you need to uninstall brew
 ```
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
 ```
+
+Our formula is located in `Formula/brev.rb`
 
 test the formula with
 

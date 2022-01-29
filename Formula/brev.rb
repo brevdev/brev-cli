@@ -1,4 +1,4 @@
-class BrevCli < Formula
+class Brev < Formula
   desc "CLI tool for managing workspaces provided by brev.dev"
   homepage "https://docs.brev.dev"
   url "https://github.com/brevdev/brev-cli/archive/refs/tags/v0.6.12.tar.gz"
