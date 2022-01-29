@@ -93,12 +93,12 @@ Our formula is located in `Formula/brev.rb`
 test the formula with
 
 ```sh
-brew install --verbose --debug brev-cli.rb
+brew install --verbose --debug Formula/brev.rb
 ```
 
 audit the formula with
 ```
-brew audit --strict --online brev-cli.rb
+brew audit --strict --online Formula/brev.rb
 ```
 
 ```
