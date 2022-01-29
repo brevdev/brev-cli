@@ -88,6 +88,12 @@ or if you need to uninstall brew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
 ```
 
+make sure you are checked out to the same commit as the release
+
+```
+git checkout `git describe --tags --abbrev=0`
+```
+
 Our formula is located in `Formula/brev.rb`
 
 test the formula with
