@@ -94,7 +94,45 @@ make sure you are checked out to the same commit as the release
 git checkout `git describe --tags --abbrev=0`
 ```
 
-Our formula is located in `Formula/brev.rb`
+head to the releases page, which should look something similar to
+```
+https://github.com/brevdev/brev-cli/releases/tag/v0.6.13
+```
+
+and copy the link to the source code archive tar.gz
+
+```
+https://github.com/brevdev/brev-cli/archive/refs/tags/v0.6.13.tar.gz
+```
+
+update the url for the formula  located in `Formula/brev.rb` and then run `brew fetch Formula/brev.rb --build-from-source`
+or
+
+```
+λ curl https://codeload.github.com/brevdev/brev-cli/tar.gz/refs/tags/v0.6.13 | openssl sha256
+
+  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current
+                                 Dload  Upload   Total   Spent    Left  Speed
+100  173k    0  173k    0     0  17017      0 --:--:--  0:00:10 --:--:-- 43493
+(stdin)= 8cd6d5ec12a6f2adcf8b45dff5fbe2b2964700cf7dc03cbe323bf5204900f31e
+
+```
+
+```
+--- before	2022-01-28 18:27:25.200840905 -0800
++++ after	2022-01-28 18:27:25.200840905 -0800
+@@ -1,8 +1,8 @@
+ class Brev < Formula
+   desc "CLI tool for managing workspaces provided by brev.dev"
+   homepage "https://docs.brev.dev"
+-  url "https://github.com/brevdev/brev-cli/archive/refs/tags/v0.6.12.tar.gz"
+-  sha256 "5237a3706e88f76e9a4d97109272f491539ad45ff50fc3fdb12fd478c55c0774"
++  url "https://github.com/brevdev/brev-cli/archive/refs/tags/v0.6.13.tar.gz"
++  sha256 "8cd6d5ec12a6f2adcf8b45dff5fbe2b2964700cf7dc03cbe323bf5204900f31e"
+   license "MIT"
+   depends_on "go" => :build
+
+```
 
 test the formula with
 
