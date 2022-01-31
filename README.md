@@ -1,4 +1,41 @@
+# Brev CLI
+
+## install
+
+if brew is not already installed on your computer install it with
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+then add Brev's tap and install `brev`
+
+```
+brew tap brevdev/homebrew-brev
+brew install brev
+```
+
 # Usage
+
+
+create a workspace in your current org
+```
+brev start https://github.com/brevdev/brev-cli
+```
+
+list all workspaces in an org
+```
+brev ls
+```
+
+stop a workspace 
+```
+brev delete brevdev/brev-cli
+```
+
+delete a workspace from and org
+```
+brev delete brevdev/brev-cli
+```
 
 ## Completion
 
