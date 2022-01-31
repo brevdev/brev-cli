@@ -10,8 +10,7 @@ if brew is not already installed on your computer install it with
 then add Brev's tap and install `brev`
 
 ```
-brew tap brevdev/homebrew-brev
-brew install brev
+brew tap brevdev/homebrew-brev && brew install brev
 ```
 
 # Usage
