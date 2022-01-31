@@ -7,10 +7,10 @@ if brew is not already installed on your computer install it with
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-then add Brev's tap and install `brev`
+then add Brev's tap and install `brev` with
 
 ```
-brew tap brevdev/homebrew-brev && brew install brev
+brew install brevdev/homebrew-brev/brev
 ```
 
 # Usage
