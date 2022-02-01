@@ -40,6 +40,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	var org string
 	var name string
 	var detached bool
+	var empty bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -48,9 +49,23 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		Short:                 "Start a workspace if it's stopped, or create one from url",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cobra.ExactArgs(1),
+		// Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
+
+			if empty {
+				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
+				if err != nil {
+					t.Vprintf(t.Red(err.Error()))
+					return
+				}
+			}
+
+			if len(args)==0 && !empty {
+				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
+				return
+			}
+
 			isURL := false
 			if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
 				isURL = true
@@ -72,6 +87,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
+	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
@@ -80,6 +96,61 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	}
 
 	return cmd
+}
+
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
+
+	// ensure name 
+	if len(name)==0 {
+		return fmt.Errorf("Name field is required for empty workspaces\n")
+	}
+
+	// ensure org
+	var orgID string
+	if orgflag == "" {
+		activeorg, err := startStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if activeorg == nil {
+			return fmt.Errorf("no org exist")
+		}
+		orgID = activeorg.ID
+	} else {
+		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return fmt.Errorf("no org with name %s", orgflag)
+		} else if len(orgs) > 1 {
+			return fmt.Errorf("more than one org with name %s", orgflag)
+		}
+		orgID = orgs[0].ID
+	}
+
+	clusterID := config.GlobalConfig.GetDefaultClusterID()
+	options := store.NewCreateWorkspacesOptions(clusterID, name)
+	
+	w, err := startStore.CreateWorkspace(orgID, options)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	
+	if detached {
+		return nil;
+	} else {
+		err = pollUntil(t, w.ID, "RUNNING", startStore, true)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	
+		t.Vprint(t.Green("\nYour workspace is ready!"))
+		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
+	
+		return nil
+	}
 }
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string) error {
