@@ -93,7 +93,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	if err != nil {
 		t.Errprint(err, "cli err")
 	}
-	t.Errprint("\n")
 	return cmd
 }
 
