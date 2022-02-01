@@ -304,27 +304,40 @@ type NewWorkspace struct {
 }
 
 func MakeNewWorkspaceFromURL(url string) NewWorkspace {
+	var name string
 	if strings.Contains(url, "http") {
 		split := strings.Split(url, ".com/")
 		provider := strings.Split(split[0], "://")[1]
 
 		if strings.Contains(split[1], ".git") {
+			name = strings.Split(split[1], ".git")[0]
+			if strings.Contains(name, "/") {
+				name = strings.Split(name, "/")[1]
+			}
 			return NewWorkspace{
 				GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
-				Name:    strings.Split(split[1], ".git")[0],
+				Name:    name,
 			}
 		} else {
+			name = split[1]
+			if strings.Contains(name, "/") {
+				name = strings.Split(name, "/")[1]
+			}
 			return NewWorkspace{
 				GitRepo: fmt.Sprintf("%s.com:%s.git", provider, split[1]),
-				Name:    split[1],
+				Name:    name,
 			}
 		}
 	} else {
 		split := strings.Split(url, ".com:")
 		provider := strings.Split(split[0], "@")[1]
+		name = strings.Split(split[1], ".git")[0]
+		if strings.Contains(name, "/") {
+			name = strings.Split(name, "/")[1]
+		}
 		return NewWorkspace{
 			GitRepo: fmt.Sprintf("%s.com:%s", provider, split[1]),
-			Name:    strings.Split(split[1], ".git")[0],
+			Name:    name,
 		}
 	}
 }
