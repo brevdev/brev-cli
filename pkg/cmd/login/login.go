@@ -15,6 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/encoding/charmap"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -102,24 +103,29 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 			return breverrors.WrapAndTrace(err)
 		}
 	}
+	
+	// HI: this is a great place to make a demo workspace
 
 	// SSH Keys
-	terminal.DisplayBrevLogo(t)
 	t.Print("")
-	terminal.DisplaySSHKeys(t, user.PublicKey)
+	t.Eprint(t.Yellow("\nYou'll need to create an SSH Key with your git provider."))
 
-	t.Vprint("\n")
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		Label:    "🔒 Click enter to get your secure SSH key:",
+		ErrorMsg: "error",
+		AllowEmpty: true,
+	})
+	t.Vprintf("\n" + user.PublicKey)
+	t.Eprintf(t.Yellow("\n\nCopy 👆 and save it to your git provider:"))
+	t.Eprintf(t.Yellow("\n\tClick here for Github: https://github.com/settings/keys"))
+	t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
 
 	// Check IDE requirements
-	doneAddingKey := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label:    "Finished adding your SSH key (above)?",
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		Label:    "Hit enter when finished:",
 		ErrorMsg: "error",
-		Items:    []string{"Yes", "No", "Skip"},
+		AllowEmpty: true,
 	})
-
-	if doneAddingKey == "skip" || doneAddingKey == "no" {
-		t.Vprint(t.Red("\nFeel free to proceed but you will not be able to pull or push your private repos. Run 'brev ssh-key' to do this step later\n"))
-	}
 
 	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
@@ -128,15 +134,51 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		Items:    []string{"VSCode", "JetBrains IDEs"},
 	})
 	if ide == "VSCode" {
-		// TODO: check if user uses VSCode and intall extension for user
-		terminal.DisplayVSCodeInstructions(t)
+		//Check if user uses VSCode and intall extension for user
+		isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+		if err != nil {
+			return err
+		}
+
+		if !isInstalled {
+			// attempt to install the extension
+			cmd := exec.Command("code", "--install-extension", "ms-vscode-remote.remote-ssh", "--force") // #nosec G204
+			err = cmd.Run()
+
+			// verify installation
+			isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+
+			// tell the user to install manually if still not installed
+			if !isInstalled || err != nil {
+				t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
+				t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
+			}
+		}
+		
 		return nil
 	}
 
 	if ide == "JetBrains IDEs" {
 		return CheckAndInstallGateway(t)
 	}
+
+	terminal.DisplayBrevLogo(t)
 	return nil
+}
+
+func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
+	cmdddd := exec.Command("code", "--list-extensions") // #nosec G204
+	in, err := cmdddd.Output()
+	if err != nil {
+		return false, err
+	}
+	
+	d := charmap.CodePage850.NewDecoder()
+	out, err := d.Bytes(in)
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(string(out), extensionID), nil
 }
 
 func CheckAndInstallGateway(t *terminal.Terminal) (err error) {

@@ -99,10 +99,14 @@ type PromptContent struct {
 	ErrorMsg string
 	Label    string
 	Default  string
+	AllowEmpty bool
 }
 
 func PromptGetInput(pc PromptContent) string {
 	validate := func(input string) error {
+		if pc.AllowEmpty {
+			return nil
+		}
 		if len(input) == 0 {
 			return breverrors.WrapAndTrace(errors.New(pc.ErrorMsg))
 		}

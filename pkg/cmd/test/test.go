@@ -27,7 +27,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
+func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -36,6 +36,10 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
+
+
+			t.Vprint("\ntest cmd\n")
+
 			// Check IDE requirements
 			// doneAddingKey := terminal.PromptSelectInput(terminal.PromptSelectContent{
 			// 	Label:    "Done adding your SSH key?",
