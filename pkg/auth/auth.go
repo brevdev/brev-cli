@@ -214,6 +214,10 @@ func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 // gets new access and refresh token or returns nil if refresh token expired, and updates store
 func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTokens, error) {
 	tokens, err := t.oauth.GetNewAuthTokensWithRefresh(refreshToken)
+	if tokens.RefreshToken == "" {
+		tokens.RefreshToken = refreshToken
+	}
+
 	// TODO 2 handle if 403 invalid grant
 	// https://stackoverflow.com/questions/57383523/how-to-detect-when-an-oauth2-refresh-token-expired
 	if err != nil {
