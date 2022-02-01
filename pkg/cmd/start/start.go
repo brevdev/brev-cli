@@ -93,14 +93,14 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	if err != nil {
 		t.Errprint(err, "cli err")
 	}
-
+	t.Errprint("\n")
 	return cmd
 }
 
 func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
 	// ensure name
 	if len(name) == 0 {
-		return fmt.Errorf("Name field is required for empty workspaces\n")
+		return fmt.Errorf("name field is required for empty workspaces")
 	}
 
 	// ensure org

@@ -115,10 +115,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		ErrorMsg:   "error",
 		AllowEmpty: true,
 	})
-	t.Vprintf("\n" + user.PublicKey)
-	t.Eprintf(t.Yellow("\n\nCopy 👆 and save it to your git provider:"))
-	t.Eprintf(t.Yellow("\n\tClick here for Github: https://github.com/settings/keys"))
-	t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
+	terminal.DisplaySSHKeys(t, user.PublicKey)
 
 	// Check IDE requirements
 	_ = terminal.PromptGetInput(terminal.PromptContent{
@@ -150,7 +147,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		if !isInstalled && err == nil {
 			// attempt to install the extension
 			cmd := exec.Command("code", "--install-extension", "ms-vscode-remote.remote-ssh", "--force") // #nosec G204
-			err = cmd.Run()
+			_ = cmd.Run()
 
 			// verify installation
 			isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
@@ -181,13 +178,13 @@ func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
 	cmdddd := exec.Command("code", "--list-extensions") // #nosec G204
 	in, err := cmdddd.Output()
 	if err != nil {
-		return false, err
+		return false, breverrors.WrapAndTrace(err)
 	}
 
 	d := charmap.CodePage850.NewDecoder()
 	out, err := d.Bytes(in)
 	if err != nil {
-		return false, err
+		return false, breverrors.WrapAndTrace(err)
 	}
 	return strings.Contains(string(out), extensionID), nil
 }
