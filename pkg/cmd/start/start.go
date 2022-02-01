@@ -50,9 +50,8 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		Long:                  startLong,
 		Example:               startExample,
 		// Args:                  cobra.ExactArgs(1),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
+		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			if empty {
 				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
 				if err != nil {
@@ -61,7 +60,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 				}
 			}
 
-			if len(args)==0 && !empty {
+			if len(args) == 0 && !empty {
 				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
 				return
 			}
@@ -99,9 +98,8 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 }
 
 func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
-
-	// ensure name 
-	if len(name)==0 {
+	// ensure name
+	if len(name) == 0 {
 		return fmt.Errorf("Name field is required for empty workspaces\n")
 	}
 
@@ -131,24 +129,24 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, name)
-	
+
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
-	
+
 	if detached {
-		return nil;
+		return nil
 	} else {
 		err = pollUntil(t, w.ID, "RUNNING", startStore, true)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	
+
 		t.Vprint(t.Green("\nYour workspace is ready!"))
 		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
-	
+
 		return nil
 	}
 }

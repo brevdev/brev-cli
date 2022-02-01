@@ -96,9 +96,9 @@ func InstallVSCodeExtension(t *Terminal) {
 }
 
 type PromptContent struct {
-	ErrorMsg string
-	Label    string
-	Default  string
+	ErrorMsg   string
+	Label      string
+	Default    string
 	AllowEmpty bool
 }
 

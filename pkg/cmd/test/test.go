@@ -36,8 +36,6 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
-
-
 			t.Vprint("\ntest cmd\n")
 
 			// Check IDE requirements

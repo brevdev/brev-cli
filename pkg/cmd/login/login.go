@@ -103,7 +103,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 			return breverrors.WrapAndTrace(err)
 		}
 	}
-	
+
 	// HI: this is a great place to make a demo workspace
 
 	// SSH Keys
@@ -111,8 +111,8 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	t.Eprint(t.Yellow("\nYou'll need to create an SSH Key with your git provider."))
 
 	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:    "🔒 Click enter to get your secure SSH key:",
-		ErrorMsg: "error",
+		Label:      "🔒 Click enter to get your secure SSH key:",
+		ErrorMsg:   "error",
 		AllowEmpty: true,
 	})
 	t.Vprintf("\n" + user.PublicKey)
@@ -122,8 +122,8 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 
 	// Check IDE requirements
 	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:    "Hit enter when finished:",
-		ErrorMsg: "error",
+		Label:      "Hit enter when finished:",
+		ErrorMsg:   "error",
 		AllowEmpty: true,
 	})
 
@@ -134,14 +134,14 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		Items:    []string{"VSCode", "JetBrains IDEs"},
 	})
 	if ide == "VSCode" {
-		//Check if user uses VSCode and intall extension for user
+		// Check if user uses VSCode and intall extension for user
 		isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
 		if err != nil {
 			t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
 			t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
 			_ = terminal.PromptGetInput(terminal.PromptContent{
-				Label:    "Hit enter when finished:",
-				ErrorMsg: "error",
+				Label:      "Hit enter when finished:",
+				ErrorMsg:   "error",
 				AllowEmpty: true,
 			})
 		}
@@ -160,8 +160,8 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 				t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
 				t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
 				_ = terminal.PromptGetInput(terminal.PromptContent{
-					Label:    "Hit enter when finished:",
-					ErrorMsg: "error",
+					Label:      "Hit enter when finished:",
+					ErrorMsg:   "error",
 					AllowEmpty: true,
 				})
 			}
@@ -183,7 +183,7 @@ func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	
+
 	d := charmap.CodePage850.NewDecoder()
 	out, err := d.Bytes(in)
 	if err != nil {
