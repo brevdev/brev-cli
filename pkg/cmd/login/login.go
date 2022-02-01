@@ -137,10 +137,17 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		//Check if user uses VSCode and intall extension for user
 		isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
 		if err != nil {
-			return err
+			t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
+			t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
+			_ = terminal.PromptGetInput(terminal.PromptContent{
+				Label:    "Hit enter when finished:",
+				ErrorMsg: "error",
+				AllowEmpty: true,
+			})
 		}
 
-		if !isInstalled {
+		// If we couldn't check for the extension being installed, they likely don't have code in path and this step should be skipped
+		if !isInstalled && err == nil {
 			// attempt to install the extension
 			cmd := exec.Command("code", "--install-extension", "ms-vscode-remote.remote-ssh", "--force") // #nosec G204
 			err = cmd.Run()
@@ -152,10 +159,13 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 			if !isInstalled || err != nil {
 				t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
 				t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
+				_ = terminal.PromptGetInput(terminal.PromptContent{
+					Label:    "Hit enter when finished:",
+					ErrorMsg: "error",
+					AllowEmpty: true,
+				})
 			}
 		}
-		
-		return nil
 	}
 
 	if ide == "JetBrains IDEs" {
