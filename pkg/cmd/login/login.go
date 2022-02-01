@@ -173,6 +173,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	}
 
 	terminal.DisplayBrevLogo(t)
+	t.Vprint("\n")
 	return nil
 }
 
