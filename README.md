@@ -36,7 +36,7 @@ brev ls
 
 stop a workspace 
 ```
-brev delete brevdev/brev-cli
+brev stop brevdev/brev-cli
 ```
 
 delete a workspace from and org
