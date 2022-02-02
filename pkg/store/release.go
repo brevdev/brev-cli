@@ -22,7 +22,7 @@ func (n NoAuthHTTPStore) GetLatestReleaseMetadata() (*GithubReleaseMetadata, err
 
 	client := resty.New()
 
-	res, err := client.R().SetBody(&result).Get(cliReleaseURL)
+	res, err := client.R().SetResult(&result).Get(cliReleaseURL)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

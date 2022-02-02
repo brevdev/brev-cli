@@ -28,7 +28,7 @@ Version: %s
 
 Details: %s
 
-` + green("run 'brew upgrade brevdev/tap/brev' to upgrade") + `
+` + green("https://github.com/brevdev/brev-cli") + `
 
 %s
 `
