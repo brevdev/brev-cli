@@ -8,7 +8,7 @@ import (
 
 func TestMakeNewWorkspaceFromURL(t *testing.T) {
 	gitTruth := "github.com:brevdev/brev-cli.git"
-	nameTruth := "brevdev/brev-cli"
+	nameTruth := "brev-cli"
 
 	wksTruth := NewWorkspace{
 		Name:    nameTruth,

@@ -74,7 +74,7 @@ const validToken = "abc"
 func TestSuccessNoRefreshGetFreshAccessTokenOrLogin(t *testing.T) {
 	s := MockAuthStore{authTokens: &entity.AuthTokens{
 		AccessToken:  validToken,
-		RefreshToken: "",
+		RefreshToken: "rt",
 	}}
 	a := Auth{
 		&s,

@@ -360,7 +360,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	return nil
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {
+func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error { //nolint: unparam // want to take state as a variable
 	s := t.NewSpinner()
 	isReady := false
 	if canSafelyExit {
