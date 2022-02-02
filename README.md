@@ -1,6 +1,12 @@
-# Brev CLI
+<p align="center">
+<img width="300" src="https://raw.githubusercontent.com/brevdev/assets/main/logo.svg"/>
+</p>
 
-## install
+---
+
+# Brev.dev
+
+## Install
 
 if brew is not already installed on your computer install it with
 ```
