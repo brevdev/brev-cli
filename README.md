@@ -132,12 +132,6 @@ or if you need to uninstall brew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
 ```
 
-make sure you are checked out to the same commit as the release
-
-```
-git checkout `git describe --tags --abbrev=0`
-```
-
 head to the releases page, which should look something similar to
 ```
 https://github.com/brevdev/brev-cli/releases/tag/v0.6.13
