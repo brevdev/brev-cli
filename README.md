@@ -2,8 +2,6 @@
 <img width="230" src="https://raw.githubusercontent.com/brevdev/assets/main/logo.svg"/>
 </p>
 
----
-
 # Brev.dev
 
 [Brev.dev](https://brev.dev) connects your local computer to a cloud mesh so you can code locally on remote machines, without needing any new tools, and never in a browser.
