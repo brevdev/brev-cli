@@ -136,7 +136,7 @@ type WorkspaceTemplate struct {
 	Port        int    `json:"port"`
 }
 
-const featureSimpleNames = false
+const featureSimpleNames = true
 
 func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
 	if featureSimpleNames {
@@ -187,6 +187,9 @@ func makeNameSafeForEmacs(name string) string {
 
 	splitByColon := strings.Split(concatenated, ":")
 
+	emacsSafeString := strings.Join(splitByColon, "-")
+
+	emacsSafeString := strings.Split(splitByColon, "'")
 	emacsSafeString := strings.Join(splitByColon, "-")
 
 	return emacsSafeString

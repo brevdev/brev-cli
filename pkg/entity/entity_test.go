@@ -7,33 +7,34 @@ import (
 )
 
 func TestGetLocalIdentifier(t *testing.T) {
-	w := Workspace{DNS: "test-rand-org.brev.sh"}
+	w := Workspace{DNS: "test-rand-org.brev.sh", Name: "test-rand"}
 	assert.Equal(t, WorkspaceLocalID("test-rand"), w.GetLocalIdentifier(nil))
 }
 
 func TestGetLocalIdentifierClean(t *testing.T) {
 	// safest https://www.saveonhosting.com/scripts/index.php?rp=/knowledgebase/52/What-are-the-valid-characters-for-a-domain-name-and-how-long-can-a-domain-name-be.html
-	correctID := WorkspaceLocalID("test-rand")
+	correctIDFromName := WorkspaceLocalID("abc-def")
+	correctIDFromDNS := WorkspaceLocalID("test-rand")
 	w := Workspace{DNS: "test-rand-org.brev.sh", Name: "abc/def"}
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromName, w.GetLocalIdentifier(nil))
 
 	w.Name = "'abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromDNS, w.GetLocalIdentifier(nil))
 
 	w.Name = "\"abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromDNS, w.GetLocalIdentifier(nil))
 
 	w.Name = "\\abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromDNS, w.GetLocalIdentifier(nil))
 
 	w.Name = "/abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromDNS, w.GetLocalIdentifier(nil))
 
 	w.Name = ".abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromDNS, w.GetLocalIdentifier(nil))
 
 	w.Name = ":abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctIDFromDNS, w.GetLocalIdentifier(nil))
 }
 
 // NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
