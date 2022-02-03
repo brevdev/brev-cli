@@ -63,19 +63,17 @@ func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []stri
 }
 
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
-	// func (o *LoginOptions) RunLogin(cmd *cobra.Command, args []string) error {
 	tokens, err := o.Auth.Login()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err = o.LoginStore.GetCurrentUser()
+	err = CreateNewUser(o.LoginStore, tokens.IDToken, t)
 	if err != nil {
-		// TODO 1 check if 400/404
-		err := CreateNewUser(o.LoginStore, tokens.IDToken, t)
-		if err != nil {
+		if !strings.Contains(err.Error(), "400 Bad Request") {
 			return breverrors.WrapAndTrace(err)
 		}
+		t.Print("\nUser aleady created 👍")
 	}
 	return nil
 }
