@@ -160,12 +160,24 @@ func (t Auth) Login() (*LoginTokens, error) {
 			codeType := color.New(color.FgYellow, color.Bold).SprintFunc()
 			fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 
-			err := browser.OpenURL(url)
+			caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
+			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
+			cancelType := color.New(color.FgRed, color.Bold).SprintFunc()
+			urlType := color.New(color.FgYellow, color.Bold).SprintFunc()
+			fmt.Println("")
+			fmt.Println("  ", caretType("▸"), "    Press", enterType("Enter"), "to open the browser to log in or", cancelType("Ctrl-C"), "to quit.")
+			var input string
+			_, err := fmt.Scanln(&input)
 			if err != nil {
-				fmt.Println("please open: ", url)
+				fmt.Println("Error reading input. Please copy:", urlType(url), "and paste it in your browser.")
+			} else {
+				err := browser.OpenURL(url)
+				if err != nil {
+					fmt.Println("Error automatically opening browser. Please copy:", urlType(url), "and paste it in your browser.")
+				}
 			}
-
-			fmt.Println("waiting for auth to complete")
+			fmt.Println("")
+			fmt.Print("Waiting for login to complete in browser... ")
 		},
 	)
 	if err != nil {
@@ -177,9 +189,11 @@ func (t Auth) Login() (*LoginTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Print("\n")
-	fmt.Println("Successfully logged in.")
-
+	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
+	fmt.Println("done!")
+	fmt.Println("")
+	fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
+	fmt.Println("")
 	return tokens, nil
 }
 
