@@ -79,12 +79,13 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 }
 
 func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
-	t.Print("\nWelcome to Brev 🤙\n")
-	t.Print("Creating your user...")
+	t.Print("\nWelcome to Brev.dev 🤙\n")
+	t.Print("Creating your user... ")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	t.Print("done!")
 
 	orgs, err := loginStore.GetOrganizations(nil)
 	if err != nil {
@@ -93,19 +94,19 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 
 	if len(orgs) == 0 {
 		orgName := makeFirstOrgName(user)
-		t.Printf("Creating your first org %s", orgName)
+		t.Printf("Creating your first org %s ... ", orgName)
 		_, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
 			Name: orgName,
 		})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+		t.Print("done!")
 	}
 
 	// HI: this is a great place to make a demo workspace
 
 	// SSH Keys
-	t.Print("")
 	t.Eprint(t.Yellow("\nYou'll need to create an SSH Key with your git provider."))
 
 	_ = terminal.PromptGetInput(terminal.PromptContent{

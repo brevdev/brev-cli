@@ -157,35 +157,34 @@ func shouldLogin() (bool, error) {
 func (t Auth) Login() (*LoginTokens, error) {
 	tokens, err := t.oauth.DoDeviceAuthFlow(
 		func(url, code string) {
-			codeType := color.New(color.FgYellow, color.Bold).SprintFunc()
+			codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 
 			caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			cancelType := color.New(color.FgRed, color.Bold).SprintFunc()
-			urlType := color.New(color.FgYellow, color.Bold).SprintFunc()
+			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("")
 			fmt.Println("  ", caretType("▸"), "    Press", enterType("Enter"), "to open the browser to log in or", cancelType("Ctrl-C"), "to quit.")
 			var input string
-			_, err := fmt.Scanln(&input)
+			_, _ = fmt.Scanln(&input)
+			err := browser.OpenURL(url)
 			if err != nil {
-				fmt.Println("Error reading input. Please copy:", urlType(url), "and paste it in your browser.")
-			} else {
-				err := browser.OpenURL(url)
-				if err != nil {
-					fmt.Println("Error automatically opening browser. Please copy:", urlType(url), "and paste it in your browser.")
-				}
+				fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")
 			}
-			fmt.Println("")
 			fmt.Print("Waiting for login to complete in browser... ")
 		},
 	)
 	if err != nil {
+		fmt.Println("failed.")
+		fmt.Println("")
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	err = t.authStore.SaveAuthTokens(tokens.AuthTokens)
 	if err != nil {
+		fmt.Println("failed.")
+		fmt.Println("")
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
@@ -193,7 +192,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 	fmt.Println("done!")
 	fmt.Println("")
 	fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
-	fmt.Println("")
+
 	return tokens, nil
 }
 
