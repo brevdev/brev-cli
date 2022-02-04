@@ -158,12 +158,23 @@ func (t Auth) Login() (*LoginTokens, error) {
 			codeType := color.New(color.FgYellow, color.Bold).SprintFunc()
 			fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 
-			err := browser.OpenURL(url)
-			if err != nil {
-				fmt.Println("please open: ", url)
+			reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
+			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
+			cancelType := color.New(color.FgRed, color.Bold).SprintFunc()
+			fmt.Println("Press", enterType("Enter"), "to open the browser to log in or", cancelType("Ctrl-C"), "to quit.")
+			text, err := reader.ReadString('\n')
+			fmt.Println(strings.ToLower(strings.TrimSpace(text)))
+			fmt.Println(strings.ToLower(strings.TrimSpace(text))== "enter")
+			fmt.Println(err != nil)
+			if strings.ToLower(strings.TrimSpace(text)) == "enter" || err != nil {
+				err = browser.OpenURL(url)
+				if err != nil {
+					urlType := color.New(color.FgYellow, color.Bold).SprintFunc()
+					fmt.Println("Error automatically opening browser. Please copy: ", urlType(url), " and paste it in your browser.")
+				}
 			}
 
-			fmt.Println("waiting for auth to complete")
+			fmt.Println("Waiting for auth to complete in browser... ")
 		},
 	)
 	if err != nil {
@@ -175,8 +186,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Print("\n")
-	fmt.Println("Successfully logged in.")
+	fmt.Print("done!")
 
 	return tokens, nil
 }
