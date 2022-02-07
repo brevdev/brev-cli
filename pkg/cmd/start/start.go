@@ -142,23 +142,46 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	}
 
 	if len(deps.Rust) > 0 {
-		t.Vprint("Install Rust.\n")
+		t.Vprint(t.Green("\nRust detected!"))
+		t.Vprint(t.Yellow("{note}-- we still don't have Rust version support, so it always installs latest..."))
+		res := terminal.PromptGetInput(terminal.PromptContent{
+			Label:      "Click enter to install latest, or type preferred version:",
+			ErrorMsg:   "error",
+			AllowEmpty: true,
+		})
+		if len(res)>0 {
+			deps.Rust = res
+			t.Vprintf("Installing Rust v%s", deps.Rust)
+		} else {
+			t.Vprint("Installing Rust-- latest version.\n")
+		}
 	}
-	if len(deps.Node) > 0 {
-		t.Vprint("Install Node.\n")
-	}
-	if len(deps.Java) > 0 {
-		t.Vprint("Install Java.\n")
-	}
-	if len(deps.TS) > 0 {
-		t.Vprint("Install TS.\n")
-	}
+	// if len(deps.Node) > 0 {
+	// 	t.Vprint("Install Node.\n")
+	// }
+	// if len(deps.Java) > 0 {
+	// 	t.Vprint("Install Java.\n")
+	// }
+	// if len(deps.TS) > 0 {
+	// 	t.Vprint("Install TS.\n")
+	// }
 	if len(deps.Go) > 0 {
-		t.Vprintf("Install Golang v%s.\n", deps.Go)
+		t.Vprint(t.Green("\nGolang detected!"))
+		res := terminal.PromptGetInput(terminal.PromptContent{
+			Label:      "Click enter to install Go v"+ deps.Go +", or type preferred version:",
+			ErrorMsg:   "error",
+			AllowEmpty: true,
+		})
+		if len(res)>0 {
+			deps.Go = res
+			t.Vprintf("Installing Go v%s\n", deps.Go)
+		} else {
+			t.Vprintf("Installing Go v%s.\n", deps.Go)
+		}
 	}
-	if len(deps.Solana) > 0 {
-		t.Vprint("Install Solana.\n")
-	}
+	// if len(deps.Solana) > 0 {
+	// 	t.Vprint("Install Solana.\n")
+	// }
 
 	return nil
 }
