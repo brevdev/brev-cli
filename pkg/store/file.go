@@ -53,8 +53,8 @@ func (f FileStore) FileExists(filepath string) (bool, error) {
 	return fileExists, nil
 }
 
-func (f FileStore) GetDotGitConfigFile() (string, error) {
-	dotGitConfigFile := filepath.Join(".git", "config")
+func (f FileStore) GetDotGitConfigFile(path string) (string, error) {
+	dotGitConfigFile := filepath.Join(path, ".git", "config")
 
 	dotGitConfigExists, err := afero.Exists(f.fs, dotGitConfigFile)
 	if err != nil {
@@ -88,8 +88,7 @@ type Dependencies struct {
 	Solana   string
 }
 
-func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
-
+func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) {
 	deps := &Dependencies{
 		Rust: "",
 		Java: "",
@@ -100,13 +99,13 @@ func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
 	}
 
 	// Check Rust Version
-	filePath := filepath.Join("", "Cargo.lock")
+	filePath := filepath.Join(path, "Cargo.lock")
 	doesCargoLockExist, err := afero.Exists(f.fs, filePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	filePath = filepath.Join("", "Cargo.toml")
+	filePath = filepath.Join(path, "Cargo.toml")
 	doesCargoTomlExist, err := afero.Exists(f.fs, filePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -119,13 +118,13 @@ func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
 
 	// Check Node
 	// look for package.json or package_lock.json
-	filePath = filepath.Join("", "package_lock.json")
+	filePath = filepath.Join(path, "package_lock.json")
 	doesPkgLockExist, err := afero.Exists(f.fs, filePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	filePath = filepath.Join("", "package.json")
+	filePath = filepath.Join(path, "package.json")
 	doesPkgExist, err := afero.Exists(f.fs, filePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -138,7 +137,7 @@ func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
 
 	// Check Typescript
 	// look for package.json or package_lock.json
-	filePath = filepath.Join("", "tsconfig.json")
+	filePath = filepath.Join(path, "tsconfig.json")
 	doesTSConfigExist, err := afero.Exists(f.fs, filePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -150,7 +149,8 @@ func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
 	}
 
 	// Check Golang
-	gocmd := exec.Command("cat", "go.mod") // #nosec G204
+	filePath = filepath.Join(path, "go.mod")
+	gocmd := exec.Command("cat", filePath) // #nosec G204
 	in, err := gocmd.Output()
 	if err != nil {
 		// return nil, breverrors.WrapAndTrace(err)
