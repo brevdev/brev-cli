@@ -2,6 +2,7 @@
 package start
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ type StartStore interface {
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	GetDotGitConfigFile() (string, error)
+	IsRustProject() (bool, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -52,6 +55,12 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		// Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
+			
+			if args[0] == "." {
+				startWorkspaceFromLocallyCloneRepo(t, org, loginStartStore, name, detached)
+				return
+			}
+
 			if empty {
 				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
 				if err != nil {
@@ -94,6 +103,37 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		t.Errprint(err, "cli err")
 	}
 	return cmd
+}
+
+func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
+	t.Vprintf("!!!~~~~~!!!!")
+	t.Vprintf(".")
+	t.Vprintf("!!!~~~~~!!!!")
+	
+	file, err := startStore.GetDotGitConfigFile()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// Get GitUrl
+	var gitUrl string
+	for _, v := range strings.Split(file, "\n") {
+		if strings.Contains(v, "url") {
+			gitUrl = strings.Split(v, "= ")[1]
+		}
+	}
+	if len(gitUrl) == 0 {
+		return breverrors.WrapAndTrace(errors.New("no git url found"))
+	}
+	
+	// Check for Rust Cargo Package
+	isRustProject, err := startStore.IsRustProject()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprintf("Is this a rust project? %s", isRustProject)
+
+	return nil
 }
 
 func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
