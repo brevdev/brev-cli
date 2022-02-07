@@ -36,7 +36,7 @@ type StartStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	GetDotGitConfigFile() (string, error)
-	IsRustProject() (bool, error)
+	GetDependenciesForImport() (*store.Dependencies, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -127,11 +127,26 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	}
 	
 	// Check for Rust Cargo Package
-	isRustProject, err := startStore.IsRustProject()
+	deps, err := startStore.GetDependenciesForImport()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("Is this a rust project? %s", isRustProject)
+
+	if len(deps.Rust) > 0 {
+		t.Vprint("Install Rust.\n")
+	}
+	if len(deps.Node) > 0 {
+		t.Vprint("Install Node.\n")
+	}
+	if len(deps.Java) > 0 {
+		t.Vprint("Install Java.\n")
+	}
+	if len(deps.TS) > 0 {
+		t.Vprint("Install TS.\n")
+	}
+	if len(deps.Solana) > 0 {
+		t.Vprint("Install Solana.\n")
+	}
 
 	return nil
 }
