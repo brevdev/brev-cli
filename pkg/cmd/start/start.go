@@ -4,6 +4,7 @@ package start
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -26,6 +27,15 @@ var (
 	`
 )
 
+// exists returns whether the given file or directory exists
+func dirExists(path string) bool {
+    _, err := os.Stat(path)
+    if err == nil { return true }
+    if os.IsNotExist(err) { return false }
+    return false
+}
+
+
 type StartStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
@@ -35,8 +45,8 @@ type StartStore interface {
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
-	GetDotGitConfigFile() (string, error)
-	GetDependenciesForImport() (*store.Dependencies, error)
+	GetDotGitConfigFile(path string) (string, error)
+	GetDependenciesForImport(path string) (*store.Dependencies, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -55,11 +65,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		// Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-			
-			if args[0] == "." {
-				startWorkspaceFromLocallyCloneRepo(t, org, loginStartStore, name, detached)
-				return
-			}
 
 			if empty {
 				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
@@ -86,11 +91,19 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 					t.Vprint(t.Red(err.Error()))
 				}
 			} else {
-				// Start an existing one (either theirs or someone elses)
-				err := startWorkspace(args[0], loginStartStore, t, detached, name)
-				if err != nil {
-					t.Vprint(t.Red(err.Error()))
+				// We need to differentiate between a workspace name and a directory
+				// BANANA: this isn't sufficient bcs brev-cli could satisfy both directory and workspace name... maybe just clarify? and record the clarification. don't bug someone everytime
+				if dirExists(args[0]) {
+					startWorkspaceFromLocallyCloneRepo(t, org, loginStartStore, name, detached, args[0])
+					return
+					} else {
+					// Start an existing one (either theirs or someone elses)
+					err := startWorkspace(args[0], loginStartStore, t, detached, name)
+					if err != nil {
+						t.Vprint(t.Red(err.Error()))
+					}
 				}
+				
 			}
 		},
 	}
@@ -105,8 +118,8 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
-	file, err := startStore.GetDotGitConfigFile()
+func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, path string) error {
+	file, err := startStore.GetDotGitConfigFile(path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -123,7 +136,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	}
 	
 	// Check for Rust Cargo Package
-	deps, err := startStore.GetDependenciesForImport()
+	deps, err := startStore.GetDependenciesForImport(path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
