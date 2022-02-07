@@ -106,10 +106,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 }
 
 func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
-	t.Vprintf("!!!~~~~~!!!!")
-	t.Vprintf(".")
-	t.Vprintf("!!!~~~~~!!!!")
-	
 	file, err := startStore.GetDotGitConfigFile()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -143,6 +139,9 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	}
 	if len(deps.TS) > 0 {
 		t.Vprint("Install TS.\n")
+	}
+	if len(deps.Go) > 0 {
+		t.Vprintf("Install Golang v%s.\n", deps.Go)
 	}
 	if len(deps.Solana) > 0 {
 		t.Vprint("Install Solana.\n")

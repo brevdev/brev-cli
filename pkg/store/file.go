@@ -84,6 +84,7 @@ type Dependencies struct {
 	Java string
 	Node string
 	TS   string
+	Go   string
 	Solana   string
 }
 
@@ -94,6 +95,7 @@ func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
 		Java: "",
 		Node: "",
 		TS: "",
+		Go: "",
 		Solana: "",
 	}
 
@@ -147,10 +149,32 @@ func (f FileStore) GetDependenciesForImport() (*Dependencies, error) {
 		deps.TS = "true"
 	}
 
+	// Check Golang
+	gocmd := exec.Command("cat", "go.mod") // #nosec G204
+	in, err := gocmd.Output()
+	if err != nil {
+		// return nil, breverrors.WrapAndTrace(err)
+	} else {
+		d := charmap.CodePage850.NewDecoder()
+		out, err := d.Bytes(in)
+		if err != nil {
+			// return nil, breverrors.WrapAndTrace(err)
+		} else {
+			if len(string(out)) > 0 {
+				for _, v := range strings.Split(string(out), "\n") {
+					if strings.HasPrefix(v, "go ") {
+						versionNum := strings.Split(v, "go ")
+						deps.Go = versionNum[1]
+					}
+				}
+			}
+		}
+	}
+
 	// Check Java Version
 	// idea: look for JAVA_HOME or JRE_HOME. Right now uses Java CLI
 	cmdddd := exec.Command("java", "--version") // #nosec G204
-	in, err := cmdddd.Output()
+	in, err = cmdddd.Output()
 	if err != nil {
 		// return nil, breverrors.WrapAndTrace(err)
 	} else {
