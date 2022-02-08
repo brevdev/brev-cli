@@ -1,4 +1,4 @@
-package setup
+package setupscript
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-const defaultSetupScript = `
+const DefaultSetupScript = `
 #!/bin/bash
 
 set -euo pipefail
@@ -85,15 +85,15 @@ type langHunk interface {
 	WriteHunk(io.Writer) error
 }
 
-type goHunk struct {
+type GoHunk struct {
 	Version string
 }
 
-func (GSS *goHunk) SetVersion(version string) {
-	GSS.Version = version
+func (GH *GoHunk) SetVersion(version string) {
+	GH.Version = version
 }
 
-func (GSS goHunk) GetTemplateString() string {
+func (GH GoHunk) GetTemplateString() string {
 	return `
 wget https://golang.org/dl/go{{ .Version }}.linux-amd64.tar.gz -O go.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go.tar.gz
@@ -107,16 +107,16 @@ rm go.tar.gz
 `
 }
 
-func (GSS goHunk) GetTemplate() (*template.Template, error) {
-	return template.New("go").Parse(GSS.GetTemplateString())
+func (GH GoHunk) GetTemplate() (*template.Template, error) {
+	return template.New("go").Parse(GH.GetTemplateString())
 }
 
-func (GSS goHunk) WriteHunk(w io.Writer) error {
-	tmpl, err := GSS.GetTemplate()
+func (GH GoHunk) WriteHunk(w io.Writer) error {
+	tmpl, err := GH.GetTemplate()
 	if err != nil {
 		return err
 	}
-	err = tmpl.Execute(w, GSS)
+	err = tmpl.Execute(w, GH)
 	if err != nil {
 		return err
 	}
@@ -125,7 +125,7 @@ func (GSS goHunk) WriteHunk(w io.Writer) error {
 
 func buildLangHunkMap() map[string]langHunk {
 	langHunk := make(map[string]langHunk)
-	langHunk["go"] = &goHunk{}
+	langHunk["go"] = &GoHunk{}
 	return langHunk
 }
 
@@ -133,7 +133,7 @@ func genSetupHunkForLanguage(language, version string) (string, error) {
 	langHunkMap := buildLangHunkMap()
 	lhWriter, ok := langHunkMap[language]
 	if !ok {
-		return defaultSetupScript, nil
+		return DefaultSetupScript, nil
 	}
 	lhWriter.SetVersion(version)
 	buf := new(bytes.Buffer)
