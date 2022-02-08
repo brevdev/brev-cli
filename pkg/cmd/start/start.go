@@ -11,6 +11,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -86,7 +87,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 			if isURL {
 				// CREATE A WORKSPACE
-				err := clone(t, args[0], org, loginStartStore, name)
+				err := clone(t, args[0], org, loginStartStore, name, nil)
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
 				}
@@ -182,6 +183,8 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	// if len(deps.Solana) > 0 {
 	// 	t.Vprint("Install Solana.\n")
 	// }
+
+	clone(t, gitUrl, orgflag, startStore, name, deps)
 
 	return nil
 }
@@ -346,7 +349,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string) error {
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, deps *store.Dependencies) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	if len(name) > 0 {
@@ -378,7 +381,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, newWorkspace, orgID, startStore)
+	err := createWorkspace(t, newWorkspace, orgID, startStore, deps)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -429,10 +432,24 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, deps *store.Dependencies) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	var options *store.CreateWorkspacesOptions
+	if deps != nil {
+		setupscript1,err := setupscript.GenSetupHunkForLanguage("go", deps.Go)
+		if err != nil {
+			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+		} else {
+			// setupscript2,err := setupscript.GenSetupHunkForLanguage("rust", deps.R)
+			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo).WithStartupScript(setupscript1)
+		}
+	} else {
+		options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	}
+
+	fmt.Println("BANANA: remove this")
+	fmt.Println(options.StartupScript)
 
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {

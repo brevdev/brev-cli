@@ -6,6 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/setupscript"
 )
 
 var (
@@ -53,6 +54,7 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		PrimaryApplicationID: DefaultApplicationID,
 		Applications:         DefaultApplicationList,
+		StartupScript:        setupscript.DefaultSetupScript,
 	}
 }
 
