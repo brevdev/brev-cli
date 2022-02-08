@@ -129,7 +129,7 @@ func buildLangHunkMap() map[string]langHunk {
 	return langHunk
 }
 
-func genSetupHunkForLanguage(language, version string) (string, error) {
+func GenSetupHunkForLanguage(language, version string) (string, error) {
 	langHunkMap := buildLangHunkMap()
 	lhWriter, ok := langHunkMap[language]
 	if !ok {
