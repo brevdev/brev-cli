@@ -32,7 +32,7 @@ rm go.tar.gz
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			got, err := genSetupHunkForLanguage(tc.lang, tc.version)
+			got, err := GenSetupHunkForLanguage(tc.lang, tc.version)
 			if err != nil {
 				panic(err)
 			}
