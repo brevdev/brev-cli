@@ -1,4 +1,4 @@
-package setup
+package setupscript
 
 import (
 	"testing"
@@ -26,7 +26,7 @@ rm go.tar.gz
 `,
 		},
 		"lang doesn't exist": {
-			lang: "lakfjdfj", version: "1.16.9", want: defaultSetupScript,
+			lang: "lakfjdfj", version: "1.16.9", want: DefaultSetupScript,
 		},
 	}
 
