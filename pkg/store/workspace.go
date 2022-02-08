@@ -23,6 +23,7 @@ type CreateWorkspacesOptions struct {
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	PrimaryApplicationID string               `json:"primaryApplicationId"`
 	Applications         []entity.Application `json:"applications"`
+	StartupScript        string               `json:"startupScript"`
 }
 
 var (
@@ -42,7 +43,7 @@ var (
 )
 var DefaultApplicationList = []entity.Application{DefaultApplication}
 
-func NewCreateWorkspacesOptions(clusterID string, name string) *CreateWorkspacesOptions {
+func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
 	return &CreateWorkspacesOptions{
 		Name:                 name,
 		WorkspaceGroupID:     clusterID,
@@ -57,6 +58,11 @@ func NewCreateWorkspacesOptions(clusterID string, name string) *CreateWorkspaces
 
 func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesOptions {
 	c.GitRepo = gitRepo
+	return c
+}
+
+func (c *CreateWorkspacesOptions) WithStartupScript(startupScript string) *CreateWorkspacesOptions {
+	c.StartupScript = startupScript
 	return c
 }
 
