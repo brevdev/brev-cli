@@ -261,9 +261,6 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 	}
 
-	fmt.Println("BANANA: remove this")
-	fmt.Println(options.StartupScript)
-
 	w, err := importStore.CreateWorkspace(orgID, options)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
