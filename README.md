@@ -32,7 +32,7 @@ list all workspaces in an org
 brev ls
 ```
 
-stop a workspace 
+stop a workspace
 ```
 brev stop brevdev/brev-cli
 ```
@@ -112,7 +112,7 @@ git describe --tags --abbrev=0
 
 when releasing make sure to
 
-1. [ ] run `make smoketest` before cutting release to run through some common commands and make sure that they work
+1. [ ] run `full-smoke-test` before cutting release to run through some common commands and make sure that they work
 
 2. [ ]  release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
