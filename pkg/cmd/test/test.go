@@ -27,7 +27,6 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-
 func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},

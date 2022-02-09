@@ -166,7 +166,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
-	
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
