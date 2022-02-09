@@ -117,6 +117,22 @@ func (s AuthHTTPStore) CreateOrganization(req CreateOrganizationRequest) (*entit
 	return &result, nil
 }
 
+func (s AuthHTTPStore) CreateInviteLink(organizationID string) (string, error) {
+	var result string
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(orgPath + "/" + organizationID + "/invite")
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return "", NewHTTPResponseError(res)
+	}
+
+	return result, nil
+}
+
 func GetDefaultOrNilOrg(orgs []entity.Organization) *entity.Organization {
 	if len(orgs) > 0 {
 		return &orgs[0]
