@@ -192,6 +192,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 	fmt.Println("done!")
 	fmt.Println("")
 	fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
+	fmt.Println("")
 
 	return tokens, nil
 }

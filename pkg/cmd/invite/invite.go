@@ -98,7 +98,7 @@ func RunInvite(t *terminal.Terminal, inviteStore InviteStore, args []string, org
 	}
 
 	t.Vprintf("Use the following invite link to invite someone to %s:", t.Green(org.Name))
-	t.Vprintf("\n\t%s", t.Green("https://console.brev.dev/invite?token=%s\n", token))
+	t.Vprintf("\n\n\t%s", t.Green("https://console.brev.dev/invite?token=%s\n", token))
 
 	// err := ls.RunWorkspaces(org, showAll)
 	// if err != nil {
