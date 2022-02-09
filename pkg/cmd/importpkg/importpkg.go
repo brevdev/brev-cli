@@ -50,7 +50,7 @@ type ImportStore interface {
 	GetDependenciesForImport(path string) (*store.Dependencies, error)
 }
 
-func NewCmdStart(t *terminal.Terminal, loginImportStore ImportStore, noLoginImportStore ImportStore) *cobra.Command {
+func NewCmdImport(t *terminal.Terminal, loginImportStore ImportStore, noLoginImportStore ImportStore) *cobra.Command {
 	var org string
 	var name string
 	var detached bool

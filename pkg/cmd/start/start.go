@@ -2,16 +2,13 @@
 package start
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -28,15 +25,6 @@ var (
 	`
 )
 
-// exists returns whether the given file or directory exists
-func dirExists(path string) bool {
-    _, err := os.Stat(path)
-    if err == nil { return true }
-    if os.IsNotExist(err) { return false }
-    return false
-}
-
-
 type StartStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
@@ -46,8 +34,6 @@ type StartStore interface {
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
-	GetDotGitConfigFile(path string) (string, error)
-	GetDependenciesForImport(path string) (*store.Dependencies, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -66,7 +52,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		// Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-
 			if empty {
 				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
 				if err != nil {
@@ -87,24 +72,16 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 			if isURL {
 				// CREATE A WORKSPACE
-				err := clone(t, args[0], org, loginStartStore, name, nil)
+				err := clone(t, args[0], org, loginStartStore, name)
 				if err != nil {
 					t.Vprint(t.Red(err.Error()))
 				}
 			} else {
-				// We need to differentiate between a workspace name and a directory
-				// BANANA: this isn't sufficient bcs brev-cli could satisfy both directory and workspace name... maybe just clarify? and record the clarification. don't bug someone everytime
-				if dirExists(args[0]) {
-					startWorkspaceFromLocallyCloneRepo(t, org, loginStartStore, name, detached, args[0])
-					return
-					} else {
-					// Start an existing one (either theirs or someone elses)
-					err := startWorkspace(args[0], loginStartStore, t, detached, name)
-					if err != nil {
-						t.Vprint(t.Red(err.Error()))
-					}
+				// Start an existing one (either theirs or someone elses)
+				err := startWorkspace(args[0], loginStartStore, t, detached, name)
+				if err != nil {
+					t.Vprint(t.Red(err.Error()))
 				}
-				
 			}
 		},
 	}
@@ -117,76 +94,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		t.Errprint(err, "cli err")
 	}
 	return cmd
-}
-
-func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, path string) error {
-	file, err := startStore.GetDotGitConfigFile(path)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// Get GitUrl
-	var gitUrl string
-	for _, v := range strings.Split(file, "\n") {
-		if strings.Contains(v, "url") {
-			gitUrl = strings.Split(v, "= ")[1]
-		}
-	}
-	if len(gitUrl) == 0 {
-		return breverrors.WrapAndTrace(errors.New("no git url found"))
-	}
-	
-	// Check for Rust Cargo Package
-	deps, err := startStore.GetDependenciesForImport(path)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	if len(deps.Rust) > 0 {
-		t.Vprint(t.Green("\nRust detected!"))
-		t.Vprint(t.Yellow("{note}-- we still don't have Rust version support, so it always installs latest..."))
-		res := terminal.PromptGetInput(terminal.PromptContent{
-			Label:      "Click enter to install latest, or type preferred version:",
-			ErrorMsg:   "error",
-			AllowEmpty: true,
-		})
-		if len(res)>0 {
-			deps.Rust = res
-			t.Vprintf("Installing Rust v%s", deps.Rust)
-		} else {
-			t.Vprint("Installing Rust-- latest version.\n")
-		}
-	}
-	// if len(deps.Node) > 0 {
-	// 	t.Vprint("Install Node.\n")
-	// }
-	// if len(deps.Java) > 0 {
-	// 	t.Vprint("Install Java.\n")
-	// }
-	// if len(deps.TS) > 0 {
-	// 	t.Vprint("Install TS.\n")
-	// }
-	if len(deps.Go) > 0 {
-		t.Vprint(t.Green("\nGolang detected!"))
-		res := terminal.PromptGetInput(terminal.PromptContent{
-			Label:      "Click enter to install Go v"+ deps.Go +", or type preferred version:",
-			ErrorMsg:   "error",
-			AllowEmpty: true,
-		})
-		if len(res)>0 {
-			deps.Go = res
-			t.Vprintf("Installing Go v%s\n", deps.Go)
-		} else {
-			t.Vprintf("Installing Go v%s.\n", deps.Go)
-		}
-	}
-	// if len(deps.Solana) > 0 {
-	// 	t.Vprint("Install Solana.\n")
-	// }
-
-	clone(t, gitUrl, orgflag, startStore, name, deps)
-
-	return nil
 }
 
 func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
@@ -349,7 +256,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, deps *store.Dependencies) error {
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	if len(name) > 0 {
@@ -381,7 +288,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, newWorkspace, orgID, startStore, deps)
+	err := createWorkspace(t, newWorkspace, orgID, startStore)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -432,37 +339,23 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, deps *store.Dependencies) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	var options *store.CreateWorkspacesOptions
-	if deps != nil {
-		setupscript1,err := setupscript.GenSetupHunkForLanguage("go", deps.Go)
-		if err != nil {
-			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
-		} else {
-			// setupscript2,err := setupscript.GenSetupHunkForLanguage("rust", deps.R)
-			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo).WithStartupScript(setupscript1)
-		}
-	} else {
-		options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+
+	w, err := startStore.CreateWorkspace(orgID, options)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Println("BANANA: remove this")
-	fmt.Println(options.StartupScript)
+	err = pollUntil(t, w.ID, "RUNNING", startStore, true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	// w, err := startStore.CreateWorkspace(orgID, options)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
-
-	// err = pollUntil(t, w.ID, "RUNNING", startStore, true)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
-
-	// t.Vprint(t.Green("\nYour workspace is ready!"))
-	// t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
+	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
 
 	return nil
 }
