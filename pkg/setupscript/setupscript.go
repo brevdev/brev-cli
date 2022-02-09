@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"html/template"
 	"io"
+
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 const DefaultSetupScript = `
@@ -89,11 +91,11 @@ type GoHunk struct {
 	Version string
 }
 
-func (GH *GoHunk) SetVersion(version string) {
-	GH.Version = version
+func (gh *GoHunk) SetVersion(version string) {
+	gh.Version = version
 }
 
-func (GH GoHunk) GetTemplateString() string {
+func (gh GoHunk) GetTemplateString() string {
 	return `
 wget https://golang.org/dl/go{{ .Version }}.linux-amd64.tar.gz -O go.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go.tar.gz
@@ -107,18 +109,22 @@ rm go.tar.gz
 `
 }
 
-func (GH GoHunk) GetTemplate() (*template.Template, error) {
-	return template.New("go").Parse(GH.GetTemplateString())
+func (gh GoHunk) GetTemplate() (*template.Template, error) {
+	res, err := template.New("go").Parse(gh.GetTemplateString())
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return res, nil
 }
 
-func (GH GoHunk) WriteHunk(w io.Writer) error {
-	tmpl, err := GH.GetTemplate()
+func (gh GoHunk) WriteHunk(w io.Writer) error {
+	tmpl, err := gh.GetTemplate()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
-	err = tmpl.Execute(w, GH)
+	err = tmpl.Execute(w, gh)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -139,7 +145,7 @@ func GenSetupHunkForLanguage(language, version string) (string, error) {
 	buf := new(bytes.Buffer)
 	err := lhWriter.WriteHunk(buf)
 	if err != nil {
-		return "", err
+		return "", breverrors.WrapAndTrace(err)
 	}
 	return buf.String(), nil
 }

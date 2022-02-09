@@ -67,7 +67,7 @@ func (f FileStore) GetDotGitConfigFile(path string) (string, error) {
 			return "", breverrors.WrapAndTrace(err)
 		}
 	} else {
-		return "", breverrors.WrapAndTrace(errors.New("couldn't verify if "+ dotGitConfigFile +" is an active git directory"))
+		return "", breverrors.WrapAndTrace(errors.New("couldn't verify if " + dotGitConfigFile + " is an active git directory"))
 	}
 
 	buf := new(strings.Builder)
@@ -76,119 +76,116 @@ func (f FileStore) GetDotGitConfigFile(path string) (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return buf.String(), nil
-
 }
 
 type Dependencies struct {
-	Rust string
-	Java string
-	Node string
-	TS   string
-	Go   string
-	Solana   string
+	Rust   string
+	Java   string
+	Node   string
+	TS     string
+	Go     string
+	Solana string
 }
 
 func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) {
 	deps := &Dependencies{
-		Rust: "",
-		Java: "",
-		Node: "",
-		TS: "",
-		Go: "",
+		Rust:   "",
+		Java:   "",
+		Node:   "",
+		TS:     "",
+		Go:     "",
 		Solana: "",
 	}
 
-	// Check Rust Version
-	filePath := filepath.Join(path, "Cargo.lock")
-	doesCargoLockExist, err := afero.Exists(f.fs, filePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	filePath = filepath.Join(path, "Cargo.toml")
-	doesCargoTomlExist, err := afero.Exists(f.fs, filePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	if doesCargoLockExist || doesCargoTomlExist {
-		// should be version number
-		deps.Rust = "true"
-	}
-
-	// Check Node
-	// look for package.json or package_lock.json
-	filePath = filepath.Join(path, "package_lock.json")
-	doesPkgLockExist, err := afero.Exists(f.fs, filePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	filePath = filepath.Join(path, "package.json")
-	doesPkgExist, err := afero.Exists(f.fs, filePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	
-	if doesPkgLockExist || doesPkgExist {
-		// should be version number
-		deps.Node = "true"
-	}
-
-	// Check Typescript
-	// look for package.json or package_lock.json
-	filePath = filepath.Join(path, "tsconfig.json")
-	doesTSConfigExist, err := afero.Exists(f.fs, filePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	if doesTSConfigExist {
-		// should be version number
-		deps.TS = "true"
-	}
-
 	// Check Golang
-	filePath = filepath.Join(path, "go.mod")
+	filePath := filepath.Join(path, "go.mod")
 	gocmd := exec.Command("cat", filePath) // #nosec G204
 	in, err := gocmd.Output()
 	if err != nil {
-		// return nil, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err, "error reading go.mod")
 	} else {
 		d := charmap.CodePage850.NewDecoder()
 		out, err := d.Bytes(in)
 		if err != nil {
-			// return nil, breverrors.WrapAndTrace(err)
-		} else {
-			if len(string(out)) > 0 {
-				for _, v := range strings.Split(string(out), "\n") {
-					if strings.HasPrefix(v, "go ") {
-						versionNum := strings.Split(v, "go ")
-						deps.Go = versionNum[1]
-					}
+			return nil, breverrors.WrapAndTrace(err, "error reading go.mod")
+		} else if len(string(out)) > 0 {
+			for _, v := range strings.Split(string(out), "\n") {
+				if strings.HasPrefix(v, "go ") {
+					versionNum := strings.Split(v, "go ")
+					deps.Go = versionNum[1]
 				}
-			}
-		}
-	}
-
-	// Check Java Version
-	// idea: look for JAVA_HOME or JRE_HOME. Right now uses Java CLI
-	cmdddd := exec.Command("java", "--version") // #nosec G204
-	in, err = cmdddd.Output()
-	if err != nil {
-		// return nil, breverrors.WrapAndTrace(err)
-	} else {
-		d := charmap.CodePage850.NewDecoder()
-		out, err := d.Bytes(in)
-		if err != nil {
-			// return nil, breverrors.WrapAndTrace(err)
-		} else {
-			if len(string(out)) > 0 {
-				// fmt.Println(string(out))
-				deps.Java = "true"
 			}
 		}
 	}
 
 	return deps, nil
 }
+
+// // Check Rust Version
+// filePath := filepath.Join(path, "Cargo.lock")
+// doesCargoLockExist, err := afero.Exists(f.fs, filePath)
+// if err != nil {
+// 	return nil, breverrors.WrapAndTrace(err)
+// }
+
+// filePath = filepath.Join(path, "Cargo.toml")
+// doesCargoTomlExist, err := afero.Exists(f.fs, filePath)
+// if err != nil {
+// 	return nil, breverrors.WrapAndTrace(err)
+// }
+
+// if doesCargoLockExist || doesCargoTomlExist {
+// 	// should be version number
+// 	deps.Rust = "true"
+// }
+
+// // Check Node
+// // look for package.json or package_lock.json
+// filePath = filepath.Join(path, "package_lock.json")
+// doesPkgLockExist, err := afero.Exists(f.fs, filePath)
+// if err != nil {
+// 	return nil, breverrors.WrapAndTrace(err)
+// }
+
+// filePath = filepath.Join(path, "package.json")
+// doesPkgExist, err := afero.Exists(f.fs, filePath)
+// if err != nil {
+// 	return nil, breverrors.WrapAndTrace(err)
+// }
+
+// if doesPkgLockExist || doesPkgExist {
+// 	// should be version number
+// 	deps.Node = "true"
+// }
+
+// // Check Typescript
+// // look for package.json or package_lock.json
+// filePath = filepath.Join(path, "tsconfig.json")
+// doesTSConfigExist, err := afero.Exists(f.fs, filePath)
+// if err != nil {
+// 	return nil, breverrors.WrapAndTrace(err)
+// }
+
+// if doesTSConfigExist {
+// 	// should be version number
+// 	deps.TS = "true"
+// }
+
+// // Check Java Version
+// // idea: look for JAVA_HOME or JRE_HOME. Right now uses Java CLI
+// cmdddd := exec.Command("java", "--version") // #nosec G204
+// in, err = cmdddd.Output()
+// if err != nil {
+// 	// return nil, breverrors.WrapAndTrace(err)
+// } else {
+// 	d := charmap.CodePage850.NewDecoder()
+// 	out, err := d.Bytes(in)
+// 	if err != nil {
+// 		// return nil, breverrors.WrapAndTrace(err)
+// 	} else {
+// 		if len(string(out)) > 0 {
+// 			// fmt.Println(string(out))
+// 			deps.Java = "true"
+// 		}
+// 	}
+// }

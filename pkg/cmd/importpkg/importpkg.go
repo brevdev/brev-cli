@@ -1,4 +1,3 @@
-// Package start is for starting Brev workspaces
 package importpkg
 
 import (
@@ -30,12 +29,15 @@ var (
 
 // exists returns whether the given file or directory exists
 func dirExists(path string) bool {
-    _, err := os.Stat(path)
-    if err == nil { return true }
-    if os.IsNotExist(err) { return false }
-    return false
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
 }
-
 
 type ImportStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -63,9 +65,13 @@ func NewCmdImport(t *terminal.Terminal, loginImportStore ImportStore, noLoginImp
 		Long:                  importLong,
 		Example:               importExample,
 		Args:                  cobra.ExactArgs(1),
-		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginImportStore, t),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginImportStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-			startWorkspaceFromLocallyCloneRepo(t, org, loginImportStore, name, detached, args[0])
+			err := startWorkspaceFromLocallyCloneRepo(t, org, loginImportStore, name, detached, args[0])
+			if err != nil {
+				t.Vprintf(t.Red(err.Error()))
+				return
+			}
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -79,22 +85,27 @@ func NewCmdImport(t *terminal.Terminal, loginImportStore ImportStore, noLoginImp
 }
 
 func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, importStore ImportStore, name string, detached bool, path string) error {
+	pathExists := dirExists(path)
+	if !pathExists {
+		return breverrors.WrapAndTrace(errors.New("path provided does not exist"))
+	}
+
 	file, err := importStore.GetDotGitConfigFile(path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	// Get GitUrl
-	var gitUrl string
+	var gitURL string
 	for _, v := range strings.Split(file, "\n") {
 		if strings.Contains(v, "url") {
-			gitUrl = strings.Split(v, "= ")[1]
+			gitURL = strings.Split(v, "= ")[1]
 		}
 	}
-	if len(gitUrl) == 0 {
+	if len(gitURL) == 0 {
 		return breverrors.WrapAndTrace(errors.New("no git url found"))
 	}
-	
+
 	// Check for Rust Cargo Package
 	deps, err := importStore.GetDependenciesForImport(path)
 	if err != nil {
@@ -128,11 +139,11 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	if len(deps.Go) > 0 {
 		t.Vprint(t.Green("\nGolang detected!"))
 		res := terminal.PromptGetInput(terminal.PromptContent{
-			Label:      "Click enter to install Go v"+ deps.Go +", or type preferred version:",
+			Label:      "Click enter to install Go v" + deps.Go + ", or type preferred version:",
 			ErrorMsg:   "error",
 			AllowEmpty: true,
 		})
-		if len(res)>0 {
+		if len(res) > 0 {
 			deps.Go = res
 			t.Vprintf("Installing Go v%s\n", deps.Go)
 		} else {
@@ -143,12 +154,15 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	// 	t.Vprint("Install Solana.\n")
 	// }
 
-	clone(t, gitUrl, orgflag, importStore, name, deps)
+	err = clone(t, gitURL, orgflag, importStore, name, deps, detached)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportStore, name string, deps *store.Dependencies) error {
+func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportStore, name string, deps *store.Dependencies, detached bool) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	if len(name) > 0 {
@@ -180,7 +194,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportS
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, newWorkspace, orgID, importStore, deps)
+	err := createWorkspace(t, newWorkspace, orgID, importStore, deps, detached)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -231,12 +245,12 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, importStore ImportStore, deps *store.Dependencies) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, importStore ImportStore, deps *store.Dependencies, detached bool) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	var options *store.CreateWorkspacesOptions
 	if deps != nil {
-		setupscript1,err := setupscript.GenSetupHunkForLanguage("go", deps.Go)
+		setupscript1, err := setupscript.GenSetupHunkForLanguage("go", deps.Go)
 		if err != nil {
 			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 		} else {
@@ -255,18 +269,21 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = pollUntil(t, w.ID, "RUNNING", importStore, true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	if detached {
+		return nil
+	} else {
+		err = pollUntil(t, w.ID, "RUNNING", importStore, true)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		t.Vprint(t.Green("\nYour workspace is ready!"))
+		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
 	}
-
-	t.Vprint(t.Green("\nYour workspace is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
 
 	return nil
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, importStore ImportStore, canSafelyExit bool) error { //nolint: unparam // want to take state as a variable
+func pollUntil(t *terminal.Terminal, wsid string, state string, importStore ImportStore, canSafelyExit bool) error {
 	s := t.NewSpinner()
 	isReady := false
 	if canSafelyExit {
@@ -288,87 +305,4 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, importStore Impo
 		}
 	}
 	return nil
-}
-
-// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
-// Reasoning: there wasn't a utils file so I didn't know where to put it
-//                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, istore ImportStore) (*entity.WorkspaceWithMeta, error) {
-	// Get Active Org
-	org, err := istore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, fmt.Errorf("no orgs exist")
-	}
-
-	// Get Current User
-	currentUser, err := istore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := istore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := istore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-		}
-	case 1:
-		workspace = &workspaces[0]
-	default:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	}
-
-	if workspace == nil {
-		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-	}
-
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := istore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-}
-
-// NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
-// IF YOU MODIFY IT MODIFY IT EVERYWHERE OR PLEASE PUT IT IN ITS PROPER PLACE. thank you you're the best <3
-func WorkspacesFromWorkspaceWithMeta(wwm []entity.WorkspaceWithMeta) []entity.Workspace {
-	var workspaces []entity.Workspace
-
-	for _, v := range wwm {
-		workspaces = append(workspaces, entity.Workspace{
-			ID:                v.ID,
-			Name:              v.Name,
-			WorkspaceGroupID:  v.WorkspaceGroupID,
-			OrganizationID:    v.OrganizationID,
-			WorkspaceClassID:  v.WorkspaceClassID,
-			CreatedByUserID:   v.CreatedByUserID,
-			DNS:               v.DNS,
-			Status:            v.Status,
-			Password:          v.Password,
-			GitRepo:           v.GitRepo,
-			Version:           v.Version,
-			WorkspaceTemplate: v.WorkspaceTemplate,
-		})
-	}
-
-	return workspaces
 }
