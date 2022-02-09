@@ -1,5 +1,5 @@
 // Package start is for starting Brev workspaces
-package start
+package importpkg
 
 import (
 	"errors"
@@ -20,11 +20,11 @@ import (
 )
 
 var (
-	startLong    = "Start a Brev machine that's in a paused or off state or create one from a url"
-	startExample = `
-  brev start <existing_ws_name>
-  brev start <git url>
-  brev start <git url> --org myFancyOrg
+	importLong    = "Import your current dev environment. Brev will try to fix errors along the way."
+	importExample = `
+  brev import <path>
+  brev import .
+  brev import ../my-broken-folder
 	`
 )
 
@@ -37,7 +37,7 @@ func dirExists(path string) bool {
 }
 
 
-type StartStore interface {
+type ImportStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
@@ -50,77 +50,36 @@ type StartStore interface {
 	GetDependenciesForImport(path string) (*store.Dependencies, error)
 }
 
-func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
+func NewCmdStart(t *terminal.Terminal, loginImportStore ImportStore, noLoginImportStore ImportStore) *cobra.Command {
 	var org string
 	var name string
 	var detached bool
-	var empty bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "start",
+		Annotations:           map[string]string{"housekeeping": ""},
+		Use:                   "import",
 		DisableFlagsInUseLine: true,
-		Short:                 "Start a workspace if it's stopped, or create one from url",
-		Long:                  startLong,
-		Example:               startExample,
-		// Args:                  cobra.ExactArgs(1),
-		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
+		Short:                 "Import your dev environment and have Brev try to fix errors along the way",
+		Long:                  importLong,
+		Example:               importExample,
+		Args:                  cobra.ExactArgs(1),
+		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginImportStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-
-			if empty {
-				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
-				if err != nil {
-					t.Vprintf(t.Red(err.Error()))
-					return
-				}
-			}
-
-			if len(args) == 0 && !empty {
-				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
-				return
-			}
-
-			isURL := false
-			if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
-				isURL = true
-			}
-
-			if isURL {
-				// CREATE A WORKSPACE
-				err := clone(t, args[0], org, loginStartStore, name, nil)
-				if err != nil {
-					t.Vprint(t.Red(err.Error()))
-				}
-			} else {
-				// We need to differentiate between a workspace name and a directory
-				// BANANA: this isn't sufficient bcs brev-cli could satisfy both directory and workspace name... maybe just clarify? and record the clarification. don't bug someone everytime
-				if dirExists(args[0]) {
-					startWorkspaceFromLocallyCloneRepo(t, org, loginStartStore, name, detached, args[0])
-					return
-					} else {
-					// Start an existing one (either theirs or someone elses)
-					err := startWorkspace(args[0], loginStartStore, t, detached, name)
-					if err != nil {
-						t.Vprint(t.Red(err.Error()))
-					}
-				}
-				
-			}
+			startWorkspaceFromLocallyCloneRepo(t, org, loginImportStore, name, detached, args[0])
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
-	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
+	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginImportStore, t))
 	if err != nil {
 		t.Errprint(err, "cli err")
 	}
 	return cmd
 }
 
-func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, path string) error {
-	file, err := startStore.GetDotGitConfigFile(path)
+func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, importStore ImportStore, name string, detached bool, path string) error {
+	file, err := importStore.GetDotGitConfigFile(path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -137,7 +96,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	}
 	
 	// Check for Rust Cargo Package
-	deps, err := startStore.GetDependenciesForImport(path)
+	deps, err := importStore.GetDependenciesForImport(path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -184,172 +143,12 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, st
 	// 	t.Vprint("Install Solana.\n")
 	// }
 
-	clone(t, gitUrl, orgflag, startStore, name, deps)
+	clone(t, gitUrl, orgflag, importStore, name, deps)
 
 	return nil
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
-	// ensure name
-	if len(name) == 0 {
-		return fmt.Errorf("name field is required for empty workspaces")
-	}
-
-	// ensure org
-	var orgID string
-	if orgflag == "" {
-		activeorg, err := startStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if activeorg == nil {
-			return fmt.Errorf("no org exist")
-		}
-		orgID = activeorg.ID
-	} else {
-		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return fmt.Errorf("no org with name %s", orgflag)
-		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org with name %s", orgflag)
-		}
-		orgID = orgs[0].ID
-	}
-
-	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	options := store.NewCreateWorkspacesOptions(clusterID, name)
-
-	w, err := startStore.CreateWorkspace(orgID, options)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
-
-	if detached {
-		return nil
-	} else {
-		err = pollUntil(t, w.ID, "RUNNING", startStore, true)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		t.Vprint(t.Green("\nYour workspace is ready!"))
-		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
-
-		return nil
-	}
-}
-
-func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string) error {
-	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
-	org, othererr := startStore.GetActiveOrganizationOrDefault()
-	if othererr != nil {
-		return breverrors.WrapAndTrace(othererr)
-	}
-	user, usererr := startStore.GetCurrentUser()
-	if usererr != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if err != nil {
-		// This is not an error yet-- the user might be trying to join a team's workspace
-		if org == nil {
-			return fmt.Errorf("no orgs exist")
-		}
-		workspaces, othererr := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
-			Name: workspaceName,
-		})
-		if othererr != nil {
-			return breverrors.WrapAndTrace(othererr)
-		}
-		if len(workspaces) == 0 {
-			return fmt.Errorf("your team has no projects named %s", workspaceName)
-		}
-		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name, user)
-		if othererr != nil {
-			return breverrors.WrapAndTrace(othererr)
-		}
-
-	} else {
-		if workspace.Status == "RUNNING" {
-			t.Vprint(t.Yellow("Workspace is already running"))
-			return nil
-		}
-		// TODO: check the workspace isn't running first!!!
-
-		if len(name) > 0 {
-			t.Vprint("Existing workspace found. Name flag ignored.")
-		}
-
-		startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
-
-		// Don't poll and block the shell if detached flag is set
-		if detached {
-			return nil
-		}
-
-		err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		t.Vprint(t.Green("\nYour workspace is ready!"))
-
-		workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		t.Vprintf(t.Green("\n\nConnect to your machine with:") +
-			t.Yellow("\n\tssh %s\n", startedWorkspace.GetLocalIdentifier(workspaces)))
-	}
-
-	return nil
-}
-
-// "https://github.com/brevdev/microservices-demo.git
-// "https://github.com/brevdev/microservices-demo.git"
-// "git@github.com:brevdev/microservices-demo.git"
-func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore, name string, user *entity.User) error {
-	clusterID := config.GlobalConfig.GetDefaultClusterID()
-
-	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(templateWorkspace.WorkspaceClassID)
-	if len(name) > 0 {
-		options.Name = name
-	} else {
-		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(options.Name))
-	}
-
-	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
-
-	w, err := startStore.CreateWorkspace(orgID, options)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = pollUntil(t, w.ID, "RUNNING", startStore, true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	workspaces, err := startStore.GetWorkspaces(orgID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprintf("\nConnect to your machine with:\n\tssh %s\n", w.GetLocalIdentifier(workspaces))
-
-	return nil
-}
-
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, deps *store.Dependencies) error {
+func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportStore, name string, deps *store.Dependencies) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	if len(name) > 0 {
@@ -360,7 +159,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 
 	var orgID string
 	if orgflag == "" {
-		activeorg, err := startStore.GetActiveOrganizationOrDefault()
+		activeorg, err := importStore.GetActiveOrganizationOrDefault()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -369,7 +168,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		}
 		orgID = activeorg.ID
 	} else {
-		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+		orgs, err := importStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -381,7 +180,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, newWorkspace, orgID, startStore, deps)
+	err := createWorkspace(t, newWorkspace, orgID, importStore, deps)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -432,7 +231,7 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, deps *store.Dependencies) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, importStore ImportStore, deps *store.Dependencies) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	var options *store.CreateWorkspacesOptions
@@ -451,23 +250,23 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	fmt.Println("BANANA: remove this")
 	fmt.Println(options.StartupScript)
 
-	// w, err := startStore.CreateWorkspace(orgID, options)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	w, err := importStore.CreateWorkspace(orgID, options)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	// err = pollUntil(t, w.ID, "RUNNING", startStore, true)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	err = pollUntil(t, w.ID, "RUNNING", importStore, true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	// t.Vprint(t.Green("\nYour workspace is ready!"))
-	// t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
+	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
 
 	return nil
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error { //nolint: unparam // want to take state as a variable
+func pollUntil(t *terminal.Terminal, wsid string, state string, importStore ImportStore, canSafelyExit bool) error { //nolint: unparam // want to take state as a variable
 	s := t.NewSpinner()
 	isReady := false
 	if canSafelyExit {
@@ -477,7 +276,7 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 	s.Start()
 	for !isReady {
 		time.Sleep(5 * time.Second)
-		ws, err := startStore.GetWorkspace(wsid)
+		ws, err := importStore.GetWorkspace(wsid)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -494,9 +293,9 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 // NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
 // Reasoning: there wasn't a utils file so I didn't know where to put it
 //                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.WorkspaceWithMeta, error) {
+func getWorkspaceFromNameOrID(nameOrID string, istore ImportStore) (*entity.WorkspaceWithMeta, error) {
 	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
+	org, err := istore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -505,14 +304,14 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	}
 
 	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
+	currentUser, err := istore.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// Get Workspaces for User
 	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
+	workspaces, err := istore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -520,7 +319,7 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	switch len(workspaces) {
 	case 0:
 		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
+		wsbyid, othererr := istore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
 		if othererr != nil {
 			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
 		}
@@ -541,7 +340,7 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	}
 
 	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
+	workspaceMetaData, err := istore.GetWorkspaceMetaData(workspace.ID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
