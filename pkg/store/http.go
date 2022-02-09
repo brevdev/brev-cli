@@ -78,6 +78,9 @@ func (s *AuthHTTPStore) SetForbiddenStatusRetryHandler(handler func() error) err
 	})
 	s.authHTTPClient.restyClient.AddRetryCondition(
 		func(r *resty.Response, e error) bool {
+			if e != nil {
+				return false
+			}
 			return r.StatusCode() == http.StatusForbidden
 		})
 	s.authHTTPClient.restyClient.SetRetryCount(attemptsThresh)

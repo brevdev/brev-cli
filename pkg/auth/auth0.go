@@ -139,7 +139,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 			}
-			err = ErrorIfBadHTTP(r, 403)
+			err = ErrorIfBadHTTP(r, http.StatusForbidden)
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err)
 			}
@@ -242,6 +242,12 @@ func parseTenant(accessToken string) (tenant, domain string, err error) {
 	return "", "", breverrors.WrapAndTrace(fmt.Errorf("audience not found for %s", audiencePath))
 }
 
+type AuthError struct {
+	// https://auth0.com/docs/api/authentication#standard-error-responses
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
 // https://auth0.com/docs/get-started/authentication-and-authorization-flow/call-your-api-using-the-authorization-code-flow#example-post-to-token-url
 func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
 	payload := url.Values{
@@ -254,9 +260,28 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}
-	err = ErrorIfBadHTTP(r)
+	err = ErrorIfBadHTTP(r, http.StatusForbidden)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
+	}
+	if r.StatusCode == http.StatusForbidden {
+		var authError AuthError
+		err = json.NewDecoder(r.Body).Decode(&authError)
+		if err != nil {
+			// more readable error
+			err = ErrorIfBadHTTP(r)
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+		}
+		if strings.Contains(authError.ErrorDescription, "invalid refresh token") {
+			return &entity.AuthTokens{AccessToken: "", RefreshToken: ""}, nil
+		}
+
+		err = ErrorIfBadHTTP(r)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 	}
 
 	var authTokens entity.AuthTokens
@@ -287,7 +312,7 @@ func ErrorIfBadHTTP(r *http.Response, exceptStatus ...int) error {
 	}
 
 	if IsError(r.StatusCode) && !shouldExcept {
-		return fmt.Errorf("bad http [url: %s, status: %s]", r.Request.URL.String(), r.Status)
+		return NewHTTPResponseError(r)
 	}
 	return nil
 }
@@ -295,4 +320,18 @@ func ErrorIfBadHTTP(r *http.Response, exceptStatus ...int) error {
 // IsError method returns true if HTTP status `code >= 400` otherwise false.
 func IsError(statusCode int) bool {
 	return statusCode > 399
+}
+
+type StdHTTPResponseError struct {
+	response *http.Response
+}
+
+func NewHTTPResponseError(response *http.Response) *StdHTTPResponseError {
+	return &StdHTTPResponseError{
+		response: response,
+	}
+}
+
+func (e StdHTTPResponseError) Error() string {
+	return fmt.Sprintf("%s %s", e.response.Request.URL, e.response.Status)
 }
