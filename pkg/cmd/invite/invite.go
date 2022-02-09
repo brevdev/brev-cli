@@ -21,6 +21,7 @@ type InviteStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	CreateInviteLink(organizationID string) (string, error)
 }
 
 func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInviteStore InviteStore) *cobra.Command {
@@ -44,7 +45,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 
 			return nil
 		},
-		Args:      cobra.NoArgs,
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunInvite(t, loginInviteStore, args, org, showAll)
 			if err != nil {
@@ -91,8 +92,14 @@ func RunInvite(t *terminal.Terminal, inviteStore InviteStore, args []string, org
 	}
 
 	// TODO: generate the URL!!!
+	token, err := inviteStore.CreateInviteLink(org.ID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	t.Vprintf("Use the following invite link to invite someone to %s:", t.Green(org.Name))
-	t.Vprintf("\n\t%s", t.Green("https://brev.sh/invite/%s\n", org.Name))
+	t.Vprintf("\n\t%s", t.Green("https://console.brev.dev/invite?token=%s\n", token))
+
 	// err := ls.RunWorkspaces(org, showAll)
 	// if err != nil {
 	// 	return breverrors.WrapAndTrace(err)
