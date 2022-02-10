@@ -91,19 +91,15 @@ func RunInvite(t *terminal.Terminal, inviteStore InviteStore, args []string, org
 		org = currOrg
 	}
 
-	// TODO: generate the URL!!!
 	token, err := inviteStore.CreateInviteLink(org.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Use the following invite link to invite someone to %s:", t.Green(org.Name))
-	t.Vprintf("\n\n\t%s", t.Green("https://console.brev.dev/invite?token=%s\n", token))
-
-	// err := ls.RunWorkspaces(org, showAll)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	t.Vprintf("Share this link to add someone to %s. It will expire in 24 hours.", t.Green(org.Name))
+	// t.Vprintf("\n\n\t%s", t.White("https://console.brev.dev/invite?token=%s\n\n", token))
+	t.Vprintf("\n\n  %s", t.Green("▸"))
+	t.Vprintf("    %s", t.White("https://console.brev.dev/invite?token=%s\n\n", token))
 
 	return nil
 }

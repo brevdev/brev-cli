@@ -30,6 +30,7 @@ type Terminal struct {
 	Yellow func(format string, a ...interface{}) string
 	Red    func(format string, a ...interface{}) string
 	Blue   func(format string, a ...interface{}) string
+	White  func(format string, a ...interface{}) string
 
 	Bar ProgressBar
 
@@ -45,6 +46,7 @@ func New() (t *Terminal) {
 		Yellow:  color.New(color.FgYellow).SprintfFunc(),
 		Red:     color.New(color.FgRed).SprintfFunc(),
 		Blue:    color.New(color.FgBlue).SprintfFunc(),
+		White:   color.New(color.FgWhite, color.Bold).SprintfFunc(),
 	}
 }
 
