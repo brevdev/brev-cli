@@ -52,35 +52,35 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		// Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) == 0 && !empty {
+				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
+				return
+			}
+
 			if empty {
 				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
 				if err != nil {
 					t.Vprintf(t.Red(err.Error()))
 					return
 				}
-			}
-
-			if len(args) == 0 && !empty {
-				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
-				return
-			}
-
-			isURL := false
-			if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
-				isURL = true
-			}
-
-			if isURL {
-				// CREATE A WORKSPACE
-				err := clone(t, args[0], org, loginStartStore, name)
-				if err != nil {
-					t.Vprint(t.Red(err.Error()))
-				}
 			} else {
-				// Start an existing one (either theirs or someone elses)
-				err := startWorkspace(args[0], loginStartStore, t, detached, name)
-				if err != nil {
-					t.Vprint(t.Red(err.Error()))
+				isURL := false
+				if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
+					isURL = true
+				}
+
+				if isURL {
+					// CREATE A WORKSPACE
+					err := clone(t, args[0], org, loginStartStore, name)
+					if err != nil {
+						t.Vprint(t.Red(err.Error()))
+					}
+				} else {
+					// Start an existing one (either theirs or someone elses)
+					err := startWorkspace(args[0], loginStartStore, t, detached, name)
+					if err != nil {
+						t.Vprint(t.Red(err.Error()))
+					}
 				}
 			}
 		},
