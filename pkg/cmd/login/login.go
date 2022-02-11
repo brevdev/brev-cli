@@ -73,7 +73,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		if !strings.Contains(err.Error(), "400 Bad Request") {
 			return breverrors.WrapAndTrace(err)
 		}
-		t.Print("\nUser aleady created 👍")
+		t.Print("\nWelcome back!")
 	}
 	return nil
 }
