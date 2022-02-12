@@ -25,7 +25,6 @@ type InviteStore interface {
 }
 
 func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInviteStore InviteStore) *cobra.Command {
-	var showAll bool
 	var org string
 
 	cmd := &cobra.Command{
@@ -47,7 +46,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 		},
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunInvite(t, loginInviteStore, org, showAll)
+			err := RunInvite(t, loginInviteStore, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -61,12 +60,10 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 		t.Errprint(err, "cli err")
 	}
 
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
-
 	return cmd
 }
 
-func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string, showAll bool) error {
+func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string) error {
 	var org *entity.Organization
 	if orgflag != "" {
 		orgs, err := inviteStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
