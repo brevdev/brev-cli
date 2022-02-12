@@ -47,7 +47,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 		},
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunInvite(t, loginInviteStore, args, org, showAll)
+			err := RunInvite(t, loginInviteStore, org, showAll)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -66,7 +66,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 	return cmd
 }
 
-func RunInvite(t *terminal.Terminal, inviteStore InviteStore, args []string, orgflag string, showAll bool) error {
+func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string, showAll bool) error {
 	var org *entity.Organization
 	if orgflag != "" {
 		orgs, err := inviteStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
