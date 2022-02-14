@@ -116,9 +116,9 @@ when releasing make sure to
 
 1. [ ] run `full-smoke-test` before cutting release to run through some common commands and make sure that they work
 
-2. [ ]  release new version of [workspace-images](https://github.com/brevdev/workspace-images)
+2. [ ] release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
-3. update [brev's homebrew tap](https://github.com/brevdev/homebrew-brev)
+3. [ ] update [brev's homebrew tap](https://github.com/brevdev/homebrew-brev)
 
 
 ## Maintainance
