@@ -41,6 +41,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	var name string
 	var detached bool
 	var empty bool
+	var oli bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -71,7 +72,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 				if isURL {
 					// CREATE A WORKSPACE
-					err := clone(t, args[0], org, loginStartStore, name)
+					err := clone(t, args[0], org, loginStartStore, name, oli)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
 					}
@@ -87,6 +88,8 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
+	cmd.Flags().BoolVarP(&oli, "oli", "g", false, "create a workspace for oli")
+	_ = cmd.Flags().MarkHidden("oli")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
@@ -256,7 +259,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string) error {
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, oli bool) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	if len(name) > 0 {
@@ -288,7 +291,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, newWorkspace, orgID, startStore)
+	err := createWorkspace(t, newWorkspace, orgID, startStore, oli)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -339,10 +342,13 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, oli bool) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	if oli {
+		options.WithWorkspaceClassID("4x16")
+	}
 
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {

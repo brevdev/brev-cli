@@ -63,6 +63,11 @@ func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesO
 	return c
 }
 
+func (c *CreateWorkspacesOptions) WithClassID(classID string) *CreateWorkspacesOptions {
+	c.WorkspaceClassID = classID
+	return c
+}
+
 func (c *CreateWorkspacesOptions) WithStartupScript(startupScript string) *CreateWorkspacesOptions {
 	c.StartupScript = startupScript
 	return c
