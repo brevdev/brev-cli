@@ -8,3 +8,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased](https://github.com/brevdev/brev-cli/compare/v0.0.0...HEAD)
 
 ### Added
+
+[WIP] Add tailscale vpn client embedded with Brev.
