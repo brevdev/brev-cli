@@ -44,16 +44,16 @@ func httpProxyHandler(dialer func(ctx context.Context, netw, addr string) (net.C
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		defer c.Close()
+		defer c.Close() //nolint:errcheck // lazy to refactor
 
 		cc, ccbuf, err := w.(http.Hijacker).Hijack()
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		defer cc.Close()
+		defer cc.Close() //nolint:errcheck // lazy to refactor
 
-		io.WriteString(cc, "HTTP/1.1 200 OK\r\n\r\n")
+		io.WriteString(cc, "HTTP/1.1 200 OK\r\n\r\n") //nolint:errcheck,gosec // lazy to refactor
 
 		var clientSrc io.Reader = ccbuf
 		if ccbuf.Reader.Buffered() == 0 {

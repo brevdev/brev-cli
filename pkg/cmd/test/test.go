@@ -26,7 +26,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
+func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -35,7 +35,8 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
-			vpn.Tailscale{}.ApplyConfig("", "")
+			_ = vpn.Tailscale{}.ApplyConfig("", "")
+			_ = vpn.Tailscale{}.Start()
 		},
 	}
 

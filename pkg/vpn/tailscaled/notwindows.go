@@ -11,6 +11,6 @@ import "tailscale.com/logpolicy"
 
 func isWindowsService() bool { return false }
 
-func runWindowsService(pol *logpolicy.Policy) error { panic("unreachable") }
+func runWindowsService(_ *logpolicy.Policy) error { panic("unreachable") }
 
 func beWindowsSubprocess() bool { return false }
