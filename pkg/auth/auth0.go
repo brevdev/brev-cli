@@ -17,7 +17,7 @@ import (
 
 const (
 	audiencePath           = "/api/v2/"
-	waitThresholdInSeconds = 3
+	waitThresholdInSeconds = 1
 	// namespace used to set/get values from the keychain.
 	SecNamespace = "auth0-cli"
 )
