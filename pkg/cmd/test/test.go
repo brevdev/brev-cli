@@ -3,6 +3,7 @@ package test
 import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -34,9 +35,21 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		Run: func(cmd *cobra.Command, args []string) {
-			_ = vpn.Tailscale{}.ApplyConfig("", "")
-			_ = vpn.Tailscale{}.Start()
+		Args:                  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] == "up" {
+				err := vpn.Tailscale{}.ApplyConfig("test", "https://8080-headscale-9izu-brevdev.brev.sh")
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+			}
+			if args[0] == "start" {
+				err := vpn.Tailscale{}.Start()
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+			}
+			return nil
 		},
 	}
 

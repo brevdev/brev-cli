@@ -13,6 +13,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/hashicorp/go-multierror v1.1.1
+	github.com/hpcloud/tail v1.0.0
 	github.com/jarcoal/httpmock v1.0.8
 	github.com/joho/godotenv v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0
@@ -85,6 +86,8 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20211116201604-de7c702ace45 // indirect
 	golang.zx2c4.com/wireguard/windows v0.4.10 // indirect
+	gopkg.in/fsnotify.v1 v1.4.7 // indirect
+	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	honnef.co/go/tools v0.2.2 // indirect
 	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c // indirect
 	inet.af/peercred v0.0.0-20210906144145-0893ea02156a // indirect
