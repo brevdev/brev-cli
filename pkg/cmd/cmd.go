@@ -123,6 +123,7 @@ func NewBrevCommand() *cobra.Command {
 	cobra.AddTemplateFunc("isWorkspaceCommand", isWorkspaceCommand)
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
 	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
+	cobra.AddTemplateFunc("hasDebugCommands", hasDebugCommands)
 	cobra.AddTemplateFunc("printCautiousMetaCmdMessage", printCautiousMetaCmdMessage)
 	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
 	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
@@ -181,6 +182,10 @@ func hasHousekeepingCommands(cmd *cobra.Command) bool {
 	return len(housekeepingCommands(cmd)) > 0
 }
 
+func hasDebugCommands(cmd *cobra.Command) bool {
+	return len(debuCommands(cmd)) > 0
+}
+
 func printCautiousMetaCmdMessage() string {
 	yellow := color.New(color.FgYellow, color.Bold).SprintFunc()
 	return yellow("(we're actively working on getting rid of these commands)")
@@ -202,6 +207,16 @@ func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
 		if isHousekeepingCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func debuCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isDebugCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -240,6 +255,14 @@ func contextCommands(cmd *cobra.Command) []*cobra.Command {
 
 func isHousekeepingCommand(cmd *cobra.Command) bool {
 	if _, ok := cmd.Annotations["housekeeping"]; ok {
+		return true
+	} else {
+		return false
+	}
+}
+
+func isDebugCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["debug"]; ok {
 		return true
 	} else {
 		return false
@@ -302,6 +325,13 @@ SSH Commands:
 {{- end}}{{- end}}
 
 {{- if hasHousekeepingCommands . }}
+
+Housekeeping Commands:
+{{- range housekeepingCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- if hasDebugCommands . }}
 
 Housekeeping Commands:
 {{- range housekeepingCommands . }}
