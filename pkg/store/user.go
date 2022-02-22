@@ -44,8 +44,13 @@ func (s AuthHTTPStore) GetCurrentUserKeys() (*entity.UserKeys, error) {
 
 var usersPath = "api/users"
 
+type UserCreateResponse struct {
+	User         entity.User `json:"user"`
+	ErrorMessage string      `json:"errorMessage"`
+}
+
 func (n NoAuthHTTPStore) CreateUser(identityToken string) (*entity.User, error) {
-	var result entity.User
+	var result UserCreateResponse
 	res, err := n.noAuthHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Identity", identityToken).
@@ -58,7 +63,7 @@ func (n NoAuthHTTPStore) CreateUser(identityToken string) (*entity.User, error) 
 		return nil, NewHTTPResponseError(res)
 	}
 
-	return &result, nil
+	return &result.User, nil
 }
 
 func (s AuthHTTPStore) UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error) {
