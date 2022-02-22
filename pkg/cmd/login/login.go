@@ -70,19 +70,20 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 
 	err = CreateNewUser(o.LoginStore, tokens.IDToken, t)
 	if err != nil {
-		if !strings.Contains(err.Error(), "400 Bad Request") {
-			return breverrors.WrapAndTrace(err)
-		}
-		t.Print("\nWelcome back!")
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
+func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error { //nolint:funlen // its 2 lines too long but not worth refac yet
 	t.Print("\nWelcome to Brev.dev 🤙\n")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if !strings.Contains(err.Error(), "400 Bad Request") {
+			return breverrors.WrapAndTrace(err)
+		}
+		t.Print("\nWelcome back!")
+		return nil
 	}
 	t.Print("User created!")
 
