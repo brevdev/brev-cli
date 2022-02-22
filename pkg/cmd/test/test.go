@@ -2,6 +2,7 @@ package test
 
 import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -39,7 +40,7 @@ func NewCmdTest(_ *terminal.Terminal, store vpn.VPNStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ts := vpn.NewTailscale(store)
 			if args[0] == "up" {
-				err := ts.ApplyConfig("me", "https://8080-headscale-9izu-brevdev.brev.sh")
+				err := ts.ApplyConfig("me", config.GlobalConfig.GetServiceMeshCoordServerURL())
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}

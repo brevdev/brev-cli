@@ -10,6 +10,7 @@ type EnvVarName string // should be caps with underscore
 
 const (
 	brevAPIURL               EnvVarName = "BREV_API_URL"
+	coordURL                 EnvVarName = "BREV_COORD_URL"
 	version                  EnvVarName = "VERSION"
 	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
 	defaultWorkspaceClass    EnvVarName = "DEFAULT_WORKSPACE_CLASS"
@@ -25,6 +26,10 @@ func NewConstants() *ConstantsConfig {
 
 func (c ConstantsConfig) GetBrevAPIURl() string {
 	return getEnvOrDefault(brevAPIURL, "https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com")
+}
+
+func (c ConstantsConfig) GetServiceMeshCoordServerURL() string {
+	return getEnvOrDefault(coordURL, "https://9090-brevdeploy-0jgp-brevdev.brev.sh/")
 }
 
 func (c ConstantsConfig) GetVersion() string {
