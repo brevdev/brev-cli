@@ -70,6 +70,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 
 	err = CreateNewUser(o.LoginStore, tokens.IDToken, t)
 	if err != nil {
+		t.Vprintf("Error below: ", err.Error())
 		if !strings.Contains(err.Error(), "400 Bad Request") {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -82,6 +83,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	t.Print("\nWelcome to Brev.dev 🤙\n")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
+		t.Vprintf(err.Error())
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Print("User created!")
@@ -92,6 +94,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	}
 
 	if len(orgs) == 0 {
+		fmt.Println("This is the user: ", user.Username)
 		orgName := makeFirstOrgName(user)
 		t.Printf("Creating your first org %s ... ", orgName)
 		_, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
@@ -297,5 +300,6 @@ func CreateDownloadPathAndInstallScript(localOS string) (jetBrainsDirectory stri
 }
 
 func makeFirstOrgName(user *entity.User) string {
+	fmt.Println()
 	return fmt.Sprintf("%s-hq", user.Username)
 }

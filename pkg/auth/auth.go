@@ -9,6 +9,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt"
 	"github.com/pkg/browser"
@@ -162,12 +163,18 @@ func (t Auth) Login() (*LoginTokens, error) {
 
 			caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
-			cancelType := color.New(color.FgRed, color.Bold).SprintFunc()
 			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("")
-			fmt.Println("  ", caretType("▸"), "    Press", enterType("Enter"), "to open the browser to log in or", cancelType("Ctrl-C"), "to quit.")
-			var input string
-			_, _ = fmt.Scanln(&input)
+			// fmt.Println("  ", caretType("->"), "    Press", enterType("Enter"), "to login via browser")
+
+			_ = terminal.PromptGetInput(terminal.PromptContent{
+				Label:    caretType("->")+ "    Press "+ enterType("Enter")+ " to login via browser",
+				ErrorMsg:   "error",
+				AllowEmpty: true,
+			})
+
+			// var input string
+			// _, _ = fmt.Scanln(&input)
 			err := browser.OpenURL(url)
 			if err != nil {
 				fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")
@@ -191,7 +198,9 @@ func (t Auth) Login() (*LoginTokens, error) {
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	fmt.Println("done!")
 	fmt.Println("")
-	fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
+	fmt.Println("  ", caretType("->"), "    Successfully logged in.")
+	// fmt.Println("  ", caretType("•"), "    Successfully logged in.")
+	// fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
 	fmt.Println("")
 
 	return tokens, nil
