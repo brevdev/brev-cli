@@ -15,9 +15,6 @@ var (
 )
 
 type TextCEOStore interface {
-	var message string
-	var phone string
-
 	completions.CompletionStore
 	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -37,14 +34,12 @@ func NewCmdTextCEO(t *terminal.Terminal, _ TextCEOStore) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		Run: func(cmd *cobra.Command, args []string) {
-
 			t.Vprint("\ntest cmd\n")
-
 		},
 	}
 
-	cmd.Flags().StringVarP(&message, "message", "m", "", "message to send Brev's CEO, Nader")
-	cmd.Flags().StringVarP(&message, "phone", "p", "", "(Optional) leave a number for Nader to follow up")
+	// cmd.Flags().StringVarP(&message, "message", "m", "", "message to send Brev's CEO, Nader")
+	// cmd.Flags().StringVarP(&message, "phone", "p", "", "(Optional) leave a number for Nader to follow up")
 
 	return cmd
 }

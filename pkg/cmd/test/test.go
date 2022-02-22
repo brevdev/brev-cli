@@ -28,7 +28,13 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdTest(_ *terminal.Terminal, store vpn.VPNStore) *cobra.Command {
+type ServiceMeshStore interface {
+	vpn.VPNStore
+	GetCurrentWorkspaceID() string
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+}
+
+func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -40,9 +46,22 @@ func NewCmdTest(_ *terminal.Terminal, store vpn.VPNStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ts := vpn.NewTailscale(store)
 			if args[0] == "up" {
-				err := ts.ApplyConfig("me", config.GlobalConfig.GetServiceMeshCoordServerURL())
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
+				workspaceID := store.GetCurrentWorkspaceID()
+				if workspaceID != "" {
+					workspace, err := store.GetWorkspace(workspaceID)
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
+					localIdentifier := workspace.GetLocalIdentifier(nil)
+					err = ts.ApplyConfig(string(localIdentifier), config.GlobalConfig.GetServiceMeshCoordServerURL())
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
+				} else {
+					err := ts.ApplyConfig("me", config.GlobalConfig.GetServiceMeshCoordServerURL())
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
 				}
 			}
 			if args[0] == "start" {
