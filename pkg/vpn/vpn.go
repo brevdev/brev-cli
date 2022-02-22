@@ -21,11 +21,23 @@ type VPNStore interface {
 }
 
 type Tailscale struct {
-	store VPNStore
+	store               VPNStore
+	userspaceNetworking bool
+	socksProxyPort      int
 }
 
 func NewTailscale(store VPNStore) *Tailscale {
-	return &Tailscale{store}
+	return &Tailscale{store: store}
+}
+
+func (t *Tailscale) WithUserspaceNetworking(shouldUseUserspaceNetworking bool) *Tailscale {
+	t.userspaceNetworking = shouldUseUserspaceNetworking
+	return t
+}
+
+func (t *Tailscale) WithSockProxyPort(sockProxyPort int) *Tailscale {
+	t.socksProxyPort = sockProxyPort
+	return t
 }
 
 var _ VPN = Tailscale{} // tailscale is a vpn
@@ -100,9 +112,15 @@ func getPublicKeyFromAuthString(authString string) (string, error) {
 }
 
 func (t Tailscale) Start() error {
-	// os.Args = []string{"tailscaled"}                                                                 // macos
 	// logic to check if can use regular networking vs user networking -- catch failure?/detect?
-	os.Args = []string{"tailscaled", "--tun=userspace-networking", "--socks5-server=localhost:1055"} // brev workspace
+	args := []string{"tailscaled"}
+	if t.userspaceNetworking {
+		args = append(args, "--tun=userspace-networking")
+	}
+	if t.socksProxyPort != 0 {
+		args = append(args, fmt.Sprintf("--socks5-server=localhost:%d", t.socksProxyPort))
+	}
+	os.Args = args
 	tailscaled.Run()
 	return nil
 }

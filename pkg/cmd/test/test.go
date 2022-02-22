@@ -46,6 +46,7 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ts := vpn.NewTailscale(store)
 			if args[0] == "up" {
+				nodeIdentifier := "me"
 				workspaceID := store.GetCurrentWorkspaceID()
 				if workspaceID != "" {
 					workspace, err := store.GetWorkspace(workspaceID)
@@ -53,18 +54,20 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 						return breverrors.WrapAndTrace(err)
 					}
 					localIdentifier := workspace.GetLocalIdentifier(nil)
-					err = ts.ApplyConfig(string(localIdentifier), config.GlobalConfig.GetServiceMeshCoordServerURL())
-					if err != nil {
-						return breverrors.WrapAndTrace(err)
-					}
-				} else {
-					err := ts.ApplyConfig("me", config.GlobalConfig.GetServiceMeshCoordServerURL())
-					if err != nil {
-						return breverrors.WrapAndTrace(err)
-					}
+					nodeIdentifier = string(localIdentifier)
+				}
+
+				err := ts.ApplyConfig(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
 				}
 			}
 			if args[0] == "start" {
+				workspaceID := store.GetCurrentWorkspaceID()
+				if workspaceID != "" {
+					ts.WithUserspaceNetworking(true)
+					ts.WithSockProxyPort(1055)
+				}
 				err := ts.Start()
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
