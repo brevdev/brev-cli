@@ -80,12 +80,11 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 
 func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error {
 	t.Print("\nWelcome to Brev.dev 🤙\n")
-	t.Print("Creating your user... ")
 	user, err := loginStore.CreateUser(idToken)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Print("done!")
+	t.Print("User created!")
 
 	orgs, err := loginStore.GetOrganizations(nil)
 	if err != nil {

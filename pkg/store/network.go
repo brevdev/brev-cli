@@ -38,15 +38,15 @@ func (s AuthHTTPStore) RegisterNode(publicKey string) error {
 }
 
 var (
-	networkPath     = "/network"
+	networkPath     = "/api/network"
 	networkNodePath = fmt.Sprintf("%s/node", networkPath)
 )
 
 var networkWorkspacePath = fmt.Sprintf("%s/workspace/register", networkNodePath)
 
 type registerWorkspaceNodeRequest struct {
-	WorkspaceID string
-	PublicKey   string
+	WorkspaceID string `json:"workspaceId"`
+	PublicKey   string `json:"nodePublicKey"`
 }
 
 func (s AuthHTTPStore) registerWorkspaceNodeToNetwork(req registerWorkspaceNodeRequest) error {
@@ -67,9 +67,9 @@ func (s AuthHTTPStore) registerWorkspaceNodeToNetwork(req registerWorkspaceNodeR
 var networkUserPath = fmt.Sprintf("%s/user/register", networkNodePath)
 
 type registerUserNodeRequest struct {
-	UserID         string
-	OrganizationID string
-	PublicKey      string
+	UserID         string `json:"userId"`
+	OrganizationID string `json:"organizationId"`
+	PublicKey      string `json:"nodePublicKey"`
 }
 
 func (s AuthHTTPStore) registerUserNodeToNetwork(req registerUserNodeRequest) error {
