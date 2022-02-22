@@ -16,7 +16,17 @@ type VPN interface {
 	Start() error
 }
 
-type Tailscale struct{}
+type VPNStore interface {
+	RegisterNode(publicKey string) error
+}
+
+type Tailscale struct {
+	store VPNStore
+}
+
+func NewTailscale(store VPNStore) *Tailscale {
+	return &Tailscale{store}
+}
 
 var _ VPN = Tailscale{} // tailscale is a vpn
 
@@ -28,7 +38,7 @@ func (t Tailscale) ApplyConfig(hostName string, loginServerURL string) error {
 	origStderr := os.Stderr
 
 	go func() {
-		err = doOnFileTailLine("./out.txt", handleTailscaleOutput)
+		err = doOnFileTailLine("./out.txt", t.handleTailscaleOutput)
 		if err != nil {
 			fmt.Print(err)
 		}
@@ -49,10 +59,14 @@ func (t Tailscale) ApplyConfig(hostName string, loginServerURL string) error {
 	return nil
 }
 
-func handleTailscaleOutput(s string) error {
+func (t Tailscale) handleTailscaleOutput(s string) error {
 	if strings.Contains(s, "register?key=") {
-		pubKey := getPublicKeyFromAuthString(s)
-		err := registerNode(pubKey)
+		pubKey, err := getPublicKeyFromAuthString(s)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		err = t.store.RegisterNode(pubKey)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -75,19 +89,14 @@ func doOnFileTailLine(filePath string, onLine func(string) error) error {
 	return nil
 }
 
-func getPublicKeyFromAuthString(authString string) string {
-	// To authenticate, visit:
-	//
+func getPublicKeyFromAuthString(authString string) (string, error) {
 	//     http://127.0.0.1:8080/register?key=4d217e8083a8e1a0ca84f405a193a52a1f49616e40868899017be1787d455956
-	fmt.Println("getting pub key")
-	_ = authString
-	return ""
-}
+	split := strings.Split(authString, "register?key=")
+	if len(split) != 2 {
+		return "", fmt.Errorf("invalid string")
+	}
 
-func registerNode(publicKey string) error {
-	fmt.Println("registering node")
-	_ = publicKey
-	return nil
+	return strings.TrimSpace(split[1]), nil
 }
 
 func (t Tailscale) Start() error {

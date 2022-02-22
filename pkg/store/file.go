@@ -121,6 +121,10 @@ func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) 
 	return deps, nil
 }
 
+func (f FileStore) GetCurrentWorkspaceID() string {
+	return os.Getenv("BREV_WORKSPACE_ID")
+}
+
 // // Check Rust Version
 // filePath := filepath.Join(path, "Cargo.lock")
 // doesCargoLockExist, err := afero.Exists(f.fs, filePath)

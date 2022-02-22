@@ -27,7 +27,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
+func NewCmdTest(_ *terminal.Terminal, store vpn.VPNStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -37,14 +37,15 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			ts := vpn.NewTailscale(store)
 			if args[0] == "up" {
-				err := vpn.Tailscale{}.ApplyConfig("test", "https://8080-headscale-9izu-brevdev.brev.sh")
+				err := ts.ApplyConfig("me", "https://8080-headscale-9izu-brevdev.brev.sh")
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
 			}
 			if args[0] == "start" {
-				err := vpn.Tailscale{}.Start()
+				err := ts.Start()
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
