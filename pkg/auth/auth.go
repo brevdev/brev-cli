@@ -165,11 +165,11 @@ func (t Auth) Login() (*LoginTokens, error) {
 			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("")
 			_ = terminal.PromptGetInput(terminal.PromptContent{
-					Label:    caretType("->")+ "    Press "+ enterType("Enter")+ " to login via browser",
-					ErrorMsg:   "error",
-					AllowEmpty: true,
+				Label:      caretType("->") + "    Press " + enterType("Enter") + " to login via browser",
+				ErrorMsg:   "error",
+				AllowEmpty: true,
 			})
-			
+
 			err := browser.OpenURL(url)
 			if err != nil {
 				fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")

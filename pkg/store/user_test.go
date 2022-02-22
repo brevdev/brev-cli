@@ -76,8 +76,8 @@ func TestCreateUser(t *testing.T) {
 	s := MakeMockNoHTTPStore()
 	httpmock.ActivateNonDefault(s.noAuthHTTPClient.restyClient.GetClient())
 
-	expected := &entity.User{
-		ID: "1",
+	expected := &UserCreateResponse{
+		User: entity.User{ID: "1"},
 	}
 	res, err := httpmock.NewJsonResponder(201, expected)
 	if !assert.Nil(t, err) {
@@ -93,7 +93,7 @@ func TestCreateUser(t *testing.T) {
 	if !assert.NotNil(t, u) {
 		return
 	}
-	if !assert.Equal(t, expected, u) {
+	if !assert.Equal(t, &expected.User, u) {
 		return
 	}
 }
