@@ -4,11 +4,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 )
 
 type ServiceMeshStore interface {
-	vpn.VPNStore
+	VPNStore
 	GetCurrentWorkspaceID() string
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
@@ -24,7 +23,7 @@ func (vpnd VPNDaemon) GetTaskSpec() tasks.TaskSpec {
 }
 
 func (vpnd VPNDaemon) Run() error {
-	ts := vpn.NewTailscale(vpnd.Store)
+	ts := NewTailscale(vpnd.Store)
 	workspaceID := vpnd.Store.GetCurrentWorkspaceID()
 	if workspaceID != "" {
 		ts.WithUserspaceNetworking(true)
