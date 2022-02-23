@@ -130,24 +130,66 @@ func (t Tailscale) Start() error {
 	}
 	os.Args = args
 
+	done := func() error { return nil }
+	var err error
 	if runtime.GOOS == "darwin" {
-		out, err := exec.Command("networksetup", "-getdnsservers", "Wi-Fi").Output()
+
+		tailscaleDNSIP := "100.100.100.100"
+		done, err = UseDarwinDNS(tailscaleDNSIP, "")
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		fmt.Println(out)
-		// cmd = exec.Command("networksetup", "-setdnsservers", "Wi-Fi", "100.100.100.100", "1.1.1.1")
-		// err = cmd.Run()
-		// if err != nil {
-		// 	return breverrors.WrapAndTrace(err)
-		// }
-		// cmd = exec.Command("networksetup", "-setsearchdomains", "Wi-Fi", "100.100.100.100")
-		// err = cmd.Run()
-		// if err != nil {
-		// 	return breverrors.WrapAndTrace(err)
-		// }
-		// fmt.Println("Hello from mac")
 	}
+	defer done() //nolint:errcheck // using to handle in case of panics
 	tailscaled.Run()
+
 	return nil
+}
+
+func UseDarwinDNS(tailscaleDNSIP string, searchDomain string) (func() error, error) {
+	out, err := exec.Command("networksetup", "-getdnsservers", "Wi-Fi").Output()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	prevDNS := strings.Split(strings.TrimSpace(string(out)), "\n")
+
+	args := []string{"-setdnsservers", "Wi-Fi", tailscaleDNSIP}
+	args = append(args, prevDNS...)
+	out, err = exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	fmt.Printf("%s", out)
+
+	out, err = exec.Command("networksetup", "-getsearchdomains", "Wi-Fi").Output()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	prevSearchDomains := strings.Split(strings.TrimSpace(string(out)), "\n")
+
+	args = []string{"-setsearchdomains", "Wi-Fi", searchDomain}
+	args = append(args, prevSearchDomains...)
+	out, err = exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	fmt.Printf("%s", out)
+
+	return func() error {
+		args := []string{"-setdnsservers", "Wi-Fi"}
+		args = append(args, prevDNS...)
+		out, err = exec.Command("networksetup", args...).Output()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		fmt.Printf("%s", out)
+
+		args = []string{"-setsearchdomains", "Wi-Fi"}
+		args = append(args, prevSearchDomains...)
+		out, err = exec.Command("networksetup", args...).Output()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
+	}, nil
 }

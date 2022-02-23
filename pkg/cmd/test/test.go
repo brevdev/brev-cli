@@ -2,9 +2,7 @@ package test
 
 import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -42,37 +40,51 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cobra.MinimumNArgs(1),
+		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ts := vpn.NewTailscale(store)
-			if args[0] == "up" {
-				nodeIdentifier := "me"
-				workspaceID := store.GetCurrentWorkspaceID()
-				if workspaceID != "" {
-					workspace, err := store.GetWorkspace(workspaceID)
-					if err != nil {
-						return breverrors.WrapAndTrace(err)
-					}
-					localIdentifier := workspace.GetLocalIdentifier(nil)
-					nodeIdentifier = string(localIdentifier)
-				}
+			// done := func() error { return nil }
+			// var err error
+			// if runtime.GOOS == "darwin" {
+			// 	done, err = UseDarwinDNS()
+			// 	if err != nil {
+			// 		return breverrors.WrapAndTrace(err)
+			// 	}
+			// }
+			// var input string
+			// _, _ = fmt.Scanln(&input)
+			// err = done()
+			// if err != nil {
+			// 	return breverrors.WrapAndTrace(err)
+			// }
+			// ts := vpn.NewTailscale(store)
+			// if args[0] == "up" {
+			// 	nodeIdentifier := "me"
+			// 	workspaceID := store.GetCurrentWorkspaceID()
+			// 	if workspaceID != "" {
+			// 		workspace, err := store.GetWorkspace(workspaceID)
+			// 		if err != nil {
+			// 			return breverrors.WrapAndTrace(err)
+			// 		}
+			// 		localIdentifier := workspace.GetLocalIdentifier(nil)
+			// 		nodeIdentifier = string(localIdentifier)
+			// 	}
 
-				err := ts.ApplyConfig(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
-			if args[0] == "start" {
-				workspaceID := store.GetCurrentWorkspaceID()
-				if workspaceID != "" {
-					ts.WithUserspaceNetworking(true)
-					ts.WithSockProxyPort(1055)
-				}
-				err := ts.Start()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
+			// 	err := ts.ApplyConfig(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())
+			// 	if err != nil {
+			// 		return breverrors.WrapAndTrace(err)
+			// 	}
+			// }
+			// if args[0] == "start" {
+			// 	workspaceID := store.GetCurrentWorkspaceID()
+			// 	if workspaceID != "" {
+			// 		ts.WithUserspaceNetworking(true)
+			// 		ts.WithSockProxyPort(1055)
+			// 	}
+			// 	err := ts.Start()
+			// 	if err != nil {
+			// 		return breverrors.WrapAndTrace(err)
+			// 	}
+			// }
 			return nil
 		},
 	}
