@@ -140,36 +140,12 @@ const featureSimpleNames = false
 
 func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
 	if featureSimpleNames {
-		isUnique := true
-		if len(workspaces) > 0 {
-			for _, v := range workspaces {
-				/*
-					If it's a:
-						- different workspace
-						- for the same user
-						- with the same name
-					it needs entropy
-				*/
-
-				if v.ID != w.ID && v.CreatedByUserID == w.CreatedByUserID && v.Name == w.Name {
-					isUnique = false
-					break
-				}
-			}
-		}
-
-		if isUnique {
-			sanitizedName := makeNameSafeForEmacs(w.Name)
-			return WorkspaceLocalID(sanitizedName)
-		} else {
-			dnsSplit := strings.Split(w.DNS, "-")
-			return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
-		}
-
+		return w.createSimpleNameForWorkspace(workspaces)
 	} else {
 		dnsSplit := strings.Split(w.DNS, "-")
 		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
 	}
+
 }
 
 func (w Workspace) GetID() string {
@@ -190,4 +166,32 @@ func makeNameSafeForEmacs(name string) string {
 	emacsSafeString := strings.Join(splitByColon, "-")
 
 	return emacsSafeString
+}
+
+func (w Workspace) createSimpleNameForWorkspace(workspaces []Workspace) WorkspaceLocalID {
+	isUnique := true
+	if len(workspaces) > 0 {
+		for _, v := range workspaces {
+			/*
+				If it's a:
+					- different workspace
+					- for the same user
+					- with the same name
+				it needs entropy
+			*/
+
+			if v.ID != w.ID && v.CreatedByUserID == w.CreatedByUserID && v.Name == w.Name {
+				isUnique = false
+				break
+			}
+		}
+	}
+
+	if isUnique {
+		sanitizedName := makeNameSafeForEmacs(w.Name)
+		return WorkspaceLocalID(sanitizedName)
+	} else {
+		dnsSplit := strings.Split(w.DNS, "-")
+		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
+	}
 }
