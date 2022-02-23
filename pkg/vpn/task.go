@@ -26,8 +26,8 @@ func (vpnd VPNDaemon) Run() error {
 	ts := NewTailscale(vpnd.Store)
 	workspaceID := vpnd.Store.GetCurrentWorkspaceID()
 	if workspaceID != "" {
-		ts.WithUserspaceNetworking(true)
-		ts.WithSockProxyPort(1055)
+		ts.WithUserspaceNetworking(true).
+			WithSockProxyPort(1055)
 	}
 	err := ts.Start()
 	if err != nil {

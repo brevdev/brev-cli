@@ -3,6 +3,8 @@ package vpn
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -119,7 +121,6 @@ func getPublicKeyFromAuthString(authString string) (string, error) {
 }
 
 func (t Tailscale) Start() error {
-	// logic to check if can use regular networking vs user networking -- catch failure?/detect?
 	args := []string{"tailscaled"}
 	if t.userspaceNetworking {
 		args = append(args, "--tun=userspace-networking")
@@ -128,6 +129,25 @@ func (t Tailscale) Start() error {
 		args = append(args, fmt.Sprintf("--socks5-server=localhost:%d", t.socksProxyPort))
 	}
 	os.Args = args
+
+	if runtime.GOOS == "darwin" {
+		out, err := exec.Command("networksetup", "-getdnsservers", "Wi-Fi").Output()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		fmt.Println(out)
+		// cmd = exec.Command("networksetup", "-setdnsservers", "Wi-Fi", "100.100.100.100", "1.1.1.1")
+		// err = cmd.Run()
+		// if err != nil {
+		// 	return breverrors.WrapAndTrace(err)
+		// }
+		// cmd = exec.Command("networksetup", "-setsearchdomains", "Wi-Fi", "100.100.100.100")
+		// err = cmd.Run()
+		// if err != nil {
+		// 	return breverrors.WrapAndTrace(err)
+		// }
+		// fmt.Println("Hello from mac")
+	}
 	tailscaled.Run()
 	return nil
 }
