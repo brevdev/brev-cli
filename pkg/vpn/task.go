@@ -36,8 +36,3 @@ func (vpnd VPNDaemon) Run() error {
 	}
 	return nil
 }
-
-// type Task interface {
-// 	Run() error
-// 	GetTaskSpec() TaskSpec
-// }
