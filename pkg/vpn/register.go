@@ -14,8 +14,7 @@ func RegisterNode(store ServiceMeshStore) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		localIdentifier := workspace.GetLocalIdentifier(nil)
-		nodeIdentifier = string(localIdentifier)
+		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
 	}
 
 	err := ts.ApplyConfig(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())

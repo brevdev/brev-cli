@@ -195,3 +195,7 @@ func (w Workspace) createSimpleNameForWorkspace(workspaces []Workspace) Workspac
 		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
 	}
 }
+
+func (w Workspace) GetNodeIdentifierForVPN(workspaces []Workspace) string {
+	return string(w.createSimpleNameForWorkspace(workspaces))
+}
