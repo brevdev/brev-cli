@@ -14,6 +14,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/spf13/cobra"
 	"golang.org/x/text/encoding/charmap"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -25,6 +26,7 @@ type LoginOptions struct {
 }
 
 type LoginStore interface {
+	vpn.ServiceMeshStore
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
@@ -72,6 +74,12 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	err = vpn.RegisterNode(o.LoginStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
 
