@@ -24,6 +24,7 @@ const (
 	kubeCertFileName              = "brev.crt"
 	sshPrivateKeyFileName         = "brev.pem"
 	backupSSHConfigFileNamePrefix = "config.bak"
+	tailscaleOutFileName          = "tailscale_out.log"
 	sshPrivateKeyFilePermissions  = 0o600
 	defaultFilePermission         = 0o770
 )
@@ -56,6 +57,10 @@ func GetKubeCertFileName() string {
 
 func GetSSHPrivateKeyFileName() string {
 	return sshPrivateKeyFileName
+}
+
+func GetTailScaleOutFileName() string {
+	return tailscaleOutFileName
 }
 
 func GetNewBackupSSHConfigFileName() string {
@@ -131,6 +136,14 @@ func GetBrevSSHConfigPath() (string, error) {
 
 func GetNewBackupSSHConfigFilePath() (*string, error) {
 	fp, err := makeBrevFilePath(GetNewBackupSSHConfigFileName())
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return fp, nil
+}
+
+func GetTailScaleOutFilePath() (*string, error) {
+	fp, err := makeBrevFilePath(GetTailScaleOutFileName())
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

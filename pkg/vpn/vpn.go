@@ -6,8 +6,10 @@ import (
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/vpn/tailscaled"
 	"github.com/hpcloud/tail"
+	"github.com/spf13/afero"
 	"tailscale.com/cmd/tailscale/cli"
 )
 
@@ -18,6 +20,7 @@ type VPN interface {
 
 type VPNStore interface {
 	RegisterNode(publicKey string) error
+	GetOrCreateFile(path string) (afero.File, error)
 }
 
 type Tailscale struct {
@@ -43,14 +46,18 @@ func (t *Tailscale) WithSockProxyPort(sockProxyPort int) *Tailscale {
 var _ VPN = Tailscale{} // tailscale is a vpn
 
 func (t Tailscale) ApplyConfig(hostName string, loginServerURL string) error {
-	outfile, err := os.Create("./out.txt") // todo choose better file and handle .brev
+	outfilePath, err := files.GetTailScaleOutFilePath()
+	if err != nil {
+		panic(err)
+	}
+	outfile, err := t.store.GetOrCreateFile(*outfilePath)
 	if err != nil {
 		panic(err)
 	}
 	origStderr := os.Stderr
 
 	go func() {
-		err = doOnFileTailLine("./out.txt", t.handleTailscaleOutput)
+		err = doOnFileTailLine(*outfilePath, t.handleTailscaleOutput)
 		if err != nil {
 			fmt.Print(err)
 		}
