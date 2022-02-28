@@ -1,4 +1,4 @@
-.DEFAULT_GOAL := dev
+.DEFAULT_GOAL := fast-build
 VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 
 .PHONY: fast-build
