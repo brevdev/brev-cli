@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -42,49 +43,7 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// done := func() error { return nil }
-			// var err error
-			// if runtime.GOOS == "darwin" {
-			// 	done, err = UseDarwinDNS()
-			// 	if err != nil {
-			// 		return breverrors.WrapAndTrace(err)
-			// 	}
-			// }
-			// var input string
-			// _, _ = fmt.Scanln(&input)
-			// err = done()
-			// if err != nil {
-			// 	return breverrors.WrapAndTrace(err)
-			// }
-			// ts := vpn.NewTailscale(store)
-			// if args[0] == "up" {
-			// 	nodeIdentifier := "me"
-			// 	workspaceID := store.GetCurrentWorkspaceID()
-			// 	if workspaceID != "" {
-			// 		workspace, err := store.GetWorkspace(workspaceID)
-			// 		if err != nil {
-			// 			return breverrors.WrapAndTrace(err)
-			// 		}
-			// 		localIdentifier := workspace.GetLocalIdentifier(nil)
-			// 		nodeIdentifier = string(localIdentifier)
-			// 	}
-
-			// 	err := ts.ApplyConfig(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())
-			// 	if err != nil {
-			// 		return breverrors.WrapAndTrace(err)
-			// 	}
-			// }
-			// if args[0] == "start" {
-			// 	workspaceID := store.GetCurrentWorkspaceID()
-			// 	if workspaceID != "" {
-			// 		ts.WithUserspaceNetworking(true)
-			// 		ts.WithSockProxyPort(1055)
-			// 	}
-			// 	err := ts.Start()
-			// 	if err != nil {
-			// 		return breverrors.WrapAndTrace(err)
-			// 	}
-			// }
+			autostartconf.InstallSystemDaemonDarwin([]string{})
 			return nil
 		},
 	}
