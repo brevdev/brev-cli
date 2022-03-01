@@ -205,3 +205,11 @@ func (f FileStore) WriteString(path, data string) error {
 	}
 	return nil
 }
+
+func (f FileStore) MkdirAll(path string, perm os.FileMode) error {
+	err := f.MkdirAll(path, perm)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
