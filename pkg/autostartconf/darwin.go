@@ -1,4 +1,4 @@
-// Copyright (c) 2020 Tailscale & AUTHORS.
+// Copyright (c) 2020 brev & AUTHORS.
 // All rights reserved.
 
 // Redistribution and use in source and binary forms, with or without
@@ -44,7 +44,7 @@ func init() {
 }
 
 // darwinLaunchdPlist is the launchd.plist that's written to
-// /Library/LaunchDaemons/com.tailscale.tailscaled.plist or (in the
+// /Library/LaunchDaemons/com.brev.brev.plist or (in the
 // future) a user-specific location.
 //
 // See man launchd.plist.
@@ -55,11 +55,11 @@ const darwinLaunchdPlist = `
 <dict>
 
   <key>Label</key>
-  <string>com.tailscale.tailscaled</string>
+  <string>com.brev.brev</string>
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/tailscaled</string>
+    <string>/usr/local/bin/brev</string>
   </array>
 
   <key>RunAtLoad</key>
@@ -70,9 +70,9 @@ const darwinLaunchdPlist = `
 `
 
 const (
-	sysPlist  = "/Library/LaunchDaemons/com.tailscale.tailscaled.plist"
-	targetBin = "/usr/local/bin/tailscaled"
-	service   = "com.tailscale.tailscaled"
+	sysPlist  = "/Library/LaunchDaemons/com.brev.brev.plist"
+	targetBin = "/usr/local/bin/brev"
+	service   = "com.brev.brev"
 )
 
 func UninstallSystemDaemonDarwin(args []string) (ret error) {
@@ -80,14 +80,14 @@ func UninstallSystemDaemonDarwin(args []string) (ret error) {
 		return errors.New("uninstall subcommand takes no arguments")
 	}
 
-	plist, err := exec.Command("launchctl", "list", "com.tailscale.tailscaled").Output()
+	plist, err := exec.Command("launchctl", "list", "com.brev.brev").Output()
 	_ = plist // parse it? https://github.com/DHowett/go-plist if we need something.
 	running := err == nil
 
 	if running {
-		out, err := exec.Command("launchctl", "stop", "com.tailscale.tailscaled").CombinedOutput()
+		out, err := exec.Command("launchctl", "stop", "com.brev.brev").CombinedOutput()
 		if err != nil {
-			fmt.Printf("launchctl stop com.tailscale.tailscaled: %v, %s\n", err, out)
+			fmt.Printf("launchctl stop com.brev.brev: %v, %s\n", err, out)
 			ret = err
 		}
 		out, err = exec.Command("launchctl", "unload", sysPlist).CombinedOutput()
@@ -123,8 +123,8 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 		return errors.New("install subcommand takes no arguments")
 	}
 	defer func() {
-		if err != nil && os.Getuid() != 0 {
-			err = fmt.Errorf("%w; try running tailscaled with sudo", err)
+		if err != nil && os.Getuid() != 0 { // todo this does not work
+			err = fmt.Errorf("%w; try running brev with sudo", err)
 		}
 	}()
 
@@ -132,7 +132,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	UninstallSystemDaemonDarwin(nil)
 
 	// TODO probably does not work on m1 mac
-	// Copy ourselves to /usr/local/bin/tailscaled.
+	// Copy ourselves to /usr/local/bin/brev.
 	if err := os.MkdirAll(filepath.Dir(targetBin), 0755); err != nil {
 		return err
 	}
