@@ -43,8 +43,7 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			autostartconf.InstallSystemDaemonDarwin([]string{})
-			return nil
+			return autostartconf.InstallSystemDaemonDarwin([]string{})
 		},
 	}
 

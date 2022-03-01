@@ -35,6 +35,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 )
 
@@ -60,6 +61,7 @@ const darwinLaunchdPlist = `
   <key>ProgramArguments</key>
   <array>
     <string>/usr/local/bin/brev</string>
+	<string>run-tasks</string>
   </array>
 
   <key>RunAtLoad</key>
@@ -70,10 +72,19 @@ const darwinLaunchdPlist = `
 `
 
 const (
-	sysPlist  = "/Library/LaunchDaemons/com.brev.brev.plist"
+	sysPlist  = "/Library/LaunchAgents/com.brev.brev.plist"
 	targetBin = "/usr/local/bin/brev"
 	service   = "com.brev.brev"
 )
+
+func GetPlistPath() (*string, error) {
+	dirname, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	path := filepath.Join(dirname, sysPlist)
+	return &path, nil
+}
 
 func UninstallSystemDaemonDarwin(args []string) (ret error) {
 	if len(args) > 0 {
@@ -122,16 +133,14 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	if len(args) > 0 {
 		return errors.New("install subcommand takes no arguments")
 	}
-	defer func() {
-		if err != nil && os.Getuid() != 0 { // todo this does not work
-			err = fmt.Errorf("%w; try running brev with sudo", err)
-		}
-	}()
-
+	// defer func() {
+	// 	if err != nil && os.Getuid() != 0 { // todo this does not work
+	// 		err = fmt.Errorf("%w; try running brev with sudo", err)
+	// 	}
+	// }()
+	// runtime.Breakpoint()
 	// Best effort:
 	UninstallSystemDaemonDarwin(nil)
-
-	// TODO probably does not work on m1 mac
 	// Copy ourselves to /usr/local/bin/brev.
 	if err := os.MkdirAll(filepath.Dir(targetBin), 0755); err != nil {
 		return err
@@ -166,16 +175,18 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 		return err
 	}
 
-	if err := ioutil.WriteFile(sysPlist, []byte(darwinLaunchdPlist), 0700); err != nil {
+	plistPath, err := GetPlistPath()
+
+	sudouser := os.Getenv("SUDO_USER")
+	user, err := user.Lookup(sudouser)
+
+	if err := ioutil.WriteFile(*plistPath, []byte(darwinLaunchdPlist), 0700); err != nil {
 		return err
 	}
 
-	if out, err := exec.Command("launchctl", "load", sysPlist).CombinedOutput(); err != nil {
-		return fmt.Errorf("error running launchctl load %s: %v, %s", sysPlist, err, out)
-	}
-
-	if out, err := exec.Command("launchctl", "start", service).CombinedOutput(); err != nil {
-		return fmt.Errorf("error running launchctl start %s: %v, %s", service, err, out)
+	out, err := exec.Command("launchctl", "bootstrap", "gui/"+user.Uid, *plistPath).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running launchctl load %s: %v, %s", *plistPath, err, out)
 	}
 
 	return nil
