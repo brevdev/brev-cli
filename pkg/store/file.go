@@ -193,3 +193,15 @@ func (f FileStore) GetCurrentWorkspaceID() string {
 // 		}
 // 	}
 // }
+
+func (f FileStore) WriteString(path, data string) error {
+	file, err := f.fs.OpenFile(path, os.O_RDWR, 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	_, err = file.WriteString(data)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
