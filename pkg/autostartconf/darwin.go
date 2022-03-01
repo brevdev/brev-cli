@@ -39,11 +39,6 @@ import (
 	"path/filepath"
 )
 
-func init() {
-	_ = InstallSystemDaemonDarwin
-	_ = UninstallSystemDaemonDarwin
-}
-
 // darwinLaunchdPlist is the launchd.plist that's written to
 // /Library/LaunchDaemons/com.brev.brev.plist or (in the
 // future) a user-specific location.
@@ -73,7 +68,6 @@ const darwinLaunchdPlist = `
 
 const (
 	sysPlist  = "/Library/LaunchAgents/com.brev.brev.plist"
-	targetBin = "/usr/local/bin/brev"
 	service   = "com.brev.brev"
 )
 
