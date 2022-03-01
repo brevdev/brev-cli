@@ -67,8 +67,8 @@ const darwinLaunchdPlist = `
 `
 
 const (
-	sysPlist  = "/Library/LaunchAgents/com.brev.brev.plist"
-	service   = "com.brev.brev"
+	sysPlist = "/Library/LaunchAgents/com.brev.brev.plist"
+	service  = "com.brev.brev"
 )
 
 func GetPlistPath() (*string, error) {
@@ -136,7 +136,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	// Best effort:
 	UninstallSystemDaemonDarwin(nil)
 	// Copy ourselves to /usr/local/bin/brev.
-	if err := os.MkdirAll(filepath.Dir(targetBin), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetBin), 0o755); err != nil {
 		return err
 	}
 	exe, err := os.Executable()
@@ -162,7 +162,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmpBin, 0755); err != nil {
+	if err := os.Chmod(tmpBin, 0o755); err != nil {
 		return err
 	}
 	if err := os.Rename(tmpBin, targetBin); err != nil {
@@ -174,7 +174,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	sudouser := os.Getenv("SUDO_USER")
 	user, err := user.Lookup(sudouser)
 
-	if err := ioutil.WriteFile(*plistPath, []byte(darwinLaunchdPlist), 0700); err != nil {
+	if err := ioutil.WriteFile(*plistPath, []byte(darwinLaunchdPlist), 0o700); err != nil {
 		return err
 	}
 

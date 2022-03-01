@@ -145,7 +145,6 @@ func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
 		dnsSplit := strings.Split(w.DNS, "-")
 		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
 	}
-
 }
 
 func (w Workspace) GetID() string {
