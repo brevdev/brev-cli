@@ -1,14 +1,17 @@
 package meshd
 
 import (
-	// breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
-type MeshDStore interface{}
+type MeshDStore interface {
+	vpn.ServiceMeshStore
+}
 
 func NewCmdMeshD(t *terminal.Terminal, store MeshDStore) *cobra.Command {
 	cmd := &cobra.Command{
@@ -29,5 +32,13 @@ func NewCmdMeshD(t *terminal.Terminal, store MeshDStore) *cobra.Command {
 }
 
 func MeshD(_ *terminal.Terminal, store MeshDStore) error {
+	vpnd := &vpn.VPNDaemon{
+		Store: store,
+	}
+	err := vpnd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
