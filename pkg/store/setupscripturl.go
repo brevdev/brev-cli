@@ -35,7 +35,7 @@ func (n NoAuthHTTPStore) GetSetupScriptContentsByURL(url string) (string, error)
 	return bodyAsString, nil
 }
 
-func (n AuthHTTPStore) GetSetupScriptContentsByURL(url string) (string, error) {
+func (s AuthHTTPStore) GetSetupScriptContentsByURL(url string) (string, error) {
 	var result string
 
 	client := resty.New()
