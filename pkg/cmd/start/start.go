@@ -34,6 +34,7 @@ type StartStore interface {
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	GetSetupScriptContentsByURL(url string) (string, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -134,10 +135,11 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 	var setupScriptContents string
 	var err error
 	if len(setupScript) > 0 {
-		setupScriptContents, err = GetCurlFileContents(setupScript)
+		setupScriptContents, err = startStore.GetSetupScriptContentsByURL(setupScript)
+
 		if err != nil {
 			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 
@@ -284,10 +286,11 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 	var setupScriptContents string
 	var err error
 	if len(setupScript) > 0 {
-		setupScriptContents, err = GetCurlFileContents(setupScript)
+		setupScriptContents, err = startStore.GetSetupScriptContentsByURL(setupScript)
+
 		if err != nil {
 			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 

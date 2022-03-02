@@ -5,7 +5,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -28,6 +27,7 @@ type TestStore interface {
 	GetWorkspace(id string) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	CopyBin(targetBin string) error
+	GetSetupScriptContentsByURL(url string) (string, error)
 }
 
 type ServiceMeshStore interface {
@@ -36,7 +36,7 @@ type ServiceMeshStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
-func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
+func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -46,35 +46,36 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			gistUrl := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
-			resp, err := start.GetCurlFileContents(gistUrl)
+			gistURL := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
+
+			resp, err := store.GetSetupScriptContentsByURL(gistURL)
 			if err != nil {
 				return nil
 			}
 			fmt.Println(resp)
-			
+
 			return nil
-// 			cfg := autostartconf.LinuxSystemdConfigurer{
-// 				AutoStartStore: store,
-// 				ValueConfigFile: `
-// [Install]
-// WantedBy=multi-user.target
+			// cfg := autostartconf.LinuxSystemdConfigurer{
+			// 	AutoStartStore: store,
+			// 	ValueConfigFile: `
+			// [Install]
+			// WantedBy=multi-user.target
 
-// [Unit]
-// Description=Brev SSH Proxy Daemon
-// After=systemd-user-sessions.service
+			// [Unit]
+			// Description=Brev SSH Proxy Daemon
+			// After=systemd-user-sessions.service
 
-// [Service]
-// Type=simple
-// ExecStart=brev run-tasks
-// Restart=always
-// `, DestConfigFile: "/etc/systemd/system/brev.service",
-// 			}
-// 			err := cfg.Install()
-// 			if err != nil {
-// 				return breverrors.WrapAndTrace(err)
-// 			}
-// 			return nil
+			// [Service]
+			// Type=simple
+			// ExecStart=brev run-tasks
+			// Restart=always
+			// `, DestConfigFile: "/etc/systemd/system/brev.service",
+			// }
+			// err := cfg.Install()
+			// if err != nil {
+			// 	return breverrors.WrapAndTrace(err)
+			// }
+			// return nil
 		},
 	}
 
