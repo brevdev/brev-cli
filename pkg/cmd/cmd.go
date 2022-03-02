@@ -27,10 +27,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
-	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/brevdev/brev-cli/pkg/remoteversion"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
@@ -97,7 +97,7 @@ func NewBrevCommand() *cobra.Command {
 		Run: runHelp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printVersion {
-				v, err := version.BuildVersionString(t, noLoginCmdStore)
+				v, err := remoteversion.BuildVersionString(t, noLoginCmdStore)
 				if err != nil {
 					t.Errprint(err, "Failed to determine version")
 					return breverrors.WrapAndTrace(err)
