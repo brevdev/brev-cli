@@ -60,7 +60,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 
 			if empty {
-				err := createEmptyWorkspace(t, org, loginStartStore, name, detached)
+				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript)
 				if err != nil {
 					t.Vprintf(t.Red(err.Error()))
 					return
@@ -101,7 +101,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool) error {
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string) error {
 	// ensure name
 	if len(name) == 0 {
 		return fmt.Errorf("name field is required for empty workspaces")
@@ -131,8 +131,22 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 		orgID = orgs[0].ID
 	}
 
+	var setupScriptContents string
+	var err error
+	if len(setupScript) > 0 {
+		setupScriptContents, err = GetCurlFileContents(setupScript)
+		if err != nil {
+			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
+			return err
+		}
+	}
+
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, name)
+
+	if len(setupScriptContents) > 0 {
+		options.WithStartupScript(setupScriptContents)
+	}
 
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {
@@ -366,7 +380,8 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	if oli {
 		options.WithWorkspaceClassID("4x16")
 	}
-	if setupScript != "" {
+	
+	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
 	}
 
