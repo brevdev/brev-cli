@@ -206,8 +206,41 @@ func (f FileStore) WriteString(path, data string) error {
 	return nil
 }
 
-func (f FileStore) MkdirAll(path string, perm os.FileMode) error {
-	err := f.MkdirAll(path, perm)
+// CopyBin copies the runing executeable to a target, creating directories as needed
+func (f FileStore) CopyBin(targetBin string) error {
+	err := f.fs.MkdirAll(targetBin, 0755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	exe, err := os.Executable()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	pathTmpBin := targetBin + ".tmp"
+	fileTmpBin, err := f.fs.Create(pathTmpBin)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	self, err := f.fs.Open(exe)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	_, err = io.Copy(fileTmpBin, self)
+	self.Close()
+	if err != nil {
+		fileTmpBin.Close()
+		return err
+	}
+	err = fileTmpBin.Close()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = f.fs.Chmod(pathTmpBin, 0755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = f.fs.Rename(pathTmpBin, targetBin)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
