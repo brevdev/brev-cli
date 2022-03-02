@@ -198,7 +198,6 @@ func GetCurlFileContents(urlToRawGist string) (string, error) {
 		return "", err
 	}
 
-
 	payload, err := response.PayloadAsString()
 
 	// var payload interface{}
@@ -206,6 +205,6 @@ func GetCurlFileContents(urlToRawGist string) (string, error) {
 	// if err != nil {
 	// 	return nil, err
 	// }
-	
+
 	return payload, nil
 }

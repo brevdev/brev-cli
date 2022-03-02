@@ -380,7 +380,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	if oli {
 		options.WithWorkspaceClassID("4x16")
 	}
-	
+
 	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
 	}
