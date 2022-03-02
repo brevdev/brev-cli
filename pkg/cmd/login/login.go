@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -75,11 +76,13 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = vpn.RegisterNode(o.LoginStore)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	if featureflag.IsDev() {
+		err = vpn.RegisterNode(o.LoginStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 
+	}
 	return nil
 }
 
