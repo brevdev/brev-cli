@@ -69,9 +69,5 @@ func getDefaultTasks(store RunTasksStore) []tasks.Task {
 		},
 	}
 
-	vpnDaemon := vpn.VPNDaemon{
-		Store: store,
-	}
-
-	return []tasks.Task{cu, vpnDaemon}
+	return []tasks.Task{cu}
 }
