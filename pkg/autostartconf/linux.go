@@ -5,7 +5,6 @@ import (
 	"os/exec"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 const linuxSystemdUnitFile = `
@@ -27,7 +26,7 @@ const (
 )
 
 type LinuxSystemdConfigurer struct {
-	store.FileStore
+	AutoStartStore
 	ValueConfigFile string
 	DestConfigFile  string
 }

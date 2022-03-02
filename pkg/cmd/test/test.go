@@ -6,7 +6,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 
 	"github.com/spf13/cobra"
 )
@@ -25,10 +24,11 @@ type TestStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(id string) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	CopyBin(targetBin string) error
 }
 
 type ServiceMeshStore interface {
-	vpn.VPNStore
+	autostartconf.AutoStartStore
 	GetCurrentWorkspaceID() string
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
@@ -43,7 +43,27 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return autostartconf.InstallSystemDaemonDarwin([]string{})
+			cfg := autostartconf.LinuxSystemdConfigurer{
+				store,
+				`
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Brev SSH Proxy Daemon
+After=systend-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=brev run-tasks
+Restart=always
+`, "/etc/systemd/system/brev.service",
+			}
+			err := cfg.Install()
+			if err != nil {
+				return err
+			}
+			return nil
 		},
 	}
 
