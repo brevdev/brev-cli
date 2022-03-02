@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
+	"github.com/brevdev/brev-cli/pkg/cmd/meshd"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
@@ -151,6 +152,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 
 		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
+		cmd.AddCommand(meshd.NewCmdMeshD(t, noLoginCmdStore))
 	} else {
 		_ = 0 // noop
 	}
