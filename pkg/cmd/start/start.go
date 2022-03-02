@@ -42,6 +42,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	var detached bool
 	var empty bool
 	var oli bool
+	var setupScript string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -72,7 +73,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 				if isURL {
 					// CREATE A WORKSPACE
-					err := clone(t, args[0], org, loginStartStore, name, oli)
+					err := clone(t, args[0], org, loginStartStore, name, oli, setupScript)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
 					}
@@ -91,6 +92,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	cmd.Flags().BoolVarP(&oli, "oli", "g", false, "create a workspace for oli")
 	_ = cmd.Flags().MarkHidden("oli")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
+	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
@@ -259,43 +261,62 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, oli bool) error {
-	newWorkspace := MakeNewWorkspaceFromURL(url)
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, oli bool, setupScript string) error {
+	t.Vprintf("This is the setup script: %s", setupScript)
+	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
+	// fetch contents of file
+	// todo: read contents of file
 
-	if len(name) > 0 {
-		newWorkspace.Name = name
-	} else {
-		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(newWorkspace.Name))
+	if(setupScript=="") {
+		t.Vprintf("setup script is empty")
+	
 	}
 
-	var orgID string
-	if orgflag == "" {
-		activeorg, err := startStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if activeorg == nil {
-			return fmt.Errorf("no org exist")
-		}
-		orgID = activeorg.ID
-	} else {
-		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return fmt.Errorf("no org with name %s", orgflag)
-		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org with name %s", orgflag)
-		}
-		orgID = orgs[0].ID
-	}
-
-	err := createWorkspace(t, newWorkspace, orgID, startStore, oli)
+	stuffs, err := GetCurlFileContents(setupScript)
 	if err != nil {
-		t.Vprint(t.Red(err.Error()))
+		return err
 	}
+
+	t.Vprintf(stuffs)
+
 	return nil
+	
+	// newWorkspace := MakeNewWorkspaceFromURL(url)
+
+	// if len(name) > 0 {
+	// 	newWorkspace.Name = name
+	// } else {
+	// 	t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(newWorkspace.Name))
+	// }
+
+	// var orgID string
+	// if orgflag == "" {
+	// 	activeorg, err := startStore.GetActiveOrganizationOrDefault()
+	// 	if err != nil {
+	// 		return breverrors.WrapAndTrace(err)
+	// 	}
+	// 	if activeorg == nil {
+	// 		return fmt.Errorf("no org exist")
+	// 	}
+	// 	orgID = activeorg.ID
+	// } else {
+	// 	orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+	// 	if err != nil {
+	// 		return breverrors.WrapAndTrace(err)
+	// 	}
+	// 	if len(orgs) == 0 {
+	// 		return fmt.Errorf("no org with name %s", orgflag)
+	// 	} else if len(orgs) > 1 {
+	// 		return fmt.Errorf("more than one org with name %s", orgflag)
+	// 	}
+	// 	orgID = orgs[0].ID
+	// }
+
+	// err := createWorkspace(t, newWorkspace, orgID, startStore, oli)
+	// if err != nil {
+	// 	t.Vprint(t.Red(err.Error()))
+	// }
+	// return nil
 }
 
 type NewWorkspace struct {
