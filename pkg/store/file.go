@@ -208,7 +208,7 @@ func (f FileStore) WriteString(path, data string) error {
 
 // CopyBin copies the runing executeable to a target, creating directories as needed
 func (f FileStore) CopyBin(targetBin string) error {
-	err := f.fs.MkdirAll(targetBin, 0755)
+	err := f.fs.MkdirAll(filepath.Dir(targetBin), 0755)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
