@@ -187,53 +187,6 @@ func (r *RESTResponse) PayloadAsPrettyJSONString() (string, error) {
 	return "", fmt.Errorf("response was not valid JSON")
 }
 
-// EXAMPLE USAGE:
-/*
-type foo struct {
-	Hi string
-}
-
-func SubmitRequestWithStruct() {
-	request := &RESTRequest{
-		Method:   "GET",
-		Endpoint: "www.google.com",
-		QueryParams: []QueryParam{
-			{"foo", "bar"},
-		},
-		Headers: []Header{
-			{"Content-Type", "application/json"},
-		},
-		Payload: foo{
-			Hi: "there",
-		},
-	}
-	response, _ := request.Submit()
-
-	var myCoolResponse foo
-	response.DecodePayload(&myCoolResponse)
-}
-
-func SubmitRequestWithJSON() {
-	request := &RESTRequest{
-		Method:   "GET",
-		Endpoint: "www.google.com",
-		QueryParams: []QueryParam{
-			{"foo", "bar"},
-		},
-		Headers: []Header{
-			{"Content-Type", "application/json"},
-		},
-		Payload: map[string]string{
-			"hi": "there",
-		},
-	}
-	response, _ := request.Submit()
-
-	var myCoolResponse foo
-	response.DecodePayload(&myCoolResponse)
-}
-*/
-
 func GetCurlFileContents(urlToRawGist string) (string, error) {
 	request := &RESTRequest{
 		Method:   "GET",

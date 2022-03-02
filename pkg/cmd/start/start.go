@@ -267,56 +267,52 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 	// fetch contents of file
 	// todo: read contents of file
 
-	if(setupScript=="") {
-		t.Vprintf("setup script is empty")
-	
+	var setupScriptContents string
+	var err error
+	if len(setupScript) > 0 {
+		setupScriptContents, err = GetCurlFileContents(setupScript)
+		if err != nil {
+			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
+			return err
+		}
 	}
 
-	stuffs, err := GetCurlFileContents(setupScript)
+	newWorkspace := MakeNewWorkspaceFromURL(url)
+
+	if len(name) > 0 {
+		newWorkspace.Name = name
+	} else {
+		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(newWorkspace.Name))
+	}
+
+	var orgID string
+	if orgflag == "" {
+		activeorg, err := startStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if activeorg == nil {
+			return fmt.Errorf("no org exist")
+		}
+		orgID = activeorg.ID
+	} else {
+		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return fmt.Errorf("no org with name %s", orgflag)
+		} else if len(orgs) > 1 {
+			return fmt.Errorf("more than one org with name %s", orgflag)
+		}
+		orgID = orgs[0].ID
+	}
+
+	err = createWorkspace(t, newWorkspace, orgID, startStore, oli, setupScriptContents)
 	if err != nil {
-		return err
+		t.Vprint(t.Red(err.Error()))
 	}
-
-	t.Vprintf(stuffs)
-
 	return nil
-	
-	// newWorkspace := MakeNewWorkspaceFromURL(url)
-
-	// if len(name) > 0 {
-	// 	newWorkspace.Name = name
-	// } else {
-	// 	t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(newWorkspace.Name))
-	// }
-
-	// var orgID string
-	// if orgflag == "" {
-	// 	activeorg, err := startStore.GetActiveOrganizationOrDefault()
-	// 	if err != nil {
-	// 		return breverrors.WrapAndTrace(err)
-	// 	}
-	// 	if activeorg == nil {
-	// 		return fmt.Errorf("no org exist")
-	// 	}
-	// 	orgID = activeorg.ID
-	// } else {
-	// 	orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-	// 	if err != nil {
-	// 		return breverrors.WrapAndTrace(err)
-	// 	}
-	// 	if len(orgs) == 0 {
-	// 		return fmt.Errorf("no org with name %s", orgflag)
-	// 	} else if len(orgs) > 1 {
-	// 		return fmt.Errorf("more than one org with name %s", orgflag)
-	// 	}
-	// 	orgID = orgs[0].ID
-	// }
-
-	// err := createWorkspace(t, newWorkspace, orgID, startStore, oli)
-	// if err != nil {
-	// 	t.Vprint(t.Red(err.Error()))
-	// }
-	// return nil
 }
 
 type NewWorkspace struct {
@@ -363,12 +359,15 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, oli bool) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, oli bool, setupScript string) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 	if oli {
 		options.WithWorkspaceClassID("4x16")
+	}
+	if setupScript != "" {
+		options.WithStartupScript(setupScript)
 	}
 
 	w, err := startStore.CreateWorkspace(orgID, options)
