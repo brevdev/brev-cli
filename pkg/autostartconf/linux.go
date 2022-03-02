@@ -7,24 +7,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-const linuxSystemdUnitFile = `
-[Install]
-WantedBy=multi-user.target
-
-[Unit]
-Description=Brev SSH Proxy Daemon
-After=systemd-user-sessions.service
-
-[Service]
-Type=simple
-ExecStart=brev run-tasks
-Restart=always
-`
-
-const (
-	unitFileDest = "/etc/systemd/system/brev.service"
-)
-
 type LinuxSystemdConfigurer struct {
 	AutoStartStore
 	ValueConfigFile string

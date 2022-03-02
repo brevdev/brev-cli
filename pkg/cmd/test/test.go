@@ -4,6 +4,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -61,7 +62,7 @@ Restart=always
 			}
 			err := cfg.Install()
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},

@@ -1,4 +1,4 @@
-// Copyright (c) 2020 brev & AUTHORS.
+// Copyright (c) 2020 Tailscale & AUTHORS.
 // All rights reserved.
 
 // Redistribution and use in source and binary forms, with or without
@@ -26,6 +26,7 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+//nolint // code from tailscale -- does not yet comply with linter rules
 package autostartconf
 
 import (
@@ -67,8 +68,7 @@ const darwinLaunchdPlist = `
 `
 
 const (
-	sysPlist  = "/Library/LaunchAgents/com.brev.brev.plist"
-	service   = "com.brev.brev"
+	sysPlist = "/Library/LaunchAgents/com.brev.brev.plist"
 )
 
 func GetPlistPath() (*string, error) {
@@ -134,9 +134,9 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	// }()
 	// runtime.Breakpoint()
 	// Best effort:
-	UninstallSystemDaemonDarwin(nil)
+	_ = UninstallSystemDaemonDarwin(nil)
 	// Copy ourselves to /usr/local/bin/brev.
-	if err := os.MkdirAll(filepath.Dir(targetBin), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(targetBin), 0o755); err != nil {
 		return err
 	}
 	exe, err := os.Executable()
@@ -150,11 +150,11 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	}
 	self, err := os.Open(exe)
 	if err != nil {
-		f.Close()
+		_ = f.Close()
 		return err
 	}
 	_, err = io.Copy(f, self)
-	self.Close()
+	_ = self.Close()
 	if err != nil {
 		f.Close()
 		return err
@@ -162,7 +162,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(tmpBin, 0755); err != nil {
+	if err := os.Chmod(tmpBin, 0o755); err != nil {
 		return err
 	}
 	if err := os.Rename(tmpBin, targetBin); err != nil {
@@ -174,7 +174,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 	sudouser := os.Getenv("SUDO_USER")
 	user, err := user.Lookup(sudouser)
 
-	if err := ioutil.WriteFile(*plistPath, []byte(darwinLaunchdPlist), 0700); err != nil {
+	if err := ioutil.WriteFile(*plistPath, []byte(darwinLaunchdPlist), 0o700); err != nil {
 		return err
 	}
 

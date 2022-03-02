@@ -206,9 +206,9 @@ func (f FileStore) WriteString(path, data string) error {
 	return nil
 }
 
-// CopyBin copies the runing executeable to a target, creating directories as needed
+// CopyBin copies the running executeable to a target, creating directories as needed
 func (f FileStore) CopyBin(targetBin string) error {
-	err := f.fs.MkdirAll(filepath.Dir(targetBin), 0755)
+	err := f.fs.MkdirAll(filepath.Dir(targetBin), 0o755)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -227,16 +227,16 @@ func (f FileStore) CopyBin(targetBin string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	_, err = io.Copy(fileTmpBin, self)
-	self.Close()
+	_ = self.Close()
 	if err != nil {
-		fileTmpBin.Close()
-		return err
+		_ = fileTmpBin.Close()
+		return breverrors.WrapAndTrace(err)
 	}
 	err = fileTmpBin.Close()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = f.fs.Chmod(pathTmpBin, 0755)
+	err = f.fs.Chmod(pathTmpBin, 0o755)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
