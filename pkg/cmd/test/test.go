@@ -1,10 +1,12 @@
 package test
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -44,27 +46,35 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := autostartconf.LinuxSystemdConfigurer{
-				AutoStartStore: store,
-				ValueConfigFile: `
-[Install]
-WantedBy=multi-user.target
-
-[Unit]
-Description=Brev SSH Proxy Daemon
-After=systemd-user-sessions.service
-
-[Service]
-Type=simple
-ExecStart=brev run-tasks
-Restart=always
-`, DestConfigFile: "/etc/systemd/system/brev.service",
-			}
-			err := cfg.Install()
+			gistUrl := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
+			resp, err := start.GetCurlFileContents(gistUrl)
 			if err != nil {
-				return breverrors.WrapAndTrace(err)
+				return nil
 			}
+			fmt.Println(resp)
+			
 			return nil
+// 			cfg := autostartconf.LinuxSystemdConfigurer{
+// 				AutoStartStore: store,
+// 				ValueConfigFile: `
+// [Install]
+// WantedBy=multi-user.target
+
+// [Unit]
+// Description=Brev SSH Proxy Daemon
+// After=systemd-user-sessions.service
+
+// [Service]
+// Type=simple
+// ExecStart=brev run-tasks
+// Restart=always
+// `, DestConfigFile: "/etc/systemd/system/brev.service",
+// 			}
+// 			err := cfg.Install()
+// 			if err != nil {
+// 				return breverrors.WrapAndTrace(err)
+// 			}
+// 			return nil
 		},
 	}
 

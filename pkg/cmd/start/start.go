@@ -301,8 +301,8 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 
 	var orgID string
 	if orgflag == "" {
-		activeorg, err := startStore.GetActiveOrganizationOrDefault()
-		if err != nil {
+		activeorg, err2 := startStore.GetActiveOrganizationOrDefault()
+		if err2 != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		if activeorg == nil {
@@ -310,8 +310,8 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		}
 		orgID = activeorg.ID
 	} else {
-		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
+		orgs, err2 := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+		if err2 != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		if len(orgs) == 0 {
