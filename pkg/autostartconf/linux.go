@@ -1,6 +1,12 @@
 package autostartconf
 
-import "github.com/brevdev/brev-cli/pkg/store"
+import (
+	"fmt"
+	"os/exec"
+
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
+)
 
 const linuxSystemdUnitFile = `
 [Install]
@@ -17,7 +23,7 @@ Restart=always
 `
 
 const (
-	unitFileDest = "/etc/systemd/system/"
+	unitFileDest = "/etc/systemd/system/brev.service"
 )
 
 type LinuxSystemdConfigurer struct {
@@ -32,5 +38,21 @@ func (lsc LinuxSystemdConfigurer) UnInstall() error {
 
 func (lsc LinuxSystemdConfigurer) Install() error {
 	_ = lsc.UnInstall() // best effort
+	err := lsc.CopyBin(targetBin)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = lsc.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	out, err := exec.Command("systemctl", "enable", "brev").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running systemctl enable %s: %v, %s", lsc.DestConfigFile, err, out)
+	}
+	out, err = exec.Command("systemctl", "start", "brev").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running systemctl start %s: %v, %s", lsc.DestConfigFile, err, out)
+	}
 	return nil
 }
