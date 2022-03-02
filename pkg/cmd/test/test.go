@@ -52,7 +52,7 @@ WantedBy=multi-user.target
 
 [Unit]
 Description=Brev SSH Proxy Daemon
-After=systend-user-sessions.service
+After=systemd-user-sessions.service
 
 [Service]
 Type=simple
