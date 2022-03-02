@@ -44,8 +44,8 @@ func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg := autostartconf.LinuxSystemdConfigurer{
-				store,
-				`
+				AutoStartStore: store,
+				ValueConfigFile: `
 [Install]
 WantedBy=multi-user.target
 
@@ -57,7 +57,7 @@ After=systend-user-sessions.service
 Type=simple
 ExecStart=brev run-tasks
 Restart=always
-`, "/etc/systemd/system/brev.service",
+`, DestConfigFile: "/etc/systemd/system/brev.service",
 			}
 			err := cfg.Install()
 			if err != nil {
