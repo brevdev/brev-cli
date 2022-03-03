@@ -2,8 +2,6 @@
 package set
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -22,11 +20,11 @@ type SetStore interface {
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:       map[string]string{"context": ""},
+		Annotations:       map[string]string{"hidden": ""},
 		Use:               "set",
 		Short:             "Set active org (helps with completion)",
 		Long:              "Set your organization to view, open, create workspaces etc",
-		Example:           `brev set [org name]`,
+		Example:           `brev org set [org name]`,
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: completions.GetOrgsNameCompletionHandler(noLoginSetStore, t),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -37,33 +35,10 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := set(args[0], loginSetStore)
-			return breverrors.WrapAndTrace(err)
+			t.Vprintf(t.Yellow("This command changed, please run:\n\tbrev org set %s"), args[0])
+			return nil
 		},
 	}
 
 	return cmd
-}
-
-func set(orgName string, setStore SetStore) error {
-	orgs, err := setStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if len(orgs) == 0 {
-		return fmt.Errorf("no orgs exist with name %s", orgName)
-	} else if len(orgs) > 1 {
-		return fmt.Errorf("more than one org exist with name %s", orgName)
-	}
-
-	org := orgs[0]
-
-	err = setStore.SetDefaultOrganization(&org)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// Print workspaces within org
-
-	return nil
 }
