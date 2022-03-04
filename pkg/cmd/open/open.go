@@ -57,14 +57,21 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Get base repo path
-	splitBySlash := strings.Split(workspace.GitRepo, "/")[1]
-	repoPath := strings.Split(splitBySlash, ".git")[0]
+	// Get the folder name
+	// Get base repo path or use workspace Name 
+	var folderName string
+	if len(workspace.GitRepo) > 0 {
+		splitBySlash := strings.Split(workspace.GitRepo, "/")[1]
+		repoPath := strings.Split(splitBySlash, ".git")[0]
+		folderName = repoPath
+	} else {
+		folderName = workspace.Name
+	}
 
 	// note: intentional decision to just assume the parent folder and inner folder are the same
-	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), repoPath)
+	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), folderName)
 	s.Stop()
-	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", repoPath))
+	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", folderName))
 
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
