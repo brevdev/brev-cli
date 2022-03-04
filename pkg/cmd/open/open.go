@@ -58,7 +58,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	}
 
 	// Get the folder name
-	// Get base repo path or use workspace Name 
+	// Get base repo path or use workspace Name
 	var folderName string
 	if len(workspace.GitRepo) > 0 {
 		splitBySlash := strings.Split(workspace.GitRepo, "/")[1]
