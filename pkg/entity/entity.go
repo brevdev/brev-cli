@@ -50,8 +50,9 @@ func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGrou
 }
 
 type Organization struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	UserNetworkID string `json:"userNetworkId"`
 }
 
 type WorkspaceMetaData struct {
@@ -115,6 +116,7 @@ type Workspace struct {
 	GitRepo           string            `json:"gitRepo"`
 	Version           string            `json:"version"`
 	WorkspaceTemplate WorkspaceTemplate `json:"workspaceTemplate"`
+	NetworkID         string            `json:"networkId"`
 	// The below are other fields that might not be needed yet so commented out
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`

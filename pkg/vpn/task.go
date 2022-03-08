@@ -3,11 +3,13 @@ package vpn
 import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 )
 
 type ServiceMeshStore interface {
 	VPNStore
+	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
 	GetCurrentWorkspaceID() string
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }

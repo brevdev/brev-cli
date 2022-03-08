@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strconv"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -85,4 +86,28 @@ func (s AuthHTTPStore) registerUserNodeToNetwork(req registerUserNodeRequest) er
 	}
 
 	return nil
+}
+
+type GetAuthKeyResponse struct {
+	CoordServerURL string
+	AuthKey        string
+}
+
+func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
+	return nil, nil
+}
+
+func (s AuthHTTPStore) GetNetworkAuthKeyReq(networkID string, ephemeral bool) (*GetAuthKeyResponse, error) {
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetQueryParam("ephemeral", strconv.FormatBool(ephemeral)).
+		Get(networkPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return nil, nil
 }

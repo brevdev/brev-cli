@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -97,9 +96,14 @@ func ConfigureVPN(store vpn.ServiceMeshStore) error {
 		}
 		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
 	}
+	authKeyResp, err := store.GetNetworkAuthKey()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	tsc := ts.WithConfigurerOptions(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())
-	err := tsc.ApplyConfig()
+	tsc := ts.WithConfigurerOptions(nodeIdentifier, authKeyResp.CoordServerURL)
+	tsca := tsc.WithAuthKey(authKeyResp.AuthKey)
+	err = tsca.ApplyConfig()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
