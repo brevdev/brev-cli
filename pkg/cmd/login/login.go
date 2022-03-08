@@ -88,9 +88,13 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 func ConfigureVPN(store vpn.ServiceMeshStore) error {
 	ts := vpn.NewTailscale(store)
 	nodeIdentifier := "me"
-	workspaceID := store.GetCurrentWorkspaceID()
+	workspaceID, err := store.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if workspaceID != "" {
-		workspace, err := store.GetWorkspace(workspaceID)
+		var workspace *entity.Workspace
+		workspace, err = store.GetWorkspace(workspaceID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

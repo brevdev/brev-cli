@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 func (s AuthHTTPStore) RegisterNode(publicKey string) error {
-	workspaceID := s.GetCurrentWorkspaceID()
+	workspaceID, err := s.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if workspaceID != "" {
 		err := s.registerWorkspaceNodeToNetwork(registerWorkspaceNodeRequest{
 			WorkspaceID: workspaceID,
@@ -39,8 +43,8 @@ func (s AuthHTTPStore) RegisterNode(publicKey string) error {
 }
 
 var (
-	networkPath     = "/api/network"
-	networkNodePath = fmt.Sprintf("%s/node", networkPath)
+	networkBasePath = "/api/network"
+	networkNodePath = fmt.Sprintf("%s/node", networkBasePath)
 )
 
 var networkWorkspacePath = fmt.Sprintf("%s/workspace/register", networkNodePath)
@@ -94,13 +98,45 @@ type GetAuthKeyResponse struct {
 }
 
 func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
-	return nil, nil
+	workspaceID, err := s.GetCurrentWorkspaceID()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		var workspace *entity.Workspace
+		workspace, err = s.GetWorkspace(workspaceID)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		key, err := s.GetNetworkAuthKeyByNetworkID(workspace.NetworkID, true)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return key, nil
+	}
+	org, err := s.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	key, err := s.GetNetworkAuthKeyByNetworkID(org.UserNetworkID, false)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return key, nil
 }
 
-func (s AuthHTTPStore) GetNetworkAuthKeyReq(networkID string, ephemeral bool) (*GetAuthKeyResponse, error) {
+var (
+	networkdIDParamName = "networkID"
+	networkPathPattern  = fmt.Sprintf("%s/%s", networkBasePath, "%s")
+	networkPath         = fmt.Sprintf(networkPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
+)
+
+func (s AuthHTTPStore) GetNetworkAuthKeyByNetworkID(networkID string, ephemeral bool) (*GetAuthKeyResponse, error) {
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetQueryParam("ephemeral", strconv.FormatBool(ephemeral)).
+		SetPathParam(networkdIDParamName, networkID).
 		Get(networkPath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

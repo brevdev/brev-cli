@@ -10,7 +10,7 @@ import (
 type ServiceMeshStore interface {
 	VPNStore
 	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
-	GetCurrentWorkspaceID() string
+	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
@@ -26,12 +26,15 @@ func (vpnd VPNDaemon) GetTaskSpec() tasks.TaskSpec {
 
 func (vpnd VPNDaemon) Run() error {
 	ts := NewTailscale(vpnd.Store)
-	workspaceID := vpnd.Store.GetCurrentWorkspaceID()
+	workspaceID, err := vpnd.Store.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if workspaceID != "" {
 		ts.WithUserspaceNetworking(true).
 			WithSockProxyPort(1055)
 	}
-	err := ts.Start()
+	err = ts.Start()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

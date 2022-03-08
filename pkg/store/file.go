@@ -121,8 +121,8 @@ func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) 
 	return deps, nil
 }
 
-func (f FileStore) GetCurrentWorkspaceID() string {
-	return os.Getenv("BREV_WORKSPACE_ID")
+func (f FileStore) GetCurrentWorkspaceID() (string, error) {
+	return os.Getenv("BREV_WORKSPACE_ID"), nil
 }
 
 // // Check Rust Version
