@@ -77,39 +77,10 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	}
 
 	if featureflag.IsDev() {
-		err := ConfigureVPN(o.LoginStore)
+		err := vpn.ConfigureVPN(o.LoginStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	}
-	return nil
-}
-
-func ConfigureVPN(store vpn.ServiceMeshStore) error {
-	ts := vpn.NewTailscale(store)
-	nodeIdentifier := "me"
-	workspaceID, err := store.GetCurrentWorkspaceID()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if workspaceID != "" {
-		var workspace *entity.Workspace
-		workspace, err = store.GetWorkspace(workspaceID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
-	}
-	authKeyResp, err := store.GetNetworkAuthKey()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	tsc := ts.WithConfigurerOptions(nodeIdentifier, authKeyResp.CoordServerURL)
-	tsca := tsc.WithAuthKey(authKeyResp.AuthKey)
-	err = tsca.ApplyConfig()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

@@ -126,16 +126,22 @@ func UseDarwinDNS(tailscaleDNSIP string, searchDomain string) (func() error, err
 }
 
 func (t *Tailscale) WithConfigurerOptions(hostname string, loginServerURL string) *TailscaleConfigurer {
-	return &TailscaleConfigurer{*t, hostname, loginServerURL}
+	return &TailscaleConfigurer{*t, hostname, loginServerURL, false}
 }
 
 type TailscaleConfigurer struct {
 	Tailscale
-	HostName       string
-	LoginServerURL string
+	HostName          string
+	LoginServerURL    string
+	ShouldForceReauth bool
 }
 
 var _ VPNConfigurer = TailscaleConfigurer{}
+
+func (t *TailscaleConfigurer) WithForceReauth(shouldForceReauth bool) *TailscaleConfigurer {
+	t.ShouldForceReauth = shouldForceReauth
+	return t
+}
 
 func (t TailscaleConfigurer) ApplyConfig() error {
 	outfilePath, err := files.GetTailScaleOutFilePath()
@@ -157,7 +163,12 @@ func (t TailscaleConfigurer) ApplyConfig() error {
 
 	cli.Stderr = outfile
 	// // tailscale up --login-server https://8080-headscale-9izu-brevdev.brev.sh --hostname=me
-	err = cli.Run([]string{"up", fmt.Sprintf("--hostname=%s", t.HostName), fmt.Sprintf("--login-server=%s", t.LoginServerURL)})
+	args := []string{"up", fmt.Sprintf("--hostname=%s", t.HostName), fmt.Sprintf("--login-server=%s", t.LoginServerURL)}
+	if t.ShouldForceReauth {
+		args = append(args, "--force-reauth")
+	}
+
+	err = cli.Run(args)
 	cli.Stderr = origStderr
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -222,7 +233,11 @@ type TailscaleConfigurerAuthKey struct {
 var _ VPNConfigurer = TailscaleConfigurerAuthKey{}
 
 func (t TailscaleConfigurerAuthKey) ApplyConfig() error {
-	err := cli.Run([]string{"up", fmt.Sprintf("--hostname=%s", t.HostName), fmt.Sprintf("--login-server=%s", t.LoginServerURL), fmt.Sprintf("--authkey=%s", t.AuthKey)})
+	args := []string{"up", fmt.Sprintf("--hostname=%s", t.HostName), fmt.Sprintf("--login-server=%s", t.LoginServerURL), fmt.Sprintf("--authkey=%s", t.AuthKey)}
+	if t.ShouldForceReauth {
+		args = append(args, "--force-reauth")
+	}
+	err := cli.Run(args)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

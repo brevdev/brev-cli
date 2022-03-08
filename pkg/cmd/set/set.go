@@ -7,8 +7,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -16,9 +18,9 @@ import (
 
 type SetStore interface {
 	completions.CompletionStore
+	vpn.ServiceMeshStore
 	SetDefaultOrganization(org *entity.Organization) error
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
-	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
@@ -69,6 +71,12 @@ func set(orgName string, setStore SetStore) error {
 	err = setStore.SetDefaultOrganization(&org)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	if featureflag.IsDev() {
+		err := vpn.ConfigureVPN(setStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	// Print workspaces within org

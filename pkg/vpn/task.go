@@ -40,3 +40,32 @@ func (vpnd VPNDaemon) Run() error {
 	}
 	return nil
 }
+
+func ConfigureVPN(store ServiceMeshStore) error {
+	ts := NewTailscale(store)
+	nodeIdentifier := "me"
+	workspaceID, err := store.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		var workspace *entity.Workspace
+		workspace, err = store.GetWorkspace(workspaceID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
+	}
+	authKeyResp, err := store.GetNetworkAuthKey()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	tsc := ts.WithConfigurerOptions(nodeIdentifier, authKeyResp.CoordServerURL).WithForceReauth(true)
+	tsca := tsc.WithAuthKey(authKeyResp.AuthKey)
+	err = tsca.ApplyConfig()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
