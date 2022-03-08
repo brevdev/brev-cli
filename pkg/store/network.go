@@ -108,7 +108,8 @@ func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		key, err := s.GetNetworkAuthKeyByNetworkID(workspace.NetworkID, true)
+		var key *GetAuthKeyResponse
+		key, err = s.GetNetworkAuthKeyByNetworkID(workspace.NetworkID, true)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
