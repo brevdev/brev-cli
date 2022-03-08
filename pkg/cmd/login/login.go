@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -77,11 +78,30 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	}
 
 	if featureflag.IsDev() {
-		err = vpn.RegisterNode(o.LoginStore)
+		err := ConfigureVPN(o.LoginStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	}
+	return nil
+}
 
+func ConfigureVPN(store vpn.ServiceMeshStore) error {
+	ts := vpn.NewTailscale(store)
+	nodeIdentifier := "me"
+	workspaceID := store.GetCurrentWorkspaceID()
+	if workspaceID != "" {
+		workspace, err := store.GetWorkspace(workspaceID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
+	}
+
+	tsc := ts.WithConfigurerOptions(nodeIdentifier, config.GlobalConfig.GetServiceMeshCoordServerURL())
+	err := tsc.ApplyConfig()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
