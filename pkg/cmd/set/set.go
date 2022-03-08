@@ -18,6 +18,7 @@ type SetStore interface {
 	completions.CompletionStore
 	SetDefaultOrganization(org *entity.Organization) error
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
@@ -46,6 +47,13 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 }
 
 func set(orgName string, setStore SetStore) error {
+	workspaceID, err := setStore.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		return fmt.Errorf("can not set orgs in a workspace")
+	}
 	orgs, err := setStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
