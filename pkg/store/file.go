@@ -1,8 +1,10 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -121,8 +123,41 @@ func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) 
 	return deps, nil
 }
 
+type WorkspaceMeta struct {
+	WorkspaceID      string `json:"workspaceId"`
+	WorkspaceGroupID string `json:"workspaceGroupId"`
+}
+
 func (f FileStore) GetCurrentWorkspaceID() (string, error) {
-	return os.Getenv("BREV_WORKSPACE_ID"), nil
+	meta, err := f.GetCurrentWorkspaceMeta()
+	if err != nil {
+		return "", nil
+	}
+	return meta.WorkspaceID, nil
+}
+
+func (f FileStore) GetCurrentWorkspaceMeta() (*WorkspaceMeta, error) {
+	file, err := f.fs.Open("/etc/meta/workspace.json")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	fileB, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	var wm WorkspaceMeta
+	err = json.Unmarshal(fileB, &wm)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	err = file.Close()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &wm, nil
 }
 
 // // Check Rust Version
