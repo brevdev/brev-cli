@@ -2,20 +2,22 @@ package proxy
 
 import (
 	"fmt"
-	"regexp"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/huproxyclient"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/hashicorp/go-version"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 const (
-	allowedWorkspaceImage        = "brevdev/ubuntu-proxy:0.3.*"
-	allowedWorkspaceInfraVersion = "v1.7.*"
+	allowedWorkspaceImage        = "brevdev/ubuntu-proxy"
+	allowedWorkspaceImageTag     = ">= 0.3"
+	allowedWorkspaceInfraVersion = ">= 1.7"
 )
 
 type ProxyStore interface {
@@ -73,18 +75,32 @@ func makeProxyURL(w *entity.Workspace) string {
 }
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
-	allowedInfra, err := regexp.Match(allowedWorkspaceInfraVersion, []byte(workspace.Version))
+	wv, err := version.NewVersion(workspace.Version)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if !allowedInfra {
-		return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.Version)
-	}
-	allowedImage, err := regexp.Match(allowedWorkspaceImage, []byte(workspace.WorkspaceTemplate.Image))
+	workspaceInfraConstraints, err := version.NewConstraint(allowedWorkspaceInfraVersion)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if !allowedImage {
+	if !workspaceInfraConstraints.Check(wv) {
+		return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion)
+	}
+
+	imageSplit := strings.Split(workspace.WorkspaceTemplate.Image, ":")
+	if len(imageSplit) != 2 {
+		return fmt.Errorf("problem parsing workspace image tag")
+	}
+	wiv, err := version.NewVersion(imageSplit[1])
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	imageContraints, err := version.NewConstraint(allowedWorkspaceImageTag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if !imageContraints.Check(wiv) && imageSplit[0] != allowedWorkspaceImage {
 		return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
 	}
 	if workspace.Status != "RUNNING" {
