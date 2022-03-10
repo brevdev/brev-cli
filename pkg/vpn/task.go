@@ -9,10 +9,14 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
+	"github.com/spf13/afero"
 )
 
 type ServiceMeshStore interface {
-	VPNStore
+	CopyBin(targetBin string) error
+	WriteString(path, data string) error
+	RegisterNode(publicKey string) error
+	GetOrCreateFile(path string) (afero.File, error)
 	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
 	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
@@ -62,7 +66,7 @@ func (vpnd VPNDaemon) Configure(_ *user.User) error {
 }
 
 func (vpnd VPNDaemon) configureLinux() error {
-	lsc := autostartconf.NewVPNConfig()
+	lsc := autostartconf.NewVPNConfig(vpnd.Store)
 	err := lsc.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

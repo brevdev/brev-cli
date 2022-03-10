@@ -33,6 +33,8 @@ var (
 // }
 
 type TaskStore interface {
+	CopyBin(targetBin string) error
+	WriteString(path, data string) error
 	RegisterNode(publicKey string) error
 	GetOrCreateFile(path string) (afero.File, error)
 	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)

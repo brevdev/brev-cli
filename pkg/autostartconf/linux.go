@@ -8,7 +8,7 @@ import (
 )
 
 type LinuxSystemdConfigurer struct {
-	AutoStartStore
+	Store           AutoStartStore
 	ValueConfigFile string
 	DestConfigFile  string
 	ServiceName     string
@@ -20,11 +20,8 @@ func (lsc LinuxSystemdConfigurer) UnInstall() error {
 
 func (lsc LinuxSystemdConfigurer) Install() error {
 	_ = lsc.UnInstall() // best effort
-	err := lsc.CopyBin(targetBin)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = lsc.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
+	lsc.Store.CopyBin(targetBin)
+	err := lsc.Store.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -41,8 +38,9 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 	return nil
 }
 
-func NewVPNConfig() LinuxSystemdConfigurer {
+func NewVPNConfig(store AutoStartStore) LinuxSystemdConfigurer {
 	return LinuxSystemdConfigurer{
+		Store: store,
 		ValueConfigFile: `
 [Install]
 WantedBy=multi-user.target
@@ -53,7 +51,7 @@ After=systend-user-sessions.service
 
 [Service]
 Type=simple
-ExecStart=brev run-tasks
+ExecStart=/usr/local/bin/brev meshd
 Restart=always
 `,
 		DestConfigFile: "/etc/systemd/system/brevvpnd.service",
