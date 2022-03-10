@@ -136,6 +136,14 @@ func (f FileStore) GetCurrentWorkspaceID() (string, error) {
 	return meta.WorkspaceID, nil
 }
 
+func (f FileStore) GetCurrentWorkspaceGroupID() (string, error) {
+	meta, err := f.GetCurrentWorkspaceMeta()
+	if err != nil {
+		return "", nil
+	}
+	return meta.WorkspaceGroupID, nil
+}
+
 func (f FileStore) GetCurrentWorkspaceMeta() (*WorkspaceMeta, error) {
 	file, err := f.fs.Open("/etc/meta/workspace.json")
 	if err != nil {

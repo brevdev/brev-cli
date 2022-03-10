@@ -87,6 +87,15 @@ func NewBrevCommand() *cobra.Command {
 	).
 		WithAuth(noLoginAuth)
 
+	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	if workspaceGroupID != "" {
+		loginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
+		noLoginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
+	}
+
 	cmds := &cobra.Command{
 		Use:   "brev",
 		Short: "brev client for managing workspaces",

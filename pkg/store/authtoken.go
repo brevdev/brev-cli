@@ -1,6 +1,7 @@
 package store
 
 import (
+	"io/ioutil"
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -27,6 +28,23 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 }
 
 func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	workspaceID, err := f.GetCurrentWorkspaceID()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		var serviceToken string
+		serviceToken, err = f.GetCurrentWorkspaceServiceToken()
+		if err == nil {
+			return &entity.AuthTokens{
+				AccessToken: serviceToken,
+			}, nil
+		} else {
+			// log that getting service account token failed
+			_ = 0 // noop to make linter happy
+		}
+	}
+
 	brevCredentialsFile, err := getBrevCredentialsFile()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -46,6 +64,24 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &token, nil
+}
+
+func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
+	saTokenFilePath := getServiceTokenFilePath()
+	saTokenFile, err := f.fs.Open(saTokenFilePath)
+	defer saTokenFile.Close() //nolint: errcheck // defer is fine
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	token, err := ioutil.ReadAll(saTokenFile)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return string(token), nil
+}
+
+func getServiceTokenFilePath() string {
+	return "/var/run/secrets/kubernetes.io/serviceaccount/token"
 }
 
 func getBrevCredentialsFile() (*string, error) {

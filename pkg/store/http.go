@@ -98,6 +98,11 @@ type Auth interface {
 	GetAccessToken() (string, error)
 }
 
+func (s *AuthHTTPStore) WithStaticHeader(header string, value string) *AuthHTTPStore {
+	s.authHTTPClient.restyClient.SetHeader(header, value)
+	return s
+}
+
 func NewAuthHTTPClient(auth Auth, brevAPIURL string) *AuthHTTPClient {
 	restyClient := NewRestyClient(brevAPIURL)
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
