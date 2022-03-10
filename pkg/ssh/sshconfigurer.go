@@ -59,7 +59,7 @@ func (c ConfigUpdater) GetTaskSpec() tasks.TaskSpec {
 	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 3s"}
 }
 
-func (c ConfigUpdater) Configure(user *user.User) error {
+func (c ConfigUpdater) Configure(_ *user.User) error {
 	return nil
 }
 

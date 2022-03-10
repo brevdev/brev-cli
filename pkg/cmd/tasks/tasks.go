@@ -1,4 +1,4 @@
-package taskS
+package tasks
 
 import (
 	"os/user"
@@ -13,7 +13,7 @@ type TaskMap map[string]tasks.Task
 
 var (
 	all    bool   // used for configure command
-	userID string // used for configure commmand
+	userID string // used for configure command
 )
 
 // func init() {
@@ -49,7 +49,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *cobra.
 	return cmd
 }
 
-func NewCmdConfigure(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *cobra.Command {
+func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "configure [task to configure]",
 		Short: "configure system startup daemon for task",
@@ -79,6 +79,6 @@ func NewCmdConfigure(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *co
 	return cmd
 }
 
-func Tasks(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) error {
+func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
 	return nil
 }
