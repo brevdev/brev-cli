@@ -1,6 +1,8 @@
 package vpn
 
 import (
+	"os/user"
+
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -40,6 +42,8 @@ func (vpnd VPNDaemon) Run() error {
 	}
 	return nil
 }
+
+func (vpnd VPNDaemon) Configure(_ *user.User) error { return nil }
 
 func ConfigureVPN(store ServiceMeshStore) error {
 	ts := NewTailscale(store)

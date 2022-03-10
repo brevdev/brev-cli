@@ -1,12 +1,12 @@
 package tasks
 
 import (
-	"github.com/brevdev/brev-cli/pkg/ssh"
+	"os/user"
+
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"tailscale.com/types/key"
 )
 
 type TaskMap map[string]tasks.Task
@@ -37,7 +37,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *cobra.
 		Short:                 "run background daemons for brev",
 		Long:                  "run background daemons for brev",
 		Run: func(cmd *cobra.Command, args []string) {
-			err := Tasks(t, store, taskMap )
+			err := Tasks(t, store, taskMap)
 			if err != nil {
 				log.Error(err)
 			}
@@ -54,14 +54,28 @@ func NewCmdConfigure(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *co
 		Use:   "configure [task to configure]",
 		Short: "configure system startup daemon for task",
 		Long:  "configure system startup daemon for task",
-		Run:   func(cmd *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, args []string) {
+			var userToConfigure *user.User
+			var err error
+			if userID == "" {
+				userToConfigure, err = user.Lookup(userID)
+				if err != nil {
+					_, ok := err.(*user.UnknownUserError)
+					if !ok {
+						userToConfigure, err = user.LookupId(userID)
+					}
+				}
+				if err != nil {
+					_, ok := err.(*user.UnknownUserIdError)
+					if !ok {
+						userToConfigure, err = user.LookupId(userID)
+					}
+				}
+			}
 			if all {
-		       if userID == "" {
-				   log.Fatal("provide --user")
-			   } else {
-				for _, value := range taskMap 
-
-			   }
+				for _, value := range taskMap {
+					value.Configure(userToConfigure)
+				}
 			}
 		},
 	}

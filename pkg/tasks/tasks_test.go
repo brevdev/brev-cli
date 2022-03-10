@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"fmt"
+	"os/user"
 	"sync"
 	"testing"
 	"time"
@@ -25,6 +26,10 @@ func (d *DummyTask) Run() error {
 
 func (d *DummyTask) GetTaskSpec() TaskSpec {
 	return d.TaskSpec
+}
+
+func (d *DummyTask) Configure(_ *user.User) error {
+	return nil
 }
 
 func TestRunImmediateAndCron(t *testing.T) {

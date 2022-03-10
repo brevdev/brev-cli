@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"os/user"
 	"strings"
 	"text/template"
 
@@ -56,6 +57,10 @@ func (c ConfigUpdater) Run() error {
 
 func (c ConfigUpdater) GetTaskSpec() tasks.TaskSpec {
 	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 3s"}
+}
+
+func (c ConfigUpdater) Configure(user *user.User) error {
+	return nil
 }
 
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand
