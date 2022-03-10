@@ -11,6 +11,7 @@ type LinuxSystemdConfigurer struct {
 	AutoStartStore
 	ValueConfigFile string
 	DestConfigFile  string
+	ServiceName string
 }
 
 func (lsc LinuxSystemdConfigurer) UnInstall() error {
@@ -27,11 +28,13 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	out, err := exec.Command("systemctl", "enable", "brev").CombinedOutput()
+	//nolint:gosec this is never defined by a user
+	out, err := exec.Command("systemctl", "enable", lsc.ServiceName).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running systemctl enable %s: %v, %s", lsc.DestConfigFile, err, out)
 	}
-	out, err = exec.Command("systemctl", "start", "brev").CombinedOutput()
+	//nolint:gosec this is never defined by a user
+	out, err = exec.Command("systemctl", "start", lsc.ServiceName).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error running systemctl start %s: %v, %s", lsc.DestConfigFile, err, out)
 	}
