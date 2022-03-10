@@ -3,9 +3,13 @@ package tasks
 import (
 	"os/user"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -28,9 +32,16 @@ var (
 // 	}
 // }
 
-type TaskStore interface{}
+type TaskStore interface {
+	RegisterNode(publicKey string) error
+	GetOrCreateFile(path string) (afero.File, error)
+	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
+	GetCurrentWorkspaceID() (string, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+}
 
-func NewCmdTasks(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *cobra.Command {
+func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
+	taskMap := getTaskMap(store)
 	cmd := &cobra.Command{
 		Use:                   "tasks",
 		DisableFlagsInUseLine: true,
@@ -81,4 +92,21 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 
 func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
 	return nil
+}
+
+func getTaskMap(store TaskStore) TaskMap {
+	// cu := ssh.ConfigUpdater{
+	// 	Store: store,
+	// 	Configs: []ssh.Config{
+	// 		ssh.NewSSHConfigurerV2(
+	// 			store,
+	// 		),
+	// 	},
+	// }
+
+	taskmap := make(TaskMap)
+	vpnd := vpn.NewVPNDaemon(store)
+	taskmap["vpnd"] = vpnd
+	// taskmap["vpnd"] :=
+	return taskmap
 }
