@@ -1,4 +1,4 @@
-package tasks
+package taskS
 
 import (
 	"os/user"
@@ -57,24 +57,19 @@ func NewCmdConfigure(t *terminal.Terminal, store TaskStore, taskMap TaskMap) *co
 		Run: func(cmd *cobra.Command, args []string) {
 			var userToConfigure *user.User
 			var err error
-			if userID == "" {
-				userToConfigure, err = user.Lookup(userID)
-				if err != nil {
-					_, ok := err.(*user.UnknownUserError)
-					if !ok {
-						userToConfigure, err = user.LookupId(userID)
-					}
-				}
-				if err != nil {
-					_, ok := err.(*user.UnknownUserIdError)
-					if !ok {
-						userToConfigure, err = user.LookupId(userID)
-					}
+			userToConfigure, err = user.Lookup(userID)
+			if err != nil {
+				_, ok := err.(*user.UnknownUserError)
+				if !ok {
+					userToConfigure, _ = user.LookupId(userID)
 				}
 			}
 			if all {
 				for _, value := range taskMap {
-					value.Configure(userToConfigure)
+					err := value.Configure(userToConfigure)
+					if err != nil {
+						log.Error(err)
+					}
 				}
 			}
 		},
