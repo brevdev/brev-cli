@@ -128,9 +128,11 @@ func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
 }
 
 var (
-	networkdIDParamName = "networkID"
-	networkPathPattern  = fmt.Sprintf("%s/%s", networkBasePath, "%s")
-	networkPath         = fmt.Sprintf(networkPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
+	networkdIDParamName   = "networkID"
+	networkPathPattern    = fmt.Sprintf("%s/%s", networkBasePath, "%s")
+	networkPath           = fmt.Sprintf(networkPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
+	networkKeyPathPattern = fmt.Sprintf("%s/key", networkPathPattern)
+	networkKeyPath        = fmt.Sprintf(networkKeyPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
 )
 
 func (s AuthHTTPStore) GetNetworkAuthKeyByNetworkID(networkID string, ephemeral bool) (*GetAuthKeyResponse, error) {
@@ -138,7 +140,7 @@ func (s AuthHTTPStore) GetNetworkAuthKeyByNetworkID(networkID string, ephemeral 
 		SetHeader("Content-Type", "application/json").
 		SetQueryParam("ephemeral", strconv.FormatBool(ephemeral)).
 		SetPathParam(networkdIDParamName, networkID).
-		Get(networkPath)
+		Get(networkKeyPath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
