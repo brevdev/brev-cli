@@ -89,11 +89,7 @@ func makeBrevFilePath(filename string) (*string, error) {
 }
 
 func GetBrevHome() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	return filepath.Join(home, brevDirectory), nil
+	return filepath.Join("/home/f/", brevDirectory), nil
 }
 
 func makeBrevFilePathOrPanic(filename string) string {

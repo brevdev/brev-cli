@@ -81,10 +81,10 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if featureflag.IsAdmin(user.GlobalUserType) {
-		err := vpn.ConfigureVPN(o.LoginStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		// err := vpn.ConfigureVPN(o.LoginStore)
+		// if err != nil {
+		// 	return breverrors.WrapAndTrace(err)
+		// }
 	}
 	return nil
 }
@@ -131,11 +131,11 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	terminal.DisplaySSHKeys(t, user.PublicKey)
 
 	// Check IDE requirements
-	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "Hit enter when finished:",
-		ErrorMsg:   "error",
-		AllowEmpty: true,
-	})
+	// _ = terminal.PromptGetInput(terminal.PromptContent{
+	// 	Label:      "Hit enter when finished:",
+	// 	ErrorMsg:   "error",
+	// 	AllowEmpty: true,
+	// })
 
 	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{

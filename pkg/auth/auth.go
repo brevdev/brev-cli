@@ -9,7 +9,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt"
 	"github.com/pkg/browser"
@@ -160,15 +159,15 @@ func (t Auth) Login() (*LoginTokens, error) {
 		func(url, code string) {
 			codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
-			caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
-			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
+			// caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
+			// enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("")
-			_ = terminal.PromptGetInput(terminal.PromptContent{
-				Label:      caretType("->") + "    Press " + enterType("Enter") + " to login via browser",
-				ErrorMsg:   "error",
-				AllowEmpty: true,
-			})
+			// _ = terminal.PromptGetInput(terminal.PromptContent{
+			// 	Label:      caretType("->") + "    Press " + enterType("Enter") + " to login via browser",
+			// 	ErrorMsg:   "error",
+			// 	AllowEmpty: true,
+			// })
 
 			err := browser.OpenURL(url)
 			if err != nil {

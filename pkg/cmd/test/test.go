@@ -1,14 +1,15 @@
 package test
 
 import (
-	"fmt"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
-	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 
+	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
 
@@ -31,12 +32,16 @@ type TestStore interface {
 }
 
 type ServiceMeshStore interface {
-	autostartconf.AutoStartStore
-	GetCurrentWorkspaceID() string
+	CopyBin(targetBin string) error
+	WriteString(path, data string) error
+	RegisterNode(publicKey string) error
+	GetOrCreateFile(path string) (afero.File, error)
+	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
+	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
-func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
+func NewCmdTest(_ *terminal.Terminal, store ServiceMeshStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -46,15 +51,10 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			gistURL := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
-
-			resp, err := store.GetSetupScriptContentsByURL(gistURL)
+			err := vpn.ConfigureVPN(store)
 			if err != nil {
-				return nil
+				return breverrors.WrapAndTrace(err)
 			}
-			fmt.Println(resp)
-
-			return nil
 			// cfg := autostartconf.LinuxSystemdConfigurer{
 			// 	AutoStartStore: store,
 			// 	ValueConfigFile: `
@@ -75,7 +75,7 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 			// if err != nil {
 			// 	return breverrors.WrapAndTrace(err)
 			// }
-			// return nil
+			return nil
 		},
 	}
 

@@ -18,7 +18,7 @@
       ],
       "env": {
         // "ACTION": "stop",
-        // "WORKSPACE_ID": "goelomabr"
+        "BREV_API_URL": "https://8080-brevdeploy-0jgp-brevdev.brev.sh"
       }
     },
     {

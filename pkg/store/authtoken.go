@@ -2,7 +2,6 @@ package store
 
 import (
 	"io/ioutil"
-	"os"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -85,10 +84,8 @@ func getServiceTokenFilePath() string {
 }
 
 func getBrevCredentialsFile() (*string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+	home := "/home/f"
+	// os.UserHomeDir()
 	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
 	return &brevCredentialsFile, nil
 }
