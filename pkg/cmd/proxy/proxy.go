@@ -93,15 +93,21 @@ func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 	}
 	wiv, err := version.NewVersion(imageSplit[1])
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	imageContraints, err := version.NewConstraint(allowedWorkspaceImageTag)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+		if !strings.Contains(err.Error(), "Malformed") {
+			return breverrors.WrapAndTrace(err)
+		} else {
+			_ = 0
+			// skip checking constraints since probably a test image
+		}
+	} else {
+		imageContraints, err := version.NewConstraint(allowedWorkspaceImageTag)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 
-	if !imageContraints.Check(wiv) && imageSplit[0] != allowedWorkspaceImage {
-		return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
+		if !imageContraints.Check(wiv) && imageSplit[0] != allowedWorkspaceImage {
+			return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
+		}
 	}
 	if workspace.Status != "RUNNING" {
 		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)
