@@ -1,6 +1,8 @@
 package store
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -20,6 +22,23 @@ func (s AuthHTTPStore) SetDefaultOrganization(org *entity.Organization) error {
 
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
+	workspaceID, err := s.GetCurrentWorkspaceID()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		var workspace *entity.Workspace
+		workspace, err = s.GetWorkspace(workspaceID)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		org, err := s.GetOrganization(workspace.OrganizationID)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return org, nil
+	}
+
 	brevActiveOrgsFile := files.GetActiveOrgsPath()
 	exists, err := afero.Exists(s.fs, brevActiveOrgsFile)
 	if err != nil {
@@ -94,6 +113,29 @@ func (s AuthHTTPStore) getOrganizations() ([]entity.Organization, error) {
 	}
 
 	return result, nil
+}
+
+var (
+	orgParamName     = "organizationID"
+	orgIDPathPattern = "api/organizations/%s"
+	orgIDPath        = fmt.Sprintf(orgIDPathPattern, fmt.Sprintf("{%s}", orgParamName))
+)
+
+func (s AuthHTTPStore) GetOrganization(organizationID string) (*entity.Organization, error) {
+	var result entity.Organization
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		SetPathParam(orgIDParamName, organizationID).
+		Get(orgIDPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return &result, nil
 }
 
 type CreateOrganizationRequest struct {
