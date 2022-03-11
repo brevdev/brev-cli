@@ -93,8 +93,8 @@ func (s AuthHTTPStore) registerUserNodeToNetwork(req registerUserNodeRequest) er
 }
 
 type GetAuthKeyResponse struct {
-	CoordServerURL string
-	AuthKey        string
+	CoordServerURL string `json:"coordServerUrl"`
+	AuthKey        string `json:"authKey"`
 }
 
 func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
