@@ -196,7 +196,7 @@ func hasHousekeepingCommands(cmd *cobra.Command) bool {
 }
 
 func hasDebugCommands(cmd *cobra.Command) bool {
-	return len(debuCommands(cmd)) > 0
+	return len(debugsCommands(cmd)) > 0
 }
 
 func printCautiousMetaCmdMessage() string {
@@ -226,7 +226,7 @@ func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
 	return cmds
 }
 
-func debuCommands(cmd *cobra.Command) []*cobra.Command {
+func debugsCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
 		if isDebugCommand(sub) {
