@@ -20,8 +20,11 @@ func (lsc LinuxSystemdConfigurer) UnInstall() error {
 
 func (lsc LinuxSystemdConfigurer) Install() error {
 	_ = lsc.UnInstall() // best effort
-	lsc.Store.CopyBin(targetBin)
-	err := lsc.Store.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
+	err := lsc.Store.CopyBin(targetBin)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = lsc.Store.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

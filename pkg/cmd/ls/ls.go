@@ -77,13 +77,13 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	}
 	if len(args) == 1 { // handle org, orgs, and organization(s)
 		if strings.Contains(args[0], "org") {
-			err := ls.RunOrgs()
+			err = ls.RunOrgs()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		} else if strings.Contains(args[0], "user") && featureflag.IsAdmin(user.GlobalUserType) {
-			err := ls.RunUser(showAll)
+			err = ls.RunUser(showAll)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -95,7 +95,8 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 
 	var org *entity.Organization
 	if orgflag != "" {
-		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+		var orgs []entity.Organization
+		orgs, err = lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -107,7 +108,8 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 
 		org = &orgs[0]
 	} else {
-		currOrg, err := lsStore.GetActiveOrganizationOrDefault()
+		var currOrg *entity.Organization
+		currOrg, err = lsStore.GetActiveOrganizationOrDefault()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -117,7 +119,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		org = currOrg
 	}
 
-	err := ls.RunWorkspaces(org, showAll)
+	err = ls.RunWorkspaces(org, showAll)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

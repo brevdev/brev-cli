@@ -28,7 +28,7 @@ linters-settings:
       - name: unreachable-code
       - name: redefines-builtin-id
   gocyclo:
-    min-complexity: 15
+    min-complexity: 16
   govet:
     check-shadowing: true
   misspell:
