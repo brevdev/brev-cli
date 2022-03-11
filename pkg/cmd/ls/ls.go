@@ -196,30 +196,38 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 
 	// SHOW UNJOINED
 	if showAll {
-		listJoinedByGitURL := make(map[string][]entity.Workspace)
-		for _, w := range workspaces {
-			l := listJoinedByGitURL[w.GitRepo]
-			l = append(l, w)
-			listJoinedByGitURL[w.GitRepo] = l
-		}
 
 		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
+	
 		}
-		listByGitURL := make(map[string][]entity.Workspace)
-
+	
+		listJoinedByGitURL := make(map[string][]entity.Workspace)
+	
+		var notMyWorkspaces []entity.Workspace
 		for _, w := range wss {
-
+			if w.CreatedByUserID == user.ID {
+				l := listJoinedByGitURL[w.GitRepo]
+				l = append(l, w)
+				listJoinedByGitURL[w.GitRepo] = l
+			} else {
+				notMyWorkspaces = append(notMyWorkspaces, w)
+			}
+		}
+	
+		listByGitURL := make(map[string][]entity.Workspace)
+		for _, w := range notMyWorkspaces {
+	
 			_, exist := listJoinedByGitURL[w.GitRepo]
-
+	
 			// unjoined workspaces only: check it's not a joined one
 			if !exist {
 				l := listByGitURL[w.GitRepo]
 				l = append(l, w)
 				listByGitURL[w.GitRepo] = l
 			}
-
+	
 		}
 		var unjoinedWorkspaces []entity.Workspace
 		for gitURL := range listByGitURL {
