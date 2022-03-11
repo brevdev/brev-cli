@@ -25,6 +25,7 @@ type User struct {
 	Email             string `json:"email"`
 	WorkspacePassword string `json:"workspacePassword"`
 	BaseWorkspaceRepo string `json:"baseWorkspaceRepo"`
+	GlobalUserType    string `json:"globalUserType"`
 }
 
 type UserKeys struct {

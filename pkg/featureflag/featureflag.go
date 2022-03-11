@@ -8,5 +8,15 @@ import (
 )
 
 func IsDev() bool {
-	return os.Getenv("BREV_FEATURE_FLAG_DEV") == "dev" || version.Version == "" || strings.HasPrefix(version.Version, "dev")
+	if os.Getenv("BREV_FEATURE_FLAG_DEV") != "" {
+		return os.Getenv("BREV_FEATURE_FLAG_DEV") == "1"
+	}
+	return version.Version == "" || strings.HasPrefix(version.Version, "dev")
+}
+
+func IsAdmin(userType string) bool {
+	if os.Getenv("BREV_FEATURE_NOT_ADMIN") == "1" {
+		return false
+	}
+	return userType == "Admin"
 }

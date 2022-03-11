@@ -76,7 +76,11 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if featureflag.IsDev() {
+	user, err := o.LoginStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if featureflag.IsAdmin(user.GlobalUserType) {
 		err := vpn.ConfigureVPN(o.LoginStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)

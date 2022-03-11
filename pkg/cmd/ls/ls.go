@@ -71,6 +71,10 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
 	ls := NewLs(lsStore, t)
+	user, err := lsStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if len(args) == 1 { // handle org, orgs, and organization(s)
 		if strings.Contains(args[0], "org") {
 			err := ls.RunOrgs()
@@ -78,7 +82,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
-		} else if strings.Contains(args[0], "user") && featureflag.IsDev() {
+		} else if strings.Contains(args[0], "user") && featureflag.IsAdmin(user.GlobalUserType) {
 			err := ls.RunUser(showAll)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)

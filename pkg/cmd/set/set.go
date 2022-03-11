@@ -72,7 +72,11 @@ func set(orgName string, setStore SetStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if featureflag.IsDev() {
+	user, err := setStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if featureflag.IsAdmin(user.GlobalUserType) {
 		err := vpn.ConfigureVPN(setStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
