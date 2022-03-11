@@ -32,7 +32,8 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		org, err := s.GetOrganization(workspace.OrganizationID)
+		var org *entity.Organization
+		org, err = s.GetOrganization(workspace.OrganizationID)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
