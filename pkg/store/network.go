@@ -136,6 +136,9 @@ var (
 )
 
 func (s AuthHTTPStore) GetNetworkAuthKeyByNetworkID(networkID string, ephemeral bool) (*GetAuthKeyResponse, error) {
+	if networkID == "" {
+		return nil, fmt.Errorf("network id can not be an empty string")
+	}
 	result := GetAuthKeyResponse{}
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
