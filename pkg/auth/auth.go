@@ -221,7 +221,7 @@ func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 		}
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if tokens != nil && tokens.AccessToken == "" {
+	if tokens != nil && tokens.AccessToken == "" && tokens.RefreshToken == "" {
 		return nil, nil
 	}
 	return tokens, nil
