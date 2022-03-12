@@ -205,7 +205,7 @@ func TestFailedRefreshGetFreshAccessTokenOrLogin(t *testing.T) {
 		&MockAuthStore{
 			authTokens: &entity.AuthTokens{
 				AccessToken:  "invalid",
-				RefreshToken: "",
+				RefreshToken: "invalid",
 			},
 		}, &MockOauth{
 			authTokens: nil,

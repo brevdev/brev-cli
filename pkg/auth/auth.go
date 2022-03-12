@@ -121,7 +121,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		if tokens == nil {
 			return "", nil
 		}
-	} else if tokens.RefreshToken == "" {
+	} else if tokens.RefreshToken == "" && tokens.AccessToken == "" {
 		return "", nil
 	}
 	return tokens.AccessToken, nil

@@ -8,6 +8,6 @@ import (
 )
 
 func TestVersionParsing(t *testing.T) {
-	_, err := version.NewVersion("1234")
+	_, err := version.NewVersion("abadfjladsf")
 	assert.NotNil(t, err)
 }

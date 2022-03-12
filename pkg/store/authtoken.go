@@ -1,7 +1,6 @@
 package store
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -34,7 +33,6 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
-		fmt.Println("using sa token")
 		var serviceToken string
 		serviceToken, err = f.GetCurrentWorkspaceServiceToken()
 		if err == nil {
