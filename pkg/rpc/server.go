@@ -12,7 +12,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-const SockAddr = "/tmp/rpc.sock" // todo /var/run/brev/brevvpnd.sock
+// const SockAddr = "/tmp/rpc.sock" // todo /var/run/brev/brevvpnd.sock
 
 type RPCServerStore interface {
 	CopyBin(targetBin string) error
