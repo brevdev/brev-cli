@@ -5,13 +5,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"net"
-	"net/http"
-	"net/rpc"
-	"os"
-
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -19,8 +12,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// todo /var/run/brev/brevvpnd.sock
-const SockAddr = "/tmp/rpc.sock"
+const SockAddr = "/tmp/rpc.sock" // todo /var/run/brev/brevvpnd.sock
 
 type RPCServerStore interface {
 	CopyBin(targetBin string) error
@@ -36,13 +28,13 @@ type Server struct {
 	Store RPCServerStore
 }
 
-func check() {
-	fi, err := os.Stat(SockAddr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Println("mode", fi.Mode())
-}
+// func check() {
+// 	fi, err := os.Stat(SockAddr)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	log.Println("mode", fi.Mode())
+// }
 
 func (s Server) TailscaleUp() error {
 	vpnd := &vpn.VPNDaemon{
@@ -56,21 +48,21 @@ func (s Server) TailscaleUp() error {
 	return nil
 }
 
-func main() {
-	if err := os.RemoveAll(SockAddr); err != nil {
-		log.Fatal(err)
-	}
+// func main() {
+// 	if err := os.RemoveAll(SockAddr); err != nil {
+// 		log.Fatal(err)
+// 	}
 
-	greeter := new(Server)
-	rpc.Register(greeter)
-	rpc.HandleHTTP()
-	l, e := net.Listen("unix", SockAddr)
-	if e != nil {
-		log.Fatal("listen error:", e)
-	}
-	if err := os.Chmod(SockAddr, 0o777); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Serving...")
-	http.Serve(l, nil)
-}
+// 	greeter := new(Server)
+// 	rpc.Register(greeter)
+// 	rpc.HandleHTTP()
+// 	l, e := net.Listen("unix", SockAddr)
+// 	if e != nil {
+// 		log.Fatal("listen error:", e)
+// 	}
+// 	if err := os.Chmod(SockAddr, 0o777); err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	fmt.Println("Serving...")
+// 	http.Serve(l, nil)
+// }
