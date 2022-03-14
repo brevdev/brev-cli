@@ -305,3 +305,15 @@ func (f FileStore) CopyBin(targetBin string) error {
 	}
 	return nil
 }
+
+func (f FileStore) UserHomeDir() (string, error) {
+	if f.User != nil {
+		return f.User.HomeDir, nil
+	} else {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		return home, nil
+	}
+}
