@@ -55,6 +55,8 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 
 	configure := NewCmdConfigure(t, store, taskMap)
 	cmd.AddCommand(configure)
+	run := NewCmdRun(t, store, taskMap)
+	cmd.AddCommand(run)
 	return cmd
 }
 
@@ -89,6 +91,37 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 	return cmd
 }
 
+func NewCmdRun(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "run [task to configure]",
+		Short: "run a task",
+		Long:  "run a task",
+		Run: func(cmd *cobra.Command, args []string) {
+			if all {
+				for _, value := range taskMap {
+					err := value.Run()
+					if err != nil {
+						log.Error(err)
+					}
+				}
+			} else {
+				if len(args) == 0 {
+					log.Error("provide a task name or --all")
+					return
+				}
+				if task, ok := taskMap[args[0]]; ok {
+					err := task.Run()
+					if err != nil {
+						log.Error(err)
+					}
+				}
+			}
+		},
+	}
+	cmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "configure all tasks (must run this as root and pass --user")
+	return cmd
+}
+
 func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
 	return nil
 }
@@ -108,6 +141,5 @@ func getTaskMap(store TaskStore) TaskMap {
 	taskmap["vpnd"] = vpnd
 	rpcd := rpcserver.NewRPCServerTask(store)
 	taskmap["rpcd"] = rpcd
-	// taskmap["vpnd"] :=
 	return taskmap
 }
