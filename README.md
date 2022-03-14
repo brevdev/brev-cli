@@ -84,6 +84,9 @@ BREV_API_URL=http://localhost:8080
 
 ## adding new commands
 
+
+https://github.com/spf13/cobra/blob/master/user_guide.md
+
 `pkg/cmd/logout/logout.go` is a minimal command to go off of for adding new commands.
 
 commands for the cli should follow `<VERB>` `<NOUN>` pattern.
