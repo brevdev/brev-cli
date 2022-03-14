@@ -71,12 +71,8 @@ const (
 	sysPlist = "/Library/LaunchAgents/com.brev.brev.plist"
 )
 
-func GetPlistPath() (*string, error) {
-	dirname, err := os.UserHomeDir()
-	if err != nil {
-		return nil, err
-	}
-	path := filepath.Join(dirname, sysPlist)
+func GetPlistPath(home string) (*string, error) {
+	path := filepath.Join(home, sysPlist)
 	return &path, nil
 }
 
@@ -123,7 +119,7 @@ func UninstallSystemDaemonDarwin(args []string) (ret error) {
 	return ret
 }
 
-func InstallSystemDaemonDarwin(args []string) (err error) {
+func InstallSystemDaemonDarwin(args []string, home string) (err error) {
 	if len(args) > 0 {
 		return errors.New("install subcommand takes no arguments")
 	}
@@ -169,7 +165,7 @@ func InstallSystemDaemonDarwin(args []string) (err error) {
 		return err
 	}
 
-	plistPath, err := GetPlistPath()
+	plistPath, err := GetPlistPath(home)
 
 	sudouser := os.Getenv("SUDO_USER")
 	user, err := user.Lookup(sudouser)

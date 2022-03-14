@@ -179,7 +179,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	}
 
 	if ide == "JetBrains IDEs" {
-		return CheckAndInstallGateway(t)
+		return CheckAndInstallGateway(t, loginStore)
 	}
 
 	terminal.DisplayBrevLogo(t)
@@ -202,14 +202,19 @@ func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
 	return strings.Contains(string(out), extensionID), nil
 }
 
-func CheckAndInstallGateway(t *terminal.Terminal) (err error) {
+func CheckAndInstallGateway(t *terminal.Terminal, store LoginStore) (err error) {
 	localOS := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "Which operating system does your local computer have?",
 		ErrorMsg: "error",
 		Items:    []string{"Mac OS (Intel)", "Mac OS (M1 Chip)", "Linux"},
 	})
 
-	jetBrainsDirectory, installScript, err := CreateDownloadPathAndInstallScript(localOS)
+	home, err := store.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	jetBrainsDirectory, installScript, err := CreateDownloadPathAndInstallScript(localOS, home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -292,11 +297,7 @@ func InstallGateway(installScript string, t *terminal.Terminal) {
 	}
 }
 
-func CreateDownloadPathAndInstallScript(localOS string) (jetBrainsDirectory string, installScript string, err error) {
-	homeDirectory, err := os.UserHomeDir() // todo use store
-	if err != nil {
-		return "", "", breverrors.WrapAndTrace(err)
-	}
+func CreateDownloadPathAndInstallScript(localOS string, homeDirectory string) (jetBrainsDirectory string, installScript string, err error) {
 	switch localOS {
 	case "Mac OS (Intel)":
 		jetBrainsDirectory = homeDirectory + `/Library/Application Support/JetBrains`
