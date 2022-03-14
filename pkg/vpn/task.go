@@ -13,8 +13,8 @@ import (
 type ServiceMeshStore interface {
 	autostartconf.AutoStartStore
 	VPNStore
-	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)      // * // homedir
-	GetCurrentWorkspaceID() (string, error)                     // * // no homedir
+	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error) // * // homedir
+	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error) // * // homdir
 }
 

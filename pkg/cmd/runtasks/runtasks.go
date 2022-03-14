@@ -2,7 +2,6 @@ package runtasks
 
 import (
 	"github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -37,16 +36,13 @@ type RunTasksStore interface {
 	ssh.ConfigUpdaterStore
 	ssh.SSHConfigurerV2Store
 	vpn.ServiceMeshStore
+	tasks.RunTaskAsDaemonStore
 }
 
 func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
 	ts := getDefaultTasks(store)
-	home, err := files.GetBrevHome()
-	if err != nil {
-		return errors.WrapAndTrace(err)
-	}
 	if detached {
-		err := tasks.RunTaskAsDaemon(ts, home)
+		err := tasks.RunTaskAsDaemon(ts, store)
 		if err != nil {
 			return errors.WrapAndTrace(err)
 		}

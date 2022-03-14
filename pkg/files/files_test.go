@@ -2,6 +2,7 @@ package files
 
 // Basic imports
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/suite"
@@ -17,12 +18,14 @@ type filesTestSuite struct {
 // All methods that begin with "Test" are run as tests within a
 // suite.
 func (s *filesTestSuite) TestGetUserSSHConfigPath() {
-	_, err := GetUserSSHConfigPath()
+	home, _ := os.UserHomeDir()
+	_, err := GetUserSSHConfigPath(home)
 	s.Nil(err)
 }
 
 func (s *filesTestSuite) TestGetNewBackupSSHConfigFilePath() {
-	_, err := GetNewBackupSSHConfigFilePath()
+	home, _ := os.UserHomeDir()
+	_, err := GetNewBackupSSHConfigFilePath(home)
 	s.Nil(err)
 }
 

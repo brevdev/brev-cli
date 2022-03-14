@@ -59,8 +59,8 @@ func (d DummySSHConfigurerV2Store) WriteUserSSHConfig(_ string) error {
 	return nil
 }
 
-func (d DummySSHConfigurerV2Store) GetPrivateKeyPath() string {
-	return "/my/priv/key.pem"
+func (d DummySSHConfigurerV2Store) GetPrivateKeyPath() (string, error) {
+	return "/my/priv/key.pem", nil
 }
 
 func (d DummySSHConfigurerV2Store) GetUserSSHConfigPath() (string, error) {

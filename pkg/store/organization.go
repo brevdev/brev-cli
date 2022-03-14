@@ -10,9 +10,16 @@ import (
 )
 
 func (s AuthHTTPStore) SetDefaultOrganization(org *entity.Organization) error {
-	path := files.GetActiveOrgsPath()
+	home, err := s.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetActiveOrgsPath(home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	err := files.OverwriteJSON(path, org)
+	err = files.OverwriteJSON(path, org)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -40,7 +47,14 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		return org, nil
 	}
 
-	brevActiveOrgsFile := files.GetActiveOrgsPath()
+	home, err := s.UserHomeDir()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	brevActiveOrgsFile, err := files.GetActiveOrgsPath(home)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 	exists, err := afero.Exists(s.fs, brevActiveOrgsFile)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

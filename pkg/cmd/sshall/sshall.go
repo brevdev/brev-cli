@@ -12,7 +12,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/pkg/errors"
@@ -36,13 +35,13 @@ type SSHAll struct {
 
 type SSHResolver interface {
 	GetConfiguredWorkspacePort(entity.WorkspaceLocalID) (string, error)
+	GetPrivateKeyPath() (string, error)
 }
 
 func NewSSHAll(
 	workspaces []entity.WorkspaceWithMeta,
 	workspaceGroupClientMapper k8s.WorkspaceGroupClientMapper,
 	sshResolver SSHResolver,
-
 ) *SSHAll {
 	return &SSHAll{
 		workspaces:                 workspaces,
@@ -54,7 +53,7 @@ func NewSSHAll(
 	}
 }
 
-func workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (bool, error) {
+func (s SSHAll) workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (bool, error) {
 	var hostKey ssh.PublicKey
 	// A public key may be used to authenticate against the remote
 	// 	var hostKey ssh.PublicKey
@@ -63,7 +62,11 @@ func workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (bool, error)
 	//
 	// If you have an encrypted private key, the crypto/x509 package
 	// can be used to decrypt it.
-	key, err := ioutil.ReadFile(files.GetSSHPrivateKeyPath())
+	privateKeyPath, err := s.sshResolver.GetPrivateKeyPath()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	key, err := ioutil.ReadFile(privateKeyPath) //nolint:gosec // not including file via variable
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err, "unable to read private key: %v")
 	}
@@ -118,7 +121,7 @@ func (s SSHAll) Run() error {
 			<-errorQueue
 			fmt.Println("resetting unhealthy connections")
 			for _, w := range s.workspaces {
-				isHealthy, _ := workspaceSSHConnectionHealthCheck(w)
+				isHealthy, _ := s.workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
 					fmt.Printf("resetting [w=%s]\n", w.DNS)
 					TryClose(s.workspaceConnections[w])

@@ -10,13 +10,21 @@ import (
 	"syscall"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/files"
 	cron "github.com/robfig/cron/v3"
 	"github.com/sevlyar/go-daemon"
 )
 
-func RunTaskAsDaemon(tasks []Task, brevHome string) error {
-	err := files.MakeBrevHome() // todo use store
+type RunTaskAsDaemonStore interface {
+	BuildBrevHome() error
+	GetBrevHomePath() (string, error)
+}
+
+func RunTaskAsDaemon(tasks []Task, store RunTaskAsDaemonStore) error {
+	err := store.BuildBrevHome()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	brevHome, err := store.GetBrevHomePath()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

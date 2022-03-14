@@ -17,11 +17,7 @@ const (
 	JetbrainsGatewayConfigFileName = "sshConfigs.xml"
 )
 
-func getJebrainsConfigDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+func getJebrainsConfigDir(home string) (string, error) {
 	var infix string
 	infixSuffix := filepath.Join("JetBrains", "JetBrainsGateway2021.3", "options")
 	switch runtime.GOOS {
@@ -38,7 +34,11 @@ func getJebrainsConfigDir() (string, error) {
 }
 
 func (f FileStore) GetJetBrainsConfigPath() (string, error) {
-	configDir, err := getJebrainsConfigDir()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	configDir, err := getJebrainsConfigDir(home)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -64,7 +64,11 @@ func (f FileStore) GetJetBrainsConfig() (string, error) {
 }
 
 func (f FileStore) DoesJetbrainsFilePathExist() (bool, error) {
-	path, err := getJebrainsConfigDir()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	path, err := getJebrainsConfigDir(home)
 	path = filepath.Join(path, "..")
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)

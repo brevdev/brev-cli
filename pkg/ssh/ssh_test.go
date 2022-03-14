@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -117,11 +118,19 @@ bsVMEVXkW9a34JZKUtAacBGtC25BNkxeaw24Y6lV5y0Jzz4Kuza4og==
 func makeMockSSHStore() (*store.FileStore, error) {
 	mfs := afero.NewMemMapFs()
 	fs := store.NewBasicStore().WithFileSystem(mfs)
-	err := afero.WriteFile(mfs, files.GetActiveOrgsPath(), []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	p, err := files.GetUserSSHConfigPath()
+	orgPath, err := files.GetActiveOrgsPath(home)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(mfs, orgPath, []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	p, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -141,7 +150,11 @@ func makeMockJetBrainsGateWayStore() *store.FileStore {
 func makeTestUserSSHConfigString() (string, error) {
 	store, err := makeMockSSHStore()
 	if err != nil {
-		return "", err
+		return "", breverrors.WrapAndTrace(err)
+	}
+	pkePath, err := store.GetPrivateKeyPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
 	}
 	userSSHConfigStr := fmt.Sprintf(`%[2]s
 Host %[3]s
@@ -160,8 +173,8 @@ Host brevdev/brev-deploy
   User brev
   Port 2224
 
-`, store.GetPrivateKeyPath(), userConfigStr, someWorkspaces[0].GetLocalIdentifier(nil))
-	return userSSHConfigStr, err
+`, pkePath, userConfigStr, someWorkspaces[0].GetLocalIdentifier(nil))
+	return userSSHConfigStr, nil
 }
 
 func makeTestSSHConfig(store SSHStore) (*SSHConfig, error) {
@@ -268,7 +281,10 @@ Host %s
 	privateKeyExists, err := mockStore.FileExists(sshConfig.privateKey)
 	assert.Nil(t, err)
 	assert.True(t, privateKeyExists)
-	privateKeyFilePath := mockStore.GetPrivateKeyPath()
+	privateKeyFilePath, err := mockStore.GetPrivateKeyPath()
+	if !assert.Nil(t, err) {
+		return
+	}
 	pk, err := mockStore.GetOrCreateFile(privateKeyFilePath)
 	if !assert.Nil(t, err) {
 		return
@@ -317,13 +333,17 @@ func TestPruneInactiveWorkspaces(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
+	pkPath, err := sshConfig.store.GetPrivateKeyPath()
+	if !assert.Nil(t, err) {
+		return
+	}
 	assert.Equal(t, fmt.Sprintf(`%s
 Host %s
   Hostname 0.0.0.0
   IdentityFile %s
   User brev
   Port 2222
-`, userConfigStr, activeWorkspace, sshConfig.store.GetPrivateKeyPath()), sshConfig.sshConfig.String())
+`, userConfigStr, activeWorkspace, pkPath), sshConfig.sshConfig.String())
 }
 
 func TestGetBrevHostValues(t *testing.T) {
@@ -440,7 +460,7 @@ func TestSyncJetBrainsGateWayConfig(t *testing.T) {
 	identityPortMap[someWorkspaces[0].GetLocalIdentifier(nil)] = "2222"
 	err = jetBrainsGatewayConfig.Sync(identityPortMap)
 	assert.Nil(t, err)
-	privatekeypath := mockJetbrainsGatewayStore.GetPrivateKeyPath()
+	privatekeypath, err := mockJetbrainsGatewayStore.GetPrivateKeyPath()
 	assert.Nil(t, err)
 	config, err := mockJetbrainsGatewayStore.GetJetBrainsConfig()
 	assert.Nil(t, err)
@@ -482,7 +502,9 @@ func TestGetBrevPortsJetBrainsGateWayConfig(t *testing.T) {
 
 func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
-	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
+	pk, err := mockJetbrainsGatewayStore.GetPrivateKeyPath()
+	assert.Nil(t, err)
+	err = mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
       <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
@@ -491,7 +513,7 @@ func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
     </configs>
   </component>
 </application>
-`, mockJetbrainsGatewayStore.GetPrivateKeyPath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
+`, pk, someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -503,7 +525,9 @@ func TestGetBrevHostValueSetJetBrainsGateWayConfig(t *testing.T) {
 
 func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
-	err := mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
+	pk, err := mockJetbrainsGatewayStore.GetPrivateKeyPath()
+	assert.Nil(t, err)
+	err = mockJetbrainsGatewayStore.WriteJetBrainsConfig(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
       <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">
@@ -512,7 +536,7 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
     </configs>
   </component>
 </application>
-`, mockJetbrainsGatewayStore.GetPrivateKeyPath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
+`, pk, someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
 	assert.Nil(t, err)
 	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(mockJetbrainsGatewayStore)
 	assert.Nil(t, err)
@@ -524,6 +548,8 @@ func TestGetConfiguredWorkspacePortJetBrainsGatewayConfig(t *testing.T) {
 
 func TestParseJetbrainsGatewayXml(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
+	pk, err := mockJetbrainsGatewayStore.GetPrivateKeyPath()
+	assert.Nil(t, err)
 	xml, err := parseJetbrainsGatewayXML(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
@@ -533,7 +559,7 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
     </configs>
   </component>
 </application>
-`, mockJetbrainsGatewayStore.GetPrivateKeyPath(), someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
+`, pk, someWorkspaces[0].GetLocalIdentifier(nil), someWorkspaces[0].GetLocalIdentifier(nil)))
 	assert.Nil(t, err)
 	assert.Equal(t, len(xml.Component.Configs.SSHConfigs), 1)
 	assert.Equal(t, someWorkspaces[0].GetLocalIdentifier(nil), xml.Component.Configs.SSHConfigs[0].CustomName)

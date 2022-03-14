@@ -71,7 +71,7 @@ type SSHConfigurerV2Store interface {
 	WriteBrevSSHConfig(config string) error
 	GetUserSSHConfig() (string, error)
 	WriteUserSSHConfig(config string) error
-	GetPrivateKeyPath() string
+	GetPrivateKeyPath() (string, error)
 	GetUserSSHConfigPath() (string, error)
 	GetBrevSSHConfigPath() (string, error)
 }
@@ -113,7 +113,11 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
-		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, s.store.GetPrivateKeyPath())
+		pk, err := s.store.GetPrivateKeyPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}

@@ -15,7 +15,11 @@ import (
 
 // !! need something to resolve file path of user ssh
 func (f FileStore) GetUserSSHConfig() (string, error) {
-	path, err := files.GetUserSSHConfigPath()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -36,7 +40,11 @@ func (f FileStore) GetUserSSHConfig() (string, error) {
 }
 
 func (f FileStore) GetUserSSHConfigPath() (string, error) {
-	path, err := files.GetUserSSHConfigPath()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -44,7 +52,11 @@ func (f FileStore) GetUserSSHConfigPath() (string, error) {
 }
 
 func (f FileStore) GetBrevSSHConfigPath() (string, error) {
-	path, err := files.GetBrevSSHConfigPath()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetBrevSSHConfigPath(home)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -52,7 +64,11 @@ func (f FileStore) GetBrevSSHConfigPath() (string, error) {
 }
 
 func (f FileStore) WriteUserSSHConfig(config string) error {
-	csp, err := files.GetUserSSHConfigPath()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	csp, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -64,7 +80,11 @@ func (f FileStore) WriteUserSSHConfig(config string) error {
 }
 
 func (f FileStore) WriteBrevSSHConfig(config string) error {
-	bsp, err := files.GetBrevSSHConfigPath()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	bsp, err := files.GetBrevSSHConfigPath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -76,12 +96,16 @@ func (f FileStore) WriteBrevSSHConfig(config string) error {
 }
 
 func (f FileStore) CreateNewSSHConfigBackup() error {
-	backupFilePath, err := files.GetNewBackupSSHConfigFilePath()
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	backupFilePath, err := files.GetNewBackupSSHConfigFilePath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	csp, err := files.GetUserSSHConfigPath()
+	csp, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -106,15 +130,28 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 }
 
 func (f FileStore) WritePrivateKey(pem string) error {
-	err := files.WriteSSHPrivateKey(f.fs, pem)
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = files.WriteSSHPrivateKey(f.fs, pem, home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func (f FileStore) GetPrivateKeyPath() string {
-	return files.GetSSHPrivateKeyPath()
+func (f FileStore) GetPrivateKeyPath() (string, error) {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetSSHPrivateKeyPath(home)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return path, nil
 }
 
 func VerifyPrivateKey(key []byte) error {

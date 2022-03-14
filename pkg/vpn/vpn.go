@@ -25,8 +25,9 @@ type VPNConfigurer interface {
 }
 
 type VPNStore interface {
-	RegisterNode(publicKey string) error // uses homedir
+	RegisterNode(publicKey string) error
 	GetOrCreateFile(path string) (afero.File, error)
+	UserHomeDir() (string, error)
 }
 
 type Tailscale struct {
@@ -144,7 +145,11 @@ func (t *TailscaleConfigurer) WithForceReauth(shouldForceReauth bool) *Tailscale
 }
 
 func (t TailscaleConfigurer) ApplyConfig() error {
-	outfilePath, err := files.GetTailScaleOutFilePath()
+	home, err := t.store.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	outfilePath, err := files.GetTailScaleOutFilePath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

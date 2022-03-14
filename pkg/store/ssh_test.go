@@ -1,6 +1,7 @@
 package store
 
 import (
+	"os"
 	"testing"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -91,7 +92,8 @@ bsVMEVXkW9a34JZKUtAacBGtC25BNkxeaw24Y6lV5y0Jzz4Kuza4og==
 )
 
 func setupSSHConfigFile(fs afero.Fs) error {
-	sshConfigPath, err := files.GetUserSSHConfigPath()
+	home, _ := os.UserHomeDir()
+	sshConfigPath, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -142,7 +144,10 @@ func TestWritePrivateKey(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	privateKeyFilePath := fs.GetPrivateKeyPath()
+	privateKeyFilePath, err := fs.GetPrivateKeyPath()
+	if !assert.Nil(t, err) {
+		return
+	}
 	pk, err := fs.GetOrCreateFile(privateKeyFilePath)
 	if !assert.Nil(t, err) {
 		return

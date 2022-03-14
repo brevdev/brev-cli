@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -316,4 +317,28 @@ func (f FileStore) UserHomeDir() (string, error) {
 		}
 		return home, nil
 	}
+}
+
+func (f FileStore) GetBrevHomePath() (string, error) {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	brevHome, err := files.GetBrevHome(home)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return brevHome, nil
+}
+
+func (f FileStore) BuildBrevHome() error {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = files.BuildBrevHome(home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }

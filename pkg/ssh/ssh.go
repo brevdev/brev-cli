@@ -49,7 +49,7 @@ type (
 		GetUserSSHConfig() (string, error)
 		WriteUserSSHConfig(config string) error
 		CreateNewSSHConfigBackup() error
-		GetPrivateKeyPath() string
+		GetPrivateKeyPath() (string, error)
 	}
 	Reader interface {
 		GetBrevPorts() (BrevPorts, error)
@@ -78,7 +78,7 @@ type (
 		GetJetBrainsConfigPath() (string, error)
 		GetJetBrainsConfig() (string, error)
 		WriteJetBrainsConfig(config string) error
-		GetPrivateKeyPath() string
+		GetPrivateKeyPath() (string, error)
 	}
 	JetBrainsGatewayConfig struct {
 		config *JetbrainsGatewayConfigXML
@@ -224,10 +224,14 @@ func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	privateKeyPath, err := store.GetPrivateKeyPath()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 	return &SSHConfig{
 		store:      store,
 		sshConfig:  sshConfig,
-		privateKey: store.GetPrivateKeyPath(),
+		privateKey: privateKeyPath,
 	}, nil
 }
 
@@ -238,7 +242,10 @@ func (s *SSHConfig) PruneInactiveWorkspaces(identityPortMap IdentityPortMap) err
 		activeWorkspaces = append(activeWorkspaces, key)
 	}
 
-	privateKeyPath := s.store.GetPrivateKeyPath()
+	privateKeyPath, err := s.store.GetPrivateKeyPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	for _, host := range s.sshConfig.Hosts {
 		hoststring := host.String()
 		isBrevHost := checkIfBrevHost(*host, privateKeyPath)
@@ -256,7 +263,7 @@ func (s *SSHConfig) PruneInactiveWorkspaces(identityPortMap IdentityPortMap) err
 
 // Hostname is a loaded term so using values
 func (s SSHConfig) GetBrevHostValues() []entity.WorkspaceLocalID {
-	privateKeyPath := s.store.GetPrivateKeyPath()
+	privateKeyPath := s.privateKey
 	var brevHosts []entity.WorkspaceLocalID
 	for _, host := range s.sshConfig.Hosts {
 		hostname := workspaceIdentifierFromHost(host.String())
@@ -346,6 +353,10 @@ func NewSSHConfigurer(workspaces []entity.WorkspaceWithMeta, reader Reader, writ
 		store:      store,
 		privateKey: privateKey,
 	}
+}
+
+func (sshConfigurer SSHConfigurer) GetPrivateKeyPath() (string, error) {
+	return sshConfigurer.privateKey, nil
 }
 
 func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error) {
@@ -472,7 +483,10 @@ func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGat
 func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) error {
 	brevhosts := jbgc.GetBrevHostValueSet()
 	activeWorkspaces := make(map[entity.WorkspaceLocalID]bool)
-	privateKeyPath := jbgc.store.GetPrivateKeyPath()
+	privateKeyPath, err := jbgc.store.GetPrivateKeyPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	for key, value := range identifierPortMapping {
 		if !brevhosts[key] {
 			jbgc.config.Component.Configs.SSHConfigs = append(jbgc.config.Component.Configs.SSHConfigs, JetbrainsGatewayConfigXMLSSHConfig{
