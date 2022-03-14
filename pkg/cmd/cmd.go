@@ -41,9 +41,12 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+var user string
+
 func NewDefaultBrevCommand() *cobra.Command {
 	// cmd := NewBrevCommand(os.Stdin, os.Stdout, os.Stderr)
 	cmd := NewBrevCommand()
+	cmd.PersistentFlags().StringVar(&user, "user", "", "non root user to use for per user configuration of commands run as root")
 	return cmd
 }
 
@@ -73,6 +76,7 @@ func NewBrevCommand() *cobra.Command {
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(loginAuth)
+
 	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
 		_, err := loginAuth.GetAccessToken()
 		if err != nil {
@@ -83,10 +87,16 @@ func NewBrevCommand() *cobra.Command {
 	if err != nil {
 		fmt.Printf("%v\n", err)
 	}
+	if user != "" {
+		loginCmdStore.WithUserID(user)
+	}
 	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(noLoginAuth)
+	if user != "" {
+		noLoginCmdStore.WithUserID(user)
+	}
 
 	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
 	if err != nil {
