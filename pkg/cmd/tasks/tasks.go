@@ -54,6 +54,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 		},
 	}
 
+	cmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "specifies all tasks")
 	configure := NewCmdConfigure(t, store, taskMap)
 	cmd.AddCommand(configure)
 	run := NewCmdRun(t, store, taskMap)
@@ -88,7 +89,6 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 			}
 		},
 	}
-	cmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "configure all tasks (must run this as root and pass --user")
 	return cmd
 }
 
@@ -119,7 +119,6 @@ func NewCmdRun(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Comman
 			}
 		},
 	}
-	cmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "configure all tasks (must run this as root and pass --user")
 	return cmd
 }
 

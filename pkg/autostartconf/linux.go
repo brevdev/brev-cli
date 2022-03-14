@@ -61,3 +61,25 @@ Restart=always
 		ServiceName:    "brevvpnd",
 	}
 }
+
+// todo user
+func NewRPCConfig(store AutoStartStore) LinuxSystemdConfigurer {
+	return LinuxSystemdConfigurer{
+		Store: store,
+		ValueConfigFile: `
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Brev SSH Proxy Daemon
+After=systend-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/brev task run rpcd
+Restart=always
+`,
+		DestConfigFile: "/etc/systemd/system/brevrpcd.service",
+		ServiceName:    "brevrpcd",
+	}
+}
