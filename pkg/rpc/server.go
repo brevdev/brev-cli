@@ -31,7 +31,15 @@ type RPCServerStore interface {
 }
 
 type Server struct {
-	Store RPCServerStore
+	Store    RPCServerStore
+	SockAddr string
+}
+
+func NewServer(store RPCServerStore, sockAddr string) Server {
+	return Server{
+		Store:    store,
+		SockAddr: SockAddr,
+	}
 }
 
 // func check() {

@@ -293,7 +293,7 @@ func InstallGateway(installScript string, t *terminal.Terminal) {
 }
 
 func CreateDownloadPathAndInstallScript(localOS string) (jetBrainsDirectory string, installScript string, err error) {
-	homeDirectory, err := os.UserHomeDir()
+	homeDirectory, err := os.UserHomeDir() // todo use store
 	if err != nil {
 		return "", "", breverrors.WrapAndTrace(err)
 	}

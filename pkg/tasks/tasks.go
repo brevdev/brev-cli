@@ -17,7 +17,7 @@ import (
 )
 
 func RunTaskAsDaemon(tasks []Task, brevHome string) error {
-	err := files.MakeBrevHome()
+	err := files.MakeBrevHome() // todo use store
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
