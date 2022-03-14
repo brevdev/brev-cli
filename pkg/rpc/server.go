@@ -5,6 +5,12 @@
 package main
 
 import (
+	"fmt"
+	"net"
+	"net/http"
+	"net/rpc"
+	"os"
+
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -12,7 +18,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-// const SockAddr = "/tmp/rpc.sock" // todo /var/run/brev/brevvpnd.sock
+const SockAddr = "/tmp/rpc.sock" // todo /var/run/brev/brevtsup.sock
 
 type RPCServerStore interface {
 	CopyBin(targetBin string) error
@@ -48,21 +54,22 @@ func (s Server) TailscaleUp() error {
 	return nil
 }
 
-// func main() {
-// 	if err := os.RemoveAll(SockAddr); err != nil {
-// 		log.Fatal(err)
-// 	}
+func (s Server) Serve() error {
+	if err := os.RemoveAll(SockAddr); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-// 	greeter := new(Server)
-// 	rpc.Register(greeter)
-// 	rpc.HandleHTTP()
-// 	l, e := net.Listen("unix", SockAddr)
-// 	if e != nil {
-// 		log.Fatal("listen error:", e)
-// 	}
-// 	if err := os.Chmod(SockAddr, 0o777); err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	fmt.Println("Serving...")
-// 	http.Serve(l, nil)
-// }
+	greeter := new(Server)
+	rpc.Register(greeter)
+	rpc.HandleHTTP()
+	l, e := net.Listen("unix", SockAddr)
+	if e != nil {
+		return breverrors.WrapAndTrace(e)
+	}
+	if err := os.Chmod(SockAddr, 0o777); err != nil { // todo what are the actual perms we need?
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Println("Serving...")
+	http.Serve(l, nil)
+	return nil
+}
