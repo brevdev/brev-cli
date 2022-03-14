@@ -14,10 +14,7 @@ import (
 
 type TaskMap map[string]tasks.Task
 
-var (
-	all    bool   // used for configure command
-	userID string // used for configure command
-)
+var all bool // used for configure command
 
 // func init() {
 // 	TaskMap := make()
@@ -74,11 +71,21 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 						log.Error(err)
 					}
 				}
+			} else {
+				if len(args) == 0 {
+					log.Error("provide a task name or --all")
+					return
+				}
+				if task, ok := taskMap[args[0]]; ok {
+					err := task.Configure()
+					if err != nil {
+						log.Error(err)
+					}
+				}
 			}
 		},
 	}
 	cmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "configure all tasks (must run this as root and pass --user")
-	cmd.PersistentFlags().StringVarP(&userID, "user", "u", "", "user id to configure tasks for (needed when run as root or with --all)")
 	return cmd
 }
 
