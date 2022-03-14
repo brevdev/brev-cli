@@ -2,7 +2,7 @@ package store
 
 import (
 	"io/ioutil"
-	"os"
+	"path"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -12,10 +12,17 @@ import (
 
 // TODO 1 test cov
 
-const brevCredentialsFile = "credentials.json"
+const (
+	brevCredentialsFile = "credentials.json"
+	brevDirectory       = ".brev"
+)
+
+func GetBrevDirectory() string {
+	return brevDirectory
+}
 
 func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
-	brevCredentialsFile, err := getBrevCredentialsFile()
+	brevCredentialsFile, err := f.getBrevCredentialsFile()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -45,7 +52,7 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 		}
 	}
 
-	brevCredentialsFile, err := getBrevCredentialsFile()
+	brevCredentialsFile, err := f.getBrevCredentialsFile()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -84,17 +91,8 @@ func getServiceTokenFilePath() string {
 	return "/var/run/secrets/kubernetes.io/serviceaccount/token"
 }
 
-func getBrevCredentialsFile() (*string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	brevCredentialsFile := home + "/" + files.GetBrevDirectory() + "/" + brevCredentialsFile
-	return &brevCredentialsFile, nil
-}
-
 func (f FileStore) DeleteAuthTokens() error {
-	brevCredentialsFile, err := getBrevCredentialsFile()
+	brevCredentialsFile, err := f.getBrevCredentialsFile()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -103,4 +101,13 @@ func (f FileStore) DeleteAuthTokens() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func (f FileStore) getBrevCredentialsFile() (*string, error) {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	brevCredentialsFile := path.Join(home, brevDirectory, brevCredentialsFile)
+	return &brevCredentialsFile, nil
 }
