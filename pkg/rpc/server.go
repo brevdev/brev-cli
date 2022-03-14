@@ -11,21 +11,20 @@ import (
 	"net/rpc"
 	"os"
 
-	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/vpn"
-	"github.com/spf13/afero"
 )
 
 type RPCServerStore interface {
-	CopyBin(targetBin string) error
-	WriteString(path, data string) error
-	RegisterNode(publicKey string) error
-	GetOrCreateFile(path string) (afero.File, error)
-	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
-	GetCurrentWorkspaceID() (string, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	vpn.ServiceMeshStore
+
+	// CopyBin(targetBin string) error
+	// WriteString(path, data string) error
+	// RegisterNode(publicKey string) error
+	// GetOrCreateFile(path string) (afero.File, error)
+	// GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
+	// GetCurrentWorkspaceID() (string, error)
+	// GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 type Server struct {

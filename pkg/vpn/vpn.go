@@ -25,7 +25,7 @@ type VPNConfigurer interface {
 }
 
 type VPNStore interface {
-	RegisterNode(publicKey string) error
+	RegisterNode(publicKey string) error // uses homedir
 	GetOrCreateFile(path string) (afero.File, error)
 }
 
