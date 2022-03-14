@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -17,11 +18,26 @@ import (
 
 type FileStore struct {
 	BasicStore
-	fs afero.Fs
+	fs   afero.Fs
+	User *user.User
 }
 
 func (b *BasicStore) WithFileSystem(fs afero.Fs) *FileStore {
-	return &FileStore{*b, fs}
+	return &FileStore{*b, fs, nil}
+}
+
+func (f *FileStore) WithUserID(userID string) *FileStore {
+	var userToConfigure *user.User
+	var err error
+	userToConfigure, err = user.Lookup(userID)
+	if err != nil {
+		_, ok := err.(*user.UnknownUserError)
+		if !ok {
+			userToConfigure, _ = user.LookupId(userID)
+		}
+	}
+	f.User = userToConfigure
+	return f
 }
 
 func (f FileStore) GetOrCreateFile(path string) (afero.File, error) {
