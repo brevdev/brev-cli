@@ -18,8 +18,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-const SockAddr = "/tmp/rpc.sock" // todo /var/run/brev/brevtsup.sock
-
 type RPCServerStore interface {
 	CopyBin(targetBin string) error
 	WriteString(path, data string) error
@@ -38,7 +36,7 @@ type Server struct {
 func NewServer(store RPCServerStore, sockAddr string) Server {
 	return Server{
 		Store:    store,
-		SockAddr: SockAddr,
+		SockAddr: sockAddr,
 	}
 }
 
@@ -63,18 +61,18 @@ func (s Server) TailscaleUp() error {
 }
 
 func (s Server) Serve() error {
-	if err := os.RemoveAll(SockAddr); err != nil {
+	if err := os.RemoveAll(s.SockAddr); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	greeter := new(Server)
 	rpc.Register(greeter)
 	rpc.HandleHTTP()
-	l, e := net.Listen("unix", SockAddr)
+	l, e := net.Listen("unix", s.SockAddr)
 	if e != nil {
 		return breverrors.WrapAndTrace(e)
 	}
-	if err := os.Chmod(SockAddr, 0o777); err != nil { // todo what are the actual perms we need?
+	if err := os.Chmod(s.SockAddr, 0o777); err != nil { // todo what are the actual perms we need?
 		return breverrors.WrapAndTrace(err)
 	}
 	fmt.Println("Serving...")
