@@ -76,7 +76,7 @@ After=systend-user-sessions.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/brev task run rpcd
+ExecStart=/usr/local/bin/brev task run rpcd --user` + store.GetOSUser() + `
 Restart=always
 `,
 		DestConfigFile: "/etc/systemd/system/brevrpcd.service",

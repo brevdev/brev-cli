@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -341,4 +342,12 @@ func (f FileStore) BuildBrevHome() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func (f FileStore) GetOSUser() string {
+	if f.User != nil {
+		return f.User.Uid
+	} else {
+		return fmt.Sprint(os.Getuid())
+	}
 }
