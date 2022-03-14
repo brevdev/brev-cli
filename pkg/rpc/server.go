@@ -2,7 +2,7 @@
 //
 // Eli Bendersky [http://eli.thegreenplace.net]
 // This code is in the public domain.
-package vpn
+package rpcserver
 
 import (
 	"fmt"
@@ -12,10 +12,19 @@ import (
 	"os"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 )
 
 type RPCServerStore interface {
-	ServiceMeshStore
+	vpn.ServiceMeshStore
+
+	// CopyBin(targetBin string) error
+	// WriteString(path, data string) error
+	// RegisterNode(publicKey string) error
+	// GetOrCreateFile(path string) (afero.File, error)
+	// GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
+	// GetCurrentWorkspaceID() (string, error)
+	// GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 type Server struct {
@@ -39,7 +48,7 @@ func NewServer(store RPCServerStore, sockAddr string) Server {
 // }
 
 func (s Server) TailscaleUp() error {
-	vpnd := &VPNDaemon{
+	vpnd := &vpn.VPNDaemon{
 		Store: s.Store,
 	}
 	err := vpnd.Run()

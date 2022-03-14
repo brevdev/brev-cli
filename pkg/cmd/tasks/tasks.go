@@ -2,6 +2,7 @@ package tasks
 
 import (
 	"github.com/brevdev/brev-cli/pkg/entity"
+	rpcserver "github.com/brevdev/brev-cli/pkg/rpc"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -138,7 +139,7 @@ func getTaskMap(store TaskStore) TaskMap {
 	taskmap := make(TaskMap)
 	vpnd := vpn.NewVPNDaemon(store)
 	taskmap["vpnd"] = vpnd
-	rpcd := vpn.NewRPCServerTask(store)
+	rpcd := rpcserver.NewRPCServerTask(store)
 	taskmap["rpcd"] = rpcd
 	return taskmap
 }
