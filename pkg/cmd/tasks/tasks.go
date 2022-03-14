@@ -1,8 +1,6 @@
 package tasks
 
 import (
-	"os/user"
-
 	"github.com/brevdev/brev-cli/pkg/entity"
 	rpcserver "github.com/brevdev/brev-cli/pkg/rpc"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -69,18 +67,9 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 		Short: "configure system startup daemon for task",
 		Long:  "configure system startup daemon for task",
 		Run: func(cmd *cobra.Command, args []string) {
-			var userToConfigure *user.User
-			var err error
-			userToConfigure, err = user.Lookup(userID)
-			if err != nil {
-				_, ok := err.(*user.UnknownUserError)
-				if !ok {
-					userToConfigure, _ = user.LookupId(userID)
-				}
-			}
 			if all {
 				for _, value := range taskMap {
-					err := value.Configure(userToConfigure)
+					err := value.Configure()
 					if err != nil {
 						log.Error(err)
 					}

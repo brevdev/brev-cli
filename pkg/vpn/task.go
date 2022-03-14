@@ -1,7 +1,6 @@
 package vpn
 
 import (
-	"os/user"
 	"runtime"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
@@ -46,7 +45,7 @@ func (vpnd VPNDaemon) Run() error {
 	return nil
 }
 
-func (vpnd VPNDaemon) Configure(_ *user.User) error {
+func (vpnd VPNDaemon) Configure() error {
 	switch runtime.GOOS {
 	case "linux":
 		err := vpnd.configureLinux()

@@ -1,8 +1,6 @@
 package rpcserver
 
 import (
-	"os/user"
-
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -31,7 +29,7 @@ func (rst RPCServerTask) Run() error {
 	return nil
 }
 
-func (rst RPCServerTask) Configure(_ *user.User) error {
+func (rst RPCServerTask) Configure() error {
 	return nil
 }
 

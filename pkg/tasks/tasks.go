@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"os/user"
 	"syscall"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -76,7 +75,7 @@ func RunTasks(tasks []Task) error {
 
 type Task interface {
 	Run() error
-	Configure(*user.User) error
+	Configure() error
 	GetTaskSpec() TaskSpec
 }
 

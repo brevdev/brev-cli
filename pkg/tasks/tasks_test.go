@@ -2,7 +2,6 @@ package tasks
 
 import (
 	"fmt"
-	"os/user"
 	"sync"
 	"testing"
 	"time"
@@ -28,7 +27,7 @@ func (d *DummyTask) GetTaskSpec() TaskSpec {
 	return d.TaskSpec
 }
 
-func (d *DummyTask) Configure(_ *user.User) error {
+func (d *DummyTask) Configure() error {
 	return nil
 }
 

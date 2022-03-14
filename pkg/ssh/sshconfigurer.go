@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"os/user"
 	"strings"
 	"text/template"
 
@@ -59,7 +58,7 @@ func (c ConfigUpdater) GetTaskSpec() tasks.TaskSpec {
 	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 3s"}
 }
 
-func (c ConfigUpdater) Configure(_ *user.User) error {
+func (c ConfigUpdater) Configure() error {
 	return nil
 }
 
