@@ -1,8 +1,6 @@
 package vpn
 
 import (
-	"runtime"
-
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -46,22 +44,6 @@ func (vpnd VPNDaemon) Run() error {
 }
 
 func (vpnd VPNDaemon) Configure() error {
-	switch runtime.GOOS {
-	case "linux":
-		err := vpnd.configureLinux()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	case "darwin":
-		err := vpnd.configureDarwin()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
-
-func (vpnd VPNDaemon) configureLinux() error {
 	lsc := autostartconf.NewVPNConfig(vpnd.Store)
 	err := lsc.Install()
 	if err != nil {
@@ -69,8 +51,6 @@ func (vpnd VPNDaemon) configureLinux() error {
 	}
 	return nil
 }
-
-func (vpnd VPNDaemon) configureDarwin() error { return nil }
 
 func ConfigureVPN(store ServiceMeshStore) error {
 	ts := NewTailscale(store)

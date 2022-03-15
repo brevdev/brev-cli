@@ -1,5 +1,9 @@
 package autostartconf
 
+import (
+	"runtime"
+)
+
 const targetBin = "/usr/local/bin/brev"
 
 type AutoStartStore interface {
@@ -12,4 +16,116 @@ type AutoStartStore interface {
 type DaemonConfigurer interface {
 	Install() error
 	UnInstall() error
+}
+
+func NewVPNConfig(store AutoStartStore) DaemonConfigurer {
+	switch runtime.GOOS {
+	case "linux":
+		return LinuxSystemdConfigurer{
+			Store: store,
+			ValueConfigFile: `
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Brev vpn daemon
+After=systemd-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/brev meshd
+Restart=always
+`,
+			DestConfigFile: "/etc/systemd/system/brevvpnd.service",
+			ServiceName:    "brevvpnd",
+			ServiceType:    "system",
+		}
+	case "darwin":
+		return DarwinPlistConfigurer{
+			Store: store,
+			ValueConfigFile: `
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+  <key>Label</key>
+  <string>com.brev.vpnd</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/brev</string>
+	<string>tasks</string>
+	<string>run</string>
+	<string>vpnd</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+</dict>
+</plist>
+			`,
+			DestConfigFile: "/Library/LaunchAgents/com.brev.brev.plist", // todo verify
+			ServiceName:    "com.brev.vpnd",
+			ServiceType:    "system", // todo what is the name for this?
+		}
+	}
+	return nil
+}
+
+func NewRPCConfig(store AutoStartStore) DaemonConfigurer {
+	switch runtime.GOOS {
+	case "linux":
+		return LinuxSystemdConfigurer{
+			Store: store,
+			ValueConfigFile: `
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Brev vpn daemon
+After=systemd-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/brev tasks run rpcd --user ` + store.GetOSUser() + `
+Restart=always
+`,
+			DestConfigFile: "/etc/systemd/system/brevrpcd.service",
+			ServiceName:    "com.brev.rpcd",
+			ServiceType:    "system",
+		}
+	case "darwin":
+		return DarwinPlistConfigurer{
+			Store: store,
+			ValueConfigFile: `
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+  <key>Label</key>
+  <string>com.brev.rpcd</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/brev</string>
+	<string>tasks</string>
+	<string>run</string>
+	<string>rpcd</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+</dict>
+</plist>
+			`,
+			DestConfigFile: "/Library/LaunchAgents/com.brev.rpcd.plist", // todo verify
+			ServiceName:    "com.brev.rpcd",
+			ServiceType:    "system", // todo what is the name for this?
+		}
+	}
+	return nil
 }
