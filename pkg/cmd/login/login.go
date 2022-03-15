@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -32,6 +33,7 @@ type LoginStore interface {
 	CreateUser(idToken string) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
+	GetServerSockFile() string
 }
 
 type Auth interface {
@@ -81,7 +83,12 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if featureflag.IsAdmin(user.GlobalUserType) {
-		err := vpn.ConfigureVPN(o.LoginStore)
+		sock := o.LoginStore.GetServerSockFile()
+		c, err := server.NewClient(sock)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = c.ConfigureVPN()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

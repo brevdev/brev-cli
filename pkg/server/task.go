@@ -1,4 +1,4 @@
-package rpcserver
+package server
 
 import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -8,6 +8,7 @@ import (
 
 type RPCServerTaskStore interface {
 	vpn.ServiceMeshStore
+	GetServerSockFile() string
 }
 
 type RPCServerTask struct {
@@ -21,7 +22,8 @@ func (rst RPCServerTask) GetTaskSpec() tasks.TaskSpec {
 }
 
 func (rst RPCServerTask) Run() error {
-	server := NewServer(rst.Store, "/tmp/brev.sock") // todo /var/run
+	sock := rst.Store.GetServerSockFile()
+	server := NewServer(rst.Store, sock)
 	err := server.Serve()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -33,7 +35,7 @@ func (rst RPCServerTask) Configure() error {
 	return nil
 }
 
-func NewRPCServerTask(store RPCServerStore) RPCServerTask {
+func NewRPCServerTask(store RPCServerTaskStore) RPCServerTask {
 	task := RPCServerTask{
 		Store: store,
 	}

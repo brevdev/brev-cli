@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -21,6 +22,7 @@ type SetStore interface {
 	vpn.ServiceMeshStore
 	SetDefaultOrganization(org *entity.Organization) error
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetServerSockFile() string
 }
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
@@ -77,7 +79,12 @@ func set(orgName string, setStore SetStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if featureflag.IsAdmin(user.GlobalUserType) {
-		err := vpn.ConfigureVPN(setStore)
+		sock := setStore.GetServerSockFile()
+		c, err := server.NewClient(sock)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = c.ConfigureVPN()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

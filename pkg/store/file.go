@@ -351,3 +351,7 @@ func (f FileStore) GetOSUser() string {
 		return fmt.Sprint(os.Getuid())
 	}
 }
+
+func (f FileStore) GetServerSockFile() string {
+	return "/tmp/brev.sock"
+}
