@@ -35,6 +35,9 @@ func (dpc DarwinPlistConfigurer) Install() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	err = dpc.Store.WriteString(destination, dpc.ValueConfigFile)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	execCommand, err := dpc.GetExecCommand()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
