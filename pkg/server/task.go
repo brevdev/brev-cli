@@ -23,7 +23,7 @@ func (rst RPCServerTask) GetTaskSpec() tasks.TaskSpec {
 
 func (rst RPCServerTask) Run() error {
 	sock := rst.Store.GetServerSockFile()
-	server := NewServer(rst.Store, sock)
+	server := NewServer(sock, rst.Store)
 	err := server.Serve()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

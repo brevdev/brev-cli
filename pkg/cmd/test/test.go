@@ -1,13 +1,13 @@
 package test
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 
 	"github.com/spf13/cobra"
 )
@@ -28,6 +28,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	CopyBin(targetBin string) error
 	GetSetupScriptContentsByURL(url string) (string, error)
+	server.RPCServerTaskStore
 }
 
 type ServiceMeshStore interface {
@@ -44,17 +45,26 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		// Args:                  cobra.MinimumNArgs(1),
+		Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			gistURL := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
+			// gistURL := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
 
-			resp, err := store.GetSetupScriptContentsByURL(gistURL)
-			if err != nil {
-				return nil
+			// resp, err := store.GetSetupScriptContentsByURL(gistURL)
+			// if err != nil {
+			// 	return nil
+			// }
+			// fmt.Println(resp)
+			if args[0] == "s" {
+				s := server.RPCServerTask{store}
+				return s.Run()
+
 			}
-			fmt.Println(resp)
-
+			if args[0] == "c" {
+				return vpn.ConfigureVPN(store)
+			}
 			return nil
+
+			// return nil
 			// cfg := autostartconf.LinuxSystemdConfigurer{
 			// 	AutoStartStore: store,
 			// 	ValueConfigFile: `

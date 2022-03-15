@@ -16,19 +16,17 @@ import (
 	"github.com/brevdev/brev-cli/pkg/vpn"
 )
 
-type RPCServerStore interface {
+type ServerStore interface {
 	vpn.ServiceMeshStore
 }
 
-type Server struct {
-	Store    RPCServerStore
-	SockAddr string
+type RpcServer struct {
+	Store ServerStore
 }
 
-func NewServer(store RPCServerStore, sockAddr string) Server {
-	return Server{
-		Store:    store,
-		SockAddr: sockAddr,
+func NewRpcServer(store ServerStore) RpcServer {
+	return RpcServer{
+		Store: store,
 	}
 }
 
@@ -45,7 +43,7 @@ func NewClient(sockAddr string) (*Client, error) {
 	return &Client{client}, nil
 }
 
-func (s Server) ConfigureVPN() error {
+func (s RpcServer) ConfigureVPN(in *interface{}, out *interface{}) error {
 	err := vpn.ConfigureVPN(s.Store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -61,12 +59,21 @@ func (c Client) ConfigureVPN() error {
 	return nil
 }
 
+type Server struct {
+	SockAddr string
+	Store    ServerStore
+}
+
+func NewServer(sockAddr string, store ServerStore) Server {
+	return Server{SockAddr: sockAddr, Store: store}
+}
+
 func (s Server) Serve() error {
 	if err := os.RemoveAll(s.SockAddr); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	server := new(Server)
+	server := NewRpcServer(s.Store)
 	err := rpc.Register(server)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
