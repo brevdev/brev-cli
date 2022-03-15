@@ -32,7 +32,6 @@ type TestStore interface {
 
 type ServiceMeshStore interface {
 	autostartconf.AutoStartStore
-	GetCurrentWorkspaceID() string
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
