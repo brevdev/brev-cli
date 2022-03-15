@@ -1,6 +1,8 @@
 package tasks
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -70,7 +72,8 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 		Long:  "configure system startup daemon for task",
 		Run: func(cmd *cobra.Command, args []string) {
 			if all {
-				for _, value := range taskMap {
+				for k, value := range taskMap {
+					fmt.Println(k)
 					err := value.Configure()
 					if err != nil {
 						log.Error(err)

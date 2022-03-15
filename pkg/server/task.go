@@ -1,6 +1,9 @@
 package server
 
 import (
+	"runtime"
+
+	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/vpn"
@@ -32,8 +35,31 @@ func (rst RPCServerTask) Run() error {
 }
 
 func (rst RPCServerTask) Configure() error {
+	switch runtime.GOOS {
+	case "linux":
+		err := rst.configureLinux()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	case "darwin":
+		err := rst.configureDarwin()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
 	return nil
 }
+
+func (rst RPCServerTask) configureLinux() error {
+	linuxSystemdConfigurer := autostartconf.NewRPCConfig(rst.Store)
+	err := linuxSystemdConfigurer.Install()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (rst RPCServerTask) configureDarwin() error { return nil }
 
 func NewRPCServerTask(store RPCServerTaskStore) RPCServerTask {
 	task := RPCServerTask{

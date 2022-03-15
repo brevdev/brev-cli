@@ -1,11 +1,11 @@
 package autostartconf
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path"
-	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -15,6 +15,7 @@ type LinuxSystemdConfigurer struct {
 	ValueConfigFile string
 	DestConfigFile  string
 	ServiceName     string
+	ServiceType     string
 }
 
 func (lsc LinuxSystemdConfigurer) UnInstall() error {
@@ -46,7 +47,10 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		lsc.CreateForcedSymlink()
+		err := lsc.CreateForcedSymlink()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	return nil
 }
@@ -75,26 +79,26 @@ func (lsc LinuxSystemdConfigurer) Start() error {
 // which we need to do in the workspace docker image because systemd is running
 // at build time.
 func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
-	serviceType := strings.Split(lsc.DestConfigFile, "/")[2]
 	symlinkTarget := ""
-	switch serviceType {
+	switch lsc.ServiceType {
 	case "system":
 		symlinkTarget = path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName+".service")
 	case "user":
 		symlinkTarget = path.Join("/etc/systemd/user/default.target.wants/", lsc.ServiceName+".service")
 	}
 	_, err := os.Stat(symlinkTarget)
-	if err == nil { // file doesn't exist
+	if err == nil {
 		errother := os.Remove(symlinkTarget)
 		if errother != nil {
 			return breverrors.WrapAndTrace(errother)
 		}
-	}
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = os.Symlink(lsc.DestConfigFile, symlinkTarget)
-	if err != nil {
+	} else if errors.Is(err, os.ErrNotExist) {
+		fmt.Println(symlinkTarget)
+		err = os.Symlink(lsc.DestConfigFile, symlinkTarget)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
@@ -118,6 +122,7 @@ Restart=always
 `,
 		DestConfigFile: "/etc/systemd/system/brevvpnd.service",
 		ServiceName:    "brevvpnd",
+		ServiceType:    "system",
 	}
 }
 
@@ -139,5 +144,6 @@ Restart=always
 `,
 		DestConfigFile: "/etc/systemd/system/brevrpcd.service",
 		ServiceName:    "brevrpcd",
+		ServiceType:    "system",
 	}
 }
