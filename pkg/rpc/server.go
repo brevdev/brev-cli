@@ -17,14 +17,6 @@ import (
 
 type RPCServerStore interface {
 	vpn.ServiceMeshStore
-
-	// CopyBin(targetBin string) error
-	// WriteString(path, data string) error
-	// RegisterNode(publicKey string) error
-	// GetOrCreateFile(path string) (afero.File, error)
-	// GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
-	// GetCurrentWorkspaceID() (string, error)
-	// GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 type Server struct {
@@ -39,23 +31,32 @@ func NewServer(store RPCServerStore, sockAddr string) Server {
 	}
 }
 
-// func check() {
-// 	fi, err := os.Stat(SockAddr)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	log.Println("mode", fi.Mode())
-// }
+type Client struct {
+	client *rpc.Client
+}
 
-func (s Server) TailscaleUp() error {
-	vpnd := &vpn.VPNDaemon{
-		Store: s.Store,
+func NewClient(sockAddr string) (*Client, error) {
+	client, err := rpc.DialHTTP("unix", sockAddr)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
-	err := vpnd.Run()
+
+	return &Client{client}, nil
+}
+
+func (s Server) ConfigureVPN() error {
+	err := vpn.ConfigureVPN(s.Store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
 
+func (c Client) ConfigureVPN() error {
+	err := c.client.Call("Server.ConfigureVPN", nil, nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -64,8 +65,8 @@ func (s Server) Serve() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	greeter := new(Server)
-	rpc.Register(greeter)
+	server := new(Server)
+	rpc.Register(server)
 	rpc.HandleHTTP()
 	l, e := net.Listen("unix", s.SockAddr)
 	if e != nil {
