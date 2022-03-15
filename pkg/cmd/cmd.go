@@ -50,7 +50,7 @@ func NewDefaultBrevCommand() *cobra.Command {
 	return cmd
 }
 
-func NewBrevCommand() *cobra.Command {
+func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	// in io.Reader, out io.Writer, err io.Writer
 	t := terminal.New()
 	var printVersion bool

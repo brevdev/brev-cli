@@ -37,6 +37,7 @@ type TaskStore interface {
 	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	vpn.ServiceMeshStore
+	server.RPCServerTaskStore
 }
 
 func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {

@@ -1,8 +1,9 @@
+package server
+
 // Go RPC server listening on a Unix socket.
 //
 // Eli Bendersky [http://eli.thegreenplace.net]
 // This code is in the public domain.
-package server
 
 import (
 	"fmt"
@@ -66,16 +67,23 @@ func (s Server) Serve() error {
 	}
 
 	server := new(Server)
-	rpc.Register(server)
-	rpc.HandleHTTP()
-	l, e := net.Listen("unix", s.SockAddr)
-	if e != nil {
-		return breverrors.WrapAndTrace(e)
+	err := rpc.Register(server)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
-	if err := os.Chmod(s.SockAddr, 0o777); err != nil { // todo what are the actual perms we need?
+	rpc.HandleHTTP()
+	l, err := net.Listen("unix", s.SockAddr)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = os.Chmod(s.SockAddr, 0o666) //nolint:gosec // need to allow other users to write to socket
+	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	fmt.Println("Serving...")
-	http.Serve(l, nil)
+	err = http.Serve(l, nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
