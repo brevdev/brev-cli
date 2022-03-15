@@ -11,6 +11,7 @@ type AutoStartStore interface {
 	WriteString(path, data string) error
 	GetOSUser() string
 	GetCurrentWorkspaceID() (string, error)
+	UserHomeDir() (string, error)
 }
 
 type DaemonConfigurer interface {
@@ -66,9 +67,8 @@ Restart=always
 </dict>
 </plist>
 			`,
-			DestConfigFile: "/Library/LaunchAgents/com.brev.brev.plist", // todo verify
-			ServiceName:    "com.brev.vpnd",
-			ServiceType:    "system", // todo what is the name for this?
+			ServiceName: "com.brev.vpnd",
+			ServiceType: System,
 		}
 	}
 	return nil
@@ -122,9 +122,8 @@ Restart=always
 </dict>
 </plist>
 			`,
-			DestConfigFile: "/Library/LaunchAgents/com.brev.rpcd.plist", // todo verify
-			ServiceName:    "com.brev.rpcd",
-			ServiceType:    "system", // todo what is the name for this?
+			ServiceName: "com.brev.rpcd",
+			ServiceType: System,
 		}
 	}
 	return nil
