@@ -142,7 +142,7 @@ func (s AuthHTTPStore) GetNetworkAuthKeyByNetworkID(networkID string, ephemeral 
 	result := GetAuthKeyResponse{}
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
-		SetQueryParam("ephemeral", strconv.FormatBool(ephemeral)).
+		SetQueryParam("isEphemeral", strconv.FormatBool(ephemeral)).
 		SetPathParam(networkdIDParamName, networkID).
 		SetResult(&result).
 		Get(networkKeyPath)
