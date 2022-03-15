@@ -42,6 +42,8 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	} else {
+		lsc.CreateForcedSymlink()
 	}
 	return nil
 }
@@ -64,6 +66,15 @@ func (lsc LinuxSystemdConfigurer) Start() error {
 	return nil
 }
 
+// CreateForcedSymlink aims to be the equivalent operation as running
+// ln -sf /lib/systemd/system/huproxy.service /etc/systemd/system/default.target.wants/huproxy.service
+// which overwrite's an existing symbolic link to point to a different file
+// which we need to do in the workspace docker image because systemd is running
+// at build time.
+func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
+	return nil
+}
+
 func NewVPNConfig(store AutoStartStore) LinuxSystemdConfigurer {
 	return LinuxSystemdConfigurer{
 		Store: store,
@@ -72,7 +83,7 @@ func NewVPNConfig(store AutoStartStore) LinuxSystemdConfigurer {
 WantedBy=multi-user.target
 
 [Unit]
-Description=Brev SSH Proxy Daemon
+Description=Brev vpn daemon
 After=systemd-user-sessions.service
 
 [Service]
@@ -85,7 +96,6 @@ Restart=always
 	}
 }
 
-// todo user
 func NewRPCConfig(store AutoStartStore) LinuxSystemdConfigurer {
 	return LinuxSystemdConfigurer{
 		Store: store,
@@ -94,7 +104,7 @@ func NewRPCConfig(store AutoStartStore) LinuxSystemdConfigurer {
 WantedBy=multi-user.target
 
 [Unit]
-Description=Brev SSH Proxy Daemon
+Description=Brev rpc daemon
 After=systemd-user-sessions.service
 
 [Service]
