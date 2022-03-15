@@ -146,6 +146,8 @@ type WorkspaceMeta struct {
 	WorkspaceGroupID string `json:"workspaceGroupId"`
 }
 
+// GetCurrentWorkspaceID will return an empty string when
+// not in a brev workspace, and otherwise return its id
 func (f FileStore) GetCurrentWorkspaceID() (string, error) {
 	meta, err := f.GetCurrentWorkspaceMeta()
 	if err != nil {
