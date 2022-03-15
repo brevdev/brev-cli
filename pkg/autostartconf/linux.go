@@ -2,7 +2,10 @@ package autostartconf
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path"
+	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -72,6 +75,28 @@ func (lsc LinuxSystemdConfigurer) Start() error {
 // which we need to do in the workspace docker image because systemd is running
 // at build time.
 func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
+	serviceType := strings.Split(lsc.DestConfigFile, "/")[2]
+	symlinkTarget := ""
+	switch serviceType {
+	case "system":
+		symlinkTarget = path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName+".service")
+	case "user":
+		symlinkTarget = path.Join("/etc/systemd/user/default.target.wants/", lsc.ServiceName+".service")
+	}
+	_, err := os.Stat(symlinkTarget)
+	if err == nil { // file doesn't exist
+		errother := os.Remove(symlinkTarget)
+		if errother != nil {
+			return breverrors.WrapAndTrace(errother)
+		}
+	}
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = os.Symlink(lsc.DestConfigFile, symlinkTarget)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
