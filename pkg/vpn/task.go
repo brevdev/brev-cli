@@ -44,8 +44,8 @@ func (vpnd VPNDaemon) Run() error {
 }
 
 func (vpnd VPNDaemon) Configure() error {
-	lsc := autostartconf.NewVPNConfig(vpnd.Store)
-	err := lsc.Install()
+	daemonConfigurer := autostartconf.NewVPNConfig(vpnd.Store)
+	err := daemonConfigurer.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

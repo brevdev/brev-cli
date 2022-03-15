@@ -33,8 +33,8 @@ func (rst RPCServerTask) Run() error {
 }
 
 func (rst RPCServerTask) Configure() error {
-	lsc := autostartconf.NewRPCConfig(rst.Store)
-	err := lsc.Install()
+	daemonConfigurer := autostartconf.NewRPCConfig(rst.Store)
+	err := daemonConfigurer.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
