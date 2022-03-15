@@ -43,7 +43,7 @@ func NewClient(sockAddr string) (*Client, error) {
 	return &Client{client}, nil
 }
 
-func (s RpcServer) ConfigureVPN(in *interface{}, out *interface{}) error {
+func (s RpcServer) ConfigureVPN(_ *string, _ *string) error {
 	err := vpn.ConfigureVPN(s.Store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -52,7 +52,9 @@ func (s RpcServer) ConfigureVPN(in *interface{}, out *interface{}) error {
 }
 
 func (c Client) ConfigureVPN() error {
-	err := c.client.Call("Server.ConfigureVPN", nil, nil)
+	in := ""
+	out := ""
+	err := c.client.Call("RpcServer.ConfigureVPN", &in, &out)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

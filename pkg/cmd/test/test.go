@@ -7,7 +7,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 
 	"github.com/spf13/cobra"
 )
@@ -56,11 +55,21 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Println(resp)
 			if args[0] == "s" {
 				s := server.RPCServerTask{store}
-				return s.Run()
-
+				err := s.Run()
+				if err != nil {
+					return err
+				}
 			}
 			if args[0] == "c" {
-				return vpn.ConfigureVPN(store)
+				sock := store.GetServerSockFile()
+				c, err := server.NewClient(sock)
+				if err != nil {
+					return err
+				}
+				err = c.ConfigureVPN()
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 
