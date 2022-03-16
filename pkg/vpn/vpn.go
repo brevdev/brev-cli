@@ -34,6 +34,7 @@ type Tailscale struct {
 	store               VPNStore
 	userspaceNetworking bool
 	socksProxyPort      int
+	leaveDirtyDNS       bool
 }
 
 func NewTailscale(store VPNStore) *Tailscale {
@@ -63,11 +64,10 @@ func (t Tailscale) Start() error {
 	os.Args = args
 
 	done := func() error { return nil }
-	var err error
-	if runtime.GOOS == "darwin" {
-
+	if runtime.GOOS == "darwin" && !t.leaveDirtyDNS {
 		tailscaleDNSIP := "100.100.100.100"
-		done, err = UseDarwinDNS(tailscaleDNSIP, "")
+		var err error
+		done, err = UseDarwinDNS(tailscaleDNSIP, []string{})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -78,47 +78,81 @@ func (t Tailscale) Start() error {
 	return nil
 }
 
-func UseDarwinDNS(tailscaleDNSIP string, searchDomain string) (func() error, error) {
+type NetworkSetup struct{}
+
+func NewNetworkSetup() *NetworkSetup {
+	return &NetworkSetup{}
+}
+
+func (NetworkSetup) GetDNSServers() ([]string, error) {
 	out, err := exec.Command("networksetup", "-getdnsservers", "Wi-Fi").Output()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	prevDNS := strings.Split(strings.TrimSpace(string(out)), "\n")
+	return prevDNS, nil
+}
 
-	args := []string{"-setdnsservers", "Wi-Fi", tailscaleDNSIP}
-	args = append(args, prevDNS...)
-	out, err = exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+func (NetworkSetup) SetDNSServers(dnsServers []string) error {
+	args := []string{"-setdnsservers", "Wi-Fi"}
+	args = append(args, dnsServers...)
+	_, err := exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
-	fmt.Printf("%s", out)
+	return nil
+}
 
-	out, err = exec.Command("networksetup", "-getsearchdomains", "Wi-Fi").Output()
+func (NetworkSetup) GetSearchDomains() ([]string, error) {
+	out, err := exec.Command("networksetup", "-getsearchdomains", "Wi-Fi").Output()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	prevSearchDomains := strings.Split(strings.TrimSpace(string(out)), "\n")
+	return prevSearchDomains, nil
+}
 
-	args = []string{"-setsearchdomains", "Wi-Fi", searchDomain}
-	args = append(args, prevSearchDomains...)
-	out, err = exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+func (NetworkSetup) SetSearchDomains(searchDomains []string) error {
+	args := []string{"-setsearchdomains", "Wi-Fi"}
+	args = append(args, searchDomains...)
+	_, err := exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func UseDarwinDNS(tailscaleDNSIP string, searchDomains []string) (func() error, error) {
+	networkSetup := NewNetworkSetup()
+	prevDNS, err := networkSetup.GetDNSServers()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	fmt.Printf("%s", out)
+
+	dnsServers := append([]string{tailscaleDNSIP}, prevDNS...)
+	err = networkSetup.SetDNSServers(dnsServers)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	prevSearchDomains, err := networkSetup.GetSearchDomains()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	searchDomains = append(searchDomains, prevSearchDomains...)
+	err = networkSetup.SetSearchDomains(searchDomains)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 
 	return func() error {
-		args := []string{"-setdnsservers", "Wi-Fi"}
-		args = append(args, prevDNS...)
-		out, err = exec.Command("networksetup", args...).Output()
+		err := networkSetup.SetDNSServers(prevDNS)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		fmt.Printf("%s", out)
 
-		args = []string{"-setsearchdomains", "Wi-Fi"}
-		args = append(args, prevSearchDomains...)
-		out, err = exec.Command("networksetup", args...).Output()
+		err = networkSetup.SetSearchDomains(prevSearchDomains)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -127,7 +161,7 @@ func UseDarwinDNS(tailscaleDNSIP string, searchDomain string) (func() error, err
 }
 
 func (t *Tailscale) WithConfigurerOptions(hostname string, loginServerURL string) *TailscaleConfigurer {
-	return &TailscaleConfigurer{*t, hostname, loginServerURL, false}
+	return &TailscaleConfigurer{*t, hostname, loginServerURL, false, false, []string{}}
 }
 
 type TailscaleConfigurer struct {
@@ -135,6 +169,9 @@ type TailscaleConfigurer struct {
 	HostName          string
 	LoginServerURL    string
 	ShouldForceReauth bool
+
+	LeaveDirtyDNS bool
+	SearchDomains []string
 }
 
 var _ VPNConfigurer = TailscaleConfigurer{}
@@ -142,6 +179,28 @@ var _ VPNConfigurer = TailscaleConfigurer{}
 func (t *TailscaleConfigurer) WithForceReauth(shouldForceReauth bool) *TailscaleConfigurer {
 	t.ShouldForceReauth = shouldForceReauth
 	return t
+}
+
+func (t *TailscaleConfigurer) WithSearchDomains(searchDomains []string) *TailscaleConfigurer {
+	t.SearchDomains = searchDomains
+	return t
+}
+
+func (t TailscaleConfigurer) ConfigureDNS() error {
+	if runtime.GOOS == "darwin" && !t.LeaveDirtyDNS {
+		networkSetup := NewNetworkSetup()
+		prevSearchDomains, err := networkSetup.GetSearchDomains()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		searchDomains := append(t.SearchDomains, prevSearchDomains...)
+		err = networkSetup.SetSearchDomains(searchDomains)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
 }
 
 func (t TailscaleConfigurer) ApplyConfig() error {
@@ -180,6 +239,11 @@ func (t TailscaleConfigurer) ApplyConfig() error {
 	}
 
 	err = outfile.Close()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = t.ConfigureDNS()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -242,7 +306,13 @@ func (t TailscaleConfigurerAuthKey) ApplyConfig() error {
 	if t.ShouldForceReauth {
 		args = append(args, "--force-reauth")
 	}
+
 	err := cli.Run(args)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = t.ConfigureDNS()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -1,6 +1,8 @@
 package vpn
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -11,9 +13,11 @@ import (
 type ServiceMeshStore interface {
 	autostartconf.AutoStartStore
 	VPNStore
-	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error) // * // homedir
+	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
 	GetCurrentWorkspaceID() (string, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error) // * // homdir
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetNetwork(networkID string) (*store.GetNetworkResponse, error)
+	GetActiveOrganizationOrNil() (*entity.Organization, error)
 }
 
 type VPNDaemon struct {
@@ -36,6 +40,7 @@ func (vpnd VPNDaemon) Run() error {
 		ts.WithUserspaceNetworking(true).
 			WithSockProxyPort(1055)
 	}
+
 	err = ts.Start()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -59,6 +64,8 @@ func ConfigureVPN(store ServiceMeshStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	networkdID := ""
 	if workspaceID != "" {
 		var workspace *entity.Workspace
 		workspace, err = store.GetWorkspace(workspaceID)
@@ -66,13 +73,31 @@ func ConfigureVPN(store ServiceMeshStore) error {
 			return breverrors.WrapAndTrace(err)
 		}
 		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
+		networkdID = workspace.NetworkID
 	}
 	authKeyResp, err := store.GetNetworkAuthKey()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	tsc := ts.WithConfigurerOptions(nodeIdentifier, authKeyResp.CoordServerURL).WithForceReauth(true)
+	if networkdID == "" {
+		var org *entity.Organization
+		org, err = store.GetActiveOrganizationOrNil()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if org == nil {
+			return fmt.Errorf("no org exists")
+		}
+		networkdID = org.UserNetworkID
+	}
+
+	network, err := store.GetNetwork(networkdID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	tsc := ts.WithConfigurerOptions(nodeIdentifier, authKeyResp.CoordServerURL).WithForceReauth(true).WithSearchDomains(network.DNSSearchDomains)
 	tsca := tsc.WithAuthKey(authKeyResp.AuthKey)
 	err = tsca.ApplyConfig()
 	if err != nil {

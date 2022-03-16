@@ -128,12 +128,42 @@ func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
 }
 
 var (
-	networkdIDParamName = "networkID"
-	networkPathPattern  = fmt.Sprintf("%s/%s", networkBasePath, "%s")
-	// networkPath           = fmt.Sprintf(networkPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
+	networkdIDParamName   = "networkID"
+	networkPathPattern    = fmt.Sprintf("%s/%s", networkBasePath, "%s")
+	networkPath           = fmt.Sprintf(networkPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
 	networkKeyPathPattern = fmt.Sprintf("%s/key", networkPathPattern)
 	networkKeyPath        = fmt.Sprintf(networkKeyPathPattern, fmt.Sprintf("{%s}", networkdIDParamName))
 )
+
+type GetNetworkResponse struct {
+	ID                 string   `json:"id"`
+	CreatedAt          string   `json:"createdAt"`
+	DNSSearchDomains   []string `json:"dnsSearchDomains"`
+	Name               string   `json:"name"`
+	OrginizationID     string   `json:"organizationId"`
+	UserID             string   `json:"userId"`
+	ExternalIdentifier string   `json:"externalIdentifier"`
+}
+
+func (s AuthHTTPStore) GetNetwork(networkID string) (*GetNetworkResponse, error) {
+	if networkID == "" {
+		return nil, fmt.Errorf("network id can not be an empty string")
+	}
+	result := GetNetworkResponse{}
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(networkdIDParamName, networkID).
+		SetResult(&result).
+		Get(networkPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return &result, nil
+}
 
 func (s AuthHTTPStore) GetNetworkAuthKeyByNetworkID(networkID string, ephemeral bool) (*GetAuthKeyResponse, error) {
 	if networkID == "" {
