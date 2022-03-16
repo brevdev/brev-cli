@@ -86,6 +86,7 @@ func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
 		symlinkTarget = path.Join("/etc/systemd/user/default.target.wants/", lsc.ServiceName+".service")
 	}
 	_, err := os.Stat(symlinkTarget)
+	//nolint:gocritic // doesn't really work in a switch statement
 	if err == nil {
 		errother := os.Remove(symlinkTarget)
 		if errother != nil {
