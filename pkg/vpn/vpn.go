@@ -96,7 +96,7 @@ func (NetworkSetup) GetDNSServers() ([]string, error) {
 func (NetworkSetup) SetDNSServers(dnsServers []string) error {
 	args := []string{"-setdnsservers", "Wi-Fi"}
 	args = append(args, dnsServers...)
-	_, err := exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+	_, err := exec.Command("networksetup", args...).Output()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -115,7 +115,7 @@ func (NetworkSetup) GetSearchDomains() ([]string, error) {
 func (NetworkSetup) SetSearchDomains(searchDomains []string) error {
 	args := []string{"-setsearchdomains", "Wi-Fi"}
 	args = append(args, searchDomains...)
-	_, err := exec.Command("networksetup", args...).Output() //nolint:gosec // static strings
+	_, err := exec.Command("networksetup", args...).Output()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -194,6 +194,7 @@ func (t TailscaleConfigurer) ConfigureDNS() error {
 			return breverrors.WrapAndTrace(err)
 		}
 
+		//nolint:gocritic // we want this behavior
 		searchDomains := append(t.SearchDomains, prevSearchDomains...)
 		err = networkSetup.SetSearchDomains(searchDomains)
 		if err != nil {
