@@ -4,6 +4,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -53,7 +54,9 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 			// }
 			// fmt.Println(resp)
 			if args[0] == "s" {
-				s := server.RPCServerTask{store}
+				s := server.RPCServerTask{
+					Store: store,
+				}
 				err := s.Run()
 				if err != nil {
 					return err
@@ -67,33 +70,10 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 				}
 				err = c.ConfigureVPN()
 				if err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 			}
 			return nil
-
-			// return nil
-			// cfg := autostartconf.LinuxSystemdConfigurer{
-			// 	AutoStartStore: store,
-			// 	ValueConfigFile: `
-			// [Install]
-			// WantedBy=multi-user.target
-
-			// [Unit]
-			// Description=Brev SSH Proxy Daemon
-			// After=systemd-user-sessions.service
-
-			// [Service]
-			// Type=simple
-			// ExecStart=brev run-tasks
-			// Restart=always
-			// `, DestConfigFile: "/etc/systemd/system/brev.service",
-			// }
-			// err := cfg.Install()
-			// if err != nil {
-			// 	return breverrors.WrapAndTrace(err)
-			// }
-			// return nil
 		},
 	}
 
