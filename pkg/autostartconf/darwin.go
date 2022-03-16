@@ -24,23 +24,20 @@ type DarwinPlistConfigurer struct {
 }
 
 func (dpc DarwinPlistConfigurer) UnInstall() error {
-	plist, err := exec.Command("launchctl", "list", dpc.ServiceName).Output()
-	_ = plist // parse it? https://github.com/DHowett/go-plist if we need something.
-	running := err == nil
-	if running {
-		_, err := exec.Command("launchctl", "stop", dpc.ServiceName).CombinedOutput()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		_, err = exec.Command("launchctl", "unload", dpc.ServiceName).CombinedOutput()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
 	destination, err := dpc.GetDestination()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	plist, err := exec.Command("launchctl", "list", dpc.ServiceName).Output()
+	_ = plist // parse it? https://github.com/DHowett/go-plist if we need something.
+	running := err == nil
+	if running {
+		_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
 	err = dpc.Store.Remove(destination)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -116,8 +113,7 @@ func (dpc DarwinPlistConfigurer) GetExecCommand() ([][]string, error) {
 	switch dpc.ServiceType {
 	case System:
 		return [][]string{
-			{"load", "system/" + dpc.ServiceName},
-			{"enable", "system/" + dpc.ServiceName},
+			{"load", "-w", destination},
 		}, nil
 	case SingleUser:
 		return [][]string{{"bootstrap", "gui/" + dpc.Store.GetOSUser(), destination}}, nil
