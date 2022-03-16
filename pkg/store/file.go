@@ -355,5 +355,13 @@ func (f FileStore) GetOSUser() string {
 }
 
 func (f FileStore) GetServerSockFile() string {
-	return "/tmp/brev.sock"
+	return "/tmp/brev.sock" // todo put me in /var/run
+}
+
+func (f FileStore) Remove(target string) error {
+	err := f.fs.Remove(target)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }

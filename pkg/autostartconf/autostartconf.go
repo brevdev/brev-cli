@@ -12,6 +12,7 @@ type AutoStartStore interface {
 	GetOSUser() string
 	GetCurrentWorkspaceID() (string, error)
 	UserHomeDir() (string, error)
+	Remove(target string) error
 }
 
 type DaemonConfigurer interface {
@@ -93,11 +94,11 @@ ExecStart=/usr/local/bin/brev tasks run rpcd --user ` + store.GetOSUser() + `
 Restart=always
 `,
 			DestConfigFile: "/etc/systemd/system/brevrpcd.service",
-			ServiceName:    "com.brev.rpcd",
+			ServiceName:    "brevrpcd",
 			ServiceType:    "system",
 		}
 	case "darwin":
-		return DarwinPlistConfigurer{
+		return DarwinPlistConfigurer{ // todo add user to rpcd
 			Store: store,
 			ValueConfigFile: `
 <?xml version="1.0" encoding="UTF-8"?>
