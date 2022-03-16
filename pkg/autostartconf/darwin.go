@@ -50,11 +50,12 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 }
 
 func (dpc DarwinPlistConfigurer) Install() error {
-	err := dpc.UnInstall()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = dpc.Store.CopyBin(targetBin)
+	_ = dpc.UnInstall()
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+	// err = dpc.Store.CopyBin(targetBin)
+	err := dpc.Store.CopyBin(targetBin)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
