@@ -28,11 +28,11 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	plist, err := exec.Command("launchctl", "list", dpc.ServiceName).Output()
-	_ = plist // parse it? https://github.com/DHowett/go-plist if we need something.
+	plist, err := exec.Command("launchctl", "list", dpc.ServiceName).Output() // #nosec G204
+	_ = plist                                                                 // parse it? https://github.com/DHowett/go-plist if we need something.
 	running := err == nil
 	if running {
-		_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput()
+		_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput() // #nosec G204
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -125,7 +125,7 @@ func (dpc DarwinPlistConfigurer) GetExecCommand() ([][]string, error) {
 
 func execCommands(commands [][]string) error {
 	for _, command := range commands {
-		out, err := exec.Command("launchctl", command...).CombinedOutput()
+		out, err := exec.Command("launchctl", command...).CombinedOutput() // #nosec G204
 		if err != nil {
 			return fmt.Errorf("error running launchctl %s: %v, %s", fmt.Sprint(command), err, out)
 		}

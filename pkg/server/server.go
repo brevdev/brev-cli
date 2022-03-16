@@ -20,12 +20,12 @@ type ServerStore interface {
 	vpn.ServiceMeshStore
 }
 
-type RpcServer struct {
+type RPCServer struct {
 	Store ServerStore
 }
 
-func NewRpcServer(store ServerStore) RpcServer {
-	return RpcServer{
+func NewRPCServer(store ServerStore) RPCServer {
+	return RPCServer{
 		Store: store,
 	}
 }
@@ -43,7 +43,7 @@ func NewClient(sockAddr string) (*Client, error) {
 	return &Client{client}, nil
 }
 
-func (s RpcServer) ConfigureVPN(_ *string, _ *string) error {
+func (s RPCServer) ConfigureVPN(_ *string, _ *string) error {
 	err := vpn.ConfigureVPN(s.Store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -75,7 +75,7 @@ func (s Server) Serve() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	server := NewRpcServer(s.Store)
+	server := NewRPCServer(s.Store)
 	err := rpc.Register(server)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

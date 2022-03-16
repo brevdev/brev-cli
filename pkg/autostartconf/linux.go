@@ -65,8 +65,7 @@ func (lsc LinuxSystemdConfigurer) Enable() error {
 }
 
 func (lsc LinuxSystemdConfigurer) Start() error {
-	//nolint //this is never defined by a user
-	out, err := exec.Command("systemctl", "start", lsc.ServiceName).CombinedOutput()
+	out, err := exec.Command("systemctl", "start", lsc.ServiceName).CombinedOutput() // #nosec G204
 	if err != nil {
 		return fmt.Errorf("error running systemctl start %s: %v, %s", lsc.DestConfigFile, err, out)
 	}

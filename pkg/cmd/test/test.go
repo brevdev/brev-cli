@@ -4,11 +4,11 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -59,14 +59,14 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 				}
 				err := s.Run()
 				if err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 			}
 			if args[0] == "c" {
 				sock := store.GetServerSockFile()
 				c, err := server.NewClient(sock)
 				if err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 				err = c.ConfigureVPN()
 				if err != nil {
