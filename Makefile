@@ -101,7 +101,7 @@ smoke-test: ## runs `brev version`
 	$(call print-target)
 	go run main.go --version
 
-.PHONY: smoketest
+.PHONY: full-smoke-test
 full-smoke-test: ci fast-build
 	# relocate directories used by cli if they exist
 	[ ! -d ~/.ssh ] || mv ~/.ssh ~/.ssh.bak
