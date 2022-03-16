@@ -54,7 +54,7 @@ func (s RPCServer) ConfigureVPN(_ *string, _ *string) error {
 func (c Client) ConfigureVPN() error {
 	in := ""
 	out := ""
-	err := c.client.Call("RpcServer.ConfigureVPN", &in, &out)
+	err := c.client.Call("RPCServer.ConfigureVPN", &in, &out)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
