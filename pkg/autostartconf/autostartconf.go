@@ -10,7 +10,6 @@ type AutoStartStore interface {
 	CopyBin(targetBin string) error
 	WriteString(path, data string) error
 	GetOSUser() string
-	GetCurrentWorkspaceID() (string, error)
 	UserHomeDir() (string, error)
 	Remove(target string) error
 }

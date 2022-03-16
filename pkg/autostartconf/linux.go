@@ -33,21 +33,17 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspaceID, err := lsc.Store.GetCurrentWorkspaceID()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if workspaceID == "" {
+	if shouldSymlink() {
+		err := lsc.CreateForcedSymlink()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
 		err := lsc.Enable()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		err = lsc.Start()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
-		err := lsc.CreateForcedSymlink()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -102,4 +98,11 @@ func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func shouldSymlink() bool {
+	if os.Getenv("SHOULD_SYMLINK") != "" {
+		return os.Getenv("SHOULD_SYMLINK") == "1"
+	}
+	return false
 }
