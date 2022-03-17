@@ -16,19 +16,7 @@ import (
 
 type TaskMap map[string]tasks.Task
 
-var all bool // used for configure command
-
-// func init() {
-// 	TaskMap := make()
-// 	TaskMap["ssh"] = ssh.ConfigUpdater{
-// 		Store: store,
-// 		Configs: []ssh.Config{
-// 			ssh.NewSSHConfigurerV2(
-// 				store,
-// 			),
-// 		},
-// 	}
-// }
+var all = true // used for configure command
 
 type TaskStore interface {
 	CopyBin(targetBin string) error
@@ -57,7 +45,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().BoolVarP(&all, "all", "a", false, "specifies all tasks")
+	cmd.PersistentFlags().BoolVarP(&all, "all", "a", true, "[deprecated](always true) specifies all tasks")
 	configure := NewCmdConfigure(t, store, taskMap)
 	cmd.AddCommand(configure)
 	run := NewCmdRun(t, store, taskMap)
@@ -70,27 +58,30 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 		Use:   "configure [task to configure]",
 		Short: "configure system startup daemon for task",
 		Long:  "configure system startup daemon for task",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if all {
 				for k, value := range taskMap {
-					fmt.Println(k)
 					err := value.Configure()
 					if err != nil {
+						fmt.Println(k)
 						log.Error(err)
 					}
 				}
 			} else {
-				if len(args) == 0 {
-					log.Error("provide a task name or --all")
-					return
-				}
-				if task, ok := taskMap[args[0]]; ok {
-					err := task.Configure()
-					if err != nil {
-						log.Error(err)
-					}
-				}
+				// this should never run
+				_ = 0
+				// if len(args) == 0 {
+				// 	log.Error("provide a task name or --all")
+				// 	return
+				// }
+				// if task, ok := taskMap[args[0]]; ok {
+				// 	err := task.Configure()
+				// 	if err != nil {
+				// 		log.Error(err)
+				// 	}
+				// }
 			}
+			return nil
 		},
 	}
 	return cmd
@@ -131,15 +122,6 @@ func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
 }
 
 func getTaskMap(store TaskStore) TaskMap {
-	// cu := ssh.ConfigUpdater{
-	// 	Store: store,
-	// 	Configs: []ssh.Config{
-	// 		ssh.NewSSHConfigurerV2(
-	// 			store,
-	// 		),
-	// 	},
-	// }
-
 	taskmap := make(TaskMap)
 	vpnd := vpn.NewVPNDaemon(store)
 	taskmap["vpnd"] = vpnd
