@@ -3,6 +3,7 @@ package vpn
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
@@ -56,11 +57,13 @@ func (vpnd VPNDaemon) Configure() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// time.Sleep(1 * time.Second) // using
+
 	err = ConfigureVPN(vpnd.Store)
 	if err != nil {
 		// if can't connect to tailscale try again, and if error is not auth return it
 		if strings.Contains(err.Error(), "failed to connect to local Tailscale service") {
+			fmt.Println("failed to connect to vpn trying again")
+			time.Sleep(2 * time.Second)
 			err = ConfigureVPN(vpnd.Store)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
