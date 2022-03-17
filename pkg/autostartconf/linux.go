@@ -71,7 +71,7 @@ func (lsc LinuxSystemdConfigurer) Start() error {
 // CreateForcedSymlink aims to be the equivalent operation as running
 // ln -sf /lib/systemd/system/huproxy.service /etc/systemd/system/default.target.wants/huproxy.service
 // which overwrite's an existing symbolic link to point to a different file
-// which we need to do in the workspace docker image because systemd is running
+// which we need to do in the workspace docker image because systemd isn't running
 // at build time.
 func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
 	symlinkTarget := ""
