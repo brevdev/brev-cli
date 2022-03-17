@@ -1,6 +1,7 @@
 package vpn
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,10 +14,13 @@ import (
 	"github.com/hpcloud/tail"
 	"github.com/spf13/afero"
 	"tailscale.com/cmd/tailscale/cli"
+
+	"tailscale.com/client/tailscale"
 )
 
 type VPN interface {
 	Start() error
+	Reset() error
 }
 
 type VPNConfigurer interface {
@@ -75,6 +79,14 @@ func (t Tailscale) Start() error {
 	defer done() //nolint:errcheck // using to handle in case of panics
 	tailscaled.Run()
 
+	return nil
+}
+
+func (t Tailscale) Reset() error {
+	err := tailscale.Logout(context.Background())
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 

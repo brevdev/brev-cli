@@ -2,25 +2,36 @@
 package logout
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 type LogoutOptions struct {
-	auth Auth
+	auth  Auth
+	store LogoutStore
 }
 
 type Auth interface {
 	Logout() error
 }
 
-func NewCmdLogout(auth Auth) *cobra.Command {
+type LogoutStore interface {
+	vpn.ServiceMeshStore
+	ClearDefaultOrganization() error
+	GetCurrentWorkspaceID() (string, error)
+}
+
+func NewCmdLogout(auth Auth, store LogoutStore) *cobra.Command {
 	opts := LogoutOptions{
-		auth: auth,
+		auth:  auth,
+		store: store,
 	}
 
 	cmd := &cobra.Command{
@@ -31,7 +42,6 @@ func NewCmdLogout(auth Auth) *cobra.Command {
 		Long:                  "Log out of brev by deleting the credential file",
 		Example:               "brev logout",
 		Args:                  cobra.NoArgs,
-		// ValidArgsFunction: util.ResourceNameCompletionFunc(f, "pod"),
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(cmd, args))
 			cmdutil.CheckErr(opts.RunLogout())
@@ -41,18 +51,39 @@ func NewCmdLogout(auth Auth) *cobra.Command {
 }
 
 func (o *LogoutOptions) Complete(_ *cobra.Command, _ []string) error {
-	// func (o *LogoutOptions) Complete(cmd *cobra.Command, args []string) error {
-	// return fmt.Errorf("not implemented")
 	return nil
 }
 
 func (o *LogoutOptions) RunLogout() error {
-	// func (o *LogoutOptions) RunLogout(cmd *cobra.Command, args []string) error {
-	err := o.auth.Logout()
+	workspaceID, err := o.store.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		fmt.Println("can not logout of workspace")
+		return nil
+	}
+
+	// best effort
+	var allErr error
+	err = o.auth.Logout()
 	if err != nil {
 		if !strings.Contains(err.Error(), ".brev/credentials.json: no such file or directory") {
-			return breverrors.WrapAndTrace(err)
+			allErr = multierror.Append(err)
 		}
+	}
+
+	err = o.store.ClearDefaultOrganization()
+	if err != nil {
+		allErr = multierror.Append(err)
+	}
+
+	err = vpn.ResetVPN(o.store)
+	if err != nil {
+		allErr = multierror.Append(err)
+	}
+	if allErr != nil {
+		return breverrors.WrapAndTrace(allErr)
 	}
 	return nil
 }

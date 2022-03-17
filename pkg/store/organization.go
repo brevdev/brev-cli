@@ -19,11 +19,27 @@ func (s AuthHTTPStore) SetDefaultOrganization(org *entity.Organization) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = files.OverwriteJSON(path, org)
+	err = files.OverwriteJSON(s.fs, path, org)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	return nil
+}
+
+func (s FileStore) ClearDefaultOrganization() error {
+	home, err := s.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetActiveOrgsPath(home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = files.DeleteFile(s.fs, path)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 

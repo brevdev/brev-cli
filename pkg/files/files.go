@@ -66,12 +66,12 @@ func GetNewBackupSSHConfigFileName() string {
 	return fmt.Sprintf("%s.%s", backupSSHConfigFileNamePrefix, uuid.New())
 }
 
-func BuildBrevHome(userHome string) error {
+func BuildBrevHome(fs afero.Fs, userHome string) error {
 	brevHome, err := GetBrevHome(userHome)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if err := os.MkdirAll(brevHome, defaultFilePermission); err != nil {
+	if err := fs.MkdirAll(brevHome, defaultFilePermission); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
@@ -197,9 +197,9 @@ func ReadJSON(fs afero.Fs, unsafeFilePathString string, v interface{}) error {
 	return nil
 }
 
-func ReadString(unsafeFilePathString string) (string, error) {
+func ReadString(fs afero.Fs, unsafeFilePathString string) (string, error) {
 	safeFilePath := filepath.Clean(unsafeFilePathString)
-	f, err := os.Open(safeFilePath)
+	f, err := fs.Open(safeFilePath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -229,8 +229,8 @@ func ReadString(unsafeFilePathString string) (string, error) {
 // Usage (struct):
 //   var foo myStruct
 //   OverwriteJSON("tmp/a/b/c.json", foo)
-func OverwriteJSON(filepath string, v interface{}) error {
-	f, err := touchFile(filepath)
+func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
+	f, err := touchFile(fs, filepath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -261,8 +261,8 @@ func OverwriteJSON(filepath string, v interface{}) error {
 //
 // Usage
 //   OverwriteString("tmp/a/b/c.txt", "hi there")
-func OverwriteString(filepath string, data string) error {
-	f, err := touchFile(filepath)
+func OverwriteString(fs afero.Fs, filepath string, data string) error {
+	f, err := touchFile(fs, filepath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -299,8 +299,8 @@ func WriteSSHPrivateKey(fs afero.Fs, data string, home string) error {
 }
 
 // Delete a single file altogether.
-func DeleteFile(filepath string) error {
-	err := os.Remove(filepath)
+func DeleteFile(fs afero.Fs, filepath string) error {
+	err := fs.Remove(filepath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -308,11 +308,11 @@ func DeleteFile(filepath string) error {
 }
 
 // Create file (and full path) if it does not already exit.
-func touchFile(path string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(path), defaultFilePermission); err != nil {
+func touchFile(fs afero.Fs, path string) (afero.File, error) {
+	if err := fs.MkdirAll(filepath.Dir(path), defaultFilePermission); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	f, err := os.Create(path)
+	f, err := fs.Create(path)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

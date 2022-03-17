@@ -68,6 +68,15 @@ func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []stri
 }
 
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
+	workspaceID, err := o.LoginStore.GetCurrentWorkspaceID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if workspaceID != "" {
+		fmt.Println("can not login to workspace")
+		return nil
+	}
+
 	tokens, err := o.Auth.Login()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

@@ -26,7 +26,7 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = files.OverwriteJSON(*brevCredentialsFile, token)
+	err = files.OverwriteJSON(f.fs, *brevCredentialsFile, token)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -96,7 +96,7 @@ func (f FileStore) DeleteAuthTokens() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = files.DeleteFile(*brevCredentialsFile)
+	err = files.DeleteFile(f.fs, *brevCredentialsFile)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

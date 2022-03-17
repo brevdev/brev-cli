@@ -124,6 +124,15 @@ func ConfigureVPN(store ServiceMeshStore) error {
 	return nil
 }
 
+func ResetVPN(store ServiceMeshStore) error {
+	ts := NewTailscale(store)
+	err := ts.Reset()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func NewVPNDaemon(store ServiceMeshStore) VPNDaemon {
 	vpnd := VPNDaemon{
 		Store: store,

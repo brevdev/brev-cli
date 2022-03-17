@@ -339,7 +339,7 @@ func (f FileStore) BuildBrevHome() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = files.BuildBrevHome(home)
+	err = files.BuildBrevHome(f.fs, home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
