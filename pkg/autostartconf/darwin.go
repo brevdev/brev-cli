@@ -42,10 +42,10 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = dpc.Store.Remove(targetBin)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	// err = dpc.Store.Remove(targetBin)
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
 	return nil
 }
 

@@ -87,16 +87,10 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	if err != nil {
 		fmt.Printf("%v\n", err)
 	}
-	if user != "" {
-		loginCmdStore.WithUserID(user)
-	}
 	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(noLoginAuth)
-	if user != "" {
-		noLoginCmdStore.WithUserID(user)
-	}
 
 	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
 	if err != nil {
@@ -115,6 +109,14 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
       Find more information at:
             https://brev.dev`,
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if user != "" {
+				noLoginCmdStore.WithUserID(user)
+			}
+			if user != "" {
+				loginCmdStore.WithUserID(user)
+			}
+		},
 		Run: runHelp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printVersion {

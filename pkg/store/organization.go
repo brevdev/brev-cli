@@ -68,7 +68,12 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	return &activeOrg, nil
+
+	freshOrg, err := s.GetOrganization(activeOrg.ID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return freshOrg, nil
 }
 
 // returns the 'set'/active organization or the default one or nil if no orgs exist

@@ -114,6 +114,8 @@ Restart=always
 	<string>tasks</string>
 	<string>run</string>
 	<string>rpcd</string>
+	<string>--user</string>
+	<string>` + store.GetOSUser() + `</string>
   </array>
 
   <key>RunAtLoad</key>
