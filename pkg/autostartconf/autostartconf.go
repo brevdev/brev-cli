@@ -34,7 +34,7 @@ After=systemd-user-sessions.service
 
 [Service]
 Type=simple
-ExecStart=brev run tasks vpnd
+ExecStart=brev tasks run vpnd
 Restart=always
 `,
 			DestConfigFile: "/etc/systemd/system/brevvpnd.service",
