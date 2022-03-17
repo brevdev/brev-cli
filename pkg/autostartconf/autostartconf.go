@@ -55,7 +55,7 @@ Restart=always
 
   <key>ProgramArguments</key>
   <array>
-    <string>brev</string>
+    <string>/usr/local/bin/brev</string>
 	<string>tasks</string>
 	<string>run</string>
 	<string>vpnd</string>
@@ -115,7 +115,7 @@ Restart=always
 
   <key>ProgramArguments</key>
   <array>
-    <string>brev</string>
+    <string>/usr/local/bin/brev</string>
 	<string>tasks</string>
 	<string>run</string>
 	<string>rpcd</string>
