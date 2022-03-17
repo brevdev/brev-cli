@@ -64,6 +64,11 @@ Restart=always
   <key>RunAtLoad</key>
   <true/>
 
+  <key>StandardOutPath</key>
+  <string>/tmp/brevvpnd.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/brevvpnd.err</string>
+
 </dict>
 </plist>
 			`,
@@ -120,6 +125,11 @@ Restart=always
 
   <key>RunAtLoad</key>
   <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/brevrpcd.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/brevrpcd.err</string>
 
 </dict>
 </plist>
