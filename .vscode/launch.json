@@ -80,7 +80,12 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["port-forward", "workspace-images", "--port", "3000:3000"]
+      "args": [
+        "port-forward",
+        "workspace-images",
+        "--port",
+        "3000:3000"
+      ]
     },
     {
       "name": "refresh",
@@ -90,7 +95,9 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["refresh"]
+      "args": [
+        "refresh"
+      ]
     },
     {
       "name": "delete",
@@ -100,7 +107,10 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["delete", "brevdev/todo-template"]
+      "args": [
+        "delete",
+        "brevdev/todo-template"
+      ]
     },
     {
       "name": "jetbrains",
@@ -110,7 +120,9 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["jetbrains"]
+      "args": [
+        "jetbrains"
+      ]
     },
     {
       "name": "start",
@@ -120,7 +132,10 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["start", "https://gitlab.com/reedrichards/mynettools"]
+      "args": [
+        "start",
+        "https://gitlab.com/reedrichards/mynettools"
+      ]
     },
     {
       "name": "proxy",
@@ -130,7 +145,10 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["proxy", "cyv2zys88"]
+      "args": [
+        "proxy",
+        "cyv2zys88"
+      ]
     },
     {
       "name": "test",
@@ -140,7 +158,24 @@
       "program": "${workspaceFolder}/main.go",
       //   "envFile": "${workspaceFolder}/prod_lite.env",
       // "envFile": "${workspaceFolder}/local.env",
-      "args": ["test", "c"]
-    }
+      "args": [
+        "test",
+        "c"
+      ]
+    },
+    {
+      "name": "rpcd",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/main.go",
+      //   "envFile": "${workspaceFolder}/prod_lite.env",
+      // "envFile": "${workspaceFolder}/local.env",
+      "args": [
+        "tasks",
+        "run",
+        "rpcd"
+      ]
+    },
   ]
 }

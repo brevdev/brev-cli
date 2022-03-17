@@ -16,7 +16,7 @@ import (
 
 type TaskMap map[string]tasks.Task
 
-var all = true // used for configure command
+var all bool // used for run command
 
 type TaskStore interface {
 	CopyBin(targetBin string) error
@@ -45,10 +45,10 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().BoolVarP(&all, "all", "a", true, "[deprecated](always true) specifies all tasks")
 	configure := NewCmdConfigure(t, store, taskMap)
 	cmd.AddCommand(configure)
 	run := NewCmdRun(t, store, taskMap)
+	run.PersistentFlags().BoolVarP(&all, "all", "a", false, "specifies all tasks")
 	cmd.AddCommand(run)
 	return cmd
 }
@@ -59,27 +59,12 @@ func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.
 		Short: "configure system startup daemon for task",
 		Long:  "configure system startup daemon for task",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if all {
-				for k, value := range taskMap {
-					err := value.Configure()
-					if err != nil {
-						fmt.Println(k)
-						log.Error(err)
-					}
+			for k, value := range taskMap {
+				err := value.Configure()
+				if err != nil {
+					fmt.Println(k)
+					log.Error(err)
 				}
-			} else {
-				// this should never run
-				_ = 0
-				// if len(args) == 0 {
-				// 	log.Error("provide a task name or --all")
-				// 	return
-				// }
-				// if task, ok := taskMap[args[0]]; ok {
-				// 	err := task.Configure()
-				// 	if err != nil {
-				// 		log.Error(err)
-				// 	}
-				// }
 			}
 			return nil
 		},
