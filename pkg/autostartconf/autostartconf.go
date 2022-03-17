@@ -34,7 +34,7 @@ After=systemd-user-sessions.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/brev meshd
+ExecStart=brev run tasks vpnd
 Restart=always
 `,
 			DestConfigFile: "/etc/systemd/system/brevvpnd.service",
@@ -55,7 +55,7 @@ Restart=always
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/brev</string>
+    <string>brev</string>
 	<string>tasks</string>
 	<string>run</string>
 	<string>vpnd</string>
@@ -89,7 +89,7 @@ After=systemd-user-sessions.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/brev tasks run rpcd --user ` + store.GetOSUser() + `
+ExecStart=brev tasks run rpcd --user ` + store.GetOSUser() + `
 Restart=always
 `,
 			DestConfigFile: "/etc/systemd/system/brevrpcd.service",
@@ -110,7 +110,7 @@ Restart=always
 
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/local/bin/brev</string>
+    <string>brev</string>
 	<string>tasks</string>
 	<string>run</string>
 	<string>rpcd</string>
