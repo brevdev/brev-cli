@@ -108,6 +108,7 @@ func (NetworkSetup) GetDNSServers() ([]string, error) {
 func (NetworkSetup) SetDNSServers(dnsServers []string) error {
 	args := []string{"-setdnsservers", "Wi-Fi"}
 	args = append(args, dnsServers...)
+	args = filterDupes(args)
 	_, err := exec.Command("networksetup", args...).Output()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -124,9 +125,24 @@ func (NetworkSetup) GetSearchDomains() ([]string, error) {
 	return prevSearchDomains, nil
 }
 
+func filterDupes(items []string) []string {
+	collisions := make(map[string]bool)
+	result := []string{}
+	for _, item := range items {
+		if collisions[item] {
+			continue
+		} else {
+			collisions[item] = true
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
 func (NetworkSetup) SetSearchDomains(searchDomains []string) error {
 	args := []string{"-setsearchdomains", "Wi-Fi"}
 	args = append(args, searchDomains...)
+	args = filterDupes(args)
 	_, err := exec.Command("networksetup", args...).Output()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
