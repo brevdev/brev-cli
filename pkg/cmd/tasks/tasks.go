@@ -5,6 +5,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/server"
+	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -28,6 +29,7 @@ type TaskStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	vpn.ServiceMeshStore
 	server.RPCServerTaskStore
+	ssh.ConfigUpaterFactoryStore
 }
 
 func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
@@ -112,5 +114,7 @@ func getTaskMap(store TaskStore) TaskMap {
 	taskmap["vpnd"] = vpnd
 	rpcd := server.NewRPCServerTask(store)
 	taskmap["rpcd"] = rpcd
+	sshcd := ssh.NewSSHConfigUpdater(store)
+	taskmap["sshcd"] = sshcd
 	return taskmap
 }

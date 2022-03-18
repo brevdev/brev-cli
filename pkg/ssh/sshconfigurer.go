@@ -7,6 +7,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
@@ -14,6 +15,7 @@ import (
 )
 
 type ConfigUpdaterStore interface {
+	autostartconf.AutoStartStore
 	GetContextWorkspaces() ([]entity.Workspace, error)
 }
 
@@ -59,7 +61,29 @@ func (c ConfigUpdater) GetTaskSpec() tasks.TaskSpec {
 }
 
 func (c ConfigUpdater) Configure() error {
+	daemonConfigurer := autostartconf.NewSSHConfigurer(c.Store)
+	err := daemonConfigurer.Install()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
+}
+
+// ConfigUpaterFactoryStore prob a better way to do this
+type ConfigUpaterFactoryStore interface {
+	ConfigUpdaterStore
+	SSHConfigurerV2Store
+}
+
+func NewSSHConfigUpdater(store ConfigUpaterFactoryStore) ConfigUpdater {
+	return ConfigUpdater{
+		Store: store,
+		Configs: []Config{
+			NewSSHConfigurerV2(
+				store,
+			),
+		},
+	}
 }
 
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand

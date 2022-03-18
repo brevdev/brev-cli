@@ -122,7 +122,7 @@ Restart=always
 			ServiceType:    "system",
 		}
 	case "darwin":
-		return DarwinPlistConfigurer{ // todo add user to rpcd
+		return DarwinPlistConfigurer{
 			Store: store,
 			ValueConfigFile: `
 <?xml version="1.0" encoding="UTF-8"?>
@@ -156,6 +156,68 @@ Restart=always
 			`,
 			ServiceName: "com.brev.rpcd",
 			ServiceType: System,
+		}
+	}
+	return nil
+}
+
+func NewSSHConfigurer(store AutoStartStore) DaemonConfigurer {
+	switch runtime.GOOS {
+	case "linux":
+		return LinuxSystemdConfigurer{
+			Store: store,
+			ValueConfigFile: `
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Brev vpn daemon
+After=systemd-user-sessions.service
+
+[Service]
+Type=simple
+ExecStart=brev tasks run sshcd --user ` + store.GetOSUser() + `
+Restart=always
+`,
+			DestConfigFile: "/etc/systemd/user/brevsshcd.service",
+			ServiceName:    "brevsshcd.service",
+			ServiceType:    "user",
+		}
+	case "darwin":
+		return DarwinPlistConfigurer{
+			Store: store,
+			ValueConfigFile: `
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+  <key>Label</key>
+  <string>com.brev.sshcd</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/brev</string>
+	<string>tasks</string>
+	<string>run</string>
+	<string>sshcd</string>
+	<string>--user</string>
+	<string>` + store.GetOSUser() + `</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/brevsshcd.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/brevsshcd.err</string>
+
+</dict>
+</plist>
+			`,
+			ServiceName: "com.brev.sshcd",
+			ServiceType: SingleUser,
 		}
 	}
 	return nil
