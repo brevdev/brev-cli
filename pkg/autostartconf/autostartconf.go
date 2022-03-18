@@ -58,7 +58,7 @@ ExecStart=brev tasks run vpnd
 Restart=always
 `,
 			DestConfigFile: "/etc/systemd/system/brevvpnd.service",
-			ServiceName:    "brevvpnd",
+			ServiceName:    "brevvpnd.service",
 			ServiceType:    "system",
 		}
 	case "darwin":
@@ -118,7 +118,7 @@ ExecStart=brev tasks run rpcd --user ` + store.GetOSUser() + `
 Restart=always
 `,
 			DestConfigFile: "/etc/systemd/system/brevrpcd.service",
-			ServiceName:    "brevrpcd",
+			ServiceName:    "brevrpcd.service",
 			ServiceType:    "system",
 		}
 	case "darwin":

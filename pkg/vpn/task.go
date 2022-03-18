@@ -117,9 +117,12 @@ func ConfigureVPN(store ServiceMeshStore) error {
 
 	tsc := ts.WithConfigurerOptions(nodeIdentifier, authKeyResp.CoordServerURL).WithForceReauth(true).WithSearchDomains(network.DNSSearchDomains)
 	tsca := tsc.WithAuthKey(authKeyResp.AuthKey)
-	err = tsca.ApplyConfig()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	if !autostartconf.ShouldSymlink() {
+
+		err = tsca.ApplyConfig()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	return nil
 }

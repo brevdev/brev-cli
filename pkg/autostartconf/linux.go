@@ -1,8 +1,6 @@
 package autostartconf
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path"
 
@@ -39,11 +37,8 @@ func (lsc LinuxSystemdConfigurer) UnInstall() error {
 }
 
 func (lsc LinuxSystemdConfigurer) Install() error {
-	err := lsc.UnInstall() // best effort
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = lsc.Store.CopyBin(targetBin)
+	_ = lsc.UnInstall() // best effort
+	err := lsc.Store.CopyBin(targetBin)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -52,7 +47,7 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if shouldSymlink() {
+	if ShouldSymlink() {
 		errother := lsc.CreateForcedSymlink()
 		if errother != nil {
 			return breverrors.WrapAndTrace(errother)
@@ -79,30 +74,18 @@ func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
 	symlinkTarget := ""
 	switch lsc.ServiceType {
 	case "system":
-		symlinkTarget = path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName+".service")
+		symlinkTarget = path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName)
 	case "user":
-		symlinkTarget = path.Join("/etc/systemd/user/default.target.wants/", lsc.ServiceName+".service")
+		symlinkTarget = path.Join("/etc/systemd/user/default.target.wants/", lsc.ServiceName)
 	}
-	_, err := os.Stat(symlinkTarget)
-	//nolint:gocritic // doesn't really work in a switch statement
-	if err == nil {
-		errother := os.Remove(symlinkTarget)
-		if errother != nil {
-			return breverrors.WrapAndTrace(errother)
-		}
-	} else if errors.Is(err, os.ErrNotExist) {
-		fmt.Println(symlinkTarget)
-		err = os.Symlink(lsc.DestConfigFile, symlinkTarget)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
+	err := os.Symlink(lsc.DestConfigFile, symlinkTarget)
+	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func shouldSymlink() bool {
+func ShouldSymlink() bool {
 	if os.Getenv("SHOULD_SYMLINK") != "" {
 		return os.Getenv("SHOULD_SYMLINK") == "1"
 	}
