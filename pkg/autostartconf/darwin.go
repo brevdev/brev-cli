@@ -2,7 +2,6 @@ package autostartconf
 
 import (
 	"errors"
-	"fmt"
 	"os/exec"
 	"path"
 
@@ -50,11 +49,8 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 }
 
 func (dpc DarwinPlistConfigurer) Install() error {
-	err := dpc.UnInstall()
-	if err != nil {
-		fmt.Println(err)
-	}
-	err = dpc.Store.CopyBin(targetBin)
+	_ = dpc.UnInstall()
+	err := dpc.Store.CopyBin(targetBin)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
