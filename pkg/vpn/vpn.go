@@ -129,9 +129,7 @@ func filterDupes(items []string) []string {
 	collisions := make(map[string]bool)
 	result := []string{}
 	for _, item := range items {
-		if collisions[item] {
-			continue
-		} else {
+		if !collisions[item] {
 			collisions[item] = true
 			result = append(result, item)
 		}

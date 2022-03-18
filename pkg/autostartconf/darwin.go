@@ -117,4 +117,3 @@ func (dpc DarwinPlistConfigurer) GetExecCommand() ([][]string, error) {
 	}
 	return [][]string{}, errors.New("invalid service type")
 }
-
