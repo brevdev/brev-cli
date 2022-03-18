@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -19,12 +18,32 @@ type LinuxSystemdConfigurer struct {
 }
 
 func (lsc LinuxSystemdConfigurer) UnInstall() error {
+	exists, err := lsc.Store.FileExists(lsc.DestConfigFile)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if exists {
+		errother := lsc.Store.Remove(lsc.DestConfigFile)
+		if errother != nil {
+			return breverrors.WrapAndTrace(errother)
+		}
+	}
+	err = execCommands([][]string{
+		{"systemctl", "disable", lsc.ServiceName},
+		{"systemctl", "stop", lsc.ServiceName},
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
 func (lsc LinuxSystemdConfigurer) Install() error {
-	_ = lsc.UnInstall() // best effort
-	err := lsc.Store.CopyBin(targetBin)
+	err := lsc.UnInstall() // best effort
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = lsc.Store.CopyBin(targetBin)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -34,36 +53,19 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 	}
 
 	if shouldSymlink() {
-		err := lsc.CreateForcedSymlink()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		errother := lsc.CreateForcedSymlink()
+		if errother != nil {
+			return breverrors.WrapAndTrace(errother)
 		}
 	} else {
-		err := lsc.Enable()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		errother := execCommands([][]string{
+			{"systemctl", "enable", lsc.ServiceName},
+			{"systemctl", "start", lsc.ServiceName},
+			{"systemctl", "daemon-reload"},
+		})
+		if errother != nil {
+			return breverrors.WrapAndTrace(errother)
 		}
-		err = lsc.Start()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
-
-func (lsc LinuxSystemdConfigurer) Enable() error {
-	//nolint //this is never defined by a user
-	out, err := exec.Command("systemctl", "enable", lsc.ServiceName).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("error running systemctl enable %s: %v, %s", lsc.DestConfigFile, err, out)
-	}
-	return nil
-}
-
-func (lsc LinuxSystemdConfigurer) Start() error {
-	out, err := exec.Command("systemctl", "start", lsc.ServiceName).CombinedOutput() // #nosec G204
-	if err != nil {
-		return fmt.Errorf("error running systemctl start %s: %v, %s", lsc.DestConfigFile, err, out)
 	}
 	return nil
 }

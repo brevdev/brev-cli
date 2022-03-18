@@ -1,6 +1,8 @@
 package autostartconf
 
 import (
+	"fmt"
+	"os/exec"
 	"runtime"
 )
 
@@ -12,11 +14,29 @@ type AutoStartStore interface {
 	GetOSUser() string
 	UserHomeDir() (string, error)
 	Remove(target string) error
+	FileExists(target string) (bool, error)
 }
 
 type DaemonConfigurer interface {
 	Install() error
 	UnInstall() error
+}
+
+func execCommands(commands [][]string) error {
+	for _, command := range commands {
+		first, rest := firstAndRest(command)
+		out, err := exec.Command(first, rest...).CombinedOutput() // #nosec G204
+		if err != nil {
+			return fmt.Errorf("error running launchctl %s: %v, %s", fmt.Sprint(command), err, out)
+		}
+	}
+	return nil
+}
+
+func firstAndRest(commandstring []string) (string, []string) {
+	first := commandstring[0]
+	rest := commandstring[1:]
+	return first, rest
 }
 
 func NewVPNConfig(store AutoStartStore) DaemonConfigurer {
