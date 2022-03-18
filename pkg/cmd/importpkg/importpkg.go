@@ -10,6 +10,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -259,6 +260,14 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		}
 	} else {
 		options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	}
+
+	user, err := importStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if featureflag.IsAdmin(user.GlobalUserType) {
+		options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
 	}
 
 	w, err := importStore.CreateWorkspace(orgID, options)

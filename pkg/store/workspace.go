@@ -30,6 +30,7 @@ type CreateWorkspacesOptions struct {
 var (
 	DefaultWorkspaceClassID    = config.GlobalConfig.GetDefaultWorkspaceClass()
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
+	DevWorkspaceTemplateID     = "test-template-aws"
 )
 
 var (
