@@ -28,18 +28,23 @@ func (b *BasicStore) WithFileSystem(fs afero.Fs) *FileStore {
 	return &FileStore{*b, fs, nil}
 }
 
-func (f *FileStore) WithUserID(userID string) *FileStore {
+func (f *FileStore) WithUserID(userID string) (*FileStore, error) {
 	var userToConfigure *user.User
 	var err error
 	userToConfigure, err = user.Lookup(userID)
 	if err != nil {
 		_, ok := err.(*user.UnknownUserError)
 		if !ok {
-			userToConfigure, _ = user.LookupId(userID)
+			userToConfigure, err = user.LookupId(userID)
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+		} else {
+			return nil, breverrors.WrapAndTrace(err)
 		}
 	}
 	f.User = userToConfigure
-	return f
+	return f, nil
 }
 
 func (f FileStore) GetOrCreateFile(path string) (afero.File, error) {

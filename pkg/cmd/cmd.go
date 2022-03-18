@@ -109,12 +109,22 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
       Find more information at:
             https://brev.dev`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if user != "" {
-				noLoginCmdStore.WithUserID(user)
-				loginCmdStore.WithUserID(user)
-				fsStore.WithUserID(user)
+				_, err := noLoginCmdStore.WithUserID(user)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				_, err = loginCmdStore.WithUserID(user)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				_, err = fsStore.WithUserID(user)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
 			}
+			return nil
 		},
 		Run: runHelp,
 		RunE: func(cmd *cobra.Command, args []string) error {
