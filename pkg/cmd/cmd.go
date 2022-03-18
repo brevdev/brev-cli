@@ -112,9 +112,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if user != "" {
 				noLoginCmdStore.WithUserID(user)
-			}
-			if user != "" {
 				loginCmdStore.WithUserID(user)
+				fsStore.WithUserID(user)
 			}
 		},
 		Run: runHelp,

@@ -27,8 +27,8 @@ func (s AuthHTTPStore) SetDefaultOrganization(org *entity.Organization) error {
 	return nil
 }
 
-func (s FileStore) ClearDefaultOrganization() error {
-	home, err := s.UserHomeDir()
+func (f FileStore) ClearDefaultOrganization() error {
+	home, err := f.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -36,7 +36,7 @@ func (s FileStore) ClearDefaultOrganization() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = files.DeleteFile(s.fs, path)
+	err = files.DeleteFile(f.fs, path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

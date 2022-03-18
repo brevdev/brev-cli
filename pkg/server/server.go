@@ -89,7 +89,7 @@ func (s Server) Serve() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	fmt.Println("Serving...")
+	fmt.Printf("Serving... %s\n", s.Store.GetOSUser())
 	err = http.Serve(l, nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

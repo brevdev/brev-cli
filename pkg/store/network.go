@@ -115,6 +115,7 @@ func (s AuthHTTPStore) GetNetworkAuthKey() (*GetAuthKeyResponse, error) {
 		}
 		return key, nil
 	}
+
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
