@@ -82,6 +82,7 @@ func (o *LogoutOptions) RunLogout() error {
 	if err != nil {
 		allErr = multierror.Append(err)
 	}
+
 	if allErr != nil {
 		return breverrors.WrapAndTrace(allErr)
 	}
