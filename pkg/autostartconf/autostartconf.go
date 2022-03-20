@@ -6,7 +6,11 @@ import (
 	"runtime"
 )
 
-const targetBin = "/usr/local/bin/brev"
+const (
+	targetBin = "/usr/local/bin/brev"
+	osLinux   = "linux"
+	osDarwin  = "darwin"
+)
 
 type AutoStartStore interface {
 	CopyBin(targetBin string) error
@@ -41,7 +45,7 @@ func firstAndRest(commandstring []string) (string, []string) {
 
 func NewVPNConfig(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
-	case "linux":
+	case osLinux:
 		return LinuxSystemdConfigurer{
 			Store: store,
 			ValueConfigFile: `
@@ -60,7 +64,7 @@ Restart=always
 			ServiceName: "brevvpnd.service",
 			ServiceType: "system",
 		}
-	case "darwin":
+	case osDarwin:
 		return DarwinPlistConfigurer{
 			Store: store,
 			ValueConfigFile: `
@@ -100,7 +104,7 @@ Restart=always
 
 func NewRPCConfig(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
-	case "linux":
+	case osLinux:
 		return LinuxSystemdConfigurer{
 			Store: store,
 			ValueConfigFile: `
@@ -119,7 +123,7 @@ Restart=always
 			ServiceName: "brevrpcd.service",
 			ServiceType: "system",
 		}
-	case "darwin":
+	case osDarwin:
 		return DarwinPlistConfigurer{
 			Store: store,
 			ValueConfigFile: `
@@ -161,7 +165,7 @@ Restart=always
 
 func NewSSHConfigurer(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
-	case "linux":
+	case osLinux:
 		return LinuxSystemdConfigurer{
 			Store: store,
 			ValueConfigFile: `
@@ -181,7 +185,7 @@ User=` + store.GetOSUser() + `
 			ServiceName: "brevsshcd.service",
 			ServiceType: "user",
 		}
-	case "darwin":
+	case osDarwin:
 		return DarwinPlistConfigurer{
 			Store: store,
 			ValueConfigFile: `
