@@ -10,18 +10,25 @@ import (
 type LinuxSystemdConfigurer struct {
 	Store           AutoStartStore
 	ValueConfigFile string
-	DestConfigFile  string
 	ServiceName     string
 	ServiceType     string
 }
 
+const (
+	systemDConfigDir = "/etc/systemd/system/"
+)
+
+func (lsc LinuxSystemdConfigurer) getDestConfigFile() string {
+	return path.Join(systemDConfigDir, lsc.ServiceName)
+}
+
 func (lsc LinuxSystemdConfigurer) UnInstall() error {
-	exists, err := lsc.Store.FileExists(lsc.DestConfigFile)
+	exists, err := lsc.Store.FileExists(lsc.getDestConfigFile())
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if exists {
-		errother := lsc.Store.Remove(lsc.DestConfigFile)
+		errother := lsc.Store.Remove(lsc.getDestConfigFile())
 		if errother != nil {
 			return breverrors.WrapAndTrace(errother)
 		}
@@ -42,7 +49,7 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = lsc.Store.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
+	err = lsc.Store.WriteString(lsc.getDestConfigFile(), lsc.ValueConfigFile)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -72,7 +79,7 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 // at build time.
 func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
 	symlinkTarget := path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName)
-	err := os.Symlink(lsc.DestConfigFile, symlinkTarget)
+	err := os.Symlink(lsc.getDestConfigFile(), symlinkTarget)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

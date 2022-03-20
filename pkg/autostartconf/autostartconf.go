@@ -57,9 +57,8 @@ Type=simple
 ExecStart=brev tasks run vpnd
 Restart=always
 `,
-			DestConfigFile: "/etc/systemd/system/brevvpnd.service",
-			ServiceName:    "brevvpnd.service",
-			ServiceType:    "system",
+			ServiceName: "brevvpnd.service",
+			ServiceType: "system",
 		}
 	case "darwin":
 		return DarwinPlistConfigurer{
@@ -117,9 +116,8 @@ Type=simple
 ExecStart=brev tasks run rpcd --user ` + store.GetOSUser() + `
 Restart=always
 `,
-			DestConfigFile: "/etc/systemd/system/brevrpcd.service",
-			ServiceName:    "brevrpcd.service",
-			ServiceType:    "system",
+			ServiceName: "brevrpcd.service",
+			ServiceType: "system",
 		}
 	case "darwin":
 		return DarwinPlistConfigurer{
@@ -180,9 +178,8 @@ ExecStart=brev tasks run sshcd --user ` + store.GetOSUser() + `
 Restart=always
 User=` + store.GetOSUser() + `
 `,
-			DestConfigFile: "/etc/systemd/system/brevsshcd.service",
-			ServiceName:    "brevsshcd.service",
-			ServiceType:    "user",
+			ServiceName: "brevsshcd.service",
+			ServiceType: "user",
 		}
 	case "darwin":
 		return DarwinPlistConfigurer{
