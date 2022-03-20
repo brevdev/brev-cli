@@ -1,8 +1,6 @@
 package test
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -28,6 +26,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	CopyBin(targetBin string) error
 	GetSetupScriptContentsByURL(url string) (string, error)
+	UpdateLocalBashScripts(wss []entity.Workspace, userID string) error
 }
 
 type ServiceMeshStore interface {
@@ -46,36 +45,25 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			gistURL := "https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh"
+			org, _ := store.GetActiveOrganizationOrDefault()
+			// if err != nil {
+			// 	breverrors.WrapAndTrace(err)
+			// }
+			// if org == nil {
+			// 	return nil, fmt.Errorf("no orgs exist")
+			// }
+			currentUser, _ := store.GetCurrentUser()
+			// if err != nil {
+			// 	return nil, breverrors.WrapAndTrace(err)
+			// }
 
-			resp, err := store.GetSetupScriptContentsByURL(gistURL)
-			if err != nil {
-				return nil
-			}
-			fmt.Println(resp)
+			// For some reason this doesn't work
+			// wss, _ := store.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: currentUser.ID})
+			wss, _ := store.GetWorkspaces(org.ID, nil)
+
+			store.UpdateLocalBashScripts(wss, currentUser.ID)
 
 			return nil
-			// cfg := autostartconf.LinuxSystemdConfigurer{
-			// 	AutoStartStore: store,
-			// 	ValueConfigFile: `
-			// [Install]
-			// WantedBy=multi-user.target
-
-			// [Unit]
-			// Description=Brev SSH Proxy Daemon
-			// After=systemd-user-sessions.service
-
-			// [Service]
-			// Type=simple
-			// ExecStart=brev run-tasks
-			// Restart=always
-			// `, DestConfigFile: "/etc/systemd/system/brev.service",
-			// }
-			// err := cfg.Install()
-			// if err != nil {
-			// 	return breverrors.WrapAndTrace(err)
-			// }
-			// return nil
 		},
 	}
 

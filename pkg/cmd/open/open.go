@@ -1,9 +1,7 @@
 package open
 
 import (
-	"fmt"
 	"os/exec"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -25,6 +23,7 @@ type OpenStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(id string) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	GetVSCodeOpenString(wsIDOrName string) (string, string, error)
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
@@ -52,92 +51,18 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	s.Suffix = " finding your workspace"
 	s.Start()
 
-	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
+	vsCodeString, folderName, err := tstore.GetVSCodeOpenString(wsIDOrName)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return err
 	}
-
-	// Get the folder name
-	// Get base repo path or use workspace Name
-	var folderName string
-	if len(workspace.GitRepo) > 0 {
-		splitBySlash := strings.Split(workspace.GitRepo, "/")[1]
-		repoPath := strings.Split(splitBySlash, ".git")[0]
-		folderName = repoPath
-	} else {
-		folderName = workspace.Name
-	}
-
-	// note: intentional decision to just assume the parent folder and inner folder are the same
-	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), folderName)
 	s.Stop()
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", folderName))
 
-	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
-	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
+	vsCodeString = shellescape.QuoteCommand([]string{vsCodeString})
+	cmd := exec.Command("code", "--folder-uri", vsCodeString) // #nosec G204
 	err = cmd.Run()
-
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
-}
-
-// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
-// Reasoning: there wasn't a utils file so I didn't know where to put it
-//                + not sure how to pass a generic "store" object
-// NOTE2: small modification on this one-- returning all the workspaces too in case they're needed and shouldn't be fetched twice.
-func getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(nameOrID string, sstore OpenStore) (*entity.WorkspaceWithMeta, *[]entity.Workspace, error) {
-	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, nil, fmt.Errorf("no orgs exist")
-	}
-
-	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
-	if err != nil {
-		return nil, nil, breverrors.WrapAndTrace(err)
-	}
-
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, nil, breverrors.WrapAndTrace(err)
-	}
-
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-		}
-	case 1:
-		workspace = &workspaces[0]
-	default:
-		return nil, nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
-	}
-
-	if workspace == nil {
-		return nil, nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
-	}
-
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, &workspaces, nil
 }

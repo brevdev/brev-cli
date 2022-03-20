@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -17,6 +18,10 @@ const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
 	activeOrgFile      = "active_org.json"
+
+	brevFunctionFile = "brevFunctions"
+	brevVariablesFile = "brevVariables"
+
 	orgCacheFile       = "org_cache.json"
 	workspaceCacheFile = "workspace_cache.json"
 	// WIP: This will be used to let people "brev open" with editors other than VS Code
@@ -37,6 +42,14 @@ func GetBrevDirectory() string {
 
 func GetActiveOrgFile() string {
 	return activeOrgFile
+}
+
+func GetBrevFunctionFile() string {
+	return brevFunctionFile
+}
+
+func GetBrevVariablesFile() string {
+	return brevVariablesFile
 }
 
 func GetPersonalSettingsCache() string {
@@ -106,6 +119,14 @@ func makeBrevFilePathOrPanic(filename string) string {
 
 func GetActiveOrgsPath() string {
 	return makeBrevFilePathOrPanic(activeOrgFile)
+}
+
+func GetBrevFunctionFilePath() string {
+	return makeBrevFilePathOrPanic(brevFunctionFile)
+}
+
+func GetBrevVariablesFilePath() string {
+	return makeBrevFilePathOrPanic(brevVariablesFile)
 }
 
 func GetPersonalSettingsCachePath() string {
@@ -288,6 +309,25 @@ func OverwriteString(filepath string, data string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return breverrors.WrapAndTrace(err)
+}
+
+func AddBrevFunctionAndVarsToBashProfile() {
+	cmd := exec.Command("echo", "'source ~/.brevVariables'", ">>", "~/.zshrc") // #nosec G204
+	// cmd := exec.Command("echo 'source ~/.brevVariables' >> ~/.zshrc") // #nosec G204
+	err := cmd.Run()
+	fmt.Println(cmd.Stdout)
+	if err != nil {
+		fmt.Println(breverrors.WrapAndTrace(err))
+	}
+	cmd2 := exec.Command("echo", "'source ~/.brevFunctions'", ">>", "~/.zshrc") // #nosec G204
+	err2 := cmd2.Run()
+	if err2 != nil {
+		fmt.Println(breverrors.WrapAndTrace(err2))
+	}
+	// echo 'source ~/.brevVariables' >> ~/.bash_profile
+	// echo 'source ~/.brevFunctions' >> ~/.bash_profile
+	// echo 'source ~/.brevVariables' >> ~/.zshrc
+	// echo 'source ~/.brevFunctions' >> ~/.zshrc
 }
 
 func WriteSSHPrivateKey(fs afero.Fs, data string) error {
