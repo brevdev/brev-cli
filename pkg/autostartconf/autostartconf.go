@@ -178,8 +178,9 @@ After=systemd-user-sessions.service
 Type=simple
 ExecStart=brev tasks run sshcd --user ` + store.GetOSUser() + `
 Restart=always
+User=` + store.GetOSUser() + `
 `,
-			DestConfigFile: "/etc/systemd/user/brevsshcd.service",
+			DestConfigFile: "/etc/systemd/system/brevsshcd.service",
 			ServiceName:    "brevsshcd.service",
 			ServiceType:    "user",
 		}
