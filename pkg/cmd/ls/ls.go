@@ -3,6 +3,7 @@ package ls
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -241,6 +242,9 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 }
 
 func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitURL map[string][]entity.Workspace) {
+	sort.Slice(workspaces[:], func(i, j int) bool {
+		return workspaces[i].GitRepo < workspaces[j].GitRepo
+	})
 	if len(workspaces) > 0 {
 		t.Vprintf("\nThere are %d other projects in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
 		t.Vprint(
@@ -254,8 +258,12 @@ func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace
 }
 
 func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
+	sort.Slice(workspaces[:], func(i, j int) bool {
+		return workspaces[i].GitRepo < workspaces[j].GitRepo
+	})
 	delimeter := 40
 	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
+	
 	if len(workspaces) > 0 {
 		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
 		t.Vprint(
@@ -264,8 +272,36 @@ func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, o
 				"STATUS" + strings.Repeat(" ", longestStatus+1+longestStatus-len("STATUS")) +
 				"ID" + strings.Repeat(" ", len(workspaces[0].ID)+5-len("ID")) +
 				"URL")
+
+		// rankedByRepo := make(map[string]int)
+		// for _, v := range workspaces {
+		// 	if len(v.GitRepo) > 0 {
+		// 		if _, ok := rankedByRepo[v.GitRepo]; ok {
+		// 			rankedByRepo[v.GitRepo] += 1
+		// 		} else {
+		// 			rankedByRepo[v.GitRepo] = 1
+		// 		}
+		// 	}
+		// }
+		var lastGitUrl string
 		for _, v := range workspaces {
-			t.Vprint(
+			if lastGitUrl != v.GitRepo {
+				t.Eprint(t.Yellow(v.GitRepo))
+				// t.Eprint(t.Yellow("\n"+v.GitRepo))
+				lastGitUrl=v.GitRepo
+				// if _, ok := rankedByRepo[v.GitRepo]; ok {
+				// 	if rankedByRepo[lastGitUrl] > 1 {
+				// 		// the last block had the git url so separate this
+				// 		t.Eprint("\n")
+				// 	}
+				// 	if rankedByRepo[v.GitRepo] > 1 {
+				// 		t.Eprint(t.Yellow("\n"+v.GitRepo))
+				// 		lastGitUrl=v.GitRepo
+				// 	}
+
+				// }
+			}
+			t.Vprint("\t" +
 				truncateString(v.Name, delimeter) + strings.Repeat(" ", delimeter-len(truncateString(v.Name, delimeter))) + " " +
 					getStatusColoredText(t, v.Status) + strings.Repeat(" ", longestStatus+longestStatus-len(v.Status)) + " " +
 					v.ID + strings.Repeat(" ", 5) +
