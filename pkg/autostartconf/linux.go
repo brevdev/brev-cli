@@ -71,13 +71,7 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 // which we need to do in the workspace docker image because systemd isn't running
 // at build time.
 func (lsc LinuxSystemdConfigurer) CreateForcedSymlink() error {
-	symlinkTarget := ""
-	switch lsc.ServiceType {
-	case "system":
-		symlinkTarget = path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName)
-	case "user":
-		symlinkTarget = path.Join("/etc/systemd/user/default.target.wants/", lsc.ServiceName)
-	}
+	symlinkTarget := path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName)
 	err := os.Symlink(lsc.DestConfigFile, symlinkTarget)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
