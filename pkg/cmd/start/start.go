@@ -45,6 +45,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	var empty bool
 	var is4x16 bool
 	var setupScript string
+	var path string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -62,7 +63,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 
 			if empty {
-				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript)
+				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript, path)
 				if err != nil {
 					t.Vprintf(t.Red(err.Error()))
 					return
@@ -75,7 +76,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 				if isURL {
 					// CREATE A WORKSPACE
-					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript)
+					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, path)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
 					}
@@ -93,6 +94,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
 	cmd.Flags().BoolVarP(&is4x16, "oli", "g", false, "create a workspace for oli") // avoid naming features after customers
 	_ = cmd.Flags().MarkHidden("oli")                                              // avoid naming features after customers
+	cmd.Flags().StringVarP(&path, "path", "p", "", "add a custom path to your setup script")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
@@ -103,7 +105,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string) error {
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, path string) error {
 	// ensure name
 	if len(name) == 0 {
 		return fmt.Errorf("name field is required for empty workspaces")
@@ -157,6 +159,11 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 
 	if len(setupScriptContents) > 0 {
 		options.WithStartupScript(setupScriptContents)
+	}
+
+	if len(path) > 0 {
+		// BANANA: add path via options (something like the line below)
+		// options.WithStartupScript(setupScriptContents)
 	}
 
 	w, err := startStore.CreateWorkspace(orgID, options)
@@ -290,8 +297,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScript string) error {
-	t.Vprintf("This is the setup script: %s", setupScript)
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScript string, path string) error {
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
@@ -338,7 +344,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err = createWorkspace(t, newWorkspace, orgID, startStore, is4x16, setupScriptContents)
+	err = createWorkspace(t, newWorkspace, orgID, startStore, is4x16, setupScriptContents, path)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -389,7 +395,7 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, is4x16 bool, setupScript string) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, is4x16 bool, setupScript string, path string) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
@@ -408,6 +414,11 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 
 	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
+	}
+	
+	if len(path) > 0 {
+		// BANANA: add path via options (something like the line below)
+		// options.WithStartupScript(setupScriptContents)
 	}
 
 	w, err := startStore.CreateWorkspace(orgID, options)
