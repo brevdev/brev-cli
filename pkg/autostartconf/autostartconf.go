@@ -108,7 +108,7 @@ func NewRPCConfig(store AutoStartStore) DaemonConfigurer {
 WantedBy=multi-user.target
 
 [Unit]
-Description=Brev vpn daemon
+Description=Brev rpc daemon
 After=systemd-user-sessions.service
 
 [Service]
@@ -169,7 +169,7 @@ func NewSSHConfigurer(store AutoStartStore) DaemonConfigurer {
 WantedBy=multi-user.target
 
 [Unit]
-Description=Brev vpn daemon
+Description=Brev ssh configurer daemon
 After=systemd-user-sessions.service
 
 [Service]
