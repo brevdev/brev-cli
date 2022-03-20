@@ -27,7 +27,7 @@ func execCommands(commands [][]string) error {
 		first, rest := firstAndRest(command)
 		out, err := exec.Command(first, rest...).CombinedOutput() // #nosec G204
 		if err != nil {
-			return fmt.Errorf("error running launchctl %s: %v, %s", fmt.Sprint(command), err, out)
+			return fmt.Errorf("error running %s %s: %v, %s", first, fmt.Sprint(command), err, out)
 		}
 	}
 	return nil
