@@ -101,6 +101,9 @@ func (NetworkSetup) GetDNSServers() ([]string, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if strings.Contains(string(out), "There aren't any DNS Servers set on Wi-Fi.") {
+		return []string{}, nil
+	}
 	prevDNS := strings.Split(strings.TrimSpace(string(out)), "\n")
 	return prevDNS, nil
 }
@@ -108,7 +111,9 @@ func (NetworkSetup) GetDNSServers() ([]string, error) {
 func (NetworkSetup) SetDNSServers(dnsServers []string) error {
 	args := []string{"-setdnsservers", "Wi-Fi"}
 	args = append(args, dnsServers...)
+	fmt.Println(args)
 	args = filterDupes(args)
+	fmt.Println(args)
 	_, err := exec.Command("networksetup", args...).Output()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -120,6 +125,9 @@ func (NetworkSetup) GetSearchDomains() ([]string, error) {
 	out, err := exec.Command("networksetup", "-getsearchdomains", "Wi-Fi").Output()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
+	}
+	if strings.Contains(string(out), "There aren't any Search Domains set on Wi-Fi") {
+		return []string{}, nil
 	}
 	prevSearchDomains := strings.Split(strings.TrimSpace(string(out)), "\n")
 	return prevSearchDomains, nil
@@ -138,6 +146,9 @@ func filterDupes(items []string) []string {
 }
 
 func (NetworkSetup) SetSearchDomains(searchDomains []string) error {
+	if len(searchDomains) == 0 {
+		return nil
+	}
 	args := []string{"-setsearchdomains", "Wi-Fi"}
 	args = append(args, searchDomains...)
 	args = filterDupes(args)
@@ -151,6 +162,7 @@ func (NetworkSetup) SetSearchDomains(searchDomains []string) error {
 func UseDarwinDNS(tailscaleDNSIP string, searchDomains []string) (func() error, error) {
 	networkSetup := NewNetworkSetup()
 	prevDNS, err := networkSetup.GetDNSServers()
+	fmt.Println(prevDNS)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
