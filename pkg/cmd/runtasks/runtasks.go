@@ -62,6 +62,8 @@ func getDefaultTasks(store RunTasksStore) []tasks.Task {
 			ssh.NewSSHConfigurerV2(
 				store,
 			),
+			ssh.NewSSHConfigurerJetBrains(store),
+			ssh.NewSSHConfigurerServiceMesh(store),
 		},
 	}
 

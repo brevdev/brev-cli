@@ -163,6 +163,15 @@ Restart=always
 	return nil
 }
 
+// func NewDaemonConfiguration(user string, command string, serviceName string, serviceType string) DaemonConfigurer {
+// 	switch runtime.GOOS {
+// 	case osLinux:
+// 		return LinuxSystemdConfigurer{
+// 		}
+// 	case osDarwin:
+// 	}
+// }
+
 func NewSSHConfigurer(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
 	case osLinux:

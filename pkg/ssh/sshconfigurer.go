@@ -232,3 +232,119 @@ func makeIncludeBrevStr(brevSSHConfigPath string) string {
 func (s SSHConfigurerV2) doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
 	return strings.Contains(conf, makeIncludeBrevStr(brevConfigPath))
 }
+
+type SSHConfigurerServiceMesh struct {
+	store SSHConfigurerV2Store
+}
+
+var _ Config = SSHConfigurerServiceMesh{}
+
+func NewSSHConfigurerServiceMesh(store SSHConfigurerV2Store) *SSHConfigurerServiceMesh {
+	return &SSHConfigurerServiceMesh{
+		store: store,
+	}
+}
+
+func (s SSHConfigurerServiceMesh) Update(workspaces []entity.Workspace) error {
+	_, err := s.CreateNewSSHConfig(workspaces)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// err = s.store.WriteBrevSSHConfig(newConfig)
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+
+	// enable
+	// err = s.EnsureConfigHasInclude()
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+
+	return nil
+}
+
+func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+	// log.Print("creating new ssh config")
+
+	// configPath, err := s.store.GetUserSSHConfigPath()
+	// if err != nil {
+	// 	return "", breverrors.WrapAndTrace(err)
+	// }
+
+	// sshConfig := fmt.Sprintf("# included in %s\n", configPath)
+	// for _, w := range workspaces {
+	// 	pk, err := s.store.GetPrivateKeyPath()
+	// 	if err != nil {
+	// 		return "", breverrors.WrapAndTrace(err)
+	// 	}
+	// 	entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
+	// 	if err != nil {
+	// 		return "", breverrors.WrapAndTrace(err)
+	// 	}
+
+	// 	sshConfig += entry
+	// }
+
+	// return sshConfig, nil
+	return "", nil
+}
+
+type SSHConfigurerJetBrains struct {
+	store SSHConfigurerV2Store
+}
+
+var _ Config = SSHConfigurerJetBrains{}
+
+func NewSSHConfigurerJetBrains(store SSHConfigurerV2Store) *SSHConfigurerJetBrains {
+	return &SSHConfigurerJetBrains{
+		store: store,
+	}
+}
+
+func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
+	_, err := s.CreateNewSSHConfig(workspaces)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// err = s.store.WriteBrevSSHConfig(newConfig)
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+
+	// enable
+	// err = s.EnsureConfigHasInclude()
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+
+	return nil
+}
+
+func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+	// log.Print("creating new ssh config")
+
+	// configPath, err := s.store.GetUserSSHConfigPath()
+	// if err != nil {
+	// 	return "", breverrors.WrapAndTrace(err)
+	// }
+
+	// sshConfig := fmt.Sprintf("# included in %s\n", configPath)
+	// for _, w := range workspaces {
+	// 	pk, err := s.store.GetPrivateKeyPath()
+	// 	if err != nil {
+	// 		return "", breverrors.WrapAndTrace(err)
+	// 	}
+	// 	entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
+	// 	if err != nil {
+	// 		return "", breverrors.WrapAndTrace(err)
+	// 	}
+
+	// 	sshConfig += entry
+	// }
+
+	// return sshConfig, nil
+	return "", nil
+}
