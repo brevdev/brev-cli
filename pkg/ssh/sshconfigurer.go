@@ -265,7 +265,7 @@ func (s SSHConfigurerServiceMesh) Update(workspaces []entity.Workspace) error {
 	return nil
 }
 
-func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(_ []entity.Workspace) (string, error) {
 	// log.Print("creating new ssh config")
 
 	// configPath, err := s.store.GetUserSSHConfigPath()
@@ -323,7 +323,7 @@ func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
 	return nil
 }
 
-func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+func (s SSHConfigurerJetBrains) CreateNewSSHConfig(_ []entity.Workspace) (string, error) {
 	// log.Print("creating new ssh config")
 
 	// configPath, err := s.store.GetUserSSHConfigPath()
