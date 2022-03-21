@@ -102,14 +102,7 @@ func (dpc DarwinPlistConfigurer) GetExecCommand() ([][]string, error) {
 	if err != nil {
 		return [][]string{}, breverrors.WrapAndTrace(err)
 	}
-	switch dpc.ServiceType {
-	case System:
-		return [][]string{
-			{"launchctl", "load", "-w", destination},
-		}, nil
-	case SingleUser: // todo still not sure if this works
-		return [][]string{{"launchctl", "bootstrap", "gui/" + dpc.Store.GetOSUser(), destination}}, nil
-
-	}
-	return [][]string{}, errors.New("invalid service type")
+	return [][]string{
+		{"launchctl", "load", "-w", destination},
+	}, nil
 }
