@@ -37,7 +37,7 @@ func (c ConstantsConfig) GetVersion() string {
 }
 
 func (c ConstantsConfig) GetDefaultClusterID() string {
-	return getEnvOrDefault(clusterID, "k8s.brevstack.com")
+	return getEnvOrDefault(clusterID, "")
 }
 
 func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
