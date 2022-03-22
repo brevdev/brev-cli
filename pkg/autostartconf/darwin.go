@@ -31,9 +31,17 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 	_ = plist                                                                 // parse it? https://github.com/DHowett/go-plist if we need something.
 	running := err == nil
 	if running {
-		_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput() // #nosec G204
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		switch dpc.ServiceType {
+		case System:
+			_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput() // #nosec G204
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		case SingleUser:
+			_, err = exec.Command("launchctl", "bootout", "gui/"+dpc.Store.GetOSUser(), destination).CombinedOutput() // #nosec G204
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
 	}
 
