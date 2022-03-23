@@ -550,7 +550,7 @@ func TestParseJetbrainsGatewayXml(t *testing.T) {
 	mockJetbrainsGatewayStore := makeMockJetBrainsGateWayStore()
 	pk, err := mockJetbrainsGatewayStore.GetPrivateKeyPath()
 	assert.Nil(t, err)
-	xml, err := parseJetbrainsGatewayXML(fmt.Sprintf(`<application>
+	xml, err := ParseJetbrainsGatewayXML(fmt.Sprintf(`<application>
   <component name="SshConfigs">
     <configs>
       <sshConfig host="localhost" id="f72d6499-1376-47df-b274-94de782a7dd2" keyPath="%s" port="2222" customName="%s" nameFormat="CUSTOM" username="brev" useOpenSSHConfig="true">

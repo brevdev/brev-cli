@@ -201,7 +201,7 @@ func MakeSSHEntry(workspaceIdentifier entity.WorkspaceLocalID, port string, priv
 	return buf.String(), nil
 }
 
-func parseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error) {
+func ParseJetbrainsGatewayXML(config string) (*JetbrainsGatewayConfigXML, error) {
 	var jetbrainsGatewayConfigXML JetbrainsGatewayConfigXML
 	if err := xml.Unmarshal([]byte(config), &jetbrainsGatewayConfigXML); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -470,7 +470,7 @@ func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGat
 			store:  store,
 		}, nil
 	}
-	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
+	jetbrainsGatewayConfigXML, err := ParseJetbrainsGatewayXML(config)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -550,7 +550,7 @@ func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspaceIdentifi
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	jetbrainsGatewayConfigXML, err := parseJetbrainsGatewayXML(config)
+	jetbrainsGatewayConfigXML, err := ParseJetbrainsGatewayXML(config)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
