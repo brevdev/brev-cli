@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"bytes"
+	"encoding/xml"
 	"fmt"
 	"log"
 	"strings"
@@ -387,28 +388,41 @@ func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
 func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
 	log.Print("creating new ssh config")
 
-	configPath, err := s.store.GetJetBrainsConfigPath()
+	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(s.store)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
+	config := jetBrainsGatewayConfig.config
 
-	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
-		pk, err := s.store.GetPrivateKeyPath()
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
+		pk, errother := s.store.GetPrivateKeyPath()
+		if errother != nil {
+			return "", breverrors.WrapAndTrace(errother)
 		}
-		entry, err := makeJetbrainsConfigEntry(string(w.GetLocalIdentifier(workspaces)), pk)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-
-		sshConfig += entry
+		id := w.GetLocalIdentifier(workspaces)
+		entry := makeJetbrainsConfigEntry(string(id), pk, id)
+		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}
-
-	return sshConfig, nil
+	output, err := xml.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return string(output), nil
 }
 
-func makeJetbrainsConfigEntry(host, keypath string) (string, error) {
-	return "", nil
+func makeJetbrainsConfigEntry(host, keypath string, customName entity.WorkspaceLocalID) JetbrainsGatewayConfigXMLSSHConfig {
+	return JetbrainsGatewayConfigXMLSSHConfig{
+		Host:       host,
+		Port:       "22",
+		KeyPath:    keypath,
+		Username:   "brev",
+		CustomName: customName,
+		NameFormat: "CUSTOM",
+		Options: []JetbrainsGatewayConfigXMLSSHOption{
+			{
+				Name:  "CustomName",
+				Value: host,
+			},
+		},
+	}
 }
