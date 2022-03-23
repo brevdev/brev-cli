@@ -40,7 +40,7 @@ func (sct SSHConfigurerTask) Run() error {
 }
 
 func (sct SSHConfigurerTask) Configure() error {
-	daemonConfigurer := autostartconf.NewSSHConfigurer(c.Store)
+	daemonConfigurer := autostartconf.NewSSHConfigurer(sct.Store)
 	err := daemonConfigurer.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
