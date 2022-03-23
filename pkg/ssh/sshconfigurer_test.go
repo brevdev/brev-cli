@@ -71,6 +71,18 @@ func (d DummySSHConfigurerV2Store) GetBrevSSHConfigPath() (string, error) {
 	return "/my/brev/config", nil
 }
 
+func (d DummySSHConfigurerV2Store) GetJetBrainsConfigPath() (string, error) {
+	return "", nil
+}
+
+func (d DummySSHConfigurerV2Store) GetJetBrainsConfig() (string, error) {
+	return "", nil
+}
+
+func (d DummySSHConfigurerV2Store) WriteJetBrainsConfig(_ string) error {
+	return nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
