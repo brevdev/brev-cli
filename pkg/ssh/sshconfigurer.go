@@ -61,11 +61,6 @@ func (c ConfigUpdater) GetTaskSpec() tasks.TaskSpec {
 }
 
 func (c ConfigUpdater) Configure() error {
-	daemonConfigurer := autostartconf.NewSSHConfigurer(c.Store)
-	err := daemonConfigurer.Install()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	return nil
 }
 
