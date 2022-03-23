@@ -1,30 +1,51 @@
 package featureflag
 
 import (
-	"os"
+	"fmt"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/spf13/viper"
 )
 
 func IsDev() bool {
-	if os.Getenv("BREV_FEATURE_FLAG_DEV") != "" {
-		return os.Getenv("BREV_FEATURE_FLAG_DEV") == "1"
+	if viper.IsSet("feature.dev") {
+		return viper.GetBool("feature.dev")
+	} else {
+		return strings.HasPrefix(version.Version, "dev")
 	}
-	return version.Version == "" || strings.HasPrefix(version.Version, "dev")
 }
 
 func IsAdmin(userType string) bool {
-	if os.Getenv("BREV_FEATURE_NOT_ADMIN") == "1" {
+	if viper.IsSet("feature.not_admin") && viper.GetBool("feature.not_admin") {
 		return false
+	} else {
+		return userType == "Admin"
 	}
-	return userType == "Admin"
 }
 
 func ServiceMeshSSH() bool {
-	if os.Getenv("BREV_FEATURE_FLAG_SERVICE_MESH_SSH") != "" {
-		return os.Getenv("BREV_FEATURE_FLAG_SERVICE_MESH_SSH") == "1"
+	return viper.GetBool("feature.service_mesh_ssh")
+}
+
+func LoadFeatureFlags(path string) error {
+	viper.SetConfigName("config")
+	if path == "" {
+		viper.AddConfigPath("$HOME/.brev")
+		viper.AddConfigPath(".")
 	} else {
-		return false
+		fmt.Println(path)
+		viper.AddConfigPath(path)
 	}
+	viper.SetEnvPrefix("brev")
+	viper.SetConfigType("yaml")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	if err := viper.ReadInConfig(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
 }

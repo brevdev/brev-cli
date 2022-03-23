@@ -3,6 +3,7 @@ package ssh
 import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 )
 
@@ -22,15 +23,21 @@ func (sct SSHConfigurerTask) GetTaskSpec() tasks.TaskSpec {
 }
 
 func (sct SSHConfigurerTask) Run() error {
-	cu := ConfigUpdater{
-		Store: sct.Store,
-		Configs: []Config{
-			NewSSHConfigurerV2(
-				sct.Store,
-			),
+	configs := []Config{
+		NewSSHConfigurerV2(
+			sct.Store,
+		),
+		NewSSHConfigurerJetBrains(sct.Store),
+	}
+	if featureflag.ServiceMeshSSH() {
+		configs = []Config{
 			NewSSHConfigurerServiceMesh(sct.Store),
 			NewSSHConfigurerJetBrains(sct.Store),
-		},
+		}
+	}
+	cu := ConfigUpdater{
+		Store:   sct.Store,
+		Configs: configs,
 	}
 	err := tasks.RunTasks([]tasks.Task{cu})
 	if err != nil {
