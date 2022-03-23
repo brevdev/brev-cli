@@ -1,7 +1,6 @@
 package featureflag
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
@@ -35,7 +34,6 @@ func LoadFeatureFlags(path string) error {
 		viper.AddConfigPath("$HOME/.brev")
 		viper.AddConfigPath(".")
 	} else {
-		fmt.Println(path)
 		viper.AddConfigPath(path)
 	}
 	viper.SetEnvPrefix("brev")
@@ -43,7 +41,8 @@ func LoadFeatureFlags(path string) error {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err != nil {
+	err := viper.ReadInConfig()
+	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 

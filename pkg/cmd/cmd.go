@@ -77,11 +77,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 		fmt.Printf("%v\n", err)
 	}
 
-	err = featureflag.LoadFeatureFlags(home)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
-
 	loginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
@@ -175,6 +170,11 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 
 	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth)
+
+	err = featureflag.LoadFeatureFlags(home, cmds.Flags())
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
 
 	return cmds
 }
