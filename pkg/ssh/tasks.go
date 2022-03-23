@@ -47,3 +47,9 @@ func (sct SSHConfigurerTask) Configure() error {
 	}
 	return nil
 }
+
+func NewSSHConfigurerTask(store SSHConfigurerTaskStore) SSHConfigurerTask {
+	return SSHConfigurerTask{
+		Store: store,
+	}
+}
