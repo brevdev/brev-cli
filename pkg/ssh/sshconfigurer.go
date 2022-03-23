@@ -398,7 +398,7 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeJetbrainsConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
+		entry, err := makeJetbrainsConfigEntry(string(w.GetLocalIdentifier(workspaces)), pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -407,9 +407,8 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 	}
 
 	return sshConfig, nil
-	return "", nil
 }
 
-func makeJetbrainsConfigEntry(host, keypath string) (string, error){
-
+func makeJetbrainsConfigEntry(host, keypath string) (string, error) {
+	return "", nil
 }
