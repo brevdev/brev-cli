@@ -20,3 +20,11 @@ func IsAdmin(userType string) bool {
 	}
 	return userType == "Admin"
 }
+
+func ServiceMeshSSH() bool {
+	if os.Getenv("BREV_FEATURE_FLAG_SERVICE_MESH_SSH") != "" {
+		return os.Getenv("BREV_FEATURE_FLAG_SERVICE_MESH_SSH") == "1"
+	} else {
+		return false
+	}
+}

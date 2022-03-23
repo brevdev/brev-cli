@@ -115,16 +115,16 @@ func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
 	}
 
 	userConf := ``
-	assert.False(t, c.doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+	assert.False(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 
 	userConf = `Include /my/brev/config
 `
-	assert.True(t, c.doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 
 	userConf = `# blahdlkfadlfa
 Include /my/brev/config
 # baldfhaldjf`
-	assert.True(t, c.doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {
@@ -135,7 +135,7 @@ func TestAddIncludeToUserConfig(t *testing.T) {
 	}
 
 	userConf := ``
-	newConf, err := c.AddIncludeToUserConfig(userConf, bscp)
+	newConf, err := AddIncludeToUserConfig(userConf, bscp)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -146,7 +146,7 @@ func TestAddIncludeToUserConfig(t *testing.T) {
 	userConf = `b;kasdfa;dsl;afd;kl
 blaksdf;asdf;
 `
-	newConf, err = c.AddIncludeToUserConfig(userConf, bscp)
+	newConf, err = AddIncludeToUserConfig(userConf, bscp)
 	if !assert.Nil(t, err) {
 		return
 	}

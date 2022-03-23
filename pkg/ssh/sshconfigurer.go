@@ -136,7 +136,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
+		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -162,7 +162,7 @@ type SSHConfigEntryV2 struct {
 	ProxyCommand string
 }
 
-func makeSSHConfigEntry(alias string, workspaceID string, privateKeyPath string) (string, error) {
+func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath string) (string, error) {
 	proxyCommand := makeProxyCommand(workspaceID)
 	entry := SSHConfigEntryV2{
 		Alias:        alias,
@@ -201,8 +201,8 @@ func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if !s.doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
-		newConf, err := s.AddIncludeToUserConfig(conf, brevConfigPath)
+	if !doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
+		newConf, err := AddIncludeToUserConfig(conf, brevConfigPath)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -215,7 +215,7 @@ func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 	return nil
 }
 
-func (s SSHConfigurerV2) AddIncludeToUserConfig(conf string, brevConfigPath string) (string, error) {
+func AddIncludeToUserConfig(conf string, brevConfigPath string) (string, error) {
 	newConf := makeIncludeBrevStr(brevConfigPath) + conf
 	return newConf, nil
 }
@@ -224,7 +224,7 @@ func makeIncludeBrevStr(brevSSHConfigPath string) string {
 	return fmt.Sprintf("Include %s\n", brevSSHConfigPath)
 }
 
-func (s SSHConfigurerV2) doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
+func doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
 	return strings.Contains(conf, makeIncludeBrevStr(brevConfigPath))
 }
 
@@ -241,49 +241,112 @@ func NewSSHConfigurerServiceMesh(store SSHConfigurerV2Store) *SSHConfigurerServi
 }
 
 func (s SSHConfigurerServiceMesh) Update(workspaces []entity.Workspace) error {
-	_, err := s.CreateNewSSHConfig(workspaces)
+	newConfig, err := s.CreateNewSSHConfig(workspaces)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// err = s.store.WriteBrevSSHConfig(newConfig)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	err = s.store.WriteBrevSSHConfig(newConfig)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	// enable
-	// err = s.EnsureConfigHasInclude()
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	err = s.EnsureConfigHasInclude()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
 
-func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(_ []entity.Workspace) (string, error) {
-	// log.Print("creating new ssh config")
+func (s SSHConfigurerServiceMesh) EnsureConfigHasInclude() error {
+	// openssh-7.3
+	log.Print("ensuring has include")
 
-	// configPath, err := s.store.GetUserSSHConfigPath()
-	// if err != nil {
-	// 	return "", breverrors.WrapAndTrace(err)
-	// }
+	brevConfigPath, err := s.store.GetBrevSSHConfigPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	conf, err := s.store.GetUserSSHConfig()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
+		newConf, err := AddIncludeToUserConfig(conf, brevConfigPath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = s.store.WriteUserSSHConfig(newConf)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
 
-	// sshConfig := fmt.Sprintf("# included in %s\n", configPath)
-	// for _, w := range workspaces {
-	// 	pk, err := s.store.GetPrivateKeyPath()
-	// 	if err != nil {
-	// 		return "", breverrors.WrapAndTrace(err)
-	// 	}
-	// 	entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
-	// 	if err != nil {
-	// 		return "", breverrors.WrapAndTrace(err)
-	// 	}
+	return nil
+}
 
-	// 	sshConfig += entry
-	// }
+func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+	log.Print("creating new service mesh ssh config")
 
-	// return sshConfig, nil
-	return "", nil
+	configPath, err := s.store.GetUserSSHConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
+	for _, w := range workspaces {
+		pk, err := s.store.GetPrivateKeyPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		entry, err := makeSSHConfigServiceMeshEntry(string(w.GetLocalIdentifier(workspaces)), w.GetNodeIdentifierForVPN(workspaces), pk)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+
+		sshConfig += entry
+	}
+
+	return sshConfig, nil
+}
+
+const SSHConfigEntryTemplateServiceMesh = `Host {{ .Alias }}
+  HostName {{ .Host }}
+  IdentityFile {{ .IdentityFile }}
+  User {{ .User }}
+  Port {{ .Port }}
+  ServerAliveInterval 30
+
+`
+
+type SSHConfigEntryServiceMesh struct {
+	Alias        string
+	Host         string
+	IdentityFile string
+	User         string
+	Port         string
+}
+
+func makeSSHConfigServiceMeshEntry(alias string, host string, privateKeyPath string) (string, error) {
+	entry := SSHConfigEntryServiceMesh{
+		Alias:        alias,
+		Host:         host,
+		IdentityFile: privateKeyPath,
+		User:         "brev",
+		Port:         "22",
+	}
+
+	tmpl, err := template.New(host).Parse(SSHConfigEntryTemplateServiceMesh)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	buf := &bytes.Buffer{}
+	err = tmpl.Execute(buf, entry)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return buf.String(), nil
 }
 
 type SSHConfigurerJetBrains struct {

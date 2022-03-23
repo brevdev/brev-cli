@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -43,14 +44,7 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 
 func refresh(t *terminal.Terminal, store RefreshStore) error {
 	fmt.Println("refreshing brev...")
-	cu := ssh.ConfigUpdater{
-		Store: store,
-		Configs: []ssh.Config{
-			ssh.NewSSHConfigurerV2(
-				store,
-			),
-		},
-	}
+	cu := getConfigUpdater(store)
 
 	err := cu.Run()
 	if err != nil {
@@ -59,4 +53,26 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 	t.Vprintf(t.Green("\nbrev has been refreshed\n"))
 
 	return nil
+}
+
+func getConfigUpdater(store RefreshStore) ssh.ConfigUpdater {
+	configs := []ssh.Config{
+		ssh.NewSSHConfigurerV2(
+			store,
+		),
+		ssh.NewSSHConfigurerJetBrains(store),
+	}
+	if featureflag.ServiceMeshSSH() {
+		configs = []ssh.Config{
+			ssh.NewSSHConfigurerServiceMesh(store),
+			ssh.NewSSHConfigurerJetBrains(store),
+		}
+	}
+
+	cu := ssh.ConfigUpdater{
+		Store:   store,
+		Configs: configs,
+	}
+
+	return cu
 }

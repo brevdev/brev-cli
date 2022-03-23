@@ -2,6 +2,7 @@ package runtasks
 
 import (
 	"github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -56,15 +57,22 @@ func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
 }
 
 func getDefaultTasks(store RunTasksStore) []tasks.Task {
-	cu := ssh.ConfigUpdater{
-		Store: store,
-		Configs: []ssh.Config{
-			ssh.NewSSHConfigurerV2(
-				store,
-			),
+	configs := []ssh.Config{
+		ssh.NewSSHConfigurerV2(
+			store,
+		),
+		ssh.NewSSHConfigurerJetBrains(store),
+	}
+	if featureflag.ServiceMeshSSH() {
+		configs = []ssh.Config{
 			ssh.NewSSHConfigurerServiceMesh(store),
 			ssh.NewSSHConfigurerJetBrains(store),
-		},
+		}
+	}
+
+	cu := ssh.ConfigUpdater{
+		Store:   store,
+		Configs: configs,
 	}
 
 	return []tasks.Task{cu}
