@@ -93,6 +93,9 @@ type SSHConfigurerV2Store interface {
 	GetPrivateKeyPath() (string, error)
 	GetUserSSHConfigPath() (string, error)
 	GetBrevSSHConfigPath() (string, error)
+	GetJetBrainsConfigPath() (string, error)
+	GetJetBrainsConfig() (string, error)
+	WriteJetBrainsConfig(config string) error
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -381,28 +384,32 @@ func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
 	return nil
 }
 
-func (s SSHConfigurerJetBrains) CreateNewSSHConfig(_ []entity.Workspace) (string, error) {
-	// log.Print("creating new ssh config")
+func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+	log.Print("creating new ssh config")
 
-	// configPath, err := s.store.GetUserSSHConfigPath()
-	// if err != nil {
-	// 	return "", breverrors.WrapAndTrace(err)
-	// }
+	configPath, err := s.store.GetJetBrainsConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
 
-	// sshConfig := fmt.Sprintf("# included in %s\n", configPath)
-	// for _, w := range workspaces {
-	// 	pk, err := s.store.GetPrivateKeyPath()
-	// 	if err != nil {
-	// 		return "", breverrors.WrapAndTrace(err)
-	// 	}
-	// 	entry, err := makeSSHConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
-	// 	if err != nil {
-	// 		return "", breverrors.WrapAndTrace(err)
-	// 	}
+	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
+	for _, w := range workspaces {
+		pk, err := s.store.GetPrivateKeyPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		entry, err := makeJetbrainsConfigEntry(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 
-	// 	sshConfig += entry
-	// }
+		sshConfig += entry
+	}
 
-	// return sshConfig, nil
+	return sshConfig, nil
 	return "", nil
+}
+
+func makeJetbrainsConfigEntry(host, keypath string) (string, error){
+
 }
