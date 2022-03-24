@@ -72,22 +72,12 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	loginAuth := auth.NewLoginAuth(fsStore, authenticator)
 	noLoginAuth := auth.NewNoLoginAuth(fsStore, authenticator)
 
-	home, err := fsStore.GetBrevHomePath()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
-
-	err = featureflag.LoadFeatureFlags(home)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
-
 	loginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(loginAuth)
 
-	err = loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
+	err: = loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
 		_, err_ := loginAuth.GetAccessToken()
 		if err_ != nil {
 			return breverrors.WrapAndTrace(err_)
@@ -133,6 +123,16 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
+			}
+
+			home, err := fsStore.GetBrevHomePath()
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
+
+			err = featureflag.LoadFeatureFlags(home)
+			if err != nil {
+				fmt.Printf("%v\n", err)
 			}
 			return nil
 		},
