@@ -88,9 +88,9 @@ Restart=always
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/tmp/brevvpnd.out</string>
+  <string>/var/log/brevvpnd.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/brevvpnd.err</string>
+  <string>/var/log/brevvpnd.log</string>
 
 </dict>
 </plist>
@@ -149,9 +149,9 @@ Restart=always
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/tmp/brevrpcd.out</string>
+  <string>/var/log/brevrpcd.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/brevrpcd.err</string>
+  <string>/var/log/brevrpcd.log</string>
 
 </dict>
 </plist>
@@ -220,9 +220,9 @@ User=` + store.GetOSUser() + `
   <true/>
 
   <key>StandardOutPath</key>
-  <string>/tmp/brevsshcd.out</string>
+  <string>/var/log/brevsshcd.log</string>
   <key>StandardErrorPath</key>
-  <string>/tmp/brevsshcd.err</string>
+  <string>/var/log/brevsshcd.log</string>
 
 </dict>
 </plist>
