@@ -71,7 +71,7 @@ func (t Tailscale) Start() error {
 	if runtime.GOOS == "darwin" && !t.leaveDirtyDNS {
 		tailscaleDNSIP := "100.100.100.100"
 		var err error
-		done, err = UseDarwinDNS(tailscaleDNSIP, []string{})
+		done, err = UseDarwinDNS(tailscaleDNSIP, []string{}, true)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -159,7 +159,7 @@ func (NetworkSetup) SetSearchDomains(searchDomains []string) error {
 	return nil
 }
 
-func UseDarwinDNS(tailscaleDNSIP string, searchDomains []string) (func() error, error) {
+func UseDarwinDNS(tailscaleDNSIP string, searchDomains []string, notUseBackupDNS bool) (func() error, error) {
 	networkSetup := NewNetworkSetup()
 	prevDNS, err := networkSetup.GetDNSServers()
 	fmt.Println(prevDNS)
@@ -167,7 +167,11 @@ func UseDarwinDNS(tailscaleDNSIP string, searchDomains []string) (func() error, 
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	dnsServers := append([]string{tailscaleDNSIP}, prevDNS...)
+	dnsServers := []string{tailscaleDNSIP}
+	if !notUseBackupDNS {
+		dnsServers = append(dnsServers, prevDNS...)
+	}
+
 	err = networkSetup.SetDNSServers(dnsServers)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

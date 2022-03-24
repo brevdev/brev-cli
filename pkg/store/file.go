@@ -360,7 +360,7 @@ func (f FileStore) GetOSUser() string {
 }
 
 func (f FileStore) GetServerSockFile() string {
-	return "/tmp/brev.sock" // todo put me in /var/run
+	return "/var/run/brev.sock"
 }
 
 func (f FileStore) Remove(target string) error {
