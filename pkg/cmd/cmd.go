@@ -77,10 +77,10 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	).
 		WithAuth(loginAuth)
 
-	err: = loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
-		_, err_ := loginAuth.GetAccessToken()
-		if err_ != nil {
-			return breverrors.WrapAndTrace(err_)
+	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
+		_, err1 := loginAuth.GetAccessToken()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
 		}
 		return nil
 	})
