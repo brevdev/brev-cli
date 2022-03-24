@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/viper"
 )
 
@@ -30,21 +29,14 @@ func ServiceMeshSSH() bool {
 
 func LoadFeatureFlags(path string) error {
 	viper.SetConfigName("config")
-	if path == "" {
-		viper.AddConfigPath("$HOME/.brev")
-		viper.AddConfigPath(".")
-	} else {
-		viper.AddConfigPath(path)
-	}
+	viper.AddConfigPath("/etc/brev/")
+	viper.AddConfigPath(path)
 	viper.SetEnvPrefix("brev")
 	viper.SetConfigType("yaml")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	err := viper.ReadInConfig()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	_ = viper.ReadInConfig() // do not nead to fail if can't find config file
 
 	return nil
 }
