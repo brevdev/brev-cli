@@ -127,12 +127,12 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
 			home, err := fsStore.GetBrevHomePath()
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				return breverrors.WrapAndTrace(err)
 			}
 
 			err = featureflag.LoadFeatureFlags(home)
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
