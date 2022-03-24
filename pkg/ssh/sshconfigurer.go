@@ -366,21 +366,15 @@ func NewSSHConfigurerJetBrains(store SSHConfigurerV2Store) *SSHConfigurerJetBrai
 }
 
 func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
-	_, err := s.CreateNewSSHConfig(workspaces)
+	newConfig, err := s.CreateNewSSHConfig(workspaces)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// err = s.store.WriteBrevSSHConfig(newConfig)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
-
-	// enable
-	// err = s.EnsureConfigHasInclude()
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	err = s.store.WriteJetBrainsConfig(newConfig)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
@@ -388,11 +382,7 @@ func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
 func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
 	log.Print("creating new ssh config")
 
-	jetBrainsGatewayConfig, err := NewJetBrainsGatewayConfig(s.store)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	config := jetBrainsGatewayConfig.config
+	config := &JetbrainsGatewayConfigXML{}
 
 	for _, w := range workspaces {
 		pk, errother := s.store.GetPrivateKeyPath()
@@ -400,7 +390,8 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 			return "", breverrors.WrapAndTrace(errother)
 		}
 		id := w.GetLocalIdentifier(workspaces)
-		entry := makeJetbrainsConfigEntry(string(id), pk, id)
+
+		entry := makeJetbrainsConfigEntry(w.NetworkID, pk, id)
 		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}
 	output, err := xml.MarshalIndent(config, "", "  ")
