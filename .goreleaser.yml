@@ -20,9 +20,9 @@ brews:
     # GitHub/GitLab repository to push the formula to
     tap:
       owner: brevdev
-      name: brev-cli
+      name: homebrew-brev
       # Optionally a token can be provided, if it differs from the token provided to GoReleaser
-      # token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     # The project name and current git tag are used in the format string.
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     homepage: "https://docs.brev.dev"
