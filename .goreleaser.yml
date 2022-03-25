@@ -16,7 +16,8 @@ builds:
       - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
 
 brews:
-  - name: brev-cli
+  - name: brev
+    folder: Casks
     # GitHub/GitLab repository to push the formula to
     tap:
       owner: brevdev
