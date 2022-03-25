@@ -6,6 +6,7 @@ import (
 	"path"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/hashicorp/go-multierror"
 )
 
 type DarwinServiceType string
@@ -27,32 +28,32 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	plist, err := exec.Command("launchctl", "list", dpc.ServiceName).Output() // #nosec G204
-	_ = plist                                                                 // parse it? https://github.com/DHowett/go-plist if we need something.
-	running := err == nil
-	if running {
-		switch dpc.ServiceType {
-		case System:
-			_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput() // #nosec G204
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-		case SingleUser:
-			_, err = exec.Command("launchctl", "bootout", "gui/"+dpc.Store.GetOSUser(), destination).CombinedOutput() // #nosec G204
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
+
+	var allError error
+	switch dpc.ServiceType {
+	case System:
+		_, err = exec.Command("launchctl", "unload", "-w", destination).CombinedOutput() // #nosec G204
+		if err != nil {
+			allError = multierror.Append(allError, err)
+		}
+	case SingleUser:
+		_, err = exec.Command("launchctl", "bootout", "gui/"+dpc.Store.GetOSUser(), destination).CombinedOutput() // #nosec G204
+		if err != nil {
+			allError = multierror.Append(allError, err)
 		}
 	}
 
 	err = dpc.Store.Remove(destination)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		allError = multierror.Append(allError, err)
 	}
 	// err = dpc.Store.Remove(targetBin)
 	// if err != nil {
 	// 	return breverrors.WrapAndTrace(err)
 	// }
+	if allError != nil {
+		return breverrors.WrapAndTrace(allError)
+	}
 	return nil
 }
 

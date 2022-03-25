@@ -71,7 +71,7 @@ func (t Tailscale) Start() error {
 	if runtime.GOOS == "darwin" && !t.leaveDirtyDNS {
 		tailscaleDNSIP := "100.100.100.100"
 		var err error
-		done, err = UseDarwinDNS(tailscaleDNSIP, []string{}, true)
+		done, err = UseDarwinDNS(tailscaleDNSIP, []string{}, false)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
