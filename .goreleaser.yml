@@ -17,7 +17,7 @@ builds:
 
 brews:
   - name: brev
-    folder: Casks
+    folder: Formula
     # GitHub/GitLab repository to push the formula to
     tap:
       owner: brevdev
