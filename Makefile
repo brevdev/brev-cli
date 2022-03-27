@@ -131,16 +131,18 @@ full-smoke-test: ci fast-build
 test-e2e-setup:
 	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 	# run docker image copy in binary with volume config map + exec setup workspace
-	docker run -d --privileged=true --name ubuntu-proxy --rm -i -t  brevdev/ubuntu-proxy:0.3.2 bash
 
-	docker exec -it ubuntu-proxy mkdir /etc/meta
-	docker cp assets/test_setup_v0.json ubuntu-proxy:/etc/meta/setup_v0.json
+	docker kill brev-e2e-test || true
+	docker run -d --privileged=true --name brev-e2e-test --rm -i -t  brevdev/ubuntu-proxy:0.3.2 bash
 
-	docker cp brev ubuntu-proxy:/usr/local/bin/
-	docker exec -it ubuntu-proxy /usr/local/bin/brev setupworkspace
+	docker exec -it brev-e2e-test mkdir /etc/meta
+	docker cp assets/test_setup_v0.json brev-e2e-test:/etc/meta/setup_v0.json
+
+	docker cp brev brev-e2e-test:/usr/local/bin/
+	docker exec -it brev-e2e-test /usr/local/bin/brev setupworkspace
 
 	# validate container is in proper state
-	docker exec -it ubuntu-proxy /usr/local/bin/brev validateworkspacesetup
+	docker exec -it brev-e2e-test /usr/local/bin/brev validateworkspacesetup
 
-	docker kill ubuntu-proxy
-	
+shell-into-e2e:
+	docker exec -it brev-e2e-test bash

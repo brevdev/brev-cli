@@ -1,8 +1,8 @@
 {
     "workspaceHost": "localhost",
     "workspacePort": 22778,
-    "workspaceBaseRepo": "github.com:theFong/brev-user-config",
-    "workspaceProjectRepo": "github.com:brevdev/brev-cli.git",
+    "workspaceBaseRepo": "github.com:brevdev/test-repo-user-config.git",
+    "workspaceProjectRepo": "github.com:brevdev/test-repo-dotbrev.git",
     "workspaceApplicationStartScripts": [],
     "workspaceUsername": "brevtest",
     "workspaceEmail": "test+3333@gmail.com",
