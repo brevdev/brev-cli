@@ -68,7 +68,7 @@ func CreateSetupScript(params *store.SetupParamsV0) (string, error) {
 	applicationStartScript := makeApplicationStartScript(params.WorkspaceApplicationStartScripts)
 
 	postStartScript := makePostStartScript(
-		scriptStart + userConfigScript + projectScript + defaultProjectDotBrevScript + codeServerScript + applicationStartScript,
+		scriptStart + codeServerScript + userConfigScript + projectScript + defaultProjectDotBrevScript + applicationStartScript,
 	)
 
 	bashScript := makeBashScript("post-start", postStartScript)
