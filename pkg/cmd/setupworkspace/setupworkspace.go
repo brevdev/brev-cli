@@ -63,6 +63,7 @@ func NewCmdValidateWorkspaceSetup(store SetupWorkspaceStore) *cobra.Command {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

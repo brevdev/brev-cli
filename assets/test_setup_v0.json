@@ -3,8 +3,8 @@
     "workspacePort": 22778,
     "workspaceBaseRepo": "github.com:theFong/brev-user-config",
     "workspaceProjectRepo": "github.com:brevdev/brev-cli.git",
-    "workspaceApplicationStartScripts": "",
-    "workspaceUsername": "test+3333",
+    "workspaceApplicationStartScripts": [],
+    "workspaceUsername": "brevtest",
     "workspaceEmail": "test+3333@gmail.com",
     "workspacePassword": "12345",
     "workspaceKeyPair": {
