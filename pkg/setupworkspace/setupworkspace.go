@@ -15,7 +15,7 @@ import (
 
 func ExecSetupScript(path string) error {
 	//  executed as current user which is root on brev image, from current working dir which is on brev images "/home/brev/workspace/"
-	cmd := exec.Command("bash", path)
+	cmd := exec.Command("bash", path) //nolint:gosec // static var passed in
 
 	err := cmd.Run()
 	if err != nil {
@@ -279,11 +279,15 @@ func makeSetupProjectDotBrevScript(projectFolderName string, setupScript *string
 	after := fmt.Sprintf(timestampTemplate, "END", "makeSetupProjectDotBrevScript")
 	setupScriptString := ""
 	if setupScript == nil || *setupScript == "" {
-		resp, err := http.Get("https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/setup.sh")
+		resp, err := http.Get("https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/setup.sh") //nolint:noctx // TODO refactor to store
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
 		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		err = resp.Body.Close()
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
