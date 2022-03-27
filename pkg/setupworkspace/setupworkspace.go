@@ -5,72 +5,66 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os/exec"
 	"strings"
 
 	"github.com/alessio/shellescape"
-	"github.com/brevdev/brev-cli/pkg/uri"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
-type WorkspaceKeyPair struct {
-	PublicKeyData  string
-	PrivateKeyData string
+func ExecSetupScript(path string) error {
+	//  executed as current user which is root on brev image, from current working dir which is on brev images "/home/brev/workspace/"
+	cmd := exec.Command("bash", path)
+
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
 }
 
-type DeployOptions struct {
-	WorkspaceHost                    uri.Host
-	WorkspacePort                    int
-	WorkspaceBaseRepo                string
-	WorkspaceProjectRepo             string
-	WorkspaceApplicationStartScripts []string
-	WorkspaceUsername                string
-	WorkspaceEmail                   string
-	WorkspacePassword                string
-	WorkspaceKeyPair                 *WorkspaceKeyPair
-	SetupScript                      *string
-}
-
-func createPostStart(options *DeployOptions) (string, error) {
-	//  executed as root, from "/home/brev/workspace/"
-
+func CreateSetupScript(params *store.SetupParamsV0) (string, error) {
 	scriptStart := makeSetupScriptStart(
-		options.WorkspaceKeyPair.PrivateKeyData,
-		options.WorkspaceKeyPair.PublicKeyData,
-		options.WorkspaceEmail,
-		options.WorkspaceUsername,
+		params.WorkspaceKeyPair.PrivateKeyData,
+		params.WorkspaceKeyPair.PublicKeyData,
+		params.WorkspaceEmail,
+		params.WorkspaceUsername,
 	)
 
 	userConfigScript := ""
-	if options.WorkspaceBaseRepo != "" {
-		userConfigScript = makeSetupUserConfigScript(options.WorkspaceBaseRepo)
+	if params.WorkspaceBaseRepo != "" {
+		userConfigScript = makeSetupUserConfigScript(params.WorkspaceBaseRepo)
 	}
 
 	projectFolderName := ""
-	if options.WorkspaceProjectRepo != "" {
-		projectFolderName = strings.Split(options.WorkspaceProjectRepo[strings.LastIndex(options.WorkspaceProjectRepo, "/")+1:], ".")[0]
+	if params.WorkspaceProjectRepo != "" {
+		projectFolderName = strings.Split(params.WorkspaceProjectRepo[strings.LastIndex(params.WorkspaceProjectRepo, "/")+1:], ".")[0]
 	} else {
-		projectFolderName = strings.Split(options.WorkspaceHost.GetSlug(), "-")[0]
+		projectFolderName = strings.Split(params.WorkspaceHost.GetSlug(), "-")[0]
 	}
 
 	projectScript := makeSetupProjectScript(
-		options.WorkspaceProjectRepo,
+		params.WorkspaceProjectRepo,
 		projectFolderName,
 	)
 
 	defaultProjectDotBrevScript, err := makeSetupProjectDotBrevScript(
 		projectFolderName,
-		options.SetupScript,
+		params.SetupScript,
 	)
 	if err != nil {
-		return "", err
+		return "", breverrors.WrapAndTrace(err)
 	}
 
 	codeServerScript := makeSetupCodeServerScript(
-		options.WorkspacePassword,
-		fmt.Sprintf("127.0.0.1:%d", options.WorkspacePort),
-		string(options.WorkspaceHost),
+		params.WorkspacePassword,
+		fmt.Sprintf("127.0.0.1:%d", params.WorkspacePort),
+		string(params.WorkspaceHost),
 	)
 
-	applicationStartScript := makeApplicationStartScript(options.WorkspaceApplicationStartScripts)
+	applicationStartScript := makeApplicationStartScript(params.WorkspaceApplicationStartScripts)
 
 	postStartScript := makePostStartScript(
 		scriptStart + userConfigScript + projectScript + defaultProjectDotBrevScript + codeServerScript + applicationStartScript,
@@ -283,14 +277,14 @@ func makeSetupProjectDotBrevScript(projectFolderName string, setupScript *string
 	before := fmt.Sprintf(timestampTemplate, "START", "makeSetupProjectDotBrevScript")
 	after := fmt.Sprintf(timestampTemplate, "END", "makeSetupProjectDotBrevScript")
 	setupScriptString := ""
-	if setupScript == nil {
+	if setupScript == nil || *setupScript == "" {
 		resp, err := http.Get("https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/setup.sh")
 		if err != nil {
-			return "", err
+			return "", breverrors.WrapAndTrace(err)
 		}
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			return "", err
+			return "", breverrors.WrapAndTrace(err)
 		}
 		setupScriptString = base64.StdEncoding.EncodeToString(body)
 	} else {

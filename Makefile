@@ -127,3 +127,20 @@ full-smoke-test: ci fast-build
 	[ ! -d ~/.ssh.bak ] || mv ~/.ssh.bak ~/.ssh
 	[ ! -d ~/.config/Jetbrains.bak ] || mv ~/.config/Jetbrains.bak ~/.config/Jetbrains
 	[ ! -d ~/.brev.bak ] || mv ~/.brev.bak ~/.brev
+
+test-e2e-setup:
+	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	# run docker image copy in binary with volume config map + exec setup workspace
+	docker run -d --privileged=true --name ubuntu-proxy --rm -i -t  brevdev/ubuntu-proxy:0.3.2 bash
+
+	docker exec -it ubuntu-proxy mkdir /etc/meta
+	docker cp assets/test_setup_v0.json ubuntu-proxy:/etc/meta/setup_v0.json
+
+	docker cp brev ubuntu-proxy:/usr/local/bin/
+	docker exec -it ubuntu-proxy /usr/local/bin/brev setupworkspace
+
+	# validate container is in proper state
+	docker exec -it ubuntu-proxy /usr/local/bin/brev validateworkspacesetup
+
+	docker kill ubuntu-proxy
+	

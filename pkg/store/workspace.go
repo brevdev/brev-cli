@@ -1,12 +1,16 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/setupscript"
+	"github.com/brevdev/brev-cli/pkg/uri"
+	"github.com/spf13/afero"
 )
 
 var (
@@ -308,4 +312,60 @@ func (s AuthHTTPStore) ResetWorkspace(workspaceID string) (*entity.Workspace, er
 		return nil, NewHTTPResponseError(res)
 	}
 	return &result, nil
+}
+
+type KeyPair struct {
+	PublicKeyData  string `json:"publicKeyData"`
+	PrivateKeyData string `json:"privateKeyData"`
+}
+
+type SetupParamsV0 struct {
+	WorkspaceHost                    uri.Host `json:"workspaceHost"`
+	WorkspacePort                    int      `json:"workspacePort"`
+	WorkspaceBaseRepo                string   `json:"workspaceBaseRepo"`
+	WorkspaceProjectRepo             string   `json:"workspaceProjectRepo"`
+	WorkspaceApplicationStartScripts []string `json:"workspaceApplicationStartScripts"`
+	WorkspaceUsername                string   `json:"workspaceUsername"`
+	WorkspaceEmail                   string   `json:"workspaceEmail"`
+	WorkspacePassword                string   `json:"workspacePassword"`
+	WorkspaceKeyPair                 *KeyPair `json:"workspaceKeyPair"`
+	SetupScript                      *string  `json:"setupScript"`
+}
+
+func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
+	file, err := f.fs.Open("/etc/meta/setup_v0.json")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	fileB, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	var sp SetupParamsV0
+	err = json.Unmarshal(fileB, &sp)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	err = file.Close()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &sp, nil
+}
+
+const setupScriptPath = "/etc/setup_script.sh"
+
+func (f FileStore) WriteSetupScript(script string) error {
+	err := afero.WriteFile(f.fs, setupScriptPath, []byte(script), 744) // owner can exec everyone can read
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (f FileStore) GetSetupScriptPath() string {
+	return setupScriptPath
 }

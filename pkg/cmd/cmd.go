@@ -23,6 +23,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/runtasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/secret"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
+	"github.com/brevdev/brev-cli/pkg/cmd/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshkeys"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
@@ -214,6 +215,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
+
+	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
+	cmd.AddCommand(setupworkspace.NewCmdTestWorkspaceSetup())
+	cmd.AddCommand(setupworkspace.NewCmdValidateWorkspaceSetup(noLoginCmdStore))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
