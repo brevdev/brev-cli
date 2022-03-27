@@ -38,6 +38,7 @@ func CreateSetupScript(params *store.SetupParamsV0) (string, error) {
 		userConfigScript = makeSetupUserConfigScript(params.WorkspaceBaseRepo)
 	}
 
+	// TODO bad that it depends on host being special
 	projectFolderName := ""
 	if params.WorkspaceProjectRepo != "" {
 		projectFolderName = strings.Split(params.WorkspaceProjectRepo[strings.LastIndex(params.WorkspaceProjectRepo, "/")+1:], ".")[0]

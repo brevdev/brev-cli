@@ -1,8 +1,8 @@
 {
-    "workspaceHost": "localhost",
+    "workspaceHost": "name-rand-org.x.y",
     "workspacePort": 22778,
     "workspaceBaseRepo": "github.com:brevdev/test-repo-user-config.git",
-    "workspaceProjectRepo": "github.com:brevdev/test-repo-dotbrev.git",
+    "workspaceProjectRepo": "",
     "workspaceApplicationStartScripts": [],
     "workspaceUsername": "brevtest",
     "workspaceEmail": "test+3333@gmail.com",

@@ -128,15 +128,22 @@ full-smoke-test: ci fast-build
 	[ ! -d ~/.config/Jetbrains.bak ] || mv ~/.config/Jetbrains.bak ~/.config/Jetbrains
 	[ ! -d ~/.brev.bak ] || mv ~/.brev.bak ~/.brev
 
-test-e2e-setup:
+build-linux-amd:
 	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
-	# run docker image copy in binary with volume config map + exec setup workspace
 
+test-e2e-setup-repo: build-linux-amd
+	make test-e2e-setup setup_param_path=assets/test_setup_v0_repo.json
+
+test-e2e-setup-norepo: build-linux-amd
+	make test-e2e-setup setup_param_path=assets/test_setup_v0_norepo.json
+
+test-e2e-setup:
+	# run docker image copy in binary with volume config map + exec setup workspace
 	docker kill brev-e2e-test || true
 	docker run -d --privileged=true --name brev-e2e-test --rm -i -t  brevdev/ubuntu-proxy:0.3.2 bash
 
 	docker exec -it brev-e2e-test mkdir /etc/meta
-	docker cp assets/test_setup_v0.json brev-e2e-test:/etc/meta/setup_v0.json
+	docker cp ${setup_param_path} brev-e2e-test:/etc/meta/setup_v0.json
 
 	docker cp brev brev-e2e-test:/usr/local/bin/
 	docker exec -it brev-e2e-test /usr/local/bin/brev setupworkspace
