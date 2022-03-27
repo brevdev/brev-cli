@@ -34,6 +34,7 @@ type CreateWorkspacesOptions struct {
 var (
 	DefaultWorkspaceClassID    = config.GlobalConfig.GetDefaultWorkspaceClass()
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
+	UserWorkspaceTemplateID    = "4nbb4lg2s"
 	DevWorkspaceTemplateID     = "test-template-aws"
 )
 
@@ -87,6 +88,7 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	if options == nil {
 		return nil, fmt.Errorf("options can not be nil")
 	}
+	fmt.Printf("using template %s\n", options.WorkspaceTemplateID)
 
 	var result entity.Workspace
 	res, err := s.authHTTPClient.restyClient.R().

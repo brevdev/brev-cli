@@ -46,7 +46,7 @@ func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
 
 func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {
 	// "test-template-aws"
-	return getEnvOrDefault(defaultWorkspaceTemplate, "4nbb4lg2s")
+	return getEnvOrDefault(defaultWorkspaceTemplate, "")
 }
 
 func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {
