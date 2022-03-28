@@ -35,7 +35,7 @@ var (
 	DefaultWorkspaceClassID    = config.GlobalConfig.GetDefaultWorkspaceClass()
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
 	UserWorkspaceTemplateID    = "4nbb4lg2s"
-	DevWorkspaceTemplateID     = "test-template-aws"
+	DevWorkspaceTemplateID     = "v7nd45zsc"
 )
 
 var (
@@ -332,6 +332,9 @@ type SetupParamsV0 struct {
 	WorkspacePassword                string   `json:"workspacePassword"`
 	WorkspaceKeyPair                 *KeyPair `json:"workspaceKeyPair"`
 	SetupScript                      *string  `json:"setupScript"`
+
+	// ProjectFolderName string `json:"projectFolderName"`
+	// BrevPath          string `json:"brevPath"`
 }
 
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
