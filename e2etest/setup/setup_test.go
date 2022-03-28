@@ -1,4 +1,4 @@
-package setupworkspace
+package setup
 
 import (
 	"fmt"
@@ -38,14 +38,12 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 	details := runtime.FuncForPC(pc)
 	dbTestPrefix := strings.Split(details.Name(), ".")[2]
 
-	// docker run -d --privileged=true --name brev-e2e-test --rm -i -t  brevdev/ubuntu-proxy:0.3.2 bash
+	binPath := "/home/brev/workspace/brev-cli/brev" // TODO how to auto build binary + relative path
 
-	binPath := "/home/brev/workspace/brev-cli/brev" // how to auto build TODO
-
-	// [a-zA-Z0-9][a-zA-Z0-9_.-]
 	workspaces := []Workspace{}
 	for _, p := range containerParams {
 		containerName := fmt.Sprintf("%s-%s", dbTestPrefix, p.Name)
+		// [a-zA-Z0-9][a-zA-Z0-9_.-]
 		workspace := *NewTestWorkspace(binPath, containerName, p.Image, p.Port, setupParams)
 		_ = workspace.Done()
 		workspaces = append(workspaces, workspace)
@@ -197,9 +195,9 @@ func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
 
 func GetTestKeys() (*store.KeyPair, error) {
 	kp := store.KeyPair{}
-	err := files.ReadJSON(files.AppFs, "/home/brev/workspace/brev-cli/assets/test_keypair.json", &kp) // TODO
+	err := files.ReadJSON(files.AppFs, "/home/brev/workspace/brev-cli/assets/test_keypair.json", &kp) // TODO relative path
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &kp, nil
 }
