@@ -86,8 +86,12 @@ func (w WorkspaceTestClient) Test(test workspaceTest) error {
 type Workspace interface {
 	Setup() error
 	Done() error
-	Exec(arg ...string) error
+	Exec(arg ...string) ([]byte, error) // always returns []byte even if error since stdout/err is still useful
 	Copy(src string, dest string) error
+}
+
+type ExecResult interface {
+	CombinedOutput() ([]byte, error)
 }
 
 type TestWorkspace struct {
@@ -96,6 +100,7 @@ type TestWorkspace struct {
 	Image          string
 	Port           string
 	TestBrevBinary string // path to brev binary that should be tested
+	ShowOut        bool
 }
 
 var _ Workspace = TestWorkspace{}
@@ -112,13 +117,15 @@ func sendToOut(c *exec.Cmd) {
 
 func (w TestWorkspace) Setup() error {
 	cmdR := exec.Command("docker", "run", "-d", "--privileged=true", fmt.Sprintf("--name=%s", w.ContainerName), "--rm", "-it", w.Image, "-p", w.Port, "bash") //nolint:gosec // for tests
-	sendToOut(cmdR)
+	if w.ShowOut {
+		sendToOut(cmdR)
+	}
 	err := cmdR.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.Exec("mkdir", "-p", "/etc/meta")
+	_, err = w.Exec("mkdir", "-p", "/etc/meta")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -141,27 +148,31 @@ func (w TestWorkspace) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.Exec("/usr/local/bin/brev", "setupworkspace")
+	_, err = w.Exec("/usr/local/bin/brev", "setupworkspace")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func (w TestWorkspace) Exec(arg ...string) error {
+func (w TestWorkspace) Exec(arg ...string) ([]byte, error) {
 	arg = append([]string{"exec", w.ContainerName}, arg...)
 	cmdM := exec.Command("docker", arg...) //nolint:gosec // for tests
-	sendToOut(cmdM)
-	err := cmdM.Run()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	out, err := cmdM.CombinedOutput()
+	if w.ShowOut {
+		fmt.Print(out)
 	}
-	return nil
+	if err != nil {
+		return out, breverrors.WrapAndTrace(err)
+	}
+	return out, nil
 }
 
 func (w TestWorkspace) Copy(src string, dest string) error {
 	cmdC := exec.Command("docker", "cp", src, dest) //nolint:gosec // for tests
-	sendToOut(cmdC)
+	if w.ShowOut {
+		sendToOut(cmdC)
+	}
 	err := cmdC.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -171,6 +182,9 @@ func (w TestWorkspace) Copy(src string, dest string) error {
 
 func (w TestWorkspace) Done() error {
 	cmd := exec.Command("docker", "kill", w.ContainerName) //nolint:gosec // for tests
+	if w.ShowOut {
+		sendToOut(cmd)
+	}
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -216,34 +230,78 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 		},
 	})
 
-	err = client.Test(func(workspace Workspace) {
-		AssertGitProjectExistsWithBrev(t, workspace, "test-repo-dotbrev")
+	err = client.Test(func(w Workspace) {
+		AssertUser(t, w, "root")
+		AssertCwd(t, w, "/home/brev/workspace")
+		AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
+		AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
+		AssertValidBrevRepoSetup(t, w, "test-repo-dotbrev")
+		AssertValidBrevRepoSetup(t, w, "user-dotbrev")
 	})
 	assert.Nil(t, err)
 }
 
-func AssertCodeServerRunningAuth(t *testing.T) {
+func AssertValidBrevRepoSetup(t *testing.T, w Workspace, repoPath string) {
+	t.Helper()
+	AssertPathExists(t, w, repoPath)
+	AssertPathExists(t, w, fmt.Sprintf("%s/.git", repoPath))
+	AssertPathExists(t, w, fmt.Sprintf("%s/.brev", repoPath))
+	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/setup.sh", repoPath))
+	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/logs", repoPath))
 }
 
-func AssertCodeServerPasswordWorks(t *testing.T) {
+func AssertCwd(t *testing.T, w Workspace, expectedCwd string) {
+	t.Helper()
+	out, err := w.Exec("pwd")
+	assert.Nil(t, err)
+	assert.Equal(t, expectedCwd, strings.TrimSpace(string(out)))
 }
 
-func AssertSSHServerRunning(t *testing.T, w Workspace) {
-	// test if connect no auth fails
-	// test if connect pk works
+func AssertUser(t *testing.T, w Workspace, expectedUser string) {
+	t.Helper()
+	out, err := w.Exec("whoami")
+	assert.Nil(t, err)
+	assert.Equal(t, expectedUser, strings.TrimSpace(string(out)))
 }
 
-func AssertsshServerPasswordAuthFail(t *testing.T) {
+func AssertInternalCurlOuputContains(t *testing.T, w Workspace, url string, contains string) {
+	t.Helper()
+	out, err := w.Exec("curl", "-s", url)
+	assert.Nil(t, err)
+	assert.Contains(t, string(out), contains)
 }
+
+// func AssertCodeServerPasswordWorks(t *testing.T) {
+// }
+
+func AssertInternalSSHServerRunning(t *testing.T, w Workspace, privKeyPath string, user string, healthCheck string) {
+	t.Helper()
+
+	if !AssertPathExists(t, w, privKeyPath) {
+		return
+	}
+
+	_, err := w.Exec("ssh", "-i", privKeyPath, "-o", "StrictHostKeyChecking no", fmt.Sprintf("%s@localhost", user), healthCheck)
+	assert.Nil(t, err, "can connect with private key")
+
+	_, err = w.Exec("ssh", "-o", "StrictHostKeyChecking no", fmt.Sprintf("%s@localhost", user), healthCheck)
+	assert.Error(t, err, "can not connect without private key")
+}
+
+// func AssertInternalSSHServerNoPass(t *testing.T, w Workspace, user string, pass string, healthCheck string) {
+// 	t.Helper()
+// 	// TODO assert can't connect with password
+// 	// TODO how to pass password in one line - use sshpass?
+// }
 
 func AssertUserGitExists(t *testing.T) {
 	// validate cloned, logs
 }
 
-func AssertGitProjectExistsWithBrev(t *testing.T, workspace Workspace, projectName string) {
-	err := workspace.Exec("ls", projectName)
-	assert.Nil(t, err)
-	// validate cloned, logs
+func AssertPathExists(t *testing.T, workspace Workspace, path string) bool {
+	t.Helper()
+	_, err := workspace.Exec("ls", path)
+	return assert.Nil(t, err)
 }
 
 func AssertGitProjectExistsWithoutBrev(t *testing.T) {
