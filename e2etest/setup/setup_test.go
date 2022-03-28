@@ -216,38 +216,126 @@ func GetTestKeys() (*store.KeyPair, error) {
 	return &kp, nil
 }
 
+var SupportedContainers = []ContainerParams{
+	{
+		Name:  "brevdev-ubuntu-proxy-0.3.2",
+		Image: "brevdev/ubuntu-proxy:0.3.2",
+		Port:  "22778",
+	},
+}
+
 func Test_UserBrevProjectBrev(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
 	}
 	params := NewTestSetupParams(keys)
-	client := NewWorkspaceTestClient(params, []ContainerParams{
-		{
-			Name:  "brevdev-ubuntu-proxy-0.3.2",
-			Image: "brevdev/ubuntu-proxy:0.3.2",
-			Port:  "22778",
-		},
-	})
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertUser(t, w, "root")
-		AssertCwd(t, w, "/home/brev/workspace")
-		AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
-		AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
-		AssertValidBrevRepoSetup(t, w, "test-repo-dotbrev")
-		AssertValidBrevRepoSetup(t, w, "user-dotbrev")
+		AssertWorkspaceSetup(t, w)
+
+		AssertValidBrevBaseRepoSetup(t, w, "user-dotbrev")
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 	})
 	assert.Nil(t, err)
 }
 
-func AssertValidBrevRepoSetup(t *testing.T, w Workspace, repoPath string) {
+func Test_NoProjectBrev(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceProjectRepo = ""
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertValidBrevBaseRepoSetup(t, w, "user-dotbrev")
+		AssertValidBrevProjRepo(t, w, "name")
+	})
+	assert.Nil(t, err)
+}
+
+func Test_NoUserBrevNoProj(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceBaseRepo = ""
+	params.WorkspaceProjectRepo = ""
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertPathDoesNotExist(t, w, "user-dotbrev")
+		AssertValidBrevProjRepo(t, w, "name")
+	})
+	assert.Nil(t, err)
+}
+
+func Test_NoUserBrevProj(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceBaseRepo = ""
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertPathDoesNotExist(t, w, "user-dotbrev")
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+	})
+	assert.Nil(t, err)
+}
+
+func AssertWorkspaceSetup(t *testing.T, w Workspace) {
+	t.Helper()
+	AssertUser(t, w, "root")
+	AssertCwd(t, w, "/home/brev/workspace")
+
+	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
+	AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
+}
+
+func AssertValidBrevBaseRepoSetup(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertPathExists(t, w, repoPath)
 	AssertPathExists(t, w, fmt.Sprintf("%s/.git", repoPath))
 	AssertPathExists(t, w, fmt.Sprintf("%s/.brev", repoPath))
 	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/setup.sh", repoPath))
 	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/logs", repoPath))
+}
+
+func AssertValidUserBrevSetup(t *testing.T, w Workspace, repoPath string) {
+	t.Helper()
+	AssertValidBrevBaseRepoSetup(t, w, repoPath)
+
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user setup script ran")
+}
+
+func AssertValidBrevProjRepo(t *testing.T, w Workspace, repoPath string) {
+	t.Helper()
+	AssertValidBrevBaseRepoSetup(t, w, repoPath)
+
+	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/.gitignore", repoPath))
+	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/ports.yaml", repoPath))
+
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "repo setup script ran")
 }
 
 func AssertCwd(t *testing.T, w Workspace, expectedCwd string) {
@@ -294,22 +382,21 @@ func AssertInternalSSHServerRunning(t *testing.T, w Workspace, privKeyPath strin
 // 	// TODO how to pass password in one line - use sshpass?
 // }
 
-func AssertUserGitExists(t *testing.T) {
-	// validate cloned, logs
-}
-
 func AssertPathExists(t *testing.T, workspace Workspace, path string) bool {
 	t.Helper()
 	_, err := workspace.Exec("ls", path)
 	return assert.Nil(t, err)
 }
 
-func AssertGitProjectExistsWithoutBrev(t *testing.T) {
-	// validate cloned, logs
+func AssertPathDoesNotExist(t *testing.T, workspace Workspace, path string) bool {
+	t.Helper()
+	_, err := workspace.Exec("ls", path)
+	return assert.Error(t, err)
 }
 
-func AssertStringInLogs(t *testing.T, logsPath string, value string) {
-}
+func AssertFileContainsString(t *testing.T, w Workspace, filePath string, contains string) bool {
+	t.Helper()
 
-func AssertNoGitProject(t *testing.T) {
+	_, err := w.Exec("grep", fmt.Sprintf("\"%s\"", contains), filePath)
+	return assert.Nil(t, err)
 }
