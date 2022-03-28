@@ -63,7 +63,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 
 			if empty {
-				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript)
+				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript, workspaceClass)
 				if err != nil {
 					t.Vprintf(t.Red(err.Error()))
 					return
@@ -105,7 +105,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string) error {
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error {
 	// ensure name
 	if len(name) == 0 {
 		return fmt.Errorf("name field is required for empty workspaces")
@@ -148,6 +148,10 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, name)
+
+	if workspaceClass != "" {
+		options.WithClassID(workspaceClass)
+	}
 
 	user, err := startStore.GetCurrentUser()
 	if err != nil {
@@ -419,11 +423,11 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if workspaceClass == "" {
-		workspaceClass = store.DefaultWorkspaceClassID
+	if workspaceClass != "" {
+		options = options.WithWorkspaceClassID(workspaceClass)
 	}
 
-	options = resolveWorkspaceTemplate(options, user).WithWorkspaceClassID(workspaceClass)
+	options = resolveWorkspaceTemplate(options, user)
 
 	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
