@@ -46,6 +46,7 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 		// [a-zA-Z0-9][a-zA-Z0-9_.-]
 		workspace := *NewTestWorkspace(binPath, containerName, p.Image, p.Port, setupParams)
 		_ = workspace.Done()
+		workspace.ShowOut = true
 		workspaces = append(workspaces, workspace)
 	}
 
@@ -160,7 +161,7 @@ func (w TestWorkspace) Exec(arg ...string) ([]byte, error) {
 	cmdM := exec.Command("docker", arg...) //nolint:gosec // for tests
 	out, err := cmdM.CombinedOutput()
 	if w.ShowOut {
-		fmt.Print(out)
+		fmt.Print(string(out))
 	}
 	if err != nil {
 		return out, breverrors.WrapAndTrace(err)
@@ -497,13 +498,14 @@ func AssertPathDoesNotExist(t *testing.T, workspace Workspace, path string) bool
 func AssertFileContainsString(t *testing.T, w Workspace, filePath string, contains string) bool {
 	t.Helper()
 
-	_, err := w.Exec("grep", fmt.Sprintf("\"%s\"", contains), filePath)
+	res, err := w.Exec("grep", contains, filePath)
+	assert.Contains(t, string(res), contains)
 	return assert.Nil(t, err)
 }
 
 func AssertFileNotContainsString(t *testing.T, w Workspace, filePath string, contains string) bool {
 	t.Helper()
 
-	_, err := w.Exec("grep", fmt.Sprintf("\"%s\"", contains), filePath)
+	_, err := w.Exec("grep", contains, filePath)
 	return assert.Error(t, err)
 }
