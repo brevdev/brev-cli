@@ -105,7 +105,7 @@ function run_setup_script {
         chmod 755 /home/brev/workspace/$1/.brev
         rm -rf /home/brev/workspace/$1/.brev/logs
         mv /home/brev/workspace/logs /home/brev/workspace/$1/.brev
-		mkdir -p /home/brev/workspace/$1/.brev/logs
+        mkdir -p /home/brev/workspace/$1/.brev/logs
         echo "" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##############################" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##### RUNNING SETUP FILE #####" >> /home/brev/workspace/$1/.brev/logs/setup.log

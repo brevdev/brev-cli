@@ -232,6 +232,8 @@ var SupportedContainers = []ContainerParams{
 	},
 }
 
+// TODO too many redudant assertions
+
 func Test_UserBrevProjectBrev(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
