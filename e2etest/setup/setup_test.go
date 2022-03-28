@@ -236,8 +236,11 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 	err = client.Test(func(w Workspace) {
 		AssertWorkspaceSetup(t, w)
 
-		AssertValidBrevBaseRepoSetup(t, w, "user-dotbrev")
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 	})
 	assert.Nil(t, err)
 }
@@ -256,7 +259,7 @@ func Test_NoProjectBrev(t *testing.T) {
 	err = client.Test(func(w Workspace) {
 		AssertWorkspaceSetup(t, w)
 
-		AssertValidBrevBaseRepoSetup(t, w, "user-dotbrev")
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		AssertValidBrevProjRepo(t, w, "name")
 	})
 	assert.Nil(t, err)
@@ -297,8 +300,99 @@ func Test_NoUserBrevProj(t *testing.T) {
 	err = client.Test(func(w Workspace) {
 		AssertWorkspaceSetup(t, w)
 
-		AssertPathDoesNotExist(t, w, "user-dotbrev")
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+	})
+	assert.Nil(t, err)
+}
+
+func Test_ProjectRepoNoBrev(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
+	})
+	assert.Nil(t, err)
+}
+
+const ProvidedSetupScriptMsg = "provided setup script ran"
+
+func Test_ProvidedSetupRanNoProj(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceProjectRepo = ""
+	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
+	params.SetupScript = &setupScript
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertValidBrevProjRepo(t, w, "name")
+		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
+	})
+	assert.Nil(t, err)
+}
+
+func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
+	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
+	params.SetupScript = &setupScript
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
+		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
+	})
+	assert.Nil(t, err)
+}
+
+func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
+	params.SetupScript = &setupScript
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w)
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+		AssertFileNotContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-dotbrev"), ProvidedSetupScriptMsg)
 	})
 	assert.Nil(t, err)
 }
@@ -324,7 +418,10 @@ func AssertValidBrevBaseRepoSetup(t *testing.T, w Workspace, repoPath string) {
 func AssertValidUserBrevSetup(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertValidBrevBaseRepoSetup(t, w, repoPath)
+}
 
+func AssertTestUserRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
+	t.Helper()
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user setup script ran")
 }
 
@@ -334,7 +431,10 @@ func AssertValidBrevProjRepo(t *testing.T, w Workspace, repoPath string) {
 
 	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/.gitignore", repoPath))
 	AssertPathExists(t, w, fmt.Sprintf("%s/.brev/ports.yaml", repoPath))
+}
 
+func AssertTestRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
+	t.Helper()
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "repo setup script ran")
 }
 
@@ -399,4 +499,11 @@ func AssertFileContainsString(t *testing.T, w Workspace, filePath string, contai
 
 	_, err := w.Exec("grep", fmt.Sprintf("\"%s\"", contains), filePath)
 	return assert.Nil(t, err)
+}
+
+func AssertFileNotContainsString(t *testing.T, w Workspace, filePath string, contains string) bool {
+	t.Helper()
+
+	_, err := w.Exec("grep", fmt.Sprintf("\"%s\"", contains), filePath)
+	return assert.Error(t, err)
 }
