@@ -28,6 +28,13 @@ type ContainerParams struct {
 }
 
 func init() {
+	fmt.Println("building binary")
+	cmd := exec.Command("/usr/bin/make")
+	cmd.Dir = "/home/brev/workspace/brev-cli" // TODO relative path
+	_, err := cmd.CombinedOutput()
+	if err != nil {
+		panic(err)
+	}
 }
 
 func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []ContainerParams) *WorkspaceTestClient {
@@ -38,7 +45,7 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 	details := runtime.FuncForPC(pc)
 	dbTestPrefix := strings.Split(details.Name(), ".")[2]
 
-	binPath := "/home/brev/workspace/brev-cli/brev" // TODO how to auto build binary + relative path
+	binPath := "/home/brev/workspace/brev-cli/brev" // TODO how to relative path
 
 	workspaces := []Workspace{}
 	for _, p := range containerParams {
@@ -282,6 +289,7 @@ func Test_NoUserBrevNoProj(t *testing.T) {
 		AssertWorkspaceSetup(t, w)
 
 		AssertPathDoesNotExist(t, w, "user-dotbrev")
+
 		AssertValidBrevProjRepo(t, w, "name")
 	})
 	assert.Nil(t, err)
@@ -301,10 +309,10 @@ func Test_NoUserBrevProj(t *testing.T) {
 	err = client.Test(func(w Workspace) {
 		AssertWorkspaceSetup(t, w)
 
-		AssertValidUserBrevSetup(t, w, "user-dotbrev")
-		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+		AssertPathDoesNotExist(t, w, "user-dotbrev")
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 	})
 	assert.Nil(t, err)
 }

@@ -100,11 +100,12 @@ echo %[1]s %[2]s $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 // note: these commands are executed as root, from "/home/brev/workspace/"
 const setupScriptStartTemplate = `
 function run_setup_script {
-        (mkdir /home/brev/workspace/$1/.brev || true)
+        (mkdir -p /home/brev/workspace/$1/.brev || true)
         chown -R brev /home/brev/workspace/$1/.brev
         chmod 755 /home/brev/workspace/$1/.brev
         rm -rf /home/brev/workspace/$1/.brev/logs
         mv /home/brev/workspace/logs /home/brev/workspace/$1/.brev
+		mkdir -p /home/brev/workspace/$1/.brev/logs
         echo "" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##############################" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##### RUNNING SETUP FILE #####" >> /home/brev/workspace/$1/.brev/logs/setup.log
@@ -210,7 +211,7 @@ fi
 
 if [ $didClone%[3]s -eq 1 ]; then
 	cd './%[2]s'
-	(mkdir ./.brev || true)
+	(mkdir -p ./.brev || true)
 	chown -R brev ./.brev
 	chmod 755 ./.brev
 	rm -rf './.brev/logs'
@@ -307,7 +308,7 @@ const setupProjectDotBrevScript = `
 if [ $didCloneProject -eq 1 ]; then
 	if [ ! -d "./%[1]s/.brev" ]; then
 		echo "There is no .brev folder! Creating folder at ./%[1]s/.brev"
-		mkdir "./%[1]s/.brev"
+		mkdir -p "./%[1]s/.brev"
 	fi
 	if [ ! -f "./%[1]s/.brev/ports.yaml" ]; then
 		echo "Creating a ports.yaml file!"
