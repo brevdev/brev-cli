@@ -44,6 +44,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	var detached bool
 	var empty bool
 	var is4x16 bool
+	var workspaceClass string
 	var setupScript string
 
 	cmd := &cobra.Command{
@@ -75,13 +76,13 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 				if isURL {
 					// CREATE A WORKSPACE
-					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript)
+					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, workspaceClass)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
 					}
 				} else {
 					// Start an existing one (either theirs or someone elses)
-					err := startWorkspace(args[0], loginStartStore, t, detached, name)
+					err := startWorkspace(args[0], loginStartStore, t, detached, name, workspaceClass)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
 					}
@@ -94,6 +95,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	cmd.Flags().BoolVarP(&is4x16, "oli", "g", false, "create a workspace for oli") // avoid naming features after customers
 	_ = cmd.Flags().MarkHidden("oli")                                              // avoid naming features after customers
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
+	cmd.Flags().StringVarP(&workspaceClass, "class", "c", "", "workspace resource class (cpu x memory) default 2x8 [2x8, 4x16, 8x32, 16x32]")
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
@@ -190,7 +192,7 @@ func resolveWorkspaceTemplate(options *store.CreateWorkspacesOptions, user *enti
 	return options
 }
 
-func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string) error {
+func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string, workspaceClass string) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
 	org, othererr := startStore.GetActiveOrganizationOrDefault()
 	if othererr != nil {
@@ -214,7 +216,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 		if len(workspaces) == 0 {
 			return fmt.Errorf("your team has no projects named %s", workspaceName)
 		}
-		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name, user)
+		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name, user, workspaceClass)
 		if othererr != nil {
 			return breverrors.WrapAndTrace(othererr)
 		}
@@ -225,6 +227,10 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 			return nil
 		}
 		// TODO: check the workspace isn't running first!!!
+		if workspaceClass != "" {
+			t.Vprint(t.Yellow("Workspace already exists. Can not pass workspace class flag to start stopped workspace"))
+			return nil
+		}
 
 		if len(name) > 0 {
 			t.Vprint("Existing workspace found. Name flag ignored.")
@@ -264,10 +270,13 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
-func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore, name string, user *entity.User) error {
+func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal.Terminal, orgID string, startStore StartStore, name string, user *entity.User, workspaceClass string) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
+	if workspaceClass == "" {
+		workspaceClass = templateWorkspace.WorkspaceClassID
+	}
 
-	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(templateWorkspace.WorkspaceClassID)
+	options := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(workspaceClass)
 	if len(name) > 0 {
 		options.Name = name
 	} else {
@@ -298,11 +307,14 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScript string) error {
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScript string, workspaceClass string) error {
 	t.Vprintf("This is the setup script: %s", setupScript)
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
+	if is4x16 {
+		workspaceClass = "4x16"
+	}
 
 	var setupScriptContents string
 	var err error
@@ -346,7 +358,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err = createWorkspace(t, newWorkspace, orgID, startStore, is4x16, setupScriptContents)
+	err = createWorkspace(t, newWorkspace, orgID, startStore, workspaceClass, setupScriptContents)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -397,7 +409,7 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, is4x16 bool, setupScript string) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, workspaceClass string, setupScript string) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
@@ -407,11 +419,11 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	options = resolveWorkspaceTemplate(options, user)
-
-	if is4x16 {
-		options.WithWorkspaceClassID("4x16")
+	if workspaceClass == "" {
+		workspaceClass = store.DefaultWorkspaceClassID
 	}
+
+	options = resolveWorkspaceTemplate(options, user).WithWorkspaceClassID(workspaceClass)
 
 	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
