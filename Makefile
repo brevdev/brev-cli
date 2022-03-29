@@ -136,14 +136,18 @@ full-smoke-test: ci fast-build
 build-linux-amd:
 	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
-test-e2e-setup-repo: build-linux-amd
-	make test-e2e-setup setup_param_path=assets/test_setup_v0_repo.json
+setup-workspace-repo: build-linux-amd
+	make setup-workspace setup_param_path=assets/test_setup_v0_repo.json
 
-test-e2e-setup-norepo: build-linux-amd
-	make test-e2e-setup setup_param_path=assets/test_setup_v0_norepo.json
+setup-workspace-norepo: build-linux-amd
+	make setup-workspace setup_param_path=assets/test_setup_v0_norepo.json
 
-test-e2e-setup:
+setup-workspace-sandbox: build-linux-amd
+	make setup-workspace setup_param_path=assets/blank_v0.json
+
+setup-workspace:
 	# run docker image copy in binary with volume config map + exec setup workspace
+	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
 	docker kill brev-e2e-test || true
 	docker run -d --privileged=true --name brev-e2e-test --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
 
@@ -156,5 +160,5 @@ test-e2e-setup:
 	# validate container is in proper state
 	docker exec -it brev-e2e-test /usr/local/bin/brev validateworkspacesetup
 
-shell-into-e2e:
+shell-into-workspace:
 	docker exec -it brev-e2e-test bash

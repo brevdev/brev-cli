@@ -59,3 +59,6 @@ cd -
 # (echo ""; echo "##### Custom commands #####"; echo "";)
 git config --global pull.ff only
 make install
+
+#### sshpass ####
+apt-get install sshpass
