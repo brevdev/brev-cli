@@ -145,43 +145,46 @@ setup-workspace-norepo: build-linux-amd
 setup-workspace-blank: 
 	make setup-workspace setup_param_path=assets/blank_v0.json
 
+container_name=brev-e2e-test
+
 setup-workspace:
 	# run docker image copy in binary with volume config map + exec setup workspace
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
-	docker kill brev-e2e-test || true
-	docker run -d --privileged=true --name brev-e2e-test --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
+	docker kill $(container_name) || true
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
 
-	docker exec -it brev-e2e-test mkdir /etc/meta
-	docker cp ${setup_param_path} brev-e2e-test:/etc/meta/setup_v0.json
+	docker exec -it $(container_name) mkdir /etc/meta
+	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
 
-	docker cp brev brev-e2e-test:/usr/local/bin/
-	docker exec -it brev-e2e-test /usr/local/bin/brev setupworkspace
+	docker cp brev $(container_name):/usr/local/bin/
+	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
 
 	# validate container is in proper state
-	docker exec -it brev-e2e-test /usr/local/bin/brev validateworkspacesetup
+	docker exec -it $(container_name) /usr/local/bin/brev validateworkspacesetup
 
 workspace-dev-script:
 	make setup-workspace-with-script setup_param_path=assets/blank_v0.json script_path=assets/test_setup.sh dir_name=blank
+	make shell-into-workspace
 
 setup-workspace-with-script:
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
 	[ "${script_path}" ] || ( echo "'script_path' not provided"; exit 1 )
 	[ "${dir_name}" ] || ( echo "'dir_name' not provided"; exit 1 )
-	docker kill brev-e2e-test || true
-	docker run -d --privileged=true --name brev-e2e-test --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
+	docker kill $(container_name) || true
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
 
-	docker exec -it brev-e2e-test mkdir /etc/meta
-	docker cp ${setup_param_path} brev-e2e-test:/etc/meta/setup_v0.json
+	docker exec -it $(container_name) mkdir /etc/meta
+	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
 
 
-	docker exec -it brev-e2e-test mkdir -p /home/brev/workspace/${dir_name}/.brev
-	docker cp ${script_path} /home/brev/workspace/${dir_name}/.brev/setup.sh
+	docker exec -it $(container_name) mkdir -p /home/brev/workspace/${dir_name}/.brev
+	docker cp ${script_path} $(container_name):/home/brev/workspace/${dir_name}/.brev/setup.sh
 
-	docker cp brev brev-e2e-test:/usr/local/bin/
-	docker exec -it brev-e2e-test /usr/local/bin/brev setupworkspace
+	docker cp brev $(container_name):/usr/local/bin/
+	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
 
 	# validate container is in proper state
-	docker exec -it brev-e2e-test /usr/local/bin/brev validateworkspacesetup
+	docker exec -it $(container_name) /usr/local/bin/brev validateworkspacesetup
 
 shell-into-workspace:
-	docker exec -it brev-e2e-test bash
+	docker exec -it $(container_name) bash
