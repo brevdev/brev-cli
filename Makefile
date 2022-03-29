@@ -142,7 +142,7 @@ setup-workspace-repo: build-linux-amd
 setup-workspace-norepo: build-linux-amd
 	make setup-workspace setup_param_path=assets/test_setup_v0_norepo.json
 
-setup-workspace-blank: 
+setup-workspace-blank:
 	make setup-workspace setup_param_path=assets/blank_v0.json
 
 container_name=setup-workspace
@@ -151,7 +151,7 @@ setup-workspace:
 	# run docker image copy in binary with volume config map + exec setup workspace
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
 	docker kill $(container_name) || true
-	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
@@ -171,7 +171,7 @@ setup-workspace-with-script:
 	[ "${script_path}" ] || ( echo "'script_path' not provided"; exit 1 )
 	[ "${dir_name}" ] || ( echo "'dir_name' not provided"; exit 1 )
 	docker kill $(container_name) || true
-	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
@@ -187,4 +187,4 @@ setup-workspace-with-script:
 	docker exec -it $(container_name) /usr/local/bin/brev validateworkspacesetup
 
 shell-into-workspace:
-	docker exec -it $(container_name) bash
+	docker exec -it $(container_name) zsh
