@@ -24,7 +24,7 @@ type WorkspaceTestClient struct {
 type ContainerParams struct {
 	Name  string
 	Image string
-	Port  string
+	Ports []string
 }
 
 func init() {
@@ -51,7 +51,7 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 	for _, p := range containerParams {
 		containerName := fmt.Sprintf("%s-%s", dbTestPrefix, p.Name)
 		// [a-zA-Z0-9][a-zA-Z0-9_.-]
-		workspace := *NewTestWorkspace(binPath, containerName, p.Image, p.Port, setupParams)
+		workspace := *NewTestWorkspace(binPath, containerName, p.Image, p.Ports, setupParams)
 		_ = workspace.Done()
 		workspace.ShowOut = true
 		workspaces = append(workspaces, workspace)
@@ -106,7 +106,7 @@ type TestWorkspace struct {
 	SetupParams    *store.SetupParamsV0
 	ContainerName  string
 	Image          string
-	Port           string
+	Ports          []string
 	TestBrevBinary string // path to brev binary that should be tested
 	ShowOut        bool
 }
@@ -114,8 +114,8 @@ type TestWorkspace struct {
 var _ Workspace = TestWorkspace{}
 
 // image := "brevdev/ubuntu-proxy:0.3.2"
-func NewTestWorkspace(testBrevBinaryPath string, containerName string, image string, port string, setupParams *store.SetupParamsV0) *TestWorkspace {
-	return &TestWorkspace{SetupParams: setupParams, ContainerName: containerName, Port: port, Image: image, TestBrevBinary: testBrevBinaryPath}
+func NewTestWorkspace(testBrevBinaryPath string, containerName string, image string, ports []string, setupParams *store.SetupParamsV0) *TestWorkspace {
+	return &TestWorkspace{SetupParams: setupParams, ContainerName: containerName, Ports: ports, Image: image, TestBrevBinary: testBrevBinaryPath}
 }
 
 func sendToOut(c *exec.Cmd) {
@@ -124,7 +124,20 @@ func sendToOut(c *exec.Cmd) {
 }
 
 func (w TestWorkspace) Setup() error {
-	cmdR := exec.Command("docker", "run", "-d", "--privileged=true", fmt.Sprintf("--name=%s", w.ContainerName), "--rm", "-it", w.Image, "-p", w.Port, "bash") //nolint:gosec // for tests
+	ports := []string{}
+	for _, p := range w.Ports {
+		ports = append(ports, "-p", p)
+	}
+
+	args := append([]string{
+		"run", "-d",
+		"--privileged=true",
+		fmt.Sprintf("--name=%s", w.ContainerName),
+		"--rm", "-it", w.Image,
+	}, ports...)
+	args = append(args, "bash")
+
+	cmdR := exec.Command("docker", args...) //nolint:gosec // for tests
 	if w.ShowOut {
 		sendToOut(cmdR)
 	}
@@ -228,7 +241,7 @@ var SupportedContainers = []ContainerParams{
 	{
 		Name:  "brevdev-ubuntu-proxy-0.3.2",
 		Image: "brevdev/ubuntu-proxy:0.3.2",
-		Port:  "22778",
+		Ports: []string{"22778:22778", "22779:22779", "2222:22"},
 	},
 }
 
@@ -414,6 +427,7 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string) {
 	AssertCwd(t, w, "/home/brev/workspace")
 
 	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
+	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request")
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", password)
 	AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
 }

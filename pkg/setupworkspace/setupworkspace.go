@@ -15,7 +15,7 @@ import (
 
 func ExecSetupScript(path string) error {
 	//  executed as current user which is root on brev image, from current working dir which is on brev images "/home/brev/workspace/"
-	cmd := exec.Command("bash", path) //nolint:gosec // static var passed in
+	cmd := exec.Command("sh", path) //nolint:gosec // static var passed in
 
 	err := cmd.Run()
 	if err != nil {

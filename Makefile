@@ -145,7 +145,7 @@ test-e2e-setup-norepo: build-linux-amd
 test-e2e-setup:
 	# run docker image copy in binary with volume config map + exec setup workspace
 	docker kill brev-e2e-test || true
-	docker run -d --privileged=true --name brev-e2e-test --rm -i -t  brevdev/ubuntu-proxy:0.3.2 bash
+	docker run -d --privileged=true --name brev-e2e-test --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 bash
 
 	docker exec -it brev-e2e-test mkdir /etc/meta
 	docker cp ${setup_param_path} brev-e2e-test:/etc/meta/setup_v0.json
