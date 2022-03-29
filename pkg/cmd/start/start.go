@@ -92,8 +92,6 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
-	cmd.Flags().BoolVarP(&is4x16, "oli", "g", false, "create a workspace for oli") // avoid naming features after customers
-	_ = cmd.Flags().MarkHidden("oli")                                              // avoid naming features after customers
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&workspaceClass, "class", "c", "", "workspace resource class (cpu x memory) default 2x8 [2x8, 4x16, 8x32, 16x32]")
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
