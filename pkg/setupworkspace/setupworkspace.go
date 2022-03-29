@@ -26,6 +26,7 @@ func ExecSetupScript(path string) error {
 }
 
 func CreateSetupScript(params *store.SetupParamsV0) (string, error) {
+	// TO DEPRECATE -- setup script should be burned with fire as soon as possible
 	scriptStart := makeSetupScriptStart(
 		params.WorkspaceKeyPair.PrivateKeyData,
 		params.WorkspaceKeyPair.PublicKeyData,
