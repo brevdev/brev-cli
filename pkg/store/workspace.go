@@ -32,7 +32,10 @@ type CreateWorkspacesOptions struct {
 }
 
 var (
-	DefaultWorkspaceClassID    = config.GlobalConfig.GetDefaultWorkspaceClass()
+	DefaultWorkspaceClassID = config.GlobalConfig.GetDefaultWorkspaceClass()
+	UserWorkspaceClassID    = "2x8"
+	DevWorkspaceClassID     = "4x16"
+
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
 	UserWorkspaceTemplateID    = "4nbb4lg2s"
 	DevWorkspaceTemplateID     = "v7nd45zsc"
@@ -333,8 +336,8 @@ type SetupParamsV0 struct {
 	WorkspaceKeyPair                 *KeyPair `json:"workspaceKeyPair"`
 	SetupScript                      *string  `json:"setupScript"`
 
-	// ProjectFolderName string `json:"projectFolderName"`
-	// BrevPath          string `json:"brevPath"`
+	ProjectFolderName string `json:"projectFolderName"`
+	BrevPath          string `json:"brevPath"`
 }
 
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {

@@ -41,7 +41,7 @@ func (c ConstantsConfig) GetDefaultClusterID() string {
 }
 
 func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
-	return getEnvOrDefault(defaultWorkspaceClass, "2x8")
+	return getEnvOrDefault(defaultWorkspaceClass, "")
 }
 
 func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {

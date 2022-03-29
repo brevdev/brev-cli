@@ -158,7 +158,7 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 		return breverrors.WrapAndTrace(err)
 	}
 
-	options = resolveWorkspaceTemplate(options, user)
+	options = resolveWorkspaceUserOptions(options, user)
 
 	if len(setupScriptContents) > 0 {
 		options.WithStartupScript(setupScriptContents)
@@ -185,12 +185,19 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 	}
 }
 
-func resolveWorkspaceTemplate(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
+func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
 	if options.WorkspaceTemplateID == "" {
 		if featureflag.IsAdmin(user.GlobalUserType) {
 			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
 		} else {
 			options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
+		}
+	}
+	if options.WorkspaceClassID == "" {
+		if featureflag.IsAdmin(user.GlobalUserType) {
+			options.WorkspaceClassID = store.DevWorkspaceClassID
+		} else {
+			options.WorkspaceClassID = store.UserWorkspaceClassID
 		}
 	}
 	return options
@@ -287,7 +294,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(options.Name))
 	}
 
-	options = resolveWorkspaceTemplate(options, user)
+	options = resolveWorkspaceUserOptions(options, user)
 
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
@@ -427,7 +434,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 		options = options.WithWorkspaceClassID(workspaceClass)
 	}
 
-	options = resolveWorkspaceTemplate(options, user)
+	options = resolveWorkspaceUserOptions(options, user)
 
 	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
