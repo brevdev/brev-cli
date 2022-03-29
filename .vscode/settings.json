@@ -22,5 +22,6 @@
     "go.lintFlags": [
         "--fast"
     ],
-    "go.lintOnSave": "workspace"
+    "go.lintOnSave": "workspace",
+    "go.testTimeout": "60s"
 }
