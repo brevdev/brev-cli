@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 func ExecSetupScript(path string) error {
 	//  executed as current user which is root on brev image, from current working dir which is on brev images "/home/brev/workspace/"
 	cmd := exec.Command("sh", path) //nolint:gosec // static var passed in
+	sendToOut(cmd)
 
 	err := cmd.Run()
 	if err != nil {
@@ -23,6 +25,11 @@ func ExecSetupScript(path string) error {
 	}
 
 	return nil
+}
+
+func sendToOut(c *exec.Cmd) {
+	c.Stderr = os.Stderr
+	c.Stdout = os.Stdout
 }
 
 func CreateSetupScript(params *store.SetupParamsV0) (string, error) {
@@ -184,12 +191,14 @@ if [ ! -d "./%[2]s" ]; then
 	c=0
 	while [ $c -lt 5 ]
 	do
+		echo "cloning..."
 		echo "Cloning git@%[1]s as %[2]s -- try = $(( $c + 1 ))  ..." >> logs/setup.log
 		su brev -c 'git clone git@%[1]s %[2]s >> logs/setup.log 2>&1'
 		exitCodeClone=$?
 		if [ $exitCodeClone == 0 ]; then
 			echo "Successfully cloned!" >> logs/setup.log
 			didClone%[3]s=1
+			echo "clone done successfully"
 			break
 		else
 			echo "Exit code: $exitCodeClone" >> logs/setup.log
@@ -204,6 +213,7 @@ if [ ! -d "./%[2]s" ]; then
 				echo "Check if you have access to that repository. If you do and this issue persists, contact support." >> './logs/setup.log'
 			fi
 			c=$(( $c + 1 ))
+			echo "clone failed"
 		fi
 	done
 else
@@ -269,11 +279,13 @@ func makeSetupProjectScript(
 }
 
 const setupProjectScriptFromScratchTemplate = `
-(su brev -c 'mkdir ./%[1]s' || true)
+echo "setting up from scratch"
+(su brev -c 'mkdir -p ./%[1]s' || true)
 cd './%[1]s'
 (su brev -c 'git init' || true)
 didCloneProject=1
 cd ..
+echo "done setting up from scratch"
 `
 
 func makeSetupProjectDotBrevScript(projectFolderName string, setupScript *string) (string, error) {
@@ -281,6 +293,7 @@ func makeSetupProjectDotBrevScript(projectFolderName string, setupScript *string
 	after := fmt.Sprintf(timestampTemplate, "END", "makeSetupProjectDotBrevScript")
 	setupScriptString := ""
 	if setupScript == nil || *setupScript == "" {
+		fmt.Println("getting default setup.sh")
 		resp, err := http.Get("https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/setup.sh") //nolint:noctx // TODO refactor to store
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
@@ -294,6 +307,7 @@ func makeSetupProjectDotBrevScript(projectFolderName string, setupScript *string
 			return "", breverrors.WrapAndTrace(err)
 		}
 		setupScriptString = base64.StdEncoding.EncodeToString(body)
+		fmt.Println("done getting default setup.sh")
 	} else {
 		setupScriptString = base64.StdEncoding.EncodeToString([]byte(*setupScript))
 	}
@@ -315,17 +329,20 @@ if [ $didCloneProject -eq 1 ]; then
 		echo "Creating a ports.yaml file!"
 		curl "https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml" -o "./%[1]s/.brev/ports.yaml"
 		chown -R brev "./%[1]s/.brev/ports.yaml"
+		echo "done making ports yaml"
 	fi
 	if [ ! -f "./%[1]s/.brev/setup.sh" ]; then
 		echo "Creating a setup.sh file!"
 		echo %[2]s| base64 --decode > ./%[1]s/.brev/setup.sh
 		chown -R brev "./%[1]s/.brev/setup.sh"
 		chmod +x "./%[1]s/.brev/setup.sh"
+		echo "done making setup"
 	fi
 	if [ ! -f "./%[1]s/.brev/.gitignore" ]; then
 		echo "Creating a .gitignore file!"
 		curl "https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore" -o "./%[1]s/.brev/.gitignore"
 		chown -R brev "./%[1]s/.brev/.gitignore"
+		echo "done creating .gitignore"
 	fi
 fi
 
@@ -348,6 +365,7 @@ func makeSetupCodeServerScript(
 }
 
 const setupCodeServerScript = `
+echo "configuring code-server"
 (su brev -c "code-server --install-extension /home/brev/.config/code-server/brev-vscode.vsix" || true)
 sed -ri 's/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/' /home/brev/.config/code-server/config.yaml
 sed -ri 's/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/' /home/brev/.config/code-server/config.yaml
@@ -355,6 +373,7 @@ echo "proxy-domain: %s" >> /home/brev/.config/code-server/config.yaml
 echo "log: trace" >> /home/brev/.config/code-server/config.yaml
 systemctl daemon-reload
 sudo systemctl restart code-server
+echo "done configuring code-server"
 `
 
 func makeApplicationStartScript(workspaceApplicationStartScripts []string) string {
