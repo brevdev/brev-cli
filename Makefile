@@ -145,7 +145,7 @@ setup-workspace-norepo: build-linux-amd
 setup-workspace-blank: 
 	make setup-workspace setup_param_path=assets/blank_v0.json
 
-container_name=brev-e2e-test
+container_name=setup-workspace
 
 setup-workspace:
 	# run docker image copy in binary with volume config map + exec setup workspace
