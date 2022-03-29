@@ -91,7 +91,8 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	if options == nil {
 		return nil, fmt.Errorf("options can not be nil")
 	}
-	fmt.Printf("using template %s\n", options.WorkspaceTemplateID)
+	fmt.Printf("template %s\n", options.WorkspaceTemplateID)
+	fmt.Printf("resource class %s\n", options.WorkspaceClassID)
 
 	var result entity.Workspace
 	res, err := s.authHTTPClient.restyClient.R().
