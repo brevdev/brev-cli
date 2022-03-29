@@ -5,7 +5,7 @@
     "workspaceProjectRepo": "",
     "workspaceApplicationStartScripts": [],
     "workspaceUsername": "brevtest",
-    "workspaceEmail": "test+3333@gmail.com",
+    "workspaceEmail": "test+3333@example.com",
     "workspacePassword": "12345",
     "workspaceKeyPair": {
         "publicKeyData": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDx9bJSOoTJMSq08hcc69sjPfzfdXOn89e2zPO/xklffQz/b1QYpQAnMSXXI3dUT3/2xbGjJJfMZKb5JVXuOv0qUQp08dfPEidiC9fwbGMlXO6oiah95wqYOLaeBTjwgrsbIN4hNJSA8jolseM8LxJzb7rBWo2IsjMFYAZ0gRndPF7vUZLDF8wziPFZMsjg4AfQil1flhwMHygLxI3l5tF7sWF9Qj6PT8fgkWb3HbEslL1xm43tlHy5F7qfYuq++iSPE+OIn8HGOoc2XyFbTeABZy8rZekv5uyL+cC7qxmA33b86l+yDZecvbaTfHPH6fzDDF8468oSA4inEcph+akIgw23bj9O1Xh/dVt2qf3gBA13pX2N4qkAW+GNizw401zhU0elKQG0YJaXFASwKkNJr0MBQgx1uV/c9YpLwp2o7EKGk9y66DQfjtjPk0MsQKwbvTvdrBLK+xqTcSjgc+FjNrwdgsGVB8er+RjccwWT2bWm/J3EXpYAHjYzrmwyUzlEMeWiy1Snu//r5BLgx2sbCq20yF0jqBXWNJU6VCl+wfFbHVWRiZs4Pouc/OJY9S6BdqK1fSuf0co6pADyZ3RnvnOkGYmwTBxV7TF8xjRc/FE9arLaOKYMhEh2jnO8Hi9MzQZ2MdX9YBooK9jsAuZeQU8Xc6NcXI5quI5oiGNl8w== test+3333@gmail.com",
