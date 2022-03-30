@@ -16,7 +16,7 @@ var (
 func Test_GetConnections(t *testing.T) {
 	// needs ss to run
 	c := NewConnLister()
-	_, err := c.GetAllSSConnections()
+	_, err := c.GetAllConnections()
 	assert.Nil(t, err)
 }
 
@@ -34,7 +34,11 @@ func Test_GetSSHConnections(t *testing.T) {
 
 func Test_RowToStruct(t *testing.T) {
 	res := RowStrToSSRow(URLStr)
-	assert.Equal(t, res.NetID, "tcp")
-	// basic str doesn't work
-	// process str doesn't work
+	assert.Equal(t, res.LocalAddressPort, "127.0.0.1:ssh")
+
+	res = RowStrToSSRow(ProcessStr)
+	assert.Equal(t, res.LocalAddressPort, "/run/systemd/journal/stdout 2179934")
+
+	res = RowStrToSSRow(BasicStr)
+	assert.Equal(t, res.LocalAddressPort, "* 5144862")
 }

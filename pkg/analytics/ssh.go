@@ -1,13 +1,15 @@
 package analytics
 
 import (
+	"encoding/json"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-func (c ConnectionLister) GetAllSSConnections(include ...string) ([]string, error) {
+func (c ConnectionLister) GetAllConnections(include ...string) ([]string, error) {
 	out, err := c.connGetter()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -57,7 +59,7 @@ func NewConnLister() ConnectionLister {
 }
 
 func (c ConnectionLister) GetSSHConnections() ([]SSHSSRow, error) {
-	res, err := c.GetAllSSConnections("ssh")
+	res, err := c.GetAllConnections("ssh")
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -68,6 +70,8 @@ func (c ConnectionLister) GetSSHConnections() ([]SSHSSRow, error) {
 	return sshRows, nil
 }
 
+// func (c ConnectionLister) GetAnalyticsEvents()
+
 type SSHSSRow struct {
 	NetID            string
 	State            string
@@ -75,11 +79,26 @@ type SSHSSRow struct {
 	SendQ            string
 	LocalAddressPort string
 	PeerAddressPort  string
-	Process          string
 }
 
+var re = regexp.MustCompile("\\s{2,}")
+
 func RowStrToSSRow(row string) SSHSSRow {
-	f := strings.Fields(row)
-	s := SSHSSRow{NetID: f[0], State: f[1], RecvQ: f[2], SendQ: f[3], LocalAddressPort: f[4], PeerAddressPort: f[5]}
+	cols := re.Split(row, -1)
+	s := SSHSSRow{NetID: cols[0], State: cols[1], RecvQ: cols[2], SendQ: cols[3], LocalAddressPort: cols[4], PeerAddressPort: cols[5]}
 	return s
+}
+
+func StructToMap(obj interface{}) (map[string]interface{}, error) {
+	data, err := json.Marshal(obj) // Convert to a json string
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	newMap := new(map[string]interface{})
+	err = json.Unmarshal(data, newMap) // Convert to a map
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return *newMap, nil
 }
