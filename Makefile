@@ -186,4 +186,4 @@ clean-simulated-workspace:
 	rm -rf devworkspace
 
 shell-into-workspace:
-	docker exec -it $(container_name) zsh
+	docker exec --user brev -it $(container_name) zsh --login
