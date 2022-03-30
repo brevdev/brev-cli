@@ -107,7 +107,6 @@ echo %[1]s %[2]s $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 
 // note: these commands are executed as root, from "/home/brev/workspace/"
 const setupScriptStartTemplate = `
-echo 1 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 function run_setup_script {
         (mkdir -p /home/brev/workspace/$1/.brev || true)
         chown -R brev /home/brev/workspace/$1/.brev
@@ -153,10 +152,13 @@ chmod 400 /home/brev/.ssh/id_rsa.pub
 ssh-add /home/brev/.ssh/id_rsa
 echo 4 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 ssh-keyscan github.com >> /home/brev/.ssh/known_hosts
+echo 4.4 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 ssh-keyscan gitlab.com >> /home/brev/.ssh/known_hosts
+echo 4.8 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 cat /home/brev/.ssh/id_rsa.pub > /home/brev/.ssh/authorized_keys
 echo 5 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 chown -R brev /home/brev/.ssh
+echo 5.5 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 su brev -c 'git config --global user.email "%s"'
 su brev -c 'git config --global user.name "%s"'
 echo 6 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
@@ -283,9 +285,12 @@ func makeSetupProjectScript(
 
 const setupProjectScriptFromScratchTemplate = `
 echo "setting up from scratch"
-(su brev -c 'mkdir -p ./%[1]s' || true)
+if [ ! -d "./%[1]s" ]; then
+	echo making repo
+	(su brev -c 'mkdir -p ./%[1]s' || true)
+fi
 cd './%[1]s'
-if [ ! -f ".git" ]; then
+if [ ! -d "./.git" ]; then
 	(su brev -c 'git init' || true)
 fi
 didCloneProject=1
@@ -376,7 +381,7 @@ sed -ri 's/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/' /home/brev/.config/cod
 sed -ri 's/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/' /home/brev/.config/code-server/config.yaml
 echo "proxy-domain: %s" >> /home/brev/.config/code-server/config.yaml
 echo "log: trace" >> /home/brev/.config/code-server/config.yaml
-sudo (systemctl daemon-reload && systemctl restart code-server) &
+{ sudo  systemctl daemon-reload && sudo systemctl restart code-server; } &
 echo "done configuring code-server"
 `
 

@@ -265,6 +265,7 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 	})
+
 	assert.Nil(t, err)
 }
 
