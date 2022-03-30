@@ -240,7 +240,7 @@ func GetTestKeys() (*store.KeyPair, error) {
 var SupportedContainers = []ContainerParams{
 	{
 		Name:  "brevdev-ubuntu-proxy-0.3.2",
-		Image: "brevdev/ubuntu-proxy:0.3.2",
+		Image: "brevdev/ubuntu-proxy:0.3.2-beta",
 		Ports: []string{"22778:22778", "22779:22779", "2222:22"},
 	},
 }

@@ -108,20 +108,24 @@ echo %[1]s %[2]s $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 // note: these commands are executed as root, from "/home/brev/workspace/"
 const setupScriptStartTemplate = `
 function run_setup_script {
+		echo r1
         (mkdir -p /home/brev/workspace/$1/.brev || true)
         chown -R brev /home/brev/workspace/$1/.brev
         chmod 755 /home/brev/workspace/$1/.brev
         rm -rf /home/brev/workspace/$1/.brev/logs
         mv /home/brev/workspace/logs /home/brev/workspace/$1/.brev
         mkdir -p /home/brev/workspace/$1/.brev/logs
+		echo r2
         echo "" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##############################" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##### RUNNING SETUP FILE #####" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "##############################" >> /home/brev/workspace/$1/.brev/logs/setup.log
         echo "" >> /home/brev/workspace/$1/.brev/logs/setup.log
         chmod +x  /home/brev/workspace/$1/.brev/setup.sh || true
+		echo r2.5 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
         su brev -c /home/brev/workspace/$1/.brev/setup.sh >> /home/brev/workspace/$1/.brev/logs/setup.log 2>&1
         exitCodeSetup=$?
+		echo 3 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
         if [ $exitCodeSetup == 0 ]; then
                 echo "Successfully ran setup script" >> /home/brev/workspace/$1/.brev/logs/setup.log
                 echo "Dont forget to commit changes to your dot brev configuration files!" >> /home/brev/workspace/$1/.brev/logs/setup.log
@@ -137,6 +141,7 @@ function run_setup_script {
                 echo "(2) Re-run the setup.sh file. To do this, click the play button next to the filename in the Brev extension." >> /home/brev/workspace/$1/.brev/logs/setup.log
                 echo "(3) Commit your changes to git. Click the go to folder button next to the appropriate dot brev directory (hover over the appropriate top level folder in the extension to see the button)." >> /home/brev/workspace/$1/.brev/logs/setup.log
         fi
+		echo r4
 }
 
 echo 2 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
@@ -287,11 +292,18 @@ const setupProjectScriptFromScratchTemplate = `
 echo "setting up from scratch"
 if [ ! -d "./%[1]s" ]; then
 	echo making repo
-	(su brev -c 'mkdir -p ./%[1]s' || true)
+	mkdir ./%[1]s
+	echo chown repo
+	chown brev ./%[1]s
+	echo done making repo
 fi
 cd './%[1]s'
 if [ ! -d "./.git" ]; then
-	(su brev -c 'git init' || true)
+	echo initing git
+	git init
+	echo chown git
+	chown brev .git
+	echo done git
 fi
 didCloneProject=1
 cd ..
@@ -381,7 +393,8 @@ sed -ri 's/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/' /home/brev/.config/cod
 sed -ri 's/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/' /home/brev/.config/code-server/config.yaml
 echo "proxy-domain: %s" >> /home/brev/.config/code-server/config.yaml
 echo "log: trace" >> /home/brev/.config/code-server/config.yaml
-{ sudo  systemctl daemon-reload && sudo systemctl restart code-server; } &
+sudo systemctl start code-server
+sudo systemctl restart code-server
 echo "done configuring code-server"
 `
 

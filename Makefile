@@ -146,12 +146,16 @@ setup-workspace-blank:
 	make setup-workspace setup_param_path=assets/blank_v0.json
 
 container_name=setup-workspace
+image_name=test-workspace
 
-setup-workspace:
+build-test-workspace:
+	cd workspacedocker && docker build -t $(image_name) . && cd -
+
+setup-workspace: build-linux-amd build-test-workspace
 	# run docker image copy in binary with volume config map + exec setup workspace
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
 	docker kill $(container_name) || true
-	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22  brevdev/ubuntu-proxy:0.3.2 zsh
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 22776:22778 -p 2222:22  brevdev/ubuntu-proxy:0.3.2 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
@@ -159,8 +163,6 @@ setup-workspace:
 	docker cp brev $(container_name):/usr/local/bin/
 	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
 
-	# validate container is in proper state
-	docker exec -it $(container_name) /usr/local/bin/brev validateworkspacesetup
 
 workspace-dev-script:
 	make simulate-workspace setup_param_path=assets/blank_v0.json
