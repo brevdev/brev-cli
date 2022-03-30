@@ -163,28 +163,25 @@ setup-workspace:
 	docker exec -it $(container_name) /usr/local/bin/brev validateworkspacesetup
 
 workspace-dev-script:
-	make setup-workspace-with-script setup_param_path=assets/blank_v0.json script_path=assets/test_setup.sh dir_name=blank
+	make simulate-workspace setup_param_path=assets/blank_v0.json
+	echo "exit the shell and re-run to reset workspace"
 	make shell-into-workspace
 
-setup-workspace-with-script:
+simulate-workspace:
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
-	[ "${script_path}" ] || ( echo "'script_path' not provided"; exit 1 )
-	[ "${dir_name}" ] || ( echo "'dir_name' not provided"; exit 1 )
 	docker kill $(container_name) || true
+	echo "modify workspace files in devworkspace"
 	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22 -v $(shell pwd)/devworkspace:/home/brev/workspace brevdev/ubuntu-proxy:0.3.2 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
 
-
-	# docker exec -it $(container_name) mkdir -p /home/brev/workspace/${dir_name}/.brev
-	# docker cp ${script_path} $(container_name):/home/brev/workspace/${dir_name}/.brev/setup.sh
-
+	# remove when released binary has setupworkspace
 	docker cp brev $(container_name):/usr/local/bin/
 	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
 
-	# validate container is in proper state
-	docker exec -it $(container_name) /usr/local/bin/brev validateworkspacesetup
+clean-simulated-workspace:
+	rm -rf devworkspace
 
 shell-into-workspace:
 	docker exec -it $(container_name) zsh

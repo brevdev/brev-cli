@@ -107,6 +107,7 @@ echo %[1]s %[2]s $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 
 // note: these commands are executed as root, from "/home/brev/workspace/"
 const setupScriptStartTemplate = `
+echo 1 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 function run_setup_script {
         (mkdir -p /home/brev/workspace/$1/.brev || true)
         chown -R brev /home/brev/workspace/$1/.brev
@@ -139,24 +140,26 @@ function run_setup_script {
         fi
 }
 
-whoami
-sudo su root
-whoami
+echo 2 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 eval "$(ssh-agent -s)"
 chown -R brev /home/brev/workspace
 rm -rf lost+found
 mkdir -p /home/brev/.ssh
+echo 3 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 echo "%s" > /home/brev/.ssh/id_rsa
 chmod 400 /home/brev/.ssh/id_rsa
 echo "%s" > /home/brev/.ssh/id_rsa.pub
 chmod 400 /home/brev/.ssh/id_rsa.pub
 ssh-add /home/brev/.ssh/id_rsa
+echo 4 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 ssh-keyscan github.com >> /home/brev/.ssh/known_hosts
 ssh-keyscan gitlab.com >> /home/brev/.ssh/known_hosts
 cat /home/brev/.ssh/id_rsa.pub > /home/brev/.ssh/authorized_keys
+echo 5 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 chown -R brev /home/brev/.ssh
 su brev -c 'git config --global user.email "%s"'
 su brev -c 'git config --global user.name "%s"'
+echo 6 $(eval date +"%%Y-%%m-%%d_%%H:%%M:%%S")
 cat <<EOT >> /etc/ssh/sshd_config.d/brev.conf
 PubkeyAuthentication yes
 AuthorizedKeysFile      /home/brev/.ssh/authorized_keys
@@ -282,7 +285,9 @@ const setupProjectScriptFromScratchTemplate = `
 echo "setting up from scratch"
 (su brev -c 'mkdir -p ./%[1]s' || true)
 cd './%[1]s'
-(su brev -c 'git init' || true)
+if [ ! -f ".git" ]; then
+	(su brev -c 'git init' || true)
+fi
 didCloneProject=1
 cd ..
 echo "done setting up from scratch"
@@ -371,8 +376,7 @@ sed -ri 's/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/' /home/brev/.config/cod
 sed -ri 's/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/' /home/brev/.config/code-server/config.yaml
 echo "proxy-domain: %s" >> /home/brev/.config/code-server/config.yaml
 echo "log: trace" >> /home/brev/.config/code-server/config.yaml
-systemctl daemon-reload
-sudo systemctl restart code-server
+sudo (systemctl daemon-reload && systemctl restart code-server) &
 echo "done configuring code-server"
 `
 
