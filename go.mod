@@ -74,6 +74,7 @@ require (
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/peterbourgon/ff/v3 v3.1.2 // indirect
+	github.com/segmentio/backo-go v1.0.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -86,6 +87,7 @@ require (
 	github.com/u-root/uio v0.0.0-20210528114334-82958018845c // indirect
 	github.com/vishvananda/netlink v1.1.1-0.20211101163509-b10eb8fe5cf6 // indirect
 	github.com/vishvananda/netns v0.0.0-20211101163701-50045581ed74 // indirect
+	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
@@ -98,6 +100,7 @@ require (
 	golang.zx2c4.com/wireguard/windows v0.4.10 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/ini.v1 v1.66.2 // indirect
+	gopkg.in/segmentio/analytics-go.v3 v3.1.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	honnef.co/go/tools v0.2.2 // indirect
 	inet.af/netstack v0.0.0-20211120045802-8aa80cf23d3c // indirect
