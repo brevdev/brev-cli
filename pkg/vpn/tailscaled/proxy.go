@@ -46,7 +46,7 @@ func httpProxyHandler(dialer func(ctx context.Context, netw, addr string) (net.C
 		}
 		defer c.Close() //nolint:errcheck // lazy to refactor
 
-		cc, ccbuf, err := w.(http.Hijacker).Hijack()
+		cc, ccbuf, err := w.(http.Hijacker).Hijack() //nolint:forcetypeassert // lazy to refactor
 		if err != nil {
 			http.Error(w, err.Error(), 500)
 			return
