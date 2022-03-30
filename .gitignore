@@ -48,3 +48,5 @@ brev
 
 # golang executable 
 go1.*
+
+devworkspace/**
