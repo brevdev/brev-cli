@@ -133,24 +133,30 @@ full-smoke-test: ci fast-build
 	[ ! -d ~/.config/Jetbrains.bak ] || mv ~/.config/Jetbrains.bak ~/.config/Jetbrains
 	[ ! -d ~/.brev.bak ] || mv ~/.brev.bak ~/.brev
 
+.PHONY: build-linux-amd
 build-linux-amd:
 	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
+.PHONY: setup-workspace-repo
 setup-workspace-repo: build-linux-amd
 	make setup-workspace setup_param_path=assets/test_setup_v0_repo.json
 
+.PHONY: setup-workspace-norepo
 setup-workspace-norepo: build-linux-amd
 	make setup-workspace setup_param_path=assets/test_setup_v0_norepo.json
 
+.PHONY: setup-workspace-blank
 setup-workspace-blank:
 	make setup-workspace setup_param_path=assets/blank_v0.json
 
 container_name=setup-workspace
 image_name=test-workspace
 
+.PHONY: build-test-workspace
 build-test-workspace:
 	cd workspacedocker && docker build -t $(image_name) . && cd -
 
+.PHONY: setup-workspace
 setup-workspace: build-linux-amd build-test-workspace
 	# run docker image copy in binary with volume config map + exec setup workspace
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
@@ -164,11 +170,13 @@ setup-workspace: build-linux-amd build-test-workspace
 	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
 
 
+.PHONY: workspace-dev-script
 workspace-dev-script:
 	make simulate-workspace setup_param_path=assets/blank_v0.json
 	echo "exit the shell and re-run to reset workspace"
 	make shell-into-workspace
 
+.PHONY: simulate-workspace
 simulate-workspace:
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
 	docker kill $(container_name) || true
@@ -182,8 +190,10 @@ simulate-workspace:
 	docker cp brev $(container_name):/usr/local/bin/
 	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
 
+.PHONY:clean-simulated-workspace
 clean-simulated-workspace:
 	rm -rf devworkspace
 
+.PHONY: shell-into-workspace
 shell-into-workspace:
 	docker exec --user brev -it $(container_name) zsh --login
