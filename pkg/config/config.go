@@ -15,6 +15,7 @@ const (
 	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
 	defaultWorkspaceClass    EnvVarName = "DEFAULT_WORKSPACE_CLASS"
 	defaultWorkspaceTemplate EnvVarName = "DEFAULT_WORKSPACE_TEMPLATE"
+	segmentKey               EnvVarName = "DEFAULT_SEGMENT_KEY"
 )
 
 type ConstantsConfig struct{}
@@ -47,6 +48,10 @@ func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
 func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {
 	// "test-template-aws"
 	return getEnvOrDefault(defaultWorkspaceTemplate, "")
+}
+
+func (c ConstantsConfig) GetSegmentKey() string {
+	return getEnvOrDefault(segmentKey, "4RndpJDxkZViNDMSjMaSxb9IANpqkV4X")
 }
 
 func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {

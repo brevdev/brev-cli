@@ -96,6 +96,7 @@ type SSHAnalyticsTask struct {
 	Analytics        Analytics
 	Store            SSHAnalyticsStore
 	lastLocalPeerSet []string
+	userID           string
 }
 
 // difference returns the elements in `a` that aren't in `b`.
@@ -127,11 +128,14 @@ func (s *SSHAnalyticsTask) Run() error {
 	diffSetToLast := difference(set, s.lastLocalPeerSet)
 	diffLastToSet := difference(s.lastLocalPeerSet, set)
 	if len(append(diffSetToLast, diffLastToSet...)) > 0 {
-		userID, err := s.Store.GetCurrentUserID()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		if s.userID == "" {
+			userID, err1 := s.Store.GetCurrentUserID()
+			if err1 != nil {
+				return breverrors.WrapAndTrace(err1)
+			}
+			s.userID = userID
 		}
-		err = WriteSSHEvents(s.SSHMonitor, s.Analytics, userID)
+		err = WriteSSHEvents(s.SSHMonitor, s.Analytics, s.userID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
