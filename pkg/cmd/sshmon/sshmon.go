@@ -19,7 +19,8 @@ func NewCmdSSHMon(store SSHMonStore, segmentAPIWriteKey string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sshMonitor := analytics.NewSSHMonitor()
 			segment := analytics.NewSegmentClient(segmentAPIWriteKey)
-			sshMontasks := []tasks.Task{analytics.SSHAnalyticsTask{
+			defer segment.Client.Close() //nolint:errcheck // defer
+			sshMontasks := []tasks.Task{&analytics.SSHAnalyticsTask{
 				SSHMonitor: sshMonitor,
 				Analytics:  segment,
 				Store:      store,

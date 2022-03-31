@@ -53,22 +53,22 @@ func StringIncludes(check string, shouldInclude []string) bool {
 
 type SSHMonitor struct {
 	connGetter func() ([]byte, error)
-	lastStep   []SSHSSRow
+	lastStep   []SSData
 }
 
 func NewSSHMonitor() *SSHMonitor {
 	return &SSHMonitor{
 		connGetter: connGetter,
-		lastStep:   []SSHSSRow{},
+		lastStep:   []SSData{},
 	}
 }
 
-func (c SSHMonitor) GetSSHConnections() ([]SSHSSRow, error) {
+func (c SSHMonitor) GetSSHConnections() ([]SSData, error) {
 	res, err := c.GetAllConnections("ssh")
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	sshRows := []SSHSSRow{}
+	sshRows := []SSData{}
 	for _, r := range res {
 		sshRows = append(sshRows, RowStrToSSRow(r))
 	}
@@ -92,25 +92,60 @@ func (c *SSHMonitor) GetSSHSessionEvents() (EventName, error) {
 }
 
 type SSHAnalyticsTask struct {
-	SSHMonitor *SSHMonitor
-	Analytics  Analytics
-	Store      SSHAnalyticsStore
+	SSHMonitor       *SSHMonitor
+	Analytics        Analytics
+	Store            SSHAnalyticsStore
+	lastLocalPeerSet []string
+}
+
+// difference returns the elements in `a` that aren't in `b`.
+func difference(a, b []string) []string {
+	mb := make(map[string]struct{}, len(b))
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	var diff []string
+	for _, x := range a {
+		if _, found := mb[x]; !found {
+			diff = append(diff, x)
+		}
+	}
+	return diff
 }
 
 type SSHAnalyticsStore interface {
 	GetCurrentUserID() (string, error)
 }
 
-func (s SSHAnalyticsTask) Run() error {
-	userID, err := s.Store.GetCurrentUserID()
+func (s *SSHAnalyticsTask) Run() error {
+	fmt.Println("running ssh analytics...")
+	ssData, err := s.SSHMonitor.GetSSHConnections()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = WriteSSHEvents(s.SSHMonitor, s.Analytics, userID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	set := ssDataToLocalPeerSet(ssData)
+	diffSetToLast := difference(set, s.lastLocalPeerSet)
+	diffLastToSet := difference(s.lastLocalPeerSet, set)
+	if len(append(diffSetToLast, diffLastToSet...)) > 0 {
+		userID, err := s.Store.GetCurrentUserID()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = WriteSSHEvents(s.SSHMonitor, s.Analytics, userID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
+	s.lastLocalPeerSet = set
 	return nil
+}
+
+func ssDataToLocalPeerSet(ss []SSData) []string {
+	set := []string{}
+	for _, s := range ss {
+		set = append(set, fmt.Sprintf("%s-%s", s.LocalAddressPort, s.PeerAddressPort))
+	}
+	return set
 }
 
 func (s SSHAnalyticsTask) Configure() error {
@@ -118,10 +153,10 @@ func (s SSHAnalyticsTask) Configure() error {
 }
 
 func (s SSHAnalyticsTask) GetTaskSpec() tasks.TaskSpec {
-	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 1m"}
+	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 2s"}
 }
 
-var _ tasks.Task = SSHAnalyticsTask{}
+var _ tasks.Task = &SSHAnalyticsTask{}
 
 func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string) error {
 	fmt.Println("writing ssh events...")
@@ -153,7 +188,7 @@ func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string) 
 	return nil
 }
 
-type SSHSSRow struct {
+type SSData struct {
 	NetID            string `json:"netId"`
 	State            string `json:"state"`
 	RecvQ            string `json:"recvQ"`
@@ -164,9 +199,9 @@ type SSHSSRow struct {
 
 var re = regexp.MustCompile(`\s{2,}`)
 
-func RowStrToSSRow(row string) SSHSSRow {
+func RowStrToSSRow(row string) SSData {
 	cols := re.Split(row, -1)
-	s := SSHSSRow{NetID: cols[0], State: cols[1], RecvQ: cols[2], SendQ: cols[3], LocalAddressPort: cols[4], PeerAddressPort: cols[5]}
+	s := SSData{NetID: cols[0], State: cols[1], RecvQ: cols[2], SendQ: cols[3], LocalAddressPort: cols[4], PeerAddressPort: cols[5]}
 	return s
 }
 

@@ -46,7 +46,7 @@ func Test_RowToStruct(t *testing.T) {
 func Test_WriteEvents(t *testing.T) {
 	sshMonitor := NewSSHMonitor()
 	segmentClient := NewSegmentClient("test")
-	defer segmentClient.Client.Close()
+	defer segmentClient.Client.Close() //nolint: errcheck // defer
 	err := WriteSSHEvents(sshMonitor, segmentClient, "test-user")
 	assert.Nil(t, err)
 
