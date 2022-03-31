@@ -1,6 +1,8 @@
 package sshmon
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
@@ -17,6 +19,7 @@ func NewCmdSSHMon(store SSHMonStore, segmentAPIWriteKey string) *cobra.Command {
 		Use:         "sshmon",
 		Args:        cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("running sshmon...")
 			sshMonitor := analytics.NewSSHMonitor()
 			segment := analytics.NewSegmentClient(segmentAPIWriteKey)
 			defer segment.Client.Close() //nolint:errcheck // defer
