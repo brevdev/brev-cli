@@ -191,10 +191,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))
 	cmd.AddCommand(meshd.NewCmdMeshD(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
+	cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
-		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 
 	} else {
