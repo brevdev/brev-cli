@@ -3,7 +3,9 @@ package importpkg
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -107,58 +109,29 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 		return breverrors.WrapAndTrace(errors.New("no git url found"))
 	}
 
-	// Check for Rust Cargo Package
-	deps, err := importStore.GetDependenciesForImport(path)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	node := isNode(t, path)
+	if node {
+		t.Vprintf("node" + "---" + path)
+	}
+	
+	rust := isRust(t, path)
+	if rust {
+		t.Vprintf("rust" + "---" + path)
 	}
 
-	// if len(deps.Rust) > 0 {
-	// 	t.Vprint(t.Green("\nRust detected!"))
-	// 	t.Vprint(t.Yellow("{note}-- we still don't have Rust version support, so it always installs latest..."))
-	// 	res := terminal.PromptGetInput(terminal.PromptContent{
-	// 		Label:      "Click enter to install latest, or type preferred version:",
-	// 		ErrorMsg:   "error",
-	// 		AllowEmpty: true,
-	// 	})
-	// 	if len(res)>0 {
-	// 		deps.Rust = res
-	// 		t.Vprintf("Installing Rust v%s", deps.Rust)
-	// 	} else {
-	// 		t.Vprint("Installing Rust-- latest version.\n")
-	// 	}
-	// }
-	// if len(deps.Node) > 0 {
-	// 	t.Vprint("Install Node.\n")
-	// }
-	// if len(deps.Java) > 0 {
-	// 	t.Vprint("Install Java.\n")
-	// }
-	// if len(deps.TS) > 0 {
-	// 	t.Vprint("Install TS.\n")
-	// }
-	if len(deps.Go) > 0 {
-		t.Vprint(t.Green("\nGolang detected!"))
-		res := terminal.PromptGetInput(terminal.PromptContent{
-			Label:      "Click enter to install Go v" + deps.Go + ", or type preferred version:",
-			ErrorMsg:   "error",
-			AllowEmpty: true,
-		})
-		if len(res) > 0 {
-			deps.Go = res
-			t.Vprintf("Installing Go v%s\n", deps.Go)
-		} else {
-			t.Vprintf("Installing Go v%s.\n", deps.Go)
-		}
+	golang := isGo(t, path)
+	if golang {
+		t.Vprintf("golang" + "---" + path)
 	}
-	// if len(deps.Solana) > 0 {
-	// 	t.Vprint("Install Solana.\n")
-	// }
 
-	err = clone(t, gitURL, orgflag, importStore, name, deps, detached)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	
+	fmt.Println("GitUrl: ", gitURL)
+
+
+	// err = clone(t, gitURL, orgflag, importStore, name, deps, detached)
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
 
 	return nil
 }
@@ -311,4 +284,95 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, importStore Impo
 		}
 	}
 	return nil
+}
+
+
+
+func isNode(t *terminal.Terminal, path string) bool {
+	paths := recursivelyFindFile(t, []string{"package\\-lock\\.json", "package\\.json", "node_modules"}, path)
+	
+	if len(paths) > 0 {
+		return true
+	}
+	return false
+}
+
+func isRust(t *terminal.Terminal, path string) bool {
+	paths := recursivelyFindFile(t, []string{"Cargo\\.toml", "Cargo\\.lock"}, path)
+	
+	if len(paths) > 0 {
+		return true
+	}
+	return false
+}
+
+func isGo(t *terminal.Terminal, path string) bool {
+	paths := recursivelyFindFile(t, []string{"go\\.mod"}, path)
+	
+	if len(paths) > 0 {
+		return true
+	}
+	return false
+}
+
+func isRuby(t *terminal.Terminal, path string) bool {
+	paths := recursivelyFindFile(t, []string{"Gemfile.lock", "Gemfile"}, path)
+	
+	if len(paths) > 0 {
+		return true
+	}
+	return false
+}
+
+func isPython(t *terminal.Terminal, path string) bool {
+	paths := recursivelyFindFile(t, []string{"Gemfile.lock", "Gemfile"}, path)
+	
+	if len(paths) > 0 {
+		return true
+	}
+	return false
+}
+
+func appendPath(a string, b string) string {
+	if a == "." {
+		return b
+	}
+	return a + "/" + b 
+}
+
+// Returns list of paths to file
+func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string) []string {
+
+	var paths []string
+
+	files, err := ioutil.ReadDir(path)
+    if err != nil {
+        fmt.Println(err);
+    }
+ 
+    for _, f := range files {
+		dir, err := os.Stat(appendPath(path, f.Name()))
+		if err != nil {
+			// fmt.Println(t.Red(err.Error()))
+		} else {
+			for _, filename := range filename_s {
+
+				r, _ := regexp.Compile(filename)
+				res := r.MatchString(f.Name())
+
+				if res {
+					// t.Vprint(t.Yellow(filename) + "---" + t.Yellow(path+f.Name()))
+					paths = append(paths, appendPath(path, f.Name()))
+				}
+			}
+
+			if dir.IsDir() {
+				paths = append(paths, recursivelyFindFile(t, filename_s, appendPath(path, f.Name()))...)
+			}
+		}
+	}
+
+	//TODO: make the list unique
+	
+	return paths
 }
