@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,6 +19,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
+	"github.com/tidwall/gjson"
+	"golang.org/x/text/encoding/charmap"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -110,8 +114,10 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	}
 
 	node := isNode(t, path)
-	if node {
-		t.Vprintf("node" + "---" + path)
+	if node != nil && len(*node)>0 {
+		t.Vprintf("node-"+ *node + "---" + path)
+	} else if node != nil && len(*node)==0  {
+		t.Vprintf("node-our version" + "---" + path)
 	}
 	
 	rust := isRust(t, path)
@@ -119,9 +125,11 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 		t.Vprintf("rust" + "---" + path)
 	}
 
-	golang := isGo(t, path)
-	if golang {
-		t.Vprintf("golang" + "---" + path)
+	golang := getGoVersion(t, path)
+	if golang=="" {
+		t.Vprintf("golang our version" + "---" + path)
+	} else {
+		t.Vprintf("golang"+ golang + "---" + path)
 	}
 
 	
@@ -286,17 +294,6 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, importStore Impo
 	return nil
 }
 
-
-
-func isNode(t *terminal.Terminal, path string) bool {
-	paths := recursivelyFindFile(t, []string{"package\\-lock\\.json", "package\\.json", "node_modules"}, path)
-	
-	if len(paths) > 0 {
-		return true
-	}
-	return false
-}
-
 func isRust(t *terminal.Terminal, path string) bool {
 	paths := recursivelyFindFile(t, []string{"Cargo\\.toml", "Cargo\\.lock"}, path)
 	
@@ -306,13 +303,52 @@ func isRust(t *terminal.Terminal, path string) bool {
 	return false
 }
 
-func isGo(t *terminal.Terminal, path string) bool {
+func isNode(t *terminal.Terminal, path string) *string {
+	paths := recursivelyFindFile(t, []string{"package\\-lock\\.json", "package\\.json", "node_modules"}, path)
+	retval := ""
+	if len(paths) > 0 {
+
+		sort.Strings(paths)
+		for _, path := range paths {
+			fmt.Println(path)
+			keypath := "engines.node"
+			jsonstring, err := catFile(path)
+			value := gjson.Get(jsonstring, "name")
+			println(value.String())
+			value = gjson.Get(jsonstring, keypath)
+			println(value.String())
+
+			if err != nil {
+				//
+			}
+			if retval == "" {
+				retval = value.String()
+			}
+
+		}
+		return &retval
+	}
+	return nil
+}
+
+func getGoVersion(t *terminal.Terminal, path string) string {
 	paths := recursivelyFindFile(t, []string{"go\\.mod"}, path)
 	
 	if len(paths) > 0 {
-		return true
+
+		sort.Strings(paths)
+		for _, path := range paths {
+			fmt.Println(path)
+			res, err := readGoMod(path)
+			if err != nil {
+				//
+			}
+			return res
+		}
+
+		
 	}
-	return false
+	return ""
 }
 
 func isRuby(t *terminal.Terminal, path string) bool {
@@ -363,6 +399,15 @@ func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string)
 				if res {
 					// t.Vprint(t.Yellow(filename) + "---" + t.Yellow(path+f.Name()))
 					paths = append(paths, appendPath(path, f.Name()))
+
+					// fileContents, err := catFile(appendPath(path, f.Name()))
+					// if err != nil {
+					// 	// 
+					// } 
+
+	
+					// TODO: read
+					// if file has json, read the json
 				}
 			}
 
@@ -375,4 +420,40 @@ func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string)
 	//TODO: make the list unique
 	
 	return paths
+}
+
+// 
+// read from gomod
+// read from json
+
+func catFile(filePath string) (string, error) {
+	gocmd := exec.Command("cat", filePath) // #nosec G204
+	in, err := gocmd.Output()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
+	} else {
+		d := charmap.CodePage850.NewDecoder()
+		out, err := d.Bytes(in)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
+		}
+		return string(out), nil
+	}
+}
+
+func readGoMod(filePath string) (string, error) {
+	contents, err := catFile(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(contents, "\n")
+
+	for _, line := range lines {
+		if strings.Contains(line, "go ") {
+			return strings.Split(line, " ")[1], nil
+		}
+	}
+
+	return "", nil
 }
