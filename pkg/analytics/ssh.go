@@ -80,7 +80,7 @@ func (c *SSHMonitor) GetSSHSessionEvents() (EventName, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	event, err := EventName(""), nil
+	event := EventName("")
 	if len(c.lastStep) == 0 && len(rows) > 0 {
 		event = StartSSHSession
 	}
