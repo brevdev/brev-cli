@@ -176,6 +176,10 @@ func (s SSHAnalyticsTask) GetTaskSpec() tasks.TaskSpec {
 var _ tasks.Task = &SSHAnalyticsTask{}
 
 func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string, workspace *entity.Workspace) error {
+	if workspace.Status == "DEPLOYING" {
+		fmt.Println("not writing ssh since DEPLOYING")
+		return nil
+	}
 	fmt.Println("writing ssh events...")
 	rows, err := sshMonitor.GetSSHConnections()
 	if err != nil {
