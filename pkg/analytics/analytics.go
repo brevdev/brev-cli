@@ -16,8 +16,8 @@ type (
 
 const (
 	SSHConnections  EventName = "SSH Connections"
-	StopSSHSession  EventName = "SSH Session Stop"
-	StartSSHSession EventName = "SSH Session Start"
+	StopSSHSession  EventName = "All SSH Session Stop"
+	StartSSHSession EventName = "All SSH Session Start"
 )
 
 type SegmentClient struct {
