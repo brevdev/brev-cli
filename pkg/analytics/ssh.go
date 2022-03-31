@@ -2,14 +2,17 @@ package analytics
 
 import (
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/tasks"
+	"github.com/hashicorp/go-multierror"
 )
 
-func (c ConnectionLister) GetAllConnections(include ...string) ([]string, error) {
+func (c SSHMonitor) GetAllConnections(include ...string) ([]string, error) {
 	out, err := c.connGetter()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -48,17 +51,19 @@ func StringIncludes(check string, shouldInclude []string) bool {
 	return false
 }
 
-type ConnectionLister struct {
+type SSHMonitor struct {
 	connGetter func() ([]byte, error)
+	lastStep   []SSHSSRow
 }
 
-func NewConnLister() ConnectionLister {
-	return ConnectionLister{
+func NewSSHMonitor() *SSHMonitor {
+	return &SSHMonitor{
 		connGetter: connGetter,
+		lastStep:   []SSHSSRow{},
 	}
 }
 
-func (c ConnectionLister) GetSSHConnections() ([]SSHSSRow, error) {
+func (c SSHMonitor) GetSSHConnections() ([]SSHSSRow, error) {
 	res, err := c.GetAllConnections("ssh")
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -70,18 +75,94 @@ func (c ConnectionLister) GetSSHConnections() ([]SSHSSRow, error) {
 	return sshRows, nil
 }
 
-// func (c ConnectionLister) GetAnalyticsEvents()
-
-type SSHSSRow struct {
-	NetID            string
-	State            string
-	RecvQ            string
-	SendQ            string
-	LocalAddressPort string
-	PeerAddressPort  string
+func (c *SSHMonitor) GetSSHSessionEvents() (EventName, error) {
+	rows, err := c.GetSSHConnections()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	event, err := EventName(""), nil
+	if len(c.lastStep) == 0 && len(rows) > 0 {
+		event = StartSSHSession
+	}
+	if len(c.lastStep) > 0 && len(rows) == 0 {
+		event = StopSSHSession
+	}
+	c.lastStep = rows
+	return event, nil
 }
 
-var re = regexp.MustCompile("\\s{2,}")
+type SSHAnalyticsTask struct {
+	SSHMonitor *SSHMonitor
+	Analytics  Analytics
+	Store      SSHAnalyticsStore
+}
+
+type SSHAnalyticsStore interface {
+	GetCurrentUserID() (string, error)
+}
+
+func (s SSHAnalyticsTask) Run() error {
+	userID, err := s.Store.GetCurrentUserID()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = WriteSSHEvents(s.SSHMonitor, s.Analytics, userID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (s SSHAnalyticsTask) Configure() error {
+	return nil
+}
+
+func (s SSHAnalyticsTask) GetTaskSpec() tasks.TaskSpec {
+	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 1m"}
+}
+
+var _ tasks.Task = SSHAnalyticsTask{}
+
+func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string) error {
+	fmt.Println("writing ssh events...")
+	rows, err := sshMonitor.GetSSHConnections()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	var allError error
+	err = analytics.TrackUserEvent(SSHConnections, userID, Properties{"connections": rows})
+	if err != nil {
+		allError = multierror.Append(allError, err)
+	}
+
+	event, err := sshMonitor.GetSSHSessionEvents()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if event != "" {
+		err = analytics.TrackUserEvent(event, userID, Properties{})
+		if err != nil {
+			allError = multierror.Append(allError, err)
+		}
+
+		if allError != nil {
+			return breverrors.WrapAndTrace(allError)
+		}
+	}
+
+	return nil
+}
+
+type SSHSSRow struct {
+	NetID            string `json:"netId"`
+	State            string `json:"state"`
+	RecvQ            string `json:"recvQ"`
+	SendQ            string `json:"sendvQ"`
+	LocalAddressPort string `json:"localAddressPort"`
+	PeerAddressPort  string `json:"peerAddressPort"`
+}
+
+var re = regexp.MustCompile(`\s{2,}`)
 
 func RowStrToSSRow(row string) SSHSSRow {
 	cols := re.Split(row, -1)

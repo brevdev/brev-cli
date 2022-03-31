@@ -149,6 +149,8 @@ func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) 
 type WorkspaceMeta struct {
 	WorkspaceID      string `json:"workspaceId"`
 	WorkspaceGroupID string `json:"workspaceGroupId"`
+	UserID           string `json:"userId"`
+	OrganizationID   string `json:"organizationId"`
 }
 
 // GetCurrentWorkspaceID will return an empty string when

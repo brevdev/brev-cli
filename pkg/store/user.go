@@ -25,6 +25,21 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 	return &result, nil
 }
 
+func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
+	meta, err := s.GetCurrentWorkspaceMeta()
+	if err != nil {
+		return "", nil
+	}
+	if meta.UserID != "" {
+		return meta.UserID, nil
+	}
+	user, err := s.GetCurrentUser()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return user.ID, nil
+}
+
 var userKeysPath = fmt.Sprintf("%s/keys", mePath)
 
 func (s AuthHTTPStore) GetCurrentUserKeys() (*entity.UserKeys, error) {

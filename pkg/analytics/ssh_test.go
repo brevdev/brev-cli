@@ -15,13 +15,13 @@ var (
 
 func Test_GetConnections(t *testing.T) {
 	// needs ss to run
-	c := NewConnLister()
+	c := NewSSHMonitor()
 	_, err := c.GetAllConnections()
 	assert.Nil(t, err)
 }
 
 func Test_GetSSHConnections(t *testing.T) {
-	c := ConnectionLister{
+	c := SSHMonitor{
 		connGetter: func() ([]byte, error) {
 			res := strings.Join([]string{BasicStr, ProcessStr, URLStr}, "\n")
 			return []byte(res), nil
@@ -41,4 +41,19 @@ func Test_RowToStruct(t *testing.T) {
 
 	res = RowStrToSSRow(BasicStr)
 	assert.Equal(t, res.LocalAddressPort, "* 5144862")
+}
+
+func Test_WriteEvents(t *testing.T) {
+	sshMonitor := NewSSHMonitor()
+	segmentClient := NewSegmentClient("test")
+	defer segmentClient.Client.Close()
+	err := WriteSSHEvents(sshMonitor, segmentClient, "test-user")
+	assert.Nil(t, err)
+
+	sshMonitor.connGetter = func() ([]byte, error) {
+		res := strings.Join([]string{BasicStr, ProcessStr}, "\n")
+		return []byte(res), nil
+	}
+	err = WriteSSHEvents(sshMonitor, segmentClient, "test-user")
+	assert.Nil(t, err)
 }
