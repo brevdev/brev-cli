@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,13 +48,13 @@ func Test_WriteEvents(t *testing.T) {
 	sshMonitor := NewSSHMonitor()
 	segmentClient := NewSegmentClient("test")
 	defer segmentClient.Client.Close() //nolint: errcheck // defer
-	err := WriteSSHEvents(sshMonitor, segmentClient, "test-user")
+	err := WriteSSHEvents(sshMonitor, segmentClient, "test-user", &entity.Workspace{})
 	assert.Nil(t, err)
 
 	sshMonitor.connGetter = func() ([]byte, error) {
 		res := strings.Join([]string{BasicStr, ProcessStr}, "\n")
 		return []byte(res), nil
 	}
-	err = WriteSSHEvents(sshMonitor, segmentClient, "test-user")
+	err = WriteSSHEvents(sshMonitor, segmentClient, "test-user", &entity.Workspace{})
 	assert.Nil(t, err)
 }

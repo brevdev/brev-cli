@@ -1,12 +1,12 @@
 package analytics
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/hashicorp/go-multierror"
@@ -97,6 +97,7 @@ type SSHAnalyticsTask struct {
 	Store            SSHAnalyticsStore
 	lastLocalPeerSet []string
 	userID           string
+	workspace        *entity.Workspace
 }
 
 // difference returns the elements in `a` that aren't in `b`.
@@ -116,10 +117,11 @@ func difference(a, b []string) []string {
 
 type SSHAnalyticsStore interface {
 	GetCurrentUserID() (string, error)
+	GetCurrentWorkspaceID() (string, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 func (s *SSHAnalyticsTask) Run() error {
-	fmt.Println("running ssh analytics...")
 	ssData, err := s.SSHMonitor.GetSSHConnections()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -135,7 +137,18 @@ func (s *SSHAnalyticsTask) Run() error {
 			}
 			s.userID = userID
 		}
-		err = WriteSSHEvents(s.SSHMonitor, s.Analytics, s.userID)
+		if s.workspace == nil {
+			workspaceID, err1 := s.Store.GetCurrentWorkspaceID()
+			if err1 != nil {
+				return breverrors.WrapAndTrace(err1)
+			}
+			workspace, err1 := s.Store.GetWorkspace(workspaceID)
+			if err1 != nil {
+				return breverrors.WrapAndTrace(err1)
+			}
+			s.workspace = workspace
+		}
+		err = WriteSSHEvents(s.SSHMonitor, s.Analytics, s.userID, s.workspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -162,14 +175,14 @@ func (s SSHAnalyticsTask) GetTaskSpec() tasks.TaskSpec {
 
 var _ tasks.Task = &SSHAnalyticsTask{}
 
-func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string) error {
+func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string, workspace *entity.Workspace) error {
 	fmt.Println("writing ssh events...")
 	rows, err := sshMonitor.GetSSHConnections()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	var allError error
-	err = analytics.TrackUserEvent(SSHConnections, userID, Properties{"connections": rows})
+	err = analytics.TrackUserWorkspaceEvent(SSHConnections, userID, workspace, Properties{"connections": rows})
 	if err != nil {
 		allError = multierror.Append(allError, err)
 	}
@@ -179,7 +192,7 @@ func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string) 
 		return breverrors.WrapAndTrace(err)
 	}
 	if event != "" {
-		err = analytics.TrackUserEvent(event, userID, Properties{})
+		err = analytics.TrackUserWorkspaceEvent(event, userID, workspace, Properties{})
 		if err != nil {
 			allError = multierror.Append(allError, err)
 		}
@@ -201,24 +214,10 @@ type SSData struct {
 	PeerAddressPort  string `json:"peerAddressPort"`
 }
 
-var re = regexp.MustCompile(`\s{2,}`)
+var moreThanTwoWhitespace = regexp.MustCompile(`\s{2,}`)
 
 func RowStrToSSRow(row string) SSData {
-	cols := re.Split(row, -1)
+	cols := moreThanTwoWhitespace.Split(row, -1)
 	s := SSData{NetID: cols[0], State: cols[1], RecvQ: cols[2], SendQ: cols[3], LocalAddressPort: cols[4], PeerAddressPort: cols[5]}
 	return s
-}
-
-func StructToMap(obj interface{}) (map[string]interface{}, error) {
-	data, err := json.Marshal(obj) // Convert to a json string
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	newMap := new(map[string]interface{})
-	err = json.Unmarshal(data, newMap) // Convert to a map
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return *newMap, nil
 }
