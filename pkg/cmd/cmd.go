@@ -219,7 +219,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 	cmd.AddCommand(setupworkspace.NewCmdTestWorkspaceSetup())
 	cmd.AddCommand(setupworkspace.NewCmdValidateWorkspaceSetup(noLoginCmdStore))
-	cmd.AddCommand(sshmon.NewCmdSSHMon(noLoginCmdStore, ""))
+	cmd.AddCommand(sshmon.NewCmdSSHMon(noLoginCmdStore, config.GlobalConfig.GetSegmentKey()))
 }
 
 func runHelp(cmd *cobra.Command, _ []string) {
