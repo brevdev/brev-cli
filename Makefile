@@ -192,7 +192,7 @@ simulate-workspace:
 
 .PHONY:clean-simulated-workspace
 clean-simulated-workspace:
-	rm -rf devworkspace
+	sudo rm -rf devworkspace
 
 .PHONY: shell-into-workspace
 shell-into-workspace:
