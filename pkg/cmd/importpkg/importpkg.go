@@ -119,6 +119,11 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	} else if node != nil && len(*node)==0  {
 		t.Vprintf("node-our version" + "---" + path)
 	}
+
+	gatsby := isGatsby(t, path)
+	if gatsby != nil {
+		t.Vprintf("install gatsby cli" + "---" + path)
+	}
 	
 	rust := isRust(t, path)
 	if rust {
@@ -317,6 +322,32 @@ func isNode(t *terminal.Terminal, path string) *string {
 			println(value.String())
 			value = gjson.Get(jsonstring, keypath)
 			println(value.String())
+
+			if err != nil {
+				//
+			}
+			if retval == "" {
+				retval = value.String()
+			}
+
+		}
+		return &retval
+	}
+	return nil
+}
+
+func isGatsby(t *terminal.Terminal, path string) *string {
+	paths := recursivelyFindFile(t, []string{"package\\.json"}, path)
+	retval := ""
+	if len(paths) > 0 {
+
+		sort.Strings(paths)
+		for _, path := range paths {
+			// fmt.Println(path)
+			keypath := "dependencies.gatsby"
+			jsonstring, err := catFile(path)
+			value := gjson.Get(jsonstring, keypath)
+			// println(value.String())
 
 			if err != nil {
 				//
