@@ -137,7 +137,7 @@ func (s *SSHAnalyticsTask) Run() error {
 			}
 			s.userID = userID
 		}
-		if s.workspace == nil {
+		if s.workspace == nil || s.workspace.Status == "DEPLOYING" {
 			workspaceID, err1 := s.Store.GetCurrentWorkspaceID()
 			if err1 != nil {
 				return breverrors.WrapAndTrace(err1)
