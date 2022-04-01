@@ -34,6 +34,7 @@ type LoginStore interface {
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 	GetServerSockFile() string
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
 type Auth interface {
@@ -82,7 +83,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = CreateNewUser(o.LoginStore, tokens.IDToken, t)
+	isUserCreated, err := CreateNewUser(o.LoginStore, tokens.IDToken, t)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -91,6 +92,43 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	orgs, err := o.LoginStore.GetOrganizations(nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// figure out if we should onboard the user
+	if isUserCreated {
+		t.Print("User created!")
+		if len(orgs) == 0 {
+			orgName := makeFirstOrgName(user)
+			t.Printf("Creating your first org %s ... ", orgName)
+			_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+				Name: orgName,
+			})
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			t.Print("done!")
+		}
+		_ = onboardUserWithSSHKeys(t, user, o.LoginStore)
+		_ = onboardUserWithEditors(t, o.LoginStore)
+		finalizeOnboarding(t)
+	} else {
+		if len(orgs) == 1 && orgs[0].Name!=makeFirstOrgName(user) {
+
+			// if there are no workspaces in this org, probably onboard them
+			// NOTE: if we let people invite into workspaces, this needs to be done
+			workspaces, err := o.LoginStore.GetWorkspaces(orgs[0].ID, &store.GetWorkspacesOptions{UserID: user.ID})
+			if err == nil && len(workspaces)==0 {
+				// The SSH key is done in the front end when acct is created
+				_ = onboardUserWithEditors(t, o.LoginStore)
+				finalizeOnboarding(t)
+			}
+		}
+	}
+
 	if featureflag.IsAdmin(user.GlobalUserType) {
 		sock := o.LoginStore.GetServerSockFile()
 		c, err := server.NewClient(sock)
@@ -105,53 +143,52 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	return nil
 }
 
-func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) error { //nolint:funlen // its 2 lines too long but not worth refac yet
+// returns if the user is indeed new
+func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) (bool, error) { //nolint:funlen // its 2 lines too long but not worth refac yet
 	t.Print("\nWelcome to Brev.dev 🤙\n")
-	user, err := loginStore.CreateUser(idToken)
+	_, err := loginStore.CreateUser(idToken)
 	if err != nil {
 		if !strings.Contains(err.Error(), "400 Bad Request") {
-			return breverrors.WrapAndTrace(err)
+			// This is a real error
+			return false, breverrors.WrapAndTrace(err)
 		}
-		t.Print("\nWelcome back!")
-		return nil
-	}
-	t.Print("User created!")
-
-	orgs, err := loginStore.GetOrganizations(nil)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return false, nil
 	}
 
-	if len(orgs) == 0 {
-		orgName := makeFirstOrgName(user)
-		t.Printf("Creating your first org %s ... ", orgName)
-		_, err := loginStore.CreateOrganization(store.CreateOrganizationRequest{
-			Name: orgName,
-		})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		t.Print("done!")
-	}
+	return true, nil
+}
 
-	// HI: this is a great place to make a demo workspace
-
+func onboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore LoginStore) error {
 	// SSH Keys
-	t.Eprint(t.Yellow("\nYou'll need to create an SSH Key with your git provider."))
-
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "🔒 Click enter to get your secure SSH key:",
 		ErrorMsg:   "error",
 		AllowEmpty: true,
 	})
-	terminal.DisplaySSHKeys(t, user.PublicKey)
 
-	// Check IDE requirements
+	t.Vprintf("\n" + user.PublicKey + "\n\n")
+
 	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "Hit enter when finished:",
+		Label:      "Copy your public key 👆 then hit enter",
 		ErrorMsg:   "error",
 		AllowEmpty: true,
 	})
+
+
+	t.Vprint(t.Green("\nAdd the key to your git repo provider"))
+	t.Vprint(t.Green("\tClick here if you use Github 👉 https://github.com/settings/ssh/new\n\n"))
+	// t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
+		
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		Label:      "Hit enter when finished",
+		// Label:      "Hit enter when finished:",
+		ErrorMsg:   "error",
+		AllowEmpty: true,
+	})
+
+	return nil
+}
+func onboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
 
 	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
@@ -198,9 +235,12 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 		return CheckAndInstallGateway(t, loginStore)
 	}
 
+	return nil
+}
+
+func finalizeOnboarding(t *terminal.Terminal) {
 	terminal.DisplayBrevLogo(t)
 	t.Vprint("\n")
-	return nil
 }
 
 func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
@@ -218,7 +258,7 @@ func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
 	return strings.Contains(string(out), extensionID), nil
 }
 
-func CheckAndInstallGateway(t *terminal.Terminal, store LoginStore) (err error) {
+func CheckAndInstallGateway(t *terminal.Terminal, store LoginStore) error {
 	localOS := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "Which operating system does your local computer have?",
 		ErrorMsg: "error",
