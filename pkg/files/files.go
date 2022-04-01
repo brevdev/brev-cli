@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"golang.org/x/text/encoding/charmap"
 
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
@@ -318,4 +321,74 @@ func touchFile(fs afero.Fs, path string) (afero.File, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return f, nil
+}
+
+func CatFile(filePath string) (string, error) {
+	gocmd := exec.Command("cat", filePath) // #nosec G204
+	in, err := gocmd.Output()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
+	} else {
+		d := charmap.CodePage850.NewDecoder()
+		out, err := d.Bytes(in)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
+		}
+		return string(out), nil
+	}
+}
+
+func GetAliasesFromFile(file string) []string {
+	var result []string
+
+	dirname, err := os.UserHomeDir()
+	if err != nil {
+		// if this doesn't work, just exit
+		return nil
+	}
+	lines,err := CatFile(dirname + "/" + file)
+	if err != nil {
+		// if this doesn't work, just exit
+		return nil
+	}
+	for _, line := range strings.Split(lines, "\n") {
+		if strings.HasPrefix(line, "alias ") {
+			result = append(result, line)
+		}
+	}
+	return result
+}
+
+func GetAllAliases() []string {
+	var lines []string
+	lines = append(lines, GetAliasesFromFile(".zshrc")...)
+	lines = append(lines, GetAliasesFromFile(".bashrc")...)
+	lines = append(lines, GetAliasesFromFile(".zprofile")...)
+	lines = append(lines, GetAliasesFromFile(".bash_profile")...)
+	lines = append(lines, GetAliasesFromFile(".config/fish/config.fish")...)
+
+	var output []string
+	for _, line := range lines {
+		output = append(output, fmt.Sprintf("echo '%s' >> /home/brev/.zshrc", line))
+		output = append(output, fmt.Sprintf("echo '%s' >> /home/brev/.bashrc", line))
+	}
+
+	return output
+}
+
+func GenerateSetupScript(lines []string) string {
+	introString := `
+#!/bin/bash
+
+set -euo pipefail
+
+##### This is your brev.dev setup script
+##### Commit this file to the repo to make the environment reproducible
+##### https://docs.brev.dev/howto/automatically-set-up
+
+	`
+	output := []string{introString, `##### Adding Aliases From Your Local Machine #####\n`, `(echo ""; echo "##### Adding Aliases From Your Local Machine #####"; echo "";)\n`}
+	output = append(output, lines...)
+	
+	return strings.Join(output, "\n")
 }
