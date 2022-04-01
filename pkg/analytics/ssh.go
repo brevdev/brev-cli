@@ -137,7 +137,7 @@ func (s *SSHAnalyticsTask) Run() error {
 			}
 			s.userID = userID
 		}
-		if s.workspace == nil || s.workspace.Status == "DEPLOYING" {
+		if s.workspace == nil || s.workspace.Status != "RUNNING" {
 			workspaceID, err1 := s.Store.GetCurrentWorkspaceID()
 			if err1 != nil {
 				return breverrors.WrapAndTrace(err1)
@@ -176,8 +176,8 @@ func (s SSHAnalyticsTask) GetTaskSpec() tasks.TaskSpec {
 var _ tasks.Task = &SSHAnalyticsTask{}
 
 func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string, workspace *entity.Workspace) error {
-	if workspace.Status == "DEPLOYING" {
-		fmt.Println("not writing ssh since DEPLOYING")
+	if workspace.Status != "RUNNING" {
+		fmt.Printf("not writing ssh since %s\n", workspace.Status)
 		return nil
 	}
 	fmt.Println("writing ssh events...")

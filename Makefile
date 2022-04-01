@@ -185,7 +185,7 @@ simulate-workspace:
 	make time
 	docker kill $(container_name) || true
 	echo "modify workspace files in devworkspace"
-	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22 -v $(shell pwd)/devworkspace:/home/brev/workspace brevdev/ubuntu-proxy:0.3.2 zsh
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22 -v $(shell pwd)/devworkspace:/home/brev/workspace brevdev/ubuntu-proxy:0.3.7 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
