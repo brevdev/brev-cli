@@ -92,6 +92,12 @@ func NewCmdImport(t *terminal.Terminal, loginImportStore ImportStore, noLoginImp
 }
 
 func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, importStore ImportStore, name string, detached bool, path string) error {
+	s := t.NewSpinner()
+	s.Suffix = " Reading your code for dependencies 🤙"
+	s.Start()
+	
+
+
 	pathExists := dirExists(path)
 	if !pathExists {
 		return breverrors.WrapAndTrace(errors.New("path provided does not exist"))
@@ -113,32 +119,39 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 		return breverrors.WrapAndTrace(errors.New("no git url found"))
 	}
 
+	var deps []string
+
 	node := isNode(t, path)
 	if node != nil && len(*node)>0 {
-		t.Vprintf("node-"+ *node + "---" + path)
+		deps = append(deps, "node-"+*node)
 	} else if node != nil && len(*node)==0  {
-		t.Vprintf("node-our version" + "---" + path)
+		deps = append(deps, "node-14")
 	}
 
 	gatsby := isGatsby(t, path)
 	if gatsby != nil {
-		t.Vprintf("install gatsby cli" + "---" + path)
+		deps = append(deps, "gatsby")
 	}
 	
 	rust := isRust(t, path)
 	if rust {
-		t.Vprintf("rust" + "---" + path)
+		deps = append(deps, "rust")
 	}
 
 	golang := getGoVersion(t, path)
 	if golang=="" {
-		t.Vprintf("golang our version" + "---" + path)
+		deps = append(deps, "golang-1.17")
 	} else {
-		t.Vprintf("golang"+ golang + "---" + path)
+		deps = append(deps, "golang-"+golang)
 	}
 
-	
+	s.Stop();
+
 	fmt.Println("GitUrl: ", gitURL)
+
+	for _, v := range deps {
+		fmt.Println(v)
+	}
 
 
 	// err = clone(t, gitURL, orgflag, importStore, name, deps, detached)
@@ -309,14 +322,16 @@ func isRust(t *terminal.Terminal, path string) bool {
 }
 
 func isNode(t *terminal.Terminal, path string) *string {
-	paths := recursivelyFindFile(t, []string{"package\\-lock\\.json", "package\\.json", "node_modules"}, path)
+	paths := recursivelyFindFile(t, []string{"package\\-lock\\.json$", "package\\.json$"}, path)
 	retval := ""
 	if len(paths) > 0 {
 
 		sort.Strings(paths)
-		for _, path := range paths {
+		
+		i := len(paths)-1
+			
 			keypath := "engines.node"
-			jsonstring, err := catFile(path)
+			jsonstring, err := catFile(paths[i])
 			value := gjson.Get(jsonstring, "name")
 			value = gjson.Get(jsonstring, keypath)
 
@@ -327,7 +342,6 @@ func isNode(t *terminal.Terminal, path string) *string {
 				retval = value.String()
 			}
 
-		}
 		return &retval
 	}
 	return nil
