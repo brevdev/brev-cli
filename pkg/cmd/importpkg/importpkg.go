@@ -121,16 +121,16 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	var deps []string
 
+	gatsby := isGatsby(t, path)
+	if gatsby != nil {
+		deps = append(deps, "gatsby")
+	}
+	
 	node := isNode(t, path)
 	if node != nil && len(*node)>0 {
 		deps = append(deps, "node-"+*node)
 	} else if node != nil && len(*node)==0  {
 		deps = append(deps, "node-14")
-	}
-
-	gatsby := isGatsby(t, path)
-	if gatsby != nil {
-		deps = append(deps, "gatsby")
 	}
 	
 	rust := isRust(t, path)
