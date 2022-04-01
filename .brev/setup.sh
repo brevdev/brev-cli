@@ -40,11 +40,11 @@ set -euo pipefail
 # rm get-pip.py
 # source $HOME/.poetry/env
 
-##### Golang v17 #####
+##### Golang v18 #####
 (echo ""; echo "##### Golang v17x #####"; echo "";)
-wget https://golang.org/dl/go1.17.7.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.17.7.linux-amd64.tar.gz
-rm go1.17.7.linux-amd64.tar.gz
+wget https://golang.org/dl/go1.18.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.18.linux-amd64.tar.gz
+rm go1.18.linux-amd64.tar.gz
 
 export PATH=$PATH:/usr/local/go/bin
 printf "\n%s\n" "export PATH=\$PATH:/usr/local/go/bin" | tee -a ~/.bashrc | tee -a ~/.zshrc
