@@ -147,12 +147,12 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	s.Stop();
 
-	fmt.Println("GitUrl: ", gitURL)
+	fmt.Println("\n\nGitUrl: ", gitURL)
 
-	for _, v := range deps {
-		fmt.Println(v)
-	}
 
+	result := strings.Join(deps, " ")
+
+	t.Vprint(t.Green("./merge-shells.rb %s", result))
 
 	// err = clone(t, gitURL, orgflag, importStore, name, deps, detached)
 	// if err != nil {
