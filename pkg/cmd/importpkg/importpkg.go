@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"regexp"
 	"sort"
 	"strings"
@@ -15,12 +14,12 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 	"github.com/tidwall/gjson"
-	"golang.org/x/text/encoding/charmap"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -331,7 +330,7 @@ func isNode(t *terminal.Terminal, path string) *string {
 		i := len(paths)-1
 			
 			keypath := "engines.node"
-			jsonstring, err := catFile(paths[i])
+			jsonstring, err := files.CatFile(paths[i])
 			value := gjson.Get(jsonstring, "name")
 			value = gjson.Get(jsonstring, keypath)
 
@@ -355,7 +354,7 @@ func isGatsby(t *terminal.Terminal, path string) *string {
 		sort.Strings(paths)
 		for _, path := range paths {
 			keypath := "dependencies.gatsby"
-			jsonstring, err := catFile(path)
+			jsonstring, err := files.CatFile(path)
 			value := gjson.Get(jsonstring, keypath)
 
 			if err != nil {
@@ -466,23 +465,10 @@ func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string)
 // read from gomod
 // read from json
 
-func catFile(filePath string) (string, error) {
-	gocmd := exec.Command("cat", filePath) // #nosec G204
-	in, err := gocmd.Output()
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
-	} else {
-		d := charmap.CodePage850.NewDecoder()
-		out, err := d.Bytes(in)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
-		}
-		return string(out), nil
-	}
-}
+
 
 func readGoMod(filePath string) (string, error) {
-	contents, err := catFile(filePath)
+	contents, err := files.CatFile(filePath)
 	if err != nil {
 		return "", err
 	}
