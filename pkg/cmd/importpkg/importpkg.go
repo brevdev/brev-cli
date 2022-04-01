@@ -315,13 +315,10 @@ func isNode(t *terminal.Terminal, path string) *string {
 
 		sort.Strings(paths)
 		for _, path := range paths {
-			fmt.Println(path)
 			keypath := "engines.node"
 			jsonstring, err := catFile(path)
 			value := gjson.Get(jsonstring, "name")
-			println(value.String())
 			value = gjson.Get(jsonstring, keypath)
-			println(value.String())
 
 			if err != nil {
 				//
@@ -343,11 +340,9 @@ func isGatsby(t *terminal.Terminal, path string) *string {
 
 		sort.Strings(paths)
 		for _, path := range paths {
-			// fmt.Println(path)
 			keypath := "dependencies.gatsby"
 			jsonstring, err := catFile(path)
 			value := gjson.Get(jsonstring, keypath)
-			// println(value.String())
 
 			if err != nil {
 				//
