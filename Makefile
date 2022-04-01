@@ -160,6 +160,7 @@ build-test-workspace:
 setup-workspace: build-linux-amd build-test-workspace
 	# run docker image copy in binary with volume config map + exec setup workspace
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
+	make time
 	docker kill $(container_name) || true
 	docker run -d --privileged=true --name $(container_name) --rm -it -p 22776:22778 -p 2222:22  brevdev/ubuntu-proxy:0.3.2 zsh
 
@@ -167,7 +168,9 @@ setup-workspace: build-linux-amd build-test-workspace
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
 
 	docker cp brev $(container_name):/usr/local/bin/
+	make time
 	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
+	make time
 
 
 .PHONY: workspace-dev-script
@@ -179,6 +182,7 @@ workspace-dev-script:
 .PHONY: simulate-workspace
 simulate-workspace:
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
+	make time
 	docker kill $(container_name) || true
 	echo "modify workspace files in devworkspace"
 	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22 -v $(shell pwd)/devworkspace:/home/brev/workspace brevdev/ubuntu-proxy:0.3.2 zsh
@@ -188,7 +192,9 @@ simulate-workspace:
 
 	# remove when released binary has setupworkspace
 	docker cp brev $(container_name):/usr/local/bin/
+	make time
 	docker exec -it $(container_name) /usr/local/bin/brev setupworkspace
+	make time
 
 .PHONY:clean-simulated-workspace
 clean-simulated-workspace:
@@ -197,3 +203,6 @@ clean-simulated-workspace:
 .PHONY: shell-into-workspace
 shell-into-workspace:
 	docker exec --user brev -it $(container_name) zsh --login
+
+time:
+	date +"%FT%T%z"
