@@ -23,11 +23,19 @@ func NewCmdSSHMon(store SSHMonStore, segmentAPIWriteKey string) *cobra.Command {
 			sshMonitor := analytics.NewSSHMonitor()
 			segment := analytics.NewSegmentClient(segmentAPIWriteKey)
 			defer segment.Client.Close() //nolint:errcheck // defer
-			sshMontasks := []tasks.Task{&analytics.SSHAnalyticsTask{
+			sshAnalytics := analytics.SSHAnalytics{
 				SSHMonitor: sshMonitor,
 				Analytics:  segment,
 				Store:      store,
-			}}
+			}
+			sshMontasks := []tasks.Task{
+				&analytics.SSHAnalyticsOnChangeTask{
+					SSHAnalytics: sshAnalytics,
+				},
+				&analytics.SSHAnalyticsSSHPing{
+					SSHAnalytics: sshAnalytics,
+				},
+			}
 			err := tasks.RunTasks(sshMontasks)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)

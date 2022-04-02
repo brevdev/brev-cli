@@ -91,7 +91,7 @@ func (c *SSHMonitor) GetSSHSessionEvents() (EventName, error) {
 	return event, nil
 }
 
-type SSHAnalyticsTask struct {
+type SSHAnalytics struct {
 	SSHMonitor       *SSHMonitor
 	Analytics        Analytics
 	Store            SSHAnalyticsStore
@@ -121,7 +121,7 @@ type SSHAnalyticsStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
-func (s *SSHAnalyticsTask) Run() error {
+func (s *SSHAnalytics) DoOnSSHChange(action func() error) error {
 	ssData, err := s.SSHMonitor.GetSSHConnections()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -130,30 +130,38 @@ func (s *SSHAnalyticsTask) Run() error {
 	diffSetToLast := difference(set, s.lastLocalPeerSet)
 	diffLastToSet := difference(s.lastLocalPeerSet, set)
 	if len(append(diffSetToLast, diffLastToSet...)) > 0 {
-		if s.userID == "" {
-			userID, err1 := s.Store.GetCurrentUserID()
-			if err1 != nil {
-				return breverrors.WrapAndTrace(err1)
-			}
-			s.userID = userID
-		}
-		if s.workspace == nil || s.workspace.Status != "RUNNING" {
-			workspaceID, err1 := s.Store.GetCurrentWorkspaceID()
-			if err1 != nil {
-				return breverrors.WrapAndTrace(err1)
-			}
-			workspace, err1 := s.Store.GetWorkspace(workspaceID)
-			if err1 != nil {
-				return breverrors.WrapAndTrace(err1)
-			}
-			s.workspace = workspace
-		}
-		err = WriteSSHEvents(s.SSHMonitor, s.Analytics, s.userID, s.workspace)
+		err := action()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
 	s.lastLocalPeerSet = set
+	return nil
+}
+
+func (s *SSHAnalytics) WriteSSHEvents() error {
+	if s.userID == "" {
+		userID, err1 := s.Store.GetCurrentUserID()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		s.userID = userID
+	}
+	if s.workspace == nil || s.workspace.Status != "RUNNING" {
+		workspaceID, err1 := s.Store.GetCurrentWorkspaceID()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		workspace, err1 := s.Store.GetWorkspace(workspaceID)
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		s.workspace = workspace
+	}
+	err := WriteSSHEvents(s.SSHMonitor, s.Analytics, s.userID, s.workspace)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -165,26 +173,59 @@ func ssDataToLocalPeerSet(ss []SSData) []string {
 	return set
 }
 
-func (s SSHAnalyticsTask) Configure() error {
+func (s SSHAnalytics) Configure() error {
 	return nil
 }
 
-func (s SSHAnalyticsTask) GetTaskSpec() tasks.TaskSpec {
+type SSHAnalyticsOnChangeTask struct {
+	SSHAnalytics
+}
+
+func (s *SSHAnalyticsOnChangeTask) Run() error {
+	err := s.DoOnSSHChange(s.WriteSSHEvents)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (s SSHAnalyticsOnChangeTask) GetTaskSpec() tasks.TaskSpec {
 	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 2s"}
 }
 
-var _ tasks.Task = &SSHAnalyticsTask{}
+var _ tasks.Task = &SSHAnalyticsOnChangeTask{}
+
+type SSHAnalyticsSSHPing struct {
+	SSHAnalytics
+}
+
+func (s *SSHAnalyticsSSHPing) Run() error {
+	err := s.WriteSSHEvents()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (s SSHAnalyticsSSHPing) GetTaskSpec() tasks.TaskSpec {
+	return tasks.TaskSpec{RunCronImmediately: true, Cron: "@every 5m"}
+}
+
+var _ tasks.Task = &SSHAnalyticsSSHPing{}
 
 func WriteSSHEvents(sshMonitor *SSHMonitor, analytics Analytics, userID string, workspace *entity.Workspace) error {
 	if workspace.Status != "RUNNING" {
 		fmt.Printf("not writing ssh since %s\n", workspace.Status)
 		return nil
 	}
-	fmt.Println("writing ssh events...")
 	rows, err := sshMonitor.GetSSHConnections()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if len(rows) == 0 {
+		return nil
+	}
+	fmt.Println("writing ssh events...")
 	var allError error
 	err = analytics.TrackUserWorkspaceEvent(SSHConnections, userID, workspace, Properties{"connections": rows})
 	if err != nil {
