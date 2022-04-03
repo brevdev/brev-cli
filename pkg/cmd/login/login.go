@@ -112,9 +112,9 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 			}
 			t.Print("done!")
 		}
-		_ = onboardUserWithSSHKeys(t, user, o.LoginStore)
-		_ = onboardUserWithEditors(t, o.LoginStore)
-		finalizeOnboarding(t)
+		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore)
+		_ = OnboardUserWithEditors(t, o.LoginStore)
+		FinalizeOnboarding(t)
 	} else {
 		if len(orgs) == 1 && orgs[0].Name!=makeFirstOrgName(user) {
 
@@ -123,8 +123,8 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 			workspaces, err := o.LoginStore.GetWorkspaces(orgs[0].ID, &store.GetWorkspacesOptions{UserID: user.ID})
 			if err == nil && len(workspaces)==0 {
 				// The SSH key is done in the front end when acct is created
-				_ = onboardUserWithEditors(t, o.LoginStore)
-				finalizeOnboarding(t)
+				_ = OnboardUserWithEditors(t, o.LoginStore)
+				FinalizeOnboarding(t)
 			}
 		}
 	}
@@ -158,7 +158,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	return true, nil
 }
 
-func onboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore LoginStore) error {
+func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore LoginStore) error {
 	// SSH Keys
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "🔒 Click enter to get your secure SSH key:",
@@ -188,7 +188,7 @@ func onboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore 
 
 	return nil
 }
-func onboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
+func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
 
 	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
@@ -238,8 +238,11 @@ func onboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
 	return nil
 }
 
-func finalizeOnboarding(t *terminal.Terminal) {
+func FinalizeOnboarding(t *terminal.Terminal) {
 	terminal.DisplayBrevLogo(t)
+	t.Vprint("\n")
+	t.Vprintf(t.Green("\nCreate your first workspace! Try this command:"))
+	t.Vprintf(t.Yellow("\n\t$brev start https://github.com/brevdev/hello-react"))
 	t.Vprint("\n")
 }
 
