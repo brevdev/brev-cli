@@ -3,6 +3,7 @@ package ssh
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -97,6 +98,7 @@ type SSHConfigurerV2Store interface {
 	GetJetBrainsConfigPath() (string, error)
 	GetJetBrainsConfig() (string, error)
 	WriteJetBrainsConfig(config string) error
+	DoesJetbrainsFilePathExist() (bool, error)
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -359,10 +361,18 @@ type SSHConfigurerJetBrains struct {
 
 var _ Config = SSHConfigurerJetBrains{}
 
-func NewSSHConfigurerJetBrains(store SSHConfigurerV2Store) *SSHConfigurerJetBrains {
+func NewSSHConfigurerJetBrains(store SSHConfigurerV2Store) (*SSHConfigurerJetBrains, error) {
+	doesJbPathExist, err := store.DoesJetbrainsFilePathExist()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if !doesJbPathExist {
+		return nil, errors.New("jetgbrains dne")
+	}
+
 	return &SSHConfigurerJetBrains{
 		store: store,
-	}
+	}, nil
 }
 
 func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {

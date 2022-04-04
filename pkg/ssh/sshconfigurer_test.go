@@ -83,6 +83,10 @@ func (d DummySSHConfigurerV2Store) WriteJetBrainsConfig(_ string) error {
 	return nil
 }
 
+func (d DummySSHConfigurerV2Store) DoesJetbrainsFilePathExist() (bool, error) {
+	return true, nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
