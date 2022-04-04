@@ -1,8 +1,7 @@
 package runtasks
 
 import (
-	"github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -41,39 +40,33 @@ type RunTasksStore interface {
 }
 
 func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
-	ts := getDefaultTasks(store)
+	ts, err := getDefaultTasks(store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if detached {
 		err := tasks.RunTaskAsDaemon(ts, store)
 		if err != nil {
-			return errors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err)
 		}
 	} else {
 		err := tasks.RunTasks(ts)
 		if err != nil {
-			return errors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 	return nil
 }
 
-func getDefaultTasks(store RunTasksStore) []tasks.Task {
-	configs := []ssh.Config{
-		ssh.NewSSHConfigurerV2(
-			store,
-		),
-		ssh.NewSSHConfigurerJetBrains(store),
+func getDefaultTasks(store RunTasksStore) ([]tasks.Task, error) {
+	configs, err := ssh.GetSSHConfigs(store)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
-	if featureflag.ServiceMeshSSH() {
-		configs = []ssh.Config{
-			ssh.NewSSHConfigurerServiceMesh(store),
-			ssh.NewSSHConfigurerJetBrains(store),
-		}
-	}
-
 	cu := ssh.ConfigUpdater{
 		Store:   store,
 		Configs: configs,
 	}
 
-	return []tasks.Task{cu}
+	return []tasks.Task{cu}, nil
 }

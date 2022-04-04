@@ -6,7 +6,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -44,9 +43,12 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 
 func refresh(t *terminal.Terminal, store RefreshStore) error {
 	fmt.Println("refreshing brev...")
-	cu := getConfigUpdater(store)
+	cu, err := getConfigUpdater(store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	err := cu.Run()
+	err = cu.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -55,18 +57,10 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 	return nil
 }
 
-func getConfigUpdater(store RefreshStore) ssh.ConfigUpdater {
-	configs := []ssh.Config{
-		ssh.NewSSHConfigurerV2(
-			store,
-		),
-		ssh.NewSSHConfigurerJetBrains(store),
-	}
-	if featureflag.ServiceMeshSSH() {
-		configs = []ssh.Config{
-			ssh.NewSSHConfigurerServiceMesh(store),
-			ssh.NewSSHConfigurerJetBrains(store),
-		}
+func getConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
+	configs, err := ssh.GetSSHConfigs(store)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	cu := ssh.ConfigUpdater{
@@ -74,5 +68,5 @@ func getConfigUpdater(store RefreshStore) ssh.ConfigUpdater {
 		Configs: configs,
 	}
 
-	return cu
+	return &cu, nil
 }
