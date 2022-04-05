@@ -57,12 +57,15 @@ require (
 	github.com/aws/smithy-go v1.9.0 // indirect
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
+	github.com/docker/docker v20.10.14+incompatible // indirect
+	github.com/docker/machine v0.16.2 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/insomniacslk/dhcp v0.0.0-20211026125128-ad197bcd36fd // indirect
+	github.com/jcelliott/lumber v0.0.0-20160324203708-dd349441af25 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/native v0.0.0-20200817173448-b6b71def0850 // indirect
 	github.com/jsimonetti/rtnetlink v0.0.0-20211203074127-fd9a11f42291 // indirect
@@ -74,6 +77,7 @@ require (
 	github.com/mdlayher/socket v0.0.0-20211102153432-57e3fa563ecb // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
+	github.com/nanobox-io/golang-ssh v0.0.0-20190309194042-12ea65d3a59d // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
 	github.com/peterbourgon/ff/v3 v3.1.2 // indirect
 	github.com/segmentio/backo-go v1.0.0 // indirect

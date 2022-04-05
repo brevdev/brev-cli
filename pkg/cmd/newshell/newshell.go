@@ -9,6 +9,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	ssh "github.com/nanobox-io/golang-ssh"
 
 	"github.com/spf13/cobra"
 )
@@ -20,6 +21,7 @@ type NewShellStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetPrivateKeyPath() (string, error)
 }
 
 func NewCmdNewShell(t *terminal.Terminal, loginLsStore NewShellStore, noLoginLsStore NewShellStore) *cobra.Command {
@@ -73,21 +75,23 @@ func RunNewShell(t *terminal.Terminal, lsStore NewShellStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if len(workspaces) >= 0 {
+	if len(workspaces) > 0 {
 
 		wsmap := getListOfLocalIdentifiers(workspaces)
 		var workspaceIdentifiers []string
-		for k, _ := range wsmap { 
+		var workspaceNames []string
+		for k, v := range wsmap { 
 			workspaceIdentifiers = append(workspaceIdentifiers, k)
+			workspaceNames = append(workspaceNames, v.Name)
 
 		}
-		workspaceIdentifiers = append(workspaceIdentifiers, "your local shell")
+		workspaceNames = append(workspaceNames, "your local shell")
 
 		// DO THE PROMPT HERE!!!!!
 		selectedWorkspace := terminal.PromptSelectInput(terminal.PromptSelectContent{
-			Label:    "Type of variable: ",
+			Label:    "Which shell do you want to open? ",
 			ErrorMsg: "error",
-			Items:    workspaceIdentifiers,
+			Items:    workspaceNames,
 		})
 
 		if selectedWorkspace == "your local shell" {
@@ -95,26 +99,55 @@ func RunNewShell(t *terminal.Terminal, lsStore NewShellStore) error {
 		} else {
 			t.Vprint(t.Green("You selected %s w/ ID %s and URL %s", selectedWorkspace, wsmap[selectedWorkspace].ID, wsmap[selectedWorkspace].DNS))
 		}
+
+		t.Vprintf(workspaceIdentifiers[0])
+
+		s,err := lsStore.GetPrivateKeyPath()
+		if err != nil {
+			t.Vprint(t.Red("Aborting"))
+			return nil;
+		}
+		t.Vprint(t.Green("Path: %s", s))
+
+		err = connect(workspaceIdentifiers[0], []string{s})
+		if err != nil {
+			t.Vprintf(err.Error())
+			return nil
+		}
+		
 	}
 
 	return nil
 }
 
 func getListOfLocalIdentifiers(workspaces []entity.Workspace) map[string]entity.Workspace {
-	var res map[string]entity.Workspace
+	res:= make(map[string]entity.Workspace)
 
 	if len(workspaces) >0 {
 		var localIdentifiers []string
 		for _, v := range workspaces {
-			li := string(v.GetLocalIdentifier(workspaces))
-			localIdentifiers = append(localIdentifiers, li)
-			res[li] = v
-
+			if v.Status == "RUNNING" {
+				li := string(v.GetLocalIdentifier(workspaces))
+				localIdentifiers = append(localIdentifiers, li)
+				res[li] = v
+			}
 		}
 		return res
 
-	} else {
-		return nil
+	}
+	return nil
+}
+
+func connect(localIdentifier string, paths []string) error {
+	nanPass := ssh.Auth{Keys: paths}
+	client, err := ssh.NewNativeClient("brev", localIdentifier, "", 22, &nanPass, nil)
+	if err != nil {
+		return fmt.Errorf("Failed to create new client - %s", err)
+	}
+
+	err = client.Shell()
+	if err != nil && err.Error() != "exit status 255" {
+		return fmt.Errorf("Failed to request shell - %s", err)
 	}
 
 	return nil
