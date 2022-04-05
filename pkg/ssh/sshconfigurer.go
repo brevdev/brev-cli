@@ -401,7 +401,7 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 		}
 		id := w.GetLocalIdentifier(workspaces)
 
-		entry := makeJetbrainsConfigEntry(w.NetworkID, pk, id)
+		entry := makeJetbrainsConfigEntry(w.Name, pk, id)
 		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}
 	output, err := xml.MarshalIndent(config, "", "  ")
@@ -413,7 +413,7 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 
 func makeJetbrainsConfigEntry(host, keypath string, customName entity.WorkspaceLocalID) JetbrainsGatewayConfigXMLSSHConfig {
 	return JetbrainsGatewayConfigXMLSSHConfig{
-		Host:       host,
+		Host:       string(customName),
 		Port:       "22",
 		KeyPath:    keypath,
 		Username:   "brev",
