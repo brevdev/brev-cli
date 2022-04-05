@@ -399,9 +399,8 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 		if errother != nil {
 			return "", breverrors.WrapAndTrace(errother)
 		}
-		id := w.GetLocalIdentifier(workspaces)
 
-		entry := makeJetbrainsConfigEntry(w.Name, pk, id)
+		entry := makeJetbrainsConfigEntry(w.Name, pk)
 		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}
 	output, err := xml.MarshalIndent(config, "", "  ")
@@ -411,13 +410,13 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 	return string(output), nil
 }
 
-func makeJetbrainsConfigEntry(host, keypath string, customName entity.WorkspaceLocalID) JetbrainsGatewayConfigXMLSSHConfig {
+func makeJetbrainsConfigEntry(host, keypath string) JetbrainsGatewayConfigXMLSSHConfig {
 	return JetbrainsGatewayConfigXMLSSHConfig{
-		Host:       string(customName),
+		Host:       host,
 		Port:       "22",
 		KeyPath:    keypath,
 		Username:   "brev",
-		CustomName: customName,
+		CustomName: entity.WorkspaceLocalID(host),
 		NameFormat: "CUSTOM",
 		Options: []JetbrainsGatewayConfigXMLSSHOption{
 			{
