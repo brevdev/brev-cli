@@ -36,7 +36,7 @@ func LoadFeatureFlags(path string) error {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
-	_ = viper.ReadInConfig() // do not nead to fail if can't find config file
+	_ = viper.ReadInConfig() // do not need to fail if can't find config file
 
 	return nil
 }

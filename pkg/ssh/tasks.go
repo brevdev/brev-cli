@@ -65,7 +65,7 @@ func GetSSHConfigs(store SSHConfigurerTaskStore) ([]Config, error) {
 		}
 	}
 	jetbrainsConfigurer, err := NewSSHConfigurerJetBrains(store)
-	// add jetbrainsconfigurer to configs if we can, but if we   can't that
+	// add jetbrainsconfigurer to configs if we can, but if we can't that
 	// shouldn't prevent us from setting up the other configs
 	if err == nil && jetbrainsConfigurer != nil {
 		configs = append(configs, jetbrainsConfigurer)
