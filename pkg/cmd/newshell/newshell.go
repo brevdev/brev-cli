@@ -77,30 +77,36 @@ func RunNewShell(t *terminal.Terminal, lsStore NewShellStore) error {
 	}
 	if len(workspaces) > 0 {
 
-		wsmap := getListOfLocalIdentifiers(workspaces)
-		var workspaceIdentifiers []string
 		var workspaceNames []string
-		for k, v := range wsmap { 
-			workspaceIdentifiers = append(workspaceIdentifiers, k)
-			workspaceNames = append(workspaceNames, v.Name)
-
+		for _, v := range workspaces { 
+			if v.Status == "RUNNING" {
+				workspaceNames = append(workspaceNames, v.Name)
+			}
 		}
 		workspaceNames = append(workspaceNames, "your local shell")
 
-		// DO THE PROMPT HERE!!!!!
-		selectedWorkspace := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		selectedWorkspaceName := terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "Which shell do you want to open? ",
 			ErrorMsg: "error",
 			Items:    workspaceNames,
 		})
-
-		if selectedWorkspace == "your local shell" {
+		
+		var workspace *entity.Workspace
+		if selectedWorkspaceName == "your local shell" {
 			t.Vprint("done!")
 		} else {
-			t.Vprint(t.Green("You selected %s w/ ID %s and URL %s", selectedWorkspace, wsmap[selectedWorkspace].ID, wsmap[selectedWorkspace].DNS))
-		}
+			for _, v := range workspaces {
+				if v.Name == selectedWorkspaceName {
+					workspace = &v
+					break
+				}
+			}
+			if workspace == nil {
+				return nil
+			}
 
-		t.Vprintf(workspaceIdentifiers[0])
+			t.Vprint(t.Green("You selected %s w/ ID %s and URL %s", selectedWorkspaceName, workspace.ID, workspace.DNS))
+		}
 
 		s,err := lsStore.GetPrivateKeyPath()
 		if err != nil {
@@ -109,7 +115,9 @@ func RunNewShell(t *terminal.Terminal, lsStore NewShellStore) error {
 		}
 		t.Vprint(t.Green("Path: %s", s))
 
-		err = connect(workspaceIdentifiers[0], []string{s})
+		ws := *workspace
+		wsLocalID := string(ws.GetLocalIdentifier(workspaces))
+		err = connect(wsLocalID, []string{s})
 		if err != nil {
 			t.Vprintf(err.Error())
 			return nil
@@ -117,24 +125,6 @@ func RunNewShell(t *terminal.Terminal, lsStore NewShellStore) error {
 		
 	}
 
-	return nil
-}
-
-func getListOfLocalIdentifiers(workspaces []entity.Workspace) map[string]entity.Workspace {
-	res:= make(map[string]entity.Workspace)
-
-	if len(workspaces) >0 {
-		var localIdentifiers []string
-		for _, v := range workspaces {
-			if v.Status == "RUNNING" {
-				li := string(v.GetLocalIdentifier(workspaces))
-				localIdentifiers = append(localIdentifiers, li)
-				res[li] = v
-			}
-		}
-		return res
-
-	}
 	return nil
 }
 
