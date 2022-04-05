@@ -1,4 +1,4 @@
-<p align="center">
+<boolp align="center">
 <img width="230" src="https://raw.githubusercontent.com/brevdev/assets/main/logo.svg"/>
 </p>
 

@@ -115,17 +115,15 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore)
 		_ = OnboardUserWithEditors(t, o.LoginStore)
 		FinalizeOnboarding(t)
-	} else {
-		if len(orgs) == 1 && orgs[0].Name!=makeFirstOrgName(user) {
+	} else if len(orgs) == 1 && orgs[0].Name != makeFirstOrgName(user) {
 
-			// if there are no workspaces in this org, probably onboard them
-			// NOTE: if we let people invite into workspaces, this needs to be done
-			workspaces, err := o.LoginStore.GetWorkspaces(orgs[0].ID, &store.GetWorkspacesOptions{UserID: user.ID})
-			if err == nil && len(workspaces)==0 {
-				// The SSH key is done in the front end when acct is created
-				_ = OnboardUserWithEditors(t, o.LoginStore)
-				FinalizeOnboarding(t)
-			}
+		// if there are no workspaces in this org, probably onboard them
+		// NOTE: if we let people invite into workspaces, this needs to be done
+		workspaces, err := o.LoginStore.GetWorkspaces(orgs[0].ID, &store.GetWorkspacesOptions{UserID: user.ID})
+		if err == nil && len(workspaces) == 0 {
+			// The SSH key is done in the front end when acct is created
+			_ = OnboardUserWithEditors(t, o.LoginStore)
+			FinalizeOnboarding(t)
 		}
 	}
 
@@ -144,7 +142,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 }
 
 // returns if the user is indeed new
-func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) (bool, error) { //nolint:funlen // its 2 lines too long but not worth refac yet
+func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) (bool, error) {
 	t.Print("\nWelcome to Brev.dev 🤙\n")
 	_, err := loginStore.CreateUser(idToken)
 	if err != nil {
@@ -158,7 +156,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	return true, nil
 }
 
-func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore LoginStore) error {
+func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStore) error {
 	// SSH Keys
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "🔒 Click enter to get your secure SSH key:",
@@ -174,13 +172,12 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore 
 		AllowEmpty: true,
 	})
 
-
 	t.Vprint(t.Green("\nAdd the key to your git repo provider"))
 	t.Vprint(t.Green("\tClick here if you use Github 👉 https://github.com/settings/ssh/new\n\n"))
 	// t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
-		
+
 	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "Hit enter when finished",
+		Label: "Hit enter when finished",
 		// Label:      "Hit enter when finished:",
 		ErrorMsg:   "error",
 		AllowEmpty: true,
@@ -188,8 +185,8 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, loginStore 
 
 	return nil
 }
-func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
 
+func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
 	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "What is your preferred IDE?",
