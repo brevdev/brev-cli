@@ -3,6 +3,7 @@ package login
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -68,32 +69,41 @@ func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []stri
 	return nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
+func fetchThingsForTheNextFunction(o LoginOptions, t *terminal.Terminal) (*entity.User, bool, []entity.Organization, error) {
 	workspaceID, err := o.LoginStore.GetCurrentWorkspaceID()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, false, nil, breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
 		fmt.Println("can not login to workspace")
-		return nil
+		return nil, false, nil, errors.New("can not login to workspace")
 	}
 
 	tokens, err := o.Auth.Login()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, false, nil, breverrors.WrapAndTrace(err)
 	}
 
 	isUserCreated, err := CreateNewUser(o.LoginStore, tokens.IDToken, t)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, false, nil, breverrors.WrapAndTrace(err)
 	}
 
 	user, err := o.LoginStore.GetCurrentUser()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, isUserCreated, nil, breverrors.WrapAndTrace(err)
 	}
 
 	orgs, err := o.LoginStore.GetOrganizations(nil)
+	if err != nil {
+		return user, isUserCreated, nil, breverrors.WrapAndTrace(err)
+	}
+
+	return user, isUserCreated, orgs, nil
+}
+
+func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
+	user, isUserCreated, orgs, err := fetchThingsForTheNextFunction(o, t)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
