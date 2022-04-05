@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-<<<<<<< HEAD
-=======
 	"os/exec"
 	"path/filepath"
->>>>>>> adding full importer in go
 	"regexp"
 	"sort"
 	"strings"
@@ -26,6 +23,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 	"github.com/tidwall/gjson"
+	"golang.org/x/text/encoding/charmap"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -567,16 +565,13 @@ func isNode(t *terminal.Terminal, path string) *string {
 	if len(paths) > 0 {
 
 		sort.Strings(paths)
-<<<<<<< HEAD
-		
-		i := len(paths)-1
-			
-			keypath := "engines.node"
-			jsonstring, err := files.CatFile(paths[i])
-			value := gjson.Get(jsonstring, "name")
-			value = gjson.Get(jsonstring, keypath)
-=======
->>>>>>> adding full importer in go
+
+		i := len(paths) - 1
+
+		keypath := "engines.node"
+		jsonstring, err := files.CatFile(paths[i])
+		value := gjson.Get(jsonstring, "name")
+		value = gjson.Get(jsonstring, keypath)
 
 		i := len(paths) - 1
 
@@ -713,9 +708,6 @@ func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string)
 // read from gomod
 // read from json
 
-<<<<<<< HEAD
-
-=======
 func catFile(filePath string) (string, error) {
 	gocmd := exec.Command("cat", filePath) // #nosec G204
 	in, err := gocmd.Output()
@@ -730,7 +722,6 @@ func catFile(filePath string) (string, error) {
 		return string(out), nil
 	}
 }
->>>>>>> adding full importer in go
 
 func readGoMod(filePath string) (string, error) {
 	contents, err := files.CatFile(filePath)
