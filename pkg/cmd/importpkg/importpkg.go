@@ -1,7 +1,7 @@
 package importpkg
 
 import (
-	_ "embed" // so we don't have to call embed since it's an internal generator that gets run when we compile
+	"embed" // so we don't have to call embed since it's an internal generator that gets run when we compile
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -27,6 +27,9 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
+
+//go:embed templates/*
+var templateFs embed.FS
 
 var (
 	importLong    = "Import your current dev environment. Brev will try to fix errors along the way."
@@ -203,7 +206,7 @@ type ShellFragment struct {
 }
 
 func parseCommentLine(line string) ShellFragment {
-	commentFreeLine := strings.ReplaceAll(line, "#", "")
+	commentFreeLine := strings.TrimSpace(strings.ReplaceAll(line, "#", ""))
 	parts := strings.Split(commentFreeLine, " ")
 
 	if strings.HasPrefix(parts[0], "dependencies") {
@@ -272,12 +275,15 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	// read from the generated path
 	// generate ShellFragment from it (fromSh) and return it
 	subPaths := strings.Split(nameVersion, "-")
-	path := filepath.Join(subPaths...)
-	script, err := catFile(path)
+	path := filepath.Join(concat([]string{"templates"}, subPaths)...)
+	script, err := templateFs.Open(path)
+	out, err := ioutil.ReadAll(script)
+	stringScript := string(out)
+	fmt.Println(stringScript)
 	if err != nil {
 		return []ShellFragment{}, err
 	}
-	return fromSh(script), nil
+	return fromSh(stringScript), nil
 }
 
 func toSh(script []ShellFragment) string {
@@ -372,7 +378,7 @@ func addDependencies(shFragments []ShellFragment, baselineDependencies map[strin
 	order, shellDefs, failures := splitIntoLibraryAndSeq(shFragments)
 	newestOrderDefsFailures := foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures {
 		newOrderDefsFailures := prependDependencies(shName, acc.Defs, globalDependencies)
-		return OrderDefsFailures{Order: append(concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: concat(acc.Failures, newOrderDefsFailures.Failures), Defs: newOrderDefsFailures.Defs}
+		return OrderDefsFailures{Order: append(concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: concat(acc.Failures, newOrderDefsFailures.Failures), Defs: dictMerge(acc.Defs, newOrderDefsFailures.Defs)}
 	}, OrderDefsFailures{Order: []string{}, Failures: []string{}, Defs: shellDefs}, order)
 	return OrderDefsFailures{Order: uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: uniq(concat(failures, newestOrderDefsFailures.Failures))}
 }
@@ -389,9 +395,9 @@ func mergeShells(filepaths ...string) string {
 	return toSh(process(flatmap(func(path string) []ShellFragment {
 		frags, err := importFile(path)
 		if err != nil {
-			return frags
-		} else {
 			return []ShellFragment{}
+		} else {
+			return frags
 		}
 	}, filepaths), map[string]ShellFragment{}, map[string]ShellFragment{}))
 }

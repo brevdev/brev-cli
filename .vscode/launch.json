@@ -176,6 +176,20 @@
         "run",
         "rpcd"
       ]
+    },    
+    {
+      "name": "import",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/main.go",
+      //   "envFile": "${workspaceFolder}/prod_lite.env",
+      // "envFile": "${workspaceFolder}/local.env",
+      "args": [
+        "import",
+        ".",
+     
+      ]
     },
   ]
 }
