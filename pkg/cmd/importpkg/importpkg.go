@@ -143,10 +143,12 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	}
 
 	golang := getGoVersion(t, path)
-	if golang == "" {
+	if golang == nil {
+		_ = 0
+	} else if *golang == "" {
 		deps = append(deps, "golang-1.17")
 	} else {
-		deps = append(deps, "golang-"+golang)
+		deps = append(deps, "golang-"+*golang)
 	}
 
 	s.Stop()
@@ -275,6 +277,9 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	// read from the generated path
 	// generate ShellFragment from it (fromSh) and return it
 	subPaths := strings.Split(nameVersion, "-")
+	if len(subPaths) == 1 {
+		subPaths = duplicate(subPaths[0])
+	}
 	path := filepath.Join(concat([]string{"templates"}, subPaths)...)
 	script, err := templateFs.Open(path)
 	out, err := ioutil.ReadAll(script)
@@ -615,7 +620,7 @@ func isGatsby(t *terminal.Terminal, path string) *string {
 	return nil
 }
 
-func getGoVersion(t *terminal.Terminal, path string) string {
+func getGoVersion(t *terminal.Terminal, path string) *string {
 	paths := recursivelyFindFile(t, []string{"go\\.mod"}, path)
 
 	if len(paths) > 0 {
@@ -627,11 +632,11 @@ func getGoVersion(t *terminal.Terminal, path string) string {
 			if err != nil {
 				//
 			}
-			return res
+			return &res
 		}
 
 	}
-	return ""
+	return nil
 }
 
 func isRuby(t *terminal.Terminal, path string) bool {
