@@ -327,12 +327,12 @@ func CatFile(filePath string) (string, error) {
 	gocmd := exec.Command("cat", filePath) // #nosec G204
 	in, err := gocmd.Output()
 	if err != nil {
-		return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
+		return "", breverrors.WrapAndTrace(err, "error reading file "+filePath)
 	} else {
 		d := charmap.CodePage850.NewDecoder()
 		out, err := d.Bytes(in)
 		if err != nil {
-			return "", breverrors.WrapAndTrace(err, "error reading file "+ filePath)
+			return "", breverrors.WrapAndTrace(err, "error reading file "+filePath)
 		}
 		return string(out), nil
 	}
@@ -346,7 +346,7 @@ func GetAliasesFromFile(file string) []string {
 		// if this doesn't work, just exit
 		return nil
 	}
-	lines,err := CatFile(dirname + "/" + file)
+	lines, err := CatFile(dirname + "/" + file)
 	if err != nil {
 		// if this doesn't work, just exit
 		return nil
@@ -389,6 +389,6 @@ set -euo pipefail
 	`
 	output := []string{introString, `##### Adding Aliases From Your Local Machine #####\n`, `(echo ""; echo "##### Adding Aliases From Your Local Machine #####"; echo "";)\n`}
 	output = append(output, lines...)
-	
+
 	return strings.Join(output, "\n")
 }

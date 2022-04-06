@@ -1,6 +1,6 @@
 package importpkg
 
-//import "strings"
+// import "strings"
 
 // type ShellFragment struct {
 // 	Name *string `json:"name"`
@@ -9,7 +9,6 @@ package importpkg
 // 	Script *[]string `json:"script"`
 // 	Dependencies *[]string `json:"dependencies"`
 // }
-
 
 // // def parse_comment_line(line)
 // //     comment_free_line = line.gsub("#", "").strip
@@ -50,12 +49,12 @@ package importpkg
 // // 				acc.ScriptSoFar = append(acc.ScriptSoFar, acc.CurrentFragment)
 // // 				acc.CurrentFragment = ShellFragment{}
 // // 			}
-// // 			acc.CurrentFragment = *parse_comment_line(line) 
+// // 			acc.CurrentFragment = *parse_comment_line(line)
 // // 		}
 // // 	}
 // // //     val = lines.reduce([{"name" => nil, "tag" => nil, "comment" =>nil, "script" => []}, []]) do |acc, line|
 // // //         current_fragment, script_so_far = acc
-// // //         if line.start_with?("#") 
+// // //         if line.start_with?("#")
 // // //             if !current_fragment['script'].empty?
 // // //                 script_so_far.push(current_fragment)
 // // //                 current_fragment = {"name" => nil, "tag" => nil, "comment" =>nil, "script" => []}

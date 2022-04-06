@@ -50,7 +50,6 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-
 			// paths := recursivelyFindFile(t, "go.mod", "./")
 			// for _, v := range paths {
 			// 	fmt.Println(v)
@@ -68,7 +67,7 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 
 func isNode(t *terminal.Terminal, path string) bool {
 	paths := recursivelyFindFile(t, []string{"package-lock.json", "package.json", "node_modules"}, path)
-	
+
 	if len(paths) > 0 {
 		return true
 	}
@@ -77,7 +76,7 @@ func isNode(t *terminal.Terminal, path string) bool {
 
 func isRust(t *terminal.Terminal, path string) bool {
 	paths := recursivelyFindFile(t, []string{"Cargo.toml", "Cargo.lock"}, path)
-	
+
 	if len(paths) > 0 {
 		return true
 	}
@@ -86,7 +85,7 @@ func isRust(t *terminal.Terminal, path string) bool {
 
 func isGo(t *terminal.Terminal, path string) bool {
 	paths := recursivelyFindFile(t, []string{"go.mod"}, path)
-	
+
 	if len(paths) > 0 {
 		return true
 	}
@@ -95,7 +94,7 @@ func isGo(t *terminal.Terminal, path string) bool {
 
 func isRuby(t *terminal.Terminal, path string) bool {
 	paths := recursivelyFindFile(t, []string{"Gemfile.lock", "Gemfile"}, path)
-	
+
 	if len(paths) > 0 {
 		return true
 	}
@@ -104,7 +103,7 @@ func isRuby(t *terminal.Terminal, path string) bool {
 
 func isPython(t *terminal.Terminal, path string) bool {
 	paths := recursivelyFindFile(t, []string{"Gemfile.lock", "Gemfile"}, path)
-	
+
 	if len(paths) > 0 {
 		return true
 	}
@@ -113,16 +112,15 @@ func isPython(t *terminal.Terminal, path string) bool {
 
 // Returns list of paths to file
 func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string) []string {
-
 	var paths []string
 
 	files, err := ioutil.ReadDir(path)
-    if err != nil {
-        fmt.Println(err);
-    }
- 
-    for _, f := range files {
-		dir, err := os.Stat(path+f.Name())
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	for _, f := range files {
+		dir, err := os.Stat(path + f.Name())
 		if err != nil {
 			fmt.Println(t.Red(err.Error()))
 		} else {
@@ -143,7 +141,7 @@ func recursivelyFindFile(t *terminal.Terminal, filename_s []string, path string)
 		}
 	}
 
-	//TODO: make the list unique
-	
+	// TODO: make the list unique
+
 	return paths
 }
