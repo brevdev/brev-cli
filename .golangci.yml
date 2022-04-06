@@ -49,6 +49,10 @@ linters-settings:
   stylecheck:
     checks: ["all", "-ST1020", "-ST1000"]
 
+run:
+  build-tags:
+    - codeanalysis
+
 linters:
   # please, do not use `enable-all`: it's deprecated and will be removed soon.
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
