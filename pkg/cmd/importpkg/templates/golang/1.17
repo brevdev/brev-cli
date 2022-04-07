@@ -1,6 +1,6 @@
 # golang
 # installing Golang v1.17
-(echo ""; echo "##### Golang v16x #####"; echo "";)
+(echo ""; echo "##### Golang v17x #####"; echo "";)
 wget https://golang.org/dl/go1.17.7.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.17.7.linux-amd64.tar.gz
 echo "" | sudo tee -a ~/.bashrc

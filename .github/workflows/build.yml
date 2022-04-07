@@ -2,9 +2,9 @@ name: build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-20.04 ]
+        os: [ubuntu-20.04]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.18
 
       - name: Build
         run: make ci
@@ -45,7 +45,7 @@ jobs:
           flags: ${{ runner.os }}
 
       - name: Report Status
-        if:  always()
+        if: always()
         uses: ravsamhq/notify-slack-action@v1
         with:
           status: ${{ job.status }}
@@ -62,7 +62,7 @@ jobs:
 
       - uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.18
 
       - name: Release test
         run: make build
