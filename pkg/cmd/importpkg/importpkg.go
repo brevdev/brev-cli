@@ -158,13 +158,13 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	// TODO
 	// mk directory .brev if it does not already exist
 	shellString := mergeShells(deps...)
-	mderr := os.MkdirAll(".brev", os.ModePerm)
+	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm)
 	if mderr == nil {
 		// generate a string that is the Concatenation of dependency-ordering the contents of all the dependencies
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
 
 		// place within .brev and write setup.sh with the result of this
-		f, err := os.Create(filepath.Join(".brev", "setup.sh"))
+		f, err := os.Create(filepath.Join(path, ".brev", "setup.sh"))
 		if err != nil {
 			return err
 		}
