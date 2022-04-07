@@ -121,7 +121,8 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	if len(gitURL) == 0 {
 		return breverrors.WrapAndTrace(errors.New("no git url found"))
 	}
-
+	gitParts := strings.Split(gitURL, "/")
+	name = gitParts[len(gitParts)-1]
 	var deps []string
 
 	node := isNode(t, path)
