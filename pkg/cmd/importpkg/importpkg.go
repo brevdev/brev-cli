@@ -158,7 +158,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	t.Vprint(t.Green("generating script witth the following dependencies and writing resulting script to .brev/setup.sh : ", strings.Join(deps, " ")))
 	// TODO
 	// mk directory .brev if it does not already exist
-	shellString := mergeShells(deps...)
+	shellString := strings.Join([]string{"#!/bin/bash", mergeShells(deps...)}, "\n")
 	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm)
 	if mderr == nil {
 		// generate a string that is the Concatenation of dependency-ordering the contents of all the dependencies
