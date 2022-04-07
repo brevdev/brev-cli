@@ -18,7 +18,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
-	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -155,27 +154,17 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	fmt.Println("\n\nGitUrl: ", gitURL)
 
-	// example of using generic Filter function on a list of strings
-	test := Filter(func(x string) bool { //nolint:typecheck
-		return strings.HasPrefix(x, "n")
-	}, []string{"foo", "bar", "naranj", "nobody"})
-	t.Vprint(t.Green(strings.Join(test, " ")))
-
-	// example of duplicating every element of a list using generic duplicate and Flatmap
-	t.Vprint(t.Green(strings.Join(Flatmap(duplicate[string], test), " "))) //nolint:typecheck
-	result := strings.Join(deps, " ")
-
-	t.Vprint(t.Green("./merge-shells.rb %s", result))
+	t.Vprint(t.Green("generating script witth the following dependencies and writing resulting script to .brev/setup.sh : ", strings.Join(deps, " ")))
 	// TODO
 	// mk directory .brev if it does not already exist
-
+	shellString := mergeShells(deps...)
 	mderr := os.MkdirAll(".brev", os.ModePerm)
 	if mderr == nil {
 		// generate a string that is the Concatenation of dependency-ordering the contents of all the dependencies
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
-		shellString := mergeShells(deps...)
+
 		// place within .brev and write setup.sh with the result of this
-		f, err := os.Create(filepath.Join(".brev", "auto-setup.sh"))
+		f, err := os.Create(filepath.Join(".brev", "setup.sh"))
 		if err != nil {
 			return err
 		}
@@ -187,10 +176,10 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 		return mderr
 	}
 
-	// err = clone(t, gitURL, orgflag, importStore, name, deps, detached)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	err = clone(t, gitURL, orgflag, importStore, name, shellString, detached)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
@@ -411,7 +400,7 @@ func duplicate[T any](x T) []T {
 	return []T{x, x}
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportStore, name string, deps *store.Dependencies, detached bool) error {
+func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportStore, name string, script string, detached bool) error {
 	newWorkspace := MakeNewWorkspaceFromURL(url)
 
 	if len(name) > 0 {
@@ -443,7 +432,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, importStore ImportS
 		orgID = orgs[0].ID
 	}
 
-	err := createWorkspace(t, newWorkspace, orgID, importStore, deps, detached)
+	err := createWorkspace(t, newWorkspace, orgID, importStore, script, detached)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -494,21 +483,13 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, importStore ImportStore, deps *store.Dependencies, detached bool) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, importStore ImportStore, script string, detached bool) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	var options *store.CreateWorkspacesOptions
-	if deps != nil {
-		setupscript1, err := setupscript.GenSetupHunkForLanguage("go", deps.Go)
-		if err != nil {
-			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
-		} else {
-			// setupscript2,err := setupscript.GenSetupHunkForLanguage("rust", deps.R)
-			options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo).WithStartupScript(setupscript1)
-		}
-	} else {
-		options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
-	}
+
+	// setupscript2,err := setupscript.GenSetupHunkForLanguage("rust", deps.R)
+	options = store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo).WithStartupScript(script)
 
 	user, err := importStore.GetCurrentUser()
 	if err != nil {
