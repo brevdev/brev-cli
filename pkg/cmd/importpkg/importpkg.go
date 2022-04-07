@@ -1,4 +1,4 @@
-package importpkg
+package collections
 
 import (
 	"embed" // so we don't have to call embed since it's an internal generator that gets run when we compile
@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"github.com/brevdev/brev-cli/pkg/cmd/importpkg/collections"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -155,14 +156,14 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	fmt.Println("\n\nGitUrl: ", gitURL)
 
-	// example of using generic filter function on a list of strings
-	test := filter(func(x string) bool {
+	// example of using generic collections.Filter function on a list of strings
+	test := collections.Filter(func(x string) bool {
 		return strings.HasPrefix(x, "n")
 	}, []string{"foo", "bar", "naranj", "nobody"})
 	t.Vprint(t.Green(strings.Join(test, " ")))
 
-	// example of duplicating every element of a list using generic duplicate and flatmap
-	t.Vprint(t.Green(strings.Join(flatmap(duplicate[string], test), " ")))
+	// example of duplicating every element of a list using generic duplicate and collections.Flatmap
+	t.Vprint(t.Green(strings.Join(collections.Flatmap(duplicate[string], test), " ")))
 	result := strings.Join(deps, " ")
 
 	t.Vprint(t.Green("./merge-shells.rb %s", result))
@@ -171,7 +172,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	mderr := os.MkdirAll(".brev", os.ModePerm)
 	if mderr == nil {
-		// generate a string that is the concatenation of dependency-ordering the contents of all the dependencies
+		// generate a string that is the collections.Concatenation of dependency-ordering the contents of all the dependencies
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
 		shellString := mergeShells(deps...)
 		// place within .brev and write setup.sh with the result of this
@@ -226,7 +227,7 @@ func parseCommentLine(line string) ShellFragment {
 }
 
 func toDefsDict(shFragment []ShellFragment) map[string]ShellFragment {
-	return foldl(func(acc map[string]ShellFragment, frag ShellFragment) map[string]ShellFragment {
+	return collections.Foldl(func(acc map[string]ShellFragment, frag ShellFragment) map[string]ShellFragment {
 		if frag.Name != nil {
 			acc[*frag.Name] = frag
 		}
@@ -243,8 +244,8 @@ func fromSh(shScript string) []ShellFragment {
 	// get lines
 	lines := strings.Split(shScript, "\n")
 	base := scriptAccumulator{}
-	// foldl lines pulling out parsable information and occasionally pushing onto script so far and generating a new fragment, if need be
-	acc := foldl(func(acc scriptAccumulator, line string) scriptAccumulator {
+	// collections.Foldl lines pulling out parsable information and occasionally pushing onto script so far and generating a new fragment, if need be
+	acc := collections.Foldl(func(acc scriptAccumulator, line string) scriptAccumulator {
 		if strings.HasPrefix(line, "#") { // then it is a comment string, which may or may not have parsable information
 			if len(acc.CurrentFragment.Script) > 0 {
 				acc.ScriptSoFar = append(acc.ScriptSoFar, acc.CurrentFragment)
@@ -280,7 +281,7 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	if len(subPaths) == 1 {
 		subPaths = duplicate(subPaths[0])
 	}
-	path := filepath.Join(concat([]string{"templates"}, subPaths)...)
+	path := filepath.Join(collections.Concat([]string{"templates"}, subPaths)...)
 	script, err := templateFs.Open(path)
 	out, err := ioutil.ReadAll(script)
 	stringScript := string(out)
@@ -292,8 +293,8 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 }
 
 func toSh(script []ShellFragment) string {
-	// flatmap across generating the script from all of the component shell bits
-	return strings.Join(flatmap(func(frag ShellFragment) []string {
+	// collections.Flatmap across generating the script from all of the component shell bits
+	return strings.Join(collections.Flatmap(func(frag ShellFragment) []string {
 		name, tag, comment := frag.Name, frag.Tag, frag.Comment
 		innerScript, dependencies := frag.Script, frag.Dependencies
 		returnval := []string{}
@@ -325,13 +326,13 @@ func findDependencies(shName string, baselineDependencies map[string]ShellFragme
 	}
 
 	dependencies := definition.Dependencies
-	return flatmap(func(dep_name string) []string {
+	return collections.Flatmap(func(dep_name string) []string {
 		return append(findDependencies(dep_name, baselineDependencies, globalDependencies), dep_name)
 	}, dependencies)
 }
 
 func splitIntoLibraryAndSeq(shFragments []ShellFragment) ([]string, map[string]ShellFragment, []string) {
-	return fmap(func(some ShellFragment) string {
+	return collections.Fmap(func(some ShellFragment) string {
 		if some.Name != nil {
 			return *some.Name
 		} else {
@@ -341,33 +342,33 @@ func splitIntoLibraryAndSeq(shFragments []ShellFragment) ([]string, map[string]S
 }
 
 func prependDependencies(shName string, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) OrderDefsFailures {
-	dependencies := uniq(findDependencies(shName, baselineDependencies, globalDependencies))
-	// baseline_deps := filter(func (dep string) bool {
+	dependencies := collections.Uniq(findDependencies(shName, baselineDependencies, globalDependencies))
+	// baseline_deps := collections.Filter(func (dep string) bool {
 	// 	if _, ok := baselineDependencies[dep]; ok {
 	// 		return true
 	// 	}
 	// 	return false
 	// }, dependencies)
-	nonBaselineDependencies := filter(func(dep string) bool {
+	nonBaselineDependencies := collections.Filter(func(dep string) bool {
 		if _, ok := baselineDependencies[dep]; ok {
 			return false
 		}
 		return true
 	}, dependencies)
-	canBeFixedDependencies := filter(func(dep string) bool {
+	canBeFixedDependencies := collections.Filter(func(dep string) bool {
 		if _, ok := globalDependencies[dep]; ok {
 			return true
 		}
 		return false
 	}, nonBaselineDependencies)
-	cantBeFixedDependencies := difference(nonBaselineDependencies, canBeFixedDependencies)
+	cantBeFixedDependencies := collections.Difference(nonBaselineDependencies, canBeFixedDependencies)
 
-	addedBaselineDependencies := foldl(
+	addedBaselineDependencies := collections.Foldl(
 		func(deps map[string]ShellFragment, dep string) map[string]ShellFragment {
 			deps[dep] = globalDependencies[dep]
 			return deps
 		}, map[string]ShellFragment{}, canBeFixedDependencies)
-	return OrderDefsFailures{Order: append(dependencies, shName), Defs: dictMerge(addedBaselineDependencies, baselineDependencies), Failures: cantBeFixedDependencies}
+	return OrderDefsFailures{Order: append(dependencies, shName), Defs: collections.DictMerge(addedBaselineDependencies, baselineDependencies), Failures: cantBeFixedDependencies}
 }
 
 type OrderDefsFailures struct {
@@ -381,23 +382,23 @@ func addDependencies(shFragments []ShellFragment, baselineDependencies map[strin
 	//     ## at any point, if the dependencies aren't already in the loaded dictionary
 	//     ## we add them before we add the current item, and we add them and the current item into the loaded dictionary
 	order, shellDefs, failures := splitIntoLibraryAndSeq(shFragments)
-	newestOrderDefsFailures := foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures {
+	newestOrderDefsFailures := collections.Foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures {
 		newOrderDefsFailures := prependDependencies(shName, acc.Defs, globalDependencies)
-		return OrderDefsFailures{Order: append(concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: concat(acc.Failures, newOrderDefsFailures.Failures), Defs: dictMerge(acc.Defs, newOrderDefsFailures.Defs)}
+		return OrderDefsFailures{Order: append(collections.Concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: collections.Concat(acc.Failures, newOrderDefsFailures.Failures), Defs: collections.DictMerge(acc.Defs, newOrderDefsFailures.Defs)}
 	}, OrderDefsFailures{Order: []string{}, Failures: []string{}, Defs: shellDefs}, order)
-	return OrderDefsFailures{Order: uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: uniq(concat(failures, newestOrderDefsFailures.Failures))}
+	return OrderDefsFailures{Order: collections.Uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: collections.Uniq(collections.Concat(failures, newestOrderDefsFailures.Failures))}
 }
 
 func process(shFragments []ShellFragment, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) []ShellFragment {
 	resultOrderDefsFailures := addDependencies(shFragments, baselineDependencies, globalDependencies)
 	// TODO print or return the failed installation instructions "FAILED TO FIND INSTALLATION INSTRUCTIONS FOR: #{failures}" if failures.length > 0
-	return fmap(func(x string) ShellFragment {
+	return collections.Fmap(func(x string) ShellFragment {
 		return resultOrderDefsFailures.Defs[x]
 	}, resultOrderDefsFailures.Order)
 }
 
 func mergeShells(filepaths ...string) string {
-	return toSh(process(flatmap(func(path string) []ShellFragment {
+	return toSh(process(collections.Flatmap(func(path string) []ShellFragment {
 		frags, err := importFile(path)
 		if err != nil {
 			return []ShellFragment{}
@@ -703,7 +704,7 @@ func recursivelyFindFile(t *terminal.Terminal, filenames []string, path string) 
 		}
 	}
 
-	// TODO: make the list unique
+	// TODO: make the list collections.Unique
 
 	return paths
 }

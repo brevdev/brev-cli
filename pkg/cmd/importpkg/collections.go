@@ -2,7 +2,7 @@
 
 package importpkg
 
-func foldl[T any, R any](fn func(acc R, next T) R, base R, list []T) R {
+func Foldl[T any, R any](fn func(acc R, next T) R, base R, list []T) R {
 	for _, value := range list {
 		base = fn(base, value)
 	}
@@ -10,7 +10,7 @@ func foldl[T any, R any](fn func(acc R, next T) R, base R, list []T) R {
 	return base
 }
 
-func foldr[T any, R any](fn func(next T, carry R) R, base R, list []T) R {
+func Foldr[T any, R any](fn func(next T, carry R) R, base R, list []T) R {
 	for idx := len(list) - 1; idx >= 0; idx-- {
 		base = fn(list[idx], base)
 	}
@@ -18,20 +18,20 @@ func foldr[T any, R any](fn func(next T, carry R) R, base R, list []T) R {
 	return base
 }
 
-func concat[T any](left []T, right []T) []T {
-	return foldl(func(acc []T, next T) []T {
+func Concat[T any](left []T, right []T) []T {
+	return Foldl(func(acc []T, next T) []T {
 		return append(acc, next)
 	}, left, right)
 }
 
-func fmap[T any, R any](fn func(some T) R, list []T) []R {
-	return foldl(func(acc []R, next T) []R {
+func Fmap[T any, R any](fn func(some T) R, list []T) []R {
+	return Foldl(func(acc []R, next T) []R {
 		return append(acc, fn(next))
 	}, []R{}, list)
 }
 
-func filter[T any](fn func(some T) bool, list []T) []T {
-	return foldl(func(acc []T, next T) []T {
+func Filter[T any](fn func(some T) bool, list []T) []T {
+	return Foldl(func(acc []T, next T) []T {
 		if fn(next) {
 			acc = append(acc, next)
 		}
@@ -39,8 +39,8 @@ func filter[T any](fn func(some T) bool, list []T) []T {
 	}, []T{}, list)
 }
 
-func flatmap[T any, R any](fn func(some T) []R, list []T) []R {
-	return foldl(func(acc []R, el T) []R {
+func Flatmap[T any, R any](fn func(some T) []R, list []T) []R {
+	return Foldl(func(acc []R, el T) []R {
 		return concat(acc, fn(el))
 	}, []R{}, list)
 }
@@ -82,8 +82,8 @@ type maplist[T comparable] struct {
 	Map  map[T]bool
 }
 
-func uniq[T comparable](xs []T) []T {
-	result := foldl(func(acc maplist[T], el T) maplist[T] {
+func Uniq[T comparable](xs []T) []T {
+	result := Foldl(func(acc maplist[T], el T) maplist[T] {
 		if _, ok := acc.Map[el]; !ok {
 			acc.Map[el] = true
 			acc.List = append(acc.List, el)
@@ -93,25 +93,25 @@ func uniq[T comparable](xs []T) []T {
 	return result.List
 }
 
-func toDict[T comparable](xs []T) map[T]bool {
-	return foldl(func(acc map[T]bool, el T) map[T]bool {
+func ToDict[T comparable](xs []T) map[T]bool {
+	return Foldl(func(acc map[T]bool, el T) map[T]bool {
 		acc[el] = true
 		return acc
 	}, map[T]bool{}, xs)
 }
 
-func difference[T comparable](from []T, remove []T) []T {
-	returnval := foldl(func(acc maplist[T], el T) maplist[T] {
+func Difference[T comparable](from []T, remove []T) []T {
+	returnval := Foldl(func(acc maplist[T], el T) maplist[T] {
 		if _, ok := acc.Map[el]; !ok {
 			acc.Map[el] = true
 			acc.List = append(acc.List, el)
 		}
 		return acc
-	}, maplist[T]{Map: toDict(remove), List: []T{}}, from)
+	}, maplist[T]{Map: ToDict(remove), List: []T{}}, from)
 	return returnval.List
 }
 
-func dictMerge[K comparable, V any](left map[K]V, right map[K]V) map[K]V {
+func DictMerge[K comparable, V any](left map[K]V, right map[K]V) map[K]V {
 	newMap := map[K]V{}
 	for key, val := range left {
 		if _, ok := right[key]; ok {
