@@ -484,6 +484,24 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
+func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
+	if options.WorkspaceTemplateID == "" {
+		if featureflag.IsAdmin(user.GlobalUserType) {
+			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
+		} else {
+			options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
+		}
+	}
+	if options.WorkspaceClassID == "" {
+		if featureflag.IsAdmin(user.GlobalUserType) {
+			options.WorkspaceClassID = store.DevWorkspaceClassID
+		} else {
+			options.WorkspaceClassID = store.UserWorkspaceClassID
+		}
+	}
+	return options
+}
+
 func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, importStore ImportStore, script string, detached bool) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
@@ -496,9 +514,8 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if featureflag.IsAdmin(user.GlobalUserType) {
-		options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
-	}
+
+	options = resolveWorkspaceUserOptions(options, user)
 
 	w, err := importStore.CreateWorkspace(orgID, options)
 	if err != nil {
