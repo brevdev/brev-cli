@@ -125,8 +125,6 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	var deps []string
 
-	
-
 	node := isNode(t, path)
 	if node != nil && len(*node) > 0 {
 		deps = append(deps, "node-"+*node)
@@ -138,7 +136,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	if gatsby != nil {
 		deps = append(deps, "gatsby")
 	}
-	
+
 	rust := isRust(t, path)
 	if rust {
 		deps = append(deps, "rust")
@@ -164,7 +162,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 	t.Vprint(t.Green(strings.Join(test, " ")))
 
 	// example of duplicating every element of a list using generic duplicate and Flatmap
-	t.Vprint(t.Green(strings.Join(Flatmap(duplicate[string], test), " ")))//nolint:typecheck
+	t.Vprint(t.Green(strings.Join(Flatmap(duplicate[string], test), " "))) //nolint:typecheck
 	result := strings.Join(deps, " ")
 
 	t.Vprint(t.Green("./merge-shells.rb %s", result))

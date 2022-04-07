@@ -41,7 +41,7 @@ func Filter[T any](fn func(some T) bool, list []T) []T {
 
 func Flatmap[T any, R any](fn func(some T) []R, list []T) []R {
 	return Foldl(func(acc []R, el T) []R {
-		return concat(acc, fn(el))
+		return Concat(acc, fn(el))
 	}, []R{}, list)
 }
 
