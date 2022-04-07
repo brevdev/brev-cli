@@ -1,4 +1,4 @@
-package collections
+package importpkg
 
 import (
 	"embed" // so we don't have to call embed since it's an internal generator that gets run when we compile
@@ -12,7 +12,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"github.com/brevdev/brev-cli/pkg/cmd/importpkg/collections"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -126,10 +125,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	var deps []string
 
-	gatsby := isGatsby(t, path)
-	if gatsby != nil {
-		deps = append(deps, "gatsby")
-	}
+	
 
 	node := isNode(t, path)
 	if node != nil && len(*node) > 0 {
@@ -138,6 +134,11 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 		deps = append(deps, "node-14")
 	}
 
+	gatsby := isGatsby(t, path)
+	if gatsby != nil {
+		deps = append(deps, "gatsby")
+	}
+	
 	rust := isRust(t, path)
 	if rust {
 		deps = append(deps, "rust")
@@ -156,14 +157,14 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	fmt.Println("\n\nGitUrl: ", gitURL)
 
-	// example of using generic collections.Filter function on a list of strings
-	test := collections.Filter(func(x string) bool {
+	// example of using generic Filter function on a list of strings
+	test := Filter(func(x string) bool { //nolint:typecheck
 		return strings.HasPrefix(x, "n")
 	}, []string{"foo", "bar", "naranj", "nobody"})
 	t.Vprint(t.Green(strings.Join(test, " ")))
 
-	// example of duplicating every element of a list using generic duplicate and collections.Flatmap
-	t.Vprint(t.Green(strings.Join(collections.Flatmap(duplicate[string], test), " ")))
+	// example of duplicating every element of a list using generic duplicate and Flatmap
+	t.Vprint(t.Green(strings.Join(Flatmap(duplicate[string], test), " ")))//nolint:typecheck
 	result := strings.Join(deps, " ")
 
 	t.Vprint(t.Green("./merge-shells.rb %s", result))
@@ -172,7 +173,7 @@ func startWorkspaceFromLocallyCloneRepo(t *terminal.Terminal, orgflag string, im
 
 	mderr := os.MkdirAll(".brev", os.ModePerm)
 	if mderr == nil {
-		// generate a string that is the collections.Concatenation of dependency-ordering the contents of all the dependencies
+		// generate a string that is the Concatenation of dependency-ordering the contents of all the dependencies
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
 		shellString := mergeShells(deps...)
 		// place within .brev and write setup.sh with the result of this
@@ -227,7 +228,7 @@ func parseCommentLine(line string) ShellFragment {
 }
 
 func toDefsDict(shFragment []ShellFragment) map[string]ShellFragment {
-	return collections.Foldl(func(acc map[string]ShellFragment, frag ShellFragment) map[string]ShellFragment {
+	return Foldl(func(acc map[string]ShellFragment, frag ShellFragment) map[string]ShellFragment { //nolint:typecheck
 		if frag.Name != nil {
 			acc[*frag.Name] = frag
 		}
@@ -244,8 +245,8 @@ func fromSh(shScript string) []ShellFragment {
 	// get lines
 	lines := strings.Split(shScript, "\n")
 	base := scriptAccumulator{}
-	// collections.Foldl lines pulling out parsable information and occasionally pushing onto script so far and generating a new fragment, if need be
-	acc := collections.Foldl(func(acc scriptAccumulator, line string) scriptAccumulator {
+	// Foldl lines pulling out parsable information and occasionally pushing onto script so far and generating a new fragment, if need be
+	acc := Foldl(func(acc scriptAccumulator, line string) scriptAccumulator { //nolint:typecheck
 		if strings.HasPrefix(line, "#") { // then it is a comment string, which may or may not have parsable information
 			if len(acc.CurrentFragment.Script) > 0 {
 				acc.ScriptSoFar = append(acc.ScriptSoFar, acc.CurrentFragment)
@@ -281,7 +282,7 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	if len(subPaths) == 1 {
 		subPaths = duplicate(subPaths[0])
 	}
-	path := filepath.Join(collections.Concat([]string{"templates"}, subPaths)...)
+	path := filepath.Join(Concat([]string{"templates"}, subPaths)...) //nolint:typecheck
 	script, err := templateFs.Open(path)
 	out, err := ioutil.ReadAll(script)
 	stringScript := string(out)
@@ -293,8 +294,8 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 }
 
 func toSh(script []ShellFragment) string {
-	// collections.Flatmap across generating the script from all of the component shell bits
-	return strings.Join(collections.Flatmap(func(frag ShellFragment) []string {
+	// Flatmap across generating the script from all of the component shell bits
+	return strings.Join(Flatmap(func(frag ShellFragment) []string { //nolint:typecheck
 		name, tag, comment := frag.Name, frag.Tag, frag.Comment
 		innerScript, dependencies := frag.Script, frag.Dependencies
 		returnval := []string{}
@@ -326,13 +327,13 @@ func findDependencies(shName string, baselineDependencies map[string]ShellFragme
 	}
 
 	dependencies := definition.Dependencies
-	return collections.Flatmap(func(dep_name string) []string {
+	return Flatmap(func(dep_name string) []string { //nolint:typecheck
 		return append(findDependencies(dep_name, baselineDependencies, globalDependencies), dep_name)
 	}, dependencies)
 }
 
 func splitIntoLibraryAndSeq(shFragments []ShellFragment) ([]string, map[string]ShellFragment, []string) {
-	return collections.Fmap(func(some ShellFragment) string {
+	return Fmap(func(some ShellFragment) string { //nolint:typecheck
 		if some.Name != nil {
 			return *some.Name
 		} else {
@@ -342,33 +343,33 @@ func splitIntoLibraryAndSeq(shFragments []ShellFragment) ([]string, map[string]S
 }
 
 func prependDependencies(shName string, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) OrderDefsFailures {
-	dependencies := collections.Uniq(findDependencies(shName, baselineDependencies, globalDependencies))
-	// baseline_deps := collections.Filter(func (dep string) bool {
+	dependencies := Uniq(findDependencies(shName, baselineDependencies, globalDependencies)) //nolint:typecheck
+	// baseline_deps := Filter(func (dep string) bool {
 	// 	if _, ok := baselineDependencies[dep]; ok {
 	// 		return true
 	// 	}
 	// 	return false
 	// }, dependencies)
-	nonBaselineDependencies := collections.Filter(func(dep string) bool {
+	nonBaselineDependencies := Filter(func(dep string) bool { //nolint:typecheck
 		if _, ok := baselineDependencies[dep]; ok {
 			return false
 		}
 		return true
 	}, dependencies)
-	canBeFixedDependencies := collections.Filter(func(dep string) bool {
+	canBeFixedDependencies := Filter(func(dep string) bool { //nolint:typecheck
 		if _, ok := globalDependencies[dep]; ok {
 			return true
 		}
 		return false
 	}, nonBaselineDependencies)
-	cantBeFixedDependencies := collections.Difference(nonBaselineDependencies, canBeFixedDependencies)
+	cantBeFixedDependencies := Difference(nonBaselineDependencies, canBeFixedDependencies) //nolint:typecheck
 
-	addedBaselineDependencies := collections.Foldl(
+	addedBaselineDependencies := Foldl( //nolint:typecheck
 		func(deps map[string]ShellFragment, dep string) map[string]ShellFragment {
 			deps[dep] = globalDependencies[dep]
 			return deps
 		}, map[string]ShellFragment{}, canBeFixedDependencies)
-	return OrderDefsFailures{Order: append(dependencies, shName), Defs: collections.DictMerge(addedBaselineDependencies, baselineDependencies), Failures: cantBeFixedDependencies}
+	return OrderDefsFailures{Order: append(dependencies, shName), Defs: DictMerge(addedBaselineDependencies, baselineDependencies), Failures: cantBeFixedDependencies} //nolint:typecheck
 }
 
 type OrderDefsFailures struct {
@@ -382,23 +383,23 @@ func addDependencies(shFragments []ShellFragment, baselineDependencies map[strin
 	//     ## at any point, if the dependencies aren't already in the loaded dictionary
 	//     ## we add them before we add the current item, and we add them and the current item into the loaded dictionary
 	order, shellDefs, failures := splitIntoLibraryAndSeq(shFragments)
-	newestOrderDefsFailures := collections.Foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures {
+	newestOrderDefsFailures := Foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures { //nolint:typecheck
 		newOrderDefsFailures := prependDependencies(shName, acc.Defs, globalDependencies)
-		return OrderDefsFailures{Order: append(collections.Concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: collections.Concat(acc.Failures, newOrderDefsFailures.Failures), Defs: collections.DictMerge(acc.Defs, newOrderDefsFailures.Defs)}
+		return OrderDefsFailures{Order: append(Concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: Concat(acc.Failures, newOrderDefsFailures.Failures), Defs: DictMerge(acc.Defs, newOrderDefsFailures.Defs)} //nolint:typecheck
 	}, OrderDefsFailures{Order: []string{}, Failures: []string{}, Defs: shellDefs}, order)
-	return OrderDefsFailures{Order: collections.Uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: collections.Uniq(collections.Concat(failures, newestOrderDefsFailures.Failures))}
+	return OrderDefsFailures{Order: Uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: Uniq(Concat(failures, newestOrderDefsFailures.Failures))} //nolint:typecheck
 }
 
 func process(shFragments []ShellFragment, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) []ShellFragment {
 	resultOrderDefsFailures := addDependencies(shFragments, baselineDependencies, globalDependencies)
 	// TODO print or return the failed installation instructions "FAILED TO FIND INSTALLATION INSTRUCTIONS FOR: #{failures}" if failures.length > 0
-	return collections.Fmap(func(x string) ShellFragment {
+	return Fmap(func(x string) ShellFragment { //nolint:typecheck
 		return resultOrderDefsFailures.Defs[x]
 	}, resultOrderDefsFailures.Order)
 }
 
 func mergeShells(filepaths ...string) string {
-	return toSh(process(collections.Flatmap(func(path string) []ShellFragment {
+	return toSh(process(Flatmap(func(path string) []ShellFragment { //nolint:typecheck
 		frags, err := importFile(path)
 		if err != nil {
 			return []ShellFragment{}
@@ -704,7 +705,7 @@ func recursivelyFindFile(t *terminal.Terminal, filenames []string, path string) 
 		}
 	}
 
-	// TODO: make the list collections.Unique
+	// TODO: make the list Unique
 
 	return paths
 }
