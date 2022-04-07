@@ -104,7 +104,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error {
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error { //nolint:gocyclo // only 1 cyclo over refactor later
 	// ensure name
 	if len(name) == 0 {
 		return fmt.Errorf("name field is required for empty workspaces")
@@ -142,12 +142,12 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 		setupScriptContents += snip
 	}
 	if len(setupScript) > 0 {
-		contents, err := startStore.GetSetupScriptContentsByURL(setupScript)
+		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScript)
 		setupScriptContents += "\n" + contents
 
 		if err != nil {
 			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
-			return breverrors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err1)
 		}
 	}
 
@@ -340,11 +340,11 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		setupScriptContents += snip
 	}
 	if len(setupScript) > 0 {
-		contents, err := startStore.GetSetupScriptContentsByURL(setupScript)
+		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScript)
 		setupScriptContents += "\n" + contents
 		if err != nil {
 			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
-			return breverrors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err1)
 		}
 	}
 

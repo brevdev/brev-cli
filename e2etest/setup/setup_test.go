@@ -178,7 +178,7 @@ func (w TestWorkspace) Setup() error {
 
 func (w TestWorkspace) Exec(arg ...string) ([]byte, error) {
 	arg = append([]string{"exec", w.ContainerName}, arg...)
-	cmdM := exec.Command("docker", arg...) //nolint:gosec // for test
+	cmdM := exec.Command("docker", arg...)
 	out, err := cmdM.CombinedOutput()
 	if w.ShowOut {
 		fmt.Print(string(out))
@@ -190,7 +190,7 @@ func (w TestWorkspace) Exec(arg ...string) ([]byte, error) {
 }
 
 func (w TestWorkspace) Copy(src string, dest string) error {
-	cmdC := exec.Command("docker", "cp", src, dest) //nolint:gosec // for test
+	cmdC := exec.Command("docker", "cp", src, dest)
 	if w.ShowOut {
 		sendToOut(cmdC)
 	}
