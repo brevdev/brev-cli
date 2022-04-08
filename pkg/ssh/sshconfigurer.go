@@ -410,6 +410,22 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 	return string(output), nil
 }
 
+// <application>
+//   <component name="SshConfigs">
+//     <configs>
+//       <sshConfig host="hn"
+// 				 id="ee9d8d15-d6cb-43ae-a96b-250caa33c407"
+// 				 keyPath="$USER_HOME$/.brev/brev.pem"
+// 				 port="22"
+// 				 customName="brev@hn"
+// 				 nameFormat="CUSTOM"
+// 				 username="brev"
+// 				 useOpenSSHConfig="true">
+//         <option name="customName" value="brev@hn" />
+//       </sshConfig>
+//     </configs>
+//   </component>
+// </application>
 func makeJetbrainsConfigEntry(host, keypath string) JetbrainsGatewayConfigXMLSSHConfig {
 	return JetbrainsGatewayConfigXMLSSHConfig{
 		Host:       host,
