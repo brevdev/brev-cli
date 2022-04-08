@@ -392,8 +392,11 @@ func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
 func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
 	log.Print("creating new ssh config")
 
-	config := &JetbrainsGatewayConfigXML{}
-
+	config := &JetbrainsGatewayConfigXML{
+		Component: JetbrainsGatewayConfigXMLComponent{
+			Name: "SshConfigs",
+		},
+	}
 	for _, w := range workspaces {
 		pk, errother := s.store.GetPrivateKeyPath()
 		if errother != nil {
