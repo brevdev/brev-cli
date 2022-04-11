@@ -26,11 +26,11 @@ func NewConstants() *ConstantsConfig {
 }
 
 func (c ConstantsConfig) GetBrevAPIURl() string {
-	return getEnvOrDefault(brevAPIURL, "https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com")
+	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
 }
 
 func (c ConstantsConfig) GetServiceMeshCoordServerURL() string {
-	return getEnvOrDefault(coordURL, "https://9090-brevdeploy-0jgp-brevdev.brev.sh/")
+	return getEnvOrDefault(coordURL, "")
 }
 
 func (c ConstantsConfig) GetVersion() string {

@@ -41,7 +41,7 @@ set -euo pipefail
 # source $HOME/.poetry/env
 
 ##### Golang v18 #####
-(echo ""; echo "##### Golang v17x #####"; echo "";)
+(echo ""; echo "##### Golang v18x #####"; echo "";)
 wget https://golang.org/dl/go1.18.linux-amd64.tar.gz
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.18.linux-amd64.tar.gz
 rm go1.18.linux-amd64.tar.gz
