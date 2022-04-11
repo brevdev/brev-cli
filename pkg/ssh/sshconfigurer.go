@@ -402,8 +402,8 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 		if errother != nil {
 			return "", breverrors.WrapAndTrace(errother)
 		}
-
-		entry := makeJetbrainsConfigEntry(w.Name, pk)
+		nodeID := w.GetNodeIdentifierForVPN(workspaces)
+		entry := makeJetbrainsConfigEntry(nodeID, pk)
 		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}
 	output, err := xml.MarshalIndent(config, "", "  ")
