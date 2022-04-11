@@ -28,15 +28,15 @@ func ServiceMeshSSH() bool {
 }
 
 func LoadFeatureFlags(path string) error {
-	// viper.SetConfigName("config")
-	// viper.AddConfigPath("/etc/brev/")
-	// viper.AddConfigPath(path)
-	// viper.SetEnvPrefix("brev")
-	// viper.SetConfigType("yaml")
-	// viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	// viper.AutomaticEnv()
+	viper.SetConfigName("config")
+	viper.AddConfigPath("/etc/brev/")
+	viper.AddConfigPath(path)
+	viper.SetEnvPrefix("brev")
+	viper.SetConfigType("yaml")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
 
-	// _ = viper.ReadInConfig() // do not need to fail if can't find config file
+	_ = viper.ReadInConfig() // do not need to fail if can't find config file
 
 	return nil
 }

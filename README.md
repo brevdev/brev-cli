@@ -78,7 +78,7 @@ mkdir -p ~/.config/fish/completions && brev completion fish > ~/.config/fish/com
 ```
 VERSION=unknown
 BREV_API_URL=http://localhost:8080
-# BREV_API_URL=https://ade5dtvtaa.execute-api.us-east-1.amazonaws.com
+# BREV_API_URL=<your backend>
 ```
 
 

@@ -103,7 +103,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	return cmd
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error { //nolint:gocyclo // only 1 cyclo over refactor later
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error {
 	// ensure name
 	if len(name) == 0 {
 		return fmt.Errorf("name field is required for empty workspaces")
