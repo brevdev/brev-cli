@@ -47,7 +47,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 		},
 	}
 
-	configure := NewCmdConfigure(t, store, taskMap)
+	configure := NewCmdConfigure(t, store)
 	cmd.AddCommand(configure)
 	run := NewCmdRun(t, store, taskMap)
 	run.PersistentFlags().BoolVarP(&all, "all", "a", false, "specifies all tasks")
@@ -55,7 +55,8 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 	return cmd
 }
 
-func NewCmdConfigure(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Command {
+func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
+	taskMap := getTaskMap(store)
 	cmd := &cobra.Command{
 		Use:   "configure [task to configure]",
 		Short: "configure system startup daemon for task",
