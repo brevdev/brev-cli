@@ -10,7 +10,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -136,11 +135,12 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 
 	var setupScriptContents string
 	var err error
-	lines := files.GetAllAliases()
-	if len(lines) > 0 {
-		snip := files.GenerateSetupScript(lines)
-		setupScriptContents += snip
-	}
+	// TODO: this makes for really good DX, but should be added as a personal setting on the User model
+	// lines := files.GetAllAliases()
+	// if len(lines) > 0 {
+	// 	snip := files.GenerateSetupScript(lines)
+	// 	setupScriptContents += snip
+	// }
 	if len(setupScript) > 0 {
 		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScript)
 		setupScriptContents += "\n" + contents
@@ -334,11 +334,12 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 
 	var setupScriptContents string
 	var err error
-	lines := files.GetAllAliases()
-	if len(lines) > 0 {
-		snip := files.GenerateSetupScript(lines)
-		setupScriptContents += snip
-	}
+	// TODO: this makes for really good DX, but should be added as a personal setting on the User model
+	// lines := files.GetAllAliases()
+	// if len(lines) > 0 {
+	// 	snip := files.GenerateSetupScript(lines)
+	// 	setupScriptContents += snip
+	// }
 	if len(setupScript) > 0 {
 		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScript)
 		setupScriptContents += "\n" + contents
