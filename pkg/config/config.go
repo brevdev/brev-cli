@@ -2,8 +2,6 @@ package config
 
 import (
 	"os"
-
-	"github.com/joho/godotenv"
 )
 
 type EnvVarName string // should be caps with underscore
@@ -21,7 +19,6 @@ const (
 type ConstantsConfig struct{}
 
 func NewConstants() *ConstantsConfig {
-	_ = godotenv.Load(".env") // explicitly not handling error
 	return &ConstantsConfig{}
 }
 
@@ -55,11 +52,11 @@ func (c ConstantsConfig) GetSegmentKey() string {
 }
 
 func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {
-	version := os.Getenv(string(envVarName))
-	if version == "" {
+	val := os.Getenv(string(envVarName))
+	if val == "" {
 		return defaultVal
 	}
-	return version
+	return val
 }
 
 var GlobalConfig = NewConstants()
