@@ -62,6 +62,8 @@ func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
 		Short: "configure system startup daemon for task",
 		Long:  "configure system startup daemon for task",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// todo if --user flag is not provided and if not run as root, raise
+			// an error
 			for k, value := range taskMap {
 				err := value.Configure()
 				if err != nil {
