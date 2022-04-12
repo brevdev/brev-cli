@@ -75,23 +75,6 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if len(args) == 1 { // handle org, orgs, and organization(s)
-		if strings.Contains(args[0], "org") {
-			err = ls.RunOrgs()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
-		} else if strings.Contains(args[0], "user") && featureflag.IsAdmin(user.GlobalUserType) {
-			err = ls.RunUser(showAll)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
-		}
-	} else if len(args) > 1 {
-		return fmt.Errorf("too many args provided")
-	}
 
 	var org *entity.Organization
 	if orgflag != "" {
@@ -117,6 +100,31 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 			return fmt.Errorf("no orgs exist")
 		}
 		org = currOrg
+	}
+
+	if len(args) == 1 { // handle org, orgs, and organization(s)
+		// todo refactor this to cmd.register
+		if strings.Contains(args[0], "org") {
+			err = ls.RunOrgs()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		} else if strings.Contains(args[0], "user") && featureflag.IsAdmin(user.GlobalUserType) {
+			err = ls.RunUser(showAll)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		} else if strings.Contains(args[0], "hosts") && featureflag.IsAdmin(user.GlobalUserType) {
+			err = ls.RunHosts(org)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		}
+	} else if len(args) > 1 {
+		return fmt.Errorf("too many args provided")
 	}
 
 	err = ls.RunWorkspaces(org, showAll)
@@ -237,6 +245,23 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 	}
 
+	return nil
+}
+
+func (ls Ls) RunHosts(org *entity.Organization) error {
+	user, err := ls.lsStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	var workspaces []entity.Workspace
+	workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	for _, workspace := range workspaces {
+		fmt.Println(workspace.GetNodeIdentifierForVPN(workspaces))
+	}
 	return nil
 }
 
