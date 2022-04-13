@@ -3,6 +3,9 @@ package start
 
 import (
 	"fmt"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -36,6 +40,7 @@ type StartStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	GetSetupScriptContentsByURL(url string) (string, error)
+	GetFileAsString(path string) (string, error)
 }
 
 func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -79,12 +84,28 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, workspaceClass)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
+						return
 					}
 				} else {
-					// Start an existing one (either theirs or someone elses)
-					err := startWorkspace(args[0], loginStartStore, t, detached, name, workspaceClass)
-					if err != nil {
-						t.Vprint(t.Red(err.Error()))
+					workspace, _ := getWorkspaceFromNameOrID(args[0], loginStartStore) // ignoring err
+					// if err != nil {
+					// 	t.Vprint(t.Red(err.Error()))
+					// 	return
+					// }
+					if workspace == nil {
+						// then this is a path, and we should import dependencies from it and start
+						err := startWorkspaceFromPath(args[0], loginStartStore, t, detached, name, org, is4x16, workspaceClass)
+						if err != nil {
+							t.Vprint(t.Red(err.Error()))
+							return
+						}
+					} else {
+						// Start an existing one (either theirs or someone elses)
+						err := startWorkspace(args[0], loginStartStore, t, detached, name, workspaceClass)
+						if err != nil {
+							t.Vprint(t.Red(err.Error()))
+							return
+						}
 					}
 				}
 			}
@@ -101,6 +122,61 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		t.Errprint(err, "cli err")
 	}
 	return cmd
+}
+
+func startWorkspaceFromPath(path string, loginStartStore StartStore, t *terminal.Terminal, detached bool, name string, org string, is4x16 bool, workspaceClass string) error {
+	pathExists := dirExists(path)
+	if !pathExists {
+		return fmt.Errorf(strings.Join([]string{"Path:", path, "does not exist."}, " "))
+	}
+
+	var gitpath string
+	if path == "." {
+		gitpath = filepath.Join(".git", "config")
+	} else {
+		gitpath = filepath.Join(path, ".git", "config")
+	}
+	file, error := loginStartStore.GetFileAsString(gitpath)
+	if error != nil {
+		return fmt.Errorf(strings.Join([]string{"Could not read .git/config at", path}, " "))
+	}
+	// Get GitUrl
+	var gitURL string
+	for _, v := range strings.Split(file, "\n") {
+		if strings.Contains(v, "url") {
+			gitURL = strings.Split(v, "= ")[1]
+		}
+	}
+	if len(gitURL) == 0 {
+		return fmt.Errorf("no git url found")
+	}
+	gitParts := strings.Split(gitURL, "/")
+	name = strings.Split(gitParts[len(gitParts)-1], ".")[0]
+	brevpath := filepath.Join(path, ".brev", "setup.sh")
+	if path == "." {
+		brevpath = filepath.Join(".brev", "setup.sh")
+	}
+	if !dirExists(brevpath) {
+		fmt.Println(strings.Join([]string{"Generating setup script at", brevpath}, "\n"))
+		mergeshells.ImportPath(t, path, loginStartStore)
+		fmt.Println("setup script generated.")
+	}
+
+	err := clone(t, gitURL, org, loginStartStore, name, is4x16, brevpath, workspaceClass)
+
+	return err
+}
+
+// exists returns whether the given file or directory exists
+func dirExists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
 }
 
 func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error {
@@ -323,8 +399,13 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 	return nil
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScript string, workspaceClass string) error {
-	t.Vprintf("This is the setup script: %s", setupScript)
+func IsUrl(str string) bool {
+	u, err := url.Parse(str)
+	return err == nil && u.Scheme != "" && u.Host != ""
+}
+
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScriptPath string, workspaceClass string) error {
+	t.Vprintf("This is the setup script: %s", setupScriptPath)
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
@@ -340,12 +421,19 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 	// 	snip := files.GenerateSetupScript(lines)
 	// 	setupScriptContents += snip
 	// }
-	if len(setupScript) > 0 {
-		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScript)
-		setupScriptContents += "\n" + contents
-		if err != nil {
-			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
+	if len(setupScriptPath) > 0 && IsUrl(setupScriptPath) {
+
+		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptPath)
+		if err1 != nil {
+			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptPath) + t.Yellow("Continuing with default setup script 👍"))
 			return breverrors.WrapAndTrace(err1)
+		}
+		setupScriptContents += "\n" + contents
+	} else {
+		var err2 error
+		setupScriptContents, err2 = startStore.GetFileAsString(setupScriptPath)
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
 	}
 

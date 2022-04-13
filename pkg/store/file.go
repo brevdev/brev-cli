@@ -372,3 +372,11 @@ func (f FileStore) Remove(target string) error {
 	}
 	return nil
 }
+
+func (f FileStore) GetFileAsString(path string) (string, error) {
+	res, err := files.ReadString(f.fs, path)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return res, nil
+}
