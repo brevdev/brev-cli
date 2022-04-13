@@ -93,7 +93,7 @@ func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string) er
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Share this link to add someone to %s. It will expire in 24 hours.", t.Green(org.Name))
+	t.Vprintf("Share this link to add someone to %s. It will expire in 7 days.", t.Green(org.Name))
 	// t.Vprintf("\n\n\t%s", t.White("https://console.brev.dev/invite?token=%s\n\n", token))
 	t.Vprintf("\n\n  %s", t.Green("▸"))
 	t.Vprintf("    %s", t.White("https://console.brev.dev/invite?token=%s\n\n", token))

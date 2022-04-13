@@ -169,6 +169,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 				ErrorMsg:   "error",
 				AllowEmpty: true,
 			})
+			fmt.Println("")
 
 			err := browser.OpenURL(url)
 			if err != nil {
