@@ -27,6 +27,7 @@ type TaskStore interface {
 	GetNetworkAuthKey() (*store.GetAuthKeyResponse, error)
 	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetCurrentUser() (*entity.User, error)
 	vpn.ServiceMeshStore
 	server.RPCServerTaskStore
 	ssh.ConfigUpaterFactoryStore

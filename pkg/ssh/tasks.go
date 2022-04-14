@@ -12,7 +12,6 @@ type SSHConfigurerTaskStore interface {
 	ConfigUpdaterStore
 	SSHConfigurerV2Store
 	GetCurrentUser() (*entity.User, error)
-
 }
 
 type SSHConfigurerTask struct {

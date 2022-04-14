@@ -9,14 +9,14 @@ func NewWorkspaceManager() *WorkspaceManager {
 }
 
 func (w WorkspaceManager) Start(workspaceID string) error {
-	fmt.Println("")
+	fmt.Println(workspaceID)
 	return nil
 }
 
-func (w WorkspaceManager) Stop(workspaceID string) error {
+func (w WorkspaceManager) Stop(_ string) error {
 	return nil
 }
 
-func (w WorkspaceManager) Reset(workspaceID string) error {
+func (w WorkspaceManager) Reset(_ string) error {
 	return nil
 }

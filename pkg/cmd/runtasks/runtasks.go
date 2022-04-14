@@ -1,6 +1,7 @@
 package runtasks
 
 import (
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
@@ -37,6 +38,7 @@ type RunTasksStore interface {
 	ssh.SSHConfigurerV2Store
 	vpn.ServiceMeshStore
 	tasks.RunTaskAsDaemonStore
+	GetCurrentUser() (*entity.User, error)
 }
 
 func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -15,6 +16,7 @@ import (
 type RefreshStore interface {
 	ssh.ConfigUpdaterStore
 	ssh.SSHConfigurerV2Store
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {

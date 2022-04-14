@@ -104,6 +104,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 
 	if len(args) == 1 { // handle org, orgs, and organization(s)
 		// todo refactor this to cmd.register
+		//nolint:gocritic // idk how to write this as a switch
 		if strings.Contains(args[0], "org") {
 			err = ls.RunOrgs()
 			if err != nil {
