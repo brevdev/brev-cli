@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/tasks"
@@ -10,6 +11,8 @@ import (
 type SSHConfigurerTaskStore interface {
 	ConfigUpdaterStore
 	SSHConfigurerV2Store
+	GetCurrentUser() (*entity.User, error)
+
 }
 
 type SSHConfigurerTask struct {
@@ -54,12 +57,16 @@ func NewSSHConfigurerTask(store SSHConfigurerTaskStore) SSHConfigurerTask {
 }
 
 func GetSSHConfigs(store SSHConfigurerTaskStore) ([]Config, error) {
+	user, err := store.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 	configs := []Config{
 		NewSSHConfigurerV2(
 			store,
 		),
 	}
-	if featureflag.ServiceMeshSSH() {
+	if featureflag.ServiceMeshSSH() || featureflag.IsAdmin(user.GlobalUserType) {
 		configs = []Config{
 			NewSSHConfigurerServiceMesh(store),
 		}
