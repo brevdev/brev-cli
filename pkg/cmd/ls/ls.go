@@ -69,6 +69,35 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 	return cmd
 }
 
+func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, error) {
+	var org *entity.Organization
+	if orgflag != "" {
+		var orgs []entity.Organization
+		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return nil, fmt.Errorf("no org found with name %s", orgflag)
+		} else if len(orgs) > 1 {
+			return nil, fmt.Errorf("more than one org found with name %s", orgflag)
+		}
+
+		org = &orgs[0]
+	} else {
+		var currOrg *entity.Organization
+		currOrg, err := lsStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if currOrg == nil {
+			return nil, fmt.Errorf("no orgs exist")
+		}
+		org = currOrg
+	}
+	return org, nil
+}
+
 func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
 	ls := NewLs(lsStore, t)
 	user, err := lsStore.GetCurrentUser()
@@ -76,30 +105,12 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	var org *entity.Organization
-	if orgflag != "" {
-		var orgs []entity.Organization
-		orgs, err = lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return fmt.Errorf("no org found with name %s", orgflag)
-		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org found with name %s", orgflag)
-		}
-
-		org = &orgs[0]
-	} else {
-		var currOrg *entity.Organization
-		currOrg, err = lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if currOrg == nil {
-			return fmt.Errorf("no orgs exist")
-		}
-		org = currOrg
+	org, err := getOrgForRunLs(lsStore, orgflag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(args) > 1 {
+		return fmt.Errorf("too many args provided")
 	}
 
 	if len(args) == 1 { // handle org, orgs, and organization(s)
@@ -124,10 +135,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 			}
 			return nil
 		}
-	} else if len(args) > 1 {
-		return fmt.Errorf("too many args provided")
 	}
-
 	err = ls.RunWorkspaces(org, showAll)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
