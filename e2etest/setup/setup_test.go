@@ -205,7 +205,7 @@ func (w TestWorkspace) Copy(src string, dest string) error {
 
 func (w TestWorkspace) Reset() error {
 	// TODO kill/delete container
-	w.Setup() // TODO
+	_ = w.Setup() // TODO
 	return nil
 }
 
