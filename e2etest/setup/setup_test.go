@@ -43,13 +43,13 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 		panic("not ok")
 	}
 	details := runtime.FuncForPC(pc)
-	dbTestPrefix := strings.Split(details.Name(), ".")[2]
+	testPrefix := strings.Split(details.Name(), ".")[2]
 
 	binPath := "/home/brev/workspace/brev-cli/brev" // TODO how to relative path
 
 	workspaces := []Workspace{}
 	for _, p := range containerParams {
-		containerName := fmt.Sprintf("%s-%s", dbTestPrefix, p.Name)
+		containerName := fmt.Sprintf("%s-%s", testPrefix, p.Name)
 		// [a-zA-Z0-9][a-zA-Z0-9_.-]
 		workspace := *NewTestWorkspace(binPath, containerName, p.Image, p.Ports, setupParams)
 		_ = workspace.Done()
@@ -94,6 +94,7 @@ func (w WorkspaceTestClient) Test(test workspaceTest) error {
 type Workspace interface {
 	Setup() error
 	Done() error
+	Reset() error
 	Exec(arg ...string) ([]byte, error) // always returns []byte even if error since stdout/err is still useful
 	Copy(src string, dest string) error
 }
@@ -135,6 +136,7 @@ func (w TestWorkspace) Setup() error {
 		fmt.Sprintf("--name=%s", w.ContainerName),
 		"--rm", "-it", w.Image,
 	}, ports...)
+	// TODO create with named volume use container name
 	args = append(args, "bash")
 
 	cmdR := exec.Command("docker", args...) //nolint:gosec // for tests
@@ -201,6 +203,12 @@ func (w TestWorkspace) Copy(src string, dest string) error {
 	return nil
 }
 
+func (w TestWorkspace) Reset() error {
+	// TODO kill/delete container
+	w.Setup() // TODO
+	return nil
+}
+
 func (w TestWorkspace) Done() error {
 	cmd := exec.Command("docker", "kill", w.ContainerName) //nolint:gosec // for tests
 	if w.ShowOut {
@@ -210,6 +218,7 @@ func (w TestWorkspace) Done() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	// TODO delete volume
 	return nil
 }
 
@@ -240,7 +249,7 @@ func GetTestKeys() (*store.KeyPair, error) {
 var SupportedContainers = []ContainerParams{
 	{
 		Name:  "brevdev-ubuntu-proxy-0.3.2",
-		Image: "brevdev/ubuntu-proxy:0.3.2-beta",
+		Image: "brevdev/ubuntu-proxy:0.3.2",
 		Ports: []string{"22778:22778", "22779:22779", "2222:22"},
 	},
 }
@@ -264,6 +273,13 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+		// w.Reset() // TODO
+
+		// AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		// AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		// AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		// AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 	})
 
 	assert.Nil(t, err)

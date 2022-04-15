@@ -23,5 +23,5 @@
         "--fast"
     ],
     "go.lintOnSave": "workspace",
-    "go.testTimeout": "60s"
+    "go.testTimeout": "240s"
 }
