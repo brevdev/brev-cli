@@ -227,7 +227,7 @@ version-bump: fetch-tags
 	bump2version --current-version $(shell git describe --tags --abbrev=0) ${type} --list --tag --serialize v{major}.{minor}.{patch} --tag-name {new_version}  | grep new_version | sed -r s,"^.*=",, | xargs printf "Version Tagged!\n\nRun: git push origin %s\n\n" 
 
 
-lr := $(shell git rev-parse last-review)
+lr := $(shell git rev-parse latest-review)
 cr := $(shell git rev-parse main)
 
 review:
@@ -237,5 +237,5 @@ review-github:
 	open https://github.com/brevdev/brev-cli/compare/${lr}...${cr}
 
 review-mark-done:
-	git tag last-review -f
+	git tag latest-review -f
 	git tag -a review-`date +"%F-%H-%M"`
