@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# ff only
+git config --global pull.ff only
+
 # node node
 Node v14.x + npm
 (echo ""; echo "##### Node v14.x + npm #####"; echo "";)
