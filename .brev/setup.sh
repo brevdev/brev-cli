@@ -3,6 +3,11 @@
 # ff only
 git config --global pull.ff only
 
+# git diff-blame
+wget https://raw.githubusercontent.com/dmnd/git-diff-blame/master/git-diff-blame
+chmod +x git-diff-blame
+mv git-diff-blame /usr/local/bin
+
 # node node
 Node v14.x + npm
 (echo ""; echo "##### Node v14.x + npm #####"; echo "";)
