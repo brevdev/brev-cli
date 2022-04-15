@@ -60,9 +60,19 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(t, cmd, args))
 			cmdutil.CheckErr(opts.RunLogin(t))
+			RunTasksForUser(t)
 		},
 	}
 	return cmd
+}
+
+func RunTasksForUser(t *terminal.Terminal) {
+	cmd := exec.Command("brev", "run-tasks", "-d") // #nosec G204
+	err := cmd.Run()
+	if err != nil {
+		// tell user to run brev run-tasks
+		t.Vprint(t.Red("\nPlease run ")+t.Yellow("brev run-tasks -d")+t.Red(" in your terminal."))
+	}
 }
 
 func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
@@ -122,7 +132,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 			}
 			t.Print("done!")
 		}
-		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore)
+		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
 		_ = OnboardUserWithEditors(t, o.LoginStore)
 		FinalizeOnboarding(t)
 	} else if len(orgs) == 1 && orgs[0].Name != makeFirstOrgName(user) {
@@ -166,7 +176,12 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	return true, nil
 }
 
-func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStore) error {
+func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStore, firstLoop bool) error {
+	if firstLoop {
+		t.Vprint(t.Yellow("\n\nYou must add your SSH key to pull and push from your repos.\n"))
+	} else {
+		t.Vprint(t.Red("\n\nYou must add your SSH key to pull and push from your repos.\n"))
+	}
 	// SSH Keys
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "🔒 Click enter to get your secure SSH key:",
@@ -186,12 +201,17 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 	t.Vprint(t.Green("\tClick here if you use Github 👉 https://github.com/settings/ssh/new\n\n"))
 	// t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
 
-	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label: "Hit enter when finished",
-		// Label:      "Hit enter when finished:",
+	isFin := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		Label: "Did you finish adding your SSH key?",
+		Items:    []string{"Yes", "No"},
 		ErrorMsg:   "error",
-		AllowEmpty: true,
 	})
+	if isFin=="Yes" {
+		return nil
+	} else {
+		// t.Vprint(t.Red("\nYou must add your SSH key to pull and push from your repos. "))
+		OnboardUserWithSSHKeys(t, user, nil, false)
+	}
 
 	return nil
 }
