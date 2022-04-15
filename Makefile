@@ -206,3 +206,6 @@ shell-into-workspace:
 
 time:
 	date +"%FT%T%z"
+
+get-latest-tag:
+	git describe --tags --abbrev=0
