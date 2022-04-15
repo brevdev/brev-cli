@@ -236,6 +236,9 @@ review:
 review-github:
 	open https://github.com/brevdev/brev-cli/compare/${lr}...${cr}
 
+review_tag := review-`date +"%F-%H-%M"`
 review-mark-done:
 	git tag latest-review -f
-	git tag -a review-`date +"%F-%H-%M"`
+	git tag -a ${review_tag}
+	git push origin latest-review --force
+	git push origin ${review_tag}
