@@ -13,7 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/mergeshells"
+	"github.com/brevdev/brev-cli/pkg/mergeshells" //nolint:typecheck // uses generic code
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -555,7 +555,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	return nil
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error { //nolint: unparam // want to take state as a variable
+func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {
 	s := t.NewSpinner()
 	isReady := false
 	if canSafelyExit {
