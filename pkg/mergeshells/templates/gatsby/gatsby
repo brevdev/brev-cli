@@ -1,4 +1,4 @@
 # gatsby
 # dependencies: node npm-no-sudo
-# installing gatsby
+# installing gatsby-cli
 npm install -g gatsby-cli

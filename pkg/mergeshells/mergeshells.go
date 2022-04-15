@@ -27,7 +27,7 @@ var templateFs embed.FS
 
 func GenerateShellScript(path string) string {
 	deps := GetDependencies(path)
-	fmt.Println(strings.Join([]string{"** Recognized dependencies ** ", strings.Join(deps, " ")}, " "))
+	// fmt.Println(strings.Join([]string{"** Recognized dependencies **", strings.Join(deps, " ")}, "\n"))
 	return DependenciesToShell("bash", deps...)
 }
 
@@ -128,13 +128,25 @@ func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
 	WriteBrevFile(t, GetDependencies(path), gitURL, path)
 }
 
+func GenerateLogs(script string) string {
+	fragments := fromSh(script)
+	return strings.Join(collections.Fmap(extractInstallLine, fragments), "\n")
+}
+
+func extractInstallLine(fragment ShellFragment) string {
+	line := ""
+	if fragment.Comment != nil {
+		line = strings.Join([]string{"*", *fragment.Comment}, " ")
+	}
+	return line
+}
+
 func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path string) *error {
 	fmt.Println("\n\nGitUrl: ", gitURL)
-
-	t.Vprint(t.Green("generating script with the following dependencies and writing resulting script to .brev/setup.sh : ", strings.Join(deps, " ")))
-	// TODO
-	// mk directory .brev if it does not already exist
+	fmt.Println("** Found Dependencies **")
+	t.Vprint(t.Yellow(strings.Join(deps, " \n")))
 	shellString := GenerateShellScript(path)
+	fmt.Println(GenerateLogs(shellString))
 	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm)
 	if mderr == nil {
 		// generate a string that is the collections.Concatenation of dependency-ordering the contents of all the dependencies
@@ -152,9 +164,6 @@ func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path stri
 	} else {
 		return &mderr
 	}
-	fmt.Println("\n\nGitUrl: ", gitURL)
-
-	t.Vprint(t.Green("generating script witth the following dependencies and writing resulting script to .brev/setup.sh : ", strings.Join(deps, " ")))
 	return nil
 }
 
@@ -252,7 +261,7 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	}
 	out, err := ioutil.ReadAll(script)
 	stringScript := string(out)
-	fmt.Println(stringScript)
+	// fmt.Println(stringScript)
 	if err != nil {
 		return []ShellFragment{}, err
 	}
@@ -272,13 +281,13 @@ func toSh(script []ShellFragment) string {
 			}
 			returnval = append(returnval, nameTag)
 		}
-
-		if comment != nil {
-			returnval = append(returnval, *comment)
-		}
 		if len(dependencies) > 0 {
-			returnval = append(returnval, strings.Join(dependencies, " "))
+			returnval = append(returnval, strings.Join([]string{"# dependencies:", strings.Join(dependencies, " ")}, " "))
 		}
+		if comment != nil {
+			returnval = append(returnval, strings.Join([]string{"#", *comment}, " "))
+		}
+
 		returnval = append(returnval, strings.Join(innerScript, "\n"))
 		return returnval
 	}, script), "\n")
