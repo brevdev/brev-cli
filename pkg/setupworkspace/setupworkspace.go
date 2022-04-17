@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/alessio/shellescape"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -427,4 +430,126 @@ func shellEscape(str string) string {
 	backslashEscape := strings.ReplaceAll(str, "\\", "\\\\")
 	quoteEscapedScript := shellescape.Quote(backslashEscape)
 	return quoteEscapedScript
+}
+
+func SetupBrevWorkspace(params *store.SetupParamsV0) error {
+	err := PrepareWorkspace()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = SetupSSH(params.WorkspaceKeyPair, params.WorkspaceUsername, params.WorkspaceEmail)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = SetupCodeServer(params.WorkspacePassword)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = SetupUserDotBrev(params.WorkspaceBaseRepo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = SetupProject(params.ProjectFolderName, params.WorkspaceProjectRepo, "")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = RunUserSetup()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = RunProjectSetup()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func PrepareWorkspace() error {
+	return nil
+}
+
+func SetupSSH(keys *store.KeyPair, username string, email string) error {
+	_ = keys
+	_ = username
+	_ = email
+	return nil
+}
+
+func SetupCodeServer(password string) error {
+	_ = password
+	return nil
+}
+
+// source is a git url
+func SetupUserDotBrev(source string) error {
+	_ = source
+	return nil
+}
+
+// source is a git url
+func SetupProject(projectName string, source string, branch string) error {
+	_ = projectName
+	_ = source
+	_ = branch
+	return nil
+}
+
+func RunUserSetup() error {
+	return nil
+}
+
+func RunProjectSetup() error {
+	return nil
+}
+
+type CommandGroup struct {
+	Cmds []*exec.Cmd
+	User *user.User
+}
+
+func NewCommandGroup() *CommandGroup {
+	return &CommandGroup{}
+}
+
+func (c *CommandGroup) WithUser(user *user.User) *CommandGroup {
+	c.User = user
+	return c
+}
+
+func (c *CommandGroup) AddCmd(cmd *exec.Cmd) {
+	c.Cmds = append(c.Cmds, cmd)
+}
+
+func (c *CommandGroup) Run() error {
+	// TODO batch
+	for _, cmd := range c.Cmds {
+		if c.User != nil && (cmd.SysProcAttr == nil || cmd.SysProcAttr.Credential == nil) {
+			AsUser(cmd, c.User)
+		}
+		err := cmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
+}
+
+func AsUser(cmd *exec.Cmd, user *user.User) error {
+	uid, err := strconv.ParseInt(user.Uid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	gid, err := strconv.ParseInt(user.Gid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	return nil
 }
