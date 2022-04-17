@@ -432,37 +432,105 @@ func shellEscape(str string) string {
 	return quoteEscapedScript
 }
 
-func SetupBrevWorkspace(params *store.SetupParamsV0) error {
-	wi := NewWorkspaceIniter()
-	err := wi.PrepareWorkspace()
+func GetUserFromUserStr(userStr string) (*user.User, error) {
+	var osUser *user.User
+	var err error
+	osUser, err = user.Lookup(userStr)
+	if err != nil {
+		_, ok := err.(*user.UnknownUserError)
+		if !ok {
+			osUser, err = user.LookupId(userStr)
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+		} else {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	}
+	return osUser, nil
+}
+
+type WorkspaceIniter struct {
+	WorkspaceDir string
+	User         *user.User
+	Params       *store.SetupParamsV0
+}
+
+func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *WorkspaceIniter {
+	if params.BrevPath == "" {
+		params.BrevPath = ".brev"
+	}
+	return &WorkspaceIniter{
+		WorkspaceDir: "/home/brev/workspace",
+		User:         user,
+		Params:       params,
+	}
+}
+
+func (w WorkspaceIniter) CmdAsUser(cmd *exec.Cmd) error {
+	err := CmdAsUser(cmd, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) ChownFileToUser(file *os.File) error {
+	err := ChownFileToUser(file, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) BuildHomePath(path string) string {
+	return fmt.Sprintf("%s/%s", w.User.HomeDir, path)
+}
+
+func (w WorkspaceIniter) BuildWorkspacePath(path string) string {
+	return fmt.Sprintf("%s/%s", w.WorkspaceDir, path)
+}
+
+func (w WorkspaceIniter) BuildProjectPath(path string) string {
+	return w.BuildWorkspacePath(fmt.Sprintf("%s/%s", w.Params.ProjectFolderName, path))
+}
+
+func (w WorkspaceIniter) BuildDotBrevPath(suffix string) string {
+	return w.BuildProjectPath(fmt.Sprintf("%s/%s", w.Params.BrevPath, suffix))
+}
+
+func (w WorkspaceIniter) Setup() error {
+	err := w.PrepareWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = wi.SetupSSH(params.WorkspaceKeyPair)
+	err = w.SetupSSH(w.Params.WorkspaceKeyPair)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = wi.SetupGit(params.WorkspaceUsername, params.WorkspaceEmail)
+	err = w.SetupGit(w.Params.WorkspaceUsername, w.Params.WorkspaceEmail)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = SetupCodeServer(params.WorkspacePassword)
+	err = SetupCodeServer(w.Params.WorkspacePassword)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = SetupUserDotBrev(params.WorkspaceBaseRepo)
+	err = w.SetupUserDotBrev(w.Params.WorkspaceBaseRepo)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = SetupProject(params.ProjectFolderName, params.WorkspaceProjectRepo, "")
+	err = w.SetupProject(w.Params.ProjectFolderName, w.Params.WorkspaceProjectRepo, "")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	err = w.SetupProjectDotBrev(w.Params.SetupScript)
 
 	err = RunUserSetup()
 	if err != nil {
@@ -474,23 +542,6 @@ func SetupBrevWorkspace(params *store.SetupParamsV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
-}
-
-type WorkspaceIniter struct {
-	WorkspaceDir string
-	User         *user.User
-}
-
-func NewWorkspaceIniter() *WorkspaceIniter {
-	return &WorkspaceIniter{}
-}
-
-func (w WorkspaceIniter) BuildHomePath(path string) string {
-	return fmt.Sprintf("%s/%s", w.User.HomeDir, path)
-}
-
-func (w WorkspaceIniter) BuildWorkspacePath(path string) string {
-	return fmt.Sprintf("%s/%s", w.WorkspaceDir, path)
 }
 
 func (w WorkspaceIniter) PrepareWorkspace() error {
@@ -581,7 +632,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 	}
 
 	cmd = exec.Command("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
-	err = AsUser(cmd, w.User)
+	err = w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -591,7 +642,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 	}
 
 	cmd = exec.Command("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username))
-	err = AsUser(cmd, w.User)
+	err = w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -614,16 +665,110 @@ func SetupCodeServer(password string) error {
 }
 
 // source is a git url
-func SetupUserDotBrev(source string) error {
-	_ = source
+func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
+	err := w.GitCloneIfDNE(source, "user-dotbrev", "")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
 // source is a git url
-func SetupProject(projectName string, source string, branch string) error {
-	_ = projectName
-	_ = source
-	_ = branch
+func (w WorkspaceIniter) SetupProject(projectName string, source string, branch string) error {
+	err := w.GitCloneIfDNE(source, projectName, branch)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error {
+	dotBrevPath := w.BuildDotBrevPath("")
+	if _, err := os.Stat(dotBrevPath); os.IsNotExist(err) {
+		err := os.MkdirAll(dotBrevPath, 0o755)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	portsYamlPath := w.BuildDotBrevPath("ports.yaml")
+	if _, err := os.Stat(portsYamlPath); os.IsNotExist(err) {
+		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml"`, "-o", fmt.Sprintf(`"%s"`, portsYamlPath))
+		err = w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = cmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	setupScriptPath := w.BuildDotBrevPath("setup.sh")
+	if _, err := os.Stat(setupScriptPath); defaultSetupScriptB64 != nil && os.IsNotExist(err) {
+		file, err := os.Create(setupScriptPath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		defer file.Close()
+		err = w.ChownFileToUser(file)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = file.Chmod(0o777)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		setupSh, err := base64.StdEncoding.DecodeString(*defaultSetupScriptB64)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		_, err = file.Write(setupSh)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	gitIgnorePath := w.BuildDotBrevPath(".gitignore")
+	if _, err := os.Stat(gitIgnorePath); os.IsNotExist(err) {
+		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore"`, "-o", fmt.Sprintf(`"%s"`, gitIgnorePath))
+		err = w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = cmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) GitCloneIfDNE(url string, dirName string, branch string) error {
+	if _, err := os.Stat(w.BuildWorkspacePath(dirName)); os.IsNotExist(err) {
+		// TODO implement multiple retry
+		cmd := exec.Command("git", "clone", url, dirName)
+		err = w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = cmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if branch != "" {
+			cmd = exec.Command("cd", w.BuildWorkspacePath(dirName), "&&", "git", "checkout", branch)
+			err = w.CmdAsUser(cmd)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = cmd.Run()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
+	} else {
+		fmt.Printf("did not clone %s to %s\n", url, dirName)
+	}
 	return nil
 }
 
@@ -657,7 +802,7 @@ func (c *CommandGroup) Run() error {
 	// TODO batch
 	for _, cmd := range c.Cmds {
 		if c.User != nil && (cmd.SysProcAttr == nil || cmd.SysProcAttr.Credential == nil) {
-			err := AsUser(cmd, c.User)
+			err := CmdAsUser(cmd, c.User)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -670,7 +815,7 @@ func (c *CommandGroup) Run() error {
 	return nil
 }
 
-func AsUser(cmd *exec.Cmd, user *user.User) error {
+func CmdAsUser(cmd *exec.Cmd, user *user.User) error {
 	uid, err := strconv.ParseInt(user.Uid, 10, 32)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -681,5 +826,22 @@ func AsUser(cmd *exec.Cmd, user *user.User) error {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	return nil
+}
+
+func ChownFileToUser(file *os.File, user *user.User) error {
+	uid, err := strconv.ParseInt(user.Uid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	gid, err := strconv.ParseInt(user.Gid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = file.Chown(int(uid), int(gid))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }

@@ -330,6 +330,7 @@ type SetupParamsV0 struct {
 	WorkspacePort                    int      `json:"workspacePort"`
 	WorkspaceBaseRepo                string   `json:"workspaceBaseRepo"`
 	WorkspaceProjectRepo             string   `json:"workspaceProjectRepo"`
+	WorkspaceProjectRepoBranch       string   `json:"workspaceProjectRepoBranch"`
 	WorkspaceApplicationStartScripts []string `json:"workspaceApplicationStartScripts"`
 	WorkspaceUsername                string   `json:"workspaceUsername"`
 	WorkspaceEmail                   string   `json:"workspaceEmail"`
