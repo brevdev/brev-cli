@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -452,6 +453,7 @@ func GetUserFromUserStr(userStr string) (*user.User, error) {
 
 type WorkspaceIniter struct {
 	WorkspaceDir string
+	UserRepoName string
 	User         *user.User
 	Params       *store.SetupParamsV0
 }
@@ -462,6 +464,7 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 	}
 	return &WorkspaceIniter{
 		WorkspaceDir: "/home/brev/workspace",
+		UserRepoName: "user-dotbrev",
 		User:         user,
 		Params:       params,
 	}
@@ -483,20 +486,24 @@ func (w WorkspaceIniter) ChownFileToUser(file *os.File) error {
 	return nil
 }
 
-func (w WorkspaceIniter) BuildHomePath(path string) string {
-	return fmt.Sprintf("%s/%s", w.User.HomeDir, path)
+func (w WorkspaceIniter) BuildHomePath(suffix ...string) string {
+	return filepath.Join(append([]string{w.User.HomeDir}, suffix...)...)
 }
 
-func (w WorkspaceIniter) BuildWorkspacePath(path string) string {
-	return fmt.Sprintf("%s/%s", w.WorkspaceDir, path)
+func (w WorkspaceIniter) BuildWorkspacePath(suffix ...string) string {
+	return filepath.Join(append([]string{w.WorkspaceDir}, suffix...)...)
 }
 
-func (w WorkspaceIniter) BuildProjectPath(path string) string {
-	return w.BuildWorkspacePath(fmt.Sprintf("%s/%s", w.Params.ProjectFolderName, path))
+func (w WorkspaceIniter) BuildProjectPath(suffix ...string) string {
+	return filepath.Join(append([]string{w.BuildWorkspacePath(w.Params.ProjectFolderName)}, suffix...)...)
 }
 
-func (w WorkspaceIniter) BuildDotBrevPath(suffix string) string {
-	return w.BuildProjectPath(fmt.Sprintf("%s/%s", w.Params.BrevPath, suffix))
+func (w WorkspaceIniter) BuildUserPath(suffix ...string) string {
+	return filepath.Join(append([]string{w.BuildWorkspacePath(w.UserRepoName)}, suffix...)...)
+}
+
+func (w WorkspaceIniter) BuildDotBrevPath(suffix ...string) string {
+	return filepath.Join(append([]string{w.BuildProjectPath(w.Params.BrevPath)}, suffix...)...)
 }
 
 func (w WorkspaceIniter) Setup() error {
@@ -531,13 +538,16 @@ func (w WorkspaceIniter) Setup() error {
 	}
 
 	err = w.SetupProjectDotBrev(w.Params.SetupScript)
-
-	err = RunUserSetup()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = RunProjectSetup()
+	err = w.RunUserSetup()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = w.RunProjectSetup()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -666,7 +676,7 @@ func SetupCodeServer(password string) error {
 
 // source is a git url
 func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
-	err := w.GitCloneIfDNE(source, "user-dotbrev", "")
+	err := w.GitCloneIfDNE(source, w.BuildUserPath(""), "")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -675,7 +685,7 @@ func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
 
 // source is a git url
 func (w WorkspaceIniter) SetupProject(projectName string, source string, branch string) error {
-	err := w.GitCloneIfDNE(source, projectName, branch)
+	err := w.GitCloneIfDNE(source, w.BuildProjectPath(""), branch)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -684,16 +694,16 @@ func (w WorkspaceIniter) SetupProject(projectName string, source string, branch 
 
 func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error {
 	dotBrevPath := w.BuildDotBrevPath("")
-	if _, err := os.Stat(dotBrevPath); os.IsNotExist(err) {
+	if !PathExists(dotBrevPath) {
 		err := os.MkdirAll(dotBrevPath, 0o755)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
 	portsYamlPath := w.BuildDotBrevPath("ports.yaml")
-	if _, err := os.Stat(portsYamlPath); os.IsNotExist(err) {
+	if !PathExists(portsYamlPath) {
 		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml"`, "-o", fmt.Sprintf(`"%s"`, portsYamlPath))
-		err = w.CmdAsUser(cmd)
+		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -704,7 +714,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 	}
 
 	setupScriptPath := w.BuildDotBrevPath("setup.sh")
-	if _, err := os.Stat(setupScriptPath); defaultSetupScriptB64 != nil && os.IsNotExist(err) {
+	if !PathExists(setupScriptPath) && defaultSetupScriptB64 != nil {
 		file, err := os.Create(setupScriptPath)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -729,9 +739,9 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 		}
 	}
 	gitIgnorePath := w.BuildDotBrevPath(".gitignore")
-	if _, err := os.Stat(gitIgnorePath); os.IsNotExist(err) {
+	if !PathExists(gitIgnorePath) {
 		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore"`, "-o", fmt.Sprintf(`"%s"`, gitIgnorePath))
-		err = w.CmdAsUser(cmd)
+		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -743,11 +753,11 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 	return nil
 }
 
-func (w WorkspaceIniter) GitCloneIfDNE(url string, dirName string, branch string) error {
-	if _, err := os.Stat(w.BuildWorkspacePath(dirName)); os.IsNotExist(err) {
+func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string) error {
+	if !PathExists(dirPath) {
 		// TODO implement multiple retry
-		cmd := exec.Command("git", "clone", url, dirName)
-		err = w.CmdAsUser(cmd)
+		cmd := exec.Command("git", "clone", url, dirPath)
+		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -756,7 +766,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirName string, branch string
 			return breverrors.WrapAndTrace(err)
 		}
 		if branch != "" {
-			cmd = exec.Command("cd", w.BuildWorkspacePath(dirName), "&&", "git", "checkout", branch)
+			cmd = exec.Command("cd", dirPath, "&&", "git", "checkout", branch)
 			err = w.CmdAsUser(cmd)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -767,17 +777,46 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirName string, branch string
 			}
 		}
 	} else {
-		fmt.Printf("did not clone %s to %s\n", url, dirName)
+		fmt.Printf("did not clone %s to %s\n", url, dirPath)
 	}
 	return nil
 }
 
-func RunUserSetup() error {
+func (w WorkspaceIniter) RunUserSetup() error {
+	setupShPath := w.BuildUserPath(".brev", "setup.sh")
+	if PathExists(setupShPath) {
+		cmd := exec.Command(setupShPath)
+		err := w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = cmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
 	return nil
 }
 
-func RunProjectSetup() error {
+func (w WorkspaceIniter) RunProjectSetup() error {
+	setupShPath := w.BuildDotBrevPath("setup.sh")
+	if PathExists(setupShPath) {
+		cmd := exec.Command(setupShPath)
+		err := w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = cmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
 	return nil
+}
+
+func PathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
 }
 
 type CommandGroup struct {
