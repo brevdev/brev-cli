@@ -24,7 +24,7 @@ func IsAdmin(userType string) bool {
 }
 
 func ServiceMeshSSH() bool {
-	return viper.GetBool("feature.service_mesh_ssh")
+	return true
 }
 
 func LoadFeatureFlags(path string) error {
