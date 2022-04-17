@@ -532,7 +532,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.SetupProject(w.Params.ProjectFolderName, w.Params.WorkspaceProjectRepo, w.Params.WorkspaceProjectRepoBranch)
+	err = w.SetupProject(w.Params.WorkspaceProjectRepo, w.Params.WorkspaceProjectRepoBranch)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -555,7 +555,7 @@ func (w WorkspaceIniter) Setup() error {
 }
 
 func (w WorkspaceIniter) PrepareWorkspace() error {
-	cmd := exec.Command("chown", "-R", w.WorkspaceDir) // TODO only do this if not done before
+	cmd := exec.Command("chown", "-R", w.WorkspaceDir) //nolint:gosec // occurs in safe area // TODO only do this if not done before
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -567,13 +567,20 @@ func (w WorkspaceIniter) PrepareWorkspace() error {
 	return nil
 }
 
+func PrintErrFromFunc(fn func() error) {
+	err := fn()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
 func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 	cmd := exec.Command("eval", `"$(ssh-agent -s)"`)
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = exec.Command("mkdir", "-p", w.BuildHomePath(".ssh"))
+	cmd = exec.Command("mkdir", "-p", w.BuildHomePath(".ssh")) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -583,7 +590,7 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer idRsa.Close()
+	defer PrintErrFromFunc(idRsa.Close)
 	_, err = idRsa.Write([]byte(keys.PrivateKeyData))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -597,7 +604,7 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer idRsaPub.Close()
+	defer PrintErrFromFunc(idRsa.Close)
 	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -607,13 +614,13 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cmd = exec.Command("ssh-add", w.BuildHomePath(".ssh", "id_rsa"))
+	cmd = exec.Command("ssh-add", w.BuildHomePath(".ssh", "id_rsa")) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = os.WriteFile(w.BuildHomePath(".ssh", "authorized_keys"), []byte(keys.PublicKeyData), 0o644)
+	err = os.WriteFile(w.BuildHomePath(".ssh", "authorized_keys"), []byte(keys.PublicKeyData), 0o644) //nolint:gosec // verified based on curr env
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -621,7 +628,7 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
 AuthorizedKeysFile      %s
 PasswordAuthentication no`, w.BuildHomePath(".ssh", "authorized_keys"))
-	err = os.WriteFile(filepath.Join("etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", w.User.Username)), []byte(sshConfMod), 0o644)
+	err = os.WriteFile(filepath.Join("etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", w.User.Username)), []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -630,18 +637,18 @@ PasswordAuthentication no`, w.BuildHomePath(".ssh", "authorized_keys"))
 }
 
 func (w WorkspaceIniter) SetupGit(username string, email string) error {
-	cmd := exec.Command("ssh-keyscan", "github.com", ">>", w.BuildHomePath(".ssh", "known_hosts"))
+	cmd := exec.Command("ssh-keyscan", "github.com", ">>", w.BuildHomePath(".ssh", "known_hosts")) //nolint:gosec // occurs in safe area
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = exec.Command("ssh-keyscan", "gitlab.com", ">>", w.BuildHomePath(".ssh", "known_hosts"))
+	cmd = exec.Command("ssh-keyscan", "gitlab.com", ">>", w.BuildHomePath(".ssh", "known_hosts")) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cmd = exec.Command("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
+	cmd = exec.Command("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email)) //nolint:gosec // occurs in safe area
 	err = w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -651,7 +658,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cmd = exec.Command("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username))
+	cmd = exec.Command("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username)) //nolint:gosec // occurs in safe area
 	err = w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -661,7 +668,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cmd = exec.Command("chown", "-R", w.BuildHomePath(".ssh")) // TODO only do if not done before | ensure new files are created by brev user only
+	cmd = exec.Command("chown", "-R", w.BuildHomePath(".ssh")) //nolint:gosec // occurs in safe area // TODO only do if not done before | ensure new files are created by brev user only
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -670,7 +677,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 }
 
 func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, workspaceHost string) error {
-	cmd := exec.Command("code-server", "--install-extension", w.BuildHomePath(".config", "code-server", "brev-vscode.vsix", "||", "true"))
+	cmd := exec.Command("code-server", "--install-extension", w.BuildHomePath(".config", "code-server", "brev-vscode.vsix", "||", "true")) //nolint:gosec // occurs in safe area
 	err := w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -681,23 +688,23 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 	}
 
 	codeServerConfig := w.BuildHomePath(".config", "code-server", "config.yaml")
-	cmd = exec.Command("sed", "-ri", fmt.Sprintf(`'s/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/'`, password), codeServerConfig)
+	cmd = exec.Command("sed", "-ri", fmt.Sprintf(`'s/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/'`, password), codeServerConfig) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = exec.Command("sed", "-ri", fmt.Sprintf(`'s/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/'`, bindAddr), codeServerConfig)
+	cmd = exec.Command("sed", "-ri", fmt.Sprintf(`'s/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/'`, bindAddr), codeServerConfig) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = exec.Command("echo", fmt.Sprintf(`"proxy-domain: %s"`, workspaceHost), codeServerConfig)
+	cmd = exec.Command("echo", fmt.Sprintf(`"proxy-domain: %s"`, workspaceHost), codeServerConfig) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	codeServerLogLevel := "trace"
-	cmd = exec.Command("echo", fmt.Sprintf(`"log:: %s"`, codeServerLogLevel), codeServerConfig)
+	cmd = exec.Command("echo", fmt.Sprintf(`"log:: %s"`, codeServerLogLevel), codeServerConfig) //nolint:gosec // occurs in safe area
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -727,7 +734,7 @@ func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
 }
 
 // source is a git url
-func (w WorkspaceIniter) SetupProject(projectName string, source string, branch string) error {
+func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 	err := w.GitCloneIfDNE(source, w.BuildProjectPath(""), branch)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -735,17 +742,17 @@ func (w WorkspaceIniter) SetupProject(projectName string, source string, branch 
 	return nil
 }
 
-func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error {
+func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error { //nolint:funlen // function is scoped appropriately
 	dotBrevPath := w.BuildDotBrevPath("")
 	if !PathExists(dotBrevPath) {
-		err := os.MkdirAll(dotBrevPath, 0o755)
+		err := os.MkdirAll(dotBrevPath, 0o755) //nolint:gosec // occurs in safe area
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
 	portsYamlPath := w.BuildDotBrevPath("ports.yaml")
 	if !PathExists(portsYamlPath) {
-		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml"`, "-o", fmt.Sprintf(`"%s"`, portsYamlPath))
+		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml"`, "-o", fmt.Sprintf(`"%s"`, portsYamlPath)) //nolint:gosec // occurs in safe area
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -758,11 +765,11 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 
 	setupScriptPath := w.BuildDotBrevPath("setup.sh")
 	if !PathExists(setupScriptPath) && defaultSetupScriptB64 != nil {
-		file, err := os.Create(setupScriptPath)
+		file, err := os.Create(setupScriptPath) //nolint:gosec // occurs in safe area
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		defer file.Close()
+		defer PrintErrFromFunc(file.Close)
 		err = w.ChownFileToUser(file)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -783,7 +790,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 	}
 	gitIgnorePath := w.BuildDotBrevPath(".gitignore")
 	if !PathExists(gitIgnorePath) {
-		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore"`, "-o", fmt.Sprintf(`"%s"`, gitIgnorePath))
+		cmd := exec.Command("curl", `"https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore"`, "-o", fmt.Sprintf(`"%s"`, gitIgnorePath)) //nolint:gosec // occurs in safe area
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -828,7 +835,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 func (w WorkspaceIniter) RunUserSetup() error {
 	setupShPath := w.BuildUserPath(".brev", "setup.sh")
 	if PathExists(setupShPath) {
-		cmd := exec.Command(setupShPath)
+		cmd := exec.Command(setupShPath) //nolint:gosec // occurs in safe area
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -844,7 +851,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 func (w WorkspaceIniter) RunProjectSetup() error {
 	setupShPath := w.BuildDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := exec.Command(setupShPath)
+		cmd := exec.Command(setupShPath) //nolint:gosec // occurs in safe area
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)

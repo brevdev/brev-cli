@@ -71,7 +71,7 @@ func RunTasksForUser(t *terminal.Terminal) {
 	err := cmd.Run()
 	if err != nil {
 		// tell user to run brev run-tasks
-		t.Vprint(t.Red("\nPlease run ")+t.Yellow("brev run-tasks -d")+t.Red(" in your terminal."))
+		t.Vprint(t.Red("\nPlease run ") + t.Yellow("brev run-tasks -d") + t.Red(" in your terminal."))
 	}
 }
 
@@ -202,15 +202,18 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 	// t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
 
 	isFin := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label: "Did you finish adding your SSH key?",
+		Label:    "Did you finish adding your SSH key?",
 		Items:    []string{"Yes", "No"},
-		ErrorMsg:   "error",
+		ErrorMsg: "error",
 	})
-	if isFin=="Yes" {
+	if isFin == "Yes" {
 		return nil
 	} else {
 		// t.Vprint(t.Red("\nYou must add your SSH key to pull and push from your repos. "))
-		OnboardUserWithSSHKeys(t, user, nil, false)
+		err := OnboardUserWithSSHKeys(t, user, nil, false)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	return nil
