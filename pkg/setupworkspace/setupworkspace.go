@@ -522,7 +522,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = SetupCodeServer(w.Params.WorkspacePassword)
+	err = w.SetupCodeServer(w.Params.WorkspacePassword, fmt.Sprintf("127.0.0.1:%d", w.Params.WorkspacePort), string(w.Params.WorkspaceHost))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -532,7 +532,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.SetupProject(w.Params.ProjectFolderName, w.Params.WorkspaceProjectRepo, "")
+	err = w.SetupProject(w.Params.ProjectFolderName, w.Params.WorkspaceProjectRepo, w.Params.WorkspaceProjectRepoBranch)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -579,7 +579,7 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	idRsa, err := os.Create(w.BuildHomePath(".ssh/id_rsa"))
+	idRsa, err := os.Create(w.BuildHomePath(".ssh", "id_rsa"))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -593,7 +593,7 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	idRsaPub, err := os.Create(w.BuildHomePath(".ssh/id_rsa.pub"))
+	idRsaPub, err := os.Create(w.BuildHomePath(".ssh", "id_rsa.pub"))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -607,21 +607,21 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cmd = exec.Command("ssh-add", w.BuildHomePath(".ssh/id_rsa"))
+	cmd = exec.Command("ssh-add", w.BuildHomePath(".ssh", "id_rsa"))
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = os.WriteFile(w.BuildHomePath(".ssh/authorized_keys"), []byte(keys.PublicKeyData), 0o644)
+	err = os.WriteFile(w.BuildHomePath(".ssh", "authorized_keys"), []byte(keys.PublicKeyData), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
 AuthorizedKeysFile      %s
-PasswordAuthentication no`, w.BuildHomePath(".ssh/authorized_keys"))
-	err = os.WriteFile(fmt.Sprintf("/etc/ssh/sshd_config.d/%s.conf", w.User.Username), []byte(sshConfMod), 0o644)
+PasswordAuthentication no`, w.BuildHomePath(".ssh", "authorized_keys"))
+	err = os.WriteFile(filepath.Join("etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", w.User.Username)), []byte(sshConfMod), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -630,12 +630,12 @@ PasswordAuthentication no`, w.BuildHomePath(".ssh/authorized_keys"))
 }
 
 func (w WorkspaceIniter) SetupGit(username string, email string) error {
-	cmd := exec.Command("ssh-keyscan", "github.com", ">>", w.BuildHomePath(".ssh/known_hosts"))
+	cmd := exec.Command("ssh-keyscan", "github.com", ">>", w.BuildHomePath(".ssh", "known_hosts"))
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = exec.Command("ssh-keyscan", "gitlab.com", ">>", w.BuildHomePath(".ssh/known_hosts"))
+	cmd = exec.Command("ssh-keyscan", "gitlab.com", ">>", w.BuildHomePath(".ssh", "known_hosts"))
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -669,8 +669,51 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 	return nil
 }
 
-func SetupCodeServer(password string) error {
-	_ = password
+func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, workspaceHost string) error {
+	cmd := exec.Command("code-server", "--install-extension", w.BuildHomePath(".config", "code-server", "brev-vscode.vsix", "||", "true"))
+	err := w.CmdAsUser(cmd)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	codeServerConfig := w.BuildHomePath(".config", "code-server", "config.yaml")
+	cmd = exec.Command("sed", "-ri", fmt.Sprintf(`'s/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/'`, password), codeServerConfig)
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd = exec.Command("sed", "-ri", fmt.Sprintf(`'s/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/'`, bindAddr), codeServerConfig)
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd = exec.Command("echo", fmt.Sprintf(`"proxy-domain: %s"`, workspaceHost), codeServerConfig)
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	codeServerLogLevel := "trace"
+	cmd = exec.Command("echo", fmt.Sprintf(`"log:: %s"`, codeServerLogLevel), codeServerConfig)
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	cmd = exec.Command("systemctl", "daemon-reload")
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd = exec.Command("systemctl", "restart", "code-server")
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
 
