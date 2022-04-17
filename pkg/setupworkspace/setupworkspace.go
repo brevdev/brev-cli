@@ -433,12 +433,18 @@ func shellEscape(str string) string {
 }
 
 func SetupBrevWorkspace(params *store.SetupParamsV0) error {
-	err := PrepareWorkspace()
+	wi := NewWorkspaceIniter()
+	err := wi.PrepareWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = SetupSSH(params.WorkspaceKeyPair, params.WorkspaceUsername, params.WorkspaceEmail)
+	err = wi.SetupSSH(params.WorkspaceKeyPair)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = wi.SetupGit(params.WorkspaceUsername, params.WorkspaceEmail)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -470,14 +476,135 @@ func SetupBrevWorkspace(params *store.SetupParamsV0) error {
 	return nil
 }
 
-func PrepareWorkspace() error {
+type WorkspaceIniter struct {
+	WorkspaceDir string
+	User         *user.User
+}
+
+func NewWorkspaceIniter() *WorkspaceIniter {
+	return &WorkspaceIniter{}
+}
+
+func (w WorkspaceIniter) BuildHomePath(path string) string {
+	return fmt.Sprintf("%s/%s", w.User.HomeDir, path)
+}
+
+func (w WorkspaceIniter) BuildWorkspacePath(path string) string {
+	return fmt.Sprintf("%s/%s", w.WorkspaceDir, path)
+}
+
+func (w WorkspaceIniter) PrepareWorkspace() error {
+	cmd := exec.Command("chown", "-R", w.WorkspaceDir) // TODO only do this if not done before
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = os.Remove(w.BuildWorkspacePath("lost+found"))
+	if err != nil {
+		fmt.Printf("did not remove lost+found: %v", err)
+	}
 	return nil
 }
 
-func SetupSSH(keys *store.KeyPair, username string, email string) error {
-	_ = keys
-	_ = username
-	_ = email
+func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
+	cmd := exec.Command("eval", `"$(ssh-agent -s)"`)
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd = exec.Command("mkdir", "-p", w.BuildHomePath(".ssh"))
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	idRsa, err := os.Create(w.BuildHomePath(".ssh/id_rsa"))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer idRsa.Close()
+	_, err = idRsa.Write([]byte(keys.PrivateKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = idRsa.Chmod(400)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	idRsaPub, err := os.Create(w.BuildHomePath(".ssh/id_rsa.pub"))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer idRsaPub.Close()
+	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = idRsaPub.Chmod(0o400)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	cmd = exec.Command("ssh-add", w.BuildHomePath(".ssh/id_rsa"))
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = os.WriteFile(w.BuildHomePath(".ssh/authorized_keys"), []byte(keys.PublicKeyData), 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
+AuthorizedKeysFile      %s
+PasswordAuthentication no`, w.BuildHomePath(".ssh/authorized_keys"))
+	err = os.WriteFile(fmt.Sprintf("/etc/ssh/sshd_config.d/%s.conf", w.User.Username), []byte(sshConfMod), 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+func (w WorkspaceIniter) SetupGit(username string, email string) error {
+	cmd := exec.Command("ssh-keyscan", "github.com", ">>", w.BuildHomePath(".ssh/known_hosts"))
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd = exec.Command("ssh-keyscan", "gitlab.com", ">>", w.BuildHomePath(".ssh/known_hosts"))
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	cmd = exec.Command("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
+	err = AsUser(cmd, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	cmd = exec.Command("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username))
+	err = AsUser(cmd, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	cmd = exec.Command("chown", "-R", w.BuildHomePath(".ssh")) // TODO only do if not done before | ensure new files are created by brev user only
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -530,7 +657,10 @@ func (c *CommandGroup) Run() error {
 	// TODO batch
 	for _, cmd := range c.Cmds {
 		if c.User != nil && (cmd.SysProcAttr == nil || cmd.SysProcAttr.Credential == nil) {
-			AsUser(cmd, c.User)
+			err := AsUser(cmd, c.User)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
 		err := cmd.Run()
 		if err != nil {
