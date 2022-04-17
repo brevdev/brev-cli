@@ -50,6 +50,15 @@ func CreateSetupScript(params *store.SetupParamsV0) (string, error) {
 	projectFolderName := ""
 	if params.WorkspaceProjectRepo != "" {
 		projectFolderName = strings.Split(params.WorkspaceProjectRepo[strings.LastIndex(params.WorkspaceProjectRepo, "/")+1:], ".")[0]
+	} else if params.ProjectFolderName != "" { // todo discover base case for this
+		// todo brev path at this point is
+		// /home/brev/workspace/<project folder name>/<subfolders>/.brev/setup.sh
+		// but this variable is only concerned with <project folder name>/<subfolders>,
+		// so chop these parts off until better solution exists
+		// <project folder name>/<subfolders> is what's important because the
+		// function `run_setup_script` in the rendered setupscript uses its
+		// first arg `$1` as a seperator like so: /home/brev/workspace/$1/.brev
+		projectFolderName = params.BrevPath
 	} else {
 		projectFolderName = strings.Split(params.WorkspaceHost.GetSlug(), "-")[0]
 	}

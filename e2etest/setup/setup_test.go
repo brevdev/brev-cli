@@ -205,6 +205,7 @@ func (w TestWorkspace) Copy(src string, dest string) error {
 
 func (w TestWorkspace) Reset() error {
 	// TODO kill/delete container
+
 	_ = w.Setup() // TODO
 	return nil
 }
@@ -273,7 +274,29 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
-		// w.Reset() // TODO
+	})
+
+	assert.Nil(t, err)
+}
+
+func Test_ResetUserBrevProjectBrev(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+		w.Reset() // TODO
 
 		// AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		// AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
