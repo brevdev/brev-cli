@@ -33,12 +33,13 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 		Short:                 "Delete a Brev workspace",
 		Long:                  deleteLong,
 		Example:               deleteExample,
-		Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
-			err := deleteWorkspace(args[0], t, loginDeleteStore)
-			if err != nil {
-				t.Vprint(t.Red(err.Error()))
+			for _, workspace := range args {
+				err := deleteWorkspace(workspace, t, loginDeleteStore)
+				if err != nil {
+					t.Vprint(t.Red(err.Error()))
+				}
 			}
 		},
 	}
