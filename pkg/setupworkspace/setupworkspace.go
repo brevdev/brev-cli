@@ -767,7 +767,7 @@ func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 	return nil
 }
 
-func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error { //nolint:funlen // function is scoped appropriately
+func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error { //nolint:funlen,gocyclo // function is scoped appropriately
 	dotBrevPath := w.BuildDotBrevPath("")
 	if !PathExists(dotBrevPath) {
 		err := os.MkdirAll(dotBrevPath, 0o755) //nolint:gosec // occurs in safe area
