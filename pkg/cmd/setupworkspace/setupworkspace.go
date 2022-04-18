@@ -27,20 +27,11 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			setupScript, err := setupworkspace.CreateSetupScript(params)
+			err = setupworkspace.SetupWorkspace(params)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			err = store.WriteSetupScript(setupScript)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-
-			err = setupworkspace.ExecSetupScript(store.GetSetupScriptPath())
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
 			return nil
 		},
 	}
