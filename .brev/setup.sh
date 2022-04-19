@@ -6,7 +6,7 @@ git config --global pull.ff only
 # git diff-blame
 wget https://raw.githubusercontent.com/dmnd/git-diff-blame/master/git-diff-blame
 chmod +x git-diff-blame
-mv git-diff-blame /usr/local/bin
+sudo mv git-diff-blame /usr/local/bin
 
 # node node
 Node v14.x + npm
@@ -29,7 +29,7 @@ NPM_PACKAGES="\${HOME}/.npm-packages"
 NODE_PATH="\${NPM_PACKAGES}/lib/node_modules:\${NODE_PATH}"
 PATH="\${NPM_PACKAGES}/bin:\${PATH}"
 # command
-Unset manpath so we can inherit from /etc/manpath via the `manpath`
+# Unset manpath so we can inherit from /etc/manpath via the `manpath`
 unset MANPATH # delete if you already modified MANPATH elsewhere in your config
 MANPATH="\${NPM_PACKAGES}/share/man:\$(manpath)"
 EOF
