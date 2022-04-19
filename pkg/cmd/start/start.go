@@ -61,17 +61,16 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		Example:               startExample,
 		// Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 && !empty {
 				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
-				return
+				return nil
 			}
 
 			if empty {
 				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript, workspaceClass)
 				if err != nil {
-					t.Vprintf(t.Red(err.Error()))
-					return
+					return breverrors.WrapAndTrace(err)
 				}
 			} else {
 				isURL := false
@@ -83,33 +82,54 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 					// CREATE A WORKSPACE
 					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, workspaceClass)
 					if err != nil {
-						t.Vprint(t.Red(err.Error()))
-						return
+						return breverrors.WrapAndTrace(err)
 					}
 				} else {
-					workspace, err := getWorkspaceFromNameOrID(args[0], loginStartStore) // ignoring err
-					if err != nil {
-						t.Vprint(t.Red(err.Error()))
-						return
-					}
-					// t.Vprintf
+					workspace, _ := getWorkspaceFromNameOrID(args[0], loginStartStore) // ignoring err todo handle me better
 					if workspace == nil {
-						// then this is a path, and we should import dependencies from it and start
-						err := startWorkspaceFromPath(args[0], loginStartStore, t, detached, name, org, is4x16, workspaceClass)
+						// get org, check for workspace to join before assuming start via path
+						activeOrg, err := loginStartStore.GetActiveOrganizationOrDefault()
 						if err != nil {
-							t.Vprint(t.Red(err.Error()))
-							return
+							return breverrors.WrapAndTrace(err)
 						}
+						user, err := loginStartStore.GetCurrentUser()
+						if err != nil {
+							t.Vprintf(t.Yellow("from here: 105"))
+							return breverrors.WrapAndTrace(err)
+
+						}
+						workspaces, err := loginStartStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
+							Name: args[0],
+						})
+						if err != nil {
+							t.Vprintf(t.Yellow("from here: 113"))
+							return breverrors.WrapAndTrace(err)
+
+						}
+						if len(workspaces) == 0 {
+							// then this is a path, and we should import dependencies from it and start
+							err = startWorkspaceFromPath(args[0], loginStartStore, t, detached, name, org, is4x16, workspaceClass)
+							if err != nil {
+								return breverrors.WrapAndTrace(err)
+							}
+						} else {
+							// the user wants to join a workspace
+							err = joinProjectWithNewWorkspace(workspaces[0], t, activeOrg.ID, loginStartStore, name, user, workspaceClass)
+							if err != nil {
+								return breverrors.WrapAndTrace(err)
+							}
+						}
+
 					} else {
 						// Start an existing one (either theirs or someone elses)
 						err := startWorkspace(args[0], loginStartStore, t, detached, name, workspaceClass)
 						if err != nil {
-							t.Vprint(t.Red(err.Error()))
-							return
+							return breverrors.WrapAndTrace(err)
 						}
 					}
 				}
 			}
+			return nil
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -608,8 +628,6 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-
-	fmt.Println("\n\n", len(workspaces),"\n\n")
 
 	switch len(workspaces) {
 	case 0:
