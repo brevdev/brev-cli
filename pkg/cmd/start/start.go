@@ -78,11 +78,9 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 				if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
 					isURL = true
 				}
-				fmt.Println("is it a directory? ", isURL)
 
 				if isURL {
 					// CREATE A WORKSPACE
-					fmt.Println("in here")
 					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, workspaceClass)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
