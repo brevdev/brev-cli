@@ -409,7 +409,6 @@ func IsUrl(str string) bool {
 
 func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScriptPath string, workspaceClass string) error {
 	t.Vprintf("This is the setup script: %s", setupScriptPath)
-	t.Vprintf("len of setup script: %s", len(setupScriptPath))
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
