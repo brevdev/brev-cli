@@ -78,20 +78,23 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 				if strings.Contains(args[0], "https://") || strings.Contains(args[0], "git@") {
 					isURL = true
 				}
+				fmt.Println("is it a directory? ", isURL)
 
 				if isURL {
 					// CREATE A WORKSPACE
+					fmt.Println("in here")
 					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, workspaceClass)
 					if err != nil {
 						t.Vprint(t.Red(err.Error()))
 						return
 					}
 				} else {
-					workspace, _ := getWorkspaceFromNameOrID(args[0], loginStartStore) // ignoring err
-					// if err != nil {
-					// 	t.Vprint(t.Red(err.Error()))
-					// 	return
-					// }
+					workspace, err := getWorkspaceFromNameOrID(args[0], loginStartStore) // ignoring err
+					if err != nil {
+						t.Vprint(t.Red(err.Error()))
+						return
+					}
+					// t.Vprintf
 					if workspace == nil {
 						// then this is a path, and we should import dependencies from it and start
 						err := startWorkspaceFromPath(args[0], loginStartStore, t, detached, name, org, is4x16, workspaceClass)
@@ -406,6 +409,7 @@ func IsUrl(str string) bool {
 
 func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScriptPath string, workspaceClass string) error {
 	t.Vprintf("This is the setup script: %s", setupScriptPath)
+	t.Vprintf("len of setup script: %s", len(setupScriptPath))
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
@@ -421,19 +425,22 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 	// 	snip := files.GenerateSetupScript(lines)
 	// 	setupScriptContents += snip
 	// }
-	if len(setupScriptPath) > 0 && IsUrl(setupScriptPath) {
+	if len(setupScriptPath) > 0 {
+		if IsUrl(setupScriptPath) {
 
-		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptPath)
-		if err1 != nil {
-			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptPath) + t.Yellow("Continuing with default setup script 👍"))
-			return breverrors.WrapAndTrace(err1)
-		}
-		setupScriptContents += "\n" + contents
-	} else {
-		var err2 error
-		setupScriptContents, err2 = startStore.GetFileAsString(setupScriptPath)
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
+			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptPath)
+			if err1 != nil {
+				t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptPath) + t.Yellow("Continuing with default setup script 👍"))
+				return breverrors.WrapAndTrace(err1)
+			}
+			setupScriptContents += "\n" + contents
+		} else {
+			// ERROR: not sure what this use case is for
+			var err2 error
+			setupScriptContents, err2 = startStore.GetFileAsString(setupScriptPath)
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
+			}
 		}
 	}
 
@@ -604,6 +611,8 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+
+	fmt.Println("\n\n", len(workspaces),"\n\n")
 
 	switch len(workspaces) {
 	case 0:
