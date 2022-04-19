@@ -236,6 +236,7 @@ fi
 
 if [ $didClone%[3]s -eq 1 ]; then
 	cd './%[2]s'
+	brev init .
 	(mkdir -p ./.brev || true)
 	chown -R brev ./.brev
 	chmod 755 ./.brev

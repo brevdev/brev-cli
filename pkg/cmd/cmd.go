@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
+	"github.com/brevdev/brev-cli/pkg/cmd/initfile"
 	"github.com/brevdev/brev-cli/pkg/cmd/meshd"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
@@ -192,6 +193,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
 	cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
+	cmd.AddCommand(initFile.NewCmdInitFile(t, noLoginCmdStore))
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop

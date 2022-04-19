@@ -125,7 +125,12 @@ func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
 		fmt.Println("no git url found")
 		return
 	}
-	WriteBrevFile(t, GetDependencies(path), gitURL, path)
+	if(!dirExists(filepath.Join(path, ".brev", "setup.sh"))) {
+		WriteBrevFile(t, GetDependencies(path), gitURL, path)
+	} else {
+		fmt.Println(".brev/setup.sh already exists - will not overwrite.")
+	}
+	
 }
 
 func GenerateLogs(script string) string {
