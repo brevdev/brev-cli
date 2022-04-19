@@ -839,7 +839,6 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 		if !strings.HasPrefix(url, "git@") {
 			url = "git@" + url
 		}
-		fmt.Println("AYO: ", url, dirPath)
 		cmd := CmdBuilder("git", "clone", url, dirPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
