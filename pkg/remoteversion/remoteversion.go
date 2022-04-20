@@ -23,7 +23,7 @@ Current version: %s
 
 ` + green("A new version of brev has been released!") + `
 
-Version: %s
+New Version: %s
 
 Details: %s
 
