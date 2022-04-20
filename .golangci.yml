@@ -58,17 +58,24 @@ linters:
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
   disable-all: true
   enable:
+    ## the following through unparam are removed until compatible with 1.18
+    # - gosimple
+    # - unused
+    # - bodyclose
+    # - noctx
+    # - rowserrcheck
+    # - sqlclosecheck
+    # - stylecheck
+    # - tparallel
+    # - unparam
     - deadcode
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     # - staticcheck
     - structcheck
     - typecheck
-    - unused
     - varcheck
-    - bodyclose
     - depguard
     - dupl
     - exportloopref
@@ -87,15 +94,9 @@ linters:
     - gosec
     # - ifshort
     - misspell
-    - noctx
     - nolintlint
-    - rowserrcheck
-    - sqlclosecheck
-    - stylecheck
     - thelper
-    - tparallel
     - unconvert
-    - unparam
     # - whitespace
     # - errorlint
     # - goerr113
