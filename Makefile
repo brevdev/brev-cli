@@ -174,7 +174,7 @@ setup-workspace: build-linux-amd build-test-workspace
 
 
 .PHONY: workspace-dev-script
-workspace-dev-script:
+workspace-dev-script: fast-build clean-simulated-workspace
 	make simulate-workspace setup_param_path=assets/std_setup_v0.json
 	echo "exit the shell and re-run to reset workspace"
 	make shell-into-workspace
