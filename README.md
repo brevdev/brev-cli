@@ -105,14 +105,21 @@ Don't forget to add a debug command to `.vscode/launch.json`
 
 ## Release
 
-The release workflow is triggered each time a tag with `v` prefix is pushed.
-
-_CAUTION_: Make sure to understand the consequences before you bump the major version. More info: [Go Wiki](https://github.com/golang/go/wiki/Modules#releasing-modules-v2-or-higher), [Go Blog](https://blog.golang.org/v2-go-modules).
-
-get the latest tag git
+make a patch release
 
 ```
-git describe --tags --abbrev=0
+make version-bump-patch
+```
+
+make a minor release 
+
+```
+make version-bump-minor
+```
+
+make a major release
+```
+make version-bump-major
 ```
 
 when releasing make sure to
