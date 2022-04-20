@@ -14,8 +14,8 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
-	"golang.org/x/text/encoding/charmap"
 	user "github.com/tweekmonster/luser"
+	"golang.org/x/text/encoding/charmap"
 )
 
 type FileStore struct {
