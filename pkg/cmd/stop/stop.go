@@ -73,7 +73,7 @@ func stopThisWorkspace(store StopStore, t *terminal.Terminal) error {
 	}
 	if isWorkspace {
 		// get current workspace
-		stopWorkspace("")
+		// stopWorkspace("")
 		// stop the workspace
 	} else {
 		return fmt.Errorf("this is not a workspace -- please provide a workspace id?")
