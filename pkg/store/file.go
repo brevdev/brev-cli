@@ -163,6 +163,14 @@ func (f FileStore) GetCurrentWorkspaceID() (string, error) {
 	return meta.WorkspaceID, nil
 }
 
+func (f FileStore) IsWorkspace() (bool, error) {
+	id, err := f.GetCurrentWorkspaceID()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return id != "", nil
+}
+
 func (f FileStore) GetCurrentWorkspaceGroupID() (string, error) {
 	meta, err := f.GetCurrentWorkspaceMeta()
 	if err != nil {
