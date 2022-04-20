@@ -65,6 +65,7 @@ func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// todo if --user flag is not provided and if not run as root, raise
 			// an error
+			fmt.Println("configuring brev")
 			for k, value := range taskMap {
 				err := value.Configure()
 				if err != nil {
@@ -72,6 +73,7 @@ func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
 					log.Error(err)
 				}
 			}
+			fmt.Println("done configuring brev")
 			return nil
 		},
 	}
