@@ -1,0 +1,20 @@
+name: release
+
+on: workflow_dispatch
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+
+      - name: Release
+        run: make smoke-test release
+        env:
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
