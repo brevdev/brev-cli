@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
 	"golang.org/x/text/encoding/charmap"
+	user "github.com/tweekmonster/luser"
 )
 
 type FileStore struct {

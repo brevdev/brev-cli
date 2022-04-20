@@ -4,7 +4,7 @@ VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 .PHONY: fast-build
 fast-build: ## go build -o brev
 	$(call print-target)
-	go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: version
 version:
