@@ -24,6 +24,8 @@ type StopStore interface {
 	StopWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+	IsWorkspace() (bool, error)
+	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
@@ -61,6 +63,21 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.") +
 		"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
 
+	return nil
+}
+
+func stopThisWorkspace(store StopStore, t *terminal.Terminal) error {
+	isWorkspace, err := store.IsWorkspace()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if isWorkspace {
+		// get current workspace
+		stopWorkspace("")
+		// stop the workspace
+	} else {
+		return fmt.Errorf("this is not a workspace -- please provide a workspace id?")
+	}
 	return nil
 }
 
