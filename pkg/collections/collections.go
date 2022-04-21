@@ -2,6 +2,8 @@
 
 package collections
 
+import "sort"
+
 func Duplicate[T any](x T) []T {
 	return []T{x, x}
 }
@@ -53,32 +55,73 @@ func Flatmap[T any, R any](fn func(some T) []R, list []T) []R {
 // so we will define c2, c3, c4, and c5 which will allow simple composition of up to 5 functions
 // anything more than that should be refactored so that subcomponents of the composition are renamed, anyway (or named itself)
 
-func compose[T any, S any, R any](fn1 func(some S) R, fn2 func(some T) S) func(some T) R {
+func Compose[T any, S any, R any](fn1 func(some S) R, fn2 func(some T) S) func(some T) R {
 	return func(some T) R {
 		return fn1(fn2(some))
 	}
 }
 
-func c2[T any, S any, R any](fn1 func(some S) R, fn2 func(some T) S) func(some T) R {
-	return compose(fn1, fn2)
+func C2[T any, S any, R any](fn1 func(some S) R, fn2 func(some T) S) func(some T) R {
+	return Compose(fn1, fn2)
 }
 
-func c3[T any, S any, R any, U any](fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) U {
+func C3[T any, S any, R any, U any](fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) U {
 	return func(some T) U {
 		return fn0(fn1(fn2(some)))
 	}
 }
 
-func c4[T any, S any, R any, U any, V any](fn01 func(some U) V, fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) V {
+func C4[T any, S any, R any, U any, V any](fn01 func(some U) V, fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) V {
 	return func(some T) V {
 		return fn01(fn0(fn1(fn2(some))))
 	}
 }
 
-func c5[T any, S any, R any, U any, V any, W any](fn02 func(some V) W, fn01 func(some U) V, fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) W {
+func C5[T any, S any, R any, U any, V any, W any](fn02 func(some V) W, fn01 func(some U) V, fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) W {
 	return func(some T) W {
 		return fn02(fn01(fn0(fn1(fn2(some)))))
 	}
+}
+
+func P2[X any, Y any, Z any](fn func(X, Y) Z, x X) func(Y) Z {
+	return func(y Y) Z {
+		return fn(x, y)
+	}
+}
+
+func First[X any](list []X) *X {
+	if len(list) > 0 {
+		return &list[0]
+	}
+	return nil
+}
+
+func SortBy[X any](sortFn func(X, X) bool, list []X) []X {
+	// sort.sliceStable(list, sortFn)
+	sort.SliceStable(list, func(i, j int) bool {
+		return sortFn(list[i], list[j])
+	})
+	return list
+
+	// if it's empty, it's sorted
+	// if it has one element, it's sorted
+	// take the first element as the pivot
+	// partition the rest of the list as to whether it is greater than that element or not
+	// enconcat the sortBys of both of those lists with the pivot element
+	// if len(list) < 2 {
+	// 	return list
+	// }
+	// pivot := *First(list)
+
+	// return Enconcat(SortBy(sortFn, before), pivot, sortBy(sortFn, after))
+}
+
+func Cons[X any](x X, list []X) []X {
+	return Concat([]X{x}, list)
+}
+
+func Enconcat[X any](before []X, x X, after []X) []X {
+	return Concat(before, Cons(x, after))
 }
 
 func Any[T any](f func(T) bool, list []T) {
