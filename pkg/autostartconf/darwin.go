@@ -37,7 +37,7 @@ func (dpc DarwinPlistConfigurer) UnInstall() error {
 			allError = multierror.Append(allError, err)
 		}
 	case SingleUser:
-		_, err = exec.Command("launchctl", "bootout", "gui/"+dpc.Store.GetOSUser(), destination).CombinedOutput() // #nosec G204
+		_, err = exec.Command("launchctl", "bootout", "guui/"+dpc.Store.GetOSUser(), destination).CombinedOutput() // #nosec G204
 		if err != nil {
 			allError = multierror.Append(allError, err)
 		}

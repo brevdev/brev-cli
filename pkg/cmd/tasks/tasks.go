@@ -40,11 +40,9 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "run background daemons for brev",
 		Long:                  "run background daemons for brev",
-		Run: func(cmd *cobra.Command, args []string) {
-			err := Tasks(t, store, taskMap)
-			if err != nil {
-				log.Error(err)
-			}
+		Args:                  cobra.ExactArgs(0),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fmt.Errorf("invalid command")
 		},
 	}
 
@@ -65,15 +63,16 @@ func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// todo if --user flag is not provided and if not run as root, raise
 			// an error
-			fmt.Println("configuring brev")
+			fmt.Println("configuring...")
 			for k, value := range taskMap {
+				fmt.Printf("configuring %s\n", k)
 				err := value.Configure()
 				if err != nil {
 					fmt.Println(k)
 					log.Error(err)
 				}
 			}
-			fmt.Println("done configuring brev")
+			fmt.Println("done configuring")
 			return nil
 		},
 	}
@@ -103,6 +102,8 @@ func NewCmdRun(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Comman
 					if err != nil {
 						log.Error(err)
 					}
+				} else {
+					fmt.Println("could not find task")
 				}
 			}
 		},
