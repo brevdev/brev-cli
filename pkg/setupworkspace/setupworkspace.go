@@ -868,7 +868,8 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 func (w WorkspaceIniter) RunUserSetup() error {
 	setupShPath := w.BuildUserPath(".brev", "setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder(setupShPath)
+		cmd := CmdBuilder("sudo", "su", "brev", "-c", setupShPath)
+		cmd.Dir = w.BuildUserPath("", "")
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -884,7 +885,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 func (w WorkspaceIniter) RunProjectSetup() error {
 	setupShPath := w.BuildDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder(setupShPath)
+		cmd := CmdBuilder("sudo", "su", "brev", "-c", setupShPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
