@@ -169,7 +169,7 @@ func transformGoVersion(version string) string {
 		// pull out the go versions from the ids of the subsections of the download page
 		re := regexp.MustCompile("id=\"go([\\w\\.]+)\"")
 		versions := re.FindAllString(value, 1000)
-		versions = collections.Fmap(func (x string) string { return x[6:len(x)-1]}, versions)
+		versions = collections.Fmap(func(x string) string { return x[6 : len(x)-1] }, versions)
 		prefixFn := collections.P2(collections.Flip(strings.HasPrefix), version)
 		// and fetch the first version that matches the prefix version you are looking for
 		// as it is rendered on the go page in reverse chronological order

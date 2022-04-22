@@ -208,8 +208,8 @@ func Keys[T comparable, R any](dict map[T]R) []T {
 	keys := make([]T, len(dict))
 	i := 0
 	for k := range dict {
-    	keys[i] = k
-    	i++
+		keys[i] = k
+		i++
 	}
 	return keys
 }

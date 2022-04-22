@@ -3,6 +3,7 @@ package workspacemanager
 import (
 	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck // uses generic code
@@ -96,7 +97,7 @@ type DockerContainer struct {
 	ShellPreference string `default:"zsh"`
 	PortMap         map[string]string
 	BaseImage       string `default:"brevdev/ubuntu-proxy:0.3.7"`
-	Privileged      `default:true`
+	Privileged      bool   // `default:true`
 }
 
 type LocalWorkspace struct {
@@ -197,32 +198,33 @@ func exposePorts(portMap map[string]string, container DockerContainer) DockerCon
 }
 
 func portMapToString(portMap map[string]string) string {
-	return strings.Join(collections.Fmap(func (key string) string {
+	return strings.Join(collections.Fmap(func(key string) string {
 		val := portMap[key]
 		return strings.Join([]string{"-p", strings.Join([]string{key, val}, ":")}, " ")
-	}, collections.Keys(volumeMap)), " ")
+	}, collections.Keys(portMap)), " ")
 }
 
 func volumeMapToString(volumeMap map[string]string) string {
-	return strings.Join(collections.Fmap(func (key string) string {
+	return strings.Join(collections.Fmap(func(key string) string {
 		val := volumeMap[key]
 		return strings.Join([]string{"-v", strings.Join([]string{key, val}, ":")}, " ")
 	}, collections.Keys(volumeMap)), " ")
 }
 
-func containerToString(container DockerContainer) string {
+func containerToString(workspaceID string, container DockerContainer) string {
 	privilegeString := ""
 	if container.Privileged {
 		privilegeString = "--privileged=true"
 	}
-	strings.Join([]string{
+	return strings.Join([]string{
 		"docker run", "-d", // detached
 		privilegeString, // name
 		"--name", workspaceID,
-		 "-it", // i attaches to stdin, t to terminal
-		portMapToString(container.PortMap), 
-		volumeMapToString(container.VolumeMap), 
-		container.ShellPreference}, " ")
+		"-it", // i attaches to stdin, t to terminal
+		portMapToString(container.PortMap),
+		volumeMapToString(container.VolumeMap),
+		container.ShellPreference,
+	}, " ")
 }
 
 func dockerExecute(workspaceID string, container DockerContainer) error {
@@ -230,6 +232,8 @@ func dockerExecute(workspaceID string, container DockerContainer) error {
 	command := containerToString(workspaceID, container)
 	fmt.Println("final command is ")
 	fmt.Println(command)
-	return command
+	parts := strings.Split(command, " ")
+	_, err := exec.Command(parts[0], parts[1:]...).Output()
+	return err
 	// return errors.New("Docker Execute Not Yet Implemented")
 }
