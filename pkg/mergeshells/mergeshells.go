@@ -62,6 +62,13 @@ func GetDependencies(path string) []string {
 		"golang": {goVersion},
 	}
 
+	// these will be applied, in left-to-right order, to the version string returned by your version function
+	// before passing it to the finder / splicer of the install shell script for your dependency
+	processVersionMap := map[string][]func(string) string{
+		"golang":  {transformGoVersion},
+		"default": {transformVersion},
+	}
+
 	for dep, fs := range supportedDependencyMap {
 		versions := collections.Filter(func(x *string) bool {
 			if x == nil {
@@ -72,7 +79,13 @@ func GetDependencies(path string) []string {
 		if len(versions) > 0 {
 			version := versions[0]
 			if len(*version) > 0 {
-				dep = strings.Join([]string{dep, *version}, "-")
+				versionTransforms := processVersionMap["default"]
+				if len(processVersionMap[dep]) > 0 {
+					versionTransforms = processVersionMap[dep]
+				}
+
+				finalVersion := collections.S(versionTransforms...)(*version)
+				dep = strings.Join([]string{dep, finalVersion}, "-")
 			}
 			deps = append(deps, dep)
 		}
@@ -139,6 +152,62 @@ func extractInstallLine(fragment ShellFragment) string {
 		line = strings.Join([]string{"*", *fragment.Comment}, " ")
 	}
 	return line
+}
+
+func transformGoVersion(version string) string {
+	// in Ruby:
+	// `curl https://go.dev/dl/`.scan(/id=\"go([\w\.]+)\"/).flat_map{|x| x}.filter{|x| x.start_with?(version)}[0]
+	if strings.Count(version, ".") < 2 {
+		// if this is not a well-specified version
+		// then get the list of versions from the official go website
+		out, err := exec.Command("curl", "https://go.dev/dl/").Output()
+		if err != nil {
+			fmt.Println("Issue fetching go version, defaulting to same as input")
+			return version
+		}
+		value := string(out)
+		// pull out the go versions from the ids of the subsections of the download page
+		re := regexp.MustCompile("id=\"go([\\w\\.]+)\"")
+		versions := re.FindAllString(value, 1000)
+		versions = collections.Fmap(func (x string) string { return x[6:len(x)-1]}, versions)
+		prefixFn := collections.P2(collections.Flip(strings.HasPrefix), version)
+		// and fetch the first version that matches the prefix version you are looking for
+		// as it is rendered on the go page in reverse chronological order
+		// of nearest release to farthest for each version
+		matchingVersion := collections.First(collections.Filter(prefixFn, versions))
+		if matchingVersion == nil {
+			fmt.Println(strings.Join([]string{"No stable version found for", version}, " "))
+			// no stable version found so return the original version
+			return version
+		}
+		return *matchingVersion
+	}
+	return version
+}
+
+func transformVersion(version string) string {
+	if len(version) > 0 {
+		switch version[0:0] {
+		case "~":
+			return version[1:]
+		case "^":
+			return version[1:]
+		case ">":
+			if version[0:1] == ">=" {
+				return version[2:]
+			}
+			return version[1:]
+		case "<":
+			if version[0:1] == "<=" {
+				return version[2:]
+			}
+			return version[1:]
+		case "=":
+			return version[1:]
+		}
+		return version
+	}
+	return version
 }
 
 func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path string) *error {
@@ -254,13 +323,20 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	script, err := templateFs.Open(path)
 	if err != nil && !noversion {
 		if subPaths[0] != subPaths[1] {
-			return importFile(subPaths[0]) //nolint:typecheck
+			path = filepath.Join(collections.Concat([]string{"templates"}, collections.Duplicate(subPaths[0]))...) //nolint:typecheck
+			script, err = templateFs.Open(path)
+			if err != nil {
+				return []ShellFragment{}, err
+			}
 		} else {
 			return []ShellFragment{}, errors.New(strings.Join([]string{"Path does not exist:", path}, " "))
 		}
 	}
 	out, err := ioutil.ReadAll(script)
 	stringScript := string(out)
+	if !noversion {
+		stringScript = strings.ReplaceAll(stringScript, "${version}", subPaths[1])
+	}
 	// fmt.Println(stringScript)
 	if err != nil {
 		return []ShellFragment{}, err

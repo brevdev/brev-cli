@@ -36,11 +36,11 @@ func (w WorkspaceManager) Start(workspaceID string) error {
 	// turn the workspace object into setup parameters
 	setupParams := workspaceToSetupParams(workspace)
 	// we need the workspace base container
-	baseImage := fetchBaseImage(workspace)
+	baseImage := fetchBaseImage()
 	// we need to retrieve the kubernetes token
 	// we need to mix in the kubernetes token
-	kubernetesServiceToken := fetchKubernetesServiceToken(workspace)
-	mountToken := collections.P2(mixInKubernetesToken, kubernetesServiceToken)
+	kubernetesServiceTokenDir := fetchKubernetesServiceTokenDir()
+	mountToken := collections.P2(mixInKubernetesToken, kubernetesServiceTokenDir)
 	// we need to mount the setup parameters to it, we need to map in the kubernetes service token
 	mountParams := collections.P2(mountSetupParams, setupParams)
 	// we need to mount  a volume for the workspace/ folder
@@ -90,7 +90,13 @@ func (w WorkspaceManager) Reset(workspaceID string) error {
 }
 
 type DockerContainer struct {
-	CommandArgs []string
+	CommandArgs     []string
+	Name            string
+	VolumeMap       map[string]string
+	ShellPreference string `default:"zsh"`
+	PortMap         map[string]string
+	BaseImage       string `default:"brevdev/ubuntu-proxy:0.3.7"`
+	Privileged      `default:true`
 }
 
 type LocalWorkspace struct {
@@ -111,6 +117,7 @@ func fetchPreviouslyRunWorkspaces() []LocalWorkspace {
 
 func fetchRunningWorkspaces() []LocalWorkspace {
 	// NOT YET IMPLEMENTED
+	// take output of docker ps and use it somehow?
 	return []LocalWorkspace{}
 }
 
@@ -139,17 +146,17 @@ func workspaceToSetupParams(workspace entity.Workspace) store.SetupParamsV0 {
 	return store.SetupParamsV0{}
 }
 
-func fetchBaseImage(workspace entity.Workspace) DockerContainer {
+func fetchBaseImage() DockerContainer {
 	// NOT YET IMPLEMENTED
 	return DockerContainer{}
 }
 
-func fetchKubernetesServiceToken(workspace entity.Workspace) string {
+func fetchKubernetesServiceTokenDir() string {
 	// NOT YET IMPLEMENTED
-	return "" // not yet implemented
+	return "/var/run/secrets/kubernetes.io/serviceaccount/" // not yet implemented
 }
 
-func mixInKubernetesToken(token string, container DockerContainer) DockerContainer {
+func mixInKubernetesToken(tokenDirectory string, container DockerContainer) DockerContainer {
 	// NOT YET IMPLEMENTED
 	return DockerContainer{}
 }
@@ -189,7 +196,40 @@ func exposePorts(portMap map[string]string, container DockerContainer) DockerCon
 	return DockerContainer{}
 }
 
+func portMapToString(portMap map[string]string) string {
+	return strings.Join(collections.Fmap(func (key string) string {
+		val := portMap[key]
+		return strings.Join([]string{"-p", strings.Join([]string{key, val}, ":")}, " ")
+	}, collections.Keys(volumeMap)), " ")
+}
+
+func volumeMapToString(volumeMap map[string]string) string {
+	return strings.Join(collections.Fmap(func (key string) string {
+		val := volumeMap[key]
+		return strings.Join([]string{"-v", strings.Join([]string{key, val}, ":")}, " ")
+	}, collections.Keys(volumeMap)), " ")
+}
+
+func containerToString(container DockerContainer) string {
+	privilegeString := ""
+	if container.Privileged {
+		privilegeString = "--privileged=true"
+	}
+	strings.Join([]string{
+		"docker run", "-d", // detached
+		privilegeString, // name
+		"--name", workspaceID,
+		 "-it", // i attaches to stdin, t to terminal
+		portMapToString(container.PortMap), 
+		volumeMapToString(container.VolumeMap), 
+		container.ShellPreference}, " ")
+}
+
 func dockerExecute(workspaceID string, container DockerContainer) error {
 	// NOT YET IMPLEMENTED
-	return errors.New("Docker Execute Not Yet Implemented")
+	command := containerToString(workspaceID, container)
+	fmt.Println("final command is ")
+	fmt.Println(command)
+	return command
+	// return errors.New("Docker Execute Not Yet Implemented")
 }

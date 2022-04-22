@@ -83,8 +83,26 @@ func C5[T any, S any, R any, U any, V any, W any](fn02 func(some V) W, fn01 func
 	}
 }
 
+func Id[T any](x T) T {
+	return x
+}
+
+func C[T any](fns ...func(some T) T) func(some T) T {
+	return Foldr(Compose[T, T, T], Id[T], fns)
+}
+
+func S[T any](fns ...func(some T) T) func(some T) T {
+	return Foldl(Compose[T, T, T], Id[T], fns)
+}
+
 func P2[X any, Y any, Z any](fn func(X, Y) Z, x X) func(Y) Z {
 	return func(y Y) Z {
+		return fn(x, y)
+	}
+}
+
+func Flip[X any, Y any, Z any](fn func(X, Y) Z) func(Y, X) Z {
+	return func(y Y, x X) Z {
 		return fn(x, y)
 	}
 }
@@ -184,4 +202,14 @@ func DictMerge[K comparable, V any](left map[K]V, right map[K]V) map[K]V {
 		}
 	}
 	return newMap
+}
+
+func Keys[T comparable, R any](dict map[T]R) []T {
+	keys := make([]T, len(dict))
+	i := 0
+	for k := range dict {
+    	keys[i] = k
+    	i++
+	}
+	return keys
 }
