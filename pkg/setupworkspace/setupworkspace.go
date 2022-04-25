@@ -839,7 +839,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 		if !strings.HasPrefix(url, "git@") {
 			url = "git@" + url
 		}
-		cmd := CmdBuilder("git", "clone", url, dirPath)
+		cmd := CmdBuilder("git", "clone", "--recursive", url, dirPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -869,7 +869,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 	setupShPath := w.BuildUserPath(".brev", "setup.sh")
 	if PathExists(setupShPath) {
 		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
-		cmd.Dir = w.BuildUserPath("", "")
+		cmd.Dir = w.BuildUserPath()
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -886,6 +886,7 @@ func (w WorkspaceIniter) RunProjectSetup() error {
 	setupShPath := w.BuildDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
 		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
+		cmd.Dir = w.BuildProjectPath()
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
