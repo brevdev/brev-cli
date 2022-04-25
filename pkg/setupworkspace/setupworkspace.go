@@ -949,6 +949,7 @@ func CmdAsUser(cmd *exec.Cmd, user *user.User) error {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
+	cmd.Env = append(os.Environ(), "USER="+user.Username, "HOME="+user.HomeDir)
 	return nil
 }
 
