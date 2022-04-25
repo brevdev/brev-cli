@@ -669,7 +669,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	c := fmt.Sprintf(`su brev -c 'git config --global user.email "%s"'`, email) // dont know why I have to do this
+	c := fmt.Sprintf(`su %s -c 'git config --global user.email "%s"'`, w.User.Username, email) // dont know why I have to do this
 	cmd = CmdStringBuilder(c)
 	// cmd = CmdBuilder("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
 	// err = w.CmdAsUser(cmd)
@@ -681,7 +681,7 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	c = fmt.Sprintf(`su brev -c 'git config --global user.name "%s"'`, username) // dont know why I have to do this
+	c = fmt.Sprintf(`su %s -c 'git config --global user.name "%s"'`, w.User.Username, username) // dont know why I have to do this
 	cmd = CmdStringBuilder(c)
 	// cmd = CmdBuilder("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username))
 	// err = w.CmdAsUser(cmd)
@@ -868,7 +868,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 func (w WorkspaceIniter) RunUserSetup() error {
 	setupShPath := w.BuildUserPath(".brev", "setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder("sudo", "su", "brev", "-c", setupShPath)
+		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
 		cmd.Dir = w.BuildUserPath("", "")
 		err := w.CmdAsUser(cmd)
 		if err != nil {
@@ -885,7 +885,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 func (w WorkspaceIniter) RunProjectSetup() error {
 	setupShPath := w.BuildDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder("sudo", "su", "brev", "-c", setupShPath)
+		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
