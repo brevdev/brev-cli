@@ -70,8 +70,9 @@ mkdir -p ~/.config/fish/completions && brev completion fish > ~/.config/fish/com
 
 ## Build
 
-`make build` runs a full release build
-`make fast-build` builds a binary for your current machine only
+`make fast-build` builds a binary for your current machine used for testing/experimentation
+`make ci` runs all linters and tests
+`make build` runs a full release build (does not release)
 
 ## example .env file
 
