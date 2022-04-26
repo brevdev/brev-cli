@@ -898,6 +898,15 @@ func (w WorkspaceIniter) RunUserSetup() error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+		err = os.MkdirAll(w.BuildUserDotBrevPath("logs"), os.ModePerm)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		done, err := SendLogToFile(cmd, w.BuildUserDotBrevPath("logs", "setup.log"))
+		defer done()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 		err = cmd.Run()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -912,6 +921,15 @@ func (w WorkspaceIniter) RunProjectSetup() error {
 		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
 		cmd.Dir = w.BuildProjectPath()
 		err := w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = os.MkdirAll(w.BuildProjectDotBrevPath("logs"), os.ModePerm)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		done, err := SendLogToFile(cmd, w.BuildProjectDotBrevPath("logs", "setup.log"))
+		defer done()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
