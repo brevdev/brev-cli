@@ -340,6 +340,8 @@ type SetupParamsV0 struct {
 
 	ProjectFolderName string `json:"projectFolderName"`
 	BrevPath          string `json:"brevPath"`
+
+	DisableSetup bool `json:"disableSetup"`
 }
 
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {

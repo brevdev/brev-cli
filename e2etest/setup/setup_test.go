@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -379,7 +380,8 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) {
 
 	params.WorkspaceProjectRepo = ""
 	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
-	params.SetupScript = &setupScript
+	base64SetupScript := base64.StdEncoding.EncodeToString([]byte(setupScript))
+	params.SetupScript = &base64SetupScript
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
@@ -401,7 +403,8 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
 
 	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
 	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
-	params.SetupScript = &setupScript
+	base64SetupScript := base64.StdEncoding.EncodeToString([]byte(setupScript))
+	params.SetupScript = &base64SetupScript
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
@@ -421,7 +424,8 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	}
 	params := NewTestSetupParams(keys)
 	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
-	params.SetupScript = &setupScript
+	base64SetupScript := base64.StdEncoding.EncodeToString([]byte(setupScript))
+	params.SetupScript = &base64SetupScript
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 

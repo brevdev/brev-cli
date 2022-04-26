@@ -17,6 +17,7 @@ type SetupWorkspaceStore interface {
 
 // Internal command for setting up workspace // v1 similar to k8s post-start script
 func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
+	var forceEnableSetup bool
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"hidden": ""},
 		Use:         "setupworkspace",
@@ -27,6 +28,11 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 				return breverrors.WrapAndTrace(err)
 			}
 
+			if !forceEnableSetup && params.DisableSetup {
+				fmt.Printf("WARNING: setup script not running [params.DisableSetup=%v, forceEnableSetup=%v]", params.DisableSetup, forceEnableSetup)
+				return nil
+			}
+
 			err = setupworkspace.SetupWorkspace(params)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -35,6 +41,7 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")
 
 	return cmd
 }
