@@ -3,6 +3,7 @@ package setupworkspace
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -496,8 +497,10 @@ func SendLogToFile(cmd *exec.Cmd, filePath string) (func(), error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	cmd.Stdout = outfile
-	cmd.Stderr = outfile
+	stdOut := io.MultiWriter(outfile, os.Stdout)
+	stdErr := io.MultiWriter(outfile, os.Stderr)
+	cmd.Stdout = stdOut
+	cmd.Stderr = stdErr
 
 	return func() {
 		PrintErrFromFunc(outfile.Close)
