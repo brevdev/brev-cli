@@ -75,16 +75,20 @@ func makeProxyURL(w *entity.Workspace) string {
 }
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
-	wv, err := version.NewVersion(workspace.Version)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaceInfraConstraints, err := version.NewConstraint(allowedWorkspaceInfraVersion)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if !workspaceInfraConstraints.Check(wv) {
-		return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion)
+	if workspace.Version != "" {
+		wv, err := version.NewVersion(workspace.Version)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		workspaceInfraConstraints, err := version.NewConstraint(allowedWorkspaceInfraVersion)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if !workspaceInfraConstraints.Check(wv) {
+			return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion)
+		}
+	} else {
+		fmt.Println("workspace version blank assuming dev, not checking constraint")
 	}
 
 	imageSplit := strings.Split(workspace.WorkspaceTemplate.Image, ":")
