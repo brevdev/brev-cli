@@ -515,8 +515,12 @@ func (w WorkspaceIniter) BuildUserPath(suffix ...string) string {
 	return filepath.Join(append([]string{w.BuildWorkspacePath(w.UserRepoName)}, suffix...)...)
 }
 
-func (w WorkspaceIniter) BuildDotBrevPath(suffix ...string) string {
+func (w WorkspaceIniter) BuildProjectDotBrevPath(suffix ...string) string {
 	return filepath.Join(append([]string{w.BuildProjectPath(w.Params.BrevPath)}, suffix...)...)
+}
+
+func (w WorkspaceIniter) BuildUserDotBrevPath(suffix ...string) string {
+	return filepath.Join(append([]string{w.BuildUserPath(".brev")}, suffix...)...)
 }
 
 func (w WorkspaceIniter) Setup() error {
@@ -747,9 +751,14 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 
 // source is a git url
 func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
-	err := w.GitCloneIfDNE(source, w.BuildUserPath(""), "")
+	err := w.GitCloneIfDNE(source, w.BuildUserPath(), "")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	err = os.Chmod(w.BuildUserDotBrevPath("setup.sh"), 0o700) //nolint:gosec // occurs in safe area
+	if err != nil {
+		// if fails no need to crash
+		fmt.Println(err)
 	}
 	return nil
 }
@@ -768,7 +777,7 @@ func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 }
 
 func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error { //nolint:funlen,gocyclo // function is scoped appropriately
-	dotBrevPath := w.BuildDotBrevPath("")
+	dotBrevPath := w.BuildProjectDotBrevPath("")
 	if !PathExists(dotBrevPath) {
 		err := os.MkdirAll(dotBrevPath, 0o755) //nolint:gosec // occurs in safe area
 		if err != nil {
@@ -780,7 +789,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 			return breverrors.WrapAndTrace(err)
 		}
 	}
-	portsYamlPath := w.BuildDotBrevPath("ports.yaml")
+	portsYamlPath := w.BuildProjectDotBrevPath("ports.yaml")
 	if !PathExists(portsYamlPath) {
 		cmd := CmdBuilder("curl", `https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml`, "-o", portsYamlPath)
 		err := w.CmdAsUser(cmd)
@@ -793,7 +802,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 		}
 	}
 
-	setupScriptPath := w.BuildDotBrevPath("setup.sh")
+	setupScriptPath := w.BuildProjectDotBrevPath("setup.sh")
 	if !PathExists(setupScriptPath) && defaultSetupScriptB64 != nil {
 		file, err := os.Create(setupScriptPath) //nolint:gosec // occurs in safe area
 		if err != nil {
@@ -804,11 +813,6 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		err = file.Chmod(0o777)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
 		setupSh, err := base64.StdEncoding.DecodeString(*defaultSetupScriptB64)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -817,8 +821,12 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+		err = file.Chmod(0o700)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
-	gitIgnorePath := w.BuildDotBrevPath(".gitignore")
+	gitIgnorePath := w.BuildProjectDotBrevPath(".gitignore")
 	if !PathExists(gitIgnorePath) {
 		cmd := CmdBuilder("curl", `https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore`, "-o", gitIgnorePath)
 		err := w.CmdAsUser(cmd)
@@ -866,7 +874,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 }
 
 func (w WorkspaceIniter) RunUserSetup() error {
-	setupShPath := w.BuildUserPath(".brev", "setup.sh")
+	setupShPath := w.BuildUserDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
 		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
 		cmd.Dir = w.BuildUserPath()
@@ -883,7 +891,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 }
 
 func (w WorkspaceIniter) RunProjectSetup() error {
-	setupShPath := w.BuildDotBrevPath("setup.sh")
+	setupShPath := w.BuildProjectDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
 		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
 		cmd.Dir = w.BuildProjectPath()

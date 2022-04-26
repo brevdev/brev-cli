@@ -1,6 +1,7 @@
 package setupworkspace
 
 import (
+	"os"
 	"testing"
 )
 
@@ -16,4 +17,20 @@ func TestEvalAgent(_ *testing.T) {
 	// }
 
 	// t.Fail()
+}
+
+func TestFilePerm(t *testing.T) {
+	f, err := os.Create("test")
+	if err != nil {
+		panic(err)
+	}
+	_, err = f.WriteString("blah\n")
+
+	if err != nil {
+		panic(err)
+	}
+	err = f.Chmod(0o400)
+	if err != nil {
+		panic(err)
+	}
 }
