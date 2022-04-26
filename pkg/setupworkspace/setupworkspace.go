@@ -476,6 +476,14 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 	if params.BrevPath == "" {
 		params.BrevPath = ".brev"
 	}
+
+	if params.ProjectFolderName == "" {
+		if params.WorkspaceProjectRepo != "" {
+			params.ProjectFolderName = strings.Split(params.WorkspaceProjectRepo[strings.LastIndex(params.WorkspaceProjectRepo, "/")+1:], ".")[0]
+		} else {
+			params.ProjectFolderName = strings.Split(params.WorkspaceHost.GetSlug(), "-")[0]
+		}
+	}
 	return &WorkspaceIniter{
 		WorkspaceDir: "/home/brev/workspace",
 		UserRepoName: "user-dotbrev",
@@ -782,9 +790,14 @@ func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
 // source is a git url
 func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 	if source != "" {
-		err := w.GitCloneIfDNE(source, w.BuildProjectPath(""), branch)
+		err := w.GitCloneIfDNE(source, w.BuildProjectPath(), branch)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
+		}
+		err = os.Chmod(w.BuildProjectDotBrevPath("setup.sh"), 0o700) //nolint:gosec // occurs in safe area
+		if err != nil {
+			// if fails no need to crash
+			fmt.Println(err)
 		}
 	} else {
 		fmt.Printf("no project source")

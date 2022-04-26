@@ -1,9 +1,9 @@
 {
     "workspaceHost": "std-rand-org.x.y",
     "workspacePort": 22778,
-    "workspaceBaseRepo": "git@github.com:brevdev/user-dotbrev.git",
-    "workspaceProjectRepo": "git@github.com:brevdev/hello-react.git",
-    "projectFolderName": "hello-react",
+    "workspaceBaseRepo": "github.com:brevdev/user-dotbrev.git",
+    "workspaceProjectRepo": "",
+    "projectFolderName": "",
     "workspaceApplicationStartScripts": [],
     "workspaceUsername": "brevtest",
     "workspaceEmail": "test+3333@example.com",
