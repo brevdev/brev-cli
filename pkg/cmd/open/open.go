@@ -1,6 +1,7 @@
 package open
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -47,6 +48,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 	return cmd
 }
 
+// Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
 	s := t.NewSpinner()
 	s.Suffix = " finding your workspace"
@@ -69,18 +71,54 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	}
 
 	// note: intentional decision to just assume the parent folder and inner folder are the same
-	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", workspace.GetLocalIdentifier(*workspaces), folderName)
 	s.Stop()
+	localIdentifier := workspace.GetLocalIdentifier(*workspaces)
+
+	err = openCode(string(localIdentifier), folderName, t)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+// Opens code editor. Attempts to install code in path if not installed already
+func openCode(localIdentifier string, folderName string, t *terminal.Terminal) error {
+	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s/home/brev/workspace/%s", localIdentifier, folderName)
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", folderName))
 
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
-	err = cmd.Run()
-
+	err := cmd.Run()
 	if err != nil {
+		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
+			errString := t.Red("\n\nYou need to add 'code' to your $PATH to open VS Code from the terminal.\n") + t.Yellow("Try this command:\n") + "\t" + t.Yellow(`export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"`) + "\n\n"
+
+			// NOTE: leaving this here. I tried to add code to path for them automatically but that was difficult bcs go != their shell
+			// _, err2 := os.Stat("/Applications/Visual Studio Code.app/Contents/Resources/app/bin")
+			// if os.IsNotExist(err2) {
+			// 	// TODO: have them add manually
+			// 	return breverrors.WrapAndTrace(err)
+			// } else {
+			// 	// TODO: add it for them since you can access the application
+			// 	// export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"
+
+			// 	cmd = exec.Command("sh", "-c", `export PATH="/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH"`)
+			// 	errPath := cmd.Run()
+			// 	if errPath != nil {
+			// 		t.Vprintf("error adding to path: ", errPath.Error())
+			// 	}
+
+			// 	t.Vprintf("Folder does exist.")
+			// }
+
+			return errors.New(errString)
+		}
+
 		return breverrors.WrapAndTrace(err)
 	}
-	return nil
+
+	return err
 }
 
 // NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
