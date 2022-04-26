@@ -491,6 +491,19 @@ func (w WorkspaceIniter) CmdAsUser(cmd *exec.Cmd) error {
 	return nil
 }
 
+func SendLogToFile(cmd *exec.Cmd, filePath string) (func(), error) {
+	outfile, err := os.Create(filePath) //nolint:gosec // occurs in safe area
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	cmd.Stdout = outfile
+	cmd.Stderr = outfile
+
+	return func() {
+		PrintErrFromFunc(outfile.Close)
+	}, nil
+}
+
 func (w WorkspaceIniter) ChownFileToUser(file *os.File) error {
 	err := ChownFileToUser(file, w.User)
 	if err != nil {
