@@ -4,25 +4,25 @@
 
 # Brev.dev
 
-[Brev.dev](https://brev.dev) connects your local computer to a cloud mesh so you can code locally on remote machines, without needing any new tools, and never in a browser.
+[Brev.dev](https://brev.dev) makes it easy to code on remote machines. Connects your local computer to a mesh network of remote machines. Use Brev.dev to start a project and share your development environment in under 15s, with zero setup. 
 
 ## Install
 
-if brew is not already installed on your computer install it with
-```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
 
-then add Brev's tap and install `brev` with
-
+### MacOS
 ```
 brew install brevdev/homebrew-brev/brev
 ```
 
+### Linux
+```
+sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`" && export PATH=/opt/brev/bin:$PATH && brev run-tasks -d && brev login
+```
+
 # Usage
 
+Create a workspace in your current organization
 
-create a workspace in your current org
 ```
 brev start https://github.com/brevdev/brev-cli
 ```
