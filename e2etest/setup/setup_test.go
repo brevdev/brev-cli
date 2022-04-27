@@ -126,6 +126,10 @@ func sendToOut(c *exec.Cmd) {
 	c.Stdout = os.Stdout
 }
 
+func (w TestWorkspace) getWorkspaceVolumeName() string {
+	return fmt.Sprintf("%s-workspace", w.ContainerName)
+}
+
 func (w TestWorkspace) Setup() error {
 	ports := []string{}
 	for _, p := range w.Ports {
@@ -137,8 +141,8 @@ func (w TestWorkspace) Setup() error {
 		"--privileged=true",
 		fmt.Sprintf("--name=%s", w.ContainerName),
 		"--rm", "-it", w.Image,
+		"-v", fmt.Sprintf("%s:/home/brev/workspace", w.getWorkspaceVolumeName()),
 	}, ports...)
-	// TODO create with named volume use container name
 	args = append(args, "bash")
 
 	cmdR := exec.Command("docker", args...) //nolint:gosec // for tests
@@ -206,12 +210,18 @@ func (w TestWorkspace) Copy(src string, dest string) error {
 }
 
 func (w TestWorkspace) Reset() error {
-	// TODO kill/delete container
-	_ = w.Setup() // TODO
+	err := w.KillContainer()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = w.Setup()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
-func (w TestWorkspace) Done() error {
+func (w TestWorkspace) KillContainer() error {
 	cmd := exec.Command("docker", "kill", w.ContainerName) //nolint:gosec // for tests
 	if w.ShowOut {
 		sendToOut(cmd)
@@ -220,7 +230,30 @@ func (w TestWorkspace) Done() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// TODO delete volume
+	return nil
+}
+
+func (w TestWorkspace) RmVolume() error {
+	cmd := exec.Command("docker", "volume", "rm", w.getWorkspaceVolumeName()) //nolint:gosec // for tests
+	if w.ShowOut {
+		sendToOut(cmd)
+	}
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (w TestWorkspace) Done() error {
+	err := w.KillContainer()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = w.RmVolume()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -275,13 +308,17 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
-		// w.Reset() // TODO
 
-		// AssertValidUserBrevSetup(t, w, "user-dotbrev")
-		// AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
 
-		// AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
-		// AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 	})
 
 	assert.Nil(t, err)
@@ -299,6 +336,16 @@ func Test_NoProjectBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertValidBrevProjRepo(t, w, "name")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
@@ -347,6 +394,18 @@ func Test_NoUserBrevProj(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertPathDoesNotExist(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 	})
 	assert.Nil(t, err)
 }
@@ -366,13 +425,22 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 	})
 	assert.Nil(t, err)
 }
 
 const ProvidedSetupScriptMsg = "provided setup script ran"
 
-func Test_ProvidedSetupRanNoProj(t *testing.T) {
+func Test_ProvidedSetupRanNoProj(t *testing.T) { //nolint:dupl // TODO should refactor since Test_ProvidedSetupRanProjNoBrev is really similar
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
@@ -391,11 +459,21 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "name")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertValidBrevProjRepo(t, w, "name")
+		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
 	})
 	assert.Nil(t, err)
 }
 
-func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
+func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO should refactor since Test_ProvidedSetupRanProjNoBrev is really similar
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
@@ -410,6 +488,16 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
+		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
@@ -431,6 +519,20 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+		AssertFileNotContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-dotbrev"), ProvidedSetupScriptMsg)
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
