@@ -573,21 +573,25 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	fmt.Println("------ Setup Project Start ------")
 	err = w.SetupProject(w.Params.WorkspaceProjectRepo, w.Params.WorkspaceProjectRepoBranch)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	fmt.Println("------ Setup Project .brev Start ------")
 	err = w.SetupProjectDotBrev(w.Params.SetupScript)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	fmt.Println("------ Run User Setup ------")
 	err = w.RunUserSetup()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	fmt.Println("------ Run Project Setup ------")
 	err = w.RunProjectSetup()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -800,15 +804,36 @@ func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 			fmt.Println(err)
 		}
 	} else {
-		fmt.Printf("no project source")
+		fmt.Println("no project source")
+		projectPath := w.BuildProjectPath()
+		if !PathExists(projectPath) {
+			err := os.MkdirAll(projectPath, 0o775) //nolint:gosec // occurs in safe area
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = ChownFilePathToUser(projectPath, w.User)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			cmd := CmdBuilder("git", "init")
+			cmd.Dir = projectPath
+			err = w.CmdAsUser(cmd)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = cmd.Run()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
 	}
 	return nil
 }
 
 func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error { //nolint:funlen,gocyclo // function is scoped appropriately
-	dotBrevPath := w.BuildProjectDotBrevPath("")
+	dotBrevPath := w.BuildProjectDotBrevPath()
 	if !PathExists(dotBrevPath) {
-		err := os.MkdirAll(dotBrevPath, 0o755) //nolint:gosec // occurs in safe area
+		err := os.MkdirAll(dotBrevPath, 0o775) //nolint:gosec // occurs in safe area
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -886,7 +911,8 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 			return breverrors.WrapAndTrace(err)
 		}
 		if branch != "" {
-			cmd = CmdBuilder("git", "-c", dirPath, "checkout", branch)
+			cmd = CmdBuilder("git", "checkout", branch)
+			cmd.Dir = dirPath
 			err = w.CmdAsUser(cmd)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -1023,5 +1049,21 @@ func ChownFileToUser(file *os.File, user *user.User) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	return nil
+}
+
+func ChownFilePathToUser(filePath string, user *user.User) error {
+	uid, err := strconv.ParseInt(user.Uid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	gid, err := strconv.ParseInt(user.Gid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = os.Chown(filePath, int(uid), int(gid))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
