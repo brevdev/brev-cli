@@ -784,6 +784,10 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 
 // source is a git url
 func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
+	if source == "" {
+		fmt.Println("user .brev not provided skipping")
+		return nil
+	}
 	err := w.GitCloneIfDNE(source, w.BuildUserPath(), "")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -809,7 +813,7 @@ func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 			fmt.Println(err)
 		}
 	} else {
-		fmt.Println("no project source")
+		fmt.Println("no project source -- creating default")
 		projectPath := w.BuildProjectPath()
 		if !PathExists(projectPath) {
 			err := os.MkdirAll(projectPath, 0o775) //nolint:gosec // occurs in safe area
@@ -936,7 +940,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 func (w WorkspaceIniter) RunUserSetup() error {
 	setupShPath := w.BuildUserDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder(setupShPath)
+		cmd := CmdBuilder("bash", "-c", setupShPath)
 		cmd.Dir = w.BuildUserPath()
 		err := w.CmdAsUser(cmd)
 		if err != nil {
@@ -962,7 +966,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 func (w WorkspaceIniter) RunProjectSetup() error {
 	setupShPath := w.BuildProjectDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder(setupShPath)
+		cmd := CmdBuilder("bash", "-c", setupShPath)
 		cmd.Dir = w.BuildProjectPath()
 		err := w.CmdAsUser(cmd)
 		if err != nil {
@@ -1036,7 +1040,7 @@ func CmdAsUser(cmd *exec.Cmd, user *user.User) error {
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-	cmd.Env = append(os.Environ(), "USER="+user.Username, "HOME="+user.HomeDir)
+	cmd.Env = append(os.Environ(), "USER="+user.Username, "HOME="+user.HomeDir, "SHELL=/bin/bash") // TODO get shell from user
 	return nil
 }
 

@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -447,6 +448,8 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string) {
 	AssertUser(t, w, "root")
 	AssertCwd(t, w, "/home/brev/workspace")
 
+	time.Sleep(1000 * time.Millisecond) // sometimes localhost:2278 returs bad error
+
 	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
 	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request")
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", password)
@@ -503,7 +506,8 @@ func AssertInternalCurlOuputContains(t *testing.T, w Workspace, url string, cont
 	t.Helper()
 	out, err := w.Exec("curl", "-s", url)
 	assert.Nil(t, err)
-	assert.Contains(t, string(out), contains)
+	o := string(out)
+	assert.Contains(t, o, contains)
 }
 
 // func AssertCodeServerPasswordWorks(t *testing.T) {
