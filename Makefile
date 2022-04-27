@@ -210,13 +210,13 @@ time:
 get-latest-tag:
 	git describe --tags --abbrev=0
 
-version-bump-patch:
+version-bump-patch: ci
 	make version-bump type=patch
 
-version-bump-minor:
+version-bump-minor: ci
 	make version-bump type=minor
 
-version-bump-major:
+version-bump-major: ci
 	make version-bump type=major
 
 fetch-tags:
