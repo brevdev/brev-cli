@@ -118,7 +118,7 @@ func openCode(localIdentifier string, folderName string, t *terminal.Terminal) e
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return err
+	return nil
 }
 
 // NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
