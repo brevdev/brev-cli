@@ -484,6 +484,11 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 			params.ProjectFolderName = strings.Split(params.WorkspaceHost.GetSlug(), "-")[0]
 		}
 	}
+	if params.SetupScript == nil || *params.SetupScript == "" {
+		defaultScript := "#!/bin/bash\n"
+		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
+		params.SetupScript = &b64DefaultScript
+	}
 	return &WorkspaceIniter{
 		WorkspaceDir: "/home/brev/workspace",
 		UserRepoName: "user-dotbrev",
@@ -931,7 +936,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 func (w WorkspaceIniter) RunUserSetup() error {
 	setupShPath := w.BuildUserDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
+		cmd := CmdBuilder(setupShPath)
 		cmd.Dir = w.BuildUserPath()
 		err := w.CmdAsUser(cmd)
 		if err != nil {
@@ -957,7 +962,7 @@ func (w WorkspaceIniter) RunUserSetup() error {
 func (w WorkspaceIniter) RunProjectSetup() error {
 	setupShPath := w.BuildProjectDotBrevPath("setup.sh")
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder("sudo", "su", w.User.Username, "-c", setupShPath)
+		cmd := CmdBuilder(setupShPath)
 		cmd.Dir = w.BuildProjectPath()
 		err := w.CmdAsUser(cmd)
 		if err != nil {
