@@ -135,6 +135,7 @@ func (w WorkspaceIniter) BuildUserDotBrevPath(suffix ...string) string {
 }
 
 func (w WorkspaceIniter) Setup() error {
+	fmt.Println("------ Preparing the workspace ------")
 	err := w.PrepareWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -155,18 +156,24 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	err = w.RunApplicationScripts(w.Params.WorkspaceApplicationStartScripts)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	fmt.Println("------ Setup User Config ------")
 	err = w.SetupUserDotBrev(w.Params.WorkspaceBaseRepo)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Println("------ Setup Project Start ------")
+	fmt.Println("------ Setup Project Config ------")
 	err = w.SetupProject(w.Params.WorkspaceProjectRepo, w.Params.WorkspaceProjectRepoBranch)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Println("------ Setup Project .brev Start ------")
+	fmt.Println("------ Setup Project .brev ------")
 	err = w.SetupProjectDotBrev(w.Params.SetupScript)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -361,6 +368,14 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		return breverrors.WrapAndTrace(err)
 	}
 
+	return nil
+}
+
+func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
+	for _, s := range scripts {
+		cmd := CmdStringBuilder(s)
+		_ = cmd.Run()
+	}
 	return nil
 }
 
