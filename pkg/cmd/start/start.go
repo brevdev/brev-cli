@@ -179,7 +179,7 @@ func startWorkspaceFromPath(path string, loginStartStore StartStore, t *terminal
 	}
 	if !dirExists(brevpath) {
 		fmt.Println(strings.Join([]string{"Generating setup script at", brevpath}, "\n"))
-		mergeshells.ImportPath(t, path, loginStartStore)
+		mergeshells.ImportPath(path)
 		fmt.Println("setup script generated.")
 	}
 

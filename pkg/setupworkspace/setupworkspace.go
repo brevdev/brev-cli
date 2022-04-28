@@ -67,9 +67,7 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 		}
 	}
 	if params.SetupScript == nil || *params.SetupScript == "" {
-		defaultScript := "#!/bin/bash\n"
-		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
-		params.SetupScript = &b64DefaultScript
+		params.SetupScript = nil
 	}
 	return &WorkspaceIniter{
 		WorkspaceDir: "/home/brev/workspace",
@@ -461,7 +459,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptMaybeB64 *string)
 			return breverrors.WrapAndTrace(err)
 		}
 	}
-
+	
 	setupScriptPath := w.BuildProjectDotBrevPath("setup.sh")
 	if !PathExists(setupScriptPath) && defaultSetupScriptMaybeB64 != nil {
 		file, err := os.Create(setupScriptPath) //nolint:gosec // occurs in safe area
@@ -483,6 +481,8 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptMaybeB64 *string)
 			return breverrors.WrapAndTrace(err)
 		}
 	}
+	// no need to check if it already exists because it won't overwrite if it does
+	mergeshells.ImportPath(setupShPath)
 	gitIgnorePath := w.BuildProjectDotBrevPath(".gitignore")
 	if !PathExists(gitIgnorePath) {
 		cmd := CmdBuilder("curl", `https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore`, "-o", gitIgnorePath)
@@ -567,7 +567,9 @@ func (w WorkspaceIniter) RunUserSetup() error {
 }
 
 func (w WorkspaceIniter) RunProjectSetup() error {
+	
 	setupShPath := w.BuildProjectDotBrevPath("setup.sh")
+	
 	if PathExists(setupShPath) {
 		cmd := CmdBuilder("bash", "-c", setupShPath)
 		cmd.Dir = w.BuildProjectPath()

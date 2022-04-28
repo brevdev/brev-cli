@@ -17,7 +17,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/collections"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/tidwall/gjson"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -106,11 +105,9 @@ func dirExists(path string) bool {
 	return false
 }
 
-type MergeShellStore interface {
-	GetFileAsString(path string) (string, error)
-}
+type MergeShellStore interface{}
 
-func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
+func ImportPath(path string) {
 	pathExists := dirExists(path)
 	if !pathExists {
 		fmt.Println(strings.Join([]string{"Path:", path, "does not exist."}, " "))
@@ -122,8 +119,9 @@ func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
 	} else {
 		gitpath = filepath.Join(path, ".git", "config")
 	}
-	file, error := store.GetFileAsString(gitpath)
-	if error != nil {
+
+	file, err := files.ReadString(files.AppFs, gitpath)
+	if err != nil {
 		fmt.Println(strings.Join([]string{"Could not read .git/config at", path}, " "))
 		return
 	}
@@ -139,7 +137,7 @@ func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
 		return
 	}
 	if !dirExists(filepath.Join(path, ".brev", "setup.sh")) {
-		WriteBrevFile(t, GetDependencies(path), gitURL, path)
+		WriteBrevFile(GetDependencies(path), gitURL, path)
 	} else {
 		fmt.Println(".brev/setup.sh already exists - will not overwrite.")
 	}
@@ -214,10 +212,10 @@ func transformVersion(version string) string {
 	return version
 }
 
-func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path string) *error {
+func WriteBrevFile(deps []string, gitURL string, path string) *error {
 	fmt.Println("\n\nGitUrl: ", gitURL)
 	fmt.Println("** Found Dependencies **")
-	t.Vprint(t.Yellow(strings.Join(deps, " \n")))
+	fmt.Println(strings.Join(deps, " \n")) // can these be printed in yellow using fmt?
 	shellString := GenerateShellScript(path)
 	fmt.Println(GenerateLogs(shellString))
 	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm)

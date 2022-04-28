@@ -19,9 +19,9 @@ func NewCmdInitFile(t *terminal.Terminal, store InitFileStore) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) > 0 {
 				// then assume it is .
-				mergeshells.ImportPath(t, args[0], store)
+				mergeshells.ImportPath(args[0])
 			} else {
-				mergeshells.ImportPath(t, ".", store)
+				mergeshells.ImportPath(".")
 			}
 		},
 	}
