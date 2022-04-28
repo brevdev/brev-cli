@@ -421,7 +421,7 @@ func (w WorkspaceIniter) SetupProject(source string, branch string) error {
 	return nil
 }
 
-func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) error { //nolint:funlen,gocyclo // function is scoped appropriately
+func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptMaybeB64 *string) error { //nolint:funlen // function is scoped appropriately
 	dotBrevPath := w.BuildProjectDotBrevPath()
 	if !PathExists(dotBrevPath) {
 		err := os.MkdirAll(dotBrevPath, 0o775) //nolint:gosec // occurs in safe area
@@ -448,7 +448,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 	}
 
 	setupScriptPath := w.BuildProjectDotBrevPath("setup.sh")
-	if !PathExists(setupScriptPath) && defaultSetupScriptB64 != nil {
+	if !PathExists(setupScriptPath) && defaultSetupScriptMaybeB64 != nil {
 		file, err := os.Create(setupScriptPath) //nolint:gosec // occurs in safe area
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -458,10 +458,7 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		setupSh, err := base64.StdEncoding.DecodeString(*defaultSetupScriptB64)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		setupSh := decodeBase64OrReturnSelf(*defaultSetupScriptMaybeB64)
 		_, err = file.Write(setupSh)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -484,6 +481,15 @@ func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptB64 *string) erro
 		}
 	}
 	return nil
+}
+
+func decodeBase64OrReturnSelf(maybeBase64 string) []byte {
+	res, err := base64.StdEncoding.DecodeString(maybeBase64)
+	if err != nil {
+		fmt.Println("could not decode base64 assuming regular string")
+		return []byte(maybeBase64)
+	}
+	return res
 }
 
 func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string) error {

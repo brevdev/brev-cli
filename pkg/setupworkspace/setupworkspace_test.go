@@ -1,6 +1,7 @@
 package setupworkspace
 
 import (
+	"encoding/base64"
 	"os"
 	"testing"
 
@@ -48,4 +49,13 @@ func TestSendLogToFile(t *testing.T) {
 	res, err := os.ReadFile("test.txt")
 	assert.Nil(t, err)
 	assert.Equal(t, "hi\n", string(res))
+}
+
+func Test_decodeBase64OrReturnSelf(t *testing.T) {
+	nonB64 := "echo hi"
+	resSelf := decodeBase64OrReturnSelf(nonB64)
+	assert.Equal(t, nonB64, string(resSelf))
+	b64 := base64.StdEncoding.EncodeToString([]byte(nonB64))
+	res := decodeBase64OrReturnSelf(b64)
+	assert.Equal(t, nonB64, string(res))
 }
