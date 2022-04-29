@@ -4,6 +4,6 @@ import (
 	"testing"
 )
 
-func TestGetVsCodePaths(t *testing.T) {
+func TestGetVsCodePaths(_ *testing.T) {
 	_ = GetVsCodePaths()
 }
