@@ -3,11 +3,30 @@ package paths
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
+
+	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/spf13/cobra"
 	// breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+func NewCmdApprove(t *terminal.Terminal) *cobra.Command {
+	cmd := &cobra.Command{
+		Annotations: map[string]string{},
+		Use:         "paths",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			paths := GetPaths()
+			fmt.Println(paths)
+			return nil
+		},
+	}
+
+	return cmd
+}
+
 func GetPaths() string {
-	return ""
+	vscodePaths := GetVsCodePaths()
+	return strings.Join(vscodePaths, ":")
 }
 
 func GetVsCodePaths() []string {
