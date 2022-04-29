@@ -65,7 +65,7 @@ func GetSSHConfigs(store SSHConfigurerTaskStore) ([]Config, error) {
 			store,
 		),
 	}
-	if featureflag.ServiceMeshSSH() || featureflag.IsAdmin(user.GlobalUserType) {
+	if featureflag.ServiceMeshSSH(user.GlobalUserType) {
 		configs = []Config{
 			NewSSHConfigurerServiceMesh(store),
 		}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/huproxyclient"
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -75,15 +76,19 @@ func makeProxyURL(w *entity.Workspace) string {
 }
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
-	err := checkWorkspaceInfraVersionOrErr(workspace)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	if !featureflag.DisableSSHProxyVersionCheck() {
+		fmt.Println("checking workspace version")
+		err := checkWorkspaceInfraVersionOrErr(workspace)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		fmt.Println("checking workspace image version")
+		err = checkWorkspaceImageVersionOrErr(workspace)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
-	err = checkWorkspaceImageVersionOrErr(workspace)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = checkWorkspaceStatusOrErr(workspace)
+	err := checkWorkspaceStatusOrErr(workspace)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

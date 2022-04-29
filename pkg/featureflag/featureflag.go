@@ -23,8 +23,16 @@ func IsAdmin(userType string) bool {
 	}
 }
 
-func ServiceMeshSSH() bool {
-	return viper.GetBool("feature.service_mesh_ssh")
+// use feature flag if not provided default true for admin but not others
+func ServiceMeshSSH(userType string) bool {
+	if viper.IsSet("feature.service_mesh_ssh") {
+		return viper.GetBool("feature.service_mesh_ssh")
+	}
+	return IsAdmin(userType)
+}
+
+func DisableSSHProxyVersionCheck() bool {
+	return viper.GetBool("feature.disable_ssh_proxy_version_check")
 }
 
 func LoadFeatureFlags(path string) error {
