@@ -149,30 +149,6 @@ func GetTailScaleOutFilePath(home string) (*string, error) {
 	return fp, nil
 }
 
-func GetOrCreateSSHConfigFile(fs afero.Fs, home string) (afero.File, error) {
-	sshConfigPath, err := GetUserSSHConfigPath(home)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	sshConfigExists, err := afero.Exists(fs, sshConfigPath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	var file afero.File
-	if sshConfigExists {
-		file, err = fs.OpenFile(sshConfigPath, os.O_RDWR, 0o644)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	} else {
-		file, err = fs.Create(sshConfigPath)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-	return file, nil
-}
-
 // ReadJSON reads data from a file into the given struct
 //
 // Usage:
