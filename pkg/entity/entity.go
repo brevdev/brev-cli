@@ -201,3 +201,30 @@ func (w Workspace) createSimpleNameForWorkspace(workspaces []Workspace) Workspac
 func (w Workspace) GetNodeIdentifierForVPN(workspaces []Workspace) string {
 	return string(w.createSimpleNameForWorkspace(workspaces))
 }
+
+type OnboardingStatus struct {
+	Editor  string `json:"editor"`
+	Ssh     bool   `json:"ssh"`
+	UsedCLI bool   `json:"usedCli"`
+}
+
+func (u User) GetOnboardingStatus() (*OnboardingStatus, error) {
+	// TODO: get actual status
+	return &OnboardingStatus{
+		Editor:  "", // empty string is the false state here
+		Ssh:     false,
+		UsedCLI: true,
+	}, nil
+}
+
+func (u User) UpdateOnboardingEditorStatus(editor string) {
+	// TODO: implement me
+}
+
+func (u User) UpdateOnboardingSSHStatus(ssh bool) {
+	// TODO: implement me
+}
+
+func (u User) UpdateOnboardingCLIStatus(usedCLI bool) {
+	// TODO: implement me
+}

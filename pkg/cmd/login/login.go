@@ -112,32 +112,6 @@ func fetchThingsForTheNextFunction(o LoginOptions, t *terminal.Terminal) (*entit
 	return user, isUserCreated, orgs, nil
 }
 
-type OnboardingStatus struct {
-	editor  string `json:"editor"`
-	ssh     bool   `json:"ssh"`
-	usedCLI bool   `json:"usedCli"`
-}
-
-func getOnboardingStatus(_ *entity.User) (*OnboardingStatus, error) {
-	// TODO: get actual status
-	return &OnboardingStatus{
-		editor: "", // empty string is the false state here
-		ssh:    false,
-	}, nil
-}
-
-func updateOnboardingEditorStatus(editor string) {
-	// TODO: implement me
-}
-
-func updateOnboardingSSHStatus(ssh bool) {
-	// TODO: implement me
-}
-
-func updateOnboardingCLIStatus(usedCLI string) {
-	// TODO: implement me
-}
-
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	user, isUserCreated, orgs, err := fetchThingsForTheNextFunction(o, t)
 	if err != nil {
@@ -145,7 +119,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	}
 
 	// figure out if we should onboard the user
-	onboardingStatus, err := getOnboardingStatus(user)
+	onboardingStatus, err := user.GetOnboardingStatus()
 	if err != nil {
 		// TODO: should we just proceed with something here?
 		return breverrors.WrapAndTrace(err)
@@ -164,13 +138,18 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		t.Print("done!")
 	}
 
-	if onboardingStatus.ssh == false {
+	if onboardingStatus.Ssh == false {
 		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-		updateOnboardingSSHStatus(true)
+		user.UpdateOnboardingSSHStatus(true)
 	}
-	if onboardingStatus.editor == "" {
+	if onboardingStatus.Editor == "" {
 		ide, _ := OnboardUserWithEditors(t, o.LoginStore)
-		updateOnboardingEditorStatus(ide)
+		user.UpdateOnboardingEditorStatus(ide)
+	}
+
+	if onboardingStatus.UsedCLI == false {
+		// by getting this far, we know they have set up the cli
+		user.UpdateOnboardingCLIStatus(true)
 	}
 
 	FinalizeOnboarding(t, isUserCreated)
