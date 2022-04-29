@@ -75,22 +75,29 @@ func makeProxyURL(w *entity.Workspace) string {
 }
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
-	if workspace.Version != "" {
-		wv, err := version.NewVersion(workspace.Version)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		workspaceInfraConstraints, err := version.NewConstraint(allowedWorkspaceInfraVersion)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if !workspaceInfraConstraints.Check(wv) {
-			return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion)
-		}
-	} else {
-		fmt.Println("workspace version blank assuming dev, not checking constraint")
+	err := checkWorkspaceInfraVersionOrErr(workspace)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+	err = checkWorkspaceImageVersionOrErr(workspace)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = checkWorkspaceStatusOrErr(workspace)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
 
+func checkWorkspaceStatusOrErr(workspace *entity.Workspace) error {
+	if workspace.Status != "RUNNING" {
+		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)
+	}
+	return nil
+}
+
+func checkWorkspaceImageVersionOrErr(workspace *entity.Workspace) error {
 	imageSplit := strings.Split(workspace.WorkspaceTemplate.Image, ":")
 	if len(imageSplit) != 2 {
 		return fmt.Errorf("problem parsing workspace image tag")
@@ -109,12 +116,29 @@ func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 			return breverrors.WrapAndTrace(err)
 		}
 
-		if !imageContraints.Check(wiv) && imageSplit[0] != allowedWorkspaceImage {
+		if !imageContraints.Check(wiv) && !strings.HasSuffix(imageSplit[0], allowedWorkspaceImage) {
 			return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
 		}
 	}
-	if workspace.Status != "RUNNING" {
-		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)
+	return nil
+}
+
+func checkWorkspaceInfraVersionOrErr(workspace *entity.Workspace) error {
+	fmt.Printf("workspace version: %s\n", workspace.Version)
+	if workspace.Version != "" {
+		wv, err := version.NewVersion(workspace.Version)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		workspaceInfraConstraints, err := version.NewConstraint(allowedWorkspaceInfraVersion)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if !workspaceInfraConstraints.Check(wv) {
+			return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion)
+		}
+	} else {
+		fmt.Println("workspace version blank assuming dev, not checking constraint")
 	}
 	return nil
 }
