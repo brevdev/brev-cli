@@ -119,35 +119,46 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	}
 
 	// figure out if we should onboard the user
-	if isUserCreated {
-		t.Print("User created!")
-		if len(orgs) == 0 {
-			orgName := makeFirstOrgName(user)
-			t.Printf("Creating your first org %s ... ", orgName)
-			_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
-				Name: orgName,
-			})
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			t.Print("done!")
-		}
-		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-		_ = OnboardUserWithEditors(t, o.LoginStore)
-		FinalizeOnboarding(t)
-	} else if len(orgs) == 1 && orgs[0].Name != makeFirstOrgName(user) {
-
-		// if there are no workspaces in this org, probably onboard them
-		// NOTE: if we let people invite into workspaces, this needs to be done
-		workspaces, err := o.LoginStore.GetWorkspaces(orgs[0].ID, &store.GetWorkspacesOptions{UserID: user.ID})
-		if err == nil && len(workspaces) == 0 {
-			// The SSH key is done in the front end when acct is created
-			_ = OnboardUserWithEditors(t, o.LoginStore)
-			FinalizeOnboarding(t)
-		}
+	onboardingStatus, err := user.GetOnboardingStatus()
+	if err != nil {
+		// TODO: should we just proceed with something here?
+		return breverrors.WrapAndTrace(err)
 	}
 
+	// Create a users first org
+	if len(orgs) == 0 {
+		orgName := makeFirstOrgName(user)
+		t.Printf("Creating your first org %s ... ", orgName)
+		_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+			Name: orgName,
+		})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		t.Print("done!")
+	}
+
+	if onboardingStatus.Ssh == false {
+		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
+		user.UpdateOnboardingSSHStatus(true)
+	}
+	if onboardingStatus.Editor == "" {
+		ide, _ := OnboardUserWithEditors(t, o.LoginStore)
+		user.UpdateOnboardingEditorStatus(ide)
+	}
+
+	if onboardingStatus.UsedCLI == false {
+		// by getting this far, we know they have set up the cli
+		user.UpdateOnboardingCLIStatus(true)
+	}
+
+	FinalizeOnboarding(t, isUserCreated)
+
 	if featureflag.IsAdmin(user.GlobalUserType) {
+		s := t.NewSpinner()
+		s.Suffix = " setting up service mesh bcs you're an ADMIN 🤩"
+		s.Start()
+
 		sock := o.LoginStore.GetServerSockFile()
 		c, err := server.NewClient(sock)
 		if err != nil {
@@ -157,6 +168,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+		s.Stop()
 	}
 	return nil
 }
@@ -219,7 +231,7 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 	return nil
 }
 
-func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
+func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) (string, error) {
 	// Check IDE requirements
 	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "What is your preferred IDE?",
@@ -262,18 +274,20 @@ func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) error {
 	}
 
 	if ide == "JetBrains IDEs" {
-		return CheckAndInstallGateway(t, loginStore)
+		return ide, CheckAndInstallGateway(t, loginStore)
 	}
 
-	return nil
+	return ide, nil
 }
 
-func FinalizeOnboarding(t *terminal.Terminal) {
+func FinalizeOnboarding(t *terminal.Terminal, isUserCreated bool) {
 	terminal.DisplayBrevLogo(t)
 	t.Vprint("\n")
-	t.Vprintf(t.Green("\nCreate your first workspace! Try this command:"))
-	t.Vprintf(t.Yellow("\n\t$brev start https://github.com/brevdev/hello-react"))
-	t.Vprint("\n")
+	if isUserCreated {
+		t.Vprintf(t.Green("\nCreate your first workspace! Try this command:"))
+		t.Vprintf(t.Yellow("\n\t$brev start https://github.com/brevdev/hello-react"))
+		t.Vprint("\n")
+	}
 }
 
 func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
