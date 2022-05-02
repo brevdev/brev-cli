@@ -59,3 +59,18 @@ func Test_decodeBase64OrReturnSelf(t *testing.T) {
 	res := decodeBase64OrReturnSelf(b64)
 	assert.Equal(t, nonB64, string(res))
 }
+
+func Test_AppendToOrCreateFile(t *testing.T) {
+	_ = os.Remove("test2.txt")
+	content := "hello"
+	err := AppendToOrCreateFile("test2.txt", "hello")
+	assert.Nil(t, err)
+	res, err := os.ReadFile("test2.txt")
+	assert.Nil(t, err)
+	assert.Equal(t, content, string(res))
+	err = AppendToOrCreateFile("test2.txt", "hello")
+	assert.Nil(t, err)
+	res, err = os.ReadFile("test2.txt")
+	assert.Nil(t, err)
+	assert.Equal(t, content+content, string(res))
+}

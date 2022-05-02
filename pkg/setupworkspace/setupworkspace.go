@@ -345,14 +345,13 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = CmdBuilder("echo", fmt.Sprintf(`"proxy-domain: %s"`, workspaceHost), codeServerConfig)
-	err = cmd.Run()
+
+	err = AppendToOrCreateFile(codeServerConfig, fmt.Sprintf("proxy-domain: %s\n", workspaceHost))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	codeServerLogLevel := "trace"
-	cmd = CmdBuilder("echo", fmt.Sprintf(`"log:: %s"`, codeServerLogLevel), codeServerConfig)
-	err = cmd.Run()
+	err = AppendToOrCreateFile(codeServerConfig, fmt.Sprintf("log: %s\n", codeServerLogLevel))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -675,6 +674,19 @@ func ChownFilePathToUser(filePath string, user *user.User) error {
 	}
 	err = os.Chown(filePath, int(uid), int(gid))
 	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+// similar to redirect operator '>'
+func AppendToOrCreateFile(filePath string, toAppend string) error {
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:gosec // occurs in safe area
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer PrintErrFromFunc(f.Close)
+	if _, err := f.WriteString(toAppend); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
