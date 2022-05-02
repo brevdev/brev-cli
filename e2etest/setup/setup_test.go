@@ -301,7 +301,7 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
@@ -336,7 +336,7 @@ func Test_NoProjectBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		AssertValidBrevProjRepo(t, w, "name")
@@ -346,7 +346,7 @@ func Test_NoProjectBrev(t *testing.T) {
 			return
 		}
 
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		AssertValidBrevProjRepo(t, w, "name")
@@ -367,7 +367,7 @@ func Test_NoUserBrevNoProj(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertPathDoesNotExist(t, w, "user-dotbrev")
 
@@ -388,7 +388,7 @@ func Test_NoUserBrevProj(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertPathDoesNotExist(t, w, "user-dotbrev")
 
@@ -400,7 +400,7 @@ func Test_NoUserBrevProj(t *testing.T) {
 			return
 		}
 
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertPathDoesNotExist(t, w, "user-dotbrev")
 
@@ -422,7 +422,7 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 
@@ -431,7 +431,7 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 			return
 		}
 
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 	})
@@ -455,7 +455,7 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) { //nolint:dupl // TODO should re
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "name")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
@@ -465,7 +465,7 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) { //nolint:dupl // TODO should re
 			return
 		}
 
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "name")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
@@ -488,7 +488,7 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO shoul
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
@@ -498,7 +498,7 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO shoul
 			return
 		}
 
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
@@ -519,7 +519,7 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace) {
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
@@ -533,7 +533,7 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 			return
 		}
 
-		AssertWorkspaceSetup(t, w, params.WorkspacePassword)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
 		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
@@ -545,7 +545,7 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func AssertWorkspaceSetup(t *testing.T, w Workspace, password string) {
+func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host string) {
 	t.Helper()
 	AssertUser(t, w, "root")
 	AssertCwd(t, w, "/home/brev/workspace")
@@ -555,6 +555,7 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string) {
 	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
 	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request")
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", password)
+	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", host)
 	AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
 }
 
