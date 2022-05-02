@@ -571,6 +571,7 @@ func AssertValidBrevBaseRepoSetup(t *testing.T, w Workspace, repoPath string) {
 func AssertValidUserBrevSetup(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertValidBrevBaseRepoSetup(t, w, repoPath)
+	AssertPathNotExist(t, w, fmt.Sprintf("%s/.brev/ports.yaml", repoPath))
 }
 
 func AssertTestUserRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
@@ -640,6 +641,12 @@ func AssertPathExists(t *testing.T, workspace Workspace, path string) bool {
 	t.Helper()
 	_, err := workspace.Exec("ls", path)
 	return assert.Nil(t, err)
+}
+
+func AssertPathNotExist(t *testing.T, workspace Workspace, path string) bool {
+	t.Helper()
+	_, err := workspace.Exec("ls", path)
+	return assert.NotNil(t, err)
 }
 
 func AssertPathDoesNotExist(t *testing.T, workspace Workspace, path string) bool {
