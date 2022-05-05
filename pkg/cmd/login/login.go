@@ -36,6 +36,7 @@ type LoginStore interface {
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 	GetServerSockFile() string
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 }
 
 type Auth interface {
@@ -112,6 +113,15 @@ func fetchThingsForTheNextFunction(o LoginOptions, t *terminal.Terminal) (*entit
 	return user, isUserCreated, orgs, nil
 }
 
+func mapAppend(m map[string]interface{}, n ...map[string]interface{}) map[string]interface{} {
+	for _, item := range n {
+		for key, value := range item {
+			m[key] = value
+		}
+	}
+	return m
+}
+
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	user, isUserCreated, orgs, err := fetchThingsForTheNextFunction(o, t)
 	if err != nil {
@@ -138,18 +148,31 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		t.Print("done!")
 	}
 
+	// todo make this one api call
 	if onboardingStatus.Ssh == false {
 		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-		user.UpdateOnboardingSSHStatus(true)
+		o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+			OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
+				"Ssh": true,
+			}),
+		})
 	}
 	if onboardingStatus.Editor == "" {
 		ide, _ := OnboardUserWithEditors(t, o.LoginStore)
-		user.UpdateOnboardingEditorStatus(ide)
+		o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+			OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
+				"editor": ide,
+			}),
+		})
 	}
 
 	if onboardingStatus.UsedCLI == false {
 		// by getting this far, we know they have set up the cli
-		user.UpdateOnboardingCLIStatus(true)
+		o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+			OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
+				"usedCLI": false,
+			}),
+		})
 	}
 
 	FinalizeOnboarding(t, isUserCreated)

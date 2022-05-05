@@ -11,21 +11,23 @@ type AuthTokens struct {
 }
 
 type UpdateUser struct {
-	Username          string `json:"username"`
-	Name              string `json:"name"`
-	Email             string `json:"email"`
-	BaseWorkspaceRepo string `json:"baseWorkspaceRepo"`
+	Username          string                 `json:"username"`
+	Name              string                 `json:"name"`
+	Email             string                 `json:"email"`
+	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
+	OnboardingStatus  map[string]interface{} `json:"onboardingStatus"`
 }
 
 type User struct {
-	ID                string `json:"id"`
-	PublicKey         string `json:"publicKey,omitempty"`
-	Username          string `json:"username"`
-	Name              string `json:"name"`
-	Email             string `json:"email"`
-	WorkspacePassword string `json:"workspacePassword"`
-	BaseWorkspaceRepo string `json:"baseWorkspaceRepo"`
-	GlobalUserType    string `json:"globalUserType"`
+	ID                string                 `json:"id"`
+	PublicKey         string                 `json:"publicKey,omitempty"`
+	Username          string                 `json:"username"`
+	Name              string                 `json:"name"`
+	Email             string                 `json:"email"`
+	WorkspacePassword string                 `json:"workspacePassword"`
+	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
+	GlobalUserType    string                 `json:"globalUserType"`
+	OnboardingStatus  map[string]interface{} `json:"onboardingStatus"`
 }
 
 type UserKeys struct {
@@ -208,23 +210,36 @@ type OnboardingStatus struct {
 	UsedCLI bool   `json:"usedCli"`
 }
 
+// https://stackoverflow.com/questions/27545270/how-to-get-a-value-from-map/
+func safeStringMap(mapStrInter map[string]interface{}, key, fallback string) string {
+	var value string
+	var ok bool
+	if x, found := mapStrInter[key]; found {
+		if value, ok = x.(string); !ok {
+			// do whatever you want to handle errors - this means this wasn't a string
+			return value
+		}
+	}
+	return fallback
+}
+
+// https://stackoverflow.com/questions/27545270/how-to-get-a-value-from-map/
+func safeBoolMap(mapStrInter map[string]interface{}, key string, fallback bool) bool {
+	var value bool
+	var ok bool
+	if x, found := mapStrInter[key]; found {
+		if value, ok = x.(bool); !ok {
+			// do whatever you want to handle errors - this means this wasn't a string
+			return value
+		}
+	}
+	return fallback
+}
+
 func (u User) GetOnboardingStatus() (*OnboardingStatus, error) {
-	// TODO: get actual status
 	return &OnboardingStatus{
-		Editor:  "", // empty string is the false state here
-		Ssh:     false,
-		UsedCLI: true,
+		Editor:  safeStringMap(u.OnboardingStatus, "editor", ""), // empty string is the false state here
+		Ssh:     safeBoolMap(u.OnboardingStatus, "Ssh", false),
+		UsedCLI: safeBoolMap(u.OnboardingStatus, "usedCLI", false),
 	}, nil
-}
-
-func (u User) UpdateOnboardingEditorStatus(editor string) {
-	// TODO: implement me
-}
-
-func (u User) UpdateOnboardingSSHStatus(ssh bool) {
-	// TODO: implement me
-}
-
-func (u User) UpdateOnboardingCLIStatus(usedCLI bool) {
-	// TODO: implement me
 }
