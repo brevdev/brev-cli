@@ -545,7 +545,7 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func Test_UnauthenticatedSSHKey(t *testing.T) {
+func Test_UnauthenticatedSSHKey(_ *testing.T) {
 	// uses an ssh key that is not connected to github
 }
 

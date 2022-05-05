@@ -118,10 +118,8 @@ func mapAppend(m map[string]interface{}, n ...map[string]interface{}) map[string
 		m = make(map[string]interface{})
 	}
 	for _, item := range n {
-		if item != nil {
-			for key, value := range item {
-				m[key] = value
-			}
+		for key, value := range item {
+			m[key] = value
 		}
 	}
 	return m
@@ -136,11 +134,11 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	if len(orgs) == 0 {
 		orgName := makeFirstOrgName(user)
 		t.Printf("Creating your first org %s ... ", orgName)
-		_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+		_, err2 := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
 			Name: orgName,
 		})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
 		t.Print("done!")
 	}
