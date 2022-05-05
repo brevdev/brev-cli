@@ -135,7 +135,7 @@ func (w WorkspaceIniter) BuildUserDotBrevPath(suffix ...string) string {
 }
 
 func (w WorkspaceIniter) Setup() error {
-	fmt.Println("------ Preparing the workspace ------")
+	return fmt.Errorf("test error")
 	err := w.PrepareWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

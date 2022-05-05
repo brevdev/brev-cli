@@ -14,6 +14,7 @@ const (
 	defaultWorkspaceClass    EnvVarName = "DEFAULT_WORKSPACE_CLASS"
 	defaultWorkspaceTemplate EnvVarName = "DEFAULT_WORKSPACE_TEMPLATE"
 	segmentKey               EnvVarName = "DEFAULT_SEGMENT_KEY"
+	sentryURL                EnvVarName = "DEFAULT_SENTRY_URL"
 )
 
 type ConstantsConfig struct{}
@@ -49,6 +50,10 @@ func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {
 
 func (c ConstantsConfig) GetSegmentKey() string {
 	return getEnvOrDefault(segmentKey, "4RndpJDxkZViNDMSjMaSxb9IANpqkV4X")
+}
+
+func (c ConstantsConfig) GetSentryURL() string {
+	return getEnvOrDefault(sentryURL, "https://4f3dca96f17e4c7995588dda4a31b37f@o410659.ingest.sentry.io/6383105")
 }
 
 func getEnvOrDefault(envVarName EnvVarName, defaultVal string) string {

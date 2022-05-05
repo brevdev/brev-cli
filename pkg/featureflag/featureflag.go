@@ -35,6 +35,10 @@ func DisableSSHProxyVersionCheck() bool {
 	return viper.GetBool("feature.disable_ssh_proxy_version_check")
 }
 
+func DisableErrorReporting() bool {
+	return viper.GetBool("feature.disable_error_reporting")
+}
+
 func LoadFeatureFlags(path string) error {
 	viper.SetConfigName("config")
 	viper.AddConfigPath("/etc/brev/")

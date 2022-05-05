@@ -545,6 +545,10 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func Test_UnauthenticatedSSHKey(t *testing.T) {
+	// uses an ssh key that is not connected to github
+}
+
 func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host string) {
 	t.Helper()
 	AssertUser(t, w, "root")

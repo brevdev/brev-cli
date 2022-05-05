@@ -2,10 +2,15 @@ package setupworkspace
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/getsentry/sentry-go"
 	"github.com/spf13/cobra"
 )
 
@@ -13,18 +18,48 @@ type SetupWorkspaceStore interface {
 	GetSetupParams() (*store.SetupParamsV0, error)
 	WriteSetupScript(script string) error
 	GetSetupScriptPath() string
+	GetCurrentUser() (*entity.User, error)
 }
+
+const Name = "setupworkspace"
 
 // Internal command for setting up workspace // v1 similar to k8s post-start script
 func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 	var forceEnableSetup bool
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"hidden": ""},
-		Use:         "setupworkspace",
+		Use:         Name,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("setting up workspace")
+			if !featureflag.IsDev() {
+				err := sentry.Init(sentry.ClientOptions{
+					Dsn: config.GlobalConfig.GetSentryURL(),
+				})
+				if err != nil {
+					fmt.Println(err)
+				}
+
+				user, err := store.GetCurrentUser()
+				if err != nil {
+					sentry.CaptureMessage(err.Error())
+					sentry.CaptureException(err)
+					return breverrors.WrapAndTrace(err)
+				}
+
+				scope := sentry.CurrentHub().Scope()
+				scope.SetUser(sentry.User{
+					ID:       user.ID,
+					Username: user.Username,
+					Email:    user.Email,
+				})
+				scope.SetTag("command", Name)
+				defer sentry.Flush(2 * time.Second)
+			}
+
 			params, err := store.GetSetupParams()
 			if err != nil {
+				sentry.CaptureMessage(err.Error())
+				sentry.CaptureException(err)
 				return breverrors.WrapAndTrace(err)
 			}
 
@@ -35,8 +70,11 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 
 			err = setupworkspace.SetupWorkspace(params)
 			if err != nil {
+				sentry.CaptureMessage(err.Error())
+				sentry.CaptureException(err)
 				return breverrors.WrapAndTrace(err)
 			}
+			fmt.Println("done setting up workspace")
 
 			return nil
 		},
