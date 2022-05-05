@@ -164,6 +164,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 			fmt.Println("")
+			fmt.Println("\n" + url + "\n")
 			_ = terminal.PromptGetInput(terminal.PromptContent{
 				Label:      "  " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
 				ErrorMsg:   "error",
