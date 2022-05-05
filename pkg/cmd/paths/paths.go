@@ -10,7 +10,7 @@ import (
 	// breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-func NewCmdApprove(t *terminal.Terminal) *cobra.Command {
+func NewCmdApprove(_ *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{},
 		Use:         "paths",

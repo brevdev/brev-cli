@@ -127,53 +127,48 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	// Create a users first org
+	if len(orgs) == 0 {
+		orgName := makeFirstOrgName(user)
+		t.Printf("Creating your first org %s ... ", orgName)
+		_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+			Name: orgName,
+		})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		t.Print("done!")
+	}
 
 	if featureflag.IsDev() {
 		// figure out if we should onboard the user
-		onboardingStatus, err := user.GetOnboardingStatus()
+		currentOnboardingStatus, err := user.GetOnboardingStatus()
 		if err != nil {
 			// TODO: should we just proceed with something here?
 			return breverrors.WrapAndTrace(err)
 		}
-
-		// Create a users first org
-		if len(orgs) == 0 {
-			orgName := makeFirstOrgName(user)
-			t.Printf("Creating your first org %s ... ", orgName)
-			_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
-				Name: orgName,
-			})
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			t.Print("done!")
-		}
+		newOnboardingStatus := make(map[string]interface{})
 
 		// todo make this one api call
-		if onboardingStatus.Ssh == false {
+		if !currentOnboardingStatus.SSH {
 			_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-			o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-				OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
-					"Ssh": true,
-				}),
-			})
+			newOnboardingStatus["SSH"] = true
 		}
-		if onboardingStatus.Editor == "" {
+		if currentOnboardingStatus.Editor == "" {
 			ide, _ := OnboardUserWithEditors(t, o.LoginStore)
-			o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-				OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
-					"editor": ide,
-				}),
-			})
+			newOnboardingStatus["editor"] = ide
 		}
 
-		if onboardingStatus.UsedCLI == false {
+		if !currentOnboardingStatus.UsedCLI {
 			// by getting this far, we know they have set up the cli
-			o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-				OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
-					"usedCLI": false,
-				}),
-			})
+			newOnboardingStatus["usedCLI"] = true
+		}
+
+		user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+			OnboardingStatus: mapAppend(user.OnboardingStatus, newOnboardingStatus),
+		})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
 
 	}

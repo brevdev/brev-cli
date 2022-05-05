@@ -206,7 +206,7 @@ func (w Workspace) GetNodeIdentifierForVPN(workspaces []Workspace) string {
 
 type OnboardingStatus struct {
 	Editor  string `json:"editor"`
-	Ssh     bool   `json:"ssh"`
+	SSH     bool   `json:"ssh"`
 	UsedCLI bool   `json:"usedCli"`
 }
 
@@ -239,7 +239,7 @@ func safeBoolMap(mapStrInter map[string]interface{}, key string, fallback bool) 
 func (u User) GetOnboardingStatus() (*OnboardingStatus, error) {
 	return &OnboardingStatus{
 		Editor:  safeStringMap(u.OnboardingStatus, "editor", ""), // empty string is the false state here
-		Ssh:     safeBoolMap(u.OnboardingStatus, "Ssh", false),
+		SSH:     safeBoolMap(u.OnboardingStatus, "SSH", false),
 		UsedCLI: safeBoolMap(u.OnboardingStatus, "usedCLI", false),
 	}, nil
 }

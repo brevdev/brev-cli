@@ -1,4 +1,4 @@
-// WE SHOULD SETUP THE USER HERE
+// Package setup WE SHOULD SETUP THE USER HERE
 package setup
 
 import (
@@ -23,7 +23,7 @@ type SetupStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
-func NewCmdOpen(t *terminal.Terminal, store SetupStore) *cobra.Command {
+func NewCmdOpen(_ *terminal.Terminal, _ SetupStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
