@@ -116,7 +116,6 @@ func fetchThingsForTheNextFunction(o LoginOptions, t *terminal.Terminal) (*entit
 func mapAppend(m map[string]interface{}, n ...map[string]interface{}) map[string]interface{} {
 	if m == nil { // we may get nil maps from legacy users not having user.OnboardingStatus set
 		m = make(map[string]interface{})
-
 	}
 	for _, item := range n {
 		if item != nil {
@@ -146,41 +145,38 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		t.Print("done!")
 	}
 
-	if featureflag.IsDev() {
-		// figure out if we should onboard the user
-		currentOnboardingStatus, err := user.GetOnboardingStatus()
-		if err != nil {
-			// TODO: should we just proceed with something here?
-			return breverrors.WrapAndTrace(err)
-		}
-		newOnboardingStatus := make(map[string]interface{})
+	// figure out if we should onboard the user
+	currentOnboardingStatus, err := user.GetOnboardingStatus()
+	if err != nil {
+		// TODO: should we just proceed with something here?
+		return breverrors.WrapAndTrace(err)
+	}
+	newOnboardingStatus := make(map[string]interface{})
 
-		// todo make this one api call
-		if !currentOnboardingStatus.SSH {
-			_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-			newOnboardingStatus["SSH"] = true
-		}
-		if currentOnboardingStatus.Editor == "" {
-			ide, _ := OnboardUserWithEditors(t, o.LoginStore)
-			newOnboardingStatus["editor"] = ide
-		}
+	// todo make this one api call
+	if !currentOnboardingStatus.SSH {
+		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
+		newOnboardingStatus["SSH"] = true
+	}
+	if currentOnboardingStatus.Editor == "" {
+		ide, _ := OnboardUserWithEditors(t, o.LoginStore)
+		newOnboardingStatus["editor"] = ide
+	}
 
-		if !currentOnboardingStatus.UsedCLI {
-			// by getting this far, we know they have set up the cli
-			newOnboardingStatus["usedCLI"] = true
-		}
+	if !currentOnboardingStatus.UsedCLI {
+		// by getting this far, we know they have set up the cli
+		newOnboardingStatus["usedCLI"] = true
+	}
 
-		user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-			// username, name, and email are required fields, but we only care about onboarding status
-			Username:         user.Username,
-			Name:             user.Name,
-			Email:            user.Email,
-			OnboardingStatus: mapAppend(user.OnboardingStatus, newOnboardingStatus),
-		})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
+	user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+		// username, name, and email are required fields, but we only care about onboarding status
+		Username:         user.Username,
+		Name:             user.Name,
+		Email:            user.Email,
+		OnboardingStatus: mapAppend(user.OnboardingStatus, newOnboardingStatus),
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	FinalizeOnboarding(t, isUserCreated)
