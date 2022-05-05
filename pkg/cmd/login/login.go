@@ -128,51 +128,54 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// figure out if we should onboard the user
-	onboardingStatus, err := user.GetOnboardingStatus()
-	if err != nil {
-		// TODO: should we just proceed with something here?
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// Create a users first org
-	if len(orgs) == 0 {
-		orgName := makeFirstOrgName(user)
-		t.Printf("Creating your first org %s ... ", orgName)
-		_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
-			Name: orgName,
-		})
+	if featureflag.IsDev() {
+		// figure out if we should onboard the user
+		onboardingStatus, err := user.GetOnboardingStatus()
 		if err != nil {
+			// TODO: should we just proceed with something here?
 			return breverrors.WrapAndTrace(err)
 		}
-		t.Print("done!")
-	}
 
-	// todo make this one api call
-	if onboardingStatus.Ssh == false {
-		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-		o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-			OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
-				"Ssh": true,
-			}),
-		})
-	}
-	if onboardingStatus.Editor == "" {
-		ide, _ := OnboardUserWithEditors(t, o.LoginStore)
-		o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-			OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
-				"editor": ide,
-			}),
-		})
-	}
+		// Create a users first org
+		if len(orgs) == 0 {
+			orgName := makeFirstOrgName(user)
+			t.Printf("Creating your first org %s ... ", orgName)
+			_, err := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+				Name: orgName,
+			})
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			t.Print("done!")
+		}
 
-	if onboardingStatus.UsedCLI == false {
-		// by getting this far, we know they have set up the cli
-		o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
-			OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
-				"usedCLI": false,
-			}),
-		})
+		// todo make this one api call
+		if onboardingStatus.Ssh == false {
+			_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
+			o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+				OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
+					"Ssh": true,
+				}),
+			})
+		}
+		if onboardingStatus.Editor == "" {
+			ide, _ := OnboardUserWithEditors(t, o.LoginStore)
+			o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+				OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
+					"editor": ide,
+				}),
+			})
+		}
+
+		if onboardingStatus.UsedCLI == false {
+			// by getting this far, we know they have set up the cli
+			o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+				OnboardingStatus: mapAppend(user.OnboardingStatus, map[string]interface{}{
+					"usedCLI": false,
+				}),
+			})
+		}
+
 	}
 
 	FinalizeOnboarding(t, isUserCreated)
