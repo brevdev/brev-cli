@@ -114,9 +114,15 @@ func fetchThingsForTheNextFunction(o LoginOptions, t *terminal.Terminal) (*entit
 }
 
 func mapAppend(m map[string]interface{}, n ...map[string]interface{}) map[string]interface{} {
+	if m == nil { // we may get nil maps from legacy users not having user.OnboardingStatus set
+		m = make(map[string]interface{})
+
+	}
 	for _, item := range n {
-		for key, value := range item {
-			m[key] = value
+		if item != nil {
+			for key, value := range item {
+				m[key] = value
+			}
 		}
 	}
 	return m
@@ -165,6 +171,10 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		}
 
 		user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
+			// username, name, and email are required fields, but we only care about onboarding status
+			Username:         user.Username,
+			Name:             user.Name,
+			Email:            user.Email,
 			OnboardingStatus: mapAppend(user.OnboardingStatus, newOnboardingStatus),
 		})
 		if err != nil {

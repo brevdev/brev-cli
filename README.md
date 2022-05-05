@@ -4,7 +4,7 @@
 
 # Brev.dev
 
-[Brev.dev](https://brev.dev) makes it easy to code on remote machines. Connects your local computer to a mesh network of remote machines. Use Brev.dev to start a project and share your development environment in under 15s, with zero setup. 
+[Brev.dev](https://brev.dev) makes it easy to code on remote machines. Connects your local computer to a mesh network of remote machines. Use Brev.dev to start a project and share your development environment in under 15s, with zero setup.
 
 ## Install
 
@@ -116,7 +116,7 @@ make a patch release
 make version-bump-patch
 ```
 
-make a minor release 
+make a minor release
 
 ```
 make version-bump-minor

@@ -15,7 +15,7 @@ type UpdateUser struct {
 	Name              string                 `json:"name"`
 	Email             string                 `json:"email"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
-	OnboardingStatus  map[string]interface{} `json:"onboardingStatus"`
+	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
 }
 
 type User struct {
@@ -27,7 +27,7 @@ type User struct {
 	WorkspacePassword string                 `json:"workspacePassword"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType    string                 `json:"globalUserType"`
-	OnboardingStatus  map[string]interface{} `json:"onboardingStatus"`
+	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
 }
 
 type UserKeys struct {
@@ -217,8 +217,9 @@ func safeStringMap(mapStrInter map[string]interface{}, key, fallback string) str
 	if x, found := mapStrInter[key]; found {
 		if value, ok = x.(string); !ok {
 			// do whatever you want to handle errors - this means this wasn't a string
-			return value
+			return fallback
 		}
+		return value
 	}
 	return fallback
 }
@@ -229,17 +230,18 @@ func safeBoolMap(mapStrInter map[string]interface{}, key string, fallback bool) 
 	var ok bool
 	if x, found := mapStrInter[key]; found {
 		if value, ok = x.(bool); !ok {
-			// do whatever you want to handle errors - this means this wasn't a string
-			return value
+			return fallback
 		}
+		return value
 	}
 	return fallback
 }
 
 func (u User) GetOnboardingStatus() (*OnboardingStatus, error) {
-	return &OnboardingStatus{
+	x := &OnboardingStatus{
 		Editor:  safeStringMap(u.OnboardingStatus, "editor", ""), // empty string is the false state here
 		SSH:     safeBoolMap(u.OnboardingStatus, "SSH", false),
 		UsedCLI: safeBoolMap(u.OnboardingStatus, "usedCLI", false),
-	}, nil
+	}
+	return x, nil
 }
