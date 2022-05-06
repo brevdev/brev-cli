@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -53,7 +54,7 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 	for _, p := range containerParams {
 		containerName := fmt.Sprintf("%s-%s", testPrefix, p.Name)
 		// [a-zA-Z0-9][a-zA-Z0-9_.-]
-		workspace := *NewTestWorkspace(binPath, containerName, p.Image, p.Ports, setupParams)
+		workspace := NewTestWorkspace(binPath, containerName, p.Image, p.Ports, setupParams)
 		_ = workspace.Done()
 		workspace.ShowOut = true
 		workspaces = append(workspaces, workspace)
@@ -80,15 +81,15 @@ func (w WorkspaceTestClient) Done() error {
 	return nil
 }
 
-type workspaceTest func(workspace Workspace)
+type workspaceTest func(workspace Workspace, err error)
 
 func (w WorkspaceTestClient) Test(test workspaceTest) error {
 	for _, w := range w.TestWorkspaces {
 		err := w.Setup()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		test(w)
+		test(w, err)
+		// if err != nil {
+		// 	return breverrors.WrapAndTrace(err)
+		// }
 	}
 	return nil
 }
@@ -99,6 +100,7 @@ type Workspace interface {
 	Reset() error
 	Exec(arg ...string) ([]byte, error) // always returns []byte even if error since stdout/err is still useful
 	Copy(src string, dest string) error
+	UpdateParams(*store.SetupParamsV0)
 }
 
 type ExecResult interface {
@@ -114,11 +116,15 @@ type TestWorkspace struct {
 	ShowOut        bool
 }
 
-var _ Workspace = TestWorkspace{}
+var _ Workspace = &TestWorkspace{}
 
 // image := "brevdev/ubuntu-proxy:0.3.2"
 func NewTestWorkspace(testBrevBinaryPath string, containerName string, image string, ports []string, setupParams *store.SetupParamsV0) *TestWorkspace {
 	return &TestWorkspace{SetupParams: setupParams, ContainerName: containerName, Ports: ports, Image: image, TestBrevBinary: testBrevBinaryPath}
+}
+
+func (w *TestWorkspace) UpdateParams(params *store.SetupParamsV0) {
+	w.SetupParams = params
 }
 
 func sendToOut(c *exec.Cmd) {
@@ -281,6 +287,15 @@ func GetTestKeys() (*store.KeyPair, error) {
 	return &kp, nil
 }
 
+func GetUnauthedTestKeys() (*store.KeyPair, error) {
+	kp := store.KeyPair{}
+	err := files.ReadJSON(files.AppFs, "/home/brev/workspace/brev-cli/assets/test_noauth_keypair.json", &kp) // TODO relative path
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &kp, nil
+}
+
 var SupportedContainers = []ContainerParams{
 	{
 		Name:  "brevdev-ubuntu-proxy-0.3.2",
@@ -300,7 +315,8 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
@@ -335,7 +351,8 @@ func Test_NoProjectBrev(t *testing.T) {
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
@@ -366,7 +383,8 @@ func Test_NoUserBrevNoProj(t *testing.T) {
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertPathDoesNotExist(t, w, "user-dotbrev")
@@ -387,7 +405,8 @@ func Test_NoUserBrevProj(t *testing.T) {
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertPathDoesNotExist(t, w, "user-dotbrev")
@@ -421,7 +440,8 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
@@ -454,7 +474,8 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) { //nolint:dupl // TODO should re
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "name")
@@ -487,7 +508,8 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO shoul
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
@@ -518,7 +540,8 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 
 	client := NewWorkspaceTestClient(params, SupportedContainers)
 
-	err = client.Test(func(w Workspace) {
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidUserBrevSetup(t, w, "user-dotbrev")
@@ -545,8 +568,35 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func Test_UnauthenticatedSSHKey(_ *testing.T) {
-	// uses an ssh key that is not connected to github
+func Test_UnauthenticatedSSHKey(t *testing.T) {
+	noauthKeys, err := GetUnauthedTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	workskeys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(noauthKeys)
+
+	params.WorkspaceBaseRepo = ""
+	client := NewWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Error(t, err)
+		params.WorkspaceKeyPair = workskeys
+		w.UpdateParams(params)
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+	})
+	assert.Nil(t, err)
 }
 
 func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host string) {
@@ -582,7 +632,7 @@ func AssertTestUserRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user setup script ran")
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user: brev")
-	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", repoPath))
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", filepath.Join("/home/brev/workspace", repoPath)))
 }
 
 func AssertValidBrevProjRepo(t *testing.T, w Workspace, repoPath string) {
@@ -597,7 +647,7 @@ func AssertTestRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "repo setup script ran")
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user: brev")
-	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", repoPath))
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", filepath.Join("/home/brev/workspace", repoPath)))
 }
 
 func AssertCwd(t *testing.T, w Workspace, expectedCwd string) {

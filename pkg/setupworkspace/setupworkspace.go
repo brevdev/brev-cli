@@ -141,17 +141,17 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	err = w.SetupCodeServer(w.Params.WorkspacePassword, fmt.Sprintf("127.0.0.1:%d", w.Params.WorkspacePort), string(w.Params.WorkspaceHost))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = w.SetupSSH(w.Params.WorkspaceKeyPair)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	err = w.SetupGit(w.Params.WorkspaceUsername, w.Params.WorkspaceEmail)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = w.SetupCodeServer(w.Params.WorkspacePassword, fmt.Sprintf("127.0.0.1:%d", w.Params.WorkspacePort), string(w.Params.WorkspaceHost))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -250,7 +250,7 @@ func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer PrintErrFromFunc(idRsa.Close)
+	defer PrintErrFromFunc(idRsaPub.Close)
 	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -295,10 +295,8 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	c := fmt.Sprintf(`su %s -c 'git config --global user.email "%s"'`, w.User.Username, email) // dont know why I have to do this
-	cmd = CmdStringBuilder(c)
-	// cmd = CmdBuilder("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
-	// err = w.CmdAsUser(cmd)
+	cmd = CmdBuilder("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
+	err = w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -307,10 +305,8 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	c = fmt.Sprintf(`su %s -c 'git config --global user.name "%s"'`, w.User.Username, username) // dont know why I have to do this
-	cmd = CmdStringBuilder(c)
-	// cmd = CmdBuilder("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username))
-	// err = w.CmdAsUser(cmd)
+	cmd = CmdBuilder("git", "config", "--global", "user.name", fmt.Sprintf(`"%s"`, username))
+	err = w.CmdAsUser(cmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -324,7 +320,59 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	err = w.EnsureGitAuthOrError()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
+}
+
+func (w WorkspaceIniter) EnsureGitAuthOrError() error {
+	if w.ShouldCheckGithubAuth() {
+		fmt.Println("checking github auth")
+		cmd := CmdBuilder("ssh", "-T", "git@github.com")
+		cmd.Stderr = nil
+		cmd.Stdout = nil
+		err := w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			if strings.Contains(string(out), "successfully authenticated") {
+				return nil
+			}
+			fmt.Print(string(out))
+			return fmt.Errorf("failed to authenticate to github (ensure your ssh keys are setup correctly)")
+		}
+	}
+	if w.ShouldCheckGitlabAuth() {
+		fmt.Println("checking gitlab auth")
+		cmd := CmdBuilder("ssh", "-T", "git@gitlab.com")
+		err := w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			if strings.Contains(string(out), "successfully authenticated") {
+				return nil
+			}
+			fmt.Print(string(out))
+			return fmt.Errorf("failed to authenticate to gitlab (ensure your ssh keys are setup correctly)")
+		}
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) ShouldCheckGithubAuth() bool {
+	return strings.Contains(w.Params.WorkspaceProjectRepo+w.Params.WorkspaceBaseRepo, "github")
+}
+
+func (w WorkspaceIniter) ShouldCheckGitlabAuth() bool {
+	return strings.Contains(w.Params.WorkspaceProjectRepo+w.Params.WorkspaceBaseRepo, "gitlab")
 }
 
 func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, workspaceHost string) error {
