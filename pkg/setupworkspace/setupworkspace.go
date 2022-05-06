@@ -540,45 +540,40 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 }
 
 func (w WorkspaceIniter) RunUserSetup() error {
-	setupShPath := w.BuildUserDotBrevPath("setup.sh")
-	if PathExists(setupShPath) {
-		cmd := CmdBuilder("bash", "-c", setupShPath)
-		cmd.Dir = w.BuildUserPath()
-		err := w.CmdAsUser(cmd)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = os.MkdirAll(w.BuildUserDotBrevPath("logs"), os.ModePerm)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		done, err := SendLogToFile(cmd, w.BuildUserDotBrevPath("logs", "setup.log"))
-		defer done()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = cmd.Run()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	err := RunSetupScript(w.BuildUserDotBrevPath(), w.BuildUserPath(), w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
 func (w WorkspaceIniter) RunProjectSetup() error {
-	setupShPath := w.BuildProjectDotBrevPath("setup.sh")
+	err := RunSetupScript(w.BuildProjectDotBrevPath(), w.BuildProjectPath(), w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func RunSetupScript(dotBrevPath string, workingDir string, user *user.User) error {
+	setupShPath := filepath.Join(dotBrevPath, "setup.sh")
+	logsPath := filepath.Join(dotBrevPath, "logs")
+	setupLogPath := filepath.Join(logsPath, "setup.log")
+	if workingDir == "" {
+		workingDir = filepath.Dir(setupShPath)
+	}
 	if PathExists(setupShPath) {
-		cmd := CmdBuilder("bash", "-c", setupShPath)
-		cmd.Dir = w.BuildProjectPath()
-		err := w.CmdAsUser(cmd)
+		cmd := CmdStringBuilder(fmt.Sprintf("echo user: $(whoami) && echo pwd: $(pwd) && %s", setupShPath))
+		cmd.Dir = workingDir
+		err := CmdAsUser(cmd, user)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		err = os.MkdirAll(w.BuildProjectDotBrevPath("logs"), os.ModePerm)
+		err = os.MkdirAll(logsPath, os.ModePerm)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		done, err := SendLogToFile(cmd, w.BuildProjectDotBrevPath("logs", "setup.log"))
+		done, err := SendLogToFile(cmd, setupLogPath)
 		defer done()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -587,6 +582,8 @@ func (w WorkspaceIniter) RunProjectSetup() error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	} else {
+		fmt.Printf("no setup script found at %s\n", setupShPath)
 	}
 	return nil
 }

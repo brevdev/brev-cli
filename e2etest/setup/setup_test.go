@@ -581,6 +581,8 @@ func AssertValidUserBrevSetup(t *testing.T, w Workspace, repoPath string) {
 func AssertTestUserRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user setup script ran")
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user: brev")
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", repoPath))
 }
 
 func AssertValidBrevProjRepo(t *testing.T, w Workspace, repoPath string) {
@@ -594,6 +596,8 @@ func AssertValidBrevProjRepo(t *testing.T, w Workspace, repoPath string) {
 func AssertTestRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "repo setup script ran")
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user: brev")
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", repoPath))
 }
 
 func AssertCwd(t *testing.T, w Workspace, expectedCwd string) {
