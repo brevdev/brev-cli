@@ -169,7 +169,10 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	} else {
 		ide = currentOnboardingStatus.Editor
 	}
-	OnboardUserWithEditors(t, o.LoginStore, ide)
+	_, err = OnboardUserWithEditors(t, o.LoginStore, ide)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	if !currentOnboardingStatus.UsedCLI {
 		// by getting this far, we know they have set up the cli
