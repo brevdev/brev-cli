@@ -156,10 +156,20 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
 		newOnboardingStatus["SSH"] = true
 	}
+
+	var ide string
 	if currentOnboardingStatus.Editor == "" {
-		ide, _ := OnboardUserWithEditors(t, o.LoginStore)
+		// Check IDE requirements
+		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
+			Label:    "What is your preferred IDE?",
+			ErrorMsg: "error",
+			Items:    []string{"VSCode", "JetBrains IDEs"},
+		})
 		newOnboardingStatus["editor"] = ide
+	} else {
+		ide = currentOnboardingStatus.Editor
 	}
+	OnboardUserWithEditors(t, o.LoginStore, ide)
 
 	if !currentOnboardingStatus.UsedCLI {
 		// by getting this far, we know they have set up the cli
@@ -256,13 +266,7 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 	return nil
 }
 
-func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore) (string, error) {
-	// Check IDE requirements
-	ide := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label:    "What is your preferred IDE?",
-		ErrorMsg: "error",
-		Items:    []string{"VSCode", "JetBrains IDEs"},
-	})
+func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore, ide string) (string, error) {
 	if ide == "VSCode" {
 		// Check if user uses VSCode and intall extension for user
 		isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
