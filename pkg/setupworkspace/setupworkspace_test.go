@@ -40,7 +40,7 @@ func TestFilePerm(_ *testing.T) {
 
 func TestSendLogToFile(t *testing.T) {
 	cmd := CmdBuilder("echo", "hi")
-	done, err := SendLogToFile(cmd, "test.txt")
+	done, err := SendLogToFiles(cmd, "test.txt")
 	assert.Nil(t, err)
 	err = cmd.Run()
 	assert.Nil(t, err)

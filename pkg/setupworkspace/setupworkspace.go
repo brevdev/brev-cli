@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -23,7 +24,7 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	wi := NewWorkspaceIniter(user, params)
-	done, err := mirrorOutToFile("/var/log/brev-setup-workspace.log")
+	done, err := mirrorPipesToFile("/var/log/brev-workspace.log")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -35,17 +36,18 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 	return nil
 }
 
-func mirrorOutToFile(logFile string) (func(), error) {
+func mirrorPipesToFile(logFile string) (func(), error) {
 	// https://gist.github.com/jerblack/4b98ba48ed3fb1d9f7544d2b1a1be287
 	// open file read/write | create if not exist | clear file at open if exists
-	f, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o666) //nolint:gosec // occurs in safe area
+	f, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o666) //nolint:gosec // occurs in safe area
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// save existing stdout | MultiWriter writes to saved stdout and file
-	out := os.Stdout
-	mw := io.MultiWriter(out, f)
+	stdOut := os.Stdout
+	stdErr := os.Stderr
+	mw := io.MultiWriter(stdOut, f)
 
 	// get pipe reader and writer | writes to pipe writer come out pipe reader
 	r, w, err := os.Pipe()
@@ -77,6 +79,8 @@ func mirrorOutToFile(logFile string) (func(), error) {
 		<-exit
 		// close file after all writes have finished
 		_ = f.Close()
+		os.Stdout = stdOut
+		os.Stderr = stdErr
 	}, nil
 }
 
@@ -138,18 +142,26 @@ func (w WorkspaceIniter) CmdAsUser(cmd *exec.Cmd) error {
 	return nil
 }
 
-func SendLogToFile(cmd *exec.Cmd, filePath string) (func(), error) {
-	outfile, err := os.Create(filePath) //nolint:gosec // occurs in safe area
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+func SendLogToFiles(cmd *exec.Cmd, filePaths ...string) (func(), error) {
+	outfiles := []io.Writer{}
+	for _, f := range filePaths {
+		outfile, err := os.Create(f) //nolint:gosec // occurs in safe area
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		outfiles = append(outfiles, outfile)
 	}
-	stdOut := io.MultiWriter(outfile, os.Stdout)
-	stdErr := io.MultiWriter(outfile, os.Stderr)
+	allStdout := append([]io.Writer{os.Stdout}, outfiles...)
+	stdOut := io.MultiWriter(allStdout...)
+	allStderr := append([]io.Writer{os.Stderr}, outfiles...)
+	stdErr := io.MultiWriter(allStderr...)
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
 
 	return func() {
-		PrintErrFromFunc(outfile.Close)
+		for _, f := range outfiles {
+			PrintErrFromFunc(f.(*os.File).Close)
+		}
 	}, nil
 }
 
@@ -658,6 +670,8 @@ func RunSetupScript(dotBrevPath string, workingDir string, user *user.User) erro
 	setupShPath := filepath.Join(dotBrevPath, "setup.sh")
 	logsPath := filepath.Join(dotBrevPath, "logs")
 	setupLogPath := filepath.Join(logsPath, "setup.log")
+	archivePath := filepath.Join(logsPath, "archive")
+	archiveLogFile := filepath.Join(archivePath, fmt.Sprintf("setup-%s.log", time.Now().UTC().Format(time.RFC3339)))
 	if workingDir == "" {
 		workingDir = filepath.Dir(setupShPath)
 	}
@@ -672,7 +686,11 @@ func RunSetupScript(dotBrevPath string, workingDir string, user *user.User) erro
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		done, err := SendLogToFile(cmd, setupLogPath)
+		err = os.MkdirAll(archivePath, os.ModePerm)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		done, err := SendLogToFiles(cmd, setupLogPath, archiveLogFile)
 		defer done()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)

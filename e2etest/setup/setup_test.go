@@ -338,7 +338,6 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 	})
 
 	assert.Nil(t, err)
-	assert.Fail(t, "")
 }
 
 func Test_NoProjectBrev(t *testing.T) {
