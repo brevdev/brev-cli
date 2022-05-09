@@ -130,17 +130,9 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// Create a users first org
-	if len(orgs) == 0 {
-		orgName := makeFirstOrgName(user)
-		t.Printf("Creating your first org %s ... ", orgName)
-		_, err2 := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
-			Name: orgName,
-		})
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
-		}
-		t.Print("done!")
+	err = o.shouldHandleUserOrg(orgs, user, t)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// figure out if we should onboard the user
@@ -207,6 +199,22 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 			return breverrors.WrapAndTrace(err)
 		}
 		s.Stop()
+	}
+	return nil
+}
+
+func (o LoginOptions) shouldHandleUserOrg(orgs []entity.Organization, user *entity.User, t *terminal.Terminal) error {
+	// Create a users first org
+	if len(orgs) == 0 {
+		orgName := makeFirstOrgName(user)
+		t.Printf("Creating your first org %s ... ", orgName)
+		_, err2 := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+			Name: orgName,
+		})
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
+		}
+		t.Print("done!")
 	}
 	return nil
 }
