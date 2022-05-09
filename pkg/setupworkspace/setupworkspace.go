@@ -160,7 +160,11 @@ func SendLogToFiles(cmd *exec.Cmd, filePaths ...string) (func(), error) {
 
 	return func() {
 		for _, f := range outfiles {
-			PrintErrFromFunc(f.(*os.File).Close)
+			ff, ok := f.(*os.File)
+			if !ok {
+				panic("could not cast object to file")
+			}
+			PrintErrFromFunc(ff.Close)
 		}
 	}, nil
 }
