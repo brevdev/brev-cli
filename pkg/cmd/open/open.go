@@ -50,9 +50,11 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
-	s := t.NewSpinner()
-	s.Suffix = " finding your workspace"
-	s.Start()
+	// disabling spinner since it prevents login modal
+	fmt.Println("finding your workspace...")
+	// s := t.NewSpinner()
+	// s.Suffix = " finding your workspace"
+	// s.Start()
 
 	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
@@ -71,7 +73,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	}
 
 	// note: intentional decision to just assume the parent folder and inner folder are the same
-	s.Stop()
+	// s.Stop()
 	localIdentifier := workspace.GetLocalIdentifier(*workspaces)
 
 	err = openCode(string(localIdentifier), folderName, t)
