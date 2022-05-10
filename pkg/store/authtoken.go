@@ -26,6 +26,7 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 	if token.AccessToken == "" {
 		return fmt.Errorf("access token is empty")
 	}
+	fmt.Printf("token save: %v\n", token)
 	brevCredentialsFile, err := f.getBrevCredentialsFile()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
