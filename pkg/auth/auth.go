@@ -109,7 +109,10 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		return "", nil
 	}
 
-	// accessToken is empty??
+	// should always at least have access token?
+	if tokens.AccessToken == "" {
+		return "", fmt.Errorf("access token can not be empty")
+	}
 	isAccessTokenValid, err := t.accessTokenValidator(tokens.AccessToken)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -263,12 +266,14 @@ func isAccessTokenValid(token string) (bool, error) {
 	if err != nil {
 		ve := &jwt.ValidationError{}
 		if errors.As(err, &ve) {
+			fmt.Println("token error validation failed")
 			return false, nil
 		}
 		return false, breverrors.WrapAndTrace(err)
 	}
 	err = ptoken.Claims.Valid()
 	if err != nil {
+		fmt.Println("token check validation failed")
 		return false, nil
 	}
 	return true, nil
