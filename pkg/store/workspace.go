@@ -93,6 +93,7 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	}
 	fmt.Printf("template %s\n", options.WorkspaceTemplateID)
 	fmt.Printf("resource class %s\n", options.WorkspaceClassID)
+	fmt.Printf("workspace group %s\n", options.WorkspaceGroupID)
 
 	var result entity.Workspace
 	res, err := s.authHTTPClient.restyClient.R().
