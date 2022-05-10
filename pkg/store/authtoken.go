@@ -75,7 +75,7 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	fmt.Printf("token get access: %s | refresh %s\n", token.AccessToken, token.RefreshToken)
+	fmt.Printf("token get access: '%s' | refresh: '%s'\n%s\n", token.AccessToken, token.RefreshToken, *brevCredentialsFile)
 	return &token, nil
 }
 
