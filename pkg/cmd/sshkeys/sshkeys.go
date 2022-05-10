@@ -18,8 +18,8 @@ func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "ssh-key",
-		Short:       "Get your pulic SSH-Key",
-		Long:        "Get your pulic SSH-Key to add to pull and push from your git repository.",
+		Short:       "Get your public SSH-Key",
+		Long:        "Get your public SSH-Key to add to pull and push from your git repository.",
 		Example:     `brev ssh-key`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
