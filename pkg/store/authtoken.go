@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path"
 
@@ -22,6 +23,9 @@ func GetBrevDirectory() string {
 }
 
 func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
+	if token.AccessToken == "" {
+		return fmt.Errorf("access token is empty")
+	}
 	brevCredentialsFile, err := f.getBrevCredentialsFile()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
