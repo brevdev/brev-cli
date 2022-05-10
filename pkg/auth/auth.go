@@ -109,6 +109,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		return "", nil
 	}
 
+	// accessToken is empty??
 	isAccessTokenValid, err := t.accessTokenValidator(tokens.AccessToken)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
