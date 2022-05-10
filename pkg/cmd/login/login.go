@@ -61,26 +61,16 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(t, cmd, args))
 			cmdutil.CheckErr(opts.RunLogin(t))
-			RunTasksForUser(t)
 		},
 	}
 	return cmd
-}
-
-func RunTasksForUser(t *terminal.Terminal) {
-	cmd := exec.Command("brev", "run-tasks", "-d") // #nosec G204
-	err := cmd.Run()
-	if err != nil {
-		// tell user to run brev run-tasks
-		t.Vprint(t.Red("\nPlease run ") + t.Yellow("brev run-tasks -d") + t.Red(" in your terminal."))
-	}
 }
 
 func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func fetchThingsForTheNextFunction(o LoginOptions, t *terminal.Terminal) (*entity.User, bool, []entity.Organization, error) {
+func preLoginData(o LoginOptions, t *terminal.Terminal) (*entity.User, bool, []entity.Organization, error) {
 	workspaceID, err := o.LoginStore.GetCurrentWorkspaceID()
 	if err != nil {
 		return nil, false, nil, breverrors.WrapAndTrace(err)
@@ -126,7 +116,7 @@ func mapAppend(m map[string]interface{}, n ...map[string]interface{}) map[string
 }
 
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
-	user, isUserCreated, orgs, err := fetchThingsForTheNextFunction(o, t)
+	user, isUserCreated, orgs, err := preLoginData(o, t)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -190,15 +180,34 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		s.Start()
 
 		sock := o.LoginStore.GetServerSockFile()
-		c, err := server.NewClient(sock)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		c, err1 := server.NewClient(sock)
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
 		}
-		err = c.ConfigureVPN()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		err1 = c.ConfigureVPN()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
 		}
 		s.Stop()
+	}
+
+	err = RunTasksForUser(t)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func RunTasksForUser(t *terminal.Terminal) error {
+	brevBin, err := os.Executable()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	cmd := exec.Command(brevBin, "run-tasks", "-d") // #nosec G204
+	err = cmd.Run()
+	if err != nil {
+		// tell user to run brev run-tasks
+		t.Vprint(t.Red("\nPlease run ") + t.Yellow("brev run-tasks -d") + t.Red(" in your terminal."))
 	}
 	return nil
 }

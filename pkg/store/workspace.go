@@ -105,7 +105,6 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
-
 	fmt.Printf("template %s\n", result.WorkspaceTemplate.ID)
 	fmt.Printf("resource class %s\n", result.WorkspaceClassID)
 	fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
