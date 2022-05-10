@@ -113,6 +113,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
+	fmt.Printf("access token: %s | is valid: %v\n", tokens.AccessToken, isAccessTokenValid)
 	if !isAccessTokenValid && tokens.RefreshToken != "" {
 		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
 		if err != nil {
