@@ -266,14 +266,14 @@ func isAccessTokenValid(token string) (bool, error) {
 	if err != nil {
 		ve := &jwt.ValidationError{}
 		if errors.As(err, &ve) {
-			fmt.Println("token error validation failed")
+			fmt.Printf("token error validation failed | %v\n", err)
 			return false, nil
 		}
 		return false, breverrors.WrapAndTrace(err)
 	}
 	err = ptoken.Claims.Valid()
 	if err != nil {
-		fmt.Println("token check validation failed")
+		fmt.Printf("token check validation failed | %v\n", err)
 		return false, nil
 	}
 	return true, nil
