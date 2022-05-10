@@ -222,7 +222,7 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 	}
 
 	// write
-	dataBytes, err := json.Marshal(v)
+	dataBytes, err := json.MarshalIndent(v, "", " ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

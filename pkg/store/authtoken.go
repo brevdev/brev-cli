@@ -1,11 +1,9 @@
 package store
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"path"
-	"path/filepath"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -32,16 +30,8 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = f.fs.MkdirAll(filepath.Dir(*brevCredentialsFile), 0o700)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	file, err := json.MarshalIndent(token, "", " ")
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	fmt.Printf("!!!token SAVE: %s\nat %s\n", string(file), *brevCredentialsFile)
-	err = ioutil.WriteFile(*brevCredentialsFile, file, 0o644) //nolint: gosec // default file permission
+
+	err = files.OverwriteJSON(f.fs, *brevCredentialsFile, token)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -85,7 +75,6 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	fmt.Printf("token get access: '%s' | refresh: '%s'\n%s\n", token.AccessToken, token.RefreshToken, *brevCredentialsFile)
 	return &token, nil
 }
 
