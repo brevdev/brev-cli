@@ -175,26 +175,34 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	FinalizeOnboarding(t, isUserCreated)
 
 	if featureflag.IsAdmin(user.GlobalUserType) {
-		s := t.NewSpinner()
-		s.Suffix = " setting up service mesh bcs you're an ADMIN 🤩"
-		s.Start()
-
-		sock := o.LoginStore.GetServerSockFile()
-		c, err1 := server.NewClient(sock)
+		err1 := o.HandleLoginAdmin(t)
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
-		err1 = c.ConfigureVPN()
-		if err1 != nil {
-			return breverrors.WrapAndTrace(err1)
-		}
-		s.Stop()
 	}
 
 	err = RunTasksForUser(t)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
+
+func (o LoginOptions) HandleLoginAdmin(t *terminal.Terminal) error {
+	s := t.NewSpinner()
+	s.Suffix = " setting up service mesh bcs you're an ADMIN 🤩"
+	s.Start()
+
+	sock := o.LoginStore.GetServerSockFile()
+	c, err := server.NewClient(sock)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = c.ConfigureVPN()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	s.Stop()
 	return nil
 }
 
