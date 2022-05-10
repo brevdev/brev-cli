@@ -91,9 +91,6 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	if options == nil {
 		return nil, fmt.Errorf("options can not be nil")
 	}
-	fmt.Printf("template %s\n", options.WorkspaceTemplateID)
-	fmt.Printf("resource class %s\n", options.WorkspaceClassID)
-	fmt.Printf("workspace group %s\n", options.WorkspaceGroupID)
 
 	var result entity.Workspace
 	res, err := s.authHTTPClient.restyClient.R().
@@ -108,6 +105,10 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
+
+	fmt.Printf("template %s\n", result.WorkspaceTemplate.ID)
+	fmt.Printf("resource class %s\n", result.WorkspaceClassID)
+	fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 	return &result, nil
 }
 
