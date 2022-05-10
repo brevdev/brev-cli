@@ -266,15 +266,19 @@ func isAccessTokenValid(token string) (bool, error) {
 	if err != nil {
 		ve := &jwt.ValidationError{}
 		if errors.As(err, &ve) {
-			fmt.Printf("token error validation failed | %v\n", err)
+			fmt.Printf("warning: token error validation failed | %v\n", err)
 			return false, nil
 		}
 		return false, breverrors.WrapAndTrace(err)
 	}
 	err = ptoken.Claims.Valid()
 	if err != nil {
-		fmt.Printf("token check validation failed | %v\n", err)
-		return false, nil
+		// https://pkg.go.dev/github.com/golang-jwt/jwt@v3.2.2+incompatible#MapClaims.Valid // https://github.com/dgrijalva/jwt-go/issues/383 // sometimes client clock is skew/out of sync with server who generated token
+		if strings.Contains(err.Error(), "Token used before issued") { // not a security issue because we always check server side as well
+		} else {
+			fmt.Printf("warning: token check validation failed | %v\n", err)
+			return false, nil
+		}
 	}
 	return true, nil
 }
