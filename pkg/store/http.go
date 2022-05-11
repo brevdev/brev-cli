@@ -1,10 +1,12 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	resty "github.com/go-resty/resty/v2"
 )
 
@@ -116,6 +118,15 @@ func NewAuthHTTPClient(auth Auth, brevAPIURL string) *AuthHTTPClient {
 	return &AuthHTTPClient{restyClient, auth}
 }
 
+type BrevDeployErrorList struct {
+	Errors []BrevDeployError
+}
+
+type BrevDeployError struct {
+	Kind    string `json:"type"`
+	Message string `json:"message"`
+}
+
 type HTTPResponseError struct {
 	response *resty.Response
 }
@@ -127,5 +138,18 @@ func NewHTTPResponseError(response *resty.Response) *HTTPResponseError {
 }
 
 func (e HTTPResponseError) Error() string {
-	return fmt.Sprintf("%s %s", e.response.Request.URL, e.response.Status())
+	body := e.response.Body()
+	if featureflag.Debug() {
+		return fmt.Sprintf("%s %s %s", e.response.Request.URL, e.response.Status(), body)
+	}
+	errors := &BrevDeployErrorList{}
+	err := json.Unmarshal(body, errors)
+	if err != nil {
+		return fmt.Sprintf("%s %s %s", e.response.Request.URL, e.response.Status(), body)
+	}
+	msg := ""
+	for _, e := range errors.Errors {
+		msg = msg + e.Message + "\n"
+	}
+	return msg
 }

@@ -39,6 +39,10 @@ func DisableErrorReporting() bool {
 	return viper.GetBool("feature.disable_error_reporting")
 }
 
+func Debug() bool {
+	return viper.GetBool("feature.debug")
+}
+
 func LoadFeatureFlags(path string) error {
 	viper.SetConfigName("config")
 	viper.AddConfigPath("/etc/brev/")
