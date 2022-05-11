@@ -49,6 +49,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 	return cmd
 }
 
+
 func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, resetStore)
 	if err != nil {
