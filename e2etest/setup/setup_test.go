@@ -611,6 +611,7 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host strin
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", password)
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", host)
 	AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
+	AssertDockerRunning(t, w)
 }
 
 func AssertValidBrevBaseRepoSetup(t *testing.T, w Workspace, repoPath string) {
@@ -726,4 +727,11 @@ func AssertFileNotContainsString(t *testing.T, w Workspace, filePath string, con
 
 	_, err := w.Exec("grep", contains, filePath)
 	return assert.Error(t, err)
+}
+
+func AssertDockerRunning(t *testing.T, w Workspace) bool {
+	t.Helper()
+
+	_, err := w.Exec("docker", "run", "hello-world")
+	return assert.Nil(t, err)
 }
