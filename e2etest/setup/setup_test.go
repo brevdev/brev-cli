@@ -299,8 +299,8 @@ func GetUnauthedTestKeys() (*store.KeyPair, error) {
 
 var SupportedContainers = []ContainerParams{
 	{
-		Name:  "brevdev-ubuntu-proxy-0.3.14",
-		Image: "brevdev/ubuntu-proxy:0.3.14",
+		Name:  "brevdev-ubuntu-proxy-0.3.16",
+		Image: "brevdev/ubuntu-proxy:0.3.16",
 		Ports: []string{"22778:22778", "22779:22779", "2222:22"},
 	},
 }
