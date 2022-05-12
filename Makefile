@@ -162,7 +162,7 @@ setup-workspace: build-linux-amd build-test-workspace
 	[ "${setup_param_path}" ] || ( echo "'setup_param_path' not provided"; exit 1 )
 	make time
 	docker kill $(container_name) || true
-	docker run -d --privileged=true --name $(container_name) --rm -it -p 22776:22778 -p 2222:22  brevdev/ubuntu-proxy:0.3.2 zsh
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 22776:22778 -p 2222:22  brevdev/ubuntu-proxy:0.3.13 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json
@@ -185,7 +185,7 @@ simulate-workspace:
 	make time
 	docker kill $(container_name) || true
 	echo "modify workspace files in devworkspace"
-	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22 -v $(shell pwd)/devworkspace:/home/brev/workspace brevdev/ubuntu-proxy:0.3.7 zsh
+	docker run -d --privileged=true --name $(container_name) --rm -it -p 2222:22 -v $(shell pwd)/devworkspace:/home/brev/workspace brevdev/ubuntu-proxy:0.3.13 zsh
 
 	docker exec -it $(container_name) mkdir /etc/meta
 	docker cp ${setup_param_path} $(container_name):/etc/meta/setup_v0.json

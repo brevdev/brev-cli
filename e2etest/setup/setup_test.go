@@ -183,7 +183,7 @@ func (w TestWorkspace) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err = w.Exec("/usr/local/bin/brev", "setupworkspace")
+	_, err = w.Exec("/usr/local/bin/brev", "setupworkspace", "--force-enable")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -275,6 +275,7 @@ func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
 		WorkspacePassword:                "12345",
 		WorkspaceKeyPair:                 keyPair,
 		SetupScript:                      nil,
+		DisableSetup:                     true,
 	}
 }
 
@@ -298,8 +299,8 @@ func GetUnauthedTestKeys() (*store.KeyPair, error) {
 
 var SupportedContainers = []ContainerParams{
 	{
-		Name:  "brevdev-ubuntu-proxy-0.3.2",
-		Image: "brevdev/ubuntu-proxy:0.3.2",
+		Name:  "brevdev-ubuntu-proxy-0.3.14",
+		Image: "brevdev/ubuntu-proxy:0.3.14",
 		Ports: []string{"22778:22778", "22779:22779", "2222:22"},
 	},
 }
