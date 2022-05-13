@@ -477,3 +477,11 @@ func AssertRepoHasNumFiles(t *testing.T, w Workspace, filePath string, num int) 
 	assert.Nil(t, err)
 	assert.Len(t, strings.Fields(string(out)), num)
 }
+
+func UpdateFile(w Workspace, filePath string, content string) error {
+	_, err := w.Exec("sh", "-c", fmt.Sprintf(`echo '%s' > %s`, content, filePath))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
