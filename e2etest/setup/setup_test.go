@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os/exec"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -21,16 +23,24 @@ func init() {
 }
 
 func NewStdWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []ContainerParams, options ...WorkspaceTestClientOption) *WorkspaceTestClient {
-	return NewWorkspaceTestClient(setupParams, containerParams, append([]WorkspaceTestClientOption{BrevBinaryPath{
-		BinaryPath: "/home/brev/workspace/brev-cli/brev", // TODO relativ path
-	}}, options...)...)
+	pc, _, _, ok := runtime.Caller(1)
+	if !ok {
+		panic("not ok")
+	}
+	details := runtime.FuncForPC(pc)
+	testNamePrefix := strings.Split(details.Name(), ".")[2]
+
+	return NewWorkspaceTestClient(setupParams, containerParams, append([]WorkspaceTestClientOption{
+		BrevBinaryPath{BinaryPath: "/home/brev/workspace/brev-cli/brev"}, // TODO relativ path
+		TestNamePrefix{Name: testNamePrefix},
+	}, options...)...)
 }
 
 var SupportedContainers = []ContainerParams{
 	{
 		Name:  "brevdev-ubuntu-proxy-0.3.16",
 		Image: "brevdev/ubuntu-proxy:0.3.16",
-		Ports: []string{"22778:22778", "22779:22779", "2222:22"},
+		Ports: []string{},
 	},
 }
 
@@ -188,7 +198,7 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 
 const ProvidedSetupScriptMsg = "provided setup script ran"
 
-func Test_ProvidedSetupRanNoProj(t *testing.T) { //nolint:dupl // TODO should refactor since Test_ProvidedSetupRanProjNoBrev is really similar
+func Test_ProvidedSetupRanNoProj(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
@@ -222,7 +232,7 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) { //nolint:dupl // TODO should re
 	assert.Nil(t, err)
 }
 
-func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO should refactor since Test_ProvidedSetupRanProjNoBrev is really similar
+func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
@@ -243,6 +253,9 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO shoul
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
 
+		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/test-repo-no-dotbrev/.brev/logs/archive", 3)
+
+		w.UpdateParams(params)
 		err1 := w.Reset()
 		if !assert.Nil(t, err1) {
 			return
@@ -252,6 +265,7 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) { //nolint:dupl // TODO shoul
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
+		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/test-repo-no-dotbrev/.brev/logs/archive", 4)
 	})
 	assert.Nil(t, err)
 }

@@ -43,6 +43,7 @@ type WorkspaceTestClientOption interface {
 
 type AllWorkspaceTestClientOption struct {
 	BrevBinaryPath string
+	TestNamePrefix string
 }
 
 func NewWorkspaceTestClientOptions(options []WorkspaceTestClientOption) AllWorkspaceTestClientOption {
@@ -53,19 +54,29 @@ func NewWorkspaceTestClientOptions(options []WorkspaceTestClientOption) AllWorks
 	return allOptions
 }
 
-func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []ContainerParams, options ...WorkspaceTestClientOption) *WorkspaceTestClient {
-	pc, _, _, ok := runtime.Caller(1)
-	if !ok {
-		panic("not ok")
-	}
-	details := runtime.FuncForPC(pc)
-	testPrefix := strings.Split(details.Name(), ".")[2]
+type TestNamePrefix struct {
+	Name string
+}
 
+func (t TestNamePrefix) ApplyWorkspaceTestClientOption(allOptions *AllWorkspaceTestClientOption) {
+	allOptions.TestNamePrefix = t.Name
+}
+
+func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []ContainerParams, options ...WorkspaceTestClientOption) *WorkspaceTestClient {
 	allOptions := NewWorkspaceTestClientOptions(options)
+
+	if allOptions.TestNamePrefix == "" {
+		pc, _, _, ok := runtime.Caller(1)
+		if !ok {
+			panic("not ok")
+		}
+		details := runtime.FuncForPC(pc)
+		allOptions.TestNamePrefix = strings.Split(details.Name(), ".")[2]
+	}
 
 	workspaces := []Workspace{}
 	for _, p := range containerParams {
-		containerName := fmt.Sprintf("%s-%s", testPrefix, p.Name)
+		containerName := fmt.Sprintf("%s-%s", allOptions.TestNamePrefix, p.Name)
 		// [a-zA-Z0-9][a-zA-Z0-9_.-]
 		workspace := NewTestWorkspace(allOptions.BrevBinaryPath, containerName, p.Image, p.Ports, setupParams)
 		_ = workspace.Done()
@@ -100,9 +111,6 @@ func (w WorkspaceTestClient) Test(test workspaceTest) error {
 	for _, w := range w.TestWorkspaces {
 		err := w.Setup()
 		test(w, err)
-		// if err != nil {
-		// 	return breverrors.WrapAndTrace(err)
-		// }
 	}
 	return nil
 }
@@ -154,16 +162,17 @@ func (w TestWorkspace) Setup() error {
 		ports = append(ports, "-p", p)
 	}
 
-	args := append([]string{
-		"run", "-d",
+	dockerRunArgs := append([]string{
+		"-d",
 		"--privileged=true",
 		fmt.Sprintf("--name=%s", w.ContainerName),
-		"--rm", "-it", w.Image,
 		"-v", fmt.Sprintf("%s:/home/brev/workspace", w.getWorkspaceVolumeName()),
+		"--rm", "-it",
 	}, ports...)
-	args = append(args, "bash")
 
-	cmdR := exec.Command("docker", args...) //nolint:gosec // for tests
+	dockerRunArgs = append(append([]string{"run"}, dockerRunArgs...), []string{w.Image, "bash"}...)
+
+	cmdR := exec.Command("docker", dockerRunArgs...) //nolint:gosec // for tests
 	if w.ShowOut {
 		sendToOut(cmdR)
 	}
@@ -251,6 +260,18 @@ func (w TestWorkspace) KillContainer() error {
 	return nil
 }
 
+func (w TestWorkspace) RmContainer() error {
+	cmd := exec.Command("docker", "rm", w.ContainerName) //nolint:gosec // for tests
+	if w.ShowOut {
+		sendToOut(cmd)
+	}
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (w TestWorkspace) RmVolume() error {
 	cmd := exec.Command("docker", "volume", "rm", w.getWorkspaceVolumeName()) //nolint:gosec // for tests
 	if w.ShowOut {
@@ -265,6 +286,10 @@ func (w TestWorkspace) RmVolume() error {
 
 func (w TestWorkspace) Done() error {
 	err := w.KillContainer()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	_ = w.RmContainer()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -314,7 +339,7 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host strin
 	AssertUser(t, w, "root")
 	AssertCwd(t, w, "/home/brev/workspace")
 
-	time.Sleep(1000 * time.Millisecond) // sometimes localhost:2278 returs bad error
+	time.Sleep(2000 * time.Millisecond) // sometimes localhost:2278 returs bad error
 
 	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
 	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request")
@@ -444,4 +469,11 @@ func AssertDockerRunning(t *testing.T, w Workspace) bool {
 
 	_, err := w.Exec("docker", "run", "hello-world")
 	return assert.Nil(t, err)
+}
+
+func AssertRepoHasNumFiles(t *testing.T, w Workspace, filePath string, num int) {
+	t.Helper()
+	out, err := w.Exec("ls", "-a", filePath)
+	assert.Nil(t, err)
+	assert.Len(t, strings.Fields(string(out)), num)
 }
