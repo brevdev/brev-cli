@@ -339,7 +339,7 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host strin
 	AssertUser(t, w, "root")
 	AssertCwd(t, w, "/home/brev/workspace")
 
-	time.Sleep(2000 * time.Millisecond) // sometimes localhost:2278 returs bad error
+	time.Sleep(5000 * time.Millisecond) // sometimes localhost:2278 returs bad error
 
 	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
 	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request")
