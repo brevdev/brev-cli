@@ -22,9 +22,25 @@ type WorkspaceManager struct {
 	Store            WorkspaceManagerStore
 }
 
+type ContainerStatus string
+
+const (
+	ContainerRunning ContainerStatus = "running"
+	ContainerStopped ContainerStatus = "stopped"
+)
+
 type Container struct {
 	ID     string
-	Status string // running stopped
+	Status ContainerStatus
+}
+
+type CreateContainerOptions struct {
+	Name    string
+	Volumes []Volume
+	Ports   []string
+
+	Command     string
+	CommandArgs []string
 }
 
 // ContainerManager Interface for docker, podman etc.
@@ -32,6 +48,7 @@ type ContainerManager interface {
 	GetContainer(ctx context.Context, containerID string) (*Container, error)
 	StopContainer(ctx context.Context, containerID string) error
 	DeleteContainer(ctx context.Context, containerID string) error
+	CreateContainer(ctx context.Context, options CreateContainerOptions, image string) (string, error)
 	StartContainer(ctx context.Context, containerID string) error
 	DeleteVolume(ctx context.Context, volumeName string) error
 }
@@ -46,19 +63,19 @@ func NewWorkspaceManager(cm ContainerManager, store WorkspaceManagerStore) *Work
 	return &WorkspaceManager{ContainerManager: cm, Store: store}
 }
 
-func (w WorkspaceManager) Start(ctx context.Context, workspaceID string) error {
+func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*ContainerWorkspace, error) {
 	workspace, err := w.Store.GetWorkspace(workspaceID)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	params, err := w.Store.GetWorkspaceSetupParams(workspaceID)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	paramsData, err := json.MarshalIndent(params, "", " ")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// secretsConfig, err := w.Store.GetWorkspaceSecretsConfig(workspaceID)
@@ -72,6 +89,12 @@ func (w WorkspaceManager) Start(ctx context.Context, workspaceID string) error {
 		[]Volume{
 			setupParamsVolume,
 		})
+
+	return containerWorkspace, nil
+}
+
+func (w WorkspaceManager) Start(ctx context.Context, workspaceID string) error {
+	containerWorkspace, err := w.MakeContainerWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -84,42 +107,56 @@ func (w WorkspaceManager) Start(ctx context.Context, workspaceID string) error {
 }
 
 func (w WorkspaceManager) Reset(ctx context.Context, workspaceID string) error {
+	containerWorkspace, err := w.MakeContainerWorkspace(workspaceID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = containerWorkspace.Reset(ctx)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
 func (w WorkspaceManager) Stop(ctx context.Context, workspaceID string) error {
+	containerWorkspace, err := w.MakeContainerWorkspace(workspaceID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = containerWorkspace.Stop(ctx)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
 type ContainerWorkspace struct {
 	ContainerManager ContainerManager
-	ID               string
+	Identifier       string
 	Image            string
 	Volumes          []Volume
 }
 
-func NewContainerWorkspace(cm ContainerManager, id string, image string, volumes []Volume) *ContainerWorkspace {
-	return &ContainerWorkspace{ContainerManager: cm, ID: id, Image: image, Volumes: volumes}
+func NewContainerWorkspace(cm ContainerManager, identifier string, image string, volumes []Volume) *ContainerWorkspace {
+	return &ContainerWorkspace{ContainerManager: cm, Identifier: identifier, Image: image, Volumes: volumes}
 }
 
 func (c ContainerWorkspace) Start(ctx context.Context) error {
-	container, err := c.ContainerManager.GetContainer(ctx, c.ID)
+	container, err := c.ContainerManager.GetContainer(ctx, c.Identifier)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if container == nil {
+	if container == nil { //nolint:gocritic // I like the else statement here
 		err := c.CreateNew(ctx)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	}
-	if container.Status == "stopped" {
+	} else if container.Status == ContainerStopped {
 		err := c.StartFromStopped(ctx)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	}
-	if container.Status == "running" {
+	} else if container.Status == ContainerRunning {
 		_ = 0
 		// do nothing
 	}
@@ -131,14 +168,25 @@ func (c ContainerWorkspace) CreateNew(ctx context.Context) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	containerID, err := c.ContainerManager.CreateContainer(ctx, CreateContainerOptions{
+		Name:    c.Identifier,
+		Volumes: c.Volumes,
+	}, c.Image)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = c.ContainerManager.StartContainer(ctx, containerID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
 func (c ContainerWorkspace) StartFromStopped(ctx context.Context) error {
-	// update neccessary volumes // on second thoguht maybe not (not current behavior)
+	// update necessary volumes // on second thoguht maybe not (not current behavior)
 	// // params?
 	// start
-	err := c.ContainerManager.StartContainer(ctx, c.ID)
+	err := c.ContainerManager.StartContainer(ctx, c.Identifier)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -162,7 +210,7 @@ func (c ContainerWorkspace) Rebuild(ctx context.Context) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = c.ContainerManager.DeleteContainer(ctx, c.ID)
+	err = c.ContainerManager.DeleteContainer(ctx, c.Identifier)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -201,7 +249,7 @@ func (c ContainerWorkspace) DeleteVolumes(ctx context.Context) error {
 }
 
 func (c ContainerWorkspace) Stop(ctx context.Context) error {
-	err := c.ContainerManager.StopContainer(ctx, c.ID)
+	err := c.ContainerManager.StopContainer(ctx, c.Identifier)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

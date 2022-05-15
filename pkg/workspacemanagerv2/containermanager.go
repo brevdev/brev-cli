@@ -28,7 +28,7 @@ func (c DockerContainerManager) GetContainer(ctx context.Context, containerIdent
 	cmd := exec.CommandContext(ctx, "docker", "container", "inspect", containerIdentifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(fmt.Errorf("%s | %s", out, err))
+		return nil, breverrors.WrapAndTrace(fmt.Errorf(string(out)))
 	}
 
 	res := inspectResults{}
@@ -41,24 +41,32 @@ func (c DockerContainerManager) GetContainer(ctx context.Context, containerIdent
 	}
 	return &Container{
 		ID:     res[0].ID,
-		Status: res[0].State.Status,
+		Status: DockerStatusToContainerStatus(res[0].State.Status),
 	}, nil
+}
+
+func DockerStatusToContainerStatus(status string) ContainerStatus {
+	return ""
 }
 
 func (c DockerContainerManager) StopContainer(ctx context.Context, containerIdentifier string) error {
 	return nil
 }
 
-func (c DockerContainerManager) DeleteContainer(ctx context.Context, containerID string) error {
+func (c DockerContainerManager) DeleteContainer(ctx context.Context, containerIdentifier string) error {
 	return nil
 }
 
-func (c DockerContainerManager) StartContainer(ctx context.Context, containerID string) error {
+func (c DockerContainerManager) StartContainer(ctx context.Context, containerIdentifier string) error {
 	return nil
 }
 
 func (c DockerContainerManager) DeleteVolume(ctx context.Context, volumeName string) error {
 	return nil
+}
+
+func (c DockerContainerManager) CreateContainer(ctx context.Context, options CreateContainerOptions, image string) (string, error) {
+	return "", nil
 }
 
 // [
