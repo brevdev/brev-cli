@@ -71,8 +71,6 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 	return cmd
 }
 
-// TODO: delete and create a new empty worksapce 🗹
-// TODO: delete and create a new workspace from a git repo
 // hardResetProcess deletes an existing workspace and creates a new one
 func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
