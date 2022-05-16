@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
-	"os"
-	"path/filepath"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -55,6 +55,7 @@ type ContainerManager interface {
 
 type WorkspaceManagerStore interface {
 	GetWorkspace(id string) (*entity.Workspace, error)
+	GetWorkspaceMeta(id string) (*store.WorkspaceMeta, error)
 	GetWorkspaceSetupParams(id string) (*store.SetupParamsV0, error)
 	GetWorkspaceSecretsConfig(id string) (interface{}, error)
 }
@@ -68,12 +69,23 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	params, err := w.Store.GetWorkspaceSetupParams(workspaceID)
+
+	setupParams, err := w.Store.GetWorkspaceSetupParams(workspaceID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	paramsData, err := json.MarshalIndent(params, "", " ")
+	paramsData, err := json.MarshalIndent(setupParams, "", " ")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	workspaceMeta, err := w.Store.GetWorkspaceMeta(workspaceID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	workspaceData, err := json.MarshalIndent(workspaceMeta, "", " ")
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -83,12 +95,17 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 	// 	return breverrors.WrapAndTrace(err)
 	// }
 
-	setupParamsVolume := NewStaticVolume("setup_paramsV0", "/etc/meta", bytes.NewBuffer(paramsData))
+	metaVolumes := NewStaticFiles("/etc/meta", map[string]io.Reader{
+		"setup_v0.json":  bytes.NewBuffer(paramsData),
+		"workspace.json": bytes.NewBuffer(workspaceData),
+	}).
+		WithPathPrefix(fmt.Sprintf("/tmp/brev/volumes/%s/etc/meta", workspace.ID)) // TODO proper path
 
 	containerWorkspace := NewContainerWorkspace(w.ContainerManager, workspaceID, workspace.WorkspaceTemplate.Image,
 		[]Volume{
-			setupParamsVolume,
-		})
+			metaVolumes,
+		},
+	)
 
 	return containerWorkspace, nil
 }
@@ -143,7 +160,7 @@ func NewContainerWorkspace(cm ContainerManager, identifier string, image string,
 
 func (c ContainerWorkspace) Start(ctx context.Context) error {
 	container, err := c.ContainerManager.GetContainer(ctx, c.Identifier)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "No such container") {
 		return breverrors.WrapAndTrace(err)
 	}
 	if container == nil { //nolint:gocritic // I like the else statement here
@@ -261,90 +278,4 @@ type Volume interface {
 	GetMountToPath() string
 	Setup(ctx context.Context) error
 	Teardown(ctx context.Context) error // should also clear/delete
-}
-
-type StaticVolume struct {
-	Name                string
-	FromMountPathPrefix string
-	ToMountPath         string
-	ToWrite             io.Reader
-}
-
-var _ Volume = StaticVolume{}
-
-func NewStaticVolume(name string, path string, toWrite io.Reader) StaticVolume {
-	return StaticVolume{Name: name, ToMountPath: path, ToWrite: toWrite}
-}
-
-func (s StaticVolume) WithPathPrefix(prefix string) StaticVolume {
-	s.FromMountPathPrefix = prefix
-	return s
-}
-
-func (s StaticVolume) GetIdentifier() string {
-	return s.GetMountFromPath()
-}
-
-func (s StaticVolume) GetMountToPath() string {
-	return s.ToMountPath
-}
-
-func (s StaticVolume) GetMountFromPath() string {
-	return s.FromMountPathPrefix
-}
-
-func (s StaticVolume) Setup(_ context.Context) error {
-	path := s.GetMountFromPath()
-	err := os.MkdirAll(path, os.ModePerm)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	filePath := filepath.Join(s.FromMountPathPrefix, s.Name)
-	f, err := os.Create(filePath) //nolint:gosec // executed in safe space
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	defer f.Close() //nolint:errcheck,gosec // defer
-
-	_, err = io.Copy(f, s.ToWrite)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = f.Sync()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func (s StaticVolume) Teardown(_ context.Context) error {
-	err := os.RemoveAll(s.FromMountPathPrefix)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-type SimpleVolume struct {
-	Identifier  string
-	MountToPath string
-}
-
-var _ Volume = SimpleVolume{}
-
-func (s SimpleVolume) GetIdentifier() string {
-	return s.Identifier
-}
-
-func (s SimpleVolume) GetMountToPath() string {
-	return s.MountToPath
-}
-
-func (s SimpleVolume) Setup(_ context.Context) error {
-	return nil
-}
-
-func (s SimpleVolume) Teardown(_ context.Context) error {
-	return nil
 }

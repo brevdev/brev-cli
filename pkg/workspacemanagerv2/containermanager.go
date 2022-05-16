@@ -16,10 +16,10 @@ var _ ContainerManager = DockerContainerManager{}
 
 type inspectResult struct {
 	ID    string `json:"Id"`
-	State State  `json:"State"`
+	State state  `json:"State"`
 }
 
-type State struct {
+type state struct {
 	Status string `json:"Status"`
 }
 
