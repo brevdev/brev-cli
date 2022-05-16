@@ -9,12 +9,15 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 func GetAllContainerManagers() []ContainerManager {
 	return []ContainerManager{DockerContainerManager{}}
 }
+
+// TIP: use docker inspect to get information about container like volume mounted, command, ports etc.
 
 func Test_GetContainerDNE(t *testing.T) {
 	dcms := GetAllContainerManagers()
@@ -102,7 +105,15 @@ func Test_Volumes(t *testing.T) {
 	dcms := GetAllContainerManagers()
 	for _, cm := range dcms {
 		ctx := context.Background()
-		localPath := "/tmp/volume/"
+		localPath := fmt.Sprintf("/tmp/brevcli-test-volume/%s", uuid.New().String())
+		fmt.Println(localPath)
+
+		err := os.MkdirAll(localPath, os.ModePerm)
+		assert.Nil(t, err)
+
+		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600)
+		assert.Nil(t, err)
+
 		containerID, err := cm.CreateContainer(ctx, CreateContainerOptions{
 			Volumes: []Volume{
 				SimpleVolume{
@@ -110,18 +121,12 @@ func Test_Volumes(t *testing.T) {
 					MountToPath: "/volume",
 				},
 			},
-			Command:     "touch",
-			CommandArgs: []string{"/volume/new"},
+			Command:     "cp",
+			CommandArgs: []string{"/volume/original", "/volume/new"},
 		}, "nginx")
 		if !assert.Nil(t, err) {
 			return
 		}
-
-		err = os.MkdirAll(localPath, os.ModePerm)
-		assert.Nil(t, err)
-
-		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600)
-		assert.Nil(t, err)
 
 		err = cm.StartContainer(ctx, containerID)
 		assert.Nil(t, err)

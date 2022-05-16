@@ -334,7 +334,7 @@ type SimpleVolume struct {
 var _ Volume = SimpleVolume{}
 
 func (s SimpleVolume) GetIdentifier() string {
-	return s.MountToPath
+	return s.Identifier
 }
 
 func (s SimpleVolume) GetMountToPath() string {
