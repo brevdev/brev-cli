@@ -230,7 +230,7 @@ func (c ContainerWorkspace) CreateVolumes(ctx context.Context) error {
 	// // start volume processes (to support dynamic volumes like k8s token, hcl config, etc)
 	// // could be static init, sym link, callback, or poll base
 	for _, v := range c.Volumes {
-		err := v.Setup() // should this be a goroutine?
+		err := v.Setup(ctx) // should this be a goroutine?
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -240,7 +240,7 @@ func (c ContainerWorkspace) CreateVolumes(ctx context.Context) error {
 
 func (c ContainerWorkspace) DeleteVolumes(ctx context.Context) error {
 	for _, v := range c.Volumes {
-		err := v.Teardown() // should this be a goroutine?
+		err := v.Teardown(ctx) // should this be a goroutine?
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -259,8 +259,8 @@ func (c ContainerWorkspace) Stop(ctx context.Context) error {
 type Volume interface {
 	GetIdentifier() string // this may be a name or path to external mount
 	GetMountToPath() string
-	Setup() error
-	Teardown() error // should also clear/delete
+	Setup(ctx context.Context) error
+	Teardown(ctx context.Context) error // should also clear/delete
 }
 
 type StaticVolume struct {
@@ -269,6 +269,8 @@ type StaticVolume struct {
 	ToMountPath         string
 	ToWrite             io.Reader
 }
+
+var _ Volume = StaticVolume{}
 
 func NewStaticVolume(name string, path string, toWrite io.Reader) StaticVolume {
 	return StaticVolume{Name: name, ToMountPath: path, ToWrite: toWrite}
@@ -291,7 +293,7 @@ func (s StaticVolume) GetMountFromPath() string {
 	return s.FromMountPathPrefix
 }
 
-func (s StaticVolume) Setup() error {
+func (s StaticVolume) Setup(_ context.Context) error {
 	path := s.GetMountFromPath()
 	err := os.MkdirAll(path, os.ModePerm)
 	if err != nil {
@@ -316,15 +318,13 @@ func (s StaticVolume) Setup() error {
 	return nil
 }
 
-func (s StaticVolume) Teardown() error {
+func (s StaticVolume) Teardown(_ context.Context) error {
 	err := os.RemoveAll(s.FromMountPathPrefix)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
-
-var _ Volume = StaticVolume{}
 
 type SimpleVolume struct {
 	Identifier  string
@@ -341,10 +341,10 @@ func (s SimpleVolume) GetMountToPath() string {
 	return s.MountToPath
 }
 
-func (s SimpleVolume) Setup() error {
+func (s SimpleVolume) Setup(_ context.Context) error {
 	return nil
 }
 
-func (s SimpleVolume) Teardown() error {
+func (s SimpleVolume) Teardown(_ context.Context) error {
 	return nil
 }
