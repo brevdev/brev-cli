@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -46,27 +47,69 @@ func (c DockerContainerManager) GetContainer(ctx context.Context, containerIdent
 }
 
 func DockerStatusToContainerStatus(status string) ContainerStatus {
-	return ""
+	if status == "created" || status == "exited" {
+		return ContainerStopped
+	}
+	return ContainerStatus(status)
 }
 
 func (c DockerContainerManager) StopContainer(ctx context.Context, containerIdentifier string) error {
+	cmd := exec.CommandContext(ctx, "docker", "container", "stop", containerIdentifier)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+	}
 	return nil
 }
 
 func (c DockerContainerManager) DeleteContainer(ctx context.Context, containerIdentifier string) error {
+	cmd := exec.CommandContext(ctx, "docker", "container", "rm", containerIdentifier)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+	}
 	return nil
 }
 
 func (c DockerContainerManager) StartContainer(ctx context.Context, containerIdentifier string) error {
+	cmd := exec.CommandContext(ctx, "docker", "container", "start", containerIdentifier)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+	}
 	return nil
 }
 
 func (c DockerContainerManager) DeleteVolume(ctx context.Context, volumeName string) error {
+	cmd := exec.CommandContext(ctx, "docker", "volume", "rm", volumeName)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+	}
 	return nil
 }
 
 func (c DockerContainerManager) CreateContainer(ctx context.Context, options CreateContainerOptions, image string) (string, error) {
-	return "", nil
+	// TODO use official docker client
+	volumes := []string{}
+	for _, v := range options.Volumes {
+		volumes = append(volumes, "--volume", fmt.Sprintf("%s:%s", v.GetIdentifier(), v.GetMountToPath()))
+	}
+	ports := []string{}
+	for _, p := range options.Ports {
+		ports = append(ports, "--publish", p)
+	}
+	portsAndVolumes := append(ports, volumes...) //nolint:gocritic // not clear why the linter doesn't like this pattern
+	createArgs := append([]string{"--name", options.Name, "--privileged"}, portsAndVolumes...)
+	command := append([]string{options.Command}, options.CommandArgs...)
+	postOptionArgs := append([]string{image}, command...)
+	dockerArgs := append([]string{"container", "create"}, append(createArgs, postOptionArgs...)...)
+	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // [

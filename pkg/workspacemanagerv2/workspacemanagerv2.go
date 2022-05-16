@@ -325,3 +325,26 @@ func (s StaticVolume) Teardown() error {
 }
 
 var _ Volume = StaticVolume{}
+
+type SimpleVolume struct {
+	Identifier  string
+	MountToPath string
+}
+
+var _ Volume = SimpleVolume{}
+
+func (s SimpleVolume) GetIdentifier() string {
+	return s.MountToPath
+}
+
+func (s SimpleVolume) GetMountToPath() string {
+	return s.MountToPath
+}
+
+func (s SimpleVolume) Setup() error {
+	return nil
+}
+
+func (s SimpleVolume) Teardown() error {
+	return nil
+}
