@@ -95,7 +95,7 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	basePath := "/tmp/brev/volumes"
+	basePath := "/tmp/brev/volumes" // TODO proper path that will be saved
 	workspaceVolumesPath := filepath.Join(basePath, workspace.ID)
 
 	localMeta := filepath.Join(workspaceVolumesPath, "etc/meta")
@@ -103,16 +103,13 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 		"setup_v0.json":  bytes.NewBuffer(paramsData),
 		"workspace.json": bytes.NewBuffer(workspaceData),
 	}).
-		WithPathPrefix(localMeta) // TODO proper path
+		WithPathPrefix(localMeta)
 
 	secretsLocalConfig := filepath.Join(workspaceVolumesPath, "etc/config")
 	secretsConfigVolumes := NewStaticFiles("/etc/config", map[string]io.Reader{
 		"config.hcl": bytes.NewBuffer([]byte(secretsConfig)),
 	}).
-		WithPathPrefix(secretsLocalConfig) // TODO proper path
-
-	// may need to make tmp executable
-	// need to create volume for fuse
+		WithPathPrefix(secretsLocalConfig)
 
 	workspaceVolLocalPath := filepath.Join(workspaceVolumesPath, "home/brev/workspace")
 	workspaceVol := SimpleVolume{
@@ -125,12 +122,18 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 		MountToPath: "/var/run/secrets",
 	}
 
+	fuseVol := SimpleVolume{
+		Identifier:  "/dev/fuse",
+		MountToPath: "/dev/fuse",
+	}
+
 	containerWorkspace := NewContainerWorkspace(w.ContainerManager, workspaceID, workspace.WorkspaceTemplate.Image,
 		[]Volume{
 			metaVolumes,
 			secretsConfigVolumes,
 			workspaceVol,
 			k8sTokenVol,
+			fuseVol,
 		},
 	)
 
