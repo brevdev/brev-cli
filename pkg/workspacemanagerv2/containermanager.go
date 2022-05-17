@@ -109,7 +109,11 @@ func (c DockerContainerManager) CreateContainer(ctx context.Context, options Cre
 	if err != nil {
 		return "", breverrors.WrapAndTrace(fmt.Errorf(string(out)))
 	}
-	return strings.TrimSpace(string(out)), nil
+	res := strings.Fields(string(out))
+	if len(res) == 0 {
+		return "", fmt.Errorf("invalid docker create result:\n%s", string(out))
+	}
+	return res[len(res)-1], nil
 }
 
 // [
