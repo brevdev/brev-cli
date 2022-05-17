@@ -14,7 +14,7 @@ import (
 var green = color.New(color.FgGreen).SprintfFunc()
 
 var upToDateString = `
-Current version: %s
+Current Version: %s
 
 ` + green("You're up to date!")
 
@@ -25,11 +25,8 @@ Current version: %s
 
 New Version: %s
 
-Details: %s
-
-` + green("https://github.com/brevdev/brev-cli") + `
-
-%s
+To update to latest version, use: 
+	brew upgrade brev
 `
 
 type VersionStore interface {
@@ -54,8 +51,24 @@ func BuildVersionString(t *terminal.Terminal, versionStore VersionStore) (string
 			outOfDateString,
 			version.Version,
 			githubRelease.TagName,
-			githubRelease.Name,
-			githubRelease.Body,
+		)
+	}
+	return versionString, nil
+}
+
+func BuildCheckLatestVersionString(t *terminal.Terminal, versionStore VersionStore) (string, error) {
+	githubRelease, err := versionStore.GetLatestReleaseMetadata()
+	if err != nil {
+		t.Errprint(err, "Failed to retrieve latest version")
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	var versionString string
+	if githubRelease.TagName != version.Version {
+		versionString = fmt.Sprintf(
+			outOfDateString,
+			version.Version,
+			githubRelease.TagName,
 		)
 	}
 	return versionString, nil
