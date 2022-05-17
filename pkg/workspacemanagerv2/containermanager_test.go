@@ -111,7 +111,7 @@ func Test_Volumes(t *testing.T) {
 		err := os.MkdirAll(localPath, os.ModePerm)
 		assert.Nil(t, err)
 
-		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600)
+		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600) //nolint:gosec // test
 		assert.Nil(t, err)
 
 		containerID, err := cm.CreateContainer(ctx, CreateContainerOptions{

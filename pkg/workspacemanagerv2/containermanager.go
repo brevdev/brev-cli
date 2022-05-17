@@ -104,7 +104,7 @@ func (c DockerContainerManager) CreateContainer(ctx context.Context, options Cre
 	command := append([]string{options.Command}, options.CommandArgs...)
 	postOptionArgs := append([]string{image}, command...)
 	dockerArgs := append([]string{"container", "create"}, append(createArgs, postOptionArgs...)...)
-	cmd := exec.CommandContext(ctx, "docker", dockerArgs...)
+	cmd := exec.CommandContext(ctx, "docker", dockerArgs...) //nolint:gosec // in sandboxed env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(fmt.Errorf(string(out)))

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -95,14 +95,17 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	localMeta := fmt.Sprintf("/tmp/brev/volumes/%s/etc/meta", workspace.ID)
+	basePath := "/tmp/brev/volumes"
+	workspaceVolumesPath := filepath.Join(basePath, workspace.ID)
+
+	localMeta := filepath.Join(workspaceVolumesPath, "etc/meta")
 	metaVolumes := NewStaticFiles("/etc/meta", map[string]io.Reader{
 		"setup_v0.json":  bytes.NewBuffer(paramsData),
 		"workspace.json": bytes.NewBuffer(workspaceData),
 	}).
 		WithPathPrefix(localMeta) // TODO proper path
 
-	secretsLocalConfig := fmt.Sprintf("/tmp/brev/volumes/%s/etc/config", workspace.ID)
+	secretsLocalConfig := filepath.Join(workspaceVolumesPath, "etc/config")
 	secretsConfigVolumes := NewStaticFiles("/etc/config", map[string]io.Reader{
 		"config.hcl": bytes.NewBuffer([]byte(secretsConfig)),
 	}).
@@ -110,19 +113,22 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 
 	// may need to make tmp executable
 	// need to create volume for fuse
-	// k8s symlink secret volume
 
-	workspaceVolLocalPath := fmt.Sprintf("/tmp/brev/volumes/%s/home/brev/workspace", workspace.ID)
+	workspaceVolLocalPath := filepath.Join(workspaceVolumesPath, "home/brev/workspace")
 	workspaceVol := SimpleVolume{
 		Identifier:  workspaceVolLocalPath,
 		MountToPath: "/home/brev/workspace",
 	}
+
+	k8sTokenVolPath := filepath.Join(workspaceVolumesPath, "var/run/kubernetes")
+	k8sTokenVol := NewSymLinkVolume("/var/run/kubernetes", k8sTokenVolPath, "/var/run/kubernetes")
 
 	containerWorkspace := NewContainerWorkspace(w.ContainerManager, workspaceID, workspace.WorkspaceTemplate.Image,
 		[]Volume{
 			metaVolumes,
 			secretsConfigVolumes,
 			workspaceVol,
+			k8sTokenVol,
 		},
 	)
 

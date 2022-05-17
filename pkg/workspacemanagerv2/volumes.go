@@ -12,13 +12,13 @@ import (
 type StaticFiles struct {
 	FromMountPathPrefix string
 	ToMountPath         string
-	fileMap             map[string]io.Reader
+	FileMap             map[string]io.Reader
 }
 
 var _ Volume = StaticFiles{}
 
 func NewStaticFiles(path string, fileMap map[string]io.Reader) StaticFiles {
-	return StaticFiles{ToMountPath: path, fileMap: fileMap}
+	return StaticFiles{ToMountPath: path, FileMap: fileMap}
 }
 
 func (s StaticFiles) WithPathPrefix(prefix string) StaticFiles {
@@ -45,7 +45,7 @@ func (s StaticFiles) Setup(_ context.Context) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	for k, v := range s.fileMap {
+	for k, v := range s.FileMap {
 		filePath := filepath.Join(s.FromMountPathPrefix, k)
 		f, err := os.Create(filePath) //nolint:gosec // executed in safe space
 		if err != nil {
@@ -99,18 +99,22 @@ func (s SimpleVolume) Teardown(_ context.Context) error {
 
 type SymLinkVolume struct {
 	FromSymLinkPath string
+	LocalVolumePath string
 	MountToPath     string
 }
 
-func NewSymLinkVolume(fromSymLinkPath string, mountToPath string) *SymLinkVolume {
+var _ Volume = SymLinkVolume{}
+
+func NewSymLinkVolume(fromSymLinkPath string, localVolumePath string, mountToPath string) *SymLinkVolume {
 	return &SymLinkVolume{
 		FromSymLinkPath: fromSymLinkPath,
+		LocalVolumePath: localVolumePath,
 		MountToPath:     mountToPath,
 	}
 }
 
 func (s SymLinkVolume) GetIdentifier() string {
-	return s.Identifier
+	return s.LocalVolumePath
 }
 
 func (s SymLinkVolume) GetMountToPath() string {
@@ -118,9 +122,59 @@ func (s SymLinkVolume) GetMountToPath() string {
 }
 
 func (s SymLinkVolume) Setup(_ context.Context) error {
+	err := os.Symlink(s.FromSymLinkPath, s.LocalVolumePath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
-func (s SimpleVolume) Teardown(_ context.Context) error {
+func (s SymLinkVolume) Teardown(_ context.Context) error {
+	err := os.RemoveAll(s.LocalVolumePath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+type DynamicVolume struct {
+	FromMountPathPrefix string
+	ToMountPath         string
+	FileMap             map[string]func(string)
+}
+
+// can be push or polled based?
+
+var _ Volume = DynamicVolume{}
+
+func NewDynamicVolume(path string, fileMap map[string]func(string)) *DynamicVolume {
+	return &DynamicVolume{ToMountPath: path, FileMap: fileMap}
+}
+
+func (s DynamicVolume) WithPathPrefix(prefix string) DynamicVolume {
+	s.FromMountPathPrefix = prefix
+	return s
+}
+
+func (s DynamicVolume) GetIdentifier() string {
+	return ""
+}
+
+func (s DynamicVolume) GetMountToPath() string {
+	return ""
+}
+
+func (s DynamicVolume) GetMountFromPath() string {
+	return s.FromMountPathPrefix
+}
+
+func (s DynamicVolume) Setup(_ context.Context) error {
+	for f, d := range s.FileMap {
+		d(filepath.Join(s.GetMountFromPath(), f))
+	}
+	return nil
+}
+
+func (s DynamicVolume) Teardown(_ context.Context) error {
 	return nil
 }
