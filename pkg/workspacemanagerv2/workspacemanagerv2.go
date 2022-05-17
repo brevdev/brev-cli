@@ -57,7 +57,7 @@ type WorkspaceManagerStore interface {
 	GetWorkspace(id string) (*entity.Workspace, error)
 	GetWorkspaceMeta(id string) (*store.WorkspaceMeta, error)
 	GetWorkspaceSetupParams(id string) (*store.SetupParamsV0, error)
-	GetWorkspaceSecretsConfig(id string) (interface{}, error)
+	GetWorkspaceSecretsConfig(id string) (string, error)
 }
 
 func NewWorkspaceManager(cm ContainerManager, store WorkspaceManagerStore) *WorkspaceManager {
@@ -90,20 +90,39 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	// secretsConfig, err := w.Store.GetWorkspaceSecretsConfig(workspaceID)
-	// if err != nil {
-	// 	return breverrors.WrapAndTrace(err)
-	// }
+	secretsConfig, err := w.Store.GetWorkspaceSecretsConfig(workspaceID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 
+	localMeta := fmt.Sprintf("/tmp/brev/volumes/%s/etc/meta", workspace.ID)
 	metaVolumes := NewStaticFiles("/etc/meta", map[string]io.Reader{
 		"setup_v0.json":  bytes.NewBuffer(paramsData),
 		"workspace.json": bytes.NewBuffer(workspaceData),
 	}).
-		WithPathPrefix(fmt.Sprintf("/tmp/brev/volumes/%s/etc/meta", workspace.ID)) // TODO proper path
+		WithPathPrefix(localMeta) // TODO proper path
+
+	secretsLocalConfig := fmt.Sprintf("/tmp/brev/volumes/%s/etc/config", workspace.ID)
+	secretsConfigVolumes := NewStaticFiles("/etc/config", map[string]io.Reader{
+		"config.hcl": bytes.NewBuffer([]byte(secretsConfig)),
+	}).
+		WithPathPrefix(secretsLocalConfig) // TODO proper path
+
+	// may need to make tmp executable
+	// need to create volume for fuse
+	// k8s symlink secret volume
+
+	workspaceVolLocalPath := fmt.Sprintf("/tmp/brev/volumes/%s/home/brev/workspace", workspace.ID)
+	workspaceVol := SimpleVolume{
+		Identifier:  workspaceVolLocalPath,
+		MountToPath: "/home/brev/workspace",
+	}
 
 	containerWorkspace := NewContainerWorkspace(w.ContainerManager, workspaceID, workspace.WorkspaceTemplate.Image,
 		[]Volume{
 			metaVolumes,
+			secretsConfigVolumes,
+			workspaceVol,
 		},
 	)
 

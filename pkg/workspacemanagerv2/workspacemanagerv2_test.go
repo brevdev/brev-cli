@@ -15,8 +15,9 @@ type TestStore struct{}
 
 var TestImage = "brevdev/ubuntu-proxy:0.3.17"
 
-func (t TestStore) GetWorkspace(_ string) (*entity.Workspace, error) {
+func (t TestStore) GetWorkspace(id string) (*entity.Workspace, error) {
 	return &entity.Workspace{
+		ID: id,
 		WorkspaceTemplate: entity.WorkspaceTemplate{
 			Image: TestImage,
 		},
@@ -45,8 +46,8 @@ func (t TestStore) GetWorkspaceSetupParams(_ string) (*store.SetupParamsV0, erro
 	}, nil
 }
 
-func (t TestStore) GetWorkspaceSecretsConfig(_ string) (interface{}, error) {
-	return nil, nil
+func (t TestStore) GetWorkspaceSecretsConfig(_ string) (string, error) {
+	return "my config", nil
 }
 
 func (t TestStore) GetWorkspaceMeta(id string) (*store.WorkspaceMeta, error) {
@@ -89,7 +90,7 @@ func Test_ResetWorkspaceManager(t *testing.T) {
 }
 
 func TestCreateWorkspace(t *testing.T) {
-	v := NewStaticFiles("path", map[string]io.Reader{"doom": strings.NewReader("boomm")})
+	v := NewStaticFiles("path", map[string]io.Reader{"doom": strings.NewReader("boom")})
 	v = v.WithPathPrefix("prefix")
 	assert.Equal(t, "prefix", v.FromMountPathPrefix)
 }

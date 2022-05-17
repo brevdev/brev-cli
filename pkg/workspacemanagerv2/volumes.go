@@ -96,3 +96,31 @@ func (s SimpleVolume) Setup(_ context.Context) error {
 func (s SimpleVolume) Teardown(_ context.Context) error {
 	return nil
 }
+
+type SymLinkVolume struct {
+	FromSymLinkPath string
+	MountToPath     string
+}
+
+func NewSymLinkVolume(fromSymLinkPath string, mountToPath string) *SymLinkVolume {
+	return &SymLinkVolume{
+		FromSymLinkPath: fromSymLinkPath,
+		MountToPath:     mountToPath,
+	}
+}
+
+func (s SymLinkVolume) GetIdentifier() string {
+	return s.Identifier
+}
+
+func (s SymLinkVolume) GetMountToPath() string {
+	return s.MountToPath
+}
+
+func (s SymLinkVolume) Setup(_ context.Context) error {
+	return nil
+}
+
+func (s SimpleVolume) Teardown(_ context.Context) error {
+	return nil
+}
