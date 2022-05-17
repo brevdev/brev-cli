@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -91,6 +92,7 @@ func Test_PortMapping(t *testing.T) {
 		err = cm.StartContainer(ctx, containerID)
 		assert.Nil(t, err)
 
+		time.Sleep(time.Second * 1)
 		cmd := exec.CommandContext(ctx, "curl", "http://localhost:3456")
 		out, err := cmd.CombinedOutput()
 		fmt.Println(string(out))

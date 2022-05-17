@@ -120,8 +120,10 @@ func (w WorkspaceManager) MakeContainerWorkspace(workspaceID string) (*Container
 		MountToPath: "/home/brev/workspace",
 	}
 
-	k8sTokenVolPath := filepath.Join(workspaceVolumesPath, "var/run/kubernetes")
-	k8sTokenVol := NewSymLinkVolume("/var/run/kubernetes", k8sTokenVolPath, "/var/run/kubernetes")
+	k8sTokenVol := SimpleVolume{
+		Identifier:  "/var/run/secrets",
+		MountToPath: "/var/run/secrets",
+	}
 
 	containerWorkspace := NewContainerWorkspace(w.ContainerManager, workspaceID, workspace.WorkspaceTemplate.Image,
 		[]Volume{

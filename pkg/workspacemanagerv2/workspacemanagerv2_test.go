@@ -77,15 +77,19 @@ func Test_StartWorkspaceManager(t *testing.T) {
 
 func Test_StopWorkspaceManager(t *testing.T) {
 	ctx := context.Background()
-	wm := NewWorkspaceManager(nil, nil)
-	err := wm.Stop(ctx, "")
+	cm := DockerContainerManager{}
+	store := TestStore{}
+	wm := NewWorkspaceManager(cm, store)
+	err := wm.Stop(ctx, "test")
 	assert.Nil(t, err)
 }
 
 func Test_ResetWorkspaceManager(t *testing.T) {
 	ctx := context.Background()
-	wm := NewWorkspaceManager(nil, nil)
-	err := wm.Reset(ctx, "")
+	cm := DockerContainerManager{}
+	store := TestStore{}
+	wm := NewWorkspaceManager(cm, store)
+	err := wm.Reset(ctx, "test")
 	assert.Nil(t, err)
 }
 

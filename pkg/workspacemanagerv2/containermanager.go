@@ -101,8 +101,12 @@ func (c DockerContainerManager) CreateContainer(ctx context.Context, options Cre
 	}
 	portsAndVolumes := append(ports, volumes...) //nolint:gocritic // not clear why the linter doesn't like this pattern
 	createArgs := append([]string{"--name", options.Name, "--privileged"}, portsAndVolumes...)
-	command := append([]string{options.Command}, options.CommandArgs...)
-	postOptionArgs := append([]string{image}, command...)
+	command := []string{}
+	if options.Command != "" {
+		command = []string{options.Command}
+	}
+	allCommand := append(command, options.CommandArgs...) //nolint:gocritic // not clear why the linter doesn't like this pattern
+	postOptionArgs := append([]string{image}, allCommand...)
 	dockerArgs := append([]string{"container", "create"}, append(createArgs, postOptionArgs...)...)
 	cmd := exec.CommandContext(ctx, "docker", dockerArgs...) //nolint:gosec // in sandboxed env
 	out, err := cmd.CombinedOutput()
