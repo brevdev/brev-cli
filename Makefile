@@ -137,6 +137,11 @@ full-smoke-test: ci fast-build
 build-linux-amd:
 	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
+.PHONY: build-darwin-amd
+build-darwin-amd:
+	GOOS=darwin GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+
+
 .PHONY: setup-workspace-repo
 setup-workspace-repo: build-linux-amd
 	make setup-workspace setup_param_path=assets/test_setup_v0_repo.json
