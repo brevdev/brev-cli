@@ -241,7 +241,7 @@ func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) 
 	t.Print("\nWelcome to Brev.dev 🤙\n")
 	_, err := loginStore.CreateUser(idToken)
 	if err != nil {
-		if !strings.Contains(err.Error(), "400 Bad Request") {
+		if !strings.Contains(err.Error(), "duplicate username") {
 			// This is a real error
 			return false, breverrors.WrapAndTrace(err)
 		}
