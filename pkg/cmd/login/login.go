@@ -61,6 +61,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(opts.Complete(t, cmd, args))
 			cmdutil.CheckErr(opts.RunLogin(t))
+			cmdutil.CheckErr(RunTasksForUser(t))
 		},
 	}
 	return cmd
@@ -181,10 +182,6 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		}
 	}
 
-	err = RunTasksForUser(t)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	return nil
 }
 
