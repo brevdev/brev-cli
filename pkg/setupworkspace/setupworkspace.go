@@ -16,6 +16,7 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/hashicorp/go-multierror"
 )
 
 func SetupWorkspace(params *store.SetupParamsV0) error {
@@ -247,14 +248,19 @@ func (w WorkspaceIniter) Setup() error {
 	}
 
 	fmt.Println("------ Run User Setup ------")
+	var setupErr error
 	err = w.RunUserSetup()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err, "user setup failed"))
 	}
 
 	fmt.Println("------ Run Project Setup ------")
 	err = w.RunProjectSetup()
 	if err != nil {
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err, "project setup failed"))
+	}
+
+	if setupErr != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
