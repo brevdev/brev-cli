@@ -74,3 +74,10 @@ func Test_AppendToOrCreateFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, content+content, string(res))
 }
+
+func Test_getDefaultProjectFolderNameFromHost(t *testing.T) {
+	res := getDefaultProjectFolderNameFromHost("test-working-dir-k13k-brevdev.wgt-us-west-2-test.brev.dev")
+	assert.Equal(t, "test-working-dir", res)
+	res = getDefaultProjectFolderNameFromHost("brevcli-zdud-brevdev.brev.sh")
+	assert.Equal(t, "brevcli", res)
+}

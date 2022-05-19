@@ -16,6 +16,7 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/uri"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -117,9 +118,9 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 
 	if params.ProjectFolderName == "" {
 		if params.WorkspaceProjectRepo != "" {
-			params.ProjectFolderName = strings.Split(params.WorkspaceProjectRepo[strings.LastIndex(params.WorkspaceProjectRepo, "/")+1:], ".")[0]
+			params.ProjectFolderName = getDefaultProjectFolderNameFromRepo(params.WorkspaceProjectRepo)
 		} else {
-			params.ProjectFolderName = strings.Split(params.WorkspaceHost.GetSlug(), "-")[0]
+			params.ProjectFolderName = getDefaultProjectFolderNameFromHost(params.WorkspaceHost)
 		}
 	}
 	if params.SetupScript == nil || *params.SetupScript == "" {
@@ -133,6 +134,16 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 		User:         user,
 		Params:       params,
 	}
+}
+
+func getDefaultProjectFolderNameFromRepo(repo string) string {
+	return strings.Split(repo[strings.LastIndex(repo, "/")+1:], ".")[0]
+}
+
+func getDefaultProjectFolderNameFromHost(host uri.Host) string {
+	slugSplitOnDash := strings.Split(host.GetSlug(), "-")
+	nameSplitOnDash := slugSplitOnDash[:len(slugSplitOnDash)-2]
+	return strings.Join(nameSplitOnDash, "-")
 }
 
 func (w WorkspaceIniter) CmdAsUser(cmd *exec.Cmd) error {
