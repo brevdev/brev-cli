@@ -142,7 +142,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier(workspaces)), w.ID, pk)
+		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier()), w.ID, pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -305,7 +305,7 @@ func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspa
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigServiceMeshEntry(string(w.GetLocalIdentifier(workspaces)), w.GetNodeIdentifierForVPN(workspaces), pk)
+		entry, err := makeSSHConfigServiceMeshEntry(string(w.GetLocalIdentifier()), w.GetNodeIdentifierForVPN(), pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -402,7 +402,7 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 		if errother != nil {
 			return "", breverrors.WrapAndTrace(errother)
 		}
-		nodeID := w.GetNodeIdentifierForVPN(workspaces)
+		nodeID := w.GetNodeIdentifierForVPN()
 		entry := makeJetbrainsConfigEntry(nodeID, pk)
 		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}

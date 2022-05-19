@@ -281,7 +281,7 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 		}
 
 		t.Vprint(t.Green("\nYour workspace is ready!"))
-		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
+		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 		return nil
 	}
@@ -368,13 +368,8 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 
 		t.Vprint(t.Green("\nYour workspace is ready!"))
 
-		workspaces, err := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
 		t.Vprintf(t.Green("\n\nConnect to your machine with:") +
-			t.Yellow("\n\tssh %s\n", startedWorkspace.GetLocalIdentifier(workspaces)))
+			t.Yellow("\n\tssh %s\n", startedWorkspace.GetLocalIdentifier()))
 	}
 
 	return nil
@@ -410,12 +405,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspaces, err := startStore.GetWorkspaces(orgID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprintf("\nConnect to your machine with:\n\tssh %s\n", w.GetLocalIdentifier(workspaces))
+	t.Vprintf("\nConnect to your machine with:\n\tssh %s\n", w.GetLocalIdentifier())
 
 	return nil
 }
@@ -574,7 +564,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	}
 
 	t.Vprint(t.Green("\nYour workspace is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier(nil)))
+	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 	return nil
 }

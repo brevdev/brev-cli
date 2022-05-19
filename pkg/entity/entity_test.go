@@ -8,32 +8,32 @@ import (
 
 func TestGetLocalIdentifier(t *testing.T) {
 	w := Workspace{DNS: "test-rand-org.brev.sh"}
-	assert.Equal(t, WorkspaceLocalID("test-rand"), w.GetLocalIdentifier(nil))
+	assert.Equal(t, WorkspaceLocalID("test-rand"), w.GetLocalIdentifier())
 }
 
 func TestGetLocalIdentifierClean(t *testing.T) {
 	// safest https://www.saveonhosting.com/scripts/index.php?rp=/knowledgebase/52/What-are-the-valid-characters-for-a-domain-name-and-how-long-can-a-domain-name-be.html
 	correctID := WorkspaceLocalID("test-rand")
 	w := Workspace{DNS: "test-rand-org.brev.sh", Name: "abc/def"}
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 
 	w.Name = "'abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 
 	w.Name = "\"abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 
 	w.Name = "\\abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 
 	w.Name = "/abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 
 	w.Name = ".abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 
 	w.Name = ":abc"
-	assert.Equal(t, correctID, w.GetLocalIdentifier(nil))
+	assert.Equal(t, correctID, w.GetLocalIdentifier())
 }
 
 // NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
@@ -64,26 +64,22 @@ func WorkspacesFromWorkspaceWithMeta(wwm []WorkspaceWithMeta) []Workspace {
 func TestGetLocalIdentifierDeterminism(t *testing.T) {
 	w1 := WorkspaceWithMeta{Workspace: Workspace{ID: "1", DNS: "main-abc-org.brev.sh", Name: "main", CreatedByUserID: "user"}}
 	w2 := WorkspaceWithMeta{Workspace: Workspace{ID: "2", DNS: "main-def-org.brev.sh", Name: "main", CreatedByUserID: "user"}}
-	ws := []WorkspaceWithMeta{w1, w2}
 
 	// same id must be returned across time
 	w1CorrectID := WorkspaceLocalID("main-abc")
 	w2CorrectID := WorkspaceLocalID("main-def")
 
-	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(ws)))
-	assert.Equal(t, w2CorrectID, w2.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(ws)))
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier())
+	assert.Equal(t, w2CorrectID, w2.GetLocalIdentifier())
 
 	// sometime later -- re-arranged
-	ws = []WorkspaceWithMeta{w2, w1}
-	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(ws)))
-	assert.Equal(t, w2CorrectID, w2.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(ws)))
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier())
+	assert.Equal(t, w2CorrectID, w2.GetLocalIdentifier())
 
 	// sometime later -- w2 deleted
-	ws = []WorkspaceWithMeta{w1}
-	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(ws)))
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier())
 
 	// sometime later -- user changes name
 	w1.Name = "new name"
-	ws = []WorkspaceWithMeta{w1, w2}
-	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(ws)))
+	assert.Equal(t, w1CorrectID, w1.GetLocalIdentifier())
 }

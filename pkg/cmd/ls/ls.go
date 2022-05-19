@@ -212,7 +212,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 	ls.terminal.Vprintf(ls.terminal.Green("\n\nConnect to your machine with one of the following:\n"))
 	for _, v := range workspaces {
 		if v.Status == "RUNNING" {
-			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier(workspaces)))
+			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
 		}
 	}
 	ls.terminal.Vprint("\n")
@@ -269,7 +269,7 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	for _, workspace := range workspaces {
-		fmt.Println(workspace.GetNodeIdentifierForVPN(workspaces))
+		fmt.Println(workspace.GetNodeIdentifierForVPN())
 	}
 	return nil
 }

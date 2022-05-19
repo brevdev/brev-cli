@@ -90,7 +90,7 @@ func ConfigureVPN(store ServiceMeshStore) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		nodeIdentifier = workspace.GetNodeIdentifierForVPN(nil)
+		nodeIdentifier = workspace.GetNodeIdentifierForVPN()
 		networkdID = workspace.NetworkID
 	}
 	authKeyResp, err := store.GetNetworkAuthKey()

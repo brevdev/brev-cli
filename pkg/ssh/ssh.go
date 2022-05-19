@@ -441,7 +441,7 @@ func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []entity.Wor
 	var workspaceIdentifiers []entity.WorkspaceLocalID
 	for _, workspace := range sshConfigurer.workspaces {
 		fmt.Println(workspace.Name)
-		workspaceIdentifiers = append(workspaceIdentifiers, workspace.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(sshConfigurer.workspaces)))
+		workspaceIdentifiers = append(workspaceIdentifiers, workspace.GetLocalIdentifier())
 	}
 	return workspaceIdentifiers
 }

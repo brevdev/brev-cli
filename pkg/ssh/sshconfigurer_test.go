@@ -104,8 +104,8 @@ Host %s
   ProxyCommand brev proxy test-id-2
   ServerAliveInterval 30
 
-`, somePlainWorkspaces[0].GetLocalIdentifier(somePlainWorkspaces),
-		somePlainWorkspaces[1].GetLocalIdentifier(somePlainWorkspaces))
+`, somePlainWorkspaces[0].GetLocalIdentifier(),
+		somePlainWorkspaces[1].GetLocalIdentifier())
 	assert.Equal(t, correct, cStr)
 
 	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})

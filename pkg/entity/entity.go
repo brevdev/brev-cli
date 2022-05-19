@@ -2,6 +2,7 @@ package entity
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -143,13 +144,32 @@ type WorkspaceTemplate struct {
 
 const featureSimpleNames = false
 
-func (w Workspace) GetLocalIdentifier(workspaces []Workspace) WorkspaceLocalID {
+func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
 	if featureSimpleNames {
-		return w.createSimpleNameForWorkspace(workspaces)
+		return w.createSimpleName()
 	} else {
-		dnsSplit := strings.Split(w.DNS, "-")
-		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
+		return w.createUniqueReadableName()
 	}
+}
+
+func (w Workspace) createUniqueReadableName() WorkspaceLocalID {
+	return WorkspaceLocalID(fmt.Sprintf("%s-%s", CleanSubdomain(w.Name), w.ID[len(w.ID)-4:]))
+}
+
+var (
+	whitespaceCharPattern = regexp.MustCompile(`\s+`)
+	invalidCharPattern    = regexp.MustCompile(`[^a-z0-9-]`)
+)
+
+// lowercase, replace whitespace with '-', remove all [^a-z0-9-], trim '-' front and back
+func CleanSubdomain(in string) string {
+	lowered := strings.ToLower(in)
+	whitespaceReplacedWithDash := whitespaceCharPattern.ReplaceAllString(lowered, "-")
+	removedInvalidChars := invalidCharPattern.ReplaceAllString(whitespaceReplacedWithDash, "")
+	removedPrefixSuffixDashses := strings.Trim(removedInvalidChars, "-")
+
+	out := removedPrefixSuffixDashses
+	return out
 }
 
 func (w Workspace) GetID() string {
@@ -160,48 +180,12 @@ func (w Workspace) GetSSHURL() string {
 	return "ssh-" + w.DNS
 }
 
-func makeNameSafeForEmacs(name string) string {
-	splitBySlash := strings.Split(name, "/")
-
-	concatenated := strings.Join(splitBySlash, "-")
-
-	splitByColon := strings.Split(concatenated, ":")
-
-	emacsSafeString := strings.Join(splitByColon, "-")
-
-	return emacsSafeString
+func (w Workspace) createSimpleName() WorkspaceLocalID {
+	return WorkspaceLocalID(CleanSubdomain(w.Name))
 }
 
-func (w Workspace) createSimpleNameForWorkspace(workspaces []Workspace) WorkspaceLocalID {
-	isUnique := true
-	if len(workspaces) > 0 {
-		for _, v := range workspaces {
-			/*
-				If it's a:
-					- different workspace
-					- for the same user
-					- with the same name
-				it needs entropy
-			*/
-
-			if v.ID != w.ID && v.CreatedByUserID == w.CreatedByUserID && v.Name == w.Name {
-				isUnique = false
-				break
-			}
-		}
-	}
-
-	if isUnique {
-		sanitizedName := makeNameSafeForEmacs(w.Name)
-		return WorkspaceLocalID(sanitizedName)
-	} else {
-		dnsSplit := strings.Split(w.DNS, "-")
-		return WorkspaceLocalID(strings.Join(dnsSplit[:2], "-"))
-	}
-}
-
-func (w Workspace) GetNodeIdentifierForVPN(workspaces []Workspace) string {
-	return string(w.createSimpleNameForWorkspace(workspaces))
+func (w Workspace) GetNodeIdentifierForVPN() string {
+	return string(w.createSimpleName())
 }
 
 type OnboardingStatus struct {

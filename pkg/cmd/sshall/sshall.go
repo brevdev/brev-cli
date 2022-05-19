@@ -149,7 +149,7 @@ Host *
 
 	fmt.Println()
 	for _, w := range s.workspaces {
-		fmt.Printf("ssh %s\n", w.GetLocalIdentifier(WorkspacesFromWorkspaceWithMeta(s.workspaces)))
+		fmt.Printf("ssh %s\n", w.GetLocalIdentifier())
 		s.retries[w] = 3 // TODO magic number
 		s.runPortForwardWorkspace(w, s.workspaces)
 	}
@@ -198,7 +198,7 @@ func WorkspacesFromWorkspaceWithMeta(wwm []entity.WorkspaceWithMeta) []entity.Wo
 }
 
 func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
-	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.GetLocalIdentifier(nil))
+	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.GetLocalIdentifier())
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

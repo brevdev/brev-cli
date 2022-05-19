@@ -56,7 +56,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	// s.Suffix = " finding your workspace"
 	// s.Start()
 
-	workspace, workspaces, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
+	workspace, _, err := getWorkspaceFromNameOrIDAndReturnWorkspacesPlusWorkspace(wsIDOrName, tstore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -74,7 +74,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 
 	// note: intentional decision to just assume the parent folder and inner folder are the same
 	// s.Stop()
-	localIdentifier := workspace.GetLocalIdentifier(*workspaces)
+	localIdentifier := workspace.GetLocalIdentifier()
 
 	err = openCode(string(localIdentifier), folderName, t)
 	if err != nil {
