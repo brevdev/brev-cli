@@ -146,7 +146,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "What is your preferred IDE?",
 			ErrorMsg: "error",
-			Items:    []string{"VSCode", "JetBrains IDEs"},
+			Items:    []string{"VSCode", "JetBrains IDEs", "Other"},
 		})
 		newOnboardingStatus["editor"] = ide
 	} else {
