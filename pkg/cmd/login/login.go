@@ -17,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/spf13/cobra"
 	"golang.org/x/text/encoding/charmap"
@@ -104,18 +105,6 @@ func preLoginData(o LoginOptions, t *terminal.Terminal) (*entity.User, bool, []e
 	return user, isUserCreated, orgs, nil
 }
 
-func mapAppend(m map[string]interface{}, n ...map[string]interface{}) map[string]interface{} {
-	if m == nil { // we may get nil maps from legacy users not having user.OnboardingStatus set
-		m = make(map[string]interface{})
-	}
-	for _, item := range n {
-		for key, value := range item {
-			m[key] = value
-		}
-	}
-	return m
-}
-
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	user, isUserCreated, orgs, err := preLoginData(o, t)
 	if err != nil {
@@ -167,7 +156,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 		Username:         user.Username,
 		Name:             user.Name,
 		Email:            user.Email,
-		OnboardingStatus: mapAppend(user.OnboardingStatus, newOnboardingStatus),
+		OnboardingStatus: util.MapAppend(user.OnboardingStatus, newOnboardingStatus),
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
