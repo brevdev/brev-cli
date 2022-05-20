@@ -19,6 +19,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/brevdev/brev-cli/pkg/vpn"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"golang.org/x/text/encoding/charmap"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -34,6 +35,7 @@ type LoginStore interface {
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetActiveOrganizationOrNil() (*entity.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 	GetServerSockFile() string
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -72,60 +74,111 @@ func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []stri
 	return nil
 }
 
-func preLoginData(o LoginOptions, t *terminal.Terminal) (*entity.User, bool, []entity.Organization, error) {
+func (o LoginOptions) checkIfInWorkspace() error {
 	workspaceID, err := o.LoginStore.GetCurrentWorkspaceID()
 	if err != nil {
-		return nil, false, nil, breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
 		fmt.Println("can not login to workspace")
-		return nil, false, nil, errors.New("can not login to workspace")
+		return errors.New("can not login to workspace")
 	}
 
+	return nil
+}
+
+func (o LoginOptions) loginAndGetOrCreateUser() (*entity.User, error) {
 	tokens, err := o.Auth.Login()
 	if err != nil {
-		return nil, false, nil, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	isUserCreated, err := CreateNewUser(o.LoginStore, tokens.IDToken, t)
+	_, err = CreateNewUser(o.LoginStore, tokens.IDToken)
 	if err != nil {
-		return nil, false, nil, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	user, err := o.LoginStore.GetCurrentUser()
 	if err != nil {
-		return nil, isUserCreated, nil, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
+	return user, nil
+}
 
-	orgs, err := o.LoginStore.GetOrganizations(nil)
+func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, error) {
+	org, err := o.LoginStore.GetActiveOrganizationOrNil()
 	if err != nil {
-		return user, isUserCreated, nil, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	return user, isUserCreated, orgs, nil
+	if org == nil {
+		newOrgName := makeFirstOrgName(username)
+		fmt.Print("")
+		fmt.Printf("Creating your first org %s ... ", newOrgName)
+		org, err = o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
+			Name: newOrgName,
+		})
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		fmt.Println("done!")
+	}
+	return org, nil
 }
 
 func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
-	user, isUserCreated, orgs, err := preLoginData(o, t)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = o.shouldHandleUserOrg(orgs, user, t)
+	err := o.checkIfInWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
+	fmt.Print("\n")
+	fmt.Println("  ", caretType("▸"), "    Starting Login")
+
+	user, err := o.loginAndGetOrCreateUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	org, err := o.getOrCreateOrg(user.Username)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = o.handleOnboaring(user, t)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = o.showBreadCrumbs(t, org, user)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if featureflag.IsAdmin(user.GlobalUserType) {
+		err1 := o.HandleLoginAdmin()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+	}
+
+	return nil
+}
+
+func (o LoginOptions) handleOnboaring(user *entity.User, t *terminal.Terminal) error {
 	// figure out if we should onboard the user
 	currentOnboardingStatus, err := user.GetOnboardingStatus()
 	if err != nil {
-		// TODO: should we just proceed with something here?
 		return breverrors.WrapAndTrace(err)
 	}
 	newOnboardingStatus := make(map[string]interface{})
-
 	// todo make this one api call
 	if !currentOnboardingStatus.SSH {
-		_ = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
+		err = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 		newOnboardingStatus["SSH"] = true
 	}
 
@@ -161,24 +214,20 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	FinalizeOnboarding(t, isUserCreated)
-
-	if featureflag.IsAdmin(user.GlobalUserType) {
-		err1 := o.HandleLoginAdmin(t)
-		if err1 != nil {
-			return breverrors.WrapAndTrace(err1)
-		}
-	}
-
 	return nil
 }
 
-func (o LoginOptions) HandleLoginAdmin(t *terminal.Terminal) error {
-	s := t.NewSpinner()
-	s.Suffix = " setting up service mesh bcs you're an ADMIN 🤩"
-	s.Start()
+func getOtherOrg(org *entity.Organization, orgs []entity.Organization) *entity.Organization {
+	for _, o := range orgs {
+		if o.ID != org.ID {
+			return &o
+		}
+	}
+	return nil
+}
 
+func (o LoginOptions) HandleLoginAdmin() error {
+	fmt.Println("\nsetting up admin...")
 	sock := o.LoginStore.GetServerSockFile()
 	c, err := server.NewClient(sock)
 	if err != nil {
@@ -188,7 +237,6 @@ func (o LoginOptions) HandleLoginAdmin(t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	s.Stop()
 	return nil
 }
 
@@ -206,25 +254,8 @@ func RunTasksForUser(t *terminal.Terminal) error {
 	return nil
 }
 
-func (o LoginOptions) shouldHandleUserOrg(orgs []entity.Organization, user *entity.User, t *terminal.Terminal) error {
-	// Create a users first org
-	if len(orgs) == 0 {
-		orgName := makeFirstOrgName(user)
-		t.Printf("Creating your first org %s ... ", orgName)
-		_, err2 := o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
-			Name: orgName,
-		})
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
-		}
-		t.Print("done!")
-	}
-	return nil
-}
-
 // returns if the user is indeed new
-func CreateNewUser(loginStore LoginStore, idToken string, t *terminal.Terminal) (bool, error) {
-	t.Print("\nWelcome to Brev.dev 🤙\n")
+func CreateNewUser(loginStore LoginStore, idToken string) (bool, error) {
 	_, err := loginStore.CreateUser(idToken)
 	if err != nil {
 		if !strings.Contains(err.Error(), "duplicate username") {
@@ -258,7 +289,9 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 		AllowEmpty: true,
 	})
 
-	t.Vprint(t.Green("\nAdd the key to your git repo provider"))
+	fmt.Print("\n")
+
+	t.Vprint(t.Green("Add the key to your git repo provider"))
 	t.Vprint(t.Green("\tClick here if you use Github 👉 https://github.com/settings/ssh/new\n\n"))
 	// t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
 
@@ -323,14 +356,48 @@ func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore, ide str
 	return ide, nil
 }
 
-func FinalizeOnboarding(t *terminal.Terminal, isUserCreated bool) {
-	terminal.DisplayBrevLogo(t)
-	t.Vprint("\n")
-	if isUserCreated {
-		t.Vprintf(t.Green("\nCreate your first workspace! Try this command:"))
-		t.Vprintf(t.Yellow("\n\t$brev start https://github.com/brevdev/hello-react"))
-		t.Vprint("\n")
+func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organization, user *entity.User) error {
+	orgs, err := o.LoginStore.GetOrganizations(nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+
+	allWorkspaces, err := o.LoginStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	userWorkspaces := []entity.Workspace{}
+	for _, w := range allWorkspaces {
+		if w.CreatedByUserID == user.ID {
+			userWorkspaces = append(userWorkspaces, w)
+		}
+	}
+
+	t.Vprintf(t.Green("current organization: ") + t.Yellow(fmt.Sprintf("%s\n", org.Name)))
+	if len(orgs) > 1 {
+		otherOrg := getOtherOrg(org, orgs)
+		t.Vprintf(t.Green("switch organizations:\n"))
+		t.Vprintf(t.Yellow("\tbrev set %s\n", otherOrg.Name))
+	}
+
+	if len(allWorkspaces) == 0 {
+		t.Vprintf(t.Green("create a workspace:\n"))
+		t.Vprintf(t.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
+	}
+	if len(userWorkspaces) == 0 && len(allWorkspaces) > 1 {
+		t.Vprintf(t.Green("list teammates workspaces:\n"))
+		t.Vprintf(t.Yellow("\tbrev ls --all\n"))
+
+		t.Vprintf(t.Green("join a teammate's workspace:\n"))
+		t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev start %s\n", allWorkspaces[0].Name)))
+	}
+	if len(userWorkspaces) > 0 {
+		t.Vprintf(t.Green("list your workspaces:\n"))
+		t.Vprintf(t.Yellow("\tbrev ls\n"))
+	}
+
+	return nil
 }
 
 func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
@@ -458,6 +525,6 @@ func CreateDownloadPathAndInstallScript(localOS string, homeDirectory string) (j
 	return jetBrainsDirectory, installScript, nil
 }
 
-func makeFirstOrgName(user *entity.User) string {
-	return fmt.Sprintf("%s-hq", user.Username)
+func makeFirstOrgName(username string) string {
+	return fmt.Sprintf("%s-hq", username)
 }

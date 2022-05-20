@@ -4,6 +4,7 @@ VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 .PHONY: fast-build
 fast-build: ## go build -o brev
 	$(call print-target)
+	echo ${VERSION}
 	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: version
@@ -135,11 +136,15 @@ full-smoke-test: ci fast-build
 
 .PHONY: build-linux-amd
 build-linux-amd:
-	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(call print-target)
+	echo ${VERSION}
+	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: build-darwin-amd
 build-darwin-amd:
-	GOOS=darwin GOARCH=amd64 go build -o brev -ldflags "s -w -X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(call print-target)
+	echo ${VERSION}
+	GOOS=darwin GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 
 .PHONY: setup-workspace-repo

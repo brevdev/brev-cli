@@ -87,7 +87,15 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 
 	freshOrg, err := s.GetOrganization(activeOrg.ID)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		switch err := err.(type) {
+		case *HTTPResponseError: // handle because can login with bad cache
+			statusCode := err.response.StatusCode()
+			if !(statusCode == 404 || statusCode == 403) {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+		default:
+			return nil, breverrors.WrapAndTrace(err)
+		}
 	}
 	return freshOrg, nil
 }

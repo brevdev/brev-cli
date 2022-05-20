@@ -128,23 +128,23 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 	}
 
 	if options.UserID != "" {
-		myWorkspaces := []entity.Workspace{}
+		userWorkspaces := []entity.Workspace{}
 		for _, w := range workspaces {
 			if w.CreatedByUserID == options.UserID {
-				myWorkspaces = append(myWorkspaces, w)
+				userWorkspaces = append(userWorkspaces, w)
 			}
 		}
-		workspaces = myWorkspaces
+		workspaces = userWorkspaces
 	}
 
 	if options.Name != "" {
-		myWorkspaces := []entity.Workspace{}
+		nameWorkspaces := []entity.Workspace{}
 		for _, w := range workspaces {
 			if w.Name == options.Name {
-				myWorkspaces = append(myWorkspaces, w)
+				nameWorkspaces = append(nameWorkspaces, w)
 			}
 		}
-		workspaces = myWorkspaces
+		workspaces = nameWorkspaces
 	}
 
 	return workspaces, nil

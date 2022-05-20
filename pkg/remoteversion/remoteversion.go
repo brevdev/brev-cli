@@ -13,21 +13,14 @@ import (
 
 var green = color.New(color.FgGreen).SprintfFunc()
 
-var upToDateString = `
-Current Version: %s
-
-` + green("You're up to date!")
-
-var outOfDateString = `
-Current version: %s
-
-` + green("A new version of brev has been released!") + `
-
+var (
+	upToDateString  = `Current Version: %s\n`
+	outOfDateString = green("A new version of brev has been released!\n") +
+		`Current version: %s
 New Version: %s
-
 To update to latest version, use: 
-	brew upgrade brev
-`
+	brew upgrade brevdev/homebrew-brev/brev`
+)
 
 type VersionStore interface {
 	GetLatestReleaseMetadata() (*store.GithubReleaseMetadata, error)

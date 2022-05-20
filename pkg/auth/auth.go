@@ -163,24 +163,25 @@ func (t Auth) Login() (*LoginTokens, error) {
 	tokens, err := t.oauth.DoDeviceAuthFlow(
 		func(url, code string) {
 			codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
+			fmt.Print("\n")
 			fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 			caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
-			fmt.Println("")
 			fmt.Println("\n" + url + "\n")
 			_ = terminal.PromptGetInput(terminal.PromptContent{
 				Label:      "  " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
 				ErrorMsg:   "error",
 				AllowEmpty: true,
 			})
-			fmt.Println("")
+
+			fmt.Print("\n")
 
 			err := browser.OpenURL(url)
 			if err != nil {
 				fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")
 			}
-			fmt.Print("Waiting for login to complete in browser... ")
+			fmt.Println("Waiting for login to complete in browser... ")
 		},
 	)
 	if err != nil {
@@ -197,10 +198,8 @@ func (t Auth) Login() (*LoginTokens, error) {
 	}
 
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	fmt.Println("done!")
 	fmt.Println("")
 	fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
-	fmt.Println("")
 
 	return tokens, nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -150,6 +151,9 @@ func (e HTTPResponseError) Error() string {
 	msg := ""
 	for _, e := range errors.Errors {
 		msg = msg + e.Message + "\n"
+	}
+	if strings.TrimSpace(msg) == "" {
+		return fmt.Sprintf("%s %s %s", e.response.Request.URL, e.response.Status(), body)
 	}
 	return msg
 }
