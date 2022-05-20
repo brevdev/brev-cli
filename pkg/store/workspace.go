@@ -150,6 +150,24 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 	return workspaces, nil
 }
 
+func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
+	workspace, err := s.GetWorkspace(nameOrID)
+	if err != nil {
+		if !IsNetwork404Or403Error(err) {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	}
+	if workspace != nil {
+		return []entity.Workspace{*workspace}, nil
+	}
+	workspaces, err := s.GetWorkspaces(orgID, &GetWorkspacesOptions{Name: nameOrID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return workspaces, nil
+}
+
+// get user workspaces in org, like brev ls
 func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {

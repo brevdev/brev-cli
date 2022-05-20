@@ -129,31 +129,50 @@ type BrevDeployError struct {
 }
 
 type HTTPResponseError struct {
-	response *resty.Response
+	Response *resty.Response
 }
 
 func NewHTTPResponseError(response *resty.Response) *HTTPResponseError {
 	return &HTTPResponseError{
-		response: response,
+		Response: response,
 	}
 }
 
 func (e HTTPResponseError) Error() string {
-	body := e.response.Body()
+	body := e.Response.Body()
 	if featureflag.Debug() {
-		return fmt.Sprintf("%s %s %s", e.response.Request.URL, e.response.Status(), body)
+		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
 	}
 	errors := &BrevDeployErrorList{}
 	err := json.Unmarshal(body, errors)
 	if err != nil {
-		return fmt.Sprintf("%s %s %s", e.response.Request.URL, e.response.Status(), body)
+		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
 	}
 	msg := ""
 	for _, e := range errors.Errors {
 		msg = msg + e.Message + "\n"
 	}
 	if strings.TrimSpace(msg) == "" {
-		return fmt.Sprintf("%s %s %s", e.response.Request.URL, e.response.Status(), body)
+		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
 	}
 	return msg
+}
+
+func IsNetwork404Or403Error(err error) bool {
+	return IsNetworkErrorWithStatus(err, []int{404, 403})
+}
+
+func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
+	switch err := err.(type) {
+	case *HTTPResponseError:
+		statusCode := err.Response.StatusCode()
+		for _, c := range statusCodes {
+			if c == statusCode {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }
