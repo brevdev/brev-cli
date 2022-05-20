@@ -206,7 +206,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	if featureflag.IsDev() {
 		_ = 0 // noop
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
-
+		cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 	} else {
 		_ = 0 // noop
 	}

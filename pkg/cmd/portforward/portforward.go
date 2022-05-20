@@ -3,14 +3,18 @@ package portforward
 import (
 	"fmt"
 	"net/url"
+	"os"
+	"os/exec"
+	"os/signal"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/store"
 
 	"github.com/brevdev/brev-cli/pkg/k8s"
-	"github.com/brevdev/brev-cli/pkg/portforward"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +32,71 @@ type PortforwardStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
+}
+
+func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
+	cmd := &cobra.Command{
+		Annotations:           map[string]string{"ssh": ""},
+		Use:                   "port-forwardssh",
+		DisableFlagsInUseLine: true,
+		Short:                 "Enable a local ssh link tunnel",
+		Long:                  sshLinkLong,
+		Example:               sshLinkExample,
+		Args:                  cobra.ExactArgs(1),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
+		Run: func(cmd *cobra.Command, args []string) {
+			if Port == "" {
+				startInput(t)
+			}
+
+			var portForwarding string
+			if strings.Contains(Port, ":") {
+				portSplit := strings.Split(Port, ":")
+				portForwarding = portSplit[0] + ":localhost:" + portSplit[1]
+			} else {
+				fmt.Println("Port flag not formatted correctly, use '-p local_port:remote_port'")
+				return
+			}
+			process, err := RunSSHPortForward("-L", portForwarding, args[0])
+			if err != nil {
+				t.Errprint(err, "Failed to port forward")
+			}
+			// wait for cntrl c signal
+			signals := make(chan os.Signal, 1)
+			signal.Notify(signals, os.Interrupt)
+			defer signal.Stop(signals)
+			<-signals
+			// close off ports
+			StopSSHPortForward(process)
+		},
+	}
+	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
+	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveNoSpace
+	})
+	if err != nil {
+		t.Errprint(err, "cli err")
+	}
+
+	return cmd
+}
+
+func RunSSHPortForward(forwardType string, portLocations string, domainName string) (*os.Process, error) {
+	cmdSHH := exec.Command("ssh", forwardType, portLocations, domainName)
+	stdout, err := cmdSHH.Output()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	// Print the output
+	fmt.Println(string(stdout))
+	fmt.Println(cmdSHH.Process)
+	return cmdSHH.Process, nil
+}
+
+func StopSSHPortForward(process *os.Process) {
+	err := process.Kill()
+	fmt.Println(err.Error())
 }
 
 func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
