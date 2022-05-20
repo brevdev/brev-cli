@@ -1,6 +1,8 @@
 package util
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // This package should only be used as a holding pattern to be later moved into more specific packages
 
