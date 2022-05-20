@@ -120,7 +120,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(org, showAll)
+		err = ls.RunWorkspaces(org, user, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -141,7 +141,7 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 		}
 		return nil
 	} else if util.IsSingularOrPlural(arg, "workspace") {
-		err := ls.RunWorkspaces(org, showAll)
+		err := ls.RunWorkspaces(org, user, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -207,25 +207,61 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
-	user, err := ls.lsStore.GetCurrentUser()
+func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) error {
+	workspaces, err := ls.ShowUserWorkspaces(org, user)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	var workspaces []entity.Workspace
-	workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+	listJoinedByGitURL := make(map[string][]entity.Workspace)
+	for _, w := range workspaces {
+		l := listJoinedByGitURL[w.GitRepo]
+		l = append(l, w)
+		listJoinedByGitURL[w.GitRepo] = l
+	}
+
+	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	listByGitURL := make(map[string][]entity.Workspace)
+
+	for _, w := range wss {
+
+		_, exist := listJoinedByGitURL[w.GitRepo]
+
+		// unjoined workspaces only: check it's not a joined one
+		if !exist {
+			l := listByGitURL[w.GitRepo]
+			l = append(l, w)
+			listByGitURL[w.GitRepo] = l
+		}
+
+	}
+	var unjoinedWorkspaces []entity.Workspace
+	for gitURL := range listByGitURL {
+		unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitURL[gitURL][0])
+	}
+
+	displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitURL)
+	ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
+		ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
+	return nil
+}
+
+func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) ([]entity.Workspace, error) {
+	var workspaces []entity.Workspace
+	workspaces, err := ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
 	if len(workspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
-		if !showAll {
-			// note: if showAll flag is set, proceed to show unjoined workspaces
-			return nil
-		}
 	}
+
 	displayOrgWorkspaces(ls.terminal, workspaces, org)
+
 	ls.terminal.Vprintf(ls.terminal.Green("\n\nConnect to your machine with one of the following:\n"))
 	for _, v := range workspaces {
 		if v.Status == "RUNNING" {
@@ -233,44 +269,21 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, showAll bool) error {
 		}
 	}
 	ls.terminal.Vprint("\n")
+	return workspaces, nil
+}
 
-	// SHOW UNJOINED
+func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
 	if showAll {
-		listJoinedByGitURL := make(map[string][]entity.Workspace)
-		for _, w := range workspaces {
-			l := listJoinedByGitURL[w.GitRepo]
-			l = append(l, w)
-			listJoinedByGitURL[w.GitRepo] = l
-		}
-
-		wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+		err := ls.ShowAllWorkspaces(org, user)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		listByGitURL := make(map[string][]entity.Workspace)
-
-		for _, w := range wss {
-
-			_, exist := listJoinedByGitURL[w.GitRepo]
-
-			// unjoined workspaces only: check it's not a joined one
-			if !exist {
-				l := listByGitURL[w.GitRepo]
-				l = append(l, w)
-				listByGitURL[w.GitRepo] = l
-			}
-
+	} else {
+		_, err := ls.ShowUserWorkspaces(org, user)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
-		var unjoinedWorkspaces []entity.Workspace
-		for gitURL := range listByGitURL {
-			unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitURL[gitURL][0])
-		}
-
-		displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitURL)
-		ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
-			ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 	}
-
 	return nil
 }
 
