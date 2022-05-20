@@ -113,34 +113,45 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		return fmt.Errorf("too many args provided")
 	}
 
-	if len(args) == 1 { // handle org, orgs, and organization(s)
-		// todo refactor this to cmd.register
-		//nolint:gocritic // idk how to write this as a switch
-		if strings.Contains(args[0], "org") {
-			err = ls.RunOrgs()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
-		} else if strings.Contains(args[0], "user") && featureflag.IsAdmin(user.GlobalUserType) {
-			err = ls.RunUser(showAll)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
-		} else if strings.Contains(args[0], "hosts") && featureflag.IsAdmin(user.GlobalUserType) {
-			err = ls.RunHosts(org)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
+	if len(args) == 1 { //nolint:gocritic // don't want to switch
+		err = handleLsArg(ls, args[0], user, org, showAll)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
-	}
-	err = ls.RunWorkspaces(org, showAll)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	} else if len(args) == 0 {
+		err = ls.RunWorkspaces(org, showAll)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		return fmt.Errorf("unhandle ls arguments")
 	}
 
+	return nil
+}
+
+func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
+	// todo refactor this to cmd.register
+	//nolint:gocritic // idk how to write this as a switch
+	if strings.HasPrefix(arg, "org") { // handle org, orgs, and organization(s)
+		err := ls.RunOrgs()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
+	} else if strings.HasPrefix(arg, "user") && featureflag.IsAdmin(user.GlobalUserType) {
+		err := ls.RunUser(showAll)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
+	} else if strings.HasPrefix(arg, "host") && featureflag.IsAdmin(user.GlobalUserType) {
+		err := ls.RunHosts(org)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
+	}
 	return nil
 }
 
