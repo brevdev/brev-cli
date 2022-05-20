@@ -214,13 +214,14 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) erro
 	}
 
 	listJoinedByGitURL := make(map[string][]entity.Workspace)
+	// add user worksapcs to map
 	for _, w := range workspaces {
 		l := listJoinedByGitURL[w.GitRepo]
 		l = append(l, w)
 		listJoinedByGitURL[w.GitRepo] = l
 	}
 
-	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil) // TODO double network request
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -244,7 +245,7 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) erro
 	}
 
 	displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitURL)
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
+	ls.terminal.Vprintf(ls.terminal.Green("\nJoin one of these projects with:") +
 		ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
 	return nil
 }
@@ -262,7 +263,9 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) ([]
 
 	displayOrgWorkspaces(ls.terminal, workspaces, org)
 
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nConnect to your machine with one of the following:\n"))
+	fmt.Print("\n")
+
+	ls.terminal.Vprintf(ls.terminal.Green("Connect to your machine with one of the following:\n"))
 	for _, v := range workspaces {
 		if v.Status == "RUNNING" {
 			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
@@ -302,6 +305,25 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 		fmt.Println(workspace.GetNodeIdentifierForVPN())
 	}
 	return nil
+}
+
+func NewVirtualProjects(workspaces []entity.Workspace) []VirtualProject {
+	var gitRepoWorkspaceMap map[string][]entity.Workspace
+	for _, w := range workspaces {
+		gitRepoWorkspaceMap[w.GitRepo] = append(gitRepoWorkspaceMap[w.GitRepo], w)
+	}
+	var projects []VirtualProject
+	for k, v := range gitRepoWorkspaceMap {
+		projectName := v[0].Name // TODO this is the SUPER hacky unexpected behavior part
+		projects = append(projects, VirtualProject{Name: projectName, GitURL: k, Workspaces: v})
+	}
+	return projects
+}
+
+type VirtualProject struct {
+	Name       string
+	GitURL     string
+	Workspaces []entity.Workspace
 }
 
 func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitURL map[string][]entity.Workspace) {
