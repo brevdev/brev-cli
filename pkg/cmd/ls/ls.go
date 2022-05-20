@@ -208,68 +208,50 @@ func (ls Ls) RunUser(_ bool) error {
 }
 
 func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) error {
-	workspaces, err := ls.ShowUserWorkspaces(org, user)
+	err := ls.ShowUserWorkspaces(org, user)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	listJoinedByGitURL := make(map[string][]entity.Workspace)
-	for _, w := range workspaces {
-		l := listJoinedByGitURL[w.GitRepo]
-		l = append(l, w)
-		listJoinedByGitURL[w.GitRepo] = l
-	}
-
-	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil) // TODO double network request
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	listByGitURL := make(map[string][]entity.Workspace)
 
-	for _, w := range wss {
+	projects := entity.NewVirtualProjects(wss)
 
-		_, exist := listJoinedByGitURL[w.GitRepo]
-
-		// unjoined workspaces only: check it's not a joined one
-		if !exist {
-			l := listByGitURL[w.GitRepo]
-			l = append(l, w)
-			listByGitURL[w.GitRepo] = l
+	var unjoinedProjects []entity.VirtualProject
+	for _, p := range projects {
+		wks := p.GetUserWorkspaces(user.ID)
+		if len(wks) == 0 {
+			unjoinedProjects = append(unjoinedProjects, p)
 		}
-
-	}
-	var unjoinedWorkspaces []entity.Workspace
-	for gitURL := range listByGitURL {
-		unjoinedWorkspaces = append(unjoinedWorkspaces, listByGitURL[gitURL][0])
 	}
 
-	displayUnjoinedProjects(ls.terminal, unjoinedWorkspaces, org, listByGitURL)
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nJoin one of these projects with:") +
-		ls.terminal.Yellow("\n\t$ brev start <workspace_name>\n"))
+	displayUnjoinedProjects(ls.terminal, org.Name, unjoinedProjects)
 	return nil
 }
 
-func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) ([]entity.Workspace, error) {
+func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) error {
 	var workspaces []entity.Workspace
 	workspaces, err := ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	if len(workspaces) == 0 {
-		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
+		ls.terminal.Vprint(ls.terminal.Yellow("No workspaces in org %s\n", org.Name))
+		return nil
 	}
 
 	displayOrgWorkspaces(ls.terminal, workspaces, org)
 
-	ls.terminal.Vprintf(ls.terminal.Green("\n\nConnect to your machine with one of the following:\n"))
-	for _, v := range workspaces {
-		if v.Status == "RUNNING" {
-			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
-		}
-	}
-	ls.terminal.Vprint("\n")
-	return workspaces, nil
+	fmt.Print("\n")
+
+	ls.terminal.Vprintf(ls.terminal.Green("Connect to running workspace:\n"))
+	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev shell %s\n", workspaces[0].Name))
+	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev open %s\n", workspaces[0].Name))
+	return nil
 }
 
 func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
@@ -279,7 +261,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		_, err := ls.ShowUserWorkspaces(org, user)
+		err := ls.ShowUserWorkspaces(org, user)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -304,16 +286,26 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 	return nil
 }
 
-func displayUnjoinedProjects(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization, listByGitURL map[string][]entity.Workspace) {
-	if len(workspaces) > 0 {
-		t.Vprintf("\nThere are %d other projects in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
+func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []entity.VirtualProject) {
+	if len(projects) > 0 {
+		fmt.Print("\n")
+		t.Vprintf("%d other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
 		t.Vprint(
 			"NUM MEMBERS" + strings.Repeat(" ", 2+len("NUM MEMBERS")) +
 				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
 				"NAME")
-		for _, v := range workspaces {
-			t.Vprintf("%d people %s %s\n", len(listByGitURL[v.GitRepo]), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), v.Name)
+		for _, p := range projects {
+			t.Vprintf("%d people %s %s\n", p.GetUniqueUserCount(), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), p.Name)
 		}
+
+		fmt.Print("\n")
+		t.Vprintf(t.Green("Join a project:\n") +
+			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
+	} else {
+		t.Vprintf("no other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
+		fmt.Print("\n")
+		t.Vprintf(t.Green("Invite a teamate:\n") +
+			t.Yellow("\tbrev invite"))
 	}
 }
 
