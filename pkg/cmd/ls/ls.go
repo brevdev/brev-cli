@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/util"
 
 	"github.com/spf13/cobra"
 )
@@ -133,19 +134,24 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
 	// todo refactor this to cmd.register
 	//nolint:gocritic // idk how to write this as a switch
-	if strings.HasPrefix(arg, "org") { // handle org, orgs, and organization(s)
+	if util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization") { // handle org, orgs, and organization(s)
 		err := ls.RunOrgs()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		return nil
-	} else if strings.HasPrefix(arg, "user") && featureflag.IsAdmin(user.GlobalUserType) {
+	} else if util.IsSingularOrPlural(arg, "workspace") {
+		err := ls.RunWorkspaces(org, showAll)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else if util.IsSingularOrPlural(arg, "user") && featureflag.IsAdmin(user.GlobalUserType) {
 		err := ls.RunUser(showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		return nil
-	} else if strings.HasPrefix(arg, "host") && featureflag.IsAdmin(user.GlobalUserType) {
+	} else if util.IsSingularOrPlural(arg, "host") && featureflag.IsAdmin(user.GlobalUserType) {
 		err := ls.RunHosts(org)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
