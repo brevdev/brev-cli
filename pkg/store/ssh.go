@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -85,6 +86,10 @@ func (f FileStore) WriteBrevSSHConfig(config string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	bsp, err := files.GetBrevSSHConfigPath(home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = f.fs.MkdirAll(filepath.Dir(bsp), 0o755)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
