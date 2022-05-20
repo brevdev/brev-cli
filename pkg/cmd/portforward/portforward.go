@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -48,19 +49,12 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 				startInput(t)
 			}
 
-			portSplit := strings.Split(Port, ":")
+			portSplit := strings.Split(Port, ":") // TODO better validation
 
-			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0])
+			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0]) // TODO translate from workspace id or name to ssh name
 			if err != nil {
 				t.Errprint(err, "Failed to port forward")
 			}
-			// wait for cntrl c signal
-			// signals := make(chan os.Signal, 1)
-			// signal.Notify(signals, os.Interrupt)
-			// defer signal.Stop(signals)
-			// <-signals
-			// close off ports
-			// StopSSHPortForward(process)
 		},
 	}
 	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
@@ -75,25 +69,24 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 }
 
 func RunSSHPortForward(forwardType string, localPort string, remotePort string, domainName string) (*os.Process, error) {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	defer signal.Stop(signals)
+
 	portMapping := fmt.Sprintf("%s:localhost:%s", localPort, remotePort)
-	fmt.Printf("ssh %s %s %s", forwardType, portMapping, domainName)
-	cmdSHH := exec.Command("ssh", forwardType, portMapping, domainName) //nolint:gosec // variables are sanitzed or user specified
+	fmt.Printf("ssh -T %s %s %s\n", forwardType, portMapping, domainName)
+	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, domainName) //nolint:gosec // variables are sanitzed or user specified
 	cmdSHH.Stdin = os.Stdin
-	cmdSHH.Stderr = os.Stderr
-	cmdSHH.Stdout = os.Stdout
+	cmdSHH.Stderr = os.Stderr        // TODO remove
+	cmdSHH.Stdout = os.Stdout        // TODO remove
+	fmt.Println("portforwarding...") // TODO better messaging
 	err := cmdSHH.Run()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Println(cmdSHH.Process.Pid)
 	return cmdSHH.Process, nil
 }
-
-// func StopSSHPortForward(process *os.Process) {
-// 	err := process.Kill()
-// 	fmt.Println(err.Error())
-// }
 
 func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
