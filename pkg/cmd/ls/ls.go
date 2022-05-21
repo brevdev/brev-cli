@@ -240,19 +240,17 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) err
 	}
 
 	if len(workspaces) == 0 {
-		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any workspaces in org %s.", org.Name))
+		ls.terminal.Vprint(ls.terminal.Yellow("No workspaces in org %s\n", org.Name))
+		return nil
 	}
 
 	displayOrgWorkspaces(ls.terminal, workspaces, org)
 
 	fmt.Print("\n")
 
-	ls.terminal.Vprintf(ls.terminal.Green("Connect to your machine with one of the following:\n"))
-	for _, v := range workspaces {
-		if v.Status == "RUNNING" {
-			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
-		}
-	}
+	ls.terminal.Vprintf(ls.terminal.Green("Connect to running workspace:\n"))
+	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev shell %s\n", workspaces[0].Name))
+	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev open %s\n", workspaces[0].Name))
 	return nil
 }
 
@@ -299,10 +297,16 @@ func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []en
 		for _, p := range projects {
 			t.Vprintf("%d people %s %s\n", p.GetUniqueUserCount(), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), p.Name)
 		}
+
+		fmt.Print("\n")
+		t.Vprintf(t.Green("Join a project:\n") +
+			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
+	} else {
+		t.Vprintf("no other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
+		fmt.Print("\n")
+		t.Vprintf(t.Green("Invite a teamate:\n") +
+			t.Yellow("\tbrev invite"))
 	}
-	fmt.Print("\n")
-	t.Vprintf(t.Green("Join one of these projects with:\n") +
-		t.Yellow("t$ brev start <workspace_name>\n"))
 }
 
 func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
