@@ -3,6 +3,7 @@ package runtasks
 import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -39,6 +40,7 @@ type RunTasksStore interface {
 	vpn.ServiceMeshStore
 	tasks.RunTaskAsDaemonStore
 	GetCurrentUser() (*entity.User, error)
+	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
 func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
@@ -65,9 +67,20 @@ func getDefaultTasks(store RunTasksStore) ([]tasks.Task, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	// get private key and set here
+	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(store) // to resolve
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	privateKey := workspaceGroupClientMapper.GetPrivateKey()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
 	cu := ssh.ConfigUpdater{
-		Store:   store,
-		Configs: configs,
+		Store:      store,
+		Configs:    configs,
+		PrivateKey: privateKey,
 	}
 
 	return []tasks.Task{cu}, nil
