@@ -19,6 +19,7 @@ import (
 type ConfigUpdaterStore interface {
 	autostartconf.AutoStartStore
 	GetContextWorkspaces() ([]entity.Workspace, error)
+	WritePrivateKey(pem string) error
 }
 
 type Config interface {
@@ -26,13 +27,18 @@ type Config interface {
 }
 
 type ConfigUpdater struct {
-	Store   ConfigUpdaterStore
-	Configs []Config
+	Store      ConfigUpdaterStore
+	Configs    []Config
+	PrivateKey string
 }
 
 var _ tasks.Task = ConfigUpdater{}
 
 func (c ConfigUpdater) Run() error {
+	err := c.Store.WritePrivateKey(c.PrivateKey) // this is kinda silly since the private key does not change
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	workspaces, err := c.Store.GetContextWorkspaces()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
