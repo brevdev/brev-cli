@@ -14,11 +14,11 @@ import (
 var green = color.New(color.FgGreen).SprintfFunc()
 
 var (
-	upToDateString  = `Current Version: %s\n`
+	upToDateString  = "Current Version: %s\n"
 	outOfDateString = green("A new version of brev has been released!\n") +
 		`Current version: %s
 New Version: %s
-To update to latest version, use: 
+To update to latest version, use:
 	brew upgrade brevdev/homebrew-brev/brev`
 )
 
