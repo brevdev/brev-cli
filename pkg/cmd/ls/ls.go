@@ -321,7 +321,7 @@ func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, o
 	delimeter := 40
 	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
 	if len(workspaces) > 0 {
-		t.Vprintf("\nYou have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
+		t.Vprintf("You have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
 		t.Vprint(
 			"NAME" + strings.Repeat(" ", delimeter+1-len("NAME")) +
 				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column

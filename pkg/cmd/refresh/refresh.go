@@ -54,7 +54,7 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(t.Green("\nbrev has been refreshed\n"))
+	t.Vprintf(t.Green("brev has been refreshed\n"))
 
 	return nil
 }

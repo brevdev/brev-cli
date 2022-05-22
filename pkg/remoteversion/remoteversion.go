@@ -62,7 +62,7 @@ func BuildCheckLatestVersionString(t *terminal.Terminal, versionStore VersionSto
 			outOfDateString,
 			version.Version,
 			githubRelease.TagName,
-		)
+		) + "\n"
 	}
 	return versionString, nil
 }
