@@ -280,8 +280,9 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 			return breverrors.WrapAndTrace(err)
 		}
 
-		t.Vprint(t.Green("\nYour workspace is ready!"))
-		t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
+		fmt.Print("\n")
+		t.Vprint(t.Green("Your workspace is ready!\n"))
+		displayConnectBreadCrumb(t, w)
 
 		return nil
 	}
@@ -366,10 +367,9 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 			return breverrors.WrapAndTrace(err)
 		}
 
-		t.Vprint(t.Green("\nYour workspace is ready!"))
-
-		t.Vprintf(t.Green("\n\nConnect to your machine with:") +
-			t.Yellow("\n\tssh %s\n", startedWorkspace.GetLocalIdentifier()))
+		fmt.Print("\n")
+		t.Vprint(t.Green("Your workspace is ready!\n"))
+		displayConnectBreadCrumb(t, startedWorkspace)
 	}
 
 	return nil
@@ -405,7 +405,7 @@ func joinProjectWithNewWorkspace(templateWorkspace entity.Workspace, t *terminal
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("\nConnect to your machine with:\n\tssh %s\n", w.GetLocalIdentifier())
+	displayConnectBreadCrumb(t, w)
 
 	return nil
 }
@@ -562,11 +562,19 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	fmt.Print("\n")
+	t.Vprint(t.Green("Your workspace is ready!\n"))
 
-	t.Vprint(t.Green("\nYour workspace is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
+	displayConnectBreadCrumb(t, w)
 
 	return nil
+}
+
+func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
+	t.Vprintf(t.Green("Connect to the workspace:\n"))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> shell into workspace\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to workspace\n", workspace.GetLocalIdentifier())))
 }
 
 func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {
