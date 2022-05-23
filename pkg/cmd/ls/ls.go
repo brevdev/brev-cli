@@ -180,7 +180,7 @@ func (ls Ls) RunOrgs() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
-		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any orgs. Create one!"))
+		ls.terminal.Vprint(ls.terminal.Yellow("You don't have any orgs. Create one! https://console.brev.dev"))
 		return nil
 	}
 
@@ -190,7 +190,22 @@ func (ls Ls) RunOrgs() error {
 	}
 	ls.terminal.Vprint(ls.terminal.Yellow("Your organizations:"))
 	displayOrgTable(ls.terminal, orgs, defaultOrg)
+	if len(orgs) > 1 {
+		fmt.Print("\n")
+		ls.terminal.Vprintf(ls.terminal.Green("Switch orgs:\n"))
+		notDefaultOrg := getNotDefaultOrg(orgs, *defaultOrg)
+		ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev set <NAME> ex: brev set %s\n", notDefaultOrg.Name))
+	}
 
+	return nil
+}
+
+func getNotDefaultOrg(orgs []entity.Organization, defaultOrg entity.Organization) *entity.Organization {
+	for _, o := range orgs {
+		if defaultOrg.ID != o.ID {
+			return &o
+		}
+	}
 	return nil
 }
 
