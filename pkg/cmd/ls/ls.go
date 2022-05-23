@@ -292,8 +292,8 @@ func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Worksp
 		if w.Status == entity.WorkspaceRunningStatus {
 			foundRunning = true
 			t.Vprintf(t.Green("Connect to running workspace:\n"))
-			t.Vprintf(t.Yellow("\tbrev shell <NAME> ex: brev shell %s\n", w.Name))
-			t.Vprintf(t.Yellow("\tbrev open <NAME> ex: brev open %s\n", w.Name))
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", w.Name)))
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> shell into workspace\n", w.Name)))
 			if enableSSHCol {
 				t.Vprintf(t.Yellow("\tssh <SSH> ex: ssh %s\n", w.GetLocalIdentifier()))
 			}
@@ -378,7 +378,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID}}
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.ID}}
 		if enableSSHCol {
 			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID}}
 		}
