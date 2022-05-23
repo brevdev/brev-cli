@@ -54,6 +54,9 @@ func runShellCommand(store ShellStore, workspaceNameOrID string) error {
 	if len(workspaces) == 0 {
 		return fmt.Errorf("workspace with id/name %s not found", workspaceNameOrID)
 	}
+	if len(workspaces) > 1 {
+		return fmt.Errorf("multiple workspaces found with id/name %s", workspaceNameOrID)
+	}
 	sshName := string(workspaces[0].GetLocalIdentifier())
 	err = runSSH(sshName)
 	if err != nil {
