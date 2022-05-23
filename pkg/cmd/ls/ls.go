@@ -3,6 +3,7 @@ package ls
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -13,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
+	"github.com/jedib0t/go-pretty/v6/table"
 
 	"github.com/spf13/cobra"
 )
@@ -244,7 +246,8 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) err
 		return nil
 	}
 
-	displayOrgWorkspaces(ls.terminal, workspaces, org)
+	ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(workspaces))
+	displayWorkspaces(ls.terminal, workspaces)
 
 	fmt.Print("\n")
 
@@ -316,25 +319,20 @@ func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []en
 	}
 }
 
-func displayOrgWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace, org *entity.Organization) {
-	delimeter := 40
-	longestStatus := len("DEPLOYING") // longest name for a workspace status, used for table formatting
-	if len(workspaces) > 0 {
-		t.Vprintf("You have %d workspaces in Org "+t.Yellow(org.Name)+"\n", len(workspaces))
-		t.Vprint(
-			"NAME" + strings.Repeat(" ", delimeter+1-len("NAME")) +
-				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
-				"STATUS" + strings.Repeat(" ", longestStatus+1+longestStatus-len("STATUS")) +
-				"ID" + strings.Repeat(" ", len(workspaces[0].ID)+5-len("ID")) +
-				"URL")
-		for _, v := range workspaces {
-			t.Vprint(
-				truncateString(v.Name, delimeter) + strings.Repeat(" ", delimeter-len(truncateString(v.Name, delimeter))) + " " +
-					getStatusColoredText(t, v.Status) + strings.Repeat(" ", longestStatus+longestStatus-len(v.Status)) + " " +
-					v.ID + strings.Repeat(" ", 5) +
-					v.DNS)
-		}
+func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options.DrawBorder = false
+	ta.Style().Options.SeparateColumns = false
+	ta.Style().Options.SeparateRows = false
+	ta.Style().Options.SeparateHeader = false
+	ta.AppendHeader(table.Row{"NAME", "STATUS", "URL", "ID"})
+	for _, w := range workspaces {
+		ta.AppendRows([]table.Row{
+			{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID},
+		})
 	}
+	ta.Render()
 }
 
 func getStatusColoredText(t *terminal.Terminal, status string) string {
