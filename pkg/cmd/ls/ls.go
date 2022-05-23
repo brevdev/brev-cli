@@ -190,7 +190,7 @@ func (ls Ls) RunOrgs() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	ls.terminal.Vprint(ls.terminal.Yellow("Your organizations:"))
-	displayOrgs(ls.terminal, orgs, defaultOrg)
+	displayOrgTable(ls.terminal, orgs, defaultOrg)
 
 	return nil
 }
@@ -339,15 +339,21 @@ func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []en
 	}
 }
 
-const enableSSHCol = true
+const enableSSHCol = false
+
+func getBrevTableOptions() table.Options {
+	options := table.OptionsDefault
+	options.DrawBorder = false
+	options.SeparateColumns = false
+	options.SeparateRows = false
+	options.SeparateHeader = false
+	return options
+}
 
 func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options.DrawBorder = false
-	ta.Style().Options.SeparateColumns = false
-	ta.Style().Options.SeparateRows = false
-	ta.Style().Options.SeparateHeader = false
+	ta.Style().Options = getBrevTableOptions()
 	header := table.Row{"NAME", "STATUS", "URL", "ID"}
 	if enableSSHCol {
 		header = table.Row{"NAME", "STATUS", "URL", "SSH", "ID"}
@@ -363,6 +369,25 @@ func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta.Render()
 }
 
+func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOrg *entity.Organization) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "ID"}
+	ta.AppendHeader(header)
+	for _, w := range orgs {
+		workspaceRow := []table.Row{{w.Name, w.ID}}
+		if w.ID == currentOrg.ID {
+			workspaceRow = []table.Row{{t.Green("* " + w.Name), t.Green(w.ID)}}
+		}
+		ta.AppendRows(workspaceRow)
+	}
+	ta.Render()
+}
+
+func displayProjects(projects []entity.VirtualProject) {
+}
+
 func getStatusColoredText(t *terminal.Terminal, status string) string {
 	switch status {
 	case "RUNNING":
@@ -376,7 +401,7 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-func displayOrgs(t *terminal.Terminal, organizations []entity.Organization, defaultOrg *entity.Organization) {
+func displayOrgsOld(t *terminal.Terminal, organizations []entity.Organization, defaultOrg *entity.Organization) {
 	idLen := 9
 	if len(organizations) > 0 {
 		t.Vprint("  ID" + strings.Repeat(" ", idLen+1-len("ID")) + "NAME")
