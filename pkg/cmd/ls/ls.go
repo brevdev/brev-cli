@@ -251,12 +251,9 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) err
 
 	fmt.Print("\n")
 
-	ls.terminal.Vprintf(ls.terminal.Green("Connect to running workspace:\n"))
-	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev shell <NAME> ex: brev shell %s\n", workspaces[0].Name))
-	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev open <NAME> ex: brev open %s\n", workspaces[0].Name))
-	if enableSSHCol {
-		ls.terminal.Vprintf(ls.terminal.Yellow("\tssh <SSH> ex: ssh %s\n", workspaces[0].GetLocalIdentifier()))
-	} else {
+	displayLsBreadCrumb(ls.terminal, workspaces)
+
+	if !enableSSHCol {
 		ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
 		for _, v := range workspaces {
 			if v.Status == "RUNNING" {
@@ -265,6 +262,26 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) err
 		}
 	}
 	return nil
+}
+
+func displayLsBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
+	foundRunning := false
+	for _, w := range workspaces {
+		if w.Status == entity.WorkspaceRunningStatus {
+			foundRunning = true
+			t.Vprintf(t.Green("Connect to running workspace:\n"))
+			t.Vprintf(t.Yellow("\tbrev shell <NAME> ex: brev shell %s\n", w.Name))
+			t.Vprintf(t.Yellow("\tbrev open <NAME> ex: brev open %s\n", w.Name))
+			if enableSSHCol {
+				t.Vprintf(t.Yellow("\tssh <SSH> ex: ssh %s\n", w.GetLocalIdentifier()))
+			}
+			break
+		}
+	}
+	if !foundRunning && len(workspaces) > 0 {
+		t.Vprintf(t.Green("Start a stopped workspace:\n"))
+		t.Vprintf(t.Yellow("\tbrev start <NAME> ex: brev start %s\n", workspaces[0].Name))
+	}
 }
 
 func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
@@ -322,7 +339,7 @@ func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []en
 	}
 }
 
-const enableSSHCol = false
+const enableSSHCol = true
 
 func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta := table.NewWriter()
@@ -373,7 +390,7 @@ func displayOrgs(t *terminal.Terminal, organizations []entity.Organization, defa
 	}
 }
 
-func truncateString(s string, delimterCount int) string {
+func truncateString(s string, delimterCount int) string { //nolint:unparam // still want delimterCount
 	if len(s) <= delimterCount {
 		return s
 	} else {

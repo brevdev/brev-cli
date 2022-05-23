@@ -106,6 +106,13 @@ type RequestCreateWorkspace struct {
 
 type WorkspaceLocalID string
 
+const (
+	WorkspaceRunningStatus  = "RUNNING"
+	WorkspaceStartingStatus = "STARTING"
+	WorkspaceStoppingStatus = "STOPPING"
+	WorkspaceDeletingStatus = "DELETING"
+)
+
 type Workspace struct {
 	ID               string `json:"id"`
 	Name             string `json:"name"`
