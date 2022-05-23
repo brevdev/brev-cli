@@ -252,13 +252,16 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) err
 	fmt.Print("\n")
 
 	ls.terminal.Vprintf(ls.terminal.Green("Connect to running workspace:\n"))
-	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev shell <name> ex: brev shell %s\n", workspaces[0].Name))
-	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev open <name> ex: brev open %s\n", workspaces[0].Name))
-
-	ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-	for _, v := range workspaces {
-		if v.Status == "RUNNING" {
-			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev shell <NAME> ex: brev shell %s\n", workspaces[0].Name))
+	ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev open <NAME> ex: brev open %s\n", workspaces[0].Name))
+	if enableSSHCol {
+		ls.terminal.Vprintf(ls.terminal.Yellow("\tssh <SSH> ex: ssh %s\n", workspaces[0].GetLocalIdentifier()))
+	} else {
+		ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
+		for _, v := range workspaces {
+			if v.Status == "RUNNING" {
+				ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+			}
 		}
 	}
 	return nil
@@ -319,6 +322,8 @@ func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []en
 	}
 }
 
+const enableSSHCol = false
+
 func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
@@ -326,11 +331,17 @@ func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta.Style().Options.SeparateColumns = false
 	ta.Style().Options.SeparateRows = false
 	ta.Style().Options.SeparateHeader = false
-	ta.AppendHeader(table.Row{"NAME", "STATUS", "URL", "ID"})
+	header := table.Row{"NAME", "STATUS", "URL", "ID"}
+	if enableSSHCol {
+		header = table.Row{"NAME", "STATUS", "URL", "SSH", "ID"}
+	}
+	ta.AppendHeader(header)
 	for _, w := range workspaces {
-		ta.AppendRows([]table.Row{
-			{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID},
-		})
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID}}
+		if enableSSHCol {
+			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID}}
+		}
+		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
 }
