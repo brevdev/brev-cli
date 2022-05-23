@@ -66,7 +66,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	return nil
 }
 
-func stopThisWorkspace(store StopStore, _ *terminal.Terminal) error {
+func StopThisWorkspace(store StopStore, _ *terminal.Terminal) error {
 	isWorkspace, err := store.IsWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
