@@ -223,18 +223,17 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) error {
-	err := ls.ShowUserWorkspaces(org, user)
+func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) error {
+	err := ls.ShowUserWorkspaces(org, user, allWorkspaces)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	wss, err := ls.lsStore.GetWorkspaces(org.ID, nil) // TODO double network request
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	projects := entity.NewVirtualProjects(wss)
+	projects := entity.NewVirtualProjects(allWorkspaces)
 
 	var unjoinedProjects []entity.VirtualProject
 	for _, p := range projects {
@@ -248,29 +247,25 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) erro
 	return nil
 }
 
-func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) error {
-	var workspaces []entity.Workspace
-	workspaces, err := ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) error {
+	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
-	if len(workspaces) == 0 {
+	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No workspaces in org %s\n", org.Name))
 		return nil
 	}
 
-	ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(workspaces))
-	displayWorkspacesTable(ls.terminal, workspaces)
+	ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
+	displayWorkspacesTable(ls.terminal, userWorkspaces)
 
 	fmt.Print("\n")
 
-	displayLsBreadCrumb(ls.terminal, workspaces)
+	displayLsBreadCrumb(ls.terminal, userWorkspaces)
 
 	if !enableSSHCol {
 		ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-		for _, v := range workspaces {
-			if v.Status == "RUNNING" {
+		for _, v := range userWorkspaces {
+			if v.Status == entity.WorkspaceRunningStatus {
 				ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
 			}
 		}
@@ -299,13 +294,17 @@ func displayLsBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
 }
 
 func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
+	allWorkspaces, err := ls.lsStore.GetWorkspaces(org.ID, nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if showAll {
-		err := ls.ShowAllWorkspaces(org, user)
+		err := ls.ShowAllWorkspaces(org, user, allWorkspaces)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		err := ls.ShowUserWorkspaces(org, user)
+		err := ls.ShowUserWorkspaces(org, user, allWorkspaces)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

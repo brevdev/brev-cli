@@ -150,6 +150,16 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 	return workspaces, nil
 }
 
+func FilterForUserWorkspaces(workspaces []entity.Workspace, userID string) []entity.Workspace {
+	filteredWorkspaces := []entity.Workspace{}
+	for _, w := range workspaces {
+		if w.CreatedByUserID == userID {
+			filteredWorkspaces = append(filteredWorkspaces, w)
+		}
+	}
+	return filteredWorkspaces
+}
+
 func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
 	workspace, err := s.GetWorkspace(nameOrID)
 	if err != nil {
