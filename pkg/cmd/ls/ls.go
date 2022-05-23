@@ -4,7 +4,6 @@ package ls
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
@@ -230,7 +229,7 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User) erro
 		}
 	}
 
-	displayUnjoinedProjects(ls.terminal, org.Name, unjoinedProjects)
+	displayProjects(ls.terminal, org.Name, unjoinedProjects)
 	return nil
 }
 
@@ -247,7 +246,7 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User) err
 	}
 
 	ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(workspaces))
-	displayWorkspaces(ls.terminal, workspaces)
+	displayWorkspacesTable(ls.terminal, workspaces)
 
 	fmt.Print("\n")
 
@@ -316,17 +315,11 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 	return nil
 }
 
-func displayUnjoinedProjects(t *terminal.Terminal, orgName string, projects []entity.VirtualProject) {
+func displayProjects(t *terminal.Terminal, orgName string, projects []entity.VirtualProject) {
 	if len(projects) > 0 {
 		fmt.Print("\n")
 		t.Vprintf("%d other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
-		t.Vprint(
-			"NUM MEMBERS" + strings.Repeat(" ", 2+len("NUM MEMBERS")) +
-				// This looks weird, but we're just giving 2*LONGEST_STATUS for the column and space between next column
-				"NAME")
-		for _, p := range projects {
-			t.Vprintf("%d people %s %s\n", p.GetUniqueUserCount(), strings.Repeat(" ", 2*len("NUM MEMBERS")-len("people")), p.Name)
-		}
+		displayProjectsTable(projects)
 
 		fmt.Print("\n")
 		t.Vprintf(t.Green("Join a project:\n") +
@@ -350,7 +343,7 @@ func getBrevTableOptions() table.Options {
 	return options
 }
 
-func displayWorkspaces(t *terminal.Terminal, workspaces []entity.Workspace) {
+func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
@@ -375,17 +368,27 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 	ta.Style().Options = getBrevTableOptions()
 	header := table.Row{"NAME", "ID"}
 	ta.AppendHeader(header)
-	for _, w := range orgs {
-		workspaceRow := []table.Row{{w.Name, w.ID}}
-		if w.ID == currentOrg.ID {
-			workspaceRow = []table.Row{{t.Green("* " + w.Name), t.Green(w.ID)}}
+	for _, o := range orgs {
+		workspaceRow := []table.Row{{o.Name, o.ID}}
+		if o.ID == currentOrg.ID {
+			workspaceRow = []table.Row{{t.Green("* " + o.Name), t.Green(o.ID)}}
 		}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
 }
 
-func displayProjects(projects []entity.VirtualProject) {
+func displayProjectsTable(projects []entity.VirtualProject) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "MEMBERS"}
+	ta.AppendHeader(header)
+	for _, p := range projects {
+		workspaceRow := []table.Row{{p.Name, p.GetUniqueUserCount()}}
+		ta.AppendRows(workspaceRow)
+	}
+	ta.Render()
 }
 
 func getStatusColoredText(t *terminal.Terminal, status string) string {
@@ -398,27 +401,5 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 		return t.Red(status)
 	default:
 		return status
-	}
-}
-
-func displayOrgsOld(t *terminal.Terminal, organizations []entity.Organization, defaultOrg *entity.Organization) {
-	idLen := 9
-	if len(organizations) > 0 {
-		t.Vprint("  ID" + strings.Repeat(" ", idLen+1-len("ID")) + "NAME")
-		for _, v := range organizations {
-			if defaultOrg.ID == v.ID {
-				t.Vprint(t.Green("* " + truncateString(v.ID, idLen) + strings.Repeat(" ", idLen-len(truncateString(v.ID, idLen))) + " " + v.Name))
-			} else {
-				t.Vprint("  " + truncateString(v.ID, idLen) + strings.Repeat(" ", idLen-len(truncateString(v.ID, idLen))) + " " + v.Name)
-			}
-		}
-	}
-}
-
-func truncateString(s string, delimterCount int) string { //nolint:unparam // still want delimterCount
-	if len(s) <= delimterCount {
-		return s
-	} else {
-		return s[:delimterCount]
 	}
 }
