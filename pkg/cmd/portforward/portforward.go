@@ -39,7 +39,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forwardssh",
 		DisableFlagsInUseLine: true,
-		Short:                 "Enable a local ssh link tunnel",
+		Short:                 "Enable a local tunnel",
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
@@ -50,12 +50,16 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			}
 			var portSplit []string
 			if strings.Contains(Port, ":") {
-				portSplit = strings.Split(Port, ":") // TODO better validation
+				portSplit = strings.Split(Port, ":")
+				if len(portSplit) != 2 {
+					t.Printf(t.Red("Port format invalid, use local_port:remote_port\n"))
+					return
+				}
 			} else {
 				t.Printf(t.Red("Port format invalid, use local_port:remote_port\n"))
 				return
-
 			}
+
 			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0]) // TODO translate from workspace id or name to ssh name
 			if err != nil {
 				t.Errprint(err, "Failed to port forward")
