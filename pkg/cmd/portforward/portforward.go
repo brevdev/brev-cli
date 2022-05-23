@@ -48,9 +48,14 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if Port == "" {
 				startInput(t)
 			}
+			var portSplit []string
+			if strings.Contains(Port, ":") {
+				portSplit = strings.Split(Port, ":") // TODO better validation
+			} else {
+				t.Printf(t.Red("Port format invalid, use local_port:remote_port\n"))
+				return
 
-			portSplit := strings.Split(Port, ":") // TODO better validation
-
+			}
 			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0]) // TODO translate from workspace id or name to ssh name
 			if err != nil {
 				t.Errprint(err, "Failed to port forward")
