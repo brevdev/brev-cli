@@ -66,17 +66,18 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	return nil
 }
 
-func stopThisWorkspace(store StopStore, t *terminal.Terminal) error {
+func stopThisWorkspace(store StopStore, _ *terminal.Terminal) error {
 	isWorkspace, err := store.IsWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if isWorkspace {
+		_ = 0
 		// get current workspace
 		// stopWorkspace("")
 		// stop the workspace
 	} else {
-		return fmt.Errorf("this is not a workspace -- please provide a workspace id?")
+		return fmt.Errorf("this is not a workspace -- please provide a workspace id")
 	}
 	return nil
 }

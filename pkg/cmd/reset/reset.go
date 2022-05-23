@@ -18,11 +18,8 @@ import (
 
 var (
 	startLong    = "Reset your machine if it's acting up. This deletes the machine and gets you a fresh one."
-	startExample = `
-  brev reset <ws_name>
-  brev reset <ws_name> --hardreset
-  brev reset <ws_name> -x
-  `
+	startExample = `  brev reset <ws_name>
+  brev reset <ws_name> --hard`
 )
 
 type ResetStore interface {
@@ -67,7 +64,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		},
 	}
 
-	cmd.Flags().BoolVarP(&hardreset, "hardreset", "x", false, "deletes the workspace and creates a fresh version")
+	cmd.Flags().BoolVarP(&hardreset, "hard", "", false, "deletes the workspace and creates a fresh version WARNING: this is destructive and workspace state not tracked in git is lost")
 	return cmd
 }
 
@@ -75,7 +72,6 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
 	workspace, err := getWorkspaceFromNameOrID(workspaceName, resetStore)
-
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
