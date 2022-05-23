@@ -193,16 +193,17 @@ func (ls Ls) RunOrgs() error {
 	if len(orgs) > 1 {
 		fmt.Print("\n")
 		ls.terminal.Vprintf(ls.terminal.Green("Switch orgs:\n"))
-		notDefaultOrg := getNotDefaultOrg(orgs, *defaultOrg)
+		notDefaultOrg := getOtherOrg(orgs, *defaultOrg)
+		// TODO suggest org with max workspaces
 		ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev set <NAME> ex: brev set %s\n", notDefaultOrg.Name))
 	}
 
 	return nil
 }
 
-func getNotDefaultOrg(orgs []entity.Organization, defaultOrg entity.Organization) *entity.Organization {
+func getOtherOrg(orgs []entity.Organization, org entity.Organization) *entity.Organization {
 	for _, o := range orgs {
-		if defaultOrg.ID != o.ID {
+		if org.ID != o.ID {
 			return &o
 		}
 	}
@@ -223,15 +224,9 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) error {
-	err := ls.ShowUserWorkspaces(org, user, allWorkspaces)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
+	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
 
 	projects := entity.NewVirtualProjects(allWorkspaces)
 
@@ -244,36 +239,54 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, user *entity.User, allW
 	}
 
 	displayProjects(ls.terminal, org.Name, unjoinedProjects)
-	return nil
 }
 
-func (ls Ls) ShowUserWorkspaces(org *entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) error {
+func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
+
+	if len(userWorkspaces) == 0 && len(allWorkspaces) > 0 {
+		ls.terminal.Vprintf(ls.terminal.Green("See teammates' workspaces:\n"))
+		ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev ls --all\n"))
+	}
+}
+
+func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No workspaces in org %s\n", org.Name))
-		return nil
-	}
+		if len(allWorkspaces) > 0 {
+			ls.terminal.Vprintf(ls.terminal.Green("See teammates' workspaces:\n"))
+			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev ls --all\n"))
+		} else {
+			ls.terminal.Vprintf(ls.terminal.Green("Start a new workspace:\n"))
+			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
+		}
+		if len(otherOrgs) > 1 {
+			ls.terminal.Vprintf(ls.terminal.Green("Switch to another org:\n"))
+			// TODO suggest org with max workspaces
+			ls.terminal.Vprintf(ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
+		}
+	} else {
+		ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
+		displayWorkspacesTable(ls.terminal, userWorkspaces)
 
-	ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
-	displayWorkspacesTable(ls.terminal, userWorkspaces)
+		fmt.Print("\n")
 
-	fmt.Print("\n")
+		displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 
-	displayLsBreadCrumb(ls.terminal, userWorkspaces)
-
-	if !enableSSHCol {
-		ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-		for _, v := range userWorkspaces {
-			if v.Status == entity.WorkspaceRunningStatus {
-				ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+		if !enableSSHCol {
+			ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
+			for _, v := range userWorkspaces {
+				if v.Status == entity.WorkspaceRunningStatus {
+					ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+				}
 			}
 		}
 	}
-	return nil
 }
 
-func displayLsBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
+func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
 	foundRunning := false
 	for _, w := range workspaces {
 		if w.Status == entity.WorkspaceRunningStatus {
@@ -298,16 +311,14 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	orgs, err := ls.lsStore.GetOrganizations(nil)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if showAll {
-		err := ls.ShowAllWorkspaces(org, user, allWorkspaces)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces)
 	} else {
-		err := ls.ShowUserWorkspaces(org, user, allWorkspaces)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces)
 	}
 	return nil
 }
