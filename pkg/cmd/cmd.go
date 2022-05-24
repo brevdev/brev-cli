@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/approve"
+	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
 	"github.com/brevdev/brev-cli/pkg/cmd/initfile"
@@ -209,6 +210,9 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		_ = 0 // noop
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
+		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
+		cmd.AddCommand(clipboard.UseClipboard(t, loginCmdStore))
+		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
 	} else {
 		_ = 0 // noop
 	}

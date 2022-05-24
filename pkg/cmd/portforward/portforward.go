@@ -33,6 +33,26 @@ type PortforwardStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
+}
+
+func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (string, error) {
+	org, err := store.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	workspaces, err2 := store.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
+	if err2 != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if len(workspaces) == 0 {
+		return "", fmt.Errorf("workspace with id/name %s not found", workspaceNameOrID)
+	} else if len(workspaces) > 1 {
+		return "", fmt.Errorf("duplicate workspace ids: %s", workspaceNameOrID)
+	}
+	sshName := string(workspaces[0].GetLocalIdentifier())
+	return sshName, nil
 }
 
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
@@ -59,9 +79,15 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 				return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
 			}
 
-			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0]) // TODO translate from workspace id or name to ssh name
+			sshName, err := ConvertNametoSSHName(pfStore, args[0])
 			if err != nil {
+				t.Errprint(err, "Error in workspace name")
 				return breverrors.WrapAndTrace(err)
+			}
+
+			_, err2 := RunSSHPortForward("-L", portSplit[0], portSplit[1], sshName) // TODO translate from workspace id or name to ssh name
+			if err2 != nil {
+				t.Errprint(err2, "Failed to port forward")
 			}
 			return nil
 		},
@@ -83,7 +109,7 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
 
-	portMapping := fmt.Sprintf("%s:localhost:%s", localPort, remotePort)
+	portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
 	fmt.Printf("ssh -T %s %s %s\n", forwardType, portMapping, domainName)
 	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, domainName) //nolint:gosec // variables are sanitzed or user specified
 	cmdSHH.Stdin = os.Stdin
