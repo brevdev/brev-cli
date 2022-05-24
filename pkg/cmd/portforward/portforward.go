@@ -42,8 +42,8 @@ func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (str
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	workspaces, err2 := store.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
-	if err2 != nil {
+	workspaces, err := store.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
+	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	if len(workspaces) == 0 {
@@ -81,13 +81,12 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 
 			sshName, err := ConvertNametoSSHName(pfStore, args[0])
 			if err != nil {
-				t.Errprint(err, "Error in workspace name")
 				return breverrors.WrapAndTrace(err)
 			}
 
-			_, err2 := RunSSHPortForward("-L", portSplit[0], portSplit[1], sshName) // TODO translate from workspace id or name to ssh name
-			if err2 != nil {
-				t.Errprint(err2, "Failed to port forward")
+			_, err = RunSSHPortForward("-L", portSplit[0], portSplit[1], sshName)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
