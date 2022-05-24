@@ -26,7 +26,7 @@ func NewCmdApprove(t *terminal.Terminal, approveStore ApproveStore) *cobra.Comma
 		Short:                 approveDescriptionShort,
 		Long:                  approveDescriptionLong,
 		Example:               approveExample,
-		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := approveUser(args[0], t, approveStore)
 			if err != nil {

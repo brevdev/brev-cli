@@ -37,7 +37,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Short:                 "[beta] open VSCode to ",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runOpenCommand(t, store, args[0])
 			if err != nil {

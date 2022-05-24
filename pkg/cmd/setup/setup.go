@@ -32,7 +32,7 @@ func NewCmdOpen(_ *terminal.Terminal, _ SetupStore) *cobra.Command {
 		Short:                 "[beta] open VSCode to ",
 		Long:                  setupLong,
 		Example:               setupExample,
-		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		Run: func(cmd *cobra.Command, args []string) {
 		},
 	}

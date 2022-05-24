@@ -31,7 +31,7 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 		Short:                 "[beta] open a shell in your workspace",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cmderrors.TransformToBrevArgs(cmderrors.TransformToBrevArgs(cobra.ExactArgs(1))),
+		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runShellCommand(store, args[0])
 			if err != nil {

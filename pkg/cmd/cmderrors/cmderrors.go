@@ -51,7 +51,7 @@ func DisplayAndHandleError(err error) {
 	}
 }
 
-func TransformToBrevArgs(pa cobra.PositionalArgs) cobra.PositionalArgs {
+func TransformToValidationError(pa cobra.PositionalArgs) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		err := pa(cmd, args)
 		if err != nil {
