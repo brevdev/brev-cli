@@ -38,13 +38,6 @@ func PromptSelectInput(pc PromptSelectContent) string {
 	return result
 }
 
-func DisplaySSHKeys(t *Terminal, publicKey string) {
-	t.Vprintf("\n" + publicKey)
-	t.Eprintf(t.Yellow("\n\nCopy 👆 and save it to your git provider:"))
-	t.Eprintf(t.Yellow("\n\tClick here for Github: https://github.com/settings/keys"))
-	t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
-}
-
 func DisplayBrevLogo(t *Terminal) {
 	t.Vprint("                               _  ")
 	t.Vprint("              _        ,-.    / ) ")

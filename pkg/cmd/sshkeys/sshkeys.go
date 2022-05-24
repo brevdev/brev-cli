@@ -35,10 +35,18 @@ func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			terminal.DisplaySSHKeys(t, user.PublicKey)
+			DisplaySSHKeys(t, user.PublicKey)
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func DisplaySSHKeys(t *terminal.Terminal, publicKey string) {
+	t.Vprintf("\n" + publicKey + "\n")
+	t.Print("\n")
+	t.Eprintf(t.Yellow("Copy 👆 and add it to your git provider:\n"))
+	t.Eprintf(t.Yellow("\tGithub: https://github.com/settings/keys\n"))
+	t.Eprintf(t.Yellow("\tGitlab: https://gitlab.com/-/profile/keys\n"))
 }
