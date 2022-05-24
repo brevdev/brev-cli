@@ -199,7 +199,7 @@ func dirExists(path string) bool {
 func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error {
 	// ensure name
 	if len(name) == 0 {
-		return fmt.Errorf("name field is required for empty workspaces")
+		return breverrors.NewValidationError("name field is required for empty workspaces")
 	}
 
 	// ensure org
@@ -210,7 +210,7 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 			return breverrors.WrapAndTrace(err)
 		}
 		if activeorg == nil {
-			return fmt.Errorf("no org exist")
+			return breverrors.NewValidationError("no org exist")
 		}
 		orgID = activeorg.ID
 	} else {
@@ -219,9 +219,9 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 			return breverrors.WrapAndTrace(err)
 		}
 		if len(orgs) == 0 {
-			return fmt.Errorf("no org with name %s", orgflag)
+			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", orgflag))
 		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org with name %s", orgflag)
+			return breverrors.NewValidationError(fmt.Sprintf("more than one org with name %s", orgflag))
 		}
 		orgID = orgs[0].ID
 	}
@@ -238,7 +238,7 @@ func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore Start
 		contents, err1 := startStore.GetSetupScriptContentsByURL(setupScript)
 		setupScriptContents += "\n" + contents
 
-		if err != nil {
+		if err1 != nil {
 			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScript) + t.Yellow("Continuing with default setup script 👍"))
 			return breverrors.WrapAndTrace(err1)
 		}
@@ -315,7 +315,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 	if err != nil {
 		// This is not an error yet-- the user might be trying to join a team's workspace
 		if org == nil {
-			return fmt.Errorf("no orgs exist")
+			return breverrors.NewValidationError("no orgs exist")
 		}
 		workspaces, othererr := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
 			Name: workspaceName,
@@ -324,7 +324,7 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 			return breverrors.WrapAndTrace(othererr)
 		}
 		if len(workspaces) == 0 {
-			return fmt.Errorf("your team has no projects named %s", workspaceName)
+			return breverrors.NewValidationError(fmt.Sprintf("your team has no projects named %s", workspaceName))
 		}
 		othererr = joinProjectWithNewWorkspace(workspaces[0], t, org.ID, startStore, name, user, workspaceClass)
 		if othererr != nil {
@@ -336,10 +336,8 @@ func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Ter
 			t.Vprint(t.Yellow("Workspace is already running"))
 			return nil
 		}
-		// TODO: check the workspace isn't running first!!!
 		if workspaceClass != "" {
-			t.Vprint(t.Yellow("Workspace already exists. Can not pass workspace class flag to start stopped workspace"))
-			return nil
+			return breverrors.NewValidationError("Workspace already exists. Can not pass workspace class flag to start stopped workspace")
 		}
 
 		if len(name) > 0 {
@@ -430,7 +428,6 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 	// }
 	if len(setupScriptPath) > 0 {
 		if IsUrl(setupScriptPath) {
-
 			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptPath)
 			if err1 != nil {
 				t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptPath) + t.Yellow("Continuing with default setup script 👍"))
@@ -462,7 +459,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 			return breverrors.WrapAndTrace(err)
 		}
 		if activeorg == nil {
-			return fmt.Errorf("no org exist")
+			return breverrors.NewValidationError("no org exist")
 		}
 		orgID = activeorg.ID
 	} else {
@@ -471,9 +468,9 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 			return breverrors.WrapAndTrace(err)
 		}
 		if len(orgs) == 0 {
-			return fmt.Errorf("no org with name %s", orgflag)
+			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", orgflag))
 		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org with name %s", orgflag)
+			return breverrors.NewValidationError(fmt.Sprintf("more than one org with name %s", orgflag))
 		}
 		orgID = orgs[0].ID
 	}
@@ -607,7 +604,7 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if org == nil {
-		return nil, fmt.Errorf("no orgs exist")
+		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 
 	// Get Current User
@@ -628,22 +625,22 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 		// In this case, check workspace by ID
 		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
 		if othererr != nil {
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 		}
 		if wsbyid != nil {
 			workspace = wsbyid
 		} else {
 			// Can this case happen?
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 		}
 	case 1:
 		workspace = &workspaces[0]
 	default:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
 	}
 
 	if workspace == nil {
-		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 	}
 
 	// Get WorkspaceMetaData
@@ -653,29 +650,4 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.Works
 	}
 
 	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
-}
-
-// NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
-// IF YOU MODIFY IT MODIFY IT EVERYWHERE OR PLEASE PUT IT IN ITS PROPER PLACE. thank you you're the best <3
-func WorkspacesFromWorkspaceWithMeta(wwm []entity.WorkspaceWithMeta) []entity.Workspace {
-	var workspaces []entity.Workspace
-
-	for _, v := range wwm {
-		workspaces = append(workspaces, entity.Workspace{
-			ID:                v.ID,
-			Name:              v.Name,
-			WorkspaceGroupID:  v.WorkspaceGroupID,
-			OrganizationID:    v.OrganizationID,
-			WorkspaceClassID:  v.WorkspaceClassID,
-			CreatedByUserID:   v.CreatedByUserID,
-			DNS:               v.DNS,
-			Status:            v.Status,
-			Password:          v.Password,
-			GitRepo:           v.GitRepo,
-			Version:           v.Version,
-			WorkspaceTemplate: v.WorkspaceTemplate,
-		})
-	}
-
-	return workspaces
 }

@@ -108,7 +108,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 		return breverrors.WrapAndTrace(err)
 	}
 	if activeorg == nil {
-		return fmt.Errorf("no org exist")
+		return breverrors.NewValidationError("no org exist")
 	}
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
@@ -142,7 +142,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 
 	// ensure name
 	if len(name) == 0 {
-		return fmt.Errorf("name field is required for empty workspaces")
+		return breverrors.NewValidationError("name field is required for empty workspaces")
 	}
 
 	// ensure org
@@ -152,7 +152,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 	if activeorg == nil {
-		return fmt.Errorf("no org exist")
+		return breverrors.NewValidationError("no org exist")
 	}
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
@@ -249,7 +249,7 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.Works
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if org == nil {
-		return nil, fmt.Errorf("no orgs exist")
+		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 
 	// Get Current User
@@ -270,22 +270,22 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.Works
 		// In this case, check workspace by ID
 		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
 		if othererr != nil {
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 		}
 		if wsbyid != nil {
 			workspace = wsbyid
 		} else {
 			// Can this case happen?
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID)
 		}
 	case 1:
 		workspace = &workspaces[0]
 	default:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
 	}
 
 	if workspace == nil {
-		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID)
 	}
 
 	// Get WorkspaceMetaData

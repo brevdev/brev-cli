@@ -80,9 +80,9 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 			return nil, breverrors.WrapAndTrace(err)
 		}
 		if len(orgs) == 0 {
-			return nil, fmt.Errorf("no org found with name %s", orgflag)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", orgflag))
 		} else if len(orgs) > 1 {
-			return nil, fmt.Errorf("more than one org found with name %s", orgflag)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", orgflag))
 		}
 
 		org = &orgs[0]
@@ -93,7 +93,7 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 			return nil, breverrors.WrapAndTrace(err)
 		}
 		if currOrg == nil {
-			return nil, fmt.Errorf("no orgs exist")
+			return nil, breverrors.NewValidationError("no orgs exist")
 		}
 		org = currOrg
 	}
@@ -112,7 +112,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(args) > 1 {
-		return fmt.Errorf("too many args provided")
+		return breverrors.NewValidationError("too many args provided")
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch

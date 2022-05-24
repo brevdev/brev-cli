@@ -53,10 +53,10 @@ func runShellCommand(store ShellStore, workspaceNameOrID string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(workspaces) == 0 {
-		return fmt.Errorf("workspace with id/name %s not found", workspaceNameOrID)
+		return breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s not found", workspaceNameOrID))
 	}
 	if len(workspaces) > 1 {
-		return fmt.Errorf("multiple workspaces found with id/name %s", workspaceNameOrID)
+		return breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with id/name %s", workspaceNameOrID))
 	}
 	sshName := string(workspaces[0].GetLocalIdentifier())
 	err = runSSH(sshName)

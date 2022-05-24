@@ -52,15 +52,15 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if strings.Contains(Port, ":") {
 				portSplit = strings.Split(Port, ":")
 				if len(portSplit) != 2 {
-					return fmt.Errorf("port format invalid, use local_port:remote_port")
+					return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
 				}
 			} else {
-				return fmt.Errorf("port format invalid, use local_port:remote_port")
+				return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
 			}
 
 			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0]) // TODO translate from workspace id or name to ssh name
 			if err != nil {
-				return fmt.Errorf("failed to port forward")
+				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
@@ -152,6 +152,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(err)
 		t.Errprint(err, "cli err")
 	}
 
@@ -188,7 +189,7 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if org == nil {
-		return nil, fmt.Errorf("no orgs exist")
+		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 
 	// Get Current User
@@ -209,22 +210,22 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity
 		// In this case, check workspace by ID
 		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
 		if othererr != nil {
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 		}
 		if wsbyid != nil {
 			workspace = wsbyid
 		} else {
 			// Can this case happen?
-			return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 		}
 	case 1:
 		workspace = &workspaces[0]
 	default:
-		return nil, fmt.Errorf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
 	}
 
 	if workspace == nil {
-		return nil, fmt.Errorf("no workspaces found with name or id %s", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 	}
 
 	// Get WorkspaceMetaData
