@@ -63,7 +63,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 && !empty {
-				return breverrors.WrapAndTrace(fmt.Errorf("an argument is required, or use the '--empty' flag"))
+				return breverrors.NewValidationError("an argument is required, or use the '--empty' flag")
 			}
 
 			if empty {

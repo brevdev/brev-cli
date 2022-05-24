@@ -31,13 +31,21 @@ func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
 func DisplayAndHandleError(err error) {
 	if err != nil {
 		t := terminal.New()
-		er := breverrors.GetDefaultErrorReporter()
-		er.ReportMessage(err.Error())
-		er.ReportError(err)
+		prettyErr := ""
+		switch err.(type) {
+		case breverrors.ValidationError:
+			// do not report error
+			prettyErr = (t.Yellow(errors.Cause(err).Error()))
+		default:
+			er := breverrors.GetDefaultErrorReporter()
+			er.ReportMessage(err.Error())
+			er.ReportError(err)
+			prettyErr = (t.Red(errors.Cause(err).Error()))
+		}
 		if featureflag.Debug() || featureflag.IsDev() {
 			fmt.Println(err)
 		} else {
-			fmt.Println(t.Red(errors.Cause(err).Error()))
+			fmt.Println(prettyErr)
 		}
 	}
 }
