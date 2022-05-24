@@ -59,7 +59,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		Short:                 "Start a workspace if it's stopped, or create one from url",
 		Long:                  startLong,
 		Example:               startExample,
-		// Args:                  cobra.ExactArgs(1),
+		// Args:                  cmderrors.TransformToBrevArgs(cmderrors.TransformToBrevArgs(cobra.ExactArgs(1))),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 && !empty {

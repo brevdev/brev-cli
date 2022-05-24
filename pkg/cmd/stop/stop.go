@@ -36,7 +36,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		Short:                 "Stop a workspace if it's running",
 		Long:                  stopLong,
 		Example:               stopExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := stopWorkspace(args[0], t, loginStopStore)

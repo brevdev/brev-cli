@@ -2,6 +2,7 @@
 package setup
 
 import (
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -31,7 +32,7 @@ func NewCmdOpen(_ *terminal.Terminal, _ SetupStore) *cobra.Command {
 		Short:                 "[beta] open VSCode to ",
 		Long:                  setupLong,
 		Example:               setupExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		Run: func(cmd *cobra.Command, args []string) {
 		},
 	}

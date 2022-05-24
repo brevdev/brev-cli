@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -42,7 +43,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		Short:                 "Enable a local tunnel",
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if Port == "" {
@@ -105,7 +106,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 		Short:                 "Enable a local ssh link tunnel",
 		Long:                  sshLinkLong,
 		Example:               sshLinkExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if Port == "" {

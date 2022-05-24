@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -34,7 +35,7 @@ func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "http upgrade proxy",
 		Long:                  "http upgrade proxy for ssh ProxyCommand directive to use",
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := Proxy(t, store, args[0])
 			if err != nil {

@@ -46,7 +46,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Short:                 "Reset a workspace if it's in a weird state.",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if hardreset {

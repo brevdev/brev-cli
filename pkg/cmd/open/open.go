@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -36,7 +37,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Short:                 "[beta] open VSCode to ",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runOpenCommand(t, store, args[0])
 			if err != nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -47,5 +48,15 @@ func DisplayAndHandleError(err error) {
 		} else {
 			fmt.Println(prettyErr)
 		}
+	}
+}
+
+func TransformToBrevArgs(pa cobra.PositionalArgs) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		err := pa(cmd, args)
+		if err != nil {
+			return breverrors.NewValidationError(err.Error())
+		}
+		return nil
 	}
 }
