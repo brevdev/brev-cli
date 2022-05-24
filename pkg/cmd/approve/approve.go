@@ -26,11 +26,12 @@ func NewCmdApprove(t *terminal.Terminal, approveStore ApproveStore) *cobra.Comma
 		Long:                  approveDescriptionLong,
 		Example:               approveExample,
 		Args:                  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := approveUser(args[0], t, approveStore)
 			if err != nil {
-				t.Vprint(t.Red(err.Error()))
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

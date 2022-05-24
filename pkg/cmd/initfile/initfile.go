@@ -16,13 +16,14 @@ func NewCmdInitFile(t *terminal.Terminal, store InitFileStore) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "initialize a .brev/setup.sh file if it does not exist",
 		Long:                  "initialize a .brev/setup.sh file if it does not exist",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				// then assume it is .
 				mergeshells.ImportPath(t, args[0], store)
 			} else {
 				mergeshells.ImportPath(t, ".", store)
 			}
+			return nil
 		},
 	}
 

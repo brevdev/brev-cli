@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/getsentry/sentry-go"
@@ -38,7 +39,8 @@ var _ ErrorReporter = SentryErrorReporter{}
 func (s SentryErrorReporter) Setup() func() {
 	if !featureflag.IsDev() {
 		err := sentry.Init(sentry.ClientOptions{
-			Dsn: config.GlobalConfig.GetSentryURL(),
+			Dsn:     config.GlobalConfig.GetSentryURL(),
+			Release: version.Version,
 		})
 		if err != nil {
 			fmt.Println(err)

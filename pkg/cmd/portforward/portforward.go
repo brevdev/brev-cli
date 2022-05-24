@@ -44,7 +44,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if Port == "" {
 				startInput(t)
 			}
@@ -52,18 +52,17 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if strings.Contains(Port, ":") {
 				portSplit = strings.Split(Port, ":")
 				if len(portSplit) != 2 {
-					t.Printf(t.Red("Port format invalid, use local_port:remote_port\n"))
-					return
+					return fmt.Errorf("port format invalid, use local_port:remote_port")
 				}
 			} else {
-				t.Printf(t.Red("Port format invalid, use local_port:remote_port\n"))
-				return
+				return fmt.Errorf("port format invalid, use local_port:remote_port")
 			}
 
 			_, err := RunSSHPortForward("-L", portSplit[0], portSplit[1], args[0]) // TODO translate from workspace id or name to ssh name
 			if err != nil {
-				t.Errprint(err, "Failed to port forward")
+				return fmt.Errorf("failed to port forward")
 			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
@@ -71,6 +70,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(err)
 		t.Errprint(err, "cli err")
 	}
 
@@ -107,7 +107,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 		Example:               sshLinkExample,
 		Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if Port == "" {
 				startInput(t)
 			}
@@ -116,12 +116,9 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 			if err != nil {
 				switch err.(type) {
 				case *url.Error:
-					t.Errprint(err, "\n\ncheck your internet connection")
-					return
-
+					return breverrors.WrapAndTrace(err, "check your internet connection")
 				default:
-					t.Errprint(err, "")
-					return
+					return breverrors.WrapAndTrace(err)
 				}
 			}
 			pf := portforward.NewDefaultPortForwarder()
@@ -133,23 +130,21 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 
 			workspace, err := getWorkspaceFromNameOrID(args[0], pfStore)
 			if err != nil {
-				t.Errprint(err, "")
-				return
+				return breverrors.WrapAndTrace(err)
 			}
 
 			opts, err = opts.WithWorkspace(*workspace)
 			if err != nil {
-				t.Errprint(err, "")
-				return
+				return breverrors.WrapAndTrace(err)
 			}
 
 			opts.WithPort(Port)
 
 			err = opts.RunPortforward()
 			if err != nil {
-				t.Errprint(err, "")
-				return
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")

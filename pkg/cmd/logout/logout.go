@@ -10,7 +10,6 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/vpn"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 type LogoutOptions struct {
@@ -42,16 +41,15 @@ func NewCmdLogout(auth Auth, store LogoutStore) *cobra.Command {
 		Long:                  "Log out of brev by deleting the credential file",
 		Example:               "brev logout",
 		Args:                  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(opts.Complete(cmd, args))
-			cmdutil.CheckErr(opts.RunLogout())
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := opts.RunLogout()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
 		},
 	}
 	return cmd
-}
-
-func (o *LogoutOptions) Complete(_ *cobra.Command, _ []string) error {
-	return nil
 }
 
 func (o *LogoutOptions) RunLogout() error {
@@ -60,8 +58,7 @@ func (o *LogoutOptions) RunLogout() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
-		fmt.Println("can not logout of workspace")
-		return nil
+		return fmt.Errorf("can not logout of workspace")
 	}
 
 	// best effort

@@ -37,11 +37,12 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runOpenCommand(t, store, args[0])
 			if err != nil {
-				t.Errprint(err, "")
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

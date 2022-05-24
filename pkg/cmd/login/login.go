@@ -20,9 +20,9 @@ import (
 	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/fatih/color"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"golang.org/x/text/encoding/charmap"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 type LoginOptions struct {
@@ -61,17 +61,19 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		Args:                  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(opts.Complete(t, cmd, args))
-			cmdutil.CheckErr(opts.RunLogin(t))
-			cmdutil.CheckErr(RunTasksForUser(t))
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := opts.RunLogin(t)
+			if err != nil {
+				err2 := RunTasksForUser(t)
+				if err2 != nil {
+					err = multierror.Append(err, err2)
+				}
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
 		},
 	}
 	return cmd
-}
-
-func (o *LoginOptions) Complete(_ *terminal.Terminal, _ *cobra.Command, _ []string) error {
-	return nil
 }
 
 func (o LoginOptions) checkIfInWorkspace() error {

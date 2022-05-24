@@ -66,6 +66,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		return []string{"file", "variable"}, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(err)
 		t.Errprint(err, "cli err")
 	}
 
@@ -73,6 +74,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		return []string{"org", "private"}, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(err)
 		t.Errprint(err, "cli err")
 	}
 

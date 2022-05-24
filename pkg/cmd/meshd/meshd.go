@@ -5,7 +5,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -20,11 +19,12 @@ func NewCmdMeshD(t *terminal.Terminal, store MeshDStore) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "run background daemon for sercice mesh",
 		Long:                  "run background daemon for sercice mesh",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := MeshD(t, store)
 			if err != nil {
-				log.Error(err.Error())
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

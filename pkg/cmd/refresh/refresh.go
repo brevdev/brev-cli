@@ -36,7 +36,10 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := refresh(t, store)
-			return breverrors.WrapAndTrace(err)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
 		},
 	}
 

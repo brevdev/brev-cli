@@ -36,11 +36,12 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 		Example:               startExample,
 		Args:                  cobra.NoArgs,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginProfileStore, t),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := profile(personalSettingsRepo, t, loginProfileStore)
 			if err != nil {
-				t.Vprint(t.Red(err.Error()))
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

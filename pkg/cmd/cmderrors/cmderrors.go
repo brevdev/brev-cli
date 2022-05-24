@@ -1,9 +1,12 @@
 package cmderrors
 
 import (
+	"fmt"
+
 	"github.com/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -23,4 +26,18 @@ func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
 		}
 	}
 	return nil
+}
+
+func DisplayAndHandleError(err error) {
+	if err != nil {
+		t := terminal.New()
+		er := breverrors.GetDefaultErrorReporter()
+		er.ReportMessage(err.Error())
+		er.ReportError(err)
+		if featureflag.Debug() || featureflag.IsDev() {
+			fmt.Println(err)
+		} else {
+			fmt.Println(t.Red(errors.Cause(err).Error()))
+		}
+	}
 }

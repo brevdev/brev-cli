@@ -8,6 +8,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 )
 
@@ -34,13 +35,18 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 		Long:                  deleteLong,
 		Example:               deleteExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var allError error
 			for _, workspace := range args {
 				err := deleteWorkspace(workspace, t, loginDeleteStore)
 				if err != nil {
-					t.Vprint(t.Red(err.Error()))
+					allError = multierror.Append(allError, err)
 				}
 			}
+			if allError != nil {
+				return breverrors.WrapAndTrace(allError)
+			}
+			return nil
 		},
 	}
 

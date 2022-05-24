@@ -43,7 +43,10 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := set(args[0], loginSetStore)
-			return breverrors.WrapAndTrace(err)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
 		},
 	}
 

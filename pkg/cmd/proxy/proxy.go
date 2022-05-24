@@ -11,7 +11,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/hashicorp/go-version"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -36,11 +35,12 @@ func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
 		Short:                 "http upgrade proxy",
 		Long:                  "http upgrade proxy for ssh ProxyCommand directive to use",
 		Args:                  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := Proxy(t, store, args[0])
 			if err != nil {
-				log.Error(err.Error())
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

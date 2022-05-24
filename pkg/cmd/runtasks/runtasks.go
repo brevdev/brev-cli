@@ -22,11 +22,12 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 		Long:                  "Run tasks keeps the ssh config up to date and a background vpn daemon to connect you to your service mesh. Run with -d to run as a detached daemon in the background. To force a refresh to your config use the refresh command.",
 		Example:               "brev run-tasks -d",
 		Args:                  cobra.ExactArgs(0),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunTasks(t, store, detached)
 			if err != nil {
-				t.Vprint(t.Red(err.Error()))
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")

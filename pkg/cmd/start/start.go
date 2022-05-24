@@ -63,8 +63,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 && !empty {
-				t.Vprintf(t.Red("An argument is required, or use the '--empty' flag\n"))
-				return nil
+				return breverrors.WrapAndTrace(fmt.Errorf("an argument is required, or use the '--empty' flag"))
 			}
 
 			if empty {
@@ -94,17 +93,13 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 						}
 						user, err := loginStartStore.GetCurrentUser()
 						if err != nil {
-							t.Vprintf(t.Yellow("from here: 105"))
 							return breverrors.WrapAndTrace(err)
-
 						}
 						workspaces, err := loginStartStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
 							Name: args[0],
 						})
 						if err != nil {
-							t.Vprintf(t.Yellow("from here: 113"))
 							return breverrors.WrapAndTrace(err)
-
 						}
 						if len(workspaces) == 0 {
 							// then this is a path, and we should import dependencies from it and start
@@ -140,6 +135,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(err)
 		t.Errprint(err, "cli err")
 	}
 	return cmd

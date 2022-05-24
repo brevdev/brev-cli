@@ -22,7 +22,12 @@ func NewCmdSSHMon(store SSHMonStore, segmentAPIWriteKey string) *cobra.Command {
 			fmt.Println("running sshmon...")
 			sshMonitor := analytics.NewSSHMonitor()
 			segment := analytics.NewSegmentClient(segmentAPIWriteKey)
-			defer segment.Client.Close() //nolint:errcheck // defer
+			defer func() {
+				err := segment.Client.Close()
+				if err != nil {
+					breverrors.GetDefaultErrorReporter().ReportError(err)
+				}
+			}()
 			sshAnalytics := analytics.SSHAnalytics{
 				SSHMonitor: sshMonitor,
 				Analytics:  segment,

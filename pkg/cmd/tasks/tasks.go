@@ -4,13 +4,14 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
-	log "github.com/sirupsen/logrus"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 )
@@ -64,15 +65,19 @@ func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
 			// todo if --user flag is not provided and if not run as root, raise
 			// an error
 			fmt.Println("configuring...")
+			var allError error
 			for k, value := range taskMap {
 				fmt.Printf("configuring %s\n", k)
 				err := value.Configure()
 				if err != nil {
 					fmt.Println(k)
-					log.Error(err)
+					allError = multierror.Append(allError, err)
 				}
 			}
 			fmt.Println("done configuring")
+			if allError != nil {
+				return breverrors.WrapAndTrace(allError)
+			}
 			return nil
 		},
 	}
@@ -84,28 +89,32 @@ func NewCmdRun(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Comman
 		Use:   "run [task to configure]",
 		Short: "run a task",
 		Long:  "run a task",
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if all {
+				var allError error
 				for _, value := range taskMap {
 					err := value.Run()
 					if err != nil {
-						log.Error(err)
+						allError = multierror.Append(allError, err)
 					}
+				}
+				if allError != nil {
+					return breverrors.WrapAndTrace(allError)
 				}
 			} else {
 				if len(args) == 0 {
-					log.Error("provide a task name or --all")
-					return
+					return fmt.Errorf("provide a task name or --all")
 				}
 				if task, ok := taskMap[args[0]]; ok {
 					err := task.Run()
 					if err != nil {
-						log.Error(err)
+						return breverrors.WrapAndTrace(err)
 					}
 				} else {
 					fmt.Println("could not find task")
 				}
 			}
+			return nil
 		},
 	}
 	return cmd

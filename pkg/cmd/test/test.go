@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/server"
@@ -50,7 +49,7 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmderrors.DisplayAndHandleCmdError("test", ayo)
+			return breverrors.WrapAndTrace(ayo())
 		},
 	}
 

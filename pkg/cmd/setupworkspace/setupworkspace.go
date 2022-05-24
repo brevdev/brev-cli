@@ -3,7 +3,6 @@ package setupworkspace
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/setupworkspace"
@@ -27,71 +26,31 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 		Annotations: map[string]string{"hidden": ""},
 		Use:         Name,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return cmderrors.DisplayAndHandleCmdError(Name, func() error {
-				fmt.Println("setting up workspace")
-				_, err := store.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
+			fmt.Println("setting up workspace")
+			_, err := store.GetCurrentUser()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 
-				params, err := store.GetSetupParams()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				if !forceEnableSetup && params.DisableSetup {
-					fmt.Printf("WARNING: setup script not running [params.DisableSetup=%v, forceEnableSetup=%v]", params.DisableSetup, forceEnableSetup)
-					return nil
-				}
-
-				err = setupworkspace.SetupWorkspace(params)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				fmt.Println("done setting up workspace")
-				return nil
-			},
-			)
-		},
-	}
-	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")
-
-	return cmd
-}
-
-// Internal command for setting up workspace // to validate workspace works given params
-func NewCmdValidateWorkspaceSetup(store SetupWorkspaceStore) *cobra.Command {
-	cmd := &cobra.Command{
-		Annotations: map[string]string{"hidden": ""},
-		Use:         "validateworkspacesetup",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("validate workspace setup up")
 			params, err := store.GetSetupParams()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			err = setupworkspace.ValidateSetup(*params)
+
+			if !forceEnableSetup && params.DisableSetup {
+				fmt.Printf("WARNING: setup script not running [params.DisableSetup=%v, forceEnableSetup=%v]", params.DisableSetup, forceEnableSetup)
+				return nil
+			}
+
+			err = setupworkspace.SetupWorkspace(params)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			fmt.Println("done setting up workspace")
 			return nil
 		},
 	}
-
-	return cmd
-}
-
-func NewCmdTestWorkspaceSetup() *cobra.Command {
-	cmd := &cobra.Command{
-		Annotations: map[string]string{"hidden": ""},
-		Use:         "testworkspacesetup",
-		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("test workspace setup up")
-			// read in parameters
-			// make and write post start script
-			// exec post start script
-		},
-	}
+	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")
 
 	return cmd
 }

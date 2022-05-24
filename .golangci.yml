@@ -46,7 +46,6 @@ linters-settings:
       - .Errorf
       - .Wrap
       - .New
-      - .DisplayAndHandleCmdError
   stylecheck:
     checks: ["all", "-ST1020", "-ST1000"]
 

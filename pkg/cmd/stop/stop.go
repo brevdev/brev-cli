@@ -38,11 +38,12 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		Example:               stopExample,
 		Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			err := stopWorkspace(args[0], t, loginStopStore)
 			if err != nil {
-				t.Vprint(t.Red(err.Error()))
+				return breverrors.WrapAndTrace(err)
 			}
+			return nil
 		},
 	}
 

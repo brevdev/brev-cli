@@ -33,7 +33,7 @@ func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command
 		RunE: func(cmd *cobra.Command, args []string) error {
 			user, err := sshKeyStore.GetCurrentUser()
 			if err != nil {
-				t.Vprintf(t.Red(err.Error()))
+				return breverrors.WrapAndTrace(err)
 			}
 			terminal.DisplaySSHKeys(t, user.PublicKey)
 			return nil

@@ -104,16 +104,17 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	}
 
 	cmds := &cobra.Command{
-		Use:   "brev",
-		Short: "brev client for managing workspaces",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Use:           "brev",
+		Short:         "brev client for managing workspaces",
 		Long: `
       brev client for managing workspaces
 
       Find more information at:
             https://brev.dev`,
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
 			if !printVersion {
 				v, err := remoteversion.BuildCheckLatestVersionString(t, noLoginCmdStore)
 				if err != nil {
@@ -227,8 +228,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
-	cmd.AddCommand(setupworkspace.NewCmdTestWorkspaceSetup())
-	cmd.AddCommand(setupworkspace.NewCmdValidateWorkspaceSetup(noLoginCmdStore))
 	cmd.AddCommand(sshmon.NewCmdSSHMon(noLoginCmdStore, config.GlobalConfig.GetSegmentKey()))
 }
 

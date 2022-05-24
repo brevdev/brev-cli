@@ -57,6 +57,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginInviteStore, t))
 	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(err)
 		t.Errprint(err, "cli err")
 	}
 
