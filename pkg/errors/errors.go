@@ -3,7 +3,11 @@ package errors
 import (
 	"fmt"
 	"runtime"
+	"time"
 
+	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/getsentry/sentry-go"
 	"github.com/pkg/errors"
 )
 
@@ -13,6 +17,69 @@ type BrevError interface {
 
 	// Directive returns a user-facing string explaining how to overcome the error
 	Directive() string
+}
+
+type ErrorReporter interface {
+	Setup() func()
+	Flush()
+	ReportMessage(string) string
+	ReportError(error) string
+	AddTag(key string, value string)
+}
+
+func GetDefaultErrorReporter() ErrorReporter {
+	return SentryErrorReporter{}
+}
+
+type SentryErrorReporter struct{}
+
+var _ ErrorReporter = SentryErrorReporter{}
+
+func (s SentryErrorReporter) Setup() func() {
+	if !featureflag.IsDev() {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn: config.GlobalConfig.GetSentryURL(),
+		})
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	return func() {
+		err := recover()
+		if err != nil {
+			sentry.CurrentHub().Recover(err)
+			sentry.Flush(time.Second * 5)
+			panic(err)
+		}
+		sentry.Flush(2 * time.Second)
+	}
+}
+
+func (s SentryErrorReporter) Flush() {
+	sentry.Flush(time.Second * 2)
+}
+
+func (s SentryErrorReporter) ReportMessage(msg string) string {
+	event := sentry.CaptureMessage(msg)
+	if event != nil {
+		return string(*event)
+	} else {
+		return ""
+	}
+}
+
+func (s SentryErrorReporter) ReportError(e error) string {
+	event := sentry.CaptureException(e)
+	if event != nil {
+		return string(*event)
+	} else {
+		return ""
+	}
+}
+
+func (s SentryErrorReporter) AddTag(key string, value string) {
+	scope := sentry.CurrentHub().Scope()
+	scope.SetTag(key, value)
 }
 
 type SuppressedError struct{}

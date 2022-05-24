@@ -2,15 +2,12 @@ package setupworkspace
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/getsentry/sentry-go"
 	"github.com/spf13/cobra"
 )
 
@@ -30,53 +27,31 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 		Annotations: map[string]string{"hidden": ""},
 		Use:         Name,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("setting up workspace")
-			if !featureflag.IsDev() {
-				err := sentry.Init(sentry.ClientOptions{
-					Dsn: config.GlobalConfig.GetSentryURL(),
-				})
+			return cmderrors.DisplayAndHandleCmdError(Name, func() error {
+				fmt.Println("setting up workspace")
+				_, err := store.GetCurrentUser()
 				if err != nil {
-					fmt.Println(err)
-				}
-
-				user, err := store.GetCurrentUser()
-				if err != nil {
-					sentry.CaptureMessage(err.Error())
-					sentry.CaptureException(err)
 					return breverrors.WrapAndTrace(err)
 				}
 
-				scope := sentry.CurrentHub().Scope()
-				scope.SetUser(sentry.User{
-					ID:       user.ID,
-					Username: user.Username,
-					Email:    user.Email,
-				})
-				scope.SetTag("command", Name)
-				defer sentry.Flush(2 * time.Second)
-			}
+				params, err := store.GetSetupParams()
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
 
-			params, err := store.GetSetupParams()
-			if err != nil {
-				sentry.CaptureMessage(err.Error())
-				sentry.CaptureException(err)
-				return breverrors.WrapAndTrace(err)
-			}
+				if !forceEnableSetup && params.DisableSetup {
+					fmt.Printf("WARNING: setup script not running [params.DisableSetup=%v, forceEnableSetup=%v]", params.DisableSetup, forceEnableSetup)
+					return nil
+				}
 
-			if !forceEnableSetup && params.DisableSetup {
-				fmt.Printf("WARNING: setup script not running [params.DisableSetup=%v, forceEnableSetup=%v]", params.DisableSetup, forceEnableSetup)
+				err = setupworkspace.SetupWorkspace(params)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				fmt.Println("done setting up workspace")
 				return nil
-			}
-
-			err = setupworkspace.SetupWorkspace(params)
-			if err != nil {
-				sentry.CaptureMessage(err.Error())
-				sentry.CaptureException(err)
-				return breverrors.WrapAndTrace(err)
-			}
-			fmt.Println("done setting up workspace")
-
-			return nil
+			},
+			)
 		},
 	}
 	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")

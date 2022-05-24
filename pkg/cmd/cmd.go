@@ -47,7 +47,6 @@ import (
 var user string
 
 func NewDefaultBrevCommand() *cobra.Command {
-	// cmd := NewBrevCommand(os.Stdin, os.Stdout, os.Stderr)
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&user, "user", "", "non root user to use for per user configuration of commands run as root")
 	return cmd
@@ -112,6 +111,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
       Find more information at:
             https://brev.dev`,
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if !printVersion {
 				v, err := remoteversion.BuildCheckLatestVersionString(t, noLoginCmdStore)
@@ -148,7 +149,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
 			return nil
 		},
-		Run: runHelp,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printVersion {
 				v, err := remoteversion.BuildVersionString(t, noLoginCmdStore)
@@ -230,13 +230,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(setupworkspace.NewCmdTestWorkspaceSetup())
 	cmd.AddCommand(setupworkspace.NewCmdValidateWorkspaceSetup(noLoginCmdStore))
 	cmd.AddCommand(sshmon.NewCmdSSHMon(noLoginCmdStore, config.GlobalConfig.GetSegmentKey()))
-}
-
-func runHelp(cmd *cobra.Command, _ []string) {
-	err := cmd.Help()
-	if err != nil {
-		panic(err)
-	}
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
