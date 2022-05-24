@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -46,7 +47,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Short:                 "Reset a workspace if it's in a weird state.",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cmderrors.TransformToBrevArgs(cobra.ExactArgs(1)),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if hardreset {
@@ -276,16 +277,16 @@ func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.Works
 			workspace = wsbyid
 		} else {
 			// Can this case happen?
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID)
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 		}
 	case 1:
 		workspace = &workspaces[0]
 	default:
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
 	}
 
 	if workspace == nil {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID)
+		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
 	}
 
 	// Get WorkspaceMetaData

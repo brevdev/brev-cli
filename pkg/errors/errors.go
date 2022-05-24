@@ -117,3 +117,13 @@ func MakeErrorMessage(message string) string {
 }
 
 var NetworkErrorMessage = "possible internet connection problem"
+
+type CredentialsFileNotFound struct{}
+
+func (e *CredentialsFileNotFound) Directive() string {
+	return "run `brev login`"
+}
+
+func (e *CredentialsFileNotFound) Error() string {
+	return "credentials file not found"
+}
