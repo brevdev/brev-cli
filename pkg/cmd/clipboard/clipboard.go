@@ -60,16 +60,16 @@ func SaveToClipboard(output string) {
 func ForwardPort(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "remote-forward",
+		Use:                   "remote-forward <ssh-name>",
 		DisableFlagsInUseLine: true,
 		Short:                 "remote forward port",
 		Long:                  "remote forward port",
 		Example:               "remote-forward",
-		Args:                  cobra.ExactArgs(0),
+		Args:                  cobra.ExactArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(clipboardStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Portforward
-			_, sshError := portforward.RunSSHPortForward("-R", "6969", "6969", "peertopeer2-n2uq")
+			_, sshError := portforward.RunSSHPortForward("-R", "6969", "6969", args[0])
 			if sshError != nil {
 				t.Errprint(sshError, "Failed to connect to local")
 				return
