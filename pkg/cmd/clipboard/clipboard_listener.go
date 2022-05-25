@@ -60,7 +60,7 @@ func (server *Server) Run() {
 			// Handle error
 			c.String(http.StatusBadRequest, "Can't parse body")
 		}
-		fmt.Println("Got the clip", string(jsonData))
+		SaveToClipboard(string(jsonData))
 		c.String(http.StatusOK, "success")
 	})
 	err := r.Run(server.host + ":" + server.port)

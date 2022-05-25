@@ -103,14 +103,14 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	return cmd
 }
 
-func RunSSHPortForward(forwardType string, localPort string, remotePort string, domainName string) (*os.Process, error) {
+func RunSSHPortForward(forwardType string, localPort string, remotePort string, sshName string) (*os.Process, error) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt)
 	defer signal.Stop(signals)
 
 	portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
-	fmt.Printf("ssh -T %s %s %s\n", forwardType, portMapping, domainName)
-	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, domainName) //nolint:gosec // variables are sanitzed or user specified
+	fmt.Printf("ssh -T %s %s %s\n", forwardType, portMapping, sshName)
+	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, sshName) //nolint:gosec // variables are sanitzed or user specified
 	cmdSHH.Stdin = os.Stdin
 	cmdSHH.Stderr = os.Stderr        // TODO remove
 	cmdSHH.Stdout = os.Stdout        // TODO remove

@@ -1,6 +1,10 @@
 package clipboard
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
@@ -35,20 +39,37 @@ func EstablishConnection(t *terminal.Terminal, clipboardStore ClipboardStore) *c
 	return cmd
 }
 
+func SaveToClipboard(output string) {
+	// copy to clipboard
+	command := fmt.Sprintf("echo %s | pbcopy", output)
+	cmd := exec.Command("bash", "-c", command)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Start()
+	if err != nil {
+		fmt.Println(err)
+	}
+	err1 := cmd.Wait()
+	if err1 != nil {
+		fmt.Println(err1)
+	}
+}
+
 // Step 2
 func ForwardPort(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "forward",
+		Use:                   "remote-forward",
 		DisableFlagsInUseLine: true,
-		Short:                 "forward port",
-		Long:                  "forward port",
-		Example:               "forward",
+		Short:                 "remote forward port",
+		Long:                  "remote forward port",
+		Example:               "remote-forward",
 		Args:                  cobra.ExactArgs(0),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(clipboardStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Portforward
-			_, sshError := portforward.RunSSHPortForward("-R", "6969", "6969", "peertopeer2")
+			_, sshError := portforward.RunSSHPortForward("-R", "6969", "6969", "peertopeer2-n2uq")
 			if sshError != nil {
 				t.Errprint(sshError, "Failed to connect to local")
 				return
@@ -59,7 +80,7 @@ func ForwardPort(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra.Com
 }
 
 // Step 3
-func UseClipboard(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra.Command {
+func SendToClipboard(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"clipboard": ""},
 		Use:                   "clipboard",

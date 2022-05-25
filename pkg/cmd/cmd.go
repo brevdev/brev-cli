@@ -211,7 +211,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
-		cmd.AddCommand(clipboard.UseClipboard(t, loginCmdStore))
+		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
 		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
 	} else {
 		_ = 0 // noop
