@@ -42,7 +42,7 @@ func EstablishConnection(t *terminal.Terminal, clipboardStore ClipboardStore) *c
 func SaveToClipboard(output string) {
 	// copy to clipboard
 	command := fmt.Sprintf("echo %s | pbcopy", output)
-	cmd := exec.Command("bash", "-c", command)
+	cmd := exec.Command("bash", "-c", command) //nolint:gosec // testing
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
