@@ -111,7 +111,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 
 	// should always at least have access token?
 	if tokens.AccessToken == "" {
-		return "", fmt.Errorf("access token can not be empty")
+		breverrors.GetDefaultErrorReporter().ReportMessage("access token is an empty string but shouldn't be")
 	}
 	isAccessTokenValid, err := t.accessTokenValidator(tokens.AccessToken)
 	if err != nil {
