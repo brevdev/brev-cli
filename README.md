@@ -4,71 +4,19 @@
 
 # Brev.dev
 
-[Brev.dev](https://brev.dev) makes it easy to code on remote machines. Connects your local computer to a mesh network of remote machines. Use Brev.dev to start a project and share your development environment in under 15s, with zero setup.
+[Brev.dev](https://brev.dev) makes it easy to develop on remote machines. Use Brev.dev to start a project and share your development environment.
 
-## Install
+## Get Started
 
+https://console.brev.dev
 
-### MacOS
-```
-brew install brevdev/homebrew-brev/brev
-```
+## Docs
 
-### Linux
-```
-sudo sh -c "`curl -sf -L https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh`" && export PATH=/opt/brev/bin:$PATH
-```
+https://docs.brev.dev
 
+---
+https://user-images.githubusercontent.com/14320477/170173401-01f4f4cd-7099-44b6-a71f-f32cf025a690.mp4
 
-
-That's it 🎉  Run `brev login` to get started!
-
-# Usage
-
-Create a workspace in your current organization
-
-```
-brev start https://github.com/brevdev/brev-cli
-```
-
-list all workspaces in an org
-```
-brev ls
-```
-
-stop a workspace
-```
-brev stop brevdev/brev-cli
-```
-
-delete a workspace from an org
-```
-brev delete brevdev/brev-cli
-```
-
-## Completion
-
-
-### zsh
-
-
-```
-mkdir -p ~/.zsh/completions && brev completion zsh > ~/.zsh/completions/_brev && echo fpath=~/.zsh/completions $fpath >> ~/.zshrc && fpath=(~/.zsh/completions $fpath) && autoload -U compinit && compinit
-```
-
-### bash
-
-```
-sudo mkdir -p /usr/local/share/bash-completion/completions
-brev completion bash | sudo tee /usr/local/share/bash-completion/completions/brev
-source /usr/local/share/bash-completion/completions/brev
-```
-
-### fish
-
-```
-mkdir -p ~/.config/fish/completions && brev completion fish > ~/.config/fish/completions/brev.fish && autoload -U compinit && compinit
-```
 
 # Development
 
