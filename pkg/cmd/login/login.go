@@ -3,7 +3,6 @@ package login
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,6 +43,7 @@ type LoginStore interface {
 
 type Auth interface {
 	Login() (*auth.LoginTokens, error)
+	LoginWithToken(token string) error
 }
 
 // loginStore must be a no prompt store
@@ -52,6 +52,8 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Auth:       auth,
 		LoginStore: loginStore,
 	}
+
+	var loginToken string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
@@ -62,7 +64,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Example:               "brev login",
 		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := opts.RunLogin(t)
+			err := opts.RunLogin(t, loginToken)
 			if err != nil {
 				err2 := RunTasksForUser(t)
 				if err2 != nil {
@@ -73,6 +75,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
 	return cmd
 }
 
@@ -83,21 +86,28 @@ func (o LoginOptions) checkIfInWorkspace() error {
 	}
 	if workspaceID != "" {
 		fmt.Println("can not login to workspace")
-		return errors.New("can not login to workspace")
+		return breverrors.NewValidationError("can not login to workspace")
 	}
 
 	return nil
 }
 
-func (o LoginOptions) loginAndGetOrCreateUser() (*entity.User, error) {
-	tokens, err := o.Auth.Login()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+func (o LoginOptions) loginAndGetOrCreateUser(loginToken string) (*entity.User, error) {
+	if loginToken != "" {
+		err := o.Auth.LoginWithToken(loginToken)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	} else {
+		tokens, err := o.Auth.Login()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 
-	_, err = CreateNewUser(o.LoginStore, tokens.IDToken)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		_, err = CreateNewUser(o.LoginStore, tokens.IDToken)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 	}
 
 	user, err := o.LoginStore.GetCurrentUser()
@@ -128,17 +138,17 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 	return org, nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal) error {
+func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
 	err := o.checkIfInWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	fmt.Print("\n")
 	fmt.Println("  ", caretType("▸"), "    Starting Login")
+	fmt.Print("\n")
 
-	user, err := o.loginAndGetOrCreateUser()
+	user, err := o.loginAndGetOrCreateUser(loginToken)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -250,8 +260,9 @@ func RunTasksForUser(t *terminal.Terminal) error {
 	cmd := exec.Command(brevBin, "run-tasks", "-d") // #nosec G204
 	err = cmd.Run()
 	if err != nil {
-		// tell user to run brev run-tasks
-		t.Vprint(t.Red("\nPlease run ") + t.Yellow("brev run-tasks -d") + t.Red(" in your terminal."))
+		fmt.Print("\n")
+		t.Vprint(t.Red("tasks failed to run ") + t.Yellow("brev run-tasks -d") + t.Red(" in your terminal."))
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

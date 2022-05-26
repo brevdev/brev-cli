@@ -159,6 +159,17 @@ func shouldLogin() (bool, error) {
 	return strings.ToLower(strings.TrimSpace(text)) == "y", nil
 }
 
+func (t Auth) LoginWithToken(token string) error {
+	err := t.authStore.SaveAuthTokens(entity.AuthTokens{
+		AccessToken:  "auto-login",
+		RefreshToken: token,
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (t Auth) Login() (*LoginTokens, error) {
 	tokens, err := t.oauth.DoDeviceAuthFlow(
 		func(url, code string) {
@@ -264,7 +275,7 @@ func isAccessTokenValid(token string) (bool, error) {
 	if err != nil {
 		ve := &jwt.ValidationError{}
 		if errors.As(err, &ve) {
-			fmt.Printf("warning: token error validation failed | %v\n", err)
+			// fmt.Printf("warning: token error validation failed | %v\n", err)
 			return false, nil
 		}
 		return false, breverrors.WrapAndTrace(err)
