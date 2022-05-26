@@ -11,6 +11,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/google/go-cmp v0.5.6
+	github.com/google/gopacket v1.1.19
 	github.com/google/huproxy v0.0.0-20210816191033-a131ee126ce3
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2

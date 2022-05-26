@@ -1,8 +1,6 @@
 package test
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -10,7 +8,9 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/google/gopacket"
+	// _ "github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 
 	"github.com/spf13/cobra"
 )
@@ -39,6 +39,11 @@ type ServiceMeshStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
+const (
+	// The same default as tcpdump.
+	defaultSnapLen = 262144
+)
+
 func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
@@ -49,13 +54,25 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return breverrors.WrapAndTrace(ayo())
+			handle, err := pcap.OpenLive("any", defaultSnapLen, true,
+				pcap.BlockForever)
+			if err != nil {
+				panic(err)
+			}
+			defer handle.Close()
+
+			if err := handle.SetBPFFilter("port 22"); err != nil {
+				panic(err)
+			}
+
+			packets := gopacket.NewPacketSource(
+				handle, handle.LinkType()).Packets()
+			for range packets {
+				// fmt.Println(pkt.String())
+			}
+			return nil
 		},
 	}
 
 	return cmd
-}
-
-func ayo() error {
-	return breverrors.WrapAndTrace(fmt.Errorf("test again"))
 }

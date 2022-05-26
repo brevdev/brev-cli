@@ -256,7 +256,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 		"refresh_token": {refreshToken},
 	}
 
-	r, err := http.PostForm(a.OauthTokenEndpoint, payload) //nolint:noctx // this is copied from above
+	r, err := http.PostForm(a.OauthTokenEndpoint, payload)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}
