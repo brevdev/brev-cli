@@ -407,7 +407,8 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 
 	err = w.EnsureGitAuthOrError()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		fmt.Println("WARNING: ssh keys not added to git provider")
+		fmt.Println(err)
 	}
 
 	return nil
