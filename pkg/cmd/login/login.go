@@ -34,7 +34,7 @@ type LoginStore interface {
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
-	GetActiveOrganizationOrNil() (*entity.Organization, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 	GetServerSockFile() string
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -118,15 +118,14 @@ func (o LoginOptions) loginAndGetOrCreateUser(loginToken string) (*entity.User, 
 }
 
 func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, error) {
-	org, err := o.LoginStore.GetActiveOrganizationOrNil()
+	org, err := o.LoginStore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	if org == nil {
 		newOrgName := makeFirstOrgName(username)
-		fmt.Print("")
-		fmt.Printf("Creating your first org %s ... ", newOrgName)
+		fmt.Printf("Creating your first org %s ...\n", newOrgName)
 		org, err = o.LoginStore.CreateOrganization(store.CreateOrganizationRequest{
 			Name: newOrgName,
 		})
