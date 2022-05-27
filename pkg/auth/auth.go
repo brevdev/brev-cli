@@ -160,12 +160,26 @@ func shouldLogin() (bool, error) {
 }
 
 func (t Auth) LoginWithToken(token string) error {
-	err := t.authStore.SaveAuthTokens(entity.AuthTokens{
-		AccessToken:  "auto-login",
-		RefreshToken: token,
-	})
+	valid, err := isAccessTokenValid(token)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	if valid {
+		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
+			AccessToken:  token,
+			RefreshToken: "auto-login",
+		})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
+			AccessToken:  "auto-login",
+			RefreshToken: token,
+		})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	return nil
 }
@@ -287,7 +301,7 @@ func isAccessTokenValid(token string) (bool, error) {
 			_ = 0
 			// ignore error
 		} else {
-			fmt.Printf("warning: token check validation failed | %v\n", err)
+			// fmt.Printf("warning: token check validation failed | %v\n", err) // TODO need logger
 			return false, nil
 		}
 	}
