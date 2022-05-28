@@ -278,12 +278,16 @@ func (w WorkspaceIniter) Setup() error {
 }
 
 func (w WorkspaceIniter) PrepareWorkspace() error {
-	cmd := CmdBuilder("chown", "-R", w.User.Username, w.WorkspaceDir) // TODO only do this if not done before
+	cmd := CmdBuilder("chown", "-R", w.User.Username, w.BuildHomePath()) // TODO only do this if not done before
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	err = os.Remove(w.BuildWorkspacePath("lost+found"))
+	if err != nil {
+		fmt.Printf("did not remove lost+found: %v\n", err)
+	}
+	err = os.Remove(w.BuildHomePath("lost+found"))
 	if err != nil {
 		fmt.Printf("did not remove lost+found: %v\n", err)
 	}

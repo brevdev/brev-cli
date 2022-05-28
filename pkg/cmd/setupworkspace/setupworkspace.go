@@ -5,6 +5,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/spf13/cobra"
@@ -27,9 +28,12 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 		Use:         Name,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("setting up workspace")
-			_, err := store.GetCurrentUser()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			if !featureflag.IsDev() {
+				// do this to set user in analytics
+				_, err := store.GetCurrentUser()
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
 			}
 
 			params, err := store.GetSetupParams()
