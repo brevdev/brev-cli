@@ -38,7 +38,7 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 		Args: cobra.MinimumNArgs(1),
 		// ValidArgs: []string{"new", "ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := set(args[0], orgcmdStore)
+			err := set(args[0], orgcmdStore, t)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -57,7 +57,7 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 	return cmd
 }
 
-func set(orgName string, setStore OrgCmdStore) error {
+func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
 	workspaceID, err := setStore.GetCurrentWorkspaceID()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -83,6 +83,7 @@ func set(orgName string, setStore OrgCmdStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	t.Vprintf("Org %s is now active", t.Green(org.Name))
 	user, err := setStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

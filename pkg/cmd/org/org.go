@@ -95,7 +95,7 @@ func RunOrgs(t *terminal.Terminal, store OrgCmdStore) error {
 		t.Vprintf(t.Green("Switch orgs:\n"))
 		notDefaultOrg := getOtherOrg(orgs, *defaultOrg)
 		// TODO suggest org with max workspaces
-		t.Vprintf(t.Yellow("\tbrev set <NAME> ex: brev set %s\n", notDefaultOrg.Name))
+		t.Vprintf(t.Yellow("\tbrev org set <NAME> ex: brev org set %s\n", notDefaultOrg.Name))
 	}
 
 	return nil
