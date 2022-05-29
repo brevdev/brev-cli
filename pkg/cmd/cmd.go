@@ -16,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/meshd"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
+	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
@@ -196,6 +197,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) {
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForward(loginCmdStore, t))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
