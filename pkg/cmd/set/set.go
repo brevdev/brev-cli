@@ -31,7 +31,7 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 		Use:               "set",
 		Short:             "Set active org (helps with completion)",
 		Long:              "Set your organization to view, open, create workspaces etc",
-		Example:           `brev set [org name]`,
+		Example:           `brev set <org name>`,
 		Args:              cobra.MinimumNArgs(1),
 		ValidArgsFunction: completions.GetOrgsNameCompletionHandler(noLoginSetStore, t),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
