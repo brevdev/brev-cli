@@ -83,7 +83,7 @@ func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("Org %s is now active", t.Green(org.Name))
+	t.Vprintf("Org %s is now active 🤙\n", t.Green(org.Name))
 	user, err := setStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
