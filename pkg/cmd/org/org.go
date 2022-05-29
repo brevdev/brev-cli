@@ -11,6 +11,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/jedib0t/go-pretty/v6/table"
 
 	"github.com/spf13/cobra"
@@ -23,10 +24,13 @@ type OrgCmdStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	completions.CompletionStore
+	vpn.ServiceMeshStore
+	SetDefaultOrganization(org *entity.Organization) error
+	GetServerSockFile() string
 }
 
 func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
-	var showAll bool
 	var org string
 
 	cmd := &cobra.Command{
@@ -65,7 +69,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 		t.Errprint(err, "cli err")
 	}
 
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
+	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
 
 	return cmd
 }
