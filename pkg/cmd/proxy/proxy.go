@@ -22,7 +22,7 @@ const (
 )
 
 type ProxyStore interface {
-	GetAuthTokens() (*entity.AuthTokens, error)
+	huproxyclient.HubProxyStore
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	WritePrivateKey(pem string) error
 	GetCurrentUserKeys() (*entity.UserKeys, error)

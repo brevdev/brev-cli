@@ -1,4 +1,3 @@
-// Package ls lists workspaces in the current org
 package org
 
 import (

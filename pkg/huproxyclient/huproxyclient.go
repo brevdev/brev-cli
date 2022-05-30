@@ -5,6 +5,7 @@ package huproxyclient
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -23,6 +24,7 @@ var writeTimeout = 10 * time.Second
 
 type HubProxyStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
+	GetCurrentWorkspaceGroupID() (string, error)
 }
 
 func dialError(url string, resp *http.Response, err error) {
@@ -51,6 +53,14 @@ func Run(url string, store HubProxyStore) error {
 	token, err := store.GetAuthTokens()
 	if err != nil {
 		return errors.WrapAndTrace(err)
+	}
+
+	workspaceGroupID, err := store.GetCurrentWorkspaceGroupID()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+	if workspaceGroupID != "" {
+		head["X-Workspace-Group-ID"] = []string{workspaceGroupID}
 	}
 
 	head["Authorization"] = []string{
