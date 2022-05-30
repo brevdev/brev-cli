@@ -38,8 +38,8 @@ func NewStdWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams
 
 var SupportedContainers = []ContainerParams{
 	{
-		Name:  "brevdev-ubuntu-proxy-0.3.16",
-		Image: "brevdev/ubuntu-proxy:0.3.16",
+		Name:  "brevdev-ubuntu-proxy-0.3.17",
+		Image: "brevdev/ubuntu-proxy:0.3.17",
 		Ports: []string{},
 	},
 }

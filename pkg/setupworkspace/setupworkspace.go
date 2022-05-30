@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -471,26 +472,38 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		return breverrors.WrapAndTrace(err)
 	}
 
-	codeServerConfig := w.BuildHomePath(".config", "code-server", "config.yaml")
-	cmd = CmdBuilder("sed", "-ri", fmt.Sprintf(`s/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/`, password), codeServerConfig)
+	codeServerConfigPath := w.BuildHomePath(".config", "code-server", "config.yaml")
+	cmd = CmdBuilder("sed", "-ri", fmt.Sprintf(`s/^(\s*)(password\s*:\s*.*\s*$)/\1password: %s/`, password), codeServerConfigPath)
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	cmd = CmdBuilder("sed", "-ri", fmt.Sprintf(`s/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/`, bindAddr), codeServerConfig)
+	cmd = CmdBuilder("sed", "-ri", fmt.Sprintf(`s/^(\s*)(bind-addr\s*:\s*.*\s*$)/\bind-addr: %s/`, bindAddr), codeServerConfigPath)
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = AppendToOrCreateFile(codeServerConfig, fmt.Sprintf("proxy-domain: %s\n", workspaceHost))
+	configFile, err := ioutil.ReadFile(codeServerConfigPath) //nolint:gosec // secure sandbox
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	proxyStr := fmt.Sprintf("proxy-domain: %s\n", workspaceHost)
+	if !strings.Contains(string(configFile), proxyStr) {
+		err = AppendToOrCreateFile(codeServerConfigPath, proxyStr)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
 	codeServerLogLevel := "trace"
-	err = AppendToOrCreateFile(codeServerConfig, fmt.Sprintf("log: %s\n", codeServerLogLevel))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	logLevel := fmt.Sprintf("log: %s\n", codeServerLogLevel)
+	if !strings.Contains(string(configFile), logLevel) {
+		err = AppendToOrCreateFile(codeServerConfigPath, logLevel)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	cmd = CmdBuilder("systemctl", "daemon-reload")

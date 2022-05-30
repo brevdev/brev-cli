@@ -166,7 +166,8 @@ func (w TestWorkspace) Setup() error {
 		"-d",
 		"--privileged=true",
 		fmt.Sprintf("--name=%s", w.ContainerName),
-		"-v", fmt.Sprintf("%s:/home/brev/workspace", w.getWorkspaceVolumeName()),
+		// "-v", fmt.Sprintf("%s:/home/brev/workspace", w.getWorkspaceVolumeName()),
+		"-v", fmt.Sprintf("%s:/home/brev", w.getWorkspaceVolumeName()),
 		"--rm", "-it",
 	}, ports...)
 
