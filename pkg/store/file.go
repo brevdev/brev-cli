@@ -200,6 +200,12 @@ func (f FileStore) GetCurrentWorkspaceMeta() (*WorkspaceMeta, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if wm.WorkspaceID != "" {
+		breverrors.GetDefaultErrorReporter().AddTag("workspaceId", wm.WorkspaceID)
+		breverrors.GetDefaultErrorReporter().AddTag("organizationId", wm.OrganizationID)
+		breverrors.GetDefaultErrorReporter().AddTag("workspaceGroupId", wm.WorkspaceGroupID)
+	}
+
 	return &wm, nil
 }
 

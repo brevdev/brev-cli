@@ -16,6 +16,7 @@ type SetupWorkspaceStore interface {
 	WriteSetupScript(script string) error
 	GetSetupScriptPath() string
 	GetCurrentUser() (*entity.User, error)
+	GetCurrentWorkspaceID() (string, error)
 }
 
 const Name = "setupworkspace"
@@ -27,10 +28,14 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 		Annotations: map[string]string{"hidden": ""},
 		Use:         Name,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			breverrors.GetDefaultErrorReporter().AddTag("command", Name)
+			_, err := store.GetCurrentWorkspaceID() // do this to error reporting
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			fmt.Println("setting up workspace")
-			if !featureflag.IsDev() {
-				// do this to set user in analytics
-				_, err := store.GetCurrentUser()
+			if !featureflag.IsDev() { // allow tests to pass
+				_, err = store.GetCurrentUser() // do this to set error user reporting
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}

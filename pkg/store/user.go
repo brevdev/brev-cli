@@ -5,7 +5,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/getsentry/sentry-go"
 )
 
 var mePath = "api/me"
@@ -23,8 +22,7 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 		return nil, NewHTTPResponseError(res)
 	}
 
-	scope := sentry.CurrentHub().Scope()
-	scope.SetUser(sentry.User{
+	breverrors.GetDefaultErrorReporter().SetUser(breverrors.ErrorUser{
 		ID:       result.ID,
 		Username: result.Username,
 		Email:    result.Email,

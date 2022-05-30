@@ -20,12 +20,19 @@ type BrevError interface {
 	Directive() string
 }
 
+type ErrorUser struct {
+	ID       string
+	Username string
+	Email    string
+}
+
 type ErrorReporter interface {
 	Setup() func()
 	Flush()
 	ReportMessage(string) string
 	ReportError(error) string
 	AddTag(key string, value string)
+	SetUser(user ErrorUser)
 }
 
 func GetDefaultErrorReporter() ErrorReporter {
@@ -55,6 +62,15 @@ func (s SentryErrorReporter) Setup() func() {
 		}
 		sentry.Flush(2 * time.Second)
 	}
+}
+
+func (s SentryErrorReporter) SetUser(user ErrorUser) {
+	scope := sentry.CurrentHub().Scope()
+	scope.SetUser(sentry.User{
+		ID:       user.ID,
+		Username: user.Username,
+		Email:    user.Email,
+	})
 }
 
 func (s SentryErrorReporter) Flush() {
