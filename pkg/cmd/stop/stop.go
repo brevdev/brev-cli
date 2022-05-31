@@ -76,14 +76,14 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 	}
 	t.Vprintf("\nTurning off all of your workspaces")
 	for _, v := range workspaces {
-
-		_, err = stopStore.StopWorkspace(v.ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		} else {
-			t.Vprintf(t.Green("\n%s stopped ✓", v.Name))
+		if v.Status == "RUNNING" {
+			_, err = stopStore.StopWorkspace(v.ID)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			} else {
+				t.Vprintf(t.Green("\n%s stopped ✓", v.Name))
+			}
 		}
-
 	}
 	return nil
 }
