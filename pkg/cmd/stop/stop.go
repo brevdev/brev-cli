@@ -27,9 +27,12 @@ type StopStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	IsWorkspace() (bool, error)
 	GetCurrentWorkspaceID() (string, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
 func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
+	var all bool
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "stop",
@@ -40,31 +43,59 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := stopWorkspace(args[0], t, loginStopStore)
+			err := stopWorkspace(args[0], t, loginStopStore, all)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&all, "all", "a", false, "stop all workspaces")
 
 	return cmd
 }
 
-func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
-	workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, all bool) error {
+	if all {
+		user, err := stopStore.GetCurrentUser()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		org, err := stopStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		workspaces, err := stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		t.Vprintf("\nTurning off all of your workspaces")
+		for _, v := range workspaces {
+
+			_, err = stopStore.StopWorkspace(v.ID)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			t.Vprintf(t.Green("\n%s stopped ✓", v.Name))
+
+		}
+
+	} else {
+		workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		_, err = stopStore.StopWorkspace(workspace.ID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.") +
+			"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
+
+		return nil
 	}
-
-	_, err = stopStore.StopWorkspace(workspace.ID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.") +
-		"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
-
 	return nil
 }
 
