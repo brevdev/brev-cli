@@ -1,11 +1,11 @@
 package shell
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -45,21 +45,11 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 }
 
 func runShellCommand(store ShellStore, workspaceNameOrID string) error {
-	org, err := store.GetActiveOrganizationOrDefault()
+	workspace, err := util.GetWorkspaceByNameOrIDErr(store, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	workspaces, err := store.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if len(workspaces) == 0 {
-		return breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s not found", workspaceNameOrID))
-	}
-	if len(workspaces) > 1 {
-		return breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with id/name %s", workspaceNameOrID))
-	}
-	sshName := string(workspaces[0].GetLocalIdentifier())
+	sshName := string(workspace.GetLocalIdentifier())
 	err = runSSH(sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

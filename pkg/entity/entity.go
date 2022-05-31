@@ -2,6 +2,7 @@ package entity
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -147,6 +148,19 @@ type WorkspaceTemplate struct {
 	Image       string `json:"image"`
 	Public      bool   `json:"public"`
 	Port        int    `json:"port"`
+}
+
+func (w Workspace) GetProjectFolderPath() string {
+	var folderName string
+	if len(w.GitRepo) > 0 {
+		splitBySlash := strings.Split(w.GitRepo, "/")[1]
+		repoPath := strings.Split(splitBySlash, ".git")[0]
+		folderName = repoPath
+	} else {
+		folderName = w.Name
+	}
+
+	return filepath.Join("/home/brev/workspace/", folderName)
 }
 
 const featureSimpleNames = false
