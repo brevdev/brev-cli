@@ -4,7 +4,6 @@ package stop
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -15,7 +14,7 @@ import (
 
 var (
 	stopLong    = "Stop a Brev machine that's in a running state"
-	stopExample = "brev stop <ws_name>"
+	stopExample = "brev stop <ws_name> \nbrev stop --all"
 )
 
 type StopStore interface {
@@ -40,12 +39,19 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		Short:                 "Stop a workspace if it's running",
 		Long:                  stopLong,
 		Example:               stopExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
+		// Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs()),
+		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := stopWorkspace(args[0], t, loginStopStore, all)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			if all {
+				return stopAllWorkspaces(t, loginStopStore)
+			} else {
+				if len(args) == 0 {
+					return breverrors.NewValidationError("please provide a workspace to stop")
+				}
+				err := stopWorkspace(args[0], t, loginStopStore)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
 			}
 			return nil
 		},
@@ -55,47 +61,47 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 	return cmd
 }
 
-func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, all bool) error {
-	if all {
-		user, err := stopStore.GetCurrentUser()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		org, err := stopStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		workspaces, err := stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		t.Vprintf("\nTurning off all of your workspaces")
-		for _, v := range workspaces {
-
-			_, err = stopStore.StopWorkspace(v.ID)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			t.Vprintf(t.Green("\n%s stopped ✓", v.Name))
-
-		}
-
-	} else {
-		workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		_, err = stopStore.StopWorkspace(workspace.ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.") +
-			"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
-
-		return nil
+func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
+	user, err := stopStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+	org, err := stopStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprintf("\nTurning off all of your workspaces")
+	for _, v := range workspaces {
+
+		_, err = stopStore.StopWorkspace(v.ID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		} else {
+			t.Vprintf(t.Green("\n%s stopped ✓", v.Name))
+		}
+
+	}
+	return nil
+}
+
+func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
+	workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	_, err = stopStore.StopWorkspace(workspace.ID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.") +
+		"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
+
 	return nil
 }
 
