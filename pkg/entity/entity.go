@@ -53,7 +53,7 @@ type User struct {
 	WorkspacePassword string                 `json:"workspacePassword"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType    string                 `json:"globalUserType"`
-	VscodeExtensions  string                 `json:"vscodeExtensions"`
+	IdeConfig         IdeConfig              `json:"IdeConfig,omitempty"`
 	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
 }
 
