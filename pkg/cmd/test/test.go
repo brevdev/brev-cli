@@ -1,6 +1,7 @@
 package test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/tidwall/gjson"
 	"golang.org/x/text/encoding/charmap"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -62,19 +64,30 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 }
 
 func ayo(t *terminal.Terminal) error {
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+
 	// TODO: read from $HOME/.vscode/extensions
-	paths := recursivelyFindFile(t, []string{"package.json"}, "/Users/naderkhalil/.vscode/extensions")
+	var extensions []VSCodeExtensionMetadata
+	paths := recursivelyFindFile(t, []string{"package.json"}, homedir+"/.vscode/extensions")
 	for _, v := range paths {
-		withoutHome := strings.Split(v, "/Users/naderkhalil/")[1]
+		pathWithoutHome := strings.Split(v, homedir+"/")[1]
 
 		// of the format
 		//       .vscode / extensions / extension_name / package.json
 		//          1          2              3               4s
-		if len(strings.Split(withoutHome, "/")) == 4 {
-			t.Vprint(t.Green(withoutHome))
+		if len(strings.Split(pathWithoutHome, "/")) == 4 {
+			obj, err := createVSCodeMetadataObject(homedir, pathWithoutHome)
+			if err != nil {
+				return err
+			}
+			extensions = append(extensions, *obj)
 		}
-
 	}
+	// TODO: push this to the backend
+
 	return nil
 }
 
@@ -88,18 +101,24 @@ type VSCodeExtensionMetadata struct {
 }
 
 // Create a VSCodeMetadataObject from package.json file
-func createVSCodeMetadataObject(path string) {
+func createVSCodeMetadataObject(homedir string, path string) (*VSCodeExtensionMetadata, error) {
 	segments := strings.Split(path, "/")
 	if !strings.Contains(segments[0], ".vscode") &&
 		segments[1] != "extensions" && segments[3] != "package.json" {
-		return // TODO: return this as a metric!!!
+		return nil, errors.New("extension could not be imported") // TODO: return this as a metric!!!
 	}
-	// TODO: Read the file, generate the struct
-	contents, err := catFile(path)
+	contents, err := catFile(homedir + "/" + path)
 	if err != nil {
-		return // TODO: return this as a metric!!!
+		return nil, err
 	} else {
-		fmt.Println(contents)
+		return &VSCodeExtensionMetadata{
+			Name:        gjson.Get(contents, "name").String(),
+			DisplayName: gjson.Get(contents, "displayName").String(),
+			Version:     gjson.Get(contents, "version").String(),
+			Publisher:   gjson.Get(contents, "publisher").String(),
+			Description: gjson.Get(contents, "description").String(),
+			Repository:  gjson.Get(contents, "repository").String(),
+		}, nil
 	}
 }
 
