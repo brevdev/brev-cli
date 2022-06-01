@@ -34,6 +34,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	CopyBin(targetBin string) error
 	GetSetupScriptContentsByURL(url string) (string, error)
+	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 	server.RPCServerTaskStore
 }
 
@@ -54,13 +55,13 @@ func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, _ TestStore) *cobra.Com
 	return cmd
 }
 
-func runImportVscodeExtensions(_ *terminal.Terminal) error {
+func runImportVscodeExtensions(t *terminal.Terminal) error {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	var extensions []VSCodeExtensionMetadata
+	var extensions []entity.VSCodeExtensionMetadata
 	// NOTE: intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
 	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
 	if err != nil {
@@ -81,20 +82,14 @@ func runImportVscodeExtensions(_ *terminal.Terminal) error {
 		}
 	}
 	// TODO: push this to the backend
+	for _, v := range extensions {
+		t.Vprint(t.Green(v.DisplayName))
+	}
 	return nil
 }
 
-type VSCodeExtensionMetadata struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Version     string `json:"version"`
-	Publisher   string `json:"publisher"`
-	Description string `json:"description"`
-	Repository  string `json:"repository"`
-}
-
 // Create a VSCodeMetadataObject from package.json file
-func createVSCodeMetadataObject(homedir string, path string) (*VSCodeExtensionMetadata, error) {
+func createVSCodeMetadataObject(homedir string, path string) (*entity.VSCodeExtensionMetadata, error) {
 	segments := strings.Split(path, "/")
 	if !strings.Contains(segments[0], ".vscode") &&
 		segments[1] != "extensions" && segments[3] != "package.json" {
@@ -104,7 +99,7 @@ func createVSCodeMetadataObject(homedir string, path string) (*VSCodeExtensionMe
 	if err != nil {
 		return nil, err
 	} else {
-		return &VSCodeExtensionMetadata{
+		return &entity.VSCodeExtensionMetadata{
 			Name:        gjson.Get(contents, "name").String(),
 			DisplayName: gjson.Get(contents, "displayName").String(),
 			Version:     gjson.Get(contents, "version").String(),

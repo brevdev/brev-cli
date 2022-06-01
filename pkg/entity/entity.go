@@ -12,12 +12,36 @@ type AuthTokens struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+// IdeConfig {
+//     VsCode: {
+//         Extensions: []
+//     }
+// }
+
+type VSCodeExtensionMetadata struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Version     string `json:"version"`
+	Publisher   string `json:"publisher"`
+	Description string `json:"description"`
+	Repository  string `json:"repository"`
+}
+
+type VsCode struct {
+	Extensions []VSCodeExtensionMetadata `json:"extensions"`
+}
+
+type IdeConfig struct {
+	VsCode VsCode `json:"VsCode"`
+}
+
 type UpdateUser struct {
-	Username          string                 `json:"username"`
-	Name              string                 `json:"name"`
-	Email             string                 `json:"email"`
-	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
-	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
+	Username          string                 `json:"username,omitempty"`
+	Name              string                 `json:"name,omitempty"`
+	Email             string                 `json:"email,omitempty"`
+	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
+	OnboardingStatus  map[string]interface{} `json:"onboardingData,omitempty"` // todo fix inconsitency
+	IdeConfig         IdeConfig              `json:"IdeConfig,omitempty"`
 }
 
 type User struct {
@@ -29,6 +53,7 @@ type User struct {
 	WorkspacePassword string                 `json:"workspacePassword"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType    string                 `json:"globalUserType"`
+	VscodeExtensions  string                 `json:"vscodeExtensions"`
 	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
 }
 

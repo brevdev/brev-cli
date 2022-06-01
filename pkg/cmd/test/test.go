@@ -27,6 +27,7 @@ type TestStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	CopyBin(targetBin string) error
 	GetSetupScriptContentsByURL(url string) (string, error)
+	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 	server.RPCServerTaskStore
 }
 
