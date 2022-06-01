@@ -29,3 +29,19 @@ func GetWorkspaceByNameOrIDErr(store GetWorkspaceByNameOrIDErrStore, workspaceNa
 	}
 	return &workspaces[0], nil
 }
+
+type MakeWorkspaceWithMetaStore interface {
+	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
+}
+
+func MakeWorkspaceWithMeta(store MakeWorkspaceWithMetaStore, workspace *entity.Workspace) (entity.WorkspaceWithMeta, error) {
+	workspaceMetaData, err := store.GetWorkspaceMetaData(workspace.ID)
+	if err != nil {
+		return entity.WorkspaceWithMeta{}, breverrors.WrapAndTrace(err)
+	}
+
+	return entity.WorkspaceWithMeta{
+		WorkspaceMetaData: *workspaceMetaData,
+		Workspace:         *workspace,
+	}, nil
+}

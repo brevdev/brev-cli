@@ -2,9 +2,8 @@
 package stop
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -19,13 +18,10 @@ var (
 
 type StopStore interface {
 	completions.CompletionStore
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	util.GetWorkspaceByNameOrIDErrStore
 	StopWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
-	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	IsWorkspace() (bool, error)
-	GetCurrentWorkspaceID() (string, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
@@ -89,7 +85,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
-	workspace, err := getWorkspaceFromNameOrID(workspaceName, stopStore)
+	workspace, err := util.GetWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -119,62 +115,4 @@ func StopThisWorkspace(store StopStore, _ *terminal.Terminal) error {
 		return breverrors.NewValidationError("this is not a workspace -- please provide a workspace id")
 	}
 	return nil
-}
-
-// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
-// Reasoning: there wasn't a utils file so I didn't know where to put it
-//                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, sstore StopStore) (*entity.WorkspaceWithMeta, error) {
-	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, breverrors.NewValidationError("no orgs exist")
-	}
-
-	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-	case 1:
-		workspace = &workspaces[0]
-	default:
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
-	}
-
-	if workspace == nil {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-	}
-
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }

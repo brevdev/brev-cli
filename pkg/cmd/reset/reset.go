@@ -1,12 +1,12 @@
 package reset
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -25,16 +25,13 @@ var (
 
 type ResetStore interface {
 	completions.CompletionStore
+	util.GetWorkspaceByNameOrIDErrStore
 	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspace(id string) (*entity.Workspace, error)
-	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
-	StartWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {
@@ -73,7 +70,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 // hardResetProcess deletes an existing workspace and creates a new one
 func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
-	workspace, err := getWorkspaceFromNameOrID(workspaceName, resetStore)
+	workspace, err := util.GetWorkspaceByNameOrIDErr(resetStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -225,7 +222,7 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
-	workspace, err := getWorkspaceFromNameOrID(workspaceName, resetStore)
+	workspace, err := util.GetWorkspaceByNameOrIDErr(resetStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -238,62 +235,4 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 	t.Vprintf("Workspace %s is resetting. \n Note: this can take a few seconds. Run 'brev ls' to check status\n", startedWorkspace.Name)
 
 	return nil
-}
-
-// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
-// Reasoning: there wasn't a utils file so I didn't know where to put it
-//                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, sstore ResetStore) (*entity.WorkspaceWithMeta, error) {
-	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, breverrors.NewValidationError("no orgs exist")
-	}
-
-	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-	case 1:
-		workspace = &workspaces[0]
-	default:
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
-	}
-
-	if workspace == nil {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-	}
-
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }

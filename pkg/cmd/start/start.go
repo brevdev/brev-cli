@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -31,6 +32,7 @@ var (
 )
 
 type StartStore interface {
+	util.GetWorkspaceByNameOrIDErrStore
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
@@ -38,12 +40,11 @@ type StartStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
-	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	GetSetupScriptContentsByURL(url string) (string, error)
 	GetFileAsString(path string) (string, error)
 }
 
-func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartStore StartStore) *cobra.Command {
+func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore StartStore) *cobra.Command {
 	var org string
 	var name string
 	var detached bool
@@ -67,7 +68,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 			}
 
 			if empty {
-				err := createEmptyWorkspace(t, org, loginStartStore, name, detached, setupScript, workspaceClass)
+				err := createEmptyWorkspace(t, org, startStore, name, detached, setupScript, workspaceClass)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
@@ -79,23 +80,23 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 				if isURL {
 					// CREATE A WORKSPACE
-					err := clone(t, args[0], org, loginStartStore, name, is4x16, setupScript, workspaceClass)
+					err := clone(t, args[0], org, startStore, name, is4x16, setupScript, workspaceClass)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
 					}
 				} else {
-					workspace, _ := getWorkspaceFromNameOrID(args[0], loginStartStore) // ignoring err todo handle me better
+					workspace, _ := util.GetWorkspaceByNameOrIDErr(startStore, args[0]) // ignoring err todo handle me better
 					if workspace == nil {
 						// get org, check for workspace to join before assuming start via path
-						activeOrg, err := loginStartStore.GetActiveOrganizationOrDefault()
+						activeOrg, err := startStore.GetActiveOrganizationOrDefault()
 						if err != nil {
 							return breverrors.WrapAndTrace(err)
 						}
-						user, err := loginStartStore.GetCurrentUser()
+						user, err := startStore.GetCurrentUser()
 						if err != nil {
 							return breverrors.WrapAndTrace(err)
 						}
-						workspaces, err := loginStartStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
+						workspaces, err := startStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
 							Name: args[0],
 						})
 						if err != nil {
@@ -103,13 +104,13 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 						}
 						if len(workspaces) == 0 {
 							// then this is a path, and we should import dependencies from it and start
-							err = startWorkspaceFromPath(args[0], loginStartStore, t, detached, name, org, is4x16, workspaceClass)
+							err = startWorkspaceFromPath(args[0], startStore, t, detached, name, org, is4x16, workspaceClass)
 							if err != nil {
 								return breverrors.WrapAndTrace(err)
 							}
 						} else {
 							// the user wants to join a workspace
-							err = joinProjectWithNewWorkspace(workspaces[0], t, activeOrg.ID, loginStartStore, name, user, workspaceClass)
+							err = joinProjectWithNewWorkspace(workspaces[0], t, activeOrg.ID, startStore, name, user, workspaceClass)
 							if err != nil {
 								return breverrors.WrapAndTrace(err)
 							}
@@ -117,7 +118,7 @@ func NewCmdStart(t *terminal.Terminal, loginStartStore StartStore, noLoginStartS
 
 					} else {
 						// Start an existing one (either theirs or someone elses)
-						err := startWorkspace(args[0], loginStartStore, t, detached, name, workspaceClass)
+						err := startWorkspace(args[0], startStore, t, detached, name, workspaceClass)
 						if err != nil {
 							return breverrors.WrapAndTrace(err)
 						}
@@ -303,7 +304,10 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string, workspaceClass string) error {
-	workspace, err := getWorkspaceFromNameOrID(workspaceName, startStore)
+	workspace, err := util.GetWorkspaceByNameOrIDErr(startStore, workspaceName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	org, othererr := startStore.GetActiveOrganizationOrDefault()
 	if othererr != nil {
 		return breverrors.WrapAndTrace(othererr)
@@ -592,62 +596,4 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 		}
 	}
 	return nil
-}
-
-// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
-// Reasoning: there wasn't a utils file so I didn't know where to put it
-//                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, sstore StartStore) (*entity.WorkspaceWithMeta, error) {
-	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, breverrors.NewValidationError("no orgs exist")
-	}
-
-	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-	case 1:
-		workspace = &workspaces[0]
-	default:
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
-	}
-
-	if workspace == nil {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-	}
-
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }

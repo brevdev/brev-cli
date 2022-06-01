@@ -10,7 +10,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/alessio/shellescape"
@@ -23,11 +22,7 @@ var (
 )
 
 type OpenStore interface {
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetCurrentUser() (*entity.User, error)
-	GetWorkspace(id string) (*entity.Workspace, error)
-	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
 }
 

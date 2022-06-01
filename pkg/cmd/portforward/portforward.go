@@ -10,6 +10,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/portforward"
@@ -35,24 +36,6 @@ type PortforwardStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
-}
-
-func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (string, error) {
-	org, err := store.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	workspaces, err := store.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	if len(workspaces) == 0 {
-		return "", fmt.Errorf("workspace with id/name %s not found", workspaceNameOrID)
-	} else if len(workspaces) > 1 {
-		return "", fmt.Errorf("duplicate workspace ids: %s", workspaceNameOrID)
-	}
-	sshName := string(workspaces[0].GetLocalIdentifier())
-	return sshName, nil
 }
 
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
@@ -101,6 +84,15 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	}
 
 	return cmd
+}
+
+func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (string, error) {
+	workspace, err := util.GetWorkspaceByNameOrIDErr(store, workspaceNameOrID)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	sshName := string(workspace.GetLocalIdentifier())
+	return sshName, nil
 }
 
 func RunSSHPortForward(forwardType string, localPort string, remotePort string, sshName string) (*os.Process, error) {
@@ -154,12 +146,17 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				pf,
 			)
 
-			workspace, err := getWorkspaceFromNameOrID(args[0], pfStore)
+			workspace, err := util.GetWorkspaceByNameOrIDErr(pfStore, args[0])
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			opts, err = opts.WithWorkspace(*workspace)
+			workspaceWithMeta, err := util.MakeWorkspaceWithMeta(pfStore, workspace)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			opts, err = opts.WithWorkspace(workspaceWithMeta)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -201,64 +198,4 @@ func startInput(t *terminal.Terminal) {
 	t.Vprintf(t.Green("\n-p " + Port + "\n"))
 
 	t.Printf("\nStarting ssh link...\n")
-}
-
-type WorkspaceResolver struct{}
-
-// NOTE: this function is copy/pasted in many places. If you modify it, modify it elsewhere.
-// Reasoning: there wasn't a utils file so I didn't know where to put it
-//                + not sure how to pass a generic "store" object
-func getWorkspaceFromNameOrID(nameOrID string, sstore PortforwardStore) (*entity.WorkspaceWithMeta, error) {
-	// Get Active Org
-	org, err := sstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, breverrors.NewValidationError("no orgs exist")
-	}
-
-	// Get Current User
-	currentUser, err := sstore.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	// Get Workspaces for User
-	var workspace *entity.Workspace // this will be the returned workspace
-	workspaces, err := sstore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: nameOrID, UserID: currentUser.ID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	switch len(workspaces) {
-	case 0:
-		// In this case, check workspace by ID
-		wsbyid, othererr := sstore.GetWorkspace(nameOrID) // Note: workspaceName is ID in this case
-		if othererr != nil {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-		if wsbyid != nil {
-			workspace = wsbyid
-		} else {
-			// Can this case happen?
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-		}
-	case 1:
-		workspace = &workspaces[0]
-	default:
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with name %s\n\nTry running the command by id instead of name:\n\tbrev command <id>", nameOrID))
-	}
-
-	if workspace == nil {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("no workspaces found with name or id %s", nameOrID))
-	}
-
-	// Get WorkspaceMetaData
-	workspaceMetaData, err := sstore.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return &entity.WorkspaceWithMeta{WorkspaceMetaData: *workspaceMetaData, Workspace: *workspace}, nil
 }
