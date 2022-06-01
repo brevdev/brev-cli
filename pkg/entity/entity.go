@@ -32,7 +32,7 @@ type VsCode struct {
 }
 
 type IdeConfig struct {
-	VsCode VsCode `json:"vsCode"`
+	VsCode VsCode `json:"vscode"`
 }
 
 type UpdateUser struct {
