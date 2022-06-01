@@ -54,7 +54,7 @@ func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, _ TestStore) *cobra.Com
 	return cmd
 }
 
-func runImportVscodeExtensions(t *terminal.Terminal) error {
+func runImportVscodeExtensions(_ *terminal.Terminal) error {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
