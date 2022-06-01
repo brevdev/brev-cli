@@ -57,7 +57,7 @@ func DisplayAndHandleError(err error) {
 }
 
 func isSneakyValidationErr(err error) bool {
-	return strings.Contains(err.Error(), "unknown flag:")
+	return strings.Contains(err.Error(), "unknown flag:") || strings.Contains(err.Error(), "unknown command")
 }
 
 func TransformToValidationError(pa cobra.PositionalArgs) cobra.PositionalArgs {
