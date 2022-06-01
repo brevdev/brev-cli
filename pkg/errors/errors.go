@@ -120,6 +120,9 @@ func (d *DeclineToLoginError) Error() string     { return "declined to login" }
 func (d *DeclineToLoginError) Directive() string { return "log in to run this command" }
 
 func WrapAndTrace(err error, messages ...string) error {
+	if err == nil {
+		return err
+	}
 	message := ""
 	for _, m := range messages {
 		message += fmt.Sprintf(" %s", m)
