@@ -33,6 +33,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
+	"github.com/brevdev/brev-cli/pkg/cmd/vscodeext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -204,6 +205,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(meshd.NewCmdMeshD(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
+	cmd.AddCommand(vscodeext.NewCmdVSCodeExtensionImporter(t, noLoginCmdStore))
 	cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))
 	// dev feature toggle
