@@ -205,12 +205,12 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(meshd.NewCmdMeshD(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
-	cmd.AddCommand(vscodeext.NewCmdVSCodeExtensionImporter(t, noLoginCmdStore))
 	cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
+		cmd.AddCommand(vscodeext.NewCmdVSCodeExtensionImporter(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
 		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
