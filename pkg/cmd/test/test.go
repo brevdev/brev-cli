@@ -61,15 +61,6 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 	return cmd
 }
 
-// export interface VSCodeExtensionMetadata {
-// 	name: string;
-// 	displayName: string;
-// 	version: string;
-// 	publisher: string;
-// 	description: string;
-// 	repository: RepoMetadata;
-// }
-
 func ayo(t *terminal.Terminal) error {
 	// TODO: read from $HOME/.vscode/extensions
 	paths := recursivelyFindFile(t, []string{"package.json"}, "/Users/naderkhalil/.vscode/extensions")
@@ -85,6 +76,31 @@ func ayo(t *terminal.Terminal) error {
 
 	}
 	return nil
+}
+
+type VSCodeExtensionMetadata struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Version     string `json:"version"`
+	Publisher   string `json:"publisher"`
+	Description string `json:"description"`
+	Repository  string `json:"repository"`
+}
+
+// Create a VSCodeMetadataObject from package.json file
+func createVSCodeMetadataObject(path string) {
+	segments := strings.Split(path, "/")
+	if !strings.Contains(segments[0], ".vscode") &&
+		segments[1] != "extensions" && segments[3] != "package.json" {
+		return // TODO: return this as a metric!!!
+	}
+	// TODO: Read the file, generate the struct
+	contents, err := catFile(path)
+	if err != nil {
+		return // TODO: return this as a metric!!!
+	} else {
+		fmt.Println(contents)
+	}
 }
 
 func catFile(filePath string) (string, error) {
