@@ -63,8 +63,8 @@ func ayo(t *terminal.Terminal) error {
 		return err
 	}
 
-	// TODO: read from $HOME/.vscode/extensions
 	var extensions []VSCodeExtensionMetadata
+	// NOTE: intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
 	paths := recursivelyFindFile(t, []string{"package.json"}, homedir+"/.vscode/extensions")
 	for _, v := range paths {
 		pathWithoutHome := strings.Split(v, homedir+"/")[1]
@@ -149,23 +149,11 @@ func recursivelyFindFile(t *terminal.Terminal, filenames []string, path string) 
 	for _, f := range files {
 		dir, err := os.Stat(appendPath(path, f.Name()))
 		if err != nil {
-			// fmt.Println(t.Red(err.Error()))
 		} else {
 			for _, filename := range filenames {
-				// r, _ := regexp.Compile(filename)
-				// res := r.MatchString(f.Name())
-
 				if filename == f.Name() {
 					// t.Vprint(t.Yellow(filename) + "---" + t.Yellow(path+f.Name()))
 					paths = append(paths, appendPath(path, f.Name()))
-
-					// fileContents, err := catFile(appendPath(path, f.Name()))
-					// if err != nil {
-					// 	//
-					// }
-
-					// TODO: read
-					// if file has json, read the json
 				}
 			}
 
@@ -174,8 +162,6 @@ func recursivelyFindFile(t *terminal.Terminal, filenames []string, path string) 
 			}
 		}
 	}
-
-	// TODO: make the list Unique
 
 	return paths
 }
