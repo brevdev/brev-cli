@@ -41,7 +41,7 @@ type PortforwardStore interface {
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "port-forwardssh",
+		Use:                   "port-forward",
 		DisableFlagsInUseLine: true,
 		Short:                 "Enable a local tunnel",
 		Long:                  sshLinkLong,

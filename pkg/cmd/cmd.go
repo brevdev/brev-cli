@@ -198,7 +198,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(portforward.NewCmdPortForward(loginCmdStore, t))
+	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))
 	cmd.AddCommand(meshd.NewCmdMeshD(t, noLoginCmdStore))
@@ -210,7 +210,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	if featureflag.IsDev() {
 		_ = 0 // noop
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
-		cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
 		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
 		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
