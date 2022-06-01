@@ -21,31 +21,6 @@ func TestGetLocalIdentifierClean(t *testing.T) {
 	assert.Equal(t, correctID, w.GetLocalIdentifier())
 }
 
-// NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
-// IF YOU MODIFY IT MODIFY IT EVERYWHERE OR PLEASE PUT IT IN ITS PROPER PLACE. thank you you're the best <3
-func WorkspacesFromWorkspaceWithMeta(wwm []WorkspaceWithMeta) []Workspace {
-	var workspaces []Workspace
-
-	for _, v := range wwm {
-		workspaces = append(workspaces, Workspace{
-			ID:                v.ID,
-			Name:              v.Name,
-			WorkspaceGroupID:  v.WorkspaceGroupID,
-			OrganizationID:    v.OrganizationID,
-			WorkspaceClassID:  v.WorkspaceClassID,
-			CreatedByUserID:   v.CreatedByUserID,
-			DNS:               v.DNS,
-			Status:            v.Status,
-			Password:          v.Password,
-			GitRepo:           v.GitRepo,
-			Version:           v.Version,
-			WorkspaceTemplate: v.WorkspaceTemplate,
-		})
-	}
-
-	return workspaces
-}
-
 func TestGetLocalIdentifierDeterminism(t *testing.T) {
 	w1 := WorkspaceWithMeta{Workspace: Workspace{ID: "123456789", DNS: "main-6789-org.brev.sh", Name: "main", CreatedByUserID: "user"}}
 	w2 := WorkspaceWithMeta{Workspace: Workspace{ID: "212345678", DNS: "main-5678-org.brev.sh", Name: "main", CreatedByUserID: "user"}}

@@ -30,6 +30,8 @@ func CreateListener(config *Config) *Server {
 	}
 }
 
+git commit -am "fix linting"
+
 // tcp req
 func SendRequest(address string, message string) error {
 	reader := strings.NewReader(message)

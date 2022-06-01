@@ -172,31 +172,6 @@ func TryClose(toClose chan struct{}) {
 	close(toClose)
 }
 
-// NADER IS SO FUCKING SORRY FOR DOING THIS TWICE BUT I HAVE NO CLUE WHERE THIS HELPER FUNCTION SHOULD GO SO ITS COPY/PASTED ELSEWHERE
-// IF YOU MODIFY IT MODIFY IT EVERYWHERE OR PLEASE PUT IT IN ITS PROPER PLACE. thank you you're the best <3
-func WorkspacesFromWorkspaceWithMeta(wwm []entity.WorkspaceWithMeta) []entity.Workspace {
-	var workspaces []entity.Workspace
-
-	for _, v := range wwm {
-		workspaces = append(workspaces, entity.Workspace{
-			ID:                v.ID,
-			Name:              v.Name,
-			WorkspaceGroupID:  v.WorkspaceGroupID,
-			OrganizationID:    v.OrganizationID,
-			WorkspaceClassID:  v.WorkspaceClassID,
-			CreatedByUserID:   v.CreatedByUserID,
-			DNS:               v.DNS,
-			Status:            v.Status,
-			Password:          v.Password,
-			GitRepo:           v.GitRepo,
-			Version:           v.Version,
-			WorkspaceTemplate: v.WorkspaceTemplate,
-		})
-	}
-
-	return workspaces
-}
-
 func (s SSHAll) portforwardWorkspace(workspace entity.WorkspaceWithMeta) error {
 	port, err := s.sshResolver.GetConfiguredWorkspacePort(workspace.Workspace.GetLocalIdentifier())
 	if err != nil {
