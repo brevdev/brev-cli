@@ -2,7 +2,6 @@ package vscodeext
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -21,10 +20,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	startLong    = "[internal] test"
-	startExample = "[internal] test"
-)
+// startLong    = "[internal] test"
+var startExample = "[internal] test"
 
 type TestStore interface {
 	completions.CompletionStore
@@ -50,22 +47,25 @@ func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, _ TestStore) *cobra.Com
 		Example:               startExample,
 		// Args:                 cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return breverrors.WrapAndTrace(ayo(t))
+			return breverrors.WrapAndTrace(runImportVscodeExtensions(t))
 		},
 	}
 
 	return cmd
 }
 
-func ayo(t *terminal.Terminal) error {
+func runImportVscodeExtensions(t *terminal.Terminal) error {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	var extensions []VSCodeExtensionMetadata
 	// NOTE: intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
-	paths := recursivelyFindFile(t, []string{"package.json"}, homedir+"/.vscode/extensions")
+	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	for _, v := range paths {
 		pathWithoutHome := strings.Split(v, homedir+"/")[1]
 
@@ -138,30 +138,34 @@ func appendPath(a string, b string) string {
 }
 
 // Returns list of paths to file
-func recursivelyFindFile(t *terminal.Terminal, filenames []string, path string) []string {
+func recursivelyFindFile(filenames []string, path string) ([]string, error) {
 	var paths []string
 
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
-		fmt.Println(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	for _, f := range files {
 		dir, err := os.Stat(appendPath(path, f.Name()))
 		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
 		} else {
 			for _, filename := range filenames {
 				if filename == f.Name() {
-					// t.Vprint(t.Yellow(filename) + "---" + t.Yellow(path+f.Name()))
 					paths = append(paths, appendPath(path, f.Name()))
 				}
 			}
 
 			if dir.IsDir() {
-				paths = append(paths, recursivelyFindFile(t, filenames, appendPath(path, f.Name()))...)
+				res, err := recursivelyFindFile(filenames, appendPath(path, f.Name()))
+				if err != nil {
+					return nil, breverrors.WrapAndTrace(err)
+				}
+				paths = append(paths, res...)
 			}
 		}
 	}
 
-	return paths
+	return paths, nil
 }

@@ -13,7 +13,6 @@ const (
 	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
 	defaultWorkspaceClass    EnvVarName = "DEFAULT_WORKSPACE_CLASS"
 	defaultWorkspaceTemplate EnvVarName = "DEFAULT_WORKSPACE_TEMPLATE"
-	segmentKey               EnvVarName = "DEFAULT_SEGMENT_KEY"
 	sentryURL                EnvVarName = "DEFAULT_SENTRY_URL"
 )
 
