@@ -98,7 +98,7 @@ func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 
 func checkWorkspaceStatusOrErr(workspace *entity.Workspace) error {
 	if workspace.Status != "RUNNING" {
-		return fmt.Errorf("workspace is not in RUNNING state, status: %s", workspace.Status)
+		return breverrors.NewValidationError(fmt.Sprintf("workspace is not in RUNNING state, status: %s", workspace.Status))
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func checkWorkspaceStatusOrErr(workspace *entity.Workspace) error {
 func checkWorkspaceImageVersionOrErr(workspace *entity.Workspace) error {
 	imageSplit := strings.Split(workspace.WorkspaceTemplate.Image, ":")
 	if len(imageSplit) != 2 {
-		return fmt.Errorf("problem parsing workspace image tag")
+		return breverrors.NewValidationError("problem parsing workspace image tag")
 	}
 	wiv, err := version.NewVersion(imageSplit[1])
 	if err != nil {
@@ -123,7 +123,7 @@ func checkWorkspaceImageVersionOrErr(workspace *entity.Workspace) error {
 		}
 
 		if !imageContraints.Check(wiv) && !strings.HasSuffix(imageSplit[0], allowedWorkspaceImage) {
-			return fmt.Errorf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image)
+			return breverrors.NewValidationError(fmt.Sprintf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image))
 		}
 	}
 	return nil
@@ -141,7 +141,7 @@ func checkWorkspaceInfraVersionOrErr(workspace *entity.Workspace) error {
 			return breverrors.WrapAndTrace(err)
 		}
 		if !workspaceInfraConstraints.Check(wv) {
-			return fmt.Errorf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion)
+			return breverrors.NewValidationError(fmt.Sprintf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion))
 		}
 	} else {
 		fmt.Println("workspace version blank assuming dev, not checking constraint")
