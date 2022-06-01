@@ -32,7 +32,7 @@ type VsCode struct {
 }
 
 type IdeConfig struct {
-	VsCode VsCode `json:"VsCode"`
+	VsCode VsCode `json:"vsCode"`
 }
 
 type UpdateUser struct {
@@ -41,7 +41,7 @@ type UpdateUser struct {
 	Email             string                 `json:"email,omitempty"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
 	OnboardingStatus  map[string]interface{} `json:"onboardingData,omitempty"` // todo fix inconsitency
-	IdeConfig         IdeConfig              `json:"IdeConfig,omitempty"`
+	IdeConfig         IdeConfig              `json:"ideConfig,omitempty"`
 }
 
 type User struct {

@@ -2,6 +2,7 @@ package vscodeext
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -38,7 +39,7 @@ type TestStore interface {
 	server.RPCServerTaskStore
 }
 
-func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, _ TestStore) *cobra.Command {
+func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, s TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
 		Use:                   "import-vscode-extensions",
@@ -48,14 +49,14 @@ func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, _ TestStore) *cobra.Com
 		Example:               startExample,
 		// Args:                 cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return breverrors.WrapAndTrace(runImportVscodeExtensions(t))
+			return breverrors.WrapAndTrace(runImportVscodeExtensions(t, s))
 		},
 	}
 
 	return cmd
 }
 
-func runImportVscodeExtensions(t *terminal.Terminal) error {
+func runImportVscodeExtensions(t *terminal.Terminal, store TestStore) error {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -85,6 +86,24 @@ func runImportVscodeExtensions(t *terminal.Terminal) error {
 	for _, v := range extensions {
 		t.Vprint(t.Green(v.DisplayName))
 	}
+
+	user, err := store.GetCurrentUser()
+	fmt.Println(user.ID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	_, err = store.UpdateUser(user.ID, &entity.UpdateUser{
+		IdeConfig: entity.IdeConfig{
+			VsCode: entity.VsCode{
+				Extensions: extensions,
+			},
+		},
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
 
@@ -99,13 +118,15 @@ func createVSCodeMetadataObject(homedir string, path string) (*entity.VSCodeExte
 	if err != nil {
 		return nil, err
 	} else {
+		repoBlock := gjson.Get(contents, "repository").String()
+		repoUrl := gjson.Get(repoBlock, "url").String()
 		return &entity.VSCodeExtensionMetadata{
 			Name:        gjson.Get(contents, "name").String(),
 			DisplayName: gjson.Get(contents, "displayName").String(),
 			Version:     gjson.Get(contents, "version").String(),
 			Publisher:   gjson.Get(contents, "publisher").String(),
 			Description: gjson.Get(contents, "description").String(),
-			Repository:  gjson.Get(contents, "repository").String(),
+			Repository:  repoUrl,
 		}, nil
 	}
 }
