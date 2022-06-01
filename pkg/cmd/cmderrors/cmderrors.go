@@ -2,6 +2,7 @@ package cmderrors
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -38,10 +39,14 @@ func DisplayAndHandleError(err error) {
 			// do not report error
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
 		default:
-			er := breverrors.GetDefaultErrorReporter()
-			er.ReportMessage(err.Error())
-			er.ReportError(err)
-			prettyErr = (t.Red(errors.Cause(err).Error()))
+			if isSneakyValidationErr(err) {
+				prettyErr = (t.Yellow(errors.Cause(err).Error()))
+			} else {
+				er := breverrors.GetDefaultErrorReporter()
+				er.ReportMessage(err.Error())
+				er.ReportError(err)
+				prettyErr = (t.Red(errors.Cause(err).Error()))
+			}
 		}
 		if featureflag.Debug() || featureflag.IsDev() {
 			fmt.Println(err)
@@ -49,6 +54,10 @@ func DisplayAndHandleError(err error) {
 			fmt.Println(prettyErr)
 		}
 	}
+}
+
+func isSneakyValidationErr(err error) bool {
+	return strings.Contains(err.Error(), "unknown flag:")
 }
 
 func TransformToValidationError(pa cobra.PositionalArgs) cobra.PositionalArgs {
