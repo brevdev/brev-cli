@@ -4,6 +4,7 @@ package set
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -32,7 +33,7 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 		Short:             "Set active org (helps with completion)",
 		Long:              "Set your organization to view, open, create workspaces etc",
 		Example:           `brev set <org name>`,
-		Args:              cobra.MinimumNArgs(1),
+		Args:              cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		ValidArgsFunction: completions.GetOrgsNameCompletionHandler(noLoginSetStore, t),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)

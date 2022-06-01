@@ -3,6 +3,7 @@ package up
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshall"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -29,7 +30,7 @@ func NewCmdJetbrains(upStore UpStore, t *terminal.Terminal, jetbrainsOnly bool) 
 		Short:                 "Run a helper proxy for required by jetbrains products",
 		Long:                  "This command runs a helper proxy for jetbrains products that allows your jetbrains IDEs ssh access. It does not update if new workspaces are created or deleted so stop the process and re-run it.",
 		Example:               "brev jetbrains",
-		Args:                  cobra.NoArgs,
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.Complete(t, cmd, args)
 			if err != nil {

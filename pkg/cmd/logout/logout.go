@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/vpn"
 )
@@ -40,7 +41,7 @@ func NewCmdLogout(auth Auth, store LogoutStore) *cobra.Command {
 		Short:                 "Log out of brev",
 		Long:                  "Log out of brev by deleting the credential file",
 		Example:               "brev logout",
-		Args:                  cobra.NoArgs,
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.RunLogout()
 			if err != nil {

@@ -1,6 +1,7 @@
 package runtasks
 
 import (
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/k8s"
@@ -21,7 +22,7 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 		Short:                 "Run background tasks for brev",
 		Long:                  "Run tasks keeps the ssh config up to date and a background vpn daemon to connect you to your service mesh. Run with -d to run as a detached daemon in the background. To force a refresh to your config use the refresh command.",
 		Example:               "brev run-tasks -d",
-		Args:                  cobra.ExactArgs(0),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunTasks(t, store, detached)
 			if err != nil {

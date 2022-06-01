@@ -3,6 +3,7 @@ package tasks
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/server"
@@ -41,7 +42,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "run background daemons for brev",
 		Long:                  "run background daemons for brev",
-		Args:                  cobra.ExactArgs(0),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("invalid command")
 		},

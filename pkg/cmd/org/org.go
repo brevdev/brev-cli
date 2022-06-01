@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -51,7 +52,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 
 			return nil
 		},
-		Args: cobra.NoArgs,
+		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
 		// ValidArgs: []string{"new", "ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunOrgs(t, orgcmdStore)

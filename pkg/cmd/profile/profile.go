@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -34,7 +35,7 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 		Short:                 "Personal profile commands",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cobra.NoArgs,
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginProfileStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := profile(personalSettingsRepo, t, loginProfileStore)

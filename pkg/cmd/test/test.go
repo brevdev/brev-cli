@@ -8,8 +8,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-
 	"github.com/spf13/cobra"
 )
 
@@ -45,16 +43,11 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		// Args:                  cobra.MinimumNArgs(1),
+		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return breverrors.WrapAndTrace(ayo(t))
+			return nil
 		},
 	}
 
 	return cmd
-}
-
-func ayo(t *terminal.Terminal) error {
-	t.Vprintf("AAAYYY-YOOOO\n")
-	return nil
 }

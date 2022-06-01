@@ -48,7 +48,7 @@ func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, _ TestStore) *cobra.Com
 		Short:                 "Import your VSCode extensions.",
 		Long:                  "Import your VSCode extensions. You can use imported VSCode extensions on Workspace templates",
 		Example:               startExample,
-		// Args:                  cobra.MinimumNArgs(1),
+		// Args:                 cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return breverrors.WrapAndTrace(ayo(t))
 		},

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
@@ -25,7 +26,7 @@ func EstablishConnection(t *terminal.Terminal, clipboardStore ClipboardStore) *c
 		Short:                 "Connects to remote",
 		Long:                  "Connects to remote",
 		Example:               "connect",
-		Args:                  cobra.ExactArgs(0),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(clipboardStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Listen to Port
@@ -65,7 +66,7 @@ func ForwardPort(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra.Com
 		Short:                 "remote forward port",
 		Long:                  "remote forward port",
 		Example:               "remote-forward",
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(clipboardStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Portforward
@@ -88,7 +89,7 @@ func SendToClipboard(t *terminal.Terminal, clipboardStore ClipboardStore) *cobra
 		Short:                 "Copies clipboard from remote environment to local clipboard",
 		Long:                  "Copies clipboard from remote environment to local clipboard",
 		Example:               "clipboard",
-		Args:                  cobra.ExactArgs(0),
+		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(clipboardStore, t),
 		Run: func(cmd *cobra.Command, args []string) {
 			// Send output
