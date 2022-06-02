@@ -270,6 +270,10 @@ func WriteSSHPrivateKey(fs afero.Fs, data string, home string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	err = fs.MkdirAll(filepath.Dir(pkPath), defaultFilePermission)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	err = afero.WriteFile(fs, pkPath, []byte(data), sshPrivateKeyFilePermissions)
 	if err != nil {
