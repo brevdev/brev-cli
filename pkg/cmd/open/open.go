@@ -8,7 +8,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -22,8 +21,7 @@ var (
 )
 
 type OpenStore interface {
-	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
+	util.GetWorkspaceByNameOrIDErrStore
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {

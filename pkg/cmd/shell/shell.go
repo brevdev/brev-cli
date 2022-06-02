@@ -6,7 +6,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -19,8 +18,7 @@ var (
 )
 
 type ShellStore interface {
-	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
+	util.GetWorkspaceByNameOrIDErrStore
 }
 
 func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
