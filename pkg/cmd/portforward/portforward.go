@@ -10,11 +10,10 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/portforward"
-	"github.com/brevdev/brev-cli/pkg/store"
 
 	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -22,7 +21,6 @@ import (
 )
 
 var (
-	Port           string
 	sshLinkLong    = "Port forward your Brev machine's port to your local port"
 	sshLinkExample = "brev port-forward <ws_name> -p local_port:remote_port"
 )
@@ -30,15 +28,13 @@ var (
 type PortforwardStore interface {
 	k8s.K8sStore
 	completions.CompletionStore
-	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	GetCurrentUser() (*entity.User, error)
-	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
+	refresh.RefreshStore
+	util.GetWorkspaceByNameOrIDErrStore
+	util.MakeWorkspaceWithMetaStore
 }
 
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
+	var port string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forward",
@@ -49,32 +45,17 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if Port == "" {
-				startInput(t)
+			if port == "" {
+				port = startInput(t)
 			}
-			var portSplit []string
-			if strings.Contains(Port, ":") {
-				portSplit = strings.Split(Port, ":")
-				if len(portSplit) != 2 {
-					return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
-				}
-			} else {
-				return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
-			}
-
-			sshName, err := ConvertNametoSSHName(pfStore, args[0])
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-
-			_, err = RunSSHPortForward("-L", portSplit[0], portSplit[1], sshName)
+			err := runPortforward(pfStore, args[0], port)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
+	cmd.Flags().StringVarP(&port, "port", "p", "", "port forward flag describe me better")
 	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
@@ -84,6 +65,36 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	}
 
 	return cmd
+}
+
+func runPortforward(pfStore PortforwardStore, nameOrID string, portString string) error {
+	var portSplit []string
+	if strings.Contains(portString, ":") {
+		portSplit = strings.Split(portString, ":")
+		if len(portSplit) != 2 {
+			return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
+		}
+	} else {
+		return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
+	}
+
+	res := refresh.RunRefreshAsync(pfStore)
+
+	sshName, err := ConvertNametoSSHName(pfStore, nameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = res.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	_, err = RunSSHPortForward("-L", portSplit[0], portSplit[1], sshName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (string, error) {
@@ -101,21 +112,20 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 	defer signal.Stop(signals)
 
 	portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
-	fmt.Printf("ssh -T %s %s %s\n", forwardType, portMapping, sshName)
 	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, sshName) //nolint:gosec // variables are sanitzed or user specified
 	cmdSHH.Stdin = os.Stdin
-	cmdSHH.Stderr = os.Stderr        // TODO remove
-	cmdSHH.Stdout = os.Stdout        // TODO remove
-	fmt.Println("portforwarding...") // TODO better messaging
-	err := cmdSHH.Run()
+	fmt.Println("portforwarding...")
+	fmt.Printf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
+	out, err := cmdSHH.CombinedOutput()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err, string(out))
 	}
 
 	return cmdSHH.Process, nil
 }
 
 func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
+	var port string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forward",
@@ -126,8 +136,8 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(pfStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if Port == "" {
-				startInput(t)
+			if port == "" {
+				port = startInput(t)
 			}
 
 			k8sClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(pfStore)
@@ -161,7 +171,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				return breverrors.WrapAndTrace(err)
 			}
 
-			opts.WithPort(Port)
+			opts.WithPort(port)
 
 			err = opts.RunPortforward()
 			if err != nil {
@@ -170,7 +180,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&Port, "port", "p", "", "port forward flag describe me better")
+	cmd.Flags().StringVarP(&port, "port", "p", "", "port forward flag describe me better")
 	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
@@ -182,7 +192,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 	return cmd
 }
 
-func startInput(t *terminal.Terminal) {
+func startInput(t *terminal.Terminal) string {
 	t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!\n"))
 	remoteInput := terminal.PromptGetInput(terminal.PromptContent{
 		Label:    "What port on your Brev machine would you like to forward?",
@@ -193,9 +203,9 @@ func startInput(t *terminal.Terminal) {
 		ErrorMsg: "error",
 	})
 
-	Port = localInput + ":" + remoteInput
+	port := localInput + ":" + remoteInput
 
-	t.Vprintf(t.Green("\n-p " + Port + "\n"))
+	t.Vprintf(t.Green("\n-p " + port + "\n"))
 
-	t.Printf("\nStarting ssh link...\n")
+	return port
 }
