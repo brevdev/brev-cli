@@ -135,8 +135,6 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 }
 
 func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
-	log.Print("creating new ssh config")
-
 	configPath, err := s.store.GetUserSSHConfigPath()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -203,7 +201,6 @@ func makeProxyCommand(workspaceID string) string {
 
 func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 	// openssh-7.3
-	log.Print("ensuring has include")
 
 	brevConfigPath, err := s.store.GetBrevSSHConfigPath()
 	if err != nil {
@@ -273,7 +270,6 @@ func (s SSHConfigurerServiceMesh) Update(workspaces []entity.Workspace) error {
 
 func (s SSHConfigurerServiceMesh) EnsureConfigHasInclude() error {
 	// openssh-7.3
-	log.Print("ensuring has include")
 
 	brevConfigPath, err := s.store.GetBrevSSHConfigPath()
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -22,6 +23,7 @@ var (
 
 type OpenStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
+	refresh.RefreshStore
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
@@ -49,6 +51,8 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
 	fmt.Println("finding your workspace...")
 
+	res := refresh.RunRefreshAsync(tstore)
+
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -59,6 +63,12 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	localIdentifier := workspace.GetLocalIdentifier()
 
 	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", projPath))
+
+	err = res.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = openVsCodeWithSSH(string(localIdentifier), projPath)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {

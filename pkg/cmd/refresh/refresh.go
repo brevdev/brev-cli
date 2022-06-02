@@ -3,6 +3,7 @@ package refresh
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -35,10 +36,12 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := refresh(t, store)
+			fmt.Println("refreshing brev...")
+			err := RunRefresh(store)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			t.Vprintf(t.Green("brev has been refreshed\n"))
 			return nil
 		},
 	}
@@ -46,9 +49,8 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 	return cmd
 }
 
-func refresh(t *terminal.Terminal, store RefreshStore) error {
-	fmt.Println("refreshing brev...")
-	cu, err := getConfigUpdater(store)
+func RunRefresh(store RefreshStore) error {
+	cu, err := GetConfigUpdater(store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -57,12 +59,37 @@ func refresh(t *terminal.Terminal, store RefreshStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(t.Green("brev has been refreshed\n"))
 
 	return nil
 }
 
-func getConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
+type RefreshRes struct {
+	wg *sync.WaitGroup
+	er error
+}
+
+func (r *RefreshRes) Await() error {
+	r.wg.Wait()
+	return r.er
+}
+
+func RunRefreshAsync(rstore RefreshStore) *RefreshRes {
+	var wg sync.WaitGroup
+
+	res := RefreshRes{wg: &wg}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := RunRefresh(rstore)
+		if err != nil {
+			res.er = err
+		}
+	}()
+	return &res
+}
+
+func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 	configs, err := ssh.GetSSHConfigs(store)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

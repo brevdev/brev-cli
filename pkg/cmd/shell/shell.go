@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -19,6 +20,7 @@ var (
 
 type ShellStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
+	refresh.RefreshStore
 }
 
 func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
@@ -42,12 +44,20 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 	return cmd
 }
 
-func runShellCommand(store ShellStore, workspaceNameOrID string) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, workspaceNameOrID)
+func runShellCommand(sstore ShellStore, workspaceNameOrID string) error {
+	res := refresh.RunRefreshAsync(sstore)
+
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	sshName := string(workspace.GetLocalIdentifier())
+
+	err = res.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = runSSH(sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
