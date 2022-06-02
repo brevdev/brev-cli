@@ -199,7 +199,11 @@ func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
 }
 
 func (w Workspace) createUniqueReadableName() WorkspaceLocalID {
-	return WorkspaceLocalID(fmt.Sprintf("%s-%s", CleanSubdomain(w.Name), w.ID[len(w.ID)-4:]))
+	return WorkspaceLocalID(fmt.Sprintf("%s-%s", CleanSubdomain(w.Name), MakeIDSuffix(w.ID)))
+}
+
+func MakeIDSuffix(id string) string {
+	return id[len(id)-4:]
 }
 
 var (
