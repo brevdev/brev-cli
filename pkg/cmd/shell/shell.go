@@ -45,7 +45,7 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 }
 
 func runShellCommand(store ShellStore, workspaceNameOrID string) error {
-	workspace, err := util.GetWorkspaceByNameOrIDErr(store, workspaceNameOrID)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -87,7 +87,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 }
 
 func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (string, error) {
-	workspace, err := util.GetWorkspaceByNameOrIDErr(store, workspaceNameOrID)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, workspaceNameOrID)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -146,7 +146,7 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 				pf,
 			)
 
-			workspace, err := util.GetWorkspaceByNameOrIDErr(pfStore, args[0])
+			workspace, err := util.GetUserWorkspaceByNameOrIDErr(pfStore, args[0])
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}

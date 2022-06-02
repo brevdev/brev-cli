@@ -51,7 +51,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
 	fmt.Println("finding your workspace...")
 
-	workspace, err := util.GetWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

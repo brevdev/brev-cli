@@ -85,7 +85,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 						return breverrors.WrapAndTrace(err)
 					}
 				} else {
-					workspace, _ := util.GetWorkspaceByNameOrIDErr(startStore, args[0]) // ignoring err todo handle me better
+					workspace, _ := util.GetUserWorkspaceByNameOrIDErr(startStore, args[0]) // ignoring err todo handle me better
 					if workspace == nil {
 						// get org, check for workspace to join before assuming start via path
 						activeOrg, err := startStore.GetActiveOrganizationOrDefault()
@@ -304,7 +304,7 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func startWorkspace(workspaceName string, startStore StartStore, t *terminal.Terminal, detached bool, name string, workspaceClass string) error {
-	workspace, err := util.GetWorkspaceByNameOrIDErr(startStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

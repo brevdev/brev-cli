@@ -85,7 +85,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
-	workspace, err := util.GetWorkspaceByNameOrIDErr(stopStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

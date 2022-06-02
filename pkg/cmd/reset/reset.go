@@ -70,7 +70,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 // hardResetProcess deletes an existing workspace and creates a new one
 func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
-	workspace, err := util.GetWorkspaceByNameOrIDErr(resetStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(resetStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -222,7 +222,7 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
-	workspace, err := util.GetWorkspaceByNameOrIDErr(resetStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(resetStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

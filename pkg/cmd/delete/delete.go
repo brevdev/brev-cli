@@ -49,7 +49,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 }
 
 func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
-	workspace, err := util.GetWorkspaceByNameOrIDErr(deleteStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(deleteStore, workspaceName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
