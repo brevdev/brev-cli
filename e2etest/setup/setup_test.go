@@ -343,3 +343,22 @@ func Test_UnauthenticatedSSHKey(t *testing.T) {
 	})
 	assert.Nil(t, err)
 }
+
+func Test_httpGit(t *testing.T) {
+	noauthKeys, err := GetUnauthedTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	params := NewTestSetupParams(noauthKeys)
+	params.WorkspaceBaseRepo = ""
+	params.WorkspaceProjectRepo = "https://github.com/brevdev/test-repo-dotbrev.git"
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		// AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+	})
+	assert.Nil(t, err)
+}

@@ -671,7 +671,7 @@ func decodeBase64OrReturnSelf(maybeBase64 string) []byte {
 func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string) error {
 	if !PathExists(dirPath) {
 		// TODO implement multiple retry
-		if !strings.HasPrefix(url, "git@") {
+		if !strings.HasPrefix(url, "git@") && !strings.HasPrefix(url, "http") {
 			url = "git@" + url
 		}
 		cmd := CmdBuilder("git", "clone", "--recursive", url, dirPath)
@@ -696,14 +696,15 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 			}
 		}
 	} else {
-		fmt.Printf("did not clone %s to %s\n", url, dirPath)
+		fmt.Printf("path already exists, did not clone %s to %s\n", url, dirPath)
 	}
 	return nil
 }
 
 func (w WorkspaceIniter) RunUserSetup() error {
 	logsPath := filepath.Join(w.BuildUserDotBrevPath(), "logs")
-	err := RunSetupScript(logsPath, w.BuildUserPath(), w.Params.UserSetupExecPath, w.User)
+	setupExecPath := filepath.Join(w.BuildUserPath(), w.Params.UserSetupExecPath)
+	err := RunSetupScript(logsPath, w.BuildUserPath(), setupExecPath, w.User)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -712,7 +713,8 @@ func (w WorkspaceIniter) RunUserSetup() error {
 
 func (w WorkspaceIniter) RunProjectSetup() error {
 	logsPath := filepath.Join(w.BuildProjectDotBrevPath(), "logs")
-	err := RunSetupScript(logsPath, w.BuildProjectPath(), w.Params.ProjectSetupExecPath, w.User)
+	setupExecPath := filepath.Join(w.BuildProjectPath(), w.Params.ProjectSetupExecPath)
+	err := RunSetupScript(logsPath, w.BuildProjectPath(), setupExecPath, w.User)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
