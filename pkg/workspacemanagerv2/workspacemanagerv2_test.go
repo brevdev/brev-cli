@@ -39,10 +39,10 @@ func (t TestStore) GetWorkspaceSetupParams(_ string) (*store.SetupParamsV0, erro
 			PublicKeyData:  "",
 			PrivateKeyData: "",
 		},
-		SetupScript:       new(string),
-		ProjectFolderName: "",
-		BrevPath:          "",
-		DisableSetup:      false,
+		ProjectSetupScript: new(string),
+		ProjectFolderName:  "",
+		ProjectBrevPath:    "",
+		DisableSetup:       false,
 	}, nil
 }
 

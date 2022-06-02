@@ -113,8 +113,20 @@ type WorkspaceIniter struct {
 }
 
 func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *WorkspaceIniter {
-	if params.BrevPath == "" {
-		params.BrevPath = ".brev"
+	if params.ProjectBrevPath == "" {
+		params.ProjectBrevPath = ".brev"
+	}
+
+	if params.ProjectSetupExecPath == "" {
+		params.ProjectSetupExecPath = filepath.Join(params.ProjectBrevPath, "setup.sh")
+	}
+
+	if params.UserBrevPath == "" {
+		params.UserBrevPath = ".brev"
+	}
+
+	if params.UserSetupExecPath == "" {
+		params.UserSetupExecPath = filepath.Join(params.UserBrevPath, "setup.sh")
 	}
 
 	if params.ProjectFolderName == "" {
@@ -124,10 +136,10 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 			params.ProjectFolderName = getDefaultProjectFolderNameFromHost(params.WorkspaceHost)
 		}
 	}
-	if params.SetupScript == nil || *params.SetupScript == "" {
+	if params.ProjectSetupScript == nil || *params.ProjectSetupScript == "" {
 		defaultScript := "#!/bin/bash\n"
 		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
-		params.SetupScript = &b64DefaultScript
+		params.ProjectSetupScript = &b64DefaultScript
 	}
 	return &WorkspaceIniter{
 		WorkspaceDir: "/home/brev/workspace",
@@ -207,7 +219,7 @@ func (w WorkspaceIniter) BuildUserPath(suffix ...string) string {
 }
 
 func (w WorkspaceIniter) BuildProjectDotBrevPath(suffix ...string) string {
-	return filepath.Join(append([]string{w.BuildProjectPath(w.Params.BrevPath)}, suffix...)...)
+	return filepath.Join(append([]string{w.BuildProjectPath(w.Params.ProjectBrevPath)}, suffix...)...)
 }
 
 func (w WorkspaceIniter) BuildUserDotBrevPath(suffix ...string) string {
@@ -254,7 +266,7 @@ func (w WorkspaceIniter) Setup() error {
 	}
 
 	fmt.Println("------ Setup Project .brev ------")
-	err = w.SetupProjectDotBrev(w.Params.SetupScript)
+	err = w.SetupProjectDotBrev(w.Params.ProjectSetupScript)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -690,7 +702,8 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 }
 
 func (w WorkspaceIniter) RunUserSetup() error {
-	err := RunSetupScript(w.BuildUserDotBrevPath(), w.BuildUserPath(), w.User)
+	logsPath := filepath.Join(w.BuildUserDotBrevPath(), "logs")
+	err := RunSetupScript(logsPath, w.BuildUserPath(), w.Params.UserSetupExecPath, w.User)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -698,24 +711,23 @@ func (w WorkspaceIniter) RunUserSetup() error {
 }
 
 func (w WorkspaceIniter) RunProjectSetup() error {
-	err := RunSetupScript(w.BuildProjectDotBrevPath(), w.BuildProjectPath(), w.User)
+	logsPath := filepath.Join(w.BuildProjectDotBrevPath(), "logs")
+	err := RunSetupScript(logsPath, w.BuildProjectPath(), w.Params.ProjectSetupExecPath, w.User)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func RunSetupScript(dotBrevPath string, workingDir string, user *user.User) error {
-	setupShPath := filepath.Join(dotBrevPath, "setup.sh")
-	logsPath := filepath.Join(dotBrevPath, "logs")
+func RunSetupScript(logsPath string, workingDir string, setupExecPath string, user *user.User) error {
 	setupLogPath := filepath.Join(logsPath, "setup.log")
 	archivePath := filepath.Join(logsPath, "archive")
 	archiveLogFile := filepath.Join(archivePath, fmt.Sprintf("setup-%s.log", time.Now().UTC().Format(time.RFC3339)))
 	if workingDir == "" {
-		workingDir = filepath.Dir(setupShPath)
+		workingDir = filepath.Dir(setupExecPath)
 	}
-	if PathExists(setupShPath) {
-		cmd := CmdStringBuilder(fmt.Sprintf("echo user: $(whoami) && echo pwd: $(pwd) && %s", setupShPath))
+	if PathExists(setupExecPath) {
+		cmd := CmdStringBuilder(fmt.Sprintf("echo user: $(whoami) && echo pwd: $(pwd) && %s", setupExecPath))
 		cmd.Dir = workingDir
 		err := CmdAsUser(cmd, user)
 		if err != nil {
@@ -739,7 +751,7 @@ func RunSetupScript(dotBrevPath string, workingDir string, user *user.User) erro
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		fmt.Printf("no setup script found at %s\n", setupShPath)
+		fmt.Printf("no setup script found at %s\n", setupExecPath)
 	}
 	return nil
 }

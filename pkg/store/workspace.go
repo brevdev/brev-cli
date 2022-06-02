@@ -366,10 +366,14 @@ type SetupParamsV0 struct {
 	WorkspaceEmail                   string   `json:"workspaceEmail"`
 	WorkspacePassword                string   `json:"workspacePassword"`
 	WorkspaceKeyPair                 *KeyPair `json:"workspaceKeyPair"`
-	SetupScript                      *string  `json:"setupScript"`
 
-	ProjectFolderName string `json:"projectFolderName"`
-	BrevPath          string `json:"brevPath"`
+	ProjectSetupScript   *string `json:"setupScript"`
+	ProjectFolderName    string  `json:"projectFolderName"`
+	ProjectBrevPath      string  `json:"brevPath"`
+	ProjectSetupExecPath string  `json:"projectSetupExecPath"`
+
+	UserBrevPath      string `json:"userBrevPath"`
+	UserSetupExecPath string `json:"userSetupExecPath"`
 
 	DisableSetup bool `json:"disableSetup"`
 }

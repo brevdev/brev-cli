@@ -312,7 +312,7 @@ func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
 		WorkspaceEmail:                   "test+3333@gmail.com",
 		WorkspacePassword:                "12345",
 		WorkspaceKeyPair:                 keyPair,
-		SetupScript:                      nil,
+		ProjectSetupScript:               nil,
 		DisableSetup:                     true,
 	}
 }
