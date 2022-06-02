@@ -75,9 +75,9 @@ func runImportVscodeExtensions(t *terminal.Terminal, store TestStore) error {
 		//       .vscode / extensions / extension_name / package.json
 		//          1          2              3               4s
 		if len(strings.Split(pathWithoutHome, "/")) == 4 {
-			obj, err := createVSCodeMetadataObject(homedir, pathWithoutHome)
-			if err != nil {
-				return err
+			obj, err0 := createVSCodeMetadataObject(homedir, pathWithoutHome)
+			if err0 != nil {
+				return err0
 			}
 			extensions = append(extensions, *obj)
 		}
@@ -119,14 +119,14 @@ func createVSCodeMetadataObject(homedir string, path string) (*entity.VSCodeExte
 		return nil, err
 	} else {
 		repoBlock := gjson.Get(contents, "repository").String()
-		repoUrl := gjson.Get(repoBlock, "url").String()
+		repoURL := gjson.Get(repoBlock, "url").String()
 		return &entity.VSCodeExtensionMetadata{
 			Name:        gjson.Get(contents, "name").String(),
 			DisplayName: gjson.Get(contents, "displayName").String(),
 			Version:     gjson.Get(contents, "version").String(),
 			Publisher:   gjson.Get(contents, "publisher").String(),
 			Description: gjson.Get(contents, "description").String(),
-			Repository:  repoUrl,
+			Repository:  repoURL,
 		}, nil
 	}
 }
