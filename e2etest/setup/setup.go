@@ -290,10 +290,9 @@ func (w TestWorkspace) Done() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
 	_ = w.RmContainer()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+
 	err = w.RmVolume()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -362,7 +361,7 @@ func AssertValidBrevBaseRepoSetup(t *testing.T, w Workspace, repoPath string) {
 func AssertValidUserBrevSetup(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
 	AssertValidBrevBaseRepoSetup(t, w, repoPath)
-	AssertPathNotExist(t, w, fmt.Sprintf("%s/.brev/ports.yaml", repoPath))
+	// AssertPathNotExist(t, w, fmt.Sprintf("%s/.brev/ports.yaml", repoPath))
 }
 
 func AssertTestUserRepoSetupRan(t *testing.T, w Workspace, repoPath string) {

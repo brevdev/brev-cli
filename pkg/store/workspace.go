@@ -367,16 +367,43 @@ type SetupParamsV0 struct {
 	WorkspacePassword                string   `json:"workspacePassword"`
 	WorkspaceKeyPair                 *KeyPair `json:"workspaceKeyPair"`
 
-	ProjectSetupScript   *string `json:"setupScript"`
-	ProjectFolderName    string  `json:"projectFolderName"`
-	ProjectBrevPath      string  `json:"brevPath"`
-	ProjectSetupExecPath string  `json:"projectSetupExecPath"`
+	ProjectSetupScript *string `json:"setupScript"`
+
+	ProjectFolderName    string `json:"projectFolderName"`
+	ProjectBrevPath      string `json:"brevPath"`
+	ProjectSetupExecPath string `json:"projectSetupExecPath"`
 
 	UserBrevPath      string `json:"userBrevPath"`
 	UserSetupExecPath string `json:"userSetupExecPath"`
 
+	Repos Repos `json:"repos"` // the new way to handle repos // user and project should be here
+	Execs Execs `json:"execs"` // the new way to handle setup scripts
+
 	DisableSetup bool `json:"disableSetup"`
 }
+
+type (
+	RepoName string
+	RepoV0   struct {
+		Repository    string   `json:"repository"`
+		Branch        string   `json:"branch"` // branch, tag, commit
+		Directory     string   `json:"directory"`
+		BrevPath      string   `json:"brevPath"`
+		SetupExecPath string   `json:"setupExecPath"`
+		ExecWorkDir   string   `json:"execWorkDir"`
+		DependsOn     []string `json:"dependsOn"`
+	}
+	Repos map[RepoName]RepoV0
+)
+
+type (
+	ExecName string
+	ExecV0   struct {
+		Exec      []byte
+		DependsOn []string `json:"dependsOn"`
+	}
+	Execs map[ExecName]ExecV0
+)
 
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
 	file, err := f.fs.Open("/etc/meta/setup_v0.json")
