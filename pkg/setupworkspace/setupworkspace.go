@@ -604,11 +604,23 @@ func (w WorkspaceIniter) EnsureGitAuthOrError() error {
 }
 
 func (w WorkspaceIniter) ShouldCheckGithubAuth() bool {
-	return strings.Contains(w.Params.WorkspaceProjectRepo+w.Params.WorkspaceBaseRepo, "github")
+	for _, r := range w.Repos {
+		res := strings.Contains(r.Repository, "github")
+		if res {
+			return true
+		}
+	}
+	return false
 }
 
 func (w WorkspaceIniter) ShouldCheckGitlabAuth() bool {
-	return strings.Contains(w.Params.WorkspaceProjectRepo+w.Params.WorkspaceBaseRepo, "gitlab")
+	for _, r := range w.Repos {
+		res := strings.Contains(r.Repository, "gitlab")
+		if res {
+			return true
+		}
+	}
+	return false
 }
 
 func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, workspaceHost string) error {
