@@ -322,6 +322,11 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	err = w.SetupVsCodeExtensions([]string{})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = w.SetupSSH(w.Params.WorkspaceKeyPair)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -675,6 +680,25 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		return breverrors.WrapAndTrace(err)
 	}
 
+	return nil
+}
+
+func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
+	cmd := CmdBuilder("echo", filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin"))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	codePath := strings.TrimSpace(string(out))
+
+	var extErr error
+	for _, e := range extensionIDs {
+		cmd := CmdBuilder(codePath, "--install-extension", e)
+		err = cmd.Run()
+		if err != nil {
+			extErr = multierror.Append(extErr)
+		}
+	}
 	return nil
 }
 
