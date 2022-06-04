@@ -18,6 +18,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/uri"
+	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/hashicorp/go-multierror"
 )
 
@@ -129,12 +130,18 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
 		params.ProjectSetupScript = &b64DefaultScript
 	}
+
+	standardSetup := makeExecFromSetupParams(*params)
+
+	params.Execs = mergeExecs(standardSetup, params.Execs)
+
 	return &WorkspaceIniter{
 		WorkspaceDir: workspaceDir,
 		UserRepoName: "user-dotbrev",
 		User:         user,
 		Params:       params,
 		Repos:        params.Repos,
+		Execs:        params.Execs,
 	}
 }
 
@@ -179,6 +186,29 @@ func mergeRepos(repos ...store.Repos) store.Repos {
 		}
 	}
 	return newRepos
+}
+
+func mergeExecs(repos ...store.Execs) store.Execs {
+	newRepos := store.Execs{}
+	for _, rs := range repos {
+		for n, r := range rs {
+			newRepos[n] = r
+		}
+	}
+	return newRepos
+}
+
+func makeExecFromSetupParams(params store.SetupParamsV0) store.Execs {
+	if params.ProjectSetupScript != nil {
+		return store.Execs{
+			"setup.sh": {
+				Exec:        *params.ProjectSetupScript,
+				ExecWorkDir: "",
+				DependsOn:   []string{},
+			},
+		}
+	}
+	return store.Execs{}
 }
 
 func initRepo(repo store.RepoV0) store.RepoV0 {
@@ -345,6 +375,37 @@ func (w WorkspaceIniter) SetupRepos() error {
 }
 
 func (w WorkspaceIniter) RunExecs() error {
+	dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
+	err := w.setupDotBrev(dotBrev)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	var execErr error
+	for n, e := range w.Execs {
+		err := w.runExec(n, e)
+		if err != nil {
+			fmt.Printf("exec failed %s\n", n)
+			execErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("exec failed %s", n)))
+		} else {
+			fmt.Printf("exec success %s\n", n)
+		}
+	}
+	if execErr != nil {
+		return breverrors.WrapAndTrace(execErr)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) runExec(name store.ExecName, exec store.ExecV0) error {
+	workDir := filepath.Join(w.BuildWorkspacePath(), exec.ExecWorkDir)
+	dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
+	logPath := filepath.Join(dotBrev, "logs")
+	setupExecPath := filepath.Join(dotBrev, string(name))
+
+	err := RunSetupScript(logPath, workDir, setupExecPath, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -600,6 +661,7 @@ func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
 
 func (w WorkspaceIniter) setupRepo(repo store.RepoV0) error {
 	repoPath := filepath.Join(w.BuildWorkspacePath(), repo.Directory)
+	workDirPath := filepath.Join(repoPath, repo.ExecWorkDir)
 	if repo.Repository == "" {
 		fmt.Println("no repo")
 		if !PathExists(repoPath) {
@@ -639,66 +701,9 @@ func (w WorkspaceIniter) setupRepo(repo store.RepoV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = RunSetupScript(logsPath, repoPath, setupExecPath, w.User)
+	err = RunSetupScript(logsPath, workDirPath, setupExecPath, w.User)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-// source is a git url
-func (w WorkspaceIniter) SetupUserDotBrev(source string) error {
-	if source == "" {
-		fmt.Println("user .brev not provided skipping")
-		return nil
-	}
-	err := w.GitCloneIfDNE(source, w.BuildUserPath(), "")
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = os.Chmod(w.BuildUserDotBrevPath("setup.sh"), 0o700) //nolint:gosec // occurs in safe area
-	if err != nil {
-		// if fails no need to crash
-		fmt.Println(err)
-	}
-	return nil
-}
-
-// source is a git url
-func (w WorkspaceIniter) SetupProject(source string, branch string) error {
-	if source != "" {
-		err := w.GitCloneIfDNE(source, w.BuildProjectPath(), branch)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = os.Chmod(w.BuildProjectDotBrevPath("setup.sh"), 0o700) //nolint:gosec // occurs in safe area
-		if err != nil {
-			// if fails no need to crash
-			fmt.Println(err)
-		}
-	} else {
-		fmt.Println("no project source -- creating default")
-		projectPath := w.BuildProjectPath()
-		if !PathExists(projectPath) {
-			err := os.MkdirAll(projectPath, 0o775) //nolint:gosec // occurs in safe area
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			err = ChownFilePathToUser(projectPath, w.User)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			cmd := CmdBuilder("git", "init")
-			cmd.Dir = projectPath
-			err = w.CmdAsUser(cmd)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			err = cmd.Run()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-		}
 	}
 	return nil
 }
@@ -762,77 +767,6 @@ func (w WorkspaceIniter) setupDotBrev(dotBrevPath string) error {
 	return nil
 }
 
-func (w WorkspaceIniter) SetupProjectDotBrev(defaultSetupScriptMaybeB64 *string) error { //nolint:funlen // function is scoped appropriately
-	dotBrevPath := w.BuildProjectDotBrevPath()
-	if !PathExists(dotBrevPath) {
-		err := os.MkdirAll(dotBrevPath, 0o775) //nolint:gosec // occurs in safe area
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		cmd := CmdBuilder("chown", "-R", w.User.Username, dotBrevPath)
-		err = cmd.Run()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	portsYamlPath := w.BuildProjectDotBrevPath("ports.yaml")
-	if !PathExists(portsYamlPath) {
-		cmd := CmdBuilder("curl", `https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/ports.yaml`, "-o", portsYamlPath)
-		err := w.CmdAsUser(cmd)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = cmd.Run()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-
-	setupScriptPath := w.BuildProjectDotBrevPath("setup.sh")
-	if !PathExists(setupScriptPath) && defaultSetupScriptMaybeB64 != nil {
-		file, err := os.Create(setupScriptPath) //nolint:gosec // occurs in safe area
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		defer PrintErrFromFunc(file.Close)
-		err = w.ChownFileToUser(file)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		setupSh := decodeBase64OrReturnSelf(*defaultSetupScriptMaybeB64)
-		_, err = file.Write(setupSh)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = file.Chmod(0o700)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	gitIgnorePath := w.BuildProjectDotBrevPath(".gitignore")
-	if !PathExists(gitIgnorePath) {
-		cmd := CmdBuilder("curl", `https://raw.githubusercontent.com/brevdev/default-project-dotbrev/main/.brev/.gitignore`, "-o", gitIgnorePath)
-		err := w.CmdAsUser(cmd)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = cmd.Run()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
-
-func decodeBase64OrReturnSelf(maybeBase64 string) []byte {
-	res, err := base64.StdEncoding.DecodeString(maybeBase64)
-	if err != nil {
-		fmt.Println("could not decode base64 assuming regular string")
-		return []byte(maybeBase64)
-	}
-	return res
-}
-
 func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string) error {
 	if !PathExists(dirPath) {
 		// TODO implement multiple retry
@@ -866,30 +800,11 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 	return nil
 }
 
-func (w WorkspaceIniter) RunUserSetup() error {
-	logsPath := filepath.Join(w.BuildUserDotBrevPath(), "logs")
-	setupExecPath := filepath.Join(w.BuildUserPath(), w.Params.UserSetupExecPath)
-	err := RunSetupScript(logsPath, w.BuildUserPath(), setupExecPath, w.User)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func (w WorkspaceIniter) RunProjectSetup() error {
-	logsPath := filepath.Join(w.BuildProjectDotBrevPath(), "logs")
-	setupExecPath := filepath.Join(w.BuildProjectPath(), w.Params.ProjectSetupExecPath)
-	err := RunSetupScript(logsPath, w.BuildProjectPath(), setupExecPath, w.User)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
 func RunSetupScript(logsPath string, workingDir string, setupExecPath string, user *user.User) error {
-	setupLogPath := filepath.Join(logsPath, "setup.log")
+	namePrefix := util.RemoveFileExtenstion(filepath.Base(setupExecPath))
+	setupLogPath := filepath.Join(logsPath, fmt.Sprintf("%s.log", namePrefix))
 	archivePath := filepath.Join(logsPath, "archive")
-	archiveLogFile := filepath.Join(archivePath, fmt.Sprintf("setup-%s.log", time.Now().UTC().Format(time.RFC3339)))
+	archiveLogFile := filepath.Join(archivePath, fmt.Sprintf("%s-%s.log", namePrefix, time.Now().UTC().Format(time.RFC3339)))
 	if workingDir == "" {
 		workingDir = filepath.Dir(setupExecPath)
 	}

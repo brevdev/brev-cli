@@ -399,8 +399,9 @@ type (
 type (
 	ExecName string
 	ExecV0   struct {
-		Exec      []byte
-		DependsOn []string `json:"dependsOn"`
+		Exec        string   `json:"exec"`
+		ExecWorkDir string   `json:"execWorkDir"`
+		DependsOn   []string `json:"dependsOn"`
 	}
 	Execs map[ExecName]ExecV0
 )
