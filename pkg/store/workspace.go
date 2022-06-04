@@ -379,8 +379,18 @@ type SetupParamsV0 struct {
 	Repos Repos `json:"repos"` // the new way to handle repos // user and project should be here
 	Execs Execs `json:"execs"` // the new way to handle setup scripts
 
+	IDEConfigs IDEConfigs `json:"ideConfig"`
+
 	DisableSetup bool `json:"disableSetup"`
 }
+
+type (
+	IDEName   string
+	IdeConfig struct {
+		ExtensionIDs []string `json:"extensionIds"`
+	}
+	IDEConfigs map[IDEName]IdeConfig
+)
 
 type (
 	RepoName string

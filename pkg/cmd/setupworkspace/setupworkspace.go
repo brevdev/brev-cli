@@ -37,7 +37,8 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 			if !featureflag.IsDev() { // allow tests to pass
 				_, err = store.GetCurrentUser() // do this to set error user reporting
 				if err != nil {
-					return breverrors.WrapAndTrace(err)
+					fmt.Println(err)
+					breverrors.GetDefaultErrorReporter().ReportError(err)
 				}
 			}
 

@@ -107,12 +107,13 @@ func GetUserFromUserStr(userStr string) (*user.User, error) {
 }
 
 type WorkspaceIniter struct {
-	WorkspaceDir string
-	UserRepoName string
-	User         *user.User
-	Params       *store.SetupParamsV0
-	Repos        store.Repos
-	Execs        store.Execs
+	WorkspaceDir       string
+	UserRepoName       string
+	User               *user.User
+	Params             *store.SetupParamsV0
+	Repos              store.Repos
+	Execs              store.Execs
+	VscodeExtensionIDs []string
 }
 
 func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *WorkspaceIniter {
@@ -135,13 +136,20 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 
 	params.Execs = mergeExecs(standardSetup, params.Execs)
 
+	vscodeExtensionIDs := []string{}
+	ideConfig, ok := params.IDEConfigs["vscode"]
+	if ok {
+		vscodeExtensionIDs = ideConfig.ExtensionIDs
+	}
+
 	return &WorkspaceIniter{
-		WorkspaceDir: workspaceDir,
-		UserRepoName: "user-dotbrev",
-		User:         user,
-		Params:       params,
-		Repos:        params.Repos,
-		Execs:        params.Execs,
+		WorkspaceDir:       workspaceDir,
+		UserRepoName:       "user-dotbrev",
+		User:               user,
+		Params:             params,
+		Repos:              params.Repos,
+		Execs:              params.Execs,
+		VscodeExtensionIDs: vscodeExtensionIDs,
 	}
 }
 
@@ -322,7 +330,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.SetupVsCodeExtensions([]string{})
+	err = w.SetupVsCodeExtensions(w.VscodeExtensionIDs)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -684,7 +692,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 }
 
 func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
-	cmd := CmdBuilder("echo", filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin"))
+	cmd := exec.Command("echo", filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin")) //nolint:gosec // occurs
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

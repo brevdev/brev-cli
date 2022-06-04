@@ -38,8 +38,8 @@ func NewStdWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams
 
 var SupportedContainers = []ContainerParams{
 	{
-		Name:  "brevdev-ubuntu-proxy-0.3.17",
-		Image: "brevdev/ubuntu-proxy:0.3.17",
+		Name:  "brevdev-ubuntu-proxy-0.3.20",
+		Image: "brevdev/ubuntu-proxy:0.3.20",
 		Ports: []string{},
 	},
 }
@@ -366,6 +366,45 @@ func Test_httpGit(t *testing.T) {
 		// AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+	})
+	assert.Nil(t, err)
+}
+
+func Test_VscodeExtension(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+
+	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
+	params.IDEConfigs = store.IDEConfigs{
+		"vscode": {
+			ExtensionIDs: []string{"golang.go"},
+		},
+	}
+
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
+		_, err = w.Exec("echo", "/home/brerv/vscode-server/extensions/golang.go-")
+		assert.Nil(t, err)
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
+
+		_, err = w.Exec("echo", "/home/brerv/vscode-server/extensions/golang.go-")
+		assert.Nil(t, err)
 	})
 	assert.Nil(t, err)
 }
