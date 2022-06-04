@@ -217,7 +217,7 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) {
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "name")
-		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
+		AssertFileContainsString(t, w, ".brev/logs/setup.log", ProvidedSetupScriptMsg)
 
 		err1 := w.Reset()
 		if !assert.Nil(t, err1) {
@@ -227,12 +227,12 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) {
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "name")
-		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "name"), ProvidedSetupScriptMsg)
+		AssertFileContainsString(t, w, ".brev/logs/setup.log", ProvidedSetupScriptMsg)
 	})
 	assert.Nil(t, err)
 }
 
-func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
+func Test_ProvidedSetupFileChange(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
@@ -251,12 +251,12 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
-		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), ProvidedSetupScriptMsg)
+		AssertFileContainsString(t, w, ".brev/logs/setup.log", ProvidedSetupScriptMsg)
 
-		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/test-repo-no-dotbrev/.brev/logs/archive", 3)
+		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/.brev/logs/archive", 3)
 
 		resetMessage := "reset run"
-		err = UpdateFile(w, fmt.Sprintf("%s/.brev/setup.sh", "test-repo-no-dotbrev"), fmt.Sprintf(" echo %s\n", resetMessage))
+		err = UpdateFile(w, ".brev/setup.sh", fmt.Sprintf(" echo %s\n", resetMessage))
 		assert.Nil(t, err)
 
 		err1 := w.Reset()
@@ -267,13 +267,13 @@ func Test_ProvidedSetupRanProjNoBrev(t *testing.T) {
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
-		AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-no-dotbrev"), resetMessage)
-		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/test-repo-no-dotbrev/.brev/logs/archive", 4)
+		AssertFileNotContainsString(t, w, ".brev/logs/setup.log", resetMessage)
+		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/.brev/logs/archive", 4)
 	})
 	assert.Nil(t, err)
 }
 
-func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
+func Test_ProvidedSetupUpdated(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
@@ -282,6 +282,8 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
 	base64SetupScript := base64.StdEncoding.EncodeToString([]byte(setupScript))
 	params.ProjectSetupScript = &base64SetupScript
+
+	resetMsg := "updated setup script"
 
 	client := NewStdWorkspaceTestClient(params, SupportedContainers)
 
@@ -294,7 +296,12 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
-		AssertFileNotContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-dotbrev"), ProvidedSetupScriptMsg)
+		AssertFileContainsString(t, w, ".brev/logs/setup.log", ProvidedSetupScriptMsg)
+
+		ss := fmt.Sprintf("echo %s ", resetMsg)
+		params.ProjectSetupScript = &ss
+
+		w.UpdateParams(params)
 
 		err1 := w.Reset()
 		if !assert.Nil(t, err1) {
@@ -308,7 +315,7 @@ func Test_ProvidedSetupNotRunProjBrev(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
-		AssertFileNotContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", "test-repo-dotbrev"), ProvidedSetupScriptMsg)
+		AssertFileContainsString(t, w, ".brev/logs/setup.log", resetMsg)
 	})
 	assert.Nil(t, err)
 }

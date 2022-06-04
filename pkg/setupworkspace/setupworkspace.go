@@ -402,7 +402,22 @@ func (w WorkspaceIniter) runExec(name store.ExecName, exec store.ExecV0) error {
 	logPath := filepath.Join(dotBrev, "logs")
 	setupExecPath := filepath.Join(dotBrev, string(name))
 
-	err := RunSetupScript(logPath, workDir, setupExecPath, w.User)
+	f, err := os.OpenFile(setupExecPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o700) //nolint:gosec // overwrite
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	out := util.DecodeBase64OrReturnSelf(exec.Exec)
+	_, err = f.Write(out)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = f.Close() // must close before run setup script
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	err = RunSetupScript(logPath, workDir, setupExecPath, w.User)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

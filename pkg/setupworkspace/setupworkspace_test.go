@@ -7,13 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// func TestBasePath(t *testing.T) {
-// 	x := "abc/setup.log"
-// 	b := RemoveExtenstion(x)
-// 	assert.Equal(t, "abc/setup", b)
-// }
-
-
 func TestEvalAgent(_ *testing.T) {
 	// cmd := CmdBuilder("bash", "/home/brev/workspace/brev-cli/test.sh")
 	// c := "echo hi > /tmp/agent.sh"
@@ -56,15 +49,6 @@ func TestSendLogToFile(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, "hi\n", string(res))
 }
-
-// func Test_decodeBase64OrReturnSelf(t *testing.T) {
-// 	nonB64 := "echo hi"
-// 	resSelf := decodeBase64OrReturnSelf(nonB64)
-// 	assert.Equal(t, nonB64, string(resSelf))
-// 	b64 := base64.StdEncoding.EncodeToString([]byte(nonB64))
-// 	res := util.decodeBase64OrReturnSelf(b64)
-// 	assert.Equal(t, nonB64, string(res))
-// }
 
 func Test_AppendToOrCreateFile(t *testing.T) {
 	_ = os.Remove("test2.txt")
