@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/hashicorp/go-multierror"
 )
 
 // This package should only be used as a holding pattern to be later moved into more specific packages
@@ -38,4 +41,34 @@ func DecodeBase64OrReturnSelf(maybeBase64 string) []byte {
 
 func RemoveFileExtenstion(path string) string {
 	return strings.TrimRight(path, filepath.Ext(path))
+}
+
+type RunEResult struct {
+	errChan chan error
+	num     int
+}
+
+func (r RunEResult) Await() error {
+	var allErr error
+	for i := 0; i < r.num; i++ {
+		err := <-r.errChan
+		if err != nil {
+			allErr = multierror.Append(err)
+		}
+	}
+	if allErr != nil {
+		return errors.WrapAndTrace(allErr)
+	}
+	return nil
+}
+
+func RunEAsync(calls ...func() error) RunEResult {
+	res := RunEResult{make(chan error), len(calls)}
+	for _, c := range calls {
+		go func(cl func() error) {
+			err := cl()
+			res.errChan <- err
+		}(c)
+	}
+	return res
 }
