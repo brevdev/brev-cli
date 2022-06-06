@@ -167,6 +167,8 @@ func Test_NoUserBrevProj(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+const testRepoNoDotBrev = "github.com:brevdev/test-repo-no-dotbrev.git"
+
 func Test_ProjectRepoNoBrev(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
@@ -174,7 +176,7 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 	}
 	params := NewTestSetupParams(keys)
 
-	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
+	params.WorkspaceProjectRepo = testRepoNoDotBrev
 
 	client := NewStdWorkspaceTestClient(params, SupportedContainers)
 
@@ -239,7 +241,7 @@ func Test_ProvidedSetupFileChange(t *testing.T) {
 	}
 	params := NewTestSetupParams(keys)
 
-	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
+	params.WorkspaceProjectRepo = testRepoNoDotBrev
 	setupScript := fmt.Sprintf("echo %s ", ProvidedSetupScriptMsg)
 	base64SetupScript := base64.StdEncoding.EncodeToString([]byte(setupScript))
 	params.ProjectSetupScript = &base64SetupScript
@@ -377,7 +379,7 @@ func Test_VscodeExtension(t *testing.T) {
 	}
 	params := NewTestSetupParams(keys)
 
-	params.WorkspaceProjectRepo = "github.com:brevdev/test-repo-no-dotbrev.git"
+	params.WorkspaceProjectRepo = testRepoNoDotBrev
 	params.IDEConfigs = store.IDEConfigs{
 		"vscode": {
 			ExtensionIDs: []string{"golang.go"},
