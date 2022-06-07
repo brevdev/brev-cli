@@ -52,6 +52,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	var is4x16 bool
 	var workspaceClass string
 	var setupScript string
+	var setupRepo string
+	var setupPath string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -68,7 +70,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 			}
 
 			if empty {
-				err := createEmptyWorkspace(t, org, startStore, name, detached, setupScript, workspaceClass)
+				err := createEmptyWorkspace(t, org, startStore, name, detached, setupScript, setupRepo, setupPath, workspaceClass)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
@@ -80,7 +82,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 
 				if isURL {
 					// CREATE A WORKSPACE
-					err := clone(t, args[0], org, startStore, name, is4x16, setupScript, workspaceClass)
+					err := clone(t, args[0], org, startStore, name, is4x16, setupScript, setupRepo, setupPath, workspaceClass)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
 					}
@@ -104,7 +106,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 						}
 						if len(workspaces) == 0 {
 							// then this is a path, and we should import dependencies from it and start
-							err = startWorkspaceFromPath(args[0], startStore, t, detached, name, org, is4x16, workspaceClass)
+							err = startWorkspaceFromPath(args[0], startStore, t, detached, name, org, is4x16, workspaceClass, setupRepo, setupPath)
 							if err != nil {
 								return breverrors.WrapAndTrace(err)
 							}
@@ -133,6 +135,9 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
 	cmd.Flags().StringVarP(&workspaceClass, "class", "c", "", "workspace resource class (cpu x memory) default 2x8 [2x8, 4x16, 8x32, 16x32]")
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
+	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "use a setup script in a custom repository")
+	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to setup script in custom repository")
+	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
@@ -142,7 +147,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	return cmd
 }
 
-func startWorkspaceFromPath(path string, loginStartStore StartStore, t *terminal.Terminal, detached bool, name string, org string, is4x16 bool, workspaceClass string) error {
+// BANANA: not really sure what this function is? Have we ever used it? Is it hypothetical?
+func startWorkspaceFromPath(path string, loginStartStore StartStore, t *terminal.Terminal, detached bool, name string, org string, is4x16 bool, workspaceClass string, setupRepo string, setupPath string) error {
 	pathExists := dirExists(path)
 	if !pathExists {
 		return fmt.Errorf(strings.Join([]string{"Path:", path, "does not exist."}, " "))
@@ -180,7 +186,7 @@ func startWorkspaceFromPath(path string, loginStartStore StartStore, t *terminal
 		fmt.Println("setup script generated.")
 	}
 
-	err := clone(t, gitURL, org, loginStartStore, name, is4x16, brevpath, workspaceClass)
+	err := clone(t, gitURL, org, loginStartStore, name, is4x16, brevpath, workspaceClass, setupRepo, setupPath)
 
 	return err
 }
@@ -197,7 +203,7 @@ func dirExists(path string) bool {
 	return false
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, workspaceClass string) error {
+func createEmptyWorkspace(t *terminal.Terminal, orgflag string, startStore StartStore, name string, detached bool, setupScript string, setupRepo string, setupPath string, workspaceClass string) error {
 	// ensure name
 	if len(name) == 0 {
 		return breverrors.NewValidationError("name field is required for empty workspaces")
@@ -413,8 +419,8 @@ func IsUrl(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScriptPath string, workspaceClass string) error {
-	t.Vprintf("This is the setup script: %s", setupScriptPath)
+func clone(t *terminal.Terminal, url string, orgflag string, startStore StartStore, name string, is4x16 bool, setupScriptURL string, setupRepo string, setupPath string, workspaceClass string) error {
+	t.Vprintf("This is the setup script: %s", setupScriptURL)
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
@@ -430,18 +436,20 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 	// 	snip := files.GenerateSetupScript(lines)
 	// 	setupScriptContents += snip
 	// }
-	if len(setupScriptPath) > 0 {
-		if IsUrl(setupScriptPath) {
-			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptPath)
+	if len(setupRepo) > 0 && len(setupPath) > 0 {
+		// STUFF HERE
+	} else if len(setupScriptURL) > 0 {
+		if IsUrl(setupScriptURL) {
+			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptURL)
 			if err1 != nil {
-				t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptPath) + t.Yellow("Continuing with default setup script 👍"))
+				t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptURL) + t.Yellow("Continuing with default setup script 👍"))
 				return breverrors.WrapAndTrace(err1)
 			}
 			setupScriptContents += "\n" + contents
 		} else {
 			// ERROR: not sure what this use case is for
 			var err2 error
-			setupScriptContents, err2 = startStore.GetFileAsString(setupScriptPath)
+			setupScriptContents, err2 = startStore.GetFileAsString(setupScriptURL)
 			if err2 != nil {
 				return breverrors.WrapAndTrace(err2)
 			}
@@ -479,7 +487,7 @@ func clone(t *terminal.Terminal, url string, orgflag string, startStore StartSto
 		orgID = orgs[0].ID
 	}
 
-	err = createWorkspace(t, newWorkspace, orgID, startStore, workspaceClass, setupScriptContents)
+	err = createWorkspace(t, newWorkspace, orgID, startStore, workspaceClass, setupScriptContents, setupRepo, setupPath)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 	}
@@ -530,9 +538,11 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, workspaceClass string, setupScript string) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, workspaceClass string, setupScript string, setupRepo string, setupPath string) error {
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
+
+	// BANANA: add the appropriate workspace options for gitRepo and gitPath
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 
 	user, err := startStore.GetCurrentUser()
@@ -546,6 +556,7 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 
 	options = resolveWorkspaceUserOptions(options, user)
 
+	// BANANA: let the backend handle the decision making of what to use. Backend should accept both the script as text and the repo, then just use the repo.
 	if len(setupScript) > 0 {
 		options.WithStartupScript(setupScript)
 	}
