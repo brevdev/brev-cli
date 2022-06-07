@@ -23,12 +23,42 @@ type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
-	GitRepo              string               `json:"gitRepo"`
 	IsStoppable          bool                 `json:"isStoppable"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	PrimaryApplicationID string               `json:"primaryApplicationId"`
 	Applications         []entity.Application `json:"applications"`
-	StartupScript        string               `json:"startupScript"`
+
+	StartupScript string `json:"startupScript"`
+
+	GitRepo           string `json:"gitRepo"`
+	InitBranch        string `json:"initBranch"`
+	StartupScriptPath string `json:"startupScriptPath"`
+	DotBrevPath       string `json:"dotBrevPath"`
+
+	IDEConfig IDEConfig `json:"ideConfig"`
+	Repos     Repos     `json:"repos"`
+	Execs     Execs     `json:"execs"`
+}
+
+type IDEConfig struct {
+	VSCode VSCodeConfig `json:"vscode"`
+} // @Name IDEConfig
+
+type VSCodeConfig struct {
+	Extensions []VscodeExtensionMetadata `json:"extensions"`
+} // @Name VSCodeConfig
+
+type VscodeExtensionMetadata struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Version     string `json:"version"`
+	Publisher   string `json:"publisher"`
+	Description string `json:"description"`
+	Repository  string `json:"repository"`
+} // @Name ExtensionMetadata
+
+func (v VscodeExtensionMetadata) GetID() string {
+	return fmt.Sprintf("%s.%s", v.Publisher, v.Name)
 }
 
 var (
