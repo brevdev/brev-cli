@@ -2,14 +2,16 @@ package profile
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/fatih/color"
+	"github.com/pkg/browser"
 
 	"github.com/spf13/cobra"
 )
@@ -35,8 +37,8 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 		Short:                 "Personal profile commands",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginProfileStore, t),
+		// Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
+		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginProfileStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := profile(personalSettingsRepo, t, loginProfileStore)
 			if err != nil {
@@ -51,10 +53,35 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 	return cmd
 }
 
+func goToProfileInConsole() {
+	url := "https://console.brev.dev/profile"
+	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
+	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
+	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
+	// fmt.Println("\n" + url + "\n")
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		Label:      "  " + caretType("▸") + "    Press " + enterType("Enter") + " to edit your profile in browser",
+		ErrorMsg:   "error",
+		AllowEmpty: true,
+	})
+
+	fmt.Print("\n")
+
+	err := browser.OpenURL(url)
+	if err != nil {
+		fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")
+	}
+}
+
 func profile(personalSettingsRepo string, t *terminal.Terminal, profileStore ProfileStore) error {
 	user, err := profileStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	if len(personalSettingsRepo) == 0 {
+		goToProfileInConsole()
+		return nil
 	}
 
 	isURL := false
