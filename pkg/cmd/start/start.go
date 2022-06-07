@@ -146,7 +146,6 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	return cmd
 }
 
-// BANANA: not really sure what this function is? Have we ever used it? Is it hypothetical?
 func startWorkspaceFromPath(path string, loginStartStore StartStore, t *terminal.Terminal, detached bool, name string, org string, is4x16 bool, workspaceClass string, setupRepo string, setupPath string) error {
 	pathExists := dirExists(path)
 	if !pathExists {
@@ -541,7 +540,6 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
-	// BANANA: add the appropriate workspace options for gitRepo and gitPath
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 
 	user, err := startStore.GetCurrentUser()
@@ -554,6 +552,10 @@ func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string,
 	}
 
 	options = resolveWorkspaceUserOptions(options, user)
+
+	if len(setupRepo) == 0 || len(setupPath) == 0 {
+		options.WithCustomSetupRepo(setupRepo, setupPath)
+	}
 
 	// BANANA: let the backend handle the decision making of what to use. Backend should accept both the script as text and the repo, then just use the repo.
 	if len(setupScript) > 0 {

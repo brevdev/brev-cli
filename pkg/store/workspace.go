@@ -84,7 +84,6 @@ var (
 var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
-	// BANANA: add the appropriate workspace options for gitRepo and gitPath
 	return &CreateWorkspacesOptions{
 		Name:                 name,
 		WorkspaceGroupID:     clusterID,
@@ -96,6 +95,16 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		Applications:         DefaultApplicationList,
 		StartupScript:        setupscript.DefaultSetupScript,
 	}
+}
+
+func (c *CreateWorkspacesOptions) WithCustomSetupRepo(gitRepo string, path string) *CreateWorkspacesOptions {
+	c.Repos = Repos{
+		"configRepo": RepoV0{
+			Repository:    gitRepo,
+			SetupExecPath: path,
+		},
+	}
+	return c
 }
 
 func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesOptions {
