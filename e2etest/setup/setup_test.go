@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ import (
 
 func init() {
 	fmt.Println("building binary")
-	cmd := exec.Command("/usr/bin/make")
+	cmd := exec.Command("/usr/bin/make", "fast-build")
 	cmd.Dir = "/home/brev/workspace/brev-cli" // TODO relative path
 	_, err := cmd.CombinedOutput()
 	if err != nil {
@@ -407,6 +408,90 @@ func Test_VscodeExtension(t *testing.T) {
 
 		_, err = w.Exec("echo", "/home/brerv/vscode-server/extensions/golang.go-")
 		assert.Nil(t, err)
+	})
+	assert.Nil(t, err)
+}
+
+func Test_CustomBranchCustomSetupCustomFolder(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+	params.ProjectFolderName = "custom-folder"
+	params.WorkspaceProjectRepoBranch = "other-branch"
+	params.ProjectSetupExecPath = "scripts/my_custom_script.sh"
+	params.WorkspaceBaseRepo = ""
+
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, params.ProjectFolderName)
+		AssertCustomTestRepoSetupRan(t, w, params.ProjectFolderName, "custom setup script", "brev", filepath.Join("/home/brev/workspace", params.ProjectFolderName), "my_custom_script.log")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, params.ProjectFolderName)
+		AssertCustomTestRepoSetupRan(t, w, params.ProjectFolderName, "custom setup script", "brev", filepath.Join("/home/brev/workspace", params.ProjectFolderName), "my_custom_script.log")
+	})
+	assert.Nil(t, err)
+}
+
+func Test_ChangePwd(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+	params.WorkspaceProjectRepo = ""
+	params.WorkspaceBaseRepo = ""
+
+	params.Execs = store.Execs{
+		"exec-name": store.ExecV0{
+			Exec:        "echo 'my exec ran'",
+			ExecWorkDir: "test-repo-dotbrev",
+		},
+	}
+	params.Repos = store.Repos{
+		"repo-name": store.RepoV0{
+			Repository:    "github.com:brevdev/test-repo-dotbrev.git",
+			Branch:        "",
+			Directory:     "",
+			BrevPath:      "",
+			SetupExecPath: "",
+			ExecWorkDir:   ".brev",
+		},
+	}
+	folderName := "test-repo-dotbrev"
+
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, folderName)
+		AssertCustomTestRepoSetupRan(t, w, folderName, "repo setup script ran", "brev", filepath.Join("/home/brev/workspace", folderName, ".brev"), "setup.log")
+		AssertCustomTestRepoSetupRan(t, w, "/home/brev/workspace", "my exec ran", "brev", filepath.Join("/home/brev/workspace", folderName), "exec-name.log")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, folderName)
+		AssertCustomTestRepoSetupRan(t, w, folderName, "repo setup script ran", "brev", filepath.Join("/home/brev/workspace", folderName, ".brev"), "setup.log")
+		AssertCustomTestRepoSetupRan(t, w, "/home/brev/workspace", "my exec ran", "brev", filepath.Join("/home/brev/workspace", folderName), "exec-name.log")
 	})
 	assert.Nil(t, err)
 }

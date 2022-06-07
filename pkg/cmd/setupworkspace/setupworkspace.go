@@ -34,17 +34,18 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 				return breverrors.WrapAndTrace(err)
 			}
 			fmt.Println("setting up workspace")
-			if !featureflag.IsDev() { // allow tests to pass
+
+			params, err := store.GetSetupParams()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			if !featureflag.IsDev() && !params.DisableSetup {
 				_, err = store.GetCurrentUser() // do this to set error user reporting
 				if err != nil {
 					fmt.Println(err)
 					breverrors.GetDefaultErrorReporter().ReportError(err)
 				}
-			}
-
-			params, err := store.GetSetupParams()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
 			}
 
 			if !forceEnableSetup && params.DisableSetup {

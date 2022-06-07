@@ -94,6 +94,8 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PrimaryApplicationID: DefaultApplicationID,
 		Applications:         DefaultApplicationList,
 		StartupScript:        setupscript.DefaultSetupScript,
+
+		InitBranch: "bar",
 	}
 }
 

@@ -199,13 +199,23 @@ func (w TestWorkspace) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	binPath := fmt.Sprintf("%s:/usr/local/bin/brev", w.ContainerName)
+	brevBinPath := "/usr/bin/brev"
+
+	binPath := fmt.Sprintf("%s:%s", w.ContainerName, brevBinPath)
 	err = w.Copy(w.TestBrevBinary, binPath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err = w.Exec("/usr/local/bin/brev", "setupworkspace", "--force-enable")
+	res, err := w.Exec(brevBinPath, "--version")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !strings.Contains(string(res), "dev-") {
+		return fmt.Errorf("not dev version")
+	}
+
+	_, err = w.Exec(brevBinPath, "setupworkspace", "--force-enable")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -381,9 +391,14 @@ func AssertValidBrevProjRepo(t *testing.T, w Workspace, repoPath string) {
 
 func AssertTestRepoSetupRan(t *testing.T, w Workspace, repoPath string) {
 	t.Helper()
-	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "repo setup script ran")
-	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), "user: brev")
-	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/setup.log", repoPath), fmt.Sprintf("pwd: %s", filepath.Join("/home/brev/workspace", repoPath)))
+	AssertCustomTestRepoSetupRan(t, w, repoPath, "repo setup script ran", "brev", filepath.Join("/home/brev/workspace", repoPath), "setup.log")
+}
+
+func AssertCustomTestRepoSetupRan(t *testing.T, w Workspace, repoPath string, logStr string, user string, pwd string, logFile string) {
+	t.Helper()
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/%s", repoPath, logFile), logStr)
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/%s", repoPath, logFile), fmt.Sprintf("user: %s", user))
+	AssertFileContainsString(t, w, fmt.Sprintf("%s/.brev/logs/%s", repoPath, logFile), fmt.Sprintf("pwd: %s", pwd))
 }
 
 func AssertCwd(t *testing.T, w Workspace, expectedCwd string) {

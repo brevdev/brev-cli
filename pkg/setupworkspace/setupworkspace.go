@@ -108,7 +108,6 @@ func GetUserFromUserStr(userStr string) (*user.User, error) {
 
 type WorkspaceIniter struct {
 	WorkspaceDir       string
-	UserRepoName       string
 	User               *user.User
 	Params             *store.SetupParamsV0
 	Repos              store.Repos
@@ -126,7 +125,7 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 
 	params.Repos = initRepos(params.Repos)
 
-	if params.ProjectSetupScript == nil || *params.ProjectSetupScript == "" {
+	if (params.Execs == nil || len(params.Execs) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
 		defaultScript := "#!/bin/bash\n"
 		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
 		params.ProjectSetupScript = &b64DefaultScript
@@ -144,7 +143,6 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 
 	return &WorkspaceIniter{
 		WorkspaceDir:       workspaceDir,
-		UserRepoName:       "user-dotbrev",
 		User:               user,
 		Params:             params,
 		Repos:              params.Repos,
@@ -154,19 +152,26 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 }
 
 func makeUserRepo(params store.SetupParamsV0) store.Repos {
-	return store.Repos{
-		"user-config": {
-			Repository:    params.WorkspaceBaseRepo,
-			Directory:     "user-dotbrev",
-			Branch:        "",
-			BrevPath:      params.UserBrevPath,
-			SetupExecPath: params.UserSetupExecPath,
-			ExecWorkDir:   "",
-		},
+	if params.WorkspaceBaseRepo != "" {
+		return store.Repos{
+			"user-config": {
+				Repository:    params.WorkspaceBaseRepo,
+				Directory:     "user-dotbrev",
+				Branch:        "",
+				BrevPath:      params.UserBrevPath,
+				SetupExecPath: params.UserSetupExecPath,
+				ExecWorkDir:   "",
+			},
+		}
+	} else {
+		return store.Repos{}
 	}
 }
 
 func makeProjectRepo(params store.SetupParamsV0) store.Repos {
+	if params.WorkspaceProjectRepo == "" && len(params.Repos) > 0 {
+		return store.Repos{}
+	}
 	if params.ProjectFolderName == "" {
 		if params.WorkspaceProjectRepo != "" {
 			params.ProjectFolderName = getDefaultProjectFolderNameFromRepo(params.WorkspaceProjectRepo)
@@ -302,22 +307,6 @@ func (w WorkspaceIniter) BuildWorkspacePath(suffix ...string) string {
 	return filepath.Join(append([]string{w.WorkspaceDir}, suffix...)...)
 }
 
-func (w WorkspaceIniter) BuildProjectPath(suffix ...string) string {
-	return filepath.Join(append([]string{w.BuildWorkspacePath(w.Params.ProjectFolderName)}, suffix...)...)
-}
-
-func (w WorkspaceIniter) BuildUserPath(suffix ...string) string {
-	return filepath.Join(append([]string{w.BuildWorkspacePath(w.UserRepoName)}, suffix...)...)
-}
-
-func (w WorkspaceIniter) BuildProjectDotBrevPath(suffix ...string) string {
-	return filepath.Join(append([]string{w.BuildProjectPath(w.Params.ProjectBrevPath)}, suffix...)...)
-}
-
-func (w WorkspaceIniter) BuildUserDotBrevPath(suffix ...string) string {
-	return filepath.Join(append([]string{w.BuildUserPath(".brev")}, suffix...)...)
-}
-
 func (w WorkspaceIniter) Setup() error {
 	fmt.Println("------ Preparing the workspace ------")
 	err := w.PrepareWorkspace()
@@ -419,6 +408,7 @@ func (w WorkspaceIniter) runExec(name store.ExecName, exec store.ExecV0) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	ChownFileToUser(f, w.User)
 	out := util.DecodeBase64OrReturnSelf(exec.Exec)
 	_, err = f.Write(out)
 	if err != nil {
