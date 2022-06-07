@@ -51,6 +51,12 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 		return
 	}
 	params := NewTestSetupParams(keys)
+	params.Repos = store.Repos{
+		"test-config": store.RepoV0{
+			Repository: "github.com:brevdev/test-repo-dotbrev.git",
+			Directory:  "test-config",
+		},
+	}
 
 	client := NewStdWorkspaceTestClient(params, SupportedContainers)
 
@@ -64,6 +70,9 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 
+		AssertValidBrevProjRepo(t, w, "test-config")
+		AssertTestRepoSetupRan(t, w, "test-config")
+
 		err1 := w.Reset()
 		if !assert.Nil(t, err1) {
 			return
@@ -74,6 +83,9 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-config")
+		AssertTestRepoSetupRan(t, w, "test-config")
 	})
 
 	assert.Nil(t, err)
