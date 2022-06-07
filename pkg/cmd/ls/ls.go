@@ -246,11 +246,6 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Org
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
-
-	if len(userWorkspaces) == 0 && len(allWorkspaces) > 0 {
-		ls.terminal.Vprintf(ls.terminal.Green("See teammates' workspaces:\n"))
-		ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev ls --all\n"))
-	}
 }
 
 func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
