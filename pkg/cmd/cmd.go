@@ -9,6 +9,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
+	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/initfile"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
@@ -33,7 +34,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
 	"github.com/brevdev/brev-cli/pkg/cmd/up"
-	"github.com/brevdev/brev-cli/pkg/cmd/vscodeext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -210,7 +210,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
-		cmd.AddCommand(vscodeext.NewCmdVSCodeExtensionImporter(t, noLoginCmdStore))
+		cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
 		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))

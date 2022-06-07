@@ -11,6 +11,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -173,6 +174,11 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
+	}
+
+	err = importideconfig.RunImportIDEConfig(t, o.LoginStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil

@@ -1,4 +1,4 @@
-package vscodeext
+package importideconfig
 
 import (
 	"errors"
@@ -8,10 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/server"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/tidwall/gjson"
 	"golang.org/x/text/encoding/charmap"
@@ -24,39 +21,29 @@ import (
 // startLong    = "[internal] test"
 var startExample = "[internal] test"
 
-type TestStore interface {
-	completions.CompletionStore
-	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+type ImportIDEConfigStore interface {
 	GetCurrentUser() (*entity.User, error)
-	GetWorkspace(id string) (*entity.Workspace, error)
-	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
-	CopyBin(targetBin string) error
-	GetSetupScriptContentsByURL(url string) (string, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
-	server.RPCServerTaskStore
 }
 
-func NewCmdVSCodeExtensionImporter(t *terminal.Terminal, s TestStore) *cobra.Command {
+func NewCmdImportIDEConfig(t *terminal.Terminal, s ImportIDEConfigStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
-		Use:                   "import-vscode-extensions",
+		Use:                   "import-ide-config",
 		DisableFlagsInUseLine: true,
-		Short:                 "Import your VSCode extensions.",
-		Long:                  "Import your VSCode extensions. You can use imported VSCode extensions on Workspace templates",
+		Short:                 "Import your IDE config",
+		Long:                  "Import your IDE config like vscode extensions",
 		Example:               startExample,
 		// Args:                 cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return breverrors.WrapAndTrace(runImportVscodeExtensions(t, s))
+			return breverrors.WrapAndTrace(RunImportIDEConfig(t, s))
 		},
 	}
 
 	return cmd
 }
 
-func runImportVscodeExtensions(t *terminal.Terminal, store TestStore) error {
+func RunImportIDEConfig(t *terminal.Terminal, store ImportIDEConfigStore) error {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
