@@ -408,7 +408,10 @@ func (w WorkspaceIniter) runExec(name store.ExecName, exec store.ExecV0) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	ChownFileToUser(f, w.User)
+	err = ChownFileToUser(f, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	out := util.DecodeBase64OrReturnSelf(exec.Exec)
 	_, err = f.Write(out)
 	if err != nil {
