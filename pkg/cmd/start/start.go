@@ -137,7 +137,6 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
 	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "use a setup script in a custom repository")
 	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to setup script in custom repository")
-	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "replace the default setup script")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
