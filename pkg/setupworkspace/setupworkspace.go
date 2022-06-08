@@ -661,7 +661,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		}
 	}
 
-	codeServerLogLevel := "trace"
+	codeServerLogLevel := "debug"
 	logLevel := fmt.Sprintf("log: %s\n", codeServerLogLevel)
 	if !strings.Contains(string(configFile), logLevel) {
 		err = AppendToOrCreateFile(codeServerConfigPath, logLevel)
@@ -685,6 +685,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 }
 
 func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
+	fmt.Println("installing vscode extensions...")
 	cmd := exec.Command("echo", filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin")) //nolint:gosec // occurs
 	out, err := cmd.CombinedOutput()
 	if err != nil {

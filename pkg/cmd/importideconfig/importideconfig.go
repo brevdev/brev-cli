@@ -43,14 +43,15 @@ func NewCmdImportIDEConfig(t *terminal.Terminal, s ImportIDEConfigStore) *cobra.
 	return cmd
 }
 
-func RunImportIDEConfig(t *terminal.Terminal, store ImportIDEConfigStore) error {
+func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error {
+	fmt.Println("updating vscode extensions...")
 	homedir, err := os.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	var extensions []entity.VSCodeExtensionMetadata
-	// NOTE: intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
+	// intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
 	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -69,13 +70,8 @@ func RunImportIDEConfig(t *terminal.Terminal, store ImportIDEConfigStore) error 
 			extensions = append(extensions, *obj)
 		}
 	}
-	// TODO: push this to the backend
-	for _, v := range extensions {
-		t.Vprint(t.Green(v.DisplayName))
-	}
 
 	user, err := store.GetCurrentUser()
-	fmt.Println(user.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
