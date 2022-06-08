@@ -35,9 +35,9 @@ type CreateWorkspacesOptions struct {
 	StartupScriptPath string `json:"startupScriptPath"`
 	DotBrevPath       string `json:"dotBrevPath"`
 
-	IDEConfig IDEConfig `json:"ideConfig"`
-	Repos     Repos     `json:"repos"`
-	Execs     Execs     `json:"execs"`
+	IDEConfig *IDEConfig `json:"ideConfig"`
+	Repos     Repos      `json:"repos"`
+	Execs     Execs      `json:"execs"`
 }
 
 type IDEConfig struct {
