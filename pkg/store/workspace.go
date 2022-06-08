@@ -35,30 +35,9 @@ type CreateWorkspacesOptions struct {
 	StartupScriptPath string `json:"startupScriptPath"`
 	DotBrevPath       string `json:"dotBrevPath"`
 
-	IDEConfig *IDEConfig `json:"ideConfig"`
-	Repos     Repos      `json:"repos"`
-	Execs     Execs      `json:"execs"`
-}
-
-type IDEConfig struct {
-	VSCode VSCodeConfig `json:"vscode"`
-} // @Name IDEConfig
-
-type VSCodeConfig struct {
-	Extensions []VscodeExtensionMetadata `json:"extensions"`
-} // @Name VSCodeConfig
-
-type VscodeExtensionMetadata struct {
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-	Version     string `json:"version"`
-	Publisher   string `json:"publisher"`
-	Description string `json:"description"`
-	Repository  string `json:"repository"`
-} // @Name ExtensionMetadata
-
-func (v VscodeExtensionMetadata) GetID() string {
-	return fmt.Sprintf("%s.%s", v.Publisher, v.Name)
+	IDEConfig *entity.IDEConfig `json:"ideConfig"`
+	Repos     entity.Repos      `json:"repos"`
+	Execs     entity.Execs      `json:"execs"`
 }
 
 var (
@@ -98,8 +77,8 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 }
 
 func (c *CreateWorkspacesOptions) WithCustomSetupRepo(gitRepo string, path string) *CreateWorkspacesOptions {
-	c.Repos = Repos{
-		"configRepo": RepoV0{
+	c.Repos = entity.Repos{
+		"configRepo": entity.RepoV0{
 			Repository:    gitRepo,
 			SetupExecPath: path,
 		},
@@ -416,8 +395,8 @@ type SetupParamsV0 struct {
 	UserBrevPath      string `json:"userBrevPath"`
 	UserSetupExecPath string `json:"userSetupExecPath"`
 
-	Repos Repos `json:"repos"` // the new way to handle repos // user and project should be here
-	Execs Execs `json:"execs"` // the new way to handle setup scripts
+	Repos entity.Repos `json:"repos"` // the new way to handle repos, user and project should be here
+	Execs entity.Execs `json:"execs"` // the new way to handle setup scripts
 
 	IDEConfigs IDEConfigs `json:"ideConfig"`
 
@@ -430,30 +409,6 @@ type (
 		ExtensionIDs []string `json:"extensionIds"`
 	}
 	IDEConfigs map[IDEName]IdeConfig
-)
-
-type (
-	RepoName string
-	RepoV0   struct {
-		Repository    string   `json:"repository"`
-		Branch        string   `json:"branch"` // branch, tag, commit
-		Directory     string   `json:"directory"`
-		BrevPath      string   `json:"brevPath"`
-		SetupExecPath string   `json:"setupExecPath"`
-		ExecWorkDir   string   `json:"execWorkDir"`
-		DependsOn     []string `json:"dependsOn"`
-	}
-	Repos map[RepoName]RepoV0
-)
-
-type (
-	ExecName string
-	ExecV0   struct {
-		Exec        string   `json:"exec"`
-		ExecWorkDir string   `json:"execWorkDir"`
-		DependsOn   []string `json:"dependsOn"`
-	}
-	Execs map[ExecName]ExecV0
 )
 
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
