@@ -20,8 +20,8 @@ import (
 )
 
 type (
-	connectionMap map[entity.WorkspaceWithMeta]chan struct{}
-	retrymap      map[entity.WorkspaceWithMeta]int
+	connectionMap map[string]chan struct{}
+	retrymap      map[string]int
 )
 
 type SSHAll struct {
@@ -124,9 +124,9 @@ func (s SSHAll) Run() error {
 				isHealthy, _ := s.workspaceSSHConnectionHealthCheck(w)
 				if !isHealthy {
 					fmt.Printf("resetting [w=%s]\n", w.DNS)
-					TryClose(s.workspaceConnections[w])
-					if s.retries[w] > 0 {
-						s.retries[w]--
+					TryClose(s.workspaceConnections[w.ID])
+					if s.retries[w.ID] > 0 {
+						s.retries[w.ID]--
 						s.runPortForwardWorkspace(w, s.workspaces)
 					}
 				}
@@ -150,7 +150,7 @@ Host *
 	fmt.Println()
 	for _, w := range s.workspaces {
 		fmt.Printf("ssh %s\n", w.GetLocalIdentifier())
-		s.retries[w] = 3 // TODO magic number
+		s.retries[w.ID] = 3 // TODO magic number
 		s.runPortForwardWorkspace(w, s.workspaces)
 	}
 	fmt.Println()
@@ -196,7 +196,7 @@ func (s *SSHAll) portforwardWorkspaceAtPort(workspace entity.WorkspaceWithMeta, 
 	)
 
 	s.workspaceConnectionsMutex.Lock()
-	s.workspaceConnections[workspace] = pf.StopChannel
+	s.workspaceConnections[workspace.ID] = pf.StopChannel
 	s.workspaceConnectionsMutex.Unlock()
 
 	_, err := pf.WithWorkspace(workspace)
