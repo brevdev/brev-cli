@@ -709,7 +709,7 @@ func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
 	// Glob = "/home/brev/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/code-server"
 	codePath := matches[0]
 
-	fmt.Printf("exec code %s\n", codePathGlob)
+	fmt.Printf("exec code %s\n", codePath)
 
 	var extErr error
 	for _, e := range extensionIDs {
