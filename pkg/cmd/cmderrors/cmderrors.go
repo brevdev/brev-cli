@@ -19,7 +19,10 @@ func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
 	er.AddTag("command", name)
 	err := cmdFunc()
 	if err != nil {
-		er.ReportMessage(err.Error())
+		er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
+			Type:    "err",
+			Message: err.Error(),
+		})
 		er.ReportError(err)
 		if featureflag.Debug() || featureflag.IsDev() {
 			return err
@@ -43,7 +46,10 @@ func DisplayAndHandleError(err error) {
 				prettyErr = (t.Yellow(errors.Cause(err).Error()))
 			} else {
 				er := breverrors.GetDefaultErrorReporter()
-				er.ReportMessage(err.Error())
+				er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
+					Type:    "err",
+					Message: err.Error(),
+				})
 				er.ReportError(err)
 				prettyErr = (t.Red(errors.Cause(err).Error()))
 			}

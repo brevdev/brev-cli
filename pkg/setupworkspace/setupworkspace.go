@@ -42,7 +42,8 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 		if errF != nil {
 			return multierror.Append(err, errF)
 		}
-		return breverrors.WrapAndTrace(errF, string(logFile))
+		breverrors.GetDefaultErrorReporter().AddBreadCrumb(breverrors.ErrReportBreadCrumb{Type: "log-file", Message: string(logFile)})
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

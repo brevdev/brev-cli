@@ -33,6 +33,7 @@ type ErrorReporter interface {
 	ReportError(error) string
 	AddTag(key string, value string)
 	SetUser(user ErrorUser)
+	AddBreadCrumb(bc ErrReportBreadCrumb)
 }
 
 func GetDefaultErrorReporter() ErrorReporter {
@@ -75,6 +76,23 @@ func (s SentryErrorReporter) SetUser(user ErrorUser) {
 
 func (s SentryErrorReporter) Flush() {
 	sentry.Flush(time.Second * 2)
+}
+
+type ErrReportBreadCrumb struct {
+	Type     string
+	Category string
+	Message  string
+	Level    string
+}
+
+func (s SentryErrorReporter) AddBreadCrumb(bc ErrReportBreadCrumb) {
+	scope := sentry.CurrentHub()
+	scope.AddBreadcrumb(&sentry.Breadcrumb{
+		Type:     bc.Type,
+		Category: bc.Category,
+		Message:  bc.Message,
+		Level:    sentry.Level(bc.Level),
+	}, &sentry.BreadcrumbHint{})
 }
 
 func (s SentryErrorReporter) ReportMessage(msg string) string {
