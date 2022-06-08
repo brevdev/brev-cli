@@ -395,7 +395,7 @@ func Test_VscodeExtension(t *testing.T) {
 	params.WorkspaceProjectRepo = testRepoNoDotBrev
 	params.IDEConfigs = store.IDEConfigs{
 		"vscode": {
-			ExtensionIDs: []string{"golang.go"},
+			ExtensionIDs: []string{"golang.go@0.33.1"},
 		},
 	}
 
@@ -406,7 +406,7 @@ func Test_VscodeExtension(t *testing.T) {
 		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
-		_, err = w.Exec("echo", "/home/brerv/vscode-server/extensions/golang.go-")
+		_, err = w.Exec("ls", "/home/brev/.vscode-server/extensions/golang.go-0.33.1")
 		assert.Nil(t, err)
 
 		err1 := w.Reset()
@@ -418,7 +418,7 @@ func Test_VscodeExtension(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 
-		_, err = w.Exec("echo", "/home/brerv/vscode-server/extensions/golang.go-")
+		_, err = w.Exec("ls", "/home/brev/.vscode-server/extensions/golang.go-0.33.1")
 		assert.Nil(t, err)
 	})
 	assert.Nil(t, err)

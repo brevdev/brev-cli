@@ -314,15 +314,22 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.SetupCodeServer(w.Params.WorkspacePassword, fmt.Sprintf("127.0.0.1:%d", w.Params.WorkspacePort), string(w.Params.WorkspaceHost))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = w.SetupVsCodeExtensions(w.VscodeExtensionIDs)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	installVscodeExts := util.RunEAsync(
+		func() error {
+			err0 := w.SetupVsCodeExtensions(w.VscodeExtensionIDs)
+			if err0 != nil {
+				fmt.Println(err0)
+			}
+			return nil
+		},
+		func() error {
+			err = w.SetupCodeServer(w.Params.WorkspacePassword, fmt.Sprintf("127.0.0.1:%d", w.Params.WorkspacePort), string(w.Params.WorkspaceHost))
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		},
+	)
 
 	err = w.SetupSSH(w.Params.WorkspaceKeyPair)
 	if err != nil {
@@ -353,6 +360,11 @@ func (w WorkspaceIniter) Setup() error {
 
 	if setupErr != nil {
 		return breverrors.WrapAndTrace(setupErr)
+	}
+
+	err = installVscodeExts.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil
@@ -661,7 +673,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		}
 	}
 
-	codeServerLogLevel := "debug"
+	codeServerLogLevel := "trace"
 	logLevel := fmt.Sprintf("log: %s\n", codeServerLogLevel)
 	if !strings.Contains(string(configFile), logLevel) {
 		err = AppendToOrCreateFile(codeServerConfigPath, logLevel)
@@ -686,21 +698,34 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 
 func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
 	fmt.Println("installing vscode extensions...")
-	cmd := exec.Command("echo", filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin")) //nolint:gosec // occurs
-	out, err := cmd.CombinedOutput()
+	codePathGlob := filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin/code-server")
+	matches, err := filepath.Glob(codePathGlob)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	codePath := strings.TrimSpace(string(out))
+	if len(matches) == 0 {
+		return fmt.Errorf("no vscode server found")
+	}
+	// Glob = "/home/brev/.vscode-server/bin/c3511e6c69bb39013c4a4b7b9566ec1ca73fc4d5/bin/code-server"
+	codePath := matches[0]
+
+	fmt.Printf("exec code %s\n", codePathGlob)
 
 	var extErr error
 	for _, e := range extensionIDs {
 		fmt.Println(e)
 		cmd := CmdBuilder(codePath, "--install-extension", e)
+		err := w.CmdAsUser(cmd)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 		err = cmd.Run()
 		if err != nil {
-			extErr = multierror.Append(extErr)
+			extErr = multierror.Append(extErr, err)
 		}
+	}
+	if extErr != nil {
+		return breverrors.WrapAndTrace(extErr)
 	}
 	fmt.Println("done vscode extensions")
 	return nil
