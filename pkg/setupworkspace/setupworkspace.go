@@ -695,12 +695,14 @@ func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
 
 	var extErr error
 	for _, e := range extensionIDs {
+		fmt.Println(e)
 		cmd := CmdBuilder(codePath, "--install-extension", e)
 		err = cmd.Run()
 		if err != nil {
 			extErr = multierror.Append(extErr)
 		}
 	}
+	fmt.Println("done vscode extensions")
 	return nil
 }
 
