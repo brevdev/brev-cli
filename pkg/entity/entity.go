@@ -35,6 +35,20 @@ type IdeConfig struct {
 	VsCode VsCode `json:"vscode"`
 }
 
+type (
+	RepoName string
+	RepoV0   struct {
+		Repository    string   `json:"repository"`
+		Branch        string   `json:"branch"` // branch, tag, commit
+		Directory     string   `json:"directory"`
+		BrevPath      string   `json:"brevPath"`
+		SetupExecPath string   `json:"setupExecPath"`
+		ExecWorkDir   string   `json:"execWorkDir"`
+		DependsOn     []string `json:"dependsOn"`
+	}
+	Repos map[RepoName]RepoV0
+)
+
 type UpdateUser struct {
 	Username          string                 `json:"username,omitempty"`
 	Name              string                 `json:"name,omitempty"`
@@ -154,6 +168,7 @@ type Workspace struct {
 	Version           string            `json:"version"`
 	WorkspaceTemplate WorkspaceTemplate `json:"workspaceTemplate"`
 	NetworkID         string            `json:"networkId"`
+	Repos             Repos             `json:"repos"`
 	// The below are other fields that might not be needed yet so commented out
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`

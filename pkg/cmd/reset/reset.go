@@ -84,7 +84,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
-		err := hardResetCreateWorkspaceFromRepo(t, resetStore, deletedWorkspace.Name, deletedWorkspace.GitRepo)
+		err := hardResetCreateWorkspaceFromRepo(t, resetStore, deletedWorkspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -98,7 +98,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 }
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
-func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, name, repo string) error {
+func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
 	t.Vprint(t.Green("\nWorkspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	var orgID string
 	activeorg, err := resetStore.GetActiveOrganizationOrDefault()
@@ -110,7 +110,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 	}
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	options := store.NewCreateWorkspacesOptions(clusterID, name).WithGitRepo(repo)
+	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 
 	user, err := resetStore.GetCurrentUser()
 	if err != nil {
@@ -118,6 +118,8 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 	}
 
 	options = resolveWorkspaceUserOptions(options, user)
+
+	options.Repos = store.Repos(workspace.Repos)
 
 	w, err := resetStore.CreateWorkspace(orgID, options)
 	if err != nil {
