@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/stretchr/testify/assert"
 )
@@ -51,8 +52,8 @@ func Test_UserBrevProjectBrev(t *testing.T) {
 		return
 	}
 	params := NewTestSetupParams(keys)
-	params.Repos = store.Repos{
-		"test-config": store.RepoV0{
+	params.Repos = entity.Repos{
+		"test-config": entity.RepoV0{
 			Repository: "github.com:brevdev/test-repo-dotbrev.git",
 			Directory:  "test-config",
 		},
@@ -466,14 +467,14 @@ func Test_ChangePwd(t *testing.T) {
 	params.WorkspaceProjectRepo = ""
 	params.WorkspaceBaseRepo = ""
 
-	params.Execs = store.Execs{
-		"exec-name": store.ExecV0{
+	params.Execs = entity.Execs{
+		"exec-name": entity.ExecV0{
 			Exec:        "echo 'my exec ran'",
 			ExecWorkDir: "test-repo-dotbrev",
 		},
 	}
-	params.Repos = store.Repos{
-		"repo-name": store.RepoV0{
+	params.Repos = entity.Repos{
+		"repo-name": entity.RepoV0{
 			Repository:    "github.com:brevdev/test-repo-dotbrev.git",
 			Branch:        "",
 			Directory:     "",

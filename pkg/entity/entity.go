@@ -12,28 +12,46 @@ type AuthTokens struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// IdeConfig {
-//     VsCode: {
-//         Extensions: []
-//     }
-// }
+type IDEConfig struct {
+	VSCode VSCodeConfig `json:"vscode"`
+} // @Name IDEConfig
 
-type VSCodeExtensionMetadata struct {
+type VSCodeConfig struct {
+	Extensions []VscodeExtensionMetadata `json:"extensions"`
+} // @Name VSCodeConfig
+
+type VscodeExtensionMetadata struct {
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
 	Version     string `json:"version"`
 	Publisher   string `json:"publisher"`
 	Description string `json:"description"`
 	Repository  string `json:"repository"`
-}
+} // @Name ExtensionMetadata
 
-type VsCode struct {
-	Extensions []VSCodeExtensionMetadata `json:"extensions"`
-}
+type (
+	RepoName string
+	RepoV0   struct {
+		Repository    string   `json:"repository"`
+		Branch        string   `json:"branch"` // branch, tag, commit
+		Directory     string   `json:"directory"`
+		BrevPath      string   `json:"brevPath"`
+		SetupExecPath string   `json:"setupExecPath"`
+		ExecWorkDir   string   `json:"execWorkDir"`
+		DependsOn     []string `json:"dependsOn"`
+	}
+	Repos map[RepoName]RepoV0
+)
 
-type IdeConfig struct {
-	VsCode VsCode `json:"vscode"`
-}
+type (
+	ExecName string
+	ExecV0   struct {
+		Exec        string   `json:"exec"`
+		ExecWorkDir string   `json:"execWorkDir"`
+		DependsOn   []string `json:"dependsOn"`
+	}
+	Execs map[ExecName]ExecV0
+)
 
 type UpdateUser struct {
 	Username          string                 `json:"username,omitempty"`
@@ -41,7 +59,7 @@ type UpdateUser struct {
 	Email             string                 `json:"email,omitempty"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
 	OnboardingStatus  map[string]interface{} `json:"onboardingData,omitempty"` // todo fix inconsitency
-	IdeConfig         IdeConfig              `json:"ideConfig,omitempty"`
+	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
 }
 
 type User struct {
@@ -53,7 +71,7 @@ type User struct {
 	WorkspacePassword string                 `json:"workspacePassword"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType    string                 `json:"globalUserType"`
-	IdeConfig         IdeConfig              `json:"IdeConfig,omitempty"`
+	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
 	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
 }
 
@@ -68,6 +86,10 @@ type WorkspaceGroupKeys struct {
 	Cert    string `json:"cert"`
 	CA      string `json:"ca"`
 	APIURL  string `json:"apiUrl"`
+}
+
+func (v VscodeExtensionMetadata) GetID() string {
+	return fmt.Sprintf("%s.%s", v.Publisher, v.Name)
 }
 
 func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGroupKeys, error) {
@@ -154,6 +176,12 @@ type Workspace struct {
 	Version           string            `json:"version"`
 	WorkspaceTemplate WorkspaceTemplate `json:"workspaceTemplate"`
 	NetworkID         string            `json:"networkId"`
+
+	StartupScriptPath string    `json:"startupScriptPath"`
+	Repos             Repos     `json:"repos"`
+	Execs             Execs     `json:"execs"`
+	IDEConfig         IDEConfig `json:"ideConfig"`
+
 	// The below are other fields that might not be needed yet so commented out
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`

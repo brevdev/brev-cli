@@ -50,7 +50,7 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	var extensions []entity.VSCodeExtensionMetadata
+	var extensions []entity.VscodeExtensionMetadata
 	// intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
 	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
 	if err != nil {
@@ -77,8 +77,8 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 	}
 
 	_, err = store.UpdateUser(user.ID, &entity.UpdateUser{
-		IdeConfig: entity.IdeConfig{
-			VsCode: entity.VsCode{
+		IdeConfig: entity.IDEConfig{
+			VSCode: entity.VSCodeConfig{
 				Extensions: extensions,
 			},
 		},
@@ -91,7 +91,7 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 }
 
 // Create a VSCodeMetadataObject from package.json file
-func createVSCodeMetadataObject(homedir string, path string) (*entity.VSCodeExtensionMetadata, error) {
+func createVSCodeMetadataObject(homedir string, path string) (*entity.VscodeExtensionMetadata, error) {
 	segments := strings.Split(path, "/")
 	if !strings.Contains(segments[0], ".vscode") &&
 		segments[1] != "extensions" && segments[3] != "package.json" {
@@ -103,7 +103,7 @@ func createVSCodeMetadataObject(homedir string, path string) (*entity.VSCodeExte
 	} else {
 		repoBlock := gjson.Get(contents, "repository").String()
 		repoURL := gjson.Get(repoBlock, "url").String()
-		return &entity.VSCodeExtensionMetadata{
+		return &entity.VscodeExtensionMetadata{
 			Name:        gjson.Get(contents, "name").String(),
 			DisplayName: gjson.Get(contents, "displayName").String(),
 			Version:     gjson.Get(contents, "version").String(),

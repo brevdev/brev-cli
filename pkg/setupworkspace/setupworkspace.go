@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/uri"
@@ -116,8 +117,8 @@ type WorkspaceIniter struct {
 	WorkspaceDir       string
 	User               *user.User
 	Params             *store.SetupParamsV0
-	Repos              store.Repos
-	Execs              store.Execs
+	Repos              entity.Repos
+	Execs              entity.Execs
 	VscodeExtensionIDs []string
 }
 
@@ -157,9 +158,9 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 	}
 }
 
-func makeUserRepo(params store.SetupParamsV0) store.Repos {
+func makeUserRepo(params store.SetupParamsV0) entity.Repos {
 	if params.WorkspaceBaseRepo != "" {
-		return store.Repos{
+		return entity.Repos{
 			"user-config": {
 				Repository:    params.WorkspaceBaseRepo,
 				Directory:     "user-dotbrev",
@@ -170,13 +171,13 @@ func makeUserRepo(params store.SetupParamsV0) store.Repos {
 			},
 		}
 	} else {
-		return store.Repos{}
+		return entity.Repos{}
 	}
 }
 
-func makeProjectRepo(params store.SetupParamsV0) store.Repos {
+func makeProjectRepo(params store.SetupParamsV0) entity.Repos {
 	if params.WorkspaceProjectRepo == "" && len(params.Repos) > 0 {
-		return store.Repos{}
+		return entity.Repos{}
 	}
 	if params.ProjectFolderName == "" {
 		if params.WorkspaceProjectRepo != "" {
@@ -185,7 +186,7 @@ func makeProjectRepo(params store.SetupParamsV0) store.Repos {
 			params.ProjectFolderName = getDefaultProjectFolderNameFromHost(params.WorkspaceHost)
 		}
 	}
-	return store.Repos{
+	return entity.Repos{
 		"project": {
 			Repository:    params.WorkspaceProjectRepo,
 			Directory:     params.ProjectFolderName,
@@ -197,8 +198,8 @@ func makeProjectRepo(params store.SetupParamsV0) store.Repos {
 	}
 }
 
-func mergeRepos(repos ...store.Repos) store.Repos {
-	newRepos := store.Repos{}
+func mergeRepos(repos ...entity.Repos) entity.Repos {
+	newRepos := entity.Repos{}
 	for _, rs := range repos {
 		for n, r := range rs {
 			newRepos[n] = r
@@ -207,8 +208,8 @@ func mergeRepos(repos ...store.Repos) store.Repos {
 	return newRepos
 }
 
-func mergeExecs(repos ...store.Execs) store.Execs {
-	newRepos := store.Execs{}
+func mergeExecs(repos ...entity.Execs) entity.Execs {
+	newRepos := entity.Execs{}
 	for _, rs := range repos {
 		for n, r := range rs {
 			newRepos[n] = r
@@ -217,9 +218,9 @@ func mergeExecs(repos ...store.Execs) store.Execs {
 	return newRepos
 }
 
-func makeExecFromSetupParams(params store.SetupParamsV0) store.Execs {
+func makeExecFromSetupParams(params store.SetupParamsV0) entity.Execs {
 	if params.ProjectSetupScript != nil {
-		return store.Execs{
+		return entity.Execs{
 			"setup.sh": {
 				Exec:        *params.ProjectSetupScript,
 				ExecWorkDir: "",
@@ -227,10 +228,10 @@ func makeExecFromSetupParams(params store.SetupParamsV0) store.Execs {
 			},
 		}
 	}
-	return store.Execs{}
+	return entity.Execs{}
 }
 
-func initRepo(repo store.RepoV0) store.RepoV0 {
+func initRepo(repo entity.RepoV0) entity.RepoV0 {
 	if repo.BrevPath == "" {
 		repo.BrevPath = ".brev"
 	}
@@ -244,8 +245,8 @@ func initRepo(repo store.RepoV0) store.RepoV0 {
 	return repo
 }
 
-func initRepos(repos store.Repos) store.Repos {
-	newRepos := store.Repos{}
+func initRepos(repos entity.Repos) entity.Repos {
+	newRepos := entity.Repos{}
 	for n, r := range repos {
 		newRepos[n] = initRepo(r)
 	}
@@ -416,7 +417,7 @@ func (w WorkspaceIniter) RunExecs() error {
 	return nil
 }
 
-func (w WorkspaceIniter) runExec(name store.ExecName, exec store.ExecV0) error {
+func (w WorkspaceIniter) runExec(name entity.ExecName, exec entity.ExecV0) error {
 	workDir := filepath.Join(w.BuildWorkspacePath(), exec.ExecWorkDir)
 	dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
 	logPath := filepath.Join(dotBrev, "logs")
@@ -745,7 +746,7 @@ func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
 	return nil
 }
 
-func (w WorkspaceIniter) setupRepo(repo store.RepoV0) error {
+func (w WorkspaceIniter) setupRepo(repo entity.RepoV0) error {
 	repoPath := filepath.Join(w.BuildWorkspacePath(), repo.Directory)
 	workDirPath := filepath.Join(repoPath, repo.ExecWorkDir)
 	if repo.Repository == "" {
