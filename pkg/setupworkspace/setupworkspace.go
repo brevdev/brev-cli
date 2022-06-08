@@ -28,14 +28,20 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	wi := NewWorkspaceIniter(user, params)
-	done, err := mirrorPipesToFile("/var/log/brev-workspace.log")
+	logFilePath := "/var/log/brev-workspace.log"
+	done, err := mirrorPipesToFile(logFilePath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	defer done()
 	err = wi.Setup()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		time.Sleep(time.Millisecond * 100) // wait for buffer to be written
+		logFile, errF := ioutil.ReadFile(logFilePath)
+		if errF != nil {
+			return multierror.Append(err, errF)
+		}
+		return breverrors.WrapAndTrace(errF, string(logFile))
 	}
 	return nil
 }
@@ -314,7 +320,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	installVscodeExts := util.RunEAsync(
+	postPrepare := util.RunEAsync(
 		func() error {
 			err0 := w.SetupVsCodeExtensions(w.VscodeExtensionIDs)
 			if err0 != nil {
@@ -362,7 +368,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(setupErr)
 	}
 
-	err = installVscodeExts.Await()
+	err = postPrepare.Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
