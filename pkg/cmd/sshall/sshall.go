@@ -108,31 +108,20 @@ func (s SSHAll) runPortForwardWorkspace(workspace entity.WorkspaceWithMeta, _ []
 }
 
 func (s SSHAll) Run() error {
-	errorQueue := make(chan error, 1)
-
-	// set up error handling for the ssh connections, very much brute force
-	// since kubectl was not intended to be used a library like this
 	runtime.ErrorHandlers = append(runtime.ErrorHandlers, func(err error) {
-		errorQueue <- err
-	})
-
-	go func() {
-		for {
-			<-errorQueue
-			fmt.Println("resetting unhealthy connections")
-			for _, w := range s.workspaces {
-				isHealthy, _ := s.workspaceSSHConnectionHealthCheck(w)
-				if !isHealthy {
-					fmt.Printf("resetting [w=%s]\n", w.DNS)
-					TryClose(s.workspaceConnections[w.ID])
-					if s.retries[w.ID] > 0 {
-						s.retries[w.ID]--
-						s.runPortForwardWorkspace(w, s.workspaces)
-					}
+		fmt.Println("resetting unhealthy connections")
+		for _, w := range s.workspaces {
+			isHealthy, _ := s.workspaceSSHConnectionHealthCheck(w)
+			if !isHealthy {
+				fmt.Printf("resetting [w=%s]\n", w.DNS)
+				TryClose(s.workspaceConnections[w.ID])
+				if s.retries[w.ID] > 0 {
+					s.retries[w.ID]--
+					s.runPortForwardWorkspace(w, s.workspaces)
 				}
 			}
 		}
-	}()
+	})
 
 	if len(s.workspaces) == 0 {
 		fmt.Println("No workspaces in org")
