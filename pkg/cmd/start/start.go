@@ -134,7 +134,7 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	} else { // assume name
+	} else { // assume name or id
 		err := startStoppedOrJoinWorkspace(t, startStore, options)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
