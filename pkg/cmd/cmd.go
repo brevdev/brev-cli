@@ -119,14 +119,14 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
             https://brev.dev`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
-			// if !printVersion {
-			// 	v, err := remoteversion.BuildCheckLatestVersionString(t, noLoginCmdStore)
-			// 	if err != nil {
-			// 		t.Errprint(err, "Failed to determine version")
-			// 		return breverrors.WrapAndTrace(err)
-			// 	}
-			// 	t.Vprint(v)
-			// }
+			if !printVersion {
+				v, err := remoteversion.BuildCheckLatestVersionString(t, noLoginCmdStore)
+				if err != nil {
+					t.Errprint(err, "Failed to determine version")
+					return breverrors.WrapAndTrace(err)
+				}
+				t.Vprint(v)
+			}
 			if user != "" {
 				_, err := noLoginCmdStore.WithUserID(user)
 				if err != nil {
