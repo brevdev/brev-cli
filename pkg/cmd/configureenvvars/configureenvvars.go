@@ -9,7 +9,7 @@ import (
 
 type ConfigureEnvVarsStore interface{}
 
-func NewCmdConfigureEnvVars(t *terminal.Terminal, cevStore ConfigureEnvVarsStore) *cobra.Command {
+func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
 		Use:                   "configure-env-vars",
@@ -29,7 +29,7 @@ func NewCmdConfigureEnvVars(t *terminal.Terminal, cevStore ConfigureEnvVarsStore
 	return cmd
 }
 
-func RunConfigureEnvVars(cevStore ConfigureEnvVarsStore) error {
+func RunConfigureEnvVars(_ ConfigureEnvVarsStore) error {
 	bashConfigurer := BashConfigurer{}
 	zshConfigurer := ZshConfigurer{}
 	shellConfigurers := []ShellConfigurer{bashConfigurer, zshConfigurer}

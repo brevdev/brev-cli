@@ -8,7 +8,7 @@ import (
 
 type EnvVarsStore interface{}
 
-func NewCmdEnvVars(t *terminal.Terminal, evStore EnvVarsStore) *cobra.Command {
+func NewCmdEnvVars(_ *terminal.Terminal, evStore EnvVarsStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
 		Use:                   "configure-env-vars",
@@ -28,6 +28,6 @@ func NewCmdEnvVars(t *terminal.Terminal, evStore EnvVarsStore) *cobra.Command {
 	return cmd
 }
 
-func RunEnvVars(evStore EnvVarsStore) error {
+func RunEnvVars(_ EnvVarsStore) error {
 	return nil
 }
