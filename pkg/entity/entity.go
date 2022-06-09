@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
 
 type AuthTokens struct {
@@ -191,6 +192,14 @@ type Workspace struct {
 	// Version         string `json:"version,omitempty"`
 	// IsStoppable         string `json:"isStoppable,omitempty"`
 	// StatusMessage         string `json:"statusMessage,omitempty"`
+}
+
+func (w Workspace) GetStopTimeout() time.Duration {
+	return 0
+}
+
+func (w Workspace) IsStoppable() bool {
+	return false
 }
 
 type WorkspaceTemplate struct {
