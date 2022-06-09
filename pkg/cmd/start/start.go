@@ -339,7 +339,7 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func startWorkspace(startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, startOptions.Name)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, startOptions.Repo)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
