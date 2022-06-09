@@ -183,23 +183,22 @@ type Workspace struct {
 	Execs             Execs     `json:"execs"`
 	IDEConfig         IDEConfig `json:"ideConfig"`
 
-	// The below are other fields that might not be needed yet so commented out
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
-	// HealthStatus         string `json:"healthStatus,omitempty"`
 	// CreatedAt         string `json:"createdAt,omitempty"`
 	// UpdatedAt         string `json:"updatedAt,omitempty"`
-	// Version         string `json:"version,omitempty"`
-	// IsStoppable         string `json:"isStoppable,omitempty"`
-	// StatusMessage         string `json:"statusMessage,omitempty"`
+	HealthStatus  string        `json:"healthStatus"`
+	IsStoppable   bool          `json:"isStoppable"`
+	StatusMessage string        `json:"statusMessage"`
+	StopTimeout   time.Duration `json:"stopTimeout"`
 }
 
 func (w Workspace) GetStopTimeout() time.Duration {
-	return 0
+	return w.StopTimeout
 }
 
-func (w Workspace) IsStoppable() bool {
-	return false
+func (w Workspace) GetIsStoppable() bool {
+	return w.IsStoppable
 }
 
 type WorkspaceTemplate struct {
