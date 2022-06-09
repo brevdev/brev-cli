@@ -298,7 +298,7 @@ func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Worksp
 	}
 	if !foundRunning && len(workspaces) > 0 {
 		t.Vprintf(t.Green("Start a stopped workspace:\n"))
-		t.Vprintf(t.Yellow("\tbrev start <NAME> ex: brev start %s\n", workspaces[0].Name))
+		t.Vprintf(t.Yellow("\tbrev start %s # brev start <NAME> -> start stopped workspace\n", workspaces[0].Name))
 	}
 }
 

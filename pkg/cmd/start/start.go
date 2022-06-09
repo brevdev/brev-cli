@@ -4,7 +4,6 @@ package start
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/mergeshells" //nolint:typecheck // uses generic code
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	allutil "github.com/brevdev/brev-cli/pkg/util"
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -63,19 +63,19 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			repo := ""
+			repoOrPathOrNameOrID := ""
 			if len(args) > 0 {
-				repo = args[0]
+				repoOrPathOrNameOrID = args[0]
 			}
 			err := runStartWorkspace(t, StartOptions{
-				Repo:           repo,
-				Name:           name,
-				OrgName:        org,
-				SetupScript:    setupScript,
-				SetupRepo:      setupRepo,
-				SetupPath:      setupPath,
-				WorkspaceClass: workspaceClass,
-				Detached:       detached,
+				RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
+				Name:                 name,
+				OrgName:              org,
+				SetupScript:          setupScript,
+				SetupRepo:            setupRepo,
+				SetupPath:            setupPath,
+				WorkspaceClass:       workspaceClass,
+				Detached:             detached,
 			}, startStore)
 			if err != nil {
 				if strings.Contains(err.Error(), "duplicate workspace with name") {
@@ -105,18 +105,18 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 }
 
 type StartOptions struct {
-	Repo           string
-	Name           string
-	OrgName        string
-	SetupScript    string
-	SetupRepo      string
-	SetupPath      string
-	WorkspaceClass string
-	Detached       bool
+	RepoOrPathOrNameOrID string // todo make invidual options
+	Name                 string
+	OrgName              string
+	SetupScript          string
+	SetupRepo            string
+	SetupPath            string
+	WorkspaceClass       string
+	Detached             bool
 }
 
 func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
-	if options.Repo == "" { // empty
+	if options.RepoOrPathOrNameOrID == "" {
 		if options.Name == "" {
 			return breverrors.NewValidationError("must provide a --name")
 		}
@@ -124,77 +124,84 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	} else {
-		isURL := false
-		if strings.Contains(options.Repo, "https://") || strings.Contains(options.Repo, "git@") {
-			isURL = true
+	} else if allutil.IsGitURL(options.RepoOrPathOrNameOrID) {
+		err := createNewWorkspaceFromGit(t, options.SetupScript, options, startStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
+	} else if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
+		err := startWorkspaceFromPath(t, options, startStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else { // assume name
+		err := startStoppedOrJoinWorkspace(t, startStore, options)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
+}
 
-		if isURL {
-			// CREATE A WORKSPACE
-			err := clone(t, options.SetupScript, options, startStore)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-		} else {
-			workspace, _ := util.GetUserWorkspaceByNameOrIDErr(startStore, options.Repo) // ignoring err todo handle me better
-			if workspace == nil {
-				// get org, check for workspace to join before assuming start via path
-				activeOrg, err := startStore.GetActiveOrganizationOrDefault()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				user, err := startStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				workspaces, err := startStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
-					Name: options.Repo,
-				})
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				if len(workspaces) == 0 {
-					// then this is a path, and we should import dependencies from it and start
-					err = startWorkspaceFromPath(t, options, startStore)
-					if err != nil {
-						return breverrors.WrapAndTrace(err)
-					}
-				} else {
-					// the user wants to join a workspace
-					err = joinProjectWithNewWorkspace(t, workspaces[0], activeOrg.ID, startStore, user, options)
-					if err != nil {
-						return breverrors.WrapAndTrace(err)
-					}
-				}
+func startStoppedOrJoinWorkspace(t *terminal.Terminal, startStore StartStore, options StartOptions) error {
+	workspace, _ := util.GetUserWorkspaceByNameOrIDErr(startStore, options.RepoOrPathOrNameOrID) // ignoring since error means should try to start
+	if workspace == nil {
+		err := joinWorkspace(t, startStore, options)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		// Start an existing one (either theirs or someone elses)
+		err := startStopppedWorkspace(startStore, t, options)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
+}
 
-			} else {
-				// Start an existing one (either theirs or someone elses)
-				err := startWorkspace(startStore, t, options)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
+func joinWorkspace(t *terminal.Terminal, startStore StartStore, options StartOptions) error {
+	// get org, check for workspace to join before assuming start via path
+	activeOrg, err := startStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	user, err := startStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := startStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
+		Name: options.RepoOrPathOrNameOrID,
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(workspaces) == 0 {
+		return breverrors.NewValidationError(fmt.Sprintf("no workspaces in org with name %s", options.RepoOrPathOrNameOrID))
+	} else {
+		// the user wants to join a workspace
+		err = joinProjectWithNewWorkspace(t, workspaces[0], activeOrg.ID, startStore, user, options)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
 	}
 	return nil
 }
 
 func startWorkspaceFromPath(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
-	pathExists := dirExists(options.Repo)
+	pathExists := allutil.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
-		return fmt.Errorf(strings.Join([]string{"Path:", options.Repo, "does not exist."}, " "))
+		return fmt.Errorf(strings.Join([]string{"Path:", options.RepoOrPathOrNameOrID, "does not exist."}, " "))
 	}
-
 	var gitpath string
-	if options.Repo == "." {
+	if options.RepoOrPathOrNameOrID == "." {
 		gitpath = filepath.Join(".git", "config")
 	} else {
-		gitpath = filepath.Join(options.Repo, ".git", "config")
+		gitpath = filepath.Join(options.RepoOrPathOrNameOrID, ".git", "config")
 	}
 	file, error := startStore.GetFileAsString(gitpath)
 	if error != nil {
-		return fmt.Errorf(strings.Join([]string{"Could not read .git/config at", options.Repo}, " "))
+		return fmt.Errorf(strings.Join([]string{"Could not read .git/config at", options.RepoOrPathOrNameOrID}, " "))
 	}
 	// Get GitUrl
 	var gitURL string
@@ -208,34 +215,22 @@ func startWorkspaceFromPath(t *terminal.Terminal, options StartOptions, startSto
 	}
 	gitParts := strings.Split(gitURL, "/")
 	options.Name = strings.Split(gitParts[len(gitParts)-1], ".")[0]
-	localSetupPath := filepath.Join(options.Repo, ".brev", "setup.sh")
-	if options.Repo == "." {
+	localSetupPath := filepath.Join(options.RepoOrPathOrNameOrID, ".brev", "setup.sh")
+	if options.RepoOrPathOrNameOrID == "." {
 		localSetupPath = filepath.Join(".brev", "setup.sh")
 	}
-	if !dirExists(localSetupPath) {
+	if !allutil.DoesPathExist(localSetupPath) {
 		fmt.Println(strings.Join([]string{"Generating setup script at", localSetupPath}, "\n"))
-		mergeshells.ImportPath(t, options.Repo, startStore)
+		mergeshells.ImportPath(t, options.RepoOrPathOrNameOrID, startStore)
 		fmt.Println("setup script generated.")
 	}
 
-	err := clone(t, localSetupPath, options, startStore)
+	err := createNewWorkspaceFromGit(t, localSetupPath, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	return err
-}
-
-// exists returns whether the given file or directory exists
-func dirExists(path string) bool {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true
-	}
-	if os.IsNotExist(err) {
-		return false
-	}
-	return false
 }
 
 func createEmptyWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
@@ -338,8 +333,8 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 	return options
 }
 
-func startWorkspace(startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, startOptions.Repo)
+func startStopppedWorkspace(startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, startOptions.RepoOrPathOrNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -448,7 +443,7 @@ func IsUrl(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func clone(t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
+func createNewWorkspaceFromGit(t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
 	t.Vprintf("This is the setup script: %s", setupScriptURLOrPath)
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
@@ -456,13 +451,7 @@ func clone(t *terminal.Terminal, setupScriptURLOrPath string, startOptions Start
 
 	var setupScriptContents string
 	var err error
-	// TODO: this makes for really good DX, but should be added as a personal setting on the User model
-	// lines := files.GetAllAliases()
-	// if len(lines) > 0 {
-	// 	snip := files.GenerateSetupScript(lines)
-	// 	setupScriptContents += snip
-	// }
-	if len(startOptions.Repo) > 0 && len(startOptions.SetupPath) > 0 {
+	if len(startOptions.RepoOrPathOrNameOrID) > 0 && len(startOptions.SetupPath) > 0 {
 		// STUFF HERE
 	} else if len(setupScriptURLOrPath) > 0 {
 		if IsUrl(setupScriptURLOrPath) {
@@ -482,7 +471,7 @@ func clone(t *terminal.Terminal, setupScriptURLOrPath string, startOptions Start
 		}
 	}
 
-	newWorkspace := MakeNewWorkspaceFromURL(startOptions.Repo)
+	newWorkspace := MakeNewWorkspaceFromURL(startOptions.RepoOrPathOrNameOrID)
 
 	if (startOptions.Name) != "" {
 		newWorkspace.Name = startOptions.Name

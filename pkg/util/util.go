@@ -3,6 +3,7 @@ package util
 import (
 	"encoding/base64"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -71,4 +72,19 @@ func RunEAsync(calls ...func() error) RunEResult {
 		}(c)
 	}
 	return res
+}
+
+func IsGitURL(u string) bool {
+	return strings.Contains(u, "https://") || strings.Contains(u, "git@")
+}
+
+func DoesPathExist(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	}
+	if os.IsNotExist(err) {
+		return false
+	}
+	return false
 }
