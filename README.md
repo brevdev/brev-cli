@@ -20,7 +20,7 @@ https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-
 
 ## Contributing
 
-We welcome PRS! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
+We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
 
 
 
