@@ -12,7 +12,7 @@ import (
 
 const (
 	BREV_WORKSPACE_ENV_PATH  = "/home/brev/workspace/.env"
-	BREV_MANGED_ENV_VARS_KEY = "BREV_MANGED_ENV_VARS"
+	BREV_MANGED_ENV_VARS_KEY = "BREV_MANAGED_ENV_VARS"
 )
 
 type ConfigureEnvVarsStore interface {
@@ -50,20 +50,52 @@ func RunConfigureEnvVars(cevStore ConfigureEnvVarsStore) (string, error) {
 }
 
 func generateExportString(brevEnvsString, envFileContents string) string {
+	if brevEnvsString == "" && envFileContents == "" {
+		return ""
+	}
 	brevEnvKeys := strings.Split(brevEnvsString, ",")
 
 	envFileKeys := getKeysFromEnvFile(envFileContents)
 	newBrevEnvKeys := strings.Join(envFileKeys, ",")
+	newBrevEnvKeysEntry := ""
 	// todo use constant for key
-	newBrevEnvKeysEntry := BREV_MANGED_ENV_VARS_KEY + "=" + newBrevEnvKeys
+	if newBrevEnvKeys != "" {
+		newBrevEnvKeysEntry = BREV_MANGED_ENV_VARS_KEY + "=" + newBrevEnvKeys
+	}
 
 	// todo parameterize by shell
 	envCmdOutput := []string{}
 	envCmdOutput = addUnsetEntriesToOutput(brevEnvKeys, envFileKeys, envCmdOutput)
 	// todo parameterize by shell and check for export prefix
-	envCmdOutput = append(envCmdOutput, strings.Split(envFileContents, "\n")...)
-	envCmdOutput = append(envCmdOutput, newBrevEnvKeysEntry)
-	return strings.Join(envCmdOutput, "\n")
+	envCmdOutput = append(envCmdOutput, addExportPrefix(strings.Split(envFileContents, "\n"))...)
+	envCmdOutput = append(envCmdOutput, addExportPrefix([]string{newBrevEnvKeysEntry})...)
+	return strings.Join(filterEmpty(envCmdOutput), "\n")
+}
+
+func addExportPrefix(envFileLines []string) []string {
+	if len(envFileLines) == 0 {
+		return envFileLines
+	}
+	out := []string{}
+	for _, line := range envFileLines {
+		if strings.HasPrefix(line, "export ") || line == "" {
+			out = append(out, line)
+		} else {
+			out = append(out, "export "+line)
+		}
+	}
+	return out
+}
+
+func filterEmpty[T comparable](l []T) []T {
+	var zero T
+	out := []T{}
+	for _, i := range l {
+		if i != zero {
+			out = append(out, i)
+		}
+	}
+	return out
 }
 
 func contains[T comparable](s []T, e T) bool {
@@ -89,7 +121,7 @@ func getKeysFromEnvFile(content string) []string {
 // this may be a good place to parameterize bby shell
 func addUnsetEntriesToOutput(currentEnvs, newEnvs, output []string) []string {
 	for _, envKey := range currentEnvs {
-		if !contains(newEnvs, envKey) {
+		if !contains(newEnvs, envKey) && envKey != "" {
 			output = append(output, "unset "+envKey)
 		}
 	}

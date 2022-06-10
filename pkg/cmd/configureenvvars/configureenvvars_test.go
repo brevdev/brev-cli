@@ -3,6 +3,8 @@ package configureenvvars
 import (
 	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func Test_getKeysFromEnvFile(t *testing.T) {
@@ -90,7 +92,7 @@ unset baz`,
 				envFileContents: "foo=bar",
 			},
 			want: `export foo=bar
-BREV_MANGED_ENV_VARS=foo,`,
+export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
 		},
 		{
 			name: "sets env var with export prefix",
@@ -99,22 +101,24 @@ BREV_MANGED_ENV_VARS=foo,`,
 				envFileContents: "export foo=bar",
 			},
 			want: `export foo=bar
-BREV_MANGED_ENV_VARS=foo,`,
+export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
 		},
 		{
 			name: "is idempotent",
 			args: args{
-				brevEnvsString:  "foo,",
+				brevEnvsString:  "foo",
 				envFileContents: "foo=bar",
 			},
 			want: `export foo=bar
-BREV_MANGED_ENV_VARS=foo,`,
+export ` + BREV_MANGED_ENV_VARS_KEY + "=foo",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := generateExportString(tt.args.brevEnvsString, tt.args.envFileContents); got != tt.want {
-				t.Errorf("generateExportString() = %v, want %v", got, tt.want)
+			got := generateExportString(tt.args.brevEnvsString, tt.args.envFileContents)
+			diff := cmp.Diff(tt.want, got)
+			if diff != "" {
+				t.Fatalf(diff)
 			}
 		})
 	}
@@ -153,6 +157,15 @@ func Test_addUnsetEntriesToOutput(t *testing.T) {
 			name: "when a current env is new envs, don't unset it",
 			args: args{
 				currentEnvs: []string{},
+				newEnvs:     []string{"foo"},
+				output:      []string{},
+			},
+			want: []string{},
+		},
+		{
+			name: "when a current env is enpty entry, don't unset it",
+			args: args{
+				currentEnvs: []string{""},
 				newEnvs:     []string{"foo"},
 				output:      []string{},
 			},
