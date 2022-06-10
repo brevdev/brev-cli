@@ -1,13 +1,23 @@
 package configureenvvars
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 )
 
-type ConfigureEnvVarsStore interface{}
+const (
+	BREV_WORKSPACE_ENV_PATH  = "/home/brev/workspace/.env"
+	BREV_MANGED_ENV_VARS_KEY = "BREV_MANGED_ENV_VARS"
+)
+
+type ConfigureEnvVarsStore interface {
+	GetFileAsString(path string) (string, error)
+}
 
 func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore) *cobra.Command {
 	cmd := &cobra.Command{
@@ -18,10 +28,11 @@ func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore
 		Long:                  "Import your IDE config",
 		Example:               "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunConfigureEnvVars(cevStore)
+			output, err := RunConfigureEnvVars(cevStore)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			fmt.Print(output)
 			return nil
 		},
 	}
@@ -29,40 +40,58 @@ func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore
 	return cmd
 }
 
-func RunConfigureEnvVars(_ ConfigureEnvVarsStore) error {
-	bashConfigurer := BashConfigurer{}
-	zshConfigurer := ZshConfigurer{}
-	shellConfigurers := []ShellConfigurer{bashConfigurer, zshConfigurer}
+func RunConfigureEnvVars(cevStore ConfigureEnvVarsStore) (string, error) {
+	brevEnvsString := os.Getenv(BREV_MANGED_ENV_VARS_KEY)
+	envFileContents, err := cevStore.GetFileAsString(BREV_WORKSPACE_ENV_PATH)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return generateExportString(brevEnvsString, envFileContents), nil
+}
 
-	var allErr error
-	for _, sc := range shellConfigurers {
-		err := sc.Configure()
-		if err != nil {
-			allErr = multierror.Append(allErr, err)
+func generateExportString(brevEnvsString, envFileContents string) string {
+	brevEnvKeys := strings.Split(brevEnvsString, ",")
+
+	envFileKeys := getKeysFromEnvFile(envFileContents)
+	newBrevEnvKeys := strings.Join(envFileKeys, ",")
+	// todo use constant for key
+	newBrevEnvKeysEntry := BREV_MANGED_ENV_VARS_KEY + "=" + newBrevEnvKeys
+
+	// todo parameterize by shell
+	envCmdOutput := []string{}
+	envCmdOutput = addUnsetEntriesToOutput(brevEnvKeys, envFileKeys, envCmdOutput)
+	// todo parameterize by shell and check for export prefix
+	envCmdOutput = append(envCmdOutput, strings.Split(envFileContents, "\n")...)
+	envCmdOutput = append(envCmdOutput, newBrevEnvKeysEntry)
+	return strings.Join(envCmdOutput, "\n")
+}
+
+func contains[T comparable](s []T, e T) bool {
+	for _, v := range s {
+		if v == e {
+			return true
 		}
 	}
-	if allErr != nil {
-		return breverrors.WrapAndTrace(allErr)
+	return false
+}
+
+func getKeysFromEnvFile(content string) []string {
+	output := []string{}
+	for _, k := range strings.Split(content, "\n") {
+		k = strings.TrimPrefix(k, "export ")
+		if strings.Contains(k, "=") {
+			output = append(output, strings.Split(k, "=")[0])
+		}
 	}
-	return nil
+	return output
 }
 
-type ShellConfigurer interface {
-	Configure() error
-}
-
-type BashConfigurer struct{}
-
-var _ ShellConfigurer = BashConfigurer{}
-
-func (b BashConfigurer) Configure() error {
-	return nil
-}
-
-type ZshConfigurer struct{}
-
-var _ ShellConfigurer = ZshConfigurer{}
-
-func (b ZshConfigurer) Configure() error {
-	return nil
+// this may be a good place to parameterize bby shell
+func addUnsetEntriesToOutput(currentEnvs, newEnvs, output []string) []string {
+	for _, envKey := range currentEnvs {
+		if !contains(newEnvs, envKey) {
+			output = append(output, "unset "+envKey)
+		}
+	}
+	return output
 }
