@@ -58,7 +58,6 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 	envFileKeys := getKeysFromEnvFile(envFileContents)
 	newBrevEnvKeys := strings.Join(envFileKeys, ",")
 	newBrevEnvKeysEntry := ""
-	// todo use constant for key
 	if newBrevEnvKeys != "" {
 		newBrevEnvKeysEntry = BREV_MANGED_ENV_VARS_KEY + "=" + newBrevEnvKeys
 	}

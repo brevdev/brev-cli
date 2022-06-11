@@ -112,6 +112,18 @@ export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
 			want: `export foo=bar
 export ` + BREV_MANGED_ENV_VARS_KEY + "=foo",
 		},
+		{
+			name: "multiple operations(journal) case",
+			args: args{
+				brevEnvsString:  "key1,key2,key3",
+				envFileContents: "export key4=val",
+			},
+			want: `unset key1
+unset key2
+unset key3
+export key4=val
+export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -143,6 +155,24 @@ func Test_addUnsetEntriesToOutput(t *testing.T) {
 				output:      []string{},
 			},
 			want: []string{},
+		},
+		{
+			name: "base case with empty strings",
+			args: args{
+				currentEnvs: []string{""},
+				newEnvs:     []string{""},
+				output:      []string{},
+			},
+			want: []string{},
+		},
+		{
+			name: "preserves output",
+			args: args{
+				currentEnvs: []string{""},
+				newEnvs:     []string{""},
+				output:      []string{""},
+			},
+			want: []string{""},
 		},
 		{
 			name: "when a current env is not in the list of new envs, unset it",
