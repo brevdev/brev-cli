@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -65,10 +66,9 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 	// todo parameterize by shell
 	envCmdOutput := []string{}
 	envCmdOutput = addUnsetEntriesToOutput(brevEnvKeys, envFileKeys, envCmdOutput)
-	// todo parameterize by shell and check for export prefix
 	envCmdOutput = append(envCmdOutput, addExportPrefix(strings.Split(envFileContents, "\n"))...)
 	envCmdOutput = append(envCmdOutput, addExportPrefix([]string{newBrevEnvKeysEntry})...)
-	return strings.Join(filterEmpty(envCmdOutput), "\n")
+	return strings.Join(collections.FilterEmpty(envCmdOutput), "\n")
 }
 
 func addExportPrefix(envFileLines []string) []string {
@@ -86,26 +86,6 @@ func addExportPrefix(envFileLines []string) []string {
 	return out
 }
 
-func filterEmpty[T comparable](l []T) []T {
-	var zero T
-	out := []T{}
-	for _, i := range l {
-		if i != zero {
-			out = append(out, i)
-		}
-	}
-	return out
-}
-
-func contains[T comparable](s []T, e T) bool {
-	for _, v := range s {
-		if v == e {
-			return true
-		}
-	}
-	return false
-}
-
 func getKeysFromEnvFile(content string) []string {
 	output := []string{}
 	for _, k := range strings.Split(content, "\n") {
@@ -120,7 +100,7 @@ func getKeysFromEnvFile(content string) []string {
 // this may be a good place to parameterize bby shell
 func addUnsetEntriesToOutput(currentEnvs, newEnvs, output []string) []string {
 	for _, envKey := range currentEnvs {
-		if !contains(newEnvs, envKey) && envKey != "" {
+		if !collections.Contains(newEnvs, envKey) && envKey != "" {
 			output = append(output, "unset "+envKey)
 		}
 	}

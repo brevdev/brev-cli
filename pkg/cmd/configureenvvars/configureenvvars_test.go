@@ -213,8 +213,10 @@ func Test_addUnsetEntriesToOutput(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := addUnsetEntriesToOutput(tt.args.currentEnvs, tt.args.newEnvs, tt.args.output); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("addUnsetEntriesToOutput() = %v, want %v", got, tt.want)
+			got := addUnsetEntriesToOutput(tt.args.currentEnvs, tt.args.newEnvs, tt.args.output)
+			diff := cmp.Diff(tt.want, got)
+			if diff != "" {
+				t.Fatalf(diff)
 			}
 		})
 	}

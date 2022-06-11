@@ -213,3 +213,23 @@ func Keys[T comparable, R any](dict map[T]R) []T {
 	}
 	return keys
 }
+
+func FilterEmpty[T comparable](l []T) []T {
+	var zero T
+	out := []T{}
+	for _, i := range l {
+		if i != zero {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func Contains[T comparable](s []T, e T) bool {
+	for _, v := range s {
+		if v == e {
+			return true
+		}
+	}
+	return false
+}
