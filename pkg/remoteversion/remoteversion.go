@@ -14,7 +14,7 @@ import (
 var green = color.New(color.FgGreen).SprintfFunc()
 
 var (
-	upToDateString  = "Current Version: %s\n"
+	upToDateString  = "Current Version: %s"
 	outOfDateString = green("A new version of brev has been released!\n") +
 		`Current version: %s
 New Version: %s
@@ -62,7 +62,7 @@ func BuildCheckLatestVersionString(t *terminal.Terminal, versionStore VersionSto
 			outOfDateString,
 			version.Version,
 			githubRelease.TagName,
-		) + "\n\n"
+		) + "\n"
 	}
 	return versionString, nil
 }
