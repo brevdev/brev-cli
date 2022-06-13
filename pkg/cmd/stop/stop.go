@@ -92,12 +92,13 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	}
 
-	filterToUserOwnedWorkspaces := true
-	if user.GlobalUserType == entity.Admin {
-		filterToUserOwnedWorkspaces = false
+	var workspace *entity.Workspace
+	if user.GlobalUserType != entity.Admin {
+		workspace, err = util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
+	} else {
+		workspace, err = util.GetWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	}
 
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName, filterToUserOwnedWorkspaces)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

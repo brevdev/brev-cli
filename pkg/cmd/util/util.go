@@ -14,7 +14,7 @@ type GetWorkspaceByNameOrIDErrStore interface {
 	GetCurrentUser() (*entity.User, error)
 }
 
-func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string, isUsersWorkspace bool) (*entity.Workspace, error) {
+func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
 	user, err := storeQ.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -28,8 +28,25 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	if isUsersWorkspace {
-		workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
+	workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
+
+	if len(workspaces) == 0 {
+		return nil, breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s not found", workspaceNameOrID))
+	}
+	if len(workspaces) > 1 {
+		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with id/name %s", workspaceNameOrID))
+	}
+	return &workspaces[0], nil
+}
+
+func GetWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
+	org, err := storeQ.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := storeQ.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	if len(workspaces) == 0 {
