@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/spf13/viper"
 )
 
@@ -15,7 +16,7 @@ func IsDev() bool {
 	}
 }
 
-func IsAdmin(userType string) bool {
+func IsAdmin(userType entity.GlobalUserType) bool {
 	if viper.IsSet("feature.not_admin") && viper.GetBool("feature.not_admin") {
 		return false
 	} else {
@@ -24,7 +25,7 @@ func IsAdmin(userType string) bool {
 }
 
 // use feature flag if not provided default true for admin but not others
-func ServiceMeshSSH(userType string) bool {
+func ServiceMeshSSH(userType entity.GlobalUserType) bool {
 	if viper.IsSet("feature.service_mesh_ssh") {
 		return viper.GetBool("feature.service_mesh_ssh")
 	}

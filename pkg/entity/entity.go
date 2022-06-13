@@ -63,6 +63,13 @@ type UpdateUser struct {
 	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
 }
 
+type GlobalUserType string
+
+const (
+	Admin    GlobalUserType = "Admin"
+	Standard GlobalUserType = "Standard"
+)
+
 type User struct {
 	ID                string                 `json:"id"`
 	PublicKey         string                 `json:"publicKey,omitempty"`
@@ -71,7 +78,7 @@ type User struct {
 	Email             string                 `json:"email"`
 	WorkspacePassword string                 `json:"workspacePassword"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
-	GlobalUserType    string                 `json:"globalUserType"`
+	GlobalUserType    GlobalUserType         `json:"globalUserType"`
 	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
 	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
 }

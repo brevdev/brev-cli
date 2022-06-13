@@ -13,7 +13,7 @@ import (
 
 var (
 	stopLong    = "Stop a Brev machine that's in a running state"
-	stopExample = "brev stop <ws_name> \nbrev stop --all"
+	stopExample = "brev stop <ws_name>... \nbrev stop --all"
 )
 
 type StopStore interface {
@@ -44,9 +44,11 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 				if len(args) == 0 {
 					return breverrors.NewValidationError("please provide a workspace to stop")
 				}
-				err := stopWorkspace(args[0], t, loginStopStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
+				for _, arg := range args {
+					err := stopWorkspace(arg, t, loginStopStore)
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
 				}
 			}
 			return nil

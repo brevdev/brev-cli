@@ -28,6 +28,10 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
+	if user.GlobalUserType == entity.Admin {
+		return &workspaces[0], nil
+	}
+
 	workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
 
 	if len(workspaces) == 0 {
