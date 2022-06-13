@@ -45,6 +45,13 @@ export alice=bob`,
 			},
 			want: []string{"foo"},
 		},
+		{
+			name: ".envfile that i found on workspace",
+			args: args{
+				content: `export foo='bar';export alice='bob'`,
+			},
+			want: []string{"foo", "alice"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -123,6 +130,16 @@ unset key2
 unset key3
 export key4=val
 export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
+		},
+		{
+			name: "using env format found on workspace",
+			args: args{
+				brevEnvsString: "",
+				envFileContents: `export foo='bar';export alice='bob'`,
+			},
+			want: `export foo='bar'
+export alice='bob'
+export ` + BREV_MANGED_ENV_VARS_KEY + "=foo,alice",
 		},
 	}
 	for _, tt := range tests {
