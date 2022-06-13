@@ -53,7 +53,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 
 	res := refresh.RunRefreshAsync(tstore)
 
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

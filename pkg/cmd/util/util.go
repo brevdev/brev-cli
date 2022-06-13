@@ -14,7 +14,7 @@ type GetWorkspaceByNameOrIDErrStore interface {
 	GetCurrentUser() (*entity.User, error)
 }
 
-func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
+func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string, isUsersWorkspace bool) (*entity.Workspace, error) {
 	user, err := storeQ.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -28,11 +28,9 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	if user.GlobalUserType == entity.Admin {
-		return &workspaces[0], nil
+	if isUsersWorkspace {
+		workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
 	}
-
-	workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
 
 	if len(workspaces) == 0 {
 		return nil, breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s not found", workspaceNameOrID))

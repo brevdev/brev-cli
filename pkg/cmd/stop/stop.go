@@ -87,7 +87,17 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
+	user, err := stopStore.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	filterToUserOwnedWorkspaces := true
+	if user.GlobalUserType == entity.Admin {
+		filterToUserOwnedWorkspaces = false
+	}
+
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName, filterToUserOwnedWorkspaces)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

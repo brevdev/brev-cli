@@ -144,7 +144,7 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 }
 
 func startStoppedOrJoinWorkspace(t *terminal.Terminal, startStore StartStore, options StartOptions) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, options.RepoOrPathOrNameOrID) // ignoring since error means should try to start
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, options.RepoOrPathOrNameOrID, true) // ignoring since error means should try to start
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
 			return breverrors.WrapAndTrace(err)
