@@ -144,15 +144,19 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 }
 
 func startStoppedOrJoinWorkspace(t *terminal.Terminal, startStore StartStore, options StartOptions) error {
-	workspace, _ := util.GetUserWorkspaceByNameOrIDErr(startStore, options.RepoOrPathOrNameOrID) // ignoring since error means should try to start
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, options.RepoOrPathOrNameOrID) // ignoring since error means should try to start
+	if err != nil {
+		if !strings.Contains(err.Error(), "not found") {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
 	if workspace == nil {
 		err := joinWorkspace(t, startStore, options)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		// Start an existing one (either theirs or someone elses)
-		err := startStopppedWorkspace(startStore, t, options)
+		err := startStopppedWorkspace(workspace, startStore, t, options)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -333,72 +337,39 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 	return options
 }
 
-func startStopppedWorkspace(startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, startOptions.RepoOrPathOrNameOrID)
+func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
+	if workspace.Status == "RUNNING" {
+		t.Vprint(t.Yellow("Workspace is already running"))
+		return nil
+	}
+	if startOptions.WorkspaceClass != "" {
+		return breverrors.NewValidationError("Workspace already exists. Can not pass workspace class flag to start stopped workspace")
+	}
+
+	if startOptions.Name != "" {
+		t.Vprint("Existing workspace found. Name flag ignored.")
+	}
+
+	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	org, othererr := startStore.GetActiveOrganizationOrDefault()
-	if othererr != nil {
-		return breverrors.WrapAndTrace(othererr)
+
+	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+
+	// Don't poll and block the shell if detached flag is set
+	if startOptions.Detached {
+		return nil
 	}
-	user, usererr := startStore.GetCurrentUser()
-	if usererr != nil {
+
+	err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
+	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if err != nil {
-		// This is not an error yet-- the user might be trying to join a team's workspace
-		if org == nil {
-			return breverrors.NewValidationError("no orgs exist")
-		}
-		workspaces, othererr := startStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{
-			Name: startOptions.Name,
-		})
-		if othererr != nil {
-			return breverrors.WrapAndTrace(othererr)
-		}
-		if len(workspaces) == 0 {
-			return breverrors.NewValidationError(fmt.Sprintf("your team has no projects named %s", startOptions.Name))
-		}
-		othererr = joinProjectWithNewWorkspace(t, workspaces[0], org.ID, startStore, user, startOptions)
-		if othererr != nil {
-			return breverrors.WrapAndTrace(othererr)
-		}
 
-	} else {
-		if workspace.Status == "RUNNING" {
-			t.Vprint(t.Yellow("Workspace is already running"))
-			return nil
-		}
-		if startOptions.WorkspaceClass != "" {
-			return breverrors.NewValidationError("Workspace already exists. Can not pass workspace class flag to start stopped workspace")
-		}
-
-		if startOptions.Name != "" {
-			t.Vprint("Existing workspace found. Name flag ignored.")
-		}
-
-		startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
-
-		// Don't poll and block the shell if detached flag is set
-		if startOptions.Detached {
-			return nil
-		}
-
-		err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		fmt.Print("\n")
-		t.Vprint(t.Green("Your workspace is ready!\n"))
-		displayConnectBreadCrumb(t, startedWorkspace)
-	}
+	fmt.Print("\n")
+	t.Vprint(t.Green("Your workspace is ready!\n"))
+	displayConnectBreadCrumb(t, startedWorkspace)
 
 	return nil
 }
