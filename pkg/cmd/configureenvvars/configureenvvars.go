@@ -26,7 +26,7 @@ func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore
 		Use:                   "configure-env-vars",
 		DisableFlagsInUseLine: true,
 		Short:                 "configure env vars in supported shells",
-		Long:                  "Import your IDE config",
+		Long:                  "configure env vars in supported shells",
 		Example:               "",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			output, err := RunConfigureEnvVars(cevStore)
@@ -88,13 +88,20 @@ func addExportPrefix(envFileLines []string) []string {
 
 func getKeysFromEnvFile(content string) []string {
 	output := []string{}
-	for _, k := range strings.Split(content, "\n") {
-		k = strings.TrimPrefix(k, "export ")
-		if strings.Contains(k, "=") {
-			output = append(output, strings.Split(k, "=")[0])
+	lexer := lex("keys from env", content)
+	for {
+		token := lexer.nextItem()
+		switch token.typ {
+		case itemKey:
+			output = append(output, token.val)
+		case itemError:
+			return []string{}
+		case itemEOF:
+			return output
+
 		}
+
 	}
-	return output
 }
 
 // this may be a good place to parameterize bby shell
