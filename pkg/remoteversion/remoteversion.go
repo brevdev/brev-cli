@@ -56,13 +56,13 @@ func BuildCheckLatestVersionString(t *terminal.Terminal, versionStore VersionSto
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	var versionString string
+	versionString := ""
 	if githubRelease.TagName != version.Version {
 		versionString = fmt.Sprintf(
 			outOfDateString,
 			version.Version,
 			githubRelease.TagName,
-		) + "\n"
+		) + "\n\n"
 	}
 	return versionString, nil
 }

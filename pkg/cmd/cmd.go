@@ -125,7 +125,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 					t.Errprint(err, "Failed to determine version")
 					return breverrors.WrapAndTrace(err)
 				}
-				t.Vprint(v)
+				fmt.Print(v)
 			}
 			if user != "" {
 				_, err := noLoginCmdStore.WithUserID(user)
