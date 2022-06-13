@@ -134,7 +134,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
 		{
 			name: "using env format found on workspace",
 			args: args{
-				brevEnvsString: "",
+				brevEnvsString:  "",
 				envFileContents: `export foo='bar';export alice='bob'`,
 			},
 			want: `export foo='bar'
