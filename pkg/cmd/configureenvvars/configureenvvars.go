@@ -35,7 +35,9 @@ func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore
 		RunE: func(cmd *cobra.Command, args []string) error {
 			output, err := RunConfigureEnvVars(cevStore)
 			if err != nil {
-				return breverrors.WrapAndTrace(err)
+				// todo bubble up error, but in the meantime make sure there
+				// is no output
+				return nil
 			}
 			fmt.Print(output)
 			return nil
