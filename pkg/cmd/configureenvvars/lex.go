@@ -110,6 +110,22 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 const equalPrefix = "="
 
 func lexText(l *lexer) stateFn {
+	if strings.HasPrefix(l.input[l.pos:], newline) {
+		if l.next() == eof {
+			l.emit(itemEOF)
+			return nil
+		}
+		return lexNewline
+
+	}
+	if strings.HasPrefix(l.input[l.pos:], semicolon) {
+		if l.next() == eof {
+			l.emit(itemEOF)
+			return nil
+		}
+		return lexSemiColon
+
+	}
 	for {
 		if strings.HasPrefix(l.input[l.pos:], equalPrefix) {
 			return lexKey // next state
@@ -145,14 +161,6 @@ func lexSemiColon(l *lexer) stateFn {
 
 func lexNewline(l *lexer) stateFn {
 	l.emit(itemNewline)
-	if strings.HasPrefix(l.input[l.pos:], newline) {
-		if l.next() == eof {
-			l.emit(itemEOF)
-			return nil
-		}
-		return lexNewline
-
-	}
 	return lexText
 }
 

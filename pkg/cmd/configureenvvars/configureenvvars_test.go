@@ -98,7 +98,7 @@ export foo='bar'
 export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
 		},
 		{
-			name: "multi newline file ",
+			name: "semicolon -> newline  file ",
 			args: args{
 				brevEnvsString: "",
 				envFileContents: `export foo='bar';
