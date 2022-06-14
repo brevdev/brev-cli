@@ -145,6 +145,14 @@ func lexSemiColon(l *lexer) stateFn {
 
 func lexNewline(l *lexer) stateFn {
 	l.emit(itemNewline)
+	if strings.HasPrefix(l.input[l.pos:], newline) {
+		if l.next() == eof {
+			l.emit(itemEOF)
+			return nil
+		}
+		return lexNewline
+
+	}
 	return lexText
 }
 

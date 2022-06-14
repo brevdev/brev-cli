@@ -119,7 +119,10 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
             https://brev.dev`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
-			if !printVersion {
+			// version info gets in the way of the output for
+			// configure-env-vars, since shells are going to eval it
+			if !printVersion && cmd.Name() != "configure-env-vars" {
+				fmt.Println(cmd.Name())
 				v, err := remoteversion.BuildCheckLatestVersionString(t, noLoginCmdStore)
 				if err != nil {
 					t.Errprint(err, "Failed to determine version")
