@@ -139,11 +139,13 @@ func lexEquals(l *lexer) stateFn {
 }
 
 func lexSemiColon(l *lexer) stateFn {
+	l.next()
 	l.emit(itemSemiColon)
 	return lexText
 }
 
 func lexNewline(l *lexer) stateFn {
+	l.next()
 	l.emit(itemNewline)
 	return lexText
 }
@@ -156,7 +158,7 @@ const (
 func lexValue(l *lexer) stateFn {
 	for {
 		if strings.HasPrefix(l.input[l.pos:], semicolon) {
-			l.emit(itemValue) // next state
+			l.emit(itemValue)
 			if l.next() == eof {
 				l.emit(itemEOF)
 				return nil

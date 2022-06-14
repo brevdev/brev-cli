@@ -7,61 +7,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test_getKeysFromEnvFile(t *testing.T) {
-	type args struct {
-		content string
-	}
-	tests := []struct {
-		name string
-		args args
-		want []string
-	}{
-		{
-			name: "empty file gives empty string",
-			args: args{
-				content: ``,
-			},
-			want: []string{},
-		},
-		{
-			name: "export prefixed file works ",
-			args: args{
-				content: `export foo=bar`,
-			},
-			want: []string{"foo"},
-		},
-		{
-			name: "multi line file works",
-			args: args{
-				content: `export foo=bar
-export alice=bob`,
-			},
-			want: []string{"foo", "alice"},
-		},
-		{
-			name: "unexported strings works",
-			args: args{
-				content: `foo=bar`,
-			},
-			want: []string{"foo"},
-		},
-		{
-			name: ".envfile that i found on workspace",
-			args: args{
-				content: `export foo='bar';export alice='bob'`,
-			},
-			want: []string{"foo", "alice"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := getKeysFromEnvFile(tt.args.content); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("getKeysFromEnvFile() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_generateExportString(t *testing.T) {
 	type args struct {
 		brevEnvsString  string
@@ -269,6 +214,21 @@ func Test_parse(t *testing.T) {
 				content: "export foo='bar';export alice='bob'",
 			},
 			want: envVars{"foo": "'bar'", "alice": "'bob'"},
+		},
+		{
+			name: "export prefixed file works ",
+			args: args{
+				content: `export foo=bar`,
+			},
+			want: envVars{"foo": "bar"},
+		},
+		{
+			name: "multi line file works",
+			args: args{
+				content: `export foo=bar
+export alice=bob`,
+			},
+			want: envVars{"foo": "bar", "alice": "bar"},
 		},
 	}
 	for _, tt := range tests {

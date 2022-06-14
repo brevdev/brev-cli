@@ -88,24 +88,6 @@ func addExportPrefix(envFile envVars) []string {
 	return out
 }
 
-func getKeysFromEnvFile(content string) []string {
-	output := []string{}
-	lexer := lex("keys from env", content)
-	for {
-		token := lexer.nextItem()
-		switch token.typ {
-		case itemKey:
-			output = append(output, token.val)
-		case itemError:
-			return []string{}
-		case itemEOF:
-			return output
-
-		}
-
-	}
-}
-
 // this may be a good place to parameterize bby shell
 func addUnsetEntriesToOutput(currentEnvs, newEnvs, output []string) []string {
 	for _, envKey := range currentEnvs {

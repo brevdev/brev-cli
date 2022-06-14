@@ -1,8 +1,9 @@
 package configureenvvars
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func Test_lex(t *testing.T) {
@@ -23,27 +24,135 @@ func Test_lex(t *testing.T) {
 				typ: itemEOF,
 				val: "",
 			}},
-		}, {
+		},
+		{
 			name: "key=val works",
 			args: args{
 				input: "key=val",
 			},
-			want: []item{{
-				typ: itemKey,
-				val: "key",
-			},{
-				typ: itemEquals,
-				val: "=",
-			},
-			{
-				typ: itemValue,
-				val: "val",
-			},
-			{
-				typ: itemEOF,
-				val: "",
+			want: []item{
+				{
+					typ: itemKey,
+					val: "key",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "val",
+				},
+				{
+					typ: itemEOF,
+					val: "",
+				},
 			},
 		},
+		{
+			name: "parses envs other format",
+			args: args{
+				input: "export foo='bar';export alice='bob'",
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "'bar'",
+				},
+				{
+					typ: itemSemiColon,
+					val: ";",
+				},
+				{
+					typ: itemKey,
+					val: "alice",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "'bob'",
+				},
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
+		},
+		{
+			name: "export prefixed file works ",
+			args: args{
+				input: `export foo=bar`,
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "'bar'",
+				},
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
+		},
+		{
+			name: "multi line file works",
+			args: args{
+				input: `export foo=bar
+export alice=bob`,
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "'bar'",
+				},
+				{
+					typ: itemNewline,
+					val: "\n",
+				},
+				{
+					typ: itemKey,
+					val: "alice",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "'bob'",
+				},
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -59,8 +168,9 @@ func Test_lex(t *testing.T) {
 				}
 
 			}
-			if !reflect.DeepEqual(out, tt.want) {
-				t.Errorf("lex() = %v, want %v", got, tt.want)
+			diff := cmp.Diff(out, tt.want, cmp.AllowUnexported(item{}))
+			if diff != "" {
+				t.Fatalf(diff)
 			}
 		})
 	}
