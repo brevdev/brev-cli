@@ -83,7 +83,7 @@ func addExportPrefix(envFile envVars) []string {
 	}
 	out := []string{}
 	for k, v := range envFile {
-		out = append(out, fmt.Sprintf("%s %s %s", "export ", k, v))
+		out = append(out, fmt.Sprintf("%s %s=%s", "export", k, v))
 	}
 	return out
 }
