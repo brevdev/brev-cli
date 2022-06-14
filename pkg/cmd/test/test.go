@@ -1,6 +1,8 @@
 package test
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -46,6 +48,7 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("ayo")
 			return nil
 		},
 	}
