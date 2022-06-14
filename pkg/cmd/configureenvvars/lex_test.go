@@ -105,7 +105,7 @@ func Test_lex(t *testing.T) {
 				},
 				{
 					typ: itemValue,
-					val: "'bar'",
+					val: "bar",
 				},
 				{
 					typ: itemEOF,
@@ -130,7 +130,7 @@ export alice=bob`,
 				},
 				{
 					typ: itemValue,
-					val: "'bar'",
+					val: "bar",
 				},
 				{
 					typ: itemNewline,
@@ -146,7 +146,7 @@ export alice=bob`,
 				},
 				{
 					typ: itemValue,
-					val: "'bob'",
+					val: "bob",
 				},
 				{
 					typ: itemEOF,

@@ -139,13 +139,11 @@ func lexEquals(l *lexer) stateFn {
 }
 
 func lexSemiColon(l *lexer) stateFn {
-	l.next()
 	l.emit(itemSemiColon)
 	return lexText
 }
 
 func lexNewline(l *lexer) stateFn {
-	l.next()
 	l.emit(itemNewline)
 	return lexText
 }
@@ -166,6 +164,7 @@ func lexValue(l *lexer) stateFn {
 			return lexSemiColon
 		}
 		if strings.HasPrefix(l.input[l.pos:], newline) {
+			l.emit(itemValue)
 			if l.next() == eof {
 				l.emit(itemEOF)
 				return nil
