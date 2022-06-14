@@ -82,8 +82,8 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
 				brevEnvsString:  "",
 				envFileContents: `export foo='bar';export alice='bob'`,
 			},
-			want: `export foo='bar'
-export alice='bob'
+			want: `export alice='bob'
+export foo='bar'
 export ` + BREV_MANGED_ENV_VARS_KEY + "=foo,alice",
 		},
 	}
@@ -228,7 +228,7 @@ func Test_parse(t *testing.T) {
 				content: `export foo=bar
 export alice=bob`,
 			},
-			want: envVars{"foo": "bar", "alice": "bar"},
+			want: envVars{"foo": "bar", "alice": "bob"},
 		},
 	}
 	for _, tt := range tests {
