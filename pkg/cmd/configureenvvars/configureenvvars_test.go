@@ -86,6 +86,29 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
 export foo='bar'
 export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
 		},
+		{
+			name: "multi line file",
+			args: args{
+				brevEnvsString: "",
+				envFileContents: `export foo='bar';
+export alice='bob'`,
+			},
+			want: `export alice='bob'
+export foo='bar'
+export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
+		},
+		{
+			name: "multi newline file ",
+			args: args{
+				brevEnvsString: "",
+				envFileContents: `export foo='bar';
+
+export alice='bob'`,
+			},
+			want: `export alice='bob'
+export foo='bar'
+export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -226,6 +249,15 @@ func Test_parse(t *testing.T) {
 			name: "multi line file works",
 			args: args{
 				content: `export foo=bar
+export alice=bob`,
+			},
+			want: envVars{"foo": "bar", "alice": "bob"},
+		},
+		{
+			name: "multi newline file works",
+			args: args{
+				content: `export foo=bar
+
 export alice=bob`,
 			},
 			want: envVars{"foo": "bar", "alice": "bob"},
