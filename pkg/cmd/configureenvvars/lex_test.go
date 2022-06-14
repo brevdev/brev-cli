@@ -252,6 +252,62 @@ export alice=bob`,
 				},
 			},
 		},
+		{
+			name: "leading newline file works",
+			args: args{
+				input: `
+export foo=bar;
+
+export alice=bob`,
+			},
+			want: []item{
+				{
+					typ: itemNewline,
+					val: "\n",
+				},
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "bar",
+				},
+				{
+					typ: itemSemiColon,
+					val: ";",
+				},
+				{
+					typ: itemNewline,
+					val: "\n",
+				},
+
+				{
+					typ: itemNewline,
+					val: "\n",
+				},
+				{
+					typ: itemKey,
+					val: "alice",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "bob",
+				},
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
