@@ -3,6 +3,7 @@ package configureenvvars
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
@@ -61,20 +62,30 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 
 	envfileEntries := parse(envFileContents)
 	envFileKeys := maps.Keys(envfileEntries)
+	// sort to make tests consistent
+	sort.Slice(envFileKeys, func(i, j int) bool {
+		return envFileKeys[i] < envFileKeys[j]
+	})
+
+	// todo parameterize by shell
+	envCmdOutput := makeEnvCmdOutputLines(brevEnvKeys, envFileKeys, envfileEntries)
+
+	return strings.Join(envCmdOutput, "\n")
+}
+
+func makeEnvCmdOutputLines(brevEnvKeys, envFileKeys []string, envfileEntries envVars) []string {
+	envCmdOutput := []string{}
+	envCmdOutput = addUnsetEntriesToOutput(brevEnvKeys, envFileKeys, envCmdOutput)
+	envCmdOutput = append(envCmdOutput, addExportPrefix(envfileEntries)...)
 	newBrevEnvKeys := strings.Join(envFileKeys, ",")
 	newBrevEnvKeysEntry := ""
 	if newBrevEnvKeys != "" {
 		newBrevEnvKeysEntry = BREV_MANGED_ENV_VARS_KEY + "=" + newBrevEnvKeys
 	}
-
-	// todo parameterize by shell
-	envCmdOutput := []string{}
-	envCmdOutput = addUnsetEntriesToOutput(brevEnvKeys, envFileKeys, envCmdOutput)
-	envCmdOutput = append(envCmdOutput, addExportPrefix(envfileEntries)...)
 	if newBrevEnvKeysEntry != "" {
 		envCmdOutput = append(envCmdOutput, "export "+newBrevEnvKeysEntry)
 	}
-	return strings.Join(collections.FilterEmpty(envCmdOutput), "\n")
+	return collections.FilterEmpty(envCmdOutput)
 }
 
 func addExportPrefix(envFile envVars) []string {
@@ -82,8 +93,14 @@ func addExportPrefix(envFile envVars) []string {
 		return []string{}
 	}
 	out := []string{}
-	for k, v := range envFile {
-		out = append(out, fmt.Sprintf("%s %s=%s", "export", k, v))
+
+	// sorted order to make tests consistent
+	keys := maps.Keys(envFile)
+	sort.Slice(keys, func(i, j int) bool {
+		return keys[i] < keys[j]
+	})
+	for _, k := range keys {
+		out = append(out, fmt.Sprintf("%s %s=%s", "export", k, envFile[k]))
 	}
 	return out
 }
@@ -126,6 +143,6 @@ func parse(content string) envVars {
 	if len(keyValPairs)%2 != 0 {
 		return nil
 	}
-	envVars := make(envVars)
-	return zip(keyValPairs, envVars)
+
+	return zip(keyValPairs, make(envVars))
 }

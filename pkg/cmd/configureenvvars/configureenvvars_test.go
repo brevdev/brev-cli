@@ -84,7 +84,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
 			},
 			want: `export alice='bob'
 export foo='bar'
-export ` + BREV_MANGED_ENV_VARS_KEY + "=foo,alice",
+export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
 		},
 	}
 	for _, tt := range tests {
