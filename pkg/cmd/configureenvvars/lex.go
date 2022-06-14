@@ -134,6 +134,7 @@ func lexKey(l *lexer) stateFn {
 
 func lexEquals(l *lexer) stateFn {
 	l.emit(itemEquals)
+	l.next()
 	return lexValue
 }
 

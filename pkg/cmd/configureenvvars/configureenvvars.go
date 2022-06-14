@@ -9,12 +9,15 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/maps"
 )
 
 const (
 	BREV_WORKSPACE_ENV_PATH  = "/home/brev/workspace/.env"
 	BREV_MANGED_ENV_VARS_KEY = "BREV_MANAGED_ENV_VARS"
 )
+
+type envVars map[string]string
 
 type ConfigureEnvVarsStore interface {
 	GetFileAsString(path string) (string, error)
@@ -56,7 +59,8 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 	}
 	brevEnvKeys := strings.Split(brevEnvsString, ",")
 
-	envFileKeys := getKeysFromEnvFile(envFileContents)
+	envfileEntries := parse(envFileContents)
+	envFileKeys := maps.Keys(envfileEntries)
 	newBrevEnvKeys := strings.Join(envFileKeys, ",")
 	newBrevEnvKeysEntry := ""
 	if newBrevEnvKeys != "" {
@@ -66,22 +70,20 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 	// todo parameterize by shell
 	envCmdOutput := []string{}
 	envCmdOutput = addUnsetEntriesToOutput(brevEnvKeys, envFileKeys, envCmdOutput)
-	envCmdOutput = append(envCmdOutput, addExportPrefix(strings.Split(envFileContents, "\n"))...)
-	envCmdOutput = append(envCmdOutput, addExportPrefix([]string{newBrevEnvKeysEntry})...)
+	envCmdOutput = append(envCmdOutput, addExportPrefix(envfileEntries)...)
+	if newBrevEnvKeysEntry != "" {
+		envCmdOutput = append(envCmdOutput, "export "+newBrevEnvKeysEntry)
+	}
 	return strings.Join(collections.FilterEmpty(envCmdOutput), "\n")
 }
 
-func addExportPrefix(envFileLines []string) []string {
-	if len(envFileLines) == 0 {
-		return envFileLines
+func addExportPrefix(envFile envVars) []string {
+	if len(envFile) == 0 {
+		return []string{}
 	}
 	out := []string{}
-	for _, line := range envFileLines {
-		if strings.HasPrefix(line, "export ") || line == "" {
-			out = append(out, line)
-		} else {
-			out = append(out, "export "+line)
-		}
+	for k, v := range envFile {
+		out = append(out, fmt.Sprintf("%s %s %s", "export ", k, v))
 	}
 	return out
 }
@@ -112,4 +114,36 @@ func addUnsetEntriesToOutput(currentEnvs, newEnvs, output []string) []string {
 		}
 	}
 	return output
+}
+
+// https://stackoverflow.com/a/38579502
+func zip(elements []string, elementMap map[string]string) map[string]string {
+	for i := 0; i < len(elements); i += 2 {
+		elementMap[elements[i]] = elements[i+1]
+	}
+	return elementMap
+}
+
+func parse(content string) envVars {
+	keyValPairs := []string{}
+	lexer := lex("keys from env", content)
+	scanning := true
+	for scanning {
+		token := lexer.nextItem()
+		switch token.typ {
+		case itemKey, itemValue:
+			keyValPairs = append(keyValPairs, token.val)
+		case itemError:
+			return nil
+		case itemEOF:
+			scanning = false
+
+		}
+
+	}
+	if len(keyValPairs)%2 != 0 {
+		return nil
+	}
+	envVars := make(envVars)
+	return zip(keyValPairs, envVars)
 }

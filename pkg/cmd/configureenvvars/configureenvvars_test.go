@@ -238,3 +238,44 @@ func Test_addUnsetEntriesToOutput(t *testing.T) {
 		})
 	}
 }
+
+func Test_parse(t *testing.T) {
+	type args struct {
+		content string
+	}
+	tests := []struct {
+		name string
+		args args
+		want envVars
+	}{
+		// TODO: Add test cases.
+		{
+			name: "base case",
+			args: args{
+				content: "",
+			},
+			want: envVars{},
+		},
+		{
+			name: "parses envs",
+			args: args{
+				content: "foo=bar",
+			},
+			want: envVars{"foo": "bar"},
+		},
+		{
+			name: "parses envs other format",
+			args: args{
+				content: "export foo='bar';export alice='bob'",
+			},
+			want: envVars{"foo": "'bar'", "alice": "'bob'"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parse(tt.args.content); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parse() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

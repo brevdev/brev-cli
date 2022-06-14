@@ -10,7 +10,7 @@ require (
 	github.com/gin-gonic/gin v1.7.7
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
-	github.com/google/go-cmp v0.5.6
+	github.com/google/go-cmp v0.5.8
 	github.com/google/huproxy v0.0.0-20210816191033-a131ee126ce3
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
@@ -33,6 +33,7 @@ require (
 	github.com/tidwall/gjson v1.14.0
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7
 	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 	golang.org/x/text v0.3.7
 	k8s.io/apimachinery v0.22.2
 	k8s.io/cli-runtime v0.22.2
@@ -99,9 +100,9 @@ require (
 	go4.org/intern v0.0.0-20211027215823-ae77deb06f29 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20211027215541-db492cf91b37 // indirect
-	golang.org/x/mod v0.5.1 // indirect
+	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/tools v0.1.8 // indirect
+	golang.org/x/tools v0.1.10 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20211104114900-415007cec224 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20211116201604-de7c702ace45 // indirect
