@@ -129,12 +129,12 @@ func lexKey(l *lexer) stateFn {
 		l.start = l.start + len(exportPrefix)
 	}
 	l.emit(itemKey)
-	return lexValue
+	return lexEquals
 }
 
 func lexEquals(l *lexer) stateFn {
-	l.emit(itemEquals)
 	l.next()
+	l.emit(itemEquals)
 	return lexValue
 }
 
