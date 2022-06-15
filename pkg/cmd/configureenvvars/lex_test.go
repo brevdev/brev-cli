@@ -402,8 +402,8 @@ export alice=bob`,
 			want: []item{
 				{
 					typ: itemError,
-					val: "key "
-				}
+					val: "key contains space",
+				},
 			},
 		},
 	}
