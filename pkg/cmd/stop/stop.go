@@ -2,6 +2,9 @@
 package stop
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -92,15 +95,21 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	}
 
-	var workspace *entity.Workspace
-	if user.GlobalUserType != entity.Admin {
-		workspace, err = util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
-	} else {
-		workspace, err = util.GetAnyWorkspaceByNameOrIDErr(stopStore, workspaceName)
-	}
-
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if !strings.Contains(err.Error(), "not found") {
+			return breverrors.WrapAndTrace(err)
+		} else {
+			if user.GlobalUserType == entity.Admin {
+				fmt.Println("admin trying to stop any workspace")
+				workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+			} else {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
 	}
 
 	_, err = stopStore.StopWorkspace(workspace.ID)
