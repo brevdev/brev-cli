@@ -99,7 +99,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
 func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("\nWorkspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint(t.Green("Workspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	var orgID string
 	activeorg, err := resetStore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -141,7 +141,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 
 // hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
 func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("\nWorkspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint(t.Green("Workspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name
 	if len(workspace.Name) == 0 {

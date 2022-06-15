@@ -72,7 +72,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("\nTurning off all of your workspaces")
+	t.Vprintf("Turning off all of your workspaces")
 	for _, v := range workspaces {
 		if v.Status == "RUNNING" {
 			_, err = stopStore.StopWorkspace(v.ID)
@@ -96,7 +96,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	if user.GlobalUserType != entity.Admin {
 		workspace, err = util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	} else {
-		workspace, err = util.GetWorkspaceByNameOrIDErr(stopStore, workspaceName)
+		workspace, err = util.GetAnyWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	}
 
 	if err != nil {
@@ -108,8 +108,8 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.") +
-		"\nNote: this can take a few seconds. Run 'brev ls' to check status\n")
+	t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.\n") +
+		"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil
 }

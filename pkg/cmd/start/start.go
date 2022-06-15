@@ -116,83 +116,116 @@ type StartOptions struct {
 }
 
 func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
-	if options.RepoOrPathOrNameOrID == "" {
-		if options.Name == "" {
-			return breverrors.NewValidationError("must provide a --name")
-		}
-		err := createEmptyWorkspace(t, options, startStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else if allutil.IsGitURL(options.RepoOrPathOrNameOrID) {
-		err := createNewWorkspaceFromGit(t, options.SetupScript, options, startStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
-		err := startWorkspaceFromPath(t, options, startStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else { // assume name or id
-		err := startStoppedOrJoinWorkspace(t, startStore, options)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
-
-func startStoppedOrJoinWorkspace(t *terminal.Terminal, startStore StartStore, options StartOptions) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(startStore, options.RepoOrPathOrNameOrID) // ignoring since error means should try to start
-	if err != nil {
-		if !strings.Contains(err.Error(), "not found") {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	if workspace == nil {
-		err := joinWorkspace(t, startStore, options)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
-		err := startStopppedWorkspace(workspace, startStore, t, options)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
-
-func joinWorkspace(t *terminal.Terminal, startStore StartStore, options StartOptions) error {
-	// get org, check for workspace to join before assuming start via path
-	activeOrg, err := startStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	user, err := startStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	workspaces, err := startStore.GetWorkspaces(activeOrg.ID, &store.GetWorkspacesOptions{
-		Name: options.RepoOrPathOrNameOrID,
-	})
+
+	didStart, err := maybeStartEmpty(t, user, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if len(workspaces) == 0 {
-		return breverrors.NewValidationError(fmt.Sprintf("no workspaces in org with name %s", options.RepoOrPathOrNameOrID))
-	} else {
-		// the user wants to join a workspace
-		err = joinProjectWithNewWorkspace(t, workspaces[0], activeOrg.ID, startStore, user, options)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	if didStart {
+		return nil
 	}
+
+	didStart, err = maybeStartFromGitURL(t, user, options, startStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if didStart {
+		return nil
+	}
+
+	didStart, err = maybeStartStoppedOrJoin(t, user, options, startStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if didStart {
+		return nil
+	}
+
+	didStart, err = maybeStartWithLocalPath(options, user, t, startStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if didStart {
+		return nil
+	}
+
 	return nil
 }
 
-func startWorkspaceFromPath(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
+func maybeStartWithLocalPath(options StartOptions, user *entity.User, t *terminal.Terminal, startStore StartStore) (bool, error) {
+	if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
+		err := startWorkspaceFromPath(user, t, options, startStore)
+		if err != nil {
+			return false, breverrors.WrapAndTrace(err)
+		}
+		return true, nil
+	} else {
+		t.Print(t.Yellow("tried to start with local path but path not found"))
+	}
+	return false, nil
+}
+
+func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options StartOptions, startStore StartStore) (bool, error) {
+	org, err := startStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := startStore.GetWorkspaceByNameOrID(org.ID, options.RepoOrPathOrNameOrID)
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	userWorkspaces := store.FilterForUserWorkspaces(workspaces, user.ID)
+	if len(userWorkspaces) > 0 {
+		if len(userWorkspaces) > 1 {
+			breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with id/name %s", options.RepoOrPathOrNameOrID))
+		}
+		if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
+			t.Print(t.Yellow(fmt.Sprintf("Warning: local path found and workspace name/id found %s. Using workspace name/id. If you meant to specify a local path change directory and try again.", options.RepoOrPathOrNameOrID)))
+		}
+		err := startStopppedWorkspace(&userWorkspaces[0], startStore, t, options)
+		if err != nil {
+			return false, breverrors.WrapAndTrace(err)
+		}
+		return true, nil
+	}
+
+	if len(workspaces) > 0 {
+		err = joinProjectWithNewWorkspace(t, workspaces[0], org.ID, startStore, user, options)
+		if err != nil {
+			return false, breverrors.WrapAndTrace(err)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func maybeStartFromGitURL(t *terminal.Terminal, user *entity.User, options StartOptions, startStore StartStore) (bool, error) {
+	if allutil.IsGitURL(options.RepoOrPathOrNameOrID) { // todo this is function is not complete, some cloneable urls are not identified
+		err := createNewWorkspaceFromGit(user, t, options.SetupScript, options, startStore)
+		if err != nil {
+			return true, breverrors.WrapAndTrace(err)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func maybeStartEmpty(t *terminal.Terminal, user *entity.User, options StartOptions, startStore StartStore) (bool, error) {
+	if options.RepoOrPathOrNameOrID == "" {
+		err := createEmptyWorkspace(user, t, options, startStore)
+		if err != nil {
+			return true, breverrors.WrapAndTrace(err)
+		}
+		return true, nil
+	}
+	return false, nil
+}
+
+func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
 	pathExists := allutil.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
 		return fmt.Errorf(strings.Join([]string{"Path:", options.RepoOrPathOrNameOrID, "does not exist."}, " "))
@@ -229,7 +262,7 @@ func startWorkspaceFromPath(t *terminal.Terminal, options StartOptions, startSto
 		fmt.Println("setup script generated.")
 	}
 
-	err := createNewWorkspaceFromGit(t, localSetupPath, options, startStore)
+	err := createNewWorkspaceFromGit(user, t, localSetupPath, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -237,7 +270,7 @@ func startWorkspaceFromPath(t *terminal.Terminal, options StartOptions, startSto
 	return err
 }
 
-func createEmptyWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
+func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
 	// ensure name
 	if len(options.Name) == 0 {
 		return breverrors.NewValidationError("name field is required for empty workspaces")
@@ -286,11 +319,6 @@ func createEmptyWorkspace(t *terminal.Terminal, options StartOptions, startStore
 		cwOptions.WithClassID(options.WorkspaceClass)
 	}
 
-	user, err := startStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
 
 	if len(setupScriptContents) > 0 {
@@ -301,7 +329,7 @@ func createEmptyWorkspace(t *terminal.Terminal, options StartOptions, startStore
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint("Workspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	if options.Detached {
 		return nil
@@ -355,7 +383,7 @@ func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("\nWorkspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("Workspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
 	// Don't poll and block the shell if detached flag is set
 	if startOptions.Detached {
@@ -392,7 +420,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
 
-	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint("Workspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
@@ -414,7 +442,7 @@ func IsUrl(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func createNewWorkspaceFromGit(t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
+func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
 	t.Vprintf("This is the setup script: %s", setupScriptURLOrPath)
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
@@ -473,7 +501,7 @@ func createNewWorkspaceFromGit(t *terminal.Terminal, setupScriptURLOrPath string
 		orgID = orgs[0].ID
 	}
 
-	err = createWorkspace(t, newWorkspace, orgID, startStore, startOptions)
+	err = createWorkspace(user, t, newWorkspace, orgID, startStore, startOptions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -524,16 +552,11 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
-	t.Vprint("\nWorkspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
+	t.Vprint("Workspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
-
-	user, err := startStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 
 	if startOptions.WorkspaceClass != "" {
 		options = options.WithWorkspaceClassID(startOptions.WorkspaceClass)
