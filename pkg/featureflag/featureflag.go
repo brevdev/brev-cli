@@ -40,6 +40,12 @@ func DisableErrorReporting() bool {
 	return viper.GetBool("feature.disable_error_reporting")
 }
 
+func ShowVersionOnRun() bool {
+	return viper.GetBool("feature.show_version_on_run")
+}
+
+// todo set me via cli flag? this was meant to sort of like verbose but could be
+// removed in favor of something like that
 func Debug() bool {
 	return viper.GetBool("feature.debug")
 }
