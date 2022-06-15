@@ -56,6 +56,10 @@ func Test_lex(t *testing.T) {
 			},
 			want: []item{
 				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
 					typ: itemKey,
 					val: "foo",
 				},
@@ -70,6 +74,10 @@ func Test_lex(t *testing.T) {
 				{
 					typ: itemSemiColon,
 					val: ";",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
 				},
 				{
 					typ: itemKey,
@@ -96,6 +104,10 @@ func Test_lex(t *testing.T) {
 			},
 			want: []item{
 				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
 					typ: itemKey,
 					val: "foo",
 				},
@@ -121,6 +133,10 @@ export alice=bob`,
 			},
 			want: []item{
 				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
 					typ: itemKey,
 					val: "foo",
 				},
@@ -135,6 +151,10 @@ export alice=bob`,
 				{
 					typ: itemNewline,
 					val: "\n",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
 				},
 				{
 					typ: itemKey,
@@ -163,6 +183,10 @@ export alice=bob`,
 			},
 			want: []item{
 				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
 					typ: itemKey,
 					val: "foo",
 				},
@@ -182,6 +206,10 @@ export alice=bob`,
 				{
 					typ: itemNewline,
 					val: "\n",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
 				},
 				{
 					typ: itemKey,
@@ -210,6 +238,10 @@ export alice=bob`,
 			},
 			want: []item{
 				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
 					typ: itemKey,
 					val: "foo",
 				},
@@ -233,6 +265,10 @@ export alice=bob`,
 				{
 					typ: itemNewline,
 					val: "\n",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
 				},
 				{
 					typ: itemKey,
@@ -266,6 +302,10 @@ export alice=bob`,
 					val: "\n",
 				},
 				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
 					typ: itemKey,
 					val: "foo",
 				},
@@ -289,6 +329,10 @@ export alice=bob`,
 				{
 					typ: itemNewline,
 					val: "\n",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
 				},
 				{
 					typ: itemKey,
@@ -402,7 +446,7 @@ export alice=bob`,
 			want: []item{
 				{
 					typ: itemError,
-					val: "key contains space",
+					val: "unexpected space",
 				},
 			},
 		},
@@ -415,7 +459,7 @@ export alice=bob`,
 			for {
 				token := got.nextItem()
 				out = append(out, token)
-				if token.typ == itemEOF {
+				if token.typ == itemEOF || token.typ == itemError {
 					break
 				}
 
