@@ -10,7 +10,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/maps"
 )
 
 const (
@@ -63,7 +62,7 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 	brevEnvKeys := strings.Split(brevEnvsString, ",")
 
 	envfileEntries := parse(envFileContents)
-	envFileKeys := maps.Keys(envfileEntries)
+	envFileKeys := keys(envfileEntries)
 	// sort to make tests consistent
 	sort.Slice(envFileKeys, func(i, j int) bool {
 		return envFileKeys[i] < envFileKeys[j]
@@ -97,13 +96,22 @@ func addExportPrefix(envFile envVars) []string {
 	out := []string{}
 
 	// sorted order to make tests consistent
-	keys := maps.Keys(envFile)
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
-	for _, k := range keys {
+	envFileKeys := keys(envFile)
+	for _, k := range envFileKeys {
 		out = append(out, fmt.Sprintf("%s %s=%s", "export", k, envFile[k]))
 	}
+	return out
+}
+
+// return map's keys in sorted order
+func keys(m map[string]string) []string {
+	out := []string{}
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i] < out[j]
+	})
 	return out
 }
 
