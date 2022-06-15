@@ -366,9 +366,8 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
-	if workspace.Status == "RUNNING" {
-		t.Vprint(t.Yellow("Workspace is already running"))
-		return nil
+	if workspace.Status != entity.WorkspaceStoppedStatus {
+		return breverrors.NewValidationError(fmt.Sprintf("Workspace is not stopped status=%s", workspace.Status))
 	}
 	if startOptions.WorkspaceClass != "" {
 		return breverrors.NewValidationError("Workspace already exists. Can not pass workspace class flag to start stopped workspace")

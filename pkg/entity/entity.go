@@ -166,6 +166,7 @@ const (
 	WorkspaceRunningStatus  = "RUNNING"
 	WorkspaceStartingStatus = "STARTING"
 	WorkspaceStoppingStatus = "STOPPING"
+	WorkspaceStoppedStatus  = "STOPPED"
 	WorkspaceDeletingStatus = "DELETING"
 )
 
