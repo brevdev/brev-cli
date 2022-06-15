@@ -262,6 +262,36 @@ export alice=bob`,
 			},
 			want: envVars{"foo": "bar", "alice": "bob"},
 		},
+		{
+			name: "env var with space in val",
+			args: args{
+				content: `export fo o=bar`,
+			},
+			want: nil,
+		},
+		{
+			name: "env var with space in key",
+			args: args{
+				content: `export foo=ba r`,
+			},
+			want: nil,
+		},
+		{
+			name: "leading spaces works",
+			args: args{
+				content: `  export foo=bar
+ export alice=bob`,
+			},
+			want: envVars{"foo": "bar", "alice": "bob"},
+		},
+		{
+			name: "trailing spaces works",
+			args: args{
+				content: `export foo=bar
+export alice=bob  `,
+			},
+			want: envVars{"foo": "bar", "alice": "bob"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
