@@ -429,7 +429,25 @@ export alice=bob`,
 			args: args{
 				input: `foo='b ar'`,
 			},
-			want: []item{},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "'b ar'",
+				},
+
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
 		},
 		{
 			name: "spaces in vals w/o quotes",
