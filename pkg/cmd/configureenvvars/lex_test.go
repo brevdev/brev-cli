@@ -541,6 +541,18 @@ alice=bob`,
 				},
 			},
 		},
+		{
+			name: "lower case export in env var name with space after doesn't screw things up",
+			args: args{
+				input: `foexport o=bar`,
+			},
+			want: []item{
+				{
+					typ: itemError,
+					val: "unexpected space",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
