@@ -33,7 +33,6 @@ require (
 	github.com/tidwall/gjson v1.14.0
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7
 	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
-	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
 	golang.org/x/text v0.3.7
 	k8s.io/apimachinery v0.22.2
 	k8s.io/cli-runtime v0.22.2
