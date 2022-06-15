@@ -393,7 +393,29 @@ export alice=bob`,
 			args: args{
 				input: `foo=bar `,
 			},
-			want: []item{},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "bar",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
 		},
 		{
 			name: "leading space",
@@ -450,11 +472,62 @@ export alice=bob`,
 			},
 		},
 		{
-			name: "spaces in vals w/o quotes",
+			name: "spaces in vals without quotes",
 			args: args{
 				input: `foo=b ar`,
 			},
-			want: []item{},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "b",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
+					typ: itemError,
+					val: "unexpected eof",
+				},
+			},
+		},
+		{
+			name: "spaces in vals without quotes, multiline",
+			args: args{
+				input: `foo=b ar
+alice=bob`,
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "b",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+
+				{
+					typ: itemError,
+					val: "unexpected newline",
+				},
+			},
 		},
 		{
 			name: "spaces in keys",

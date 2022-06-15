@@ -131,6 +131,9 @@ func lexText(l *lexer) stateFn {
 			break
 		}
 	}
+	if len(l.input[l.start:l.pos]) != 0 {
+		return l.errorf("unexpected eof")
+	}
 	l.emit(itemEOF)
 	return nil
 }
@@ -146,7 +149,13 @@ func lexKey(l *lexer) stateFn {
 func lexEquals(l *lexer) stateFn {
 	l.next()
 	l.emit(itemEquals)
-	return lexValue
+	r := l.peek()
+	switch r {
+	case '\'', '"':
+		return lexQuotedValue
+	default:
+		return lexValue
+	}
 }
 
 func lexSemiColon(l *lexer) stateFn {
@@ -157,6 +166,9 @@ func lexSemiColon(l *lexer) stateFn {
 
 func lexNewline(l *lexer) stateFn {
 	l.next()
+	if l.input[l.start:l.pos] != "\n" {
+		return l.errorf("unexpected newline")
+	}
 	l.emit(itemNewline)
 	return lexText
 }
@@ -189,6 +201,40 @@ func lexValue(l *lexer) stateFn {
 			return lexNewline
 
 		}
+		if strings.HasPrefix(l.input[l.pos:], space) {
+			l.emit(itemValue)
+			return lexText
+
+		}
+		if l.next() == eof {
+			l.emit(itemValue)
+			l.emit(itemEOF)
+			return nil
+		}
+	}
+}
+
+func lexQuotedValue(l *lexer) stateFn {
+	endQuote := map[rune]string{
+		'\'': "'",
+		'"':  "\"",
+	}[l.next()]
+	for {
+		if strings.HasPrefix(l.input[l.pos:], semicolon) {
+			l.emit(itemValue)
+			return lexSemiColon
+		}
+		if strings.HasPrefix(l.input[l.pos:], newline) {
+			l.emit(itemValue)
+			return lexNewline
+
+		}
+		if strings.HasPrefix(l.input[l.pos:], endQuote) {
+			l.next()
+			l.emit(itemValue)
+			return lexText
+		}
+
 		if l.next() == eof {
 			l.emit(itemValue)
 			l.emit(itemEOF)
