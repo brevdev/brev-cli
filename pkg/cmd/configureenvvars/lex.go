@@ -52,7 +52,7 @@ func lex(name, input string) *lexer {
 		name:  name,
 		input: input,
 		state: lexText,
-		items: make(chan item, 16),
+		items: make(chan item, 2),
 	}
 	go l.run() // concurrently begin lexing
 	return l   // return lexer and channel that tokens will be sent
@@ -140,10 +140,6 @@ const exportPrefix = "export "
 func lexKey(l *lexer) stateFn {
 	if strings.HasPrefix(l.input[l.start:l.pos], exportPrefix) {
 		l.start = l.start + len(exportPrefix)
-	}
-	if strings.Contains(l.input[l.start:l.pos], space) {
-		return 	l.errorf("key contains space")
-
 	}
 	l.emit(itemKey)
 	return lexEquals
