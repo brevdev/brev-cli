@@ -222,11 +222,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
 		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
 		cmd.AddCommand(envvars.NewCmdEnvVars(t, loginCmdStore))
-		cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
 	} else {
 		_ = 0 // noop
 	}
-
+	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
 	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore))
