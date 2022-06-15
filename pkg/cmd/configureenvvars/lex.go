@@ -15,6 +15,7 @@ const (
 	itemEquals
 	itemSemiColon
 	itemNewline
+	itemSpace
 	itemEOF
 )
 
@@ -107,24 +108,20 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 	return nil
 }
 
-const equalPrefix = "="
+const (
+	equalPrefix = "="
+	space       = " "
+)
 
 func lexText(l *lexer) stateFn {
+	if strings.HasPrefix(l.input[l.pos:], space) {
+		return lexSpace
+	}
 	if strings.HasPrefix(l.input[l.pos:], newline) {
-		if l.next() == eof {
-			l.emit(itemEOF)
-			return nil
-		}
 		return lexNewline
-
 	}
 	if strings.HasPrefix(l.input[l.pos:], semicolon) {
-		if l.next() == eof {
-			l.emit(itemEOF)
-			return nil
-		}
 		return lexSemiColon
-
 	}
 	for {
 		if strings.HasPrefix(l.input[l.pos:], equalPrefix) {
@@ -144,6 +141,10 @@ func lexKey(l *lexer) stateFn {
 	if strings.HasPrefix(l.input[l.start:l.pos], exportPrefix) {
 		l.start = l.start + len(exportPrefix)
 	}
+	if strings.Contains(l.input[l.start:l.pos], space) {
+		return 	l.errorf("key contains space")
+
+	}
 	l.emit(itemKey)
 	return lexEquals
 }
@@ -155,12 +156,23 @@ func lexEquals(l *lexer) stateFn {
 }
 
 func lexSemiColon(l *lexer) stateFn {
+	l.next()
 	l.emit(itemSemiColon)
 	return lexText
 }
 
 func lexNewline(l *lexer) stateFn {
+	l.next()
 	l.emit(itemNewline)
+	return lexText
+}
+
+func lexSpace(l *lexer) stateFn {
+	if strings.HasPrefix(l.input[l.start:l.pos], exportPrefix) {
+		l.start = l.start + len(exportPrefix)
+	}
+	l.next()
+	l.emit(itemSpace)
 	return lexText
 }
 
@@ -173,18 +185,10 @@ func lexValue(l *lexer) stateFn {
 	for {
 		if strings.HasPrefix(l.input[l.pos:], semicolon) {
 			l.emit(itemValue)
-			if l.next() == eof {
-				l.emit(itemEOF)
-				return nil
-			}
 			return lexSemiColon
 		}
 		if strings.HasPrefix(l.input[l.pos:], newline) {
 			l.emit(itemValue)
-			if l.next() == eof {
-				l.emit(itemEOF)
-				return nil
-			}
 			return lexNewline
 
 		}

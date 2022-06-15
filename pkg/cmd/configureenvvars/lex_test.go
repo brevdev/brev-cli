@@ -308,6 +308,104 @@ export alice=bob`,
 				},
 			},
 		},
+		{
+			name: "trailing space with semi colon at end",
+			args: args{
+				input: `foo=bar  ;`,
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "bar",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
+					typ: itemSemiColon,
+					val: ";",
+				},
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
+		},
+		{
+			name: "trailing space",
+			args: args{
+				input: `foo=bar `,
+			},
+			want: []item{},
+		},
+		{
+			name: "leading space",
+			args: args{
+				input: ` foo=bar`,
+			},
+			want: []item{
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "bar",
+				},
+
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
+		},
+		{
+			name: "spaces in vals with quotes",
+			args: args{
+				input: `foo='b ar'`,
+			},
+			want: []item{},
+		},
+		{
+			name: "spaces in vals w/o quotes",
+			args: args{
+				input: `foo=b ar`,
+			},
+			want: []item{},
+		},
+		{
+			name: "spaces in keys",
+			args: args{
+				input: `fo o=bar`,
+			},
+			want: []item{
+				{
+					typ: itemError,
+					val: "key "
+				}
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
