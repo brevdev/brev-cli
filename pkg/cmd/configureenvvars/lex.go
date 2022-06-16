@@ -16,6 +16,7 @@ const (
 	itemSemiColon
 	itemNewline
 	itemSpace
+	itemTab
 	itemEOF
 )
 

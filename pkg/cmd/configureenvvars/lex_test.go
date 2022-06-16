@@ -553,6 +553,35 @@ alice=bob`,
 				},
 			},
 		},
+		{
+			name: "tabs instead of spaces",
+			args: args{
+				input: `	foexporto=bar`,
+			},
+			want: []item{
+				{
+					typ: itemTab,
+					val: "\t",
+				},
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "bar",
+				},
+
+				{
+					typ: itemEOF,
+					val: "",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
