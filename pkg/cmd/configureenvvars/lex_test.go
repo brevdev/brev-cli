@@ -614,6 +614,27 @@ alice=bob`,
 				},
 			},
 		},
+		{
+			name: "quoted value newline",
+			args: args{
+				input: `foo="bar
+"`,
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemError,
+					val: "unexpected newline",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

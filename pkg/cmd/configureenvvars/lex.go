@@ -239,14 +239,8 @@ func lexQuotedValue(l *lexer) stateFn {
 		'"':  "\"",
 	}[l.next()]
 	for {
-		if strings.HasPrefix(l.input[l.pos:], semicolon) {
-			l.emit(itemValue)
-			return lexSemiColon
-		}
 		if strings.HasPrefix(l.input[l.pos:], newline) {
-			l.emit(itemValue)
-			return lexNewline
-
+			return l.errorf("unexpected newline")
 		}
 		if strings.HasPrefix(l.input[l.pos:], endQuote) {
 			l.next()
