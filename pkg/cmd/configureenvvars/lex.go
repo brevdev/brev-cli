@@ -56,9 +56,10 @@ func lex(name, input string) *lexer {
 		items: make(chan item, 2),
 	}
 	go l.run() // concurrently begin lexing
-	return l   // return lexer and channel that tokens will be sent
+	return l
 }
 
+// synchronously receive an item from lexer
 func (l *lexer) nextItem() item {
 	return <-l.items
 }
