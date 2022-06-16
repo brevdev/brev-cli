@@ -690,6 +690,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		}
 	}
 
+	fmt.Println("starting code server")
 	cmd = CmdBuilder("systemctl", "daemon-reload")
 	err = cmd.Run()
 	if err != nil {
@@ -700,6 +701,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	fmt.Println("code server started")
 
 	return nil
 }
