@@ -147,6 +147,9 @@ func lexKey(l *lexer) stateFn {
 	if strings.Contains(l.input[l.start:l.pos], space) {
 		return l.errorf("key contains space")
 	}
+	if strings.Contains(l.input[l.start:l.pos], tab) {
+		return l.errorf("key contains tab")
+	}
 	l.emit(itemKey)
 	return lexEquals
 }
@@ -249,9 +252,7 @@ func lexQuotedValue(l *lexer) stateFn {
 		}
 
 		if l.next() == eof {
-			l.emit(itemValue)
-			l.emit(itemEOF)
-			return nil
+			l.errorf("unexpected eof")
 		}
 	}
 }

@@ -635,6 +635,26 @@ alice=bob`,
 				},
 			},
 		},
+		{
+			name: "quoted value eof",
+			args: args{
+				input: `foo="bar`,
+			},
+			want: []item{
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemError,
+					val: "unexpected eof",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
