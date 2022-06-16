@@ -556,7 +556,7 @@ alice=bob`,
 		{
 			name: "tabs instead of spaces",
 			args: args{
-				input: `	foexporto=bar`,
+				input: `	foo=bar`,
 			},
 			want: []item{
 				{
@@ -579,6 +579,38 @@ alice=bob`,
 				{
 					typ: itemEOF,
 					val: "",
+				},
+			},
+		},
+		{
+			name: "tabs value",
+			args: args{
+				input: `	foo=ba	r`,
+			},
+			want: []item{
+				{
+					typ: itemTab,
+					val: "\t",
+				},
+				{
+					typ: itemKey,
+					val: "foo",
+				},
+				{
+					typ: itemEquals,
+					val: "=",
+				},
+				{
+					typ: itemValue,
+					val: "ba",
+				},
+				{
+					typ: itemTab,
+					val: "\t",
+				},
+				{
+					typ: itemError,
+					val: "unexpected eof",
 				},
 			},
 		},

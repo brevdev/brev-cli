@@ -112,10 +112,14 @@ func (l *lexer) errorf(format string, args ...interface{}) stateFn {
 const (
 	equalPrefix = "="
 	space       = " "
+	tab         = "\t"
 )
 
 func lexText(l *lexer) stateFn {
 	for {
+		if strings.HasPrefix(l.input[l.pos:], tab) {
+			return lexTab
+		}
 		if strings.HasPrefix(l.input[l.pos:], space) {
 			return lexSpace
 		}
@@ -179,10 +183,19 @@ func lexSpace(l *lexer) stateFn {
 		l.start = l.start + len("export")
 	}
 	l.next()
-	if l.input[l.start:l.pos] != " " {
+	if l.input[l.start:l.pos] != space {
 		return l.errorf("unexpected space")
 	}
 	l.emit(itemSpace)
+	return lexText
+}
+
+func lexTab(l *lexer) stateFn {
+	l.next()
+	if l.input[l.start:l.pos] != tab {
+		return l.errorf("unexpected tab")
+	}
+	l.emit(itemTab)
 	return lexText
 }
 
@@ -203,6 +216,11 @@ func lexValue(l *lexer) stateFn {
 
 		}
 		if strings.HasPrefix(l.input[l.pos:], space) {
+			l.emit(itemValue)
+			return lexText
+
+		}
+		if strings.HasPrefix(l.input[l.pos:], tab) {
 			l.emit(itemValue)
 			return lexText
 
