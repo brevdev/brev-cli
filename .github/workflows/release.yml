@@ -21,3 +21,10 @@ jobs:
         run: make smoke-test release
         env:
           GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.WORKSPACE_IMAGES_REPO_ACCESS_TOKEN }}
+          event-type: brev-cli-release
+          repository: brevdev/workspace-images
