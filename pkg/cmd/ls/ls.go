@@ -316,7 +316,7 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 		}
 	}
 	if foundAResettableWorkspace {
-		t.Vprintf(t.Yellow(fmt.Sprintf("If this problem persists, run the command again with the --hard flag\n\n")))
+		t.Vprintf(t.Yellow(fmt.Sprintf("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n")))
 	}
 }
 
