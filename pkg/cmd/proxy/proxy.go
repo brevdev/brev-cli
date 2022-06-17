@@ -97,7 +97,7 @@ func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 }
 
 func checkWorkspaceStatusOrErr(workspace *entity.Workspace) error {
-	if workspace.Status != "RUNNING" {
+	if workspace.Status != entity.Running {
 		return breverrors.NewValidationError(fmt.Sprintf("workspace is not in RUNNING state, status: %s", workspace.Status))
 	}
 	return nil

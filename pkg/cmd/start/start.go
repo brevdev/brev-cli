@@ -334,7 +334,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 	if options.Detached {
 		return nil
 	} else {
-		err = pollUntil(t, w.ID, "RUNNING", startStore, true)
+		err = pollUntil(t, w.ID, entity.Running, startStore, true)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -366,7 +366,7 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
-	if workspace.Status != entity.WorkspaceStoppedStatus {
+	if workspace.Status != entity.Stopped {
 		return breverrors.NewValidationError(fmt.Sprintf("Workspace is not stopped status=%s", workspace.Status))
 	}
 	if startOptions.WorkspaceClass != "" {
@@ -389,7 +389,7 @@ func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, 
 		return nil
 	}
 
-	err = pollUntil(t, workspace.ID, "RUNNING", startStore, true)
+	err = pollUntil(t, workspace.ID, entity.Running, startStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -426,7 +426,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = pollUntil(t, w.ID, "RUNNING", startStore, true)
+	err = pollUntil(t, w.ID, entity.Running, startStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -578,7 +578,7 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = pollUntil(t, w.ID, "RUNNING", startStore, true)
+	err = pollUntil(t, w.ID, entity.Running, startStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -593,7 +593,7 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
 	t.Vprintf(t.Green("Connect to the workspace:\n"))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> shell into workspace\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace\n", workspace.Name)))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to workspace\n", workspace.GetLocalIdentifier())))
 }
 

@@ -24,7 +24,7 @@ var someWorkspaces = []entity.WorkspaceWithMeta{
 			WorkspaceClassID: "wci",
 			CreatedByUserID:  "cui",
 			DNS:              "test-dns-org.brev.sh",
-			Status:           "RUNNING",
+			Status:           entity.Running,
 			Password:         "sdfal",
 			GitRepo:          "gitrepo",
 		},

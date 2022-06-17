@@ -270,27 +270,28 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 
 		fmt.Print("\n")
 
+		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
 		displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 
-		if !enableSSHCol {
-			ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-			for _, v := range userWorkspaces {
-				if v.Status == entity.WorkspaceRunningStatus {
-					ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
-				}
-			}
-		}
+		// if !enableSSHCol {
+		// 	ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
+		// 	for _, v := range userWorkspaces {
+		// 		if v.Status == entity.Running {
+		// 			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+		// 		}
+		// 	}
+		// }
 	}
 }
 
 func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
 	foundRunning := false
 	for _, w := range workspaces {
-		if w.Status == entity.WorkspaceRunningStatus {
+		if w.Status == entity.Running {
 			foundRunning = true
 			t.Vprintf(t.Green("Connect to running workspace:\n"))
 			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", w.Name)))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> shell into workspace\n", w.Name)))
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace\n", w.Name)))
 			if enableSSHCol {
 				t.Vprintf(t.Yellow("\tssh <SSH> ex: ssh %s\n", w.GetLocalIdentifier()))
 			}
@@ -300,6 +301,22 @@ func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Worksp
 	if !foundRunning && len(workspaces) > 0 {
 		t.Vprintf(t.Green("Start a stopped workspace:\n"))
 		t.Vprintf(t.Yellow("\tbrev start %s # brev start <NAME> -> start stopped workspace\n", workspaces[0].Name))
+	}
+}
+
+func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
+	foundAResettableWorkspace := false
+	for _, w := range workspaces {
+		if w.Status == entity.Failure || (w.Status == entity.Running && w.HealthStatus == entity.Unhealthy) {
+			if !foundAResettableWorkspace {
+				t.Vprintf(t.Red("Reset unhealthy or failed workspaces:\n"))
+			}
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
+			foundAResettableWorkspace = true
+		}
+	}
+	if foundAResettableWorkspace {
+		t.Vprintf(t.Yellow(fmt.Sprintf("If this problem persists, run the command again with the --hard flag\n\n")))
 	}
 }
 
@@ -376,7 +393,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := w.Status
-		if w.HealthStatus == "UNHEALTHY" {
+		if w.Status == entity.Running && w.HealthStatus == entity.Unhealthy {
 			status = w.HealthStatus
 		}
 		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.ID}}
@@ -419,11 +436,11 @@ func displayProjectsTable(projects []virtualproject.VirtualProject) {
 
 func getStatusColoredText(t *terminal.Terminal, status string) string {
 	switch status {
-	case "RUNNING":
+	case entity.Running:
 		return t.Green(status)
-	case "STARTING", "DEPLOYING", "STOPPING":
+	case entity.Starting, entity.Deploying, entity.Stopping:
 		return t.Yellow(status)
-	case "FAILURE", "DELETING", "UNHEALTHY":
+	case entity.Failure, entity.Deleting, entity.Unhealthy:
 		return t.Red(status)
 	default:
 		return status

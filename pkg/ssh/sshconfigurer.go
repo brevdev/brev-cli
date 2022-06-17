@@ -45,7 +45,7 @@ func (c ConfigUpdater) Run() error {
 	}
 	var runningWorkspaces []entity.Workspace
 	for _, workspace := range workspaces {
-		if workspace.Status == "RUNNING" {
+		if workspace.Status == entity.Running {
 			runningWorkspaces = append(runningWorkspaces, workspace)
 		}
 	}

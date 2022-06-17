@@ -70,7 +70,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 
 	var runningWorkspaces []entity.WorkspaceWithMeta
 	for _, w := range workspaces {
-		if w.Status == "RUNNING" {
+		if w.Status == entity.Running {
 			runningWorkspaces = append(runningWorkspaces, w)
 		}
 	}

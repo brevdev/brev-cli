@@ -162,12 +162,22 @@ type RequestCreateWorkspace struct {
 
 type WorkspaceLocalID string
 
+// Workspace Status
 const (
-	WorkspaceRunningStatus  = "RUNNING"
-	WorkspaceStartingStatus = "STARTING"
-	WorkspaceStoppingStatus = "STOPPING"
-	WorkspaceStoppedStatus  = "STOPPED"
-	WorkspaceDeletingStatus = "DELETING"
+	Running   = "RUNNING"
+	Starting  = "STARTING"
+	Stopping  = "STOPPING"
+	Deploying = "DEPLOYING"
+	Stopped   = "STOPPED"
+	Deleting  = "DELETING"
+	Failure   = "FAILURE"
+)
+
+// Health Status
+const (
+	Healthy     = "HEALTHY"
+	Unhealthy   = "UNHEALTHY"
+	Unavailable = "UNAVAILABLE"
 )
 
 type Workspace struct {

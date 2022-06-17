@@ -129,7 +129,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = pollUntil(t, w.ID, "RUNNING", resetStore, true)
+	err = pollUntil(t, w.ID, entity.Running, resetStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -178,7 +178,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = pollUntil(t, w.ID, "RUNNING", resetStore, true)
+	err = pollUntil(t, w.ID, entity.Running, resetStore, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
