@@ -9,6 +9,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/entity/virtualproject"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -229,9 +230,9 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Orga
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
 
-	projects := entity.NewVirtualProjects(allWorkspaces)
+	projects := virtualproject.NewVirtualProjects(allWorkspaces)
 
-	var unjoinedProjects []entity.VirtualProject
+	var unjoinedProjects []virtualproject.VirtualProject
 	for _, p := range projects {
 		wks := p.GetUserWorkspaces(user.ID)
 		if len(wks) == 0 {
@@ -336,7 +337,7 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 	return nil
 }
 
-func displayProjects(t *terminal.Terminal, orgName string, projects []entity.VirtualProject) {
+func displayProjects(t *terminal.Terminal, orgName string, projects []virtualproject.VirtualProject) {
 	if len(projects) > 0 {
 		fmt.Print("\n")
 		t.Vprintf("%d other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
@@ -403,7 +404,7 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 	ta.Render()
 }
 
-func displayProjectsTable(projects []entity.VirtualProject) {
+func displayProjectsTable(projects []virtualproject.VirtualProject) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()

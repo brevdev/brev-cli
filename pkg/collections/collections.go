@@ -2,7 +2,9 @@
 
 package collections
 
-import "sort"
+import (
+	"sort"
+)
 
 func Duplicate[T any](x T) []T {
 	return []T{x, x}
