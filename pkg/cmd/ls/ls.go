@@ -374,9 +374,13 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.ID}}
+		status := w.Status
+		if w.HealthStatus == "UNHEALTHY" {
+			status = w.HealthStatus
+		}
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.ID}}
 		if enableSSHCol {
-			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, w.Status), w.DNS, w.GetLocalIdentifier(), w.ID}}
+			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.GetLocalIdentifier(), w.ID}}
 		}
 		ta.AppendRows(workspaceRow)
 	}
@@ -418,7 +422,7 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 		return t.Green(status)
 	case "STARTING", "DEPLOYING", "STOPPING":
 		return t.Yellow(status)
-	case "FAILURE", "DELETING":
+	case "FAILURE", "DELETING", "UNHEALTHY":
 		return t.Red(status)
 	default:
 		return status
