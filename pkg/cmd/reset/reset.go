@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -19,8 +18,8 @@ import (
 
 var (
 	startLong    = "Reset your machine if it's acting up. This deletes the machine and gets you a fresh one."
-	startExample = `  brev reset <ws_name>
-  brev reset <ws_name> --hard`
+	startExample = `brev reset <ws_name>...
+  brev reset --hard <ws_name>...`
 )
 
 type ResetStore interface {
@@ -44,20 +43,21 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Short:                 "Reset a workspace if it's in a weird state.",
 		Long:                  startLong,
 		Example:               startExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
+		// Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
+		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if hardreset {
-				err := hardResetProcess(args[0], t, loginResetStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
+			for _, arg := range args {
+				if hardreset {
+					err := hardResetProcess(arg, t, loginResetStore)
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
+				} else {
+					err := resetWorkspace(arg, t, loginResetStore)
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
 				}
-			} else {
-				err := resetWorkspace(args[0], t, loginResetStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
 			}
 			return nil
 		},
