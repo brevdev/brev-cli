@@ -32,6 +32,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/tidwall/gjson v1.14.0
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7
+	github.com/wk8/go-ordered-map/v2 v2.0.0
 	golang.org/x/crypto v0.0.0-20211202192323-5770296d904e
 	golang.org/x/text v0.3.7
 	k8s.io/apimachinery v0.22.2
@@ -56,6 +57,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.6.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.11.1 // indirect
 	github.com/aws/smithy-go v1.9.0 // indirect
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.5.1 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect

@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
 type AuthTokens struct {
@@ -331,26 +333,32 @@ type VirtualProject struct {
 }
 
 func NewVirtualProjects(workspaces []Workspace) []VirtualProject {
-	gitRepoWorkspaceMap := make(map[string]map[string][]Workspace)
+	gitRepoWorkspaceMap := orderedmap.New[string, map[string][]Workspace]()
+	// gitRepoWorkspaceMap := make(map[string]map[string][]Workspace)
 	for _, w := range workspaces {
-		if _, ok := gitRepoWorkspaceMap[w.GitRepo]; !ok {
-			gitRepoWorkspaceMap[w.GitRepo] = make(map[string][]Workspace)
+		if _, ok := gitRepoWorkspaceMap.Get(w.GitRepo); !ok {
+			gitRepoWorkspaceMap.Set(w.GitRepo, make(map[string][]Workspace))
 		}
-		gitRepoWorkspaceMap[w.GitRepo][w.CreatedByUserID] = append(gitRepoWorkspaceMap[w.GitRepo][w.CreatedByUserID], w)
+		m, ok := gitRepoWorkspaceMap.Get(w.GitRepo) //[w.GitRepo][w.CreatedByUserID] =
+		if !ok {
+			panic("no")
+		}
+		m[w.CreatedByUserID] = append(m[w.CreatedByUserID], w)
+		gitRepoWorkspaceMap.Set(w.GitRepo, m)
 	}
 	var projects []VirtualProject
-	for k, v := range gitRepoWorkspaceMap {
-		key, ok := GetFirstKeyMap(v)
+	for pair := gitRepoWorkspaceMap.Oldest(); pair != nil; pair = pair.Next() {
+		key, ok := GetFirstKeyMap(pair.Value)
 		if !ok {
 			continue
 		}
 
-		if len(v[key]) == 0 {
+		if len(pair.Value[key]) == 0 {
 			continue
 		}
 
-		projectName := v[key][0].Name // TODO this is the SUPER hacky unexpected behavior part
-		projects = append(projects, VirtualProject{Name: projectName, GitURL: k, WorkspacesByUser: v})
+		projectName := pair.Value[key][0].Name // TODO this is the SUPER hacky unexpected behavior part
+		projects = append(projects, VirtualProject{Name: projectName, GitURL: pair.Key, WorkspacesByUser: pair.Value})
 	}
 	return projects
 }
