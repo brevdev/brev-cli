@@ -593,7 +593,7 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
 	t.Vprintf(t.Green("Connect to the workspace:\n"))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to workspace\n", workspace.GetLocalIdentifier())))
 }
 
