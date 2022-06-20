@@ -47,8 +47,9 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 				if len(args) == 0 {
 					return breverrors.NewValidationError("please provide a workspace to stop")
 				}
+				multipleArgsBool := len(args) > 1
 				for _, arg := range args {
-					err := stopWorkspace(arg, t, loginStopStore)
+					err := stopWorkspace(arg, multipleArgsBool, t, loginStopStore)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
 					}
@@ -89,7 +90,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 	return nil
 }
 
-func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
+func stopWorkspace(workspaceName string, multipleArgs bool, t *terminal.Terminal, stopStore StopStore) error {
 	user, err := stopStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -98,27 +99,43 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
 	if err != nil {
 		if !strings.Contains(err.Error(), "not found") {
-			return breverrors.WrapAndTrace(err)
+			if multipleArgs {
+				t.Vprintf(t.Red("Error: %s", err.Error()))
+			} else {
+				return breverrors.WrapAndTrace(err)
+			}
 		} else {
 			if user.GlobalUserType == entity.Admin {
 				fmt.Println("admin trying to stop any workspace")
 				workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
 				if err != nil {
-					return breverrors.WrapAndTrace(err)
+					if multipleArgs {
+						t.Vprintf(t.Red("Error: %s", err.Error()))
+					} else {
+						return breverrors.WrapAndTrace(err)
+					}
 				}
 			} else {
-				return breverrors.WrapAndTrace(err)
+				if multipleArgs {
+					t.Vprintf(t.Red("Error: %s", err.Error()))
+				} else {
+					return breverrors.WrapAndTrace(err)
+				}
 			}
 		}
 	}
 
 	_, err = stopStore.StopWorkspace(workspace.ID)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if multipleArgs {
+			t.Vprintf(t.Red("Error: %s", err.Error()))
+		} else {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.\n") +
+			"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 	}
-
-	t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.\n") +
-		"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil
 }
