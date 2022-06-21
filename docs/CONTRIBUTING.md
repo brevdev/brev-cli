@@ -57,7 +57,6 @@ make version-bump-major
 
 when releasing make sure to
 
-1. [ ] run `full-smoke-test` before cutting release to run through some common commands and make sure that they work
 
 2. [ ] release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
