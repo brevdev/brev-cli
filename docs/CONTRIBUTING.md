@@ -61,8 +61,6 @@ when releasing make sure to
 
 2. [ ] release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
-3. [ ] update [brev's homebrew tap](https://github.com/brevdev/homebrew-brev)
-
 
 ## Maintainance
 
