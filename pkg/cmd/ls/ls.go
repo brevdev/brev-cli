@@ -308,7 +308,7 @@ func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Worksp
 func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
 	foundAResettableWorkspace := false
 	for _, w := range workspaces {
-		if w.Status == entity.Failure || (w.Status == entity.Running && w.HealthStatus == entity.Unhealthy) {
+		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
 			if !foundAResettableWorkspace {
 				t.Vprintf(t.Red("Reset unhealthy or failed workspaces:\n"))
 			}
@@ -393,10 +393,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
-		status := w.Status
-		if w.Status == entity.Running && w.HealthStatus == entity.Unhealthy {
-			status = w.HealthStatus
-		}
+		status := getWorkspaceDisplayStatus(w)
 		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.ID}}
 		if enableSSHCol {
 			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.GetLocalIdentifier(), w.ID}}
@@ -404,6 +401,14 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
+}
+
+func getWorkspaceDisplayStatus(w entity.Workspace) string {
+	status := w.Status
+	if w.Status == entity.Running && w.HealthStatus == entity.Unhealthy {
+		status = w.HealthStatus
+	}
+	return status
 }
 
 func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOrg *entity.Organization) {
