@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -21,9 +22,10 @@ var (
 type ShellStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
+	completions.CompletionStore
 }
 
-func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
+func NewCmdShell(t *terminal.Terminal, store ShellStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
@@ -32,6 +34,7 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(store, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runShellCommand(store, args[0])
 			if err != nil {
