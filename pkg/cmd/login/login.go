@@ -206,7 +206,7 @@ func (o LoginOptions) handleOnboaring(user *entity.User, t *terminal.Terminal) e
 		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "What is your preferred IDE?",
 			ErrorMsg: "error",
-			Items:    []string{"VSCode", "JetBrains IDEs", "Other"},
+			Items:    []string{"VSCode", "JetBrains IDEs", "Vim", "Emacs", "Other"},
 		})
 		newOnboardingStatus["editor"] = ide
 	} else {

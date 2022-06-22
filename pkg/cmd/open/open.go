@@ -62,7 +62,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 
 	localIdentifier := workspace.GetLocalIdentifier()
 
-	t.Vprintf(t.Yellow("\nOpening VS Code to %s 🤙\n", projPath))
+	t.Vprintf(t.Yellow("\nOpening VSCode to %s 🤙\n", projPath))
 
 	err = res.Await()
 	if err != nil {
