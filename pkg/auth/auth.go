@@ -193,9 +193,9 @@ func (t Auth) Login() (*LoginTokens, error) {
 			caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 			urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
-			fmt.Println("\n" + url + "\n")
+			fmt.Println("\n" + "Browser link: " + url + "\n")
 			_ = terminal.PromptGetInput(terminal.PromptContent{
-				Label:      "  " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
+				Label:      "   " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
 				ErrorMsg:   "error",
 				AllowEmpty: true,
 			})
@@ -224,7 +224,7 @@ func (t Auth) Login() (*LoginTokens, error) {
 
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	fmt.Println("")
-	fmt.Println("  ", caretType("▸"), "    Successfully logged in.")
+	fmt.Println("  ", caretType("▸"), "   Successfully logged in.")
 
 	return tokens, nil
 }

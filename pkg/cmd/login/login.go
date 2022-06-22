@@ -146,6 +146,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
 	}
 
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
+	fmt.Print("\n")
 	fmt.Println("  ", caretType("▸"), "    Starting Login")
 	fmt.Print("\n")
 
@@ -206,8 +207,14 @@ func (o LoginOptions) handleOnboaring(user *entity.User, t *terminal.Terminal) e
 		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "What is your preferred IDE?",
 			ErrorMsg: "error",
-			Items:    []string{"VSCode", "JetBrains IDEs", "Vim", "Emacs", "Other"},
+			Items:    []string{"VSCode", "JetBrains IDEs", "Vim", "Emacs", "Atom", "Other"},
 		})
+		if ide == "Other" {
+			ide = terminal.PromptGetInput(terminal.PromptContent{
+				Label:    "Please enter your preferred IDE:",
+				ErrorMsg: "Error: must enter a value",
+			})
+		}
 		newOnboardingStatus["editor"] = ide
 	} else {
 		ide = currentOnboardingStatus.Editor
