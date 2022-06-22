@@ -242,7 +242,8 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Workspace %s is resetting. \n Note: this can take a few seconds. Run 'brev ls' to check status\n", startedWorkspace.Name)
+	t.Vprintf(t.Yellow("Workspace %s is resetting.\n", startedWorkspace.Name))
+	t.Vprintf("Note: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil
 }
