@@ -206,7 +206,7 @@ func (o LoginOptions) handleOnboaring(user *entity.User, t *terminal.Terminal) e
 		// Check IDE requirements
 		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "What is your preferred IDE?",
-			ErrorMsg: "error",
+			ErrorMsg: "Error: must choose a preferred IDE",
 			Items:    []string{"VSCode", "JetBrains IDEs", "Vim", "Emacs", "Atom", "Other"},
 		})
 		if ide == "Other" {
