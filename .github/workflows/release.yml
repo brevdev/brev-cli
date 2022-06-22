@@ -18,7 +18,7 @@ jobs:
           go-version: 1.18
 
       - name: Release
-        run: make smoke-test release
+        run: make ci smoke-test release
         env:
           GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
       # disable until this until figure out tags
