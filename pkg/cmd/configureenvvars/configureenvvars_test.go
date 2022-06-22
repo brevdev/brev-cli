@@ -109,6 +109,14 @@ export alice='bob'`,
 export foo='bar'
 export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
 		},
+		{
+			name: "hyphen in env var shouldn't be included since that's not allowed in most shells",
+			args: args{
+				brevEnvsString:  "",
+				envFileContents: `export NADER-TEST='nader-testing' `,
+			},
+			want: ``,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

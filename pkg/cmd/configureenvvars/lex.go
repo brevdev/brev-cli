@@ -144,7 +144,12 @@ func lexText(l *lexer) stateFn {
 	return nil
 }
 
+const hyphen = "-"
+
 func lexKey(l *lexer) stateFn {
+	if strings.Contains(l.input[l.start:l.pos], hyphen) {
+		return l.errorf("key contains hyphen")
+	}
 	if strings.Contains(l.input[l.start:l.pos], space) {
 		return l.errorf("key contains space")
 	}
