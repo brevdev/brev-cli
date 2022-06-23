@@ -160,7 +160,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = o.handleOnboaring(user, t)
+	err = o.handleOnboarding(user, t)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -185,7 +185,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
 	return nil
 }
 
-func (o LoginOptions) handleOnboaring(user *entity.User, t *terminal.Terminal) error {
+func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) error {
 	// figure out if we should onboard the user
 	currentOnboardingStatus, err := user.GetOnboardingStatus()
 	if err != nil {
