@@ -44,7 +44,7 @@ type LoginStore interface {
 }
 
 type Auth interface {
-	Login() (*auth.LoginTokens, error)
+	Login(printUrl bool) (*auth.LoginTokens, error)
 	LoginWithToken(token string) error
 }
 
@@ -56,6 +56,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 	}
 
 	var loginToken string
+	var printUrl bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
@@ -66,7 +67,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Example:               "brev login",
 		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := opts.RunLogin(t, loginToken)
+			err := opts.RunLogin(t, loginToken, printUrl)
 			if err != nil {
 				err2 := RunTasksForUser(t)
 				if err2 != nil {
@@ -78,6 +79,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		},
 	}
 	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
+	cmd.Flags().BoolVar(&printUrl, "print-url", false, "print url instead of auto opening browser")
 	return cmd
 }
 
@@ -94,14 +96,14 @@ func (o LoginOptions) checkIfInWorkspace() error {
 	return nil
 }
 
-func (o LoginOptions) loginAndGetOrCreateUser(loginToken string) (*entity.User, error) {
+func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, printUrl bool) (*entity.User, error) {
 	if loginToken != "" {
 		err := o.Auth.LoginWithToken(loginToken)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 	} else {
-		tokens, err := o.Auth.Login()
+		tokens, err := o.Auth.Login(printUrl)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -139,7 +141,7 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 	return org, nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
+func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, printUrl bool) error {
 	err := o.checkIfInWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -150,7 +152,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string) error {
 	fmt.Println("  ", caretType("▸"), "    Starting Login")
 	fmt.Print("\n")
 
-	user, err := o.loginAndGetOrCreateUser(loginToken)
+	user, err := o.loginAndGetOrCreateUser(loginToken, printUrl)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
