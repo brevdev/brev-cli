@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/getsentry/sentry-go"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
@@ -37,7 +38,7 @@ func DisplayAndHandleError(err error) {
 	if err != nil {
 		t := terminal.New()
 		prettyErr := ""
-		switch err.(type) {
+		switch errors.Cause(err).(type) {
 		case breverrors.ValidationError:
 			// do not report error
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
@@ -47,8 +48,10 @@ func DisplayAndHandleError(err error) {
 			} else {
 				er := breverrors.GetDefaultErrorReporter()
 				er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
-					Type:    "err",
-					Message: err.Error(),
+					Type:     "default",
+					Category: "stacktrace",
+					Level:    string(sentry.LevelError),
+					Message:  err.Error(),
 				})
 				er.ReportError(err)
 				prettyErr = (t.Red(errors.Cause(err).Error()))
