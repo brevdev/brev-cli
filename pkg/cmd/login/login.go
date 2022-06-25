@@ -44,7 +44,7 @@ type LoginStore interface {
 }
 
 type Auth interface {
-	Login(printUrl bool) (*auth.LoginTokens, error)
+	Login(skipBrowser bool) (*auth.LoginTokens, error)
 	LoginWithToken(token string) error
 }
 
@@ -96,14 +96,14 @@ func (o LoginOptions) checkIfInWorkspace() error {
 	return nil
 }
 
-func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, printUrl bool) (*entity.User, error) {
+func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, skipBrowser bool) (*entity.User, error) {
 	if loginToken != "" {
 		err := o.Auth.LoginWithToken(loginToken)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 	} else {
-		tokens, err := o.Auth.Login(printUrl)
+		tokens, err := o.Auth.Login(skipBrowser)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -141,7 +141,7 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 	return org, nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, printUrl bool) error {
+func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrowser bool) error {
 	err := o.checkIfInWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -152,7 +152,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, printUrl
 	fmt.Println("  ", caretType("▸"), "    Starting Login")
 	fmt.Print("\n")
 
-	user, err := o.loginAndGetOrCreateUser(loginToken, printUrl)
+	user, err := o.loginAndGetOrCreateUser(loginToken, skipBrowser)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

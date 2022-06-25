@@ -207,16 +207,16 @@ func defaultAuthFunc(url, code string) {
 	fmt.Println("Waiting for login to complete in browser... ")
 }
 
-func printUrlAuthFunc(url, code string) {
+func skipBrowserAuthFunc(url, code string) {
 	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
 	fmt.Println("Waiting for login to complete in browser... ")
 }
 
-func (t Auth) Login(printUrl bool) (*LoginTokens, error) {
+func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
 	authFunc := defaultAuthFunc
-	if printUrl {
-		authFunc = printUrlAuthFunc
+	if skipBrowser {
+		authFunc = skipBrowserAuthFunc
 	}
 	tokens, err := t.oauth.DoDeviceAuthFlow(authFunc)
 	if err != nil {
