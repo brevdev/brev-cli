@@ -207,7 +207,7 @@ func defaultAuthFunc(url, code string) {
 	fmt.Println("Waiting for login to complete in browser... ")
 }
 
-func skipBrowserAuthFunc(url, code string) {
+func skipBrowserAuthFunc(url, _ string) {
 	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
 	fmt.Println("Waiting for login to complete in browser... ")
