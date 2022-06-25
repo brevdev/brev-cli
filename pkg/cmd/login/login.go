@@ -56,7 +56,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 	}
 
 	var loginToken string
-	var printUrl bool
+	var skipBrowser bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
@@ -67,7 +67,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Example:               "brev login",
 		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := opts.RunLogin(t, loginToken, printUrl)
+			err := opts.RunLogin(t, loginToken, skipBrowser)
 			if err != nil {
 				err2 := RunTasksForUser(t)
 				if err2 != nil {
@@ -79,7 +79,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		},
 	}
 	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
-	cmd.Flags().BoolVar(&printUrl, "print-url", false, "print url instead of auto opening browser")
+	cmd.Flags().BoolVar(&skipBrowser, "skip-browser", false, "print url instead of auto opening browser")
 	return cmd
 }
 

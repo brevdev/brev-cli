@@ -15,7 +15,7 @@
       // "envFile": "${workspaceFolder}/local.env",
       "args": [
         "login",
-        "--print-url"
+        "--skip-browser"
       ],
       "env": {
         // "ACTION": "stop",
