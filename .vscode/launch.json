@@ -188,7 +188,7 @@
       // "envFile": "${workspaceFolder}/local.env",
       "args": [
         "start",
-        "grimoire",
+        "homebrew-brev",
       ]
     },
     {
