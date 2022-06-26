@@ -19,6 +19,10 @@ dev: clean install generate vet fmt lint test mod-tidy
 ci: ## CI build
 ci: dev diff
 
+.PHONY: github-ci
+github-ci: ## github actions doesn't need diff since it is always running on latest commit
+github-ci: dev 
+
 .PHONY: clean
 clean: ## remove files created during build pipeline
 	$(call print-target)

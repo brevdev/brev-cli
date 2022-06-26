@@ -25,7 +25,7 @@ jobs:
           go-version: 1.18
 
       - name: Build
-        run: make ci
+        run: make github-ci
       - name: Upload coverage
         uses: actions/upload-artifact@v2
         with:
