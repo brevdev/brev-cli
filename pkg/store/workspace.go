@@ -23,7 +23,7 @@ type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
-	IsStoppable          bool                 `json:"isStoppable"`
+	IsStoppable          *bool                `json:"isStoppable,omitempty"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	PrimaryApplicationID string               `json:"primaryApplicationId"`
 	Applications         []entity.Application `json:"applications"`
@@ -63,12 +63,13 @@ var (
 var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
+	isStoppable := false
 	return &CreateWorkspacesOptions{
 		Name:                 name,
 		WorkspaceGroupID:     clusterID,
 		WorkspaceClassID:     DefaultWorkspaceClassID,
 		GitRepo:              "",
-		IsStoppable:          false,
+		IsStoppable:          &isStoppable,
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		PrimaryApplicationID: DefaultApplicationID,
 		Applications:         DefaultApplicationList,
