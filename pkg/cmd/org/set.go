@@ -65,16 +65,16 @@ func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
 	fmt.Println(workspaceID)
 
 	if workspaceID != "" {
-		return fmt.Errorf("can not set orgs in a workspace")
+		return breverrors.NewValidationError("can not set orgs in a workspace")
 	}
 	orgs, err := setStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
-		return fmt.Errorf("no orgs exist with name %s", orgName)
+		return breverrors.NewValidationError(fmt.Sprintf("no orgs exist with name %s", orgName))
 	} else if len(orgs) > 1 {
-		return fmt.Errorf("more than one org exist with name %s", orgName)
+		return breverrors.NewValidationError(fmt.Sprintf("more than one org exist with name %s", orgName))
 	}
 
 	org := orgs[0]
