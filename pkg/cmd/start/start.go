@@ -262,9 +262,9 @@ func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options Sta
 		fmt.Println("setup script generated.")
 	}
 
-	 // createNewWorkspaceFromGit expects this field to be a git url, but above 
-	 // logic wants it to be the directory path, so set it only before calling 
-	 // createNewWorkspaceFromGit
+	// createNewWorkspaceFromGit expects this field to be a git url, but above
+	// logic wants it to be the directory path, so set it only before calling
+	// createNewWorkspaceFromGit
 	options.RepoOrPathOrNameOrID = gitURL
 	err := createNewWorkspaceFromGit(user, t, localSetupPath, options, startStore)
 	if err != nil {

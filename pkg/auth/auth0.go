@@ -276,7 +276,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 		}
 		if strings.Contains(authError.ErrorDescription, "invalid refresh token") {
 			fmt.Printf("warning: invalid refresh token | %s\n", authError.ErrorDescription)
-			return &entity.AuthTokens{AccessToken: "", RefreshToken: ""}, nil
+			return nil, nil
 		}
 
 		err = ErrorIfBadHTTP(r)
