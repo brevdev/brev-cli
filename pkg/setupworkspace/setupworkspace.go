@@ -503,6 +503,18 @@ func (w WorkspaceIniter) CreateTempStrExecFile(execPath string, execStr string) 
 	return nil
 }
 
+func (w WorkspaceIniter) GetRepoPath(repo entity.RepoV1) (string, error) {
+	dir, err := repo.GetDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	repoPath := filepath.Join(w.BuildWorkspacePath(), dir)
+	if path.IsAbs(dir) {
+		repoPath = dir
+	}
+	return repoPath, nil
+}
+
 func (w WorkspaceIniter) GetExecPath(name entity.ExecName, exec entity.ExecV1) (string, error) {
 	execPath := ""
 	if exec.Type == entity.PathExecType { //nolint:gocritic // i like if
@@ -886,19 +898,21 @@ func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
 }
 
 func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
-	dir := repo.GetDir()
+	repoPath, err := w.GetRepoPath(repo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if repo.Type == entity.GitRepoType { //nolint:gocritic // i like if
 		branch := ""
 		if repo.GitRepo.Branch != nil {
 			branch = *repo.GitRepo.Branch
 		}
-		err := w.GitCloneIfDNE(repo.Repository, dir, branch)
+		err := w.GitCloneIfDNE(repo.Repository, repoPath, branch)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if repo.Type == entity.EmptyRepoType {
 		fmt.Println("empty repo")
-		repoPath := filepath.Join(w.BuildWorkspacePath(), dir)
 		if !PathExists(repoPath) {
 			fmt.Println("setting up empty repo")
 			err := os.MkdirAll(repoPath, 0o775) //nolint:gosec // occurs in safe area
@@ -924,8 +938,8 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		return fmt.Errorf("repo type not supported %s", repo.Type)
 	}
 
-	brevPath := filepath.Join(dir, ".brev")
-	err := w.setupDotBrev(brevPath)
+	brevPath := filepath.Join(repoPath, ".brev")
+	err = w.setupDotBrev(brevPath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

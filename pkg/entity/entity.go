@@ -51,15 +51,14 @@ type (
 )
 type RepoType string
 
-func (r RepoV1) GetDir() string {
-	if r.Type == GitRepoType {
-		return r.GitRepo.GetDir()
+func (r RepoV1) GetDir() (string, error) {
+	if r.Type == GitRepoType { //nolint:gocritic // i like ifs
+		return r.GitRepo.GetDir(), nil
 	} else if r.Type == EmptyRepoType {
-		return r.EmptyDirectory
+		return r.EmptyDirectory, nil
 	} else {
-		fmt.Println("error: invalid type in getting dir of repov1")
+		return "", fmt.Errorf("error: invalid type in getting dir of repov1")
 	}
-	return ""
 }
 
 const (
