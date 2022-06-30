@@ -445,6 +445,10 @@ func (w WorkspaceIniter) RunExecs() error {
 }
 
 func (w WorkspaceIniter) runExecV1(name entity.ExecName, exec entity.ExecV1) error {
+	if exec.IsDisabled {
+		fmt.Printf("exec %s disabled, not running", name)
+		return nil
+	}
 	execWorkDir := ""
 	if exec.ExecWorkDir != nil {
 		execWorkDir = *exec.ExecWorkDir

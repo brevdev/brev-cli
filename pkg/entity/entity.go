@@ -104,6 +104,7 @@ type (
 		PathExec
 	}
 	ExecOptions struct {
+		IsDisabled     bool       `json:"isDisabled"`
 		ExecWorkDir    *string    `json:"execWorkDir"`
 		LogPath        *string    `json:"logPath"`
 		LogArchivePath *string    `json:"logArchivePath"`
