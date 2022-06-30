@@ -51,6 +51,17 @@ type (
 )
 type RepoType string
 
+func (r RepoV1) GetDir() string {
+	if r.Type == GitRepoType {
+		return r.GitRepo.GetDir()
+	} else if r.Type == EmptyRepoType {
+		return r.EmptyDirectory
+	} else {
+		fmt.Println("error: invalid type in getting dir of repov1")
+	}
+	return ""
+}
+
 const (
 	GitRepoType   RepoType = "git"
 	EmptyRepoType RepoType = "empty"
@@ -60,12 +71,22 @@ type GitRepo struct {
 	Repository string `json:"repository,omitempty"`
 	GitRepoOptions
 }
+
+func (g GitRepo) GetDir() string {
+	if g.GitDirectory != nil && *g.GitDirectory != "" {
+		return *g.GitDirectory
+	} else {
+		repo := g.Repository
+		return strings.Split(repo[strings.LastIndex(repo, "/")+1:], ".")[0]
+	}
+}
+
 type GitRepoOptions struct {
 	Branch       *string `json:"branch,omitempty"`           // branch, tag, commit
 	GitDirectory *string `json:"gitRepoDirectory,omitempty"` // need to be different names than emptyrepo
 }
 type EmptyRepo struct {
-	EmptyDirectory *string `json:"emptyRepoDirectory,omitempty"` // need to be different names than gitrepo
+	EmptyDirectory string `json:"emptyRepoDirectory,omitempty"` // need to be different names than gitrepo
 }
 
 type (

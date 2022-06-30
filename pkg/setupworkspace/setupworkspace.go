@@ -886,14 +886,11 @@ func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
 }
 
 func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
-	dir := ""
+	dir := repo.GetDir()
 	if repo.Type == entity.GitRepoType { //nolint:gocritic // i like if
-		if repo.GitDirectory != nil {
-			dir = *repo.GitDirectory
-		}
 		branch := ""
 		if repo.GitRepo.Branch != nil {
-			dir = *repo.GitRepo.Branch
+			branch = *repo.GitRepo.Branch
 		}
 		err := w.GitCloneIfDNE(repo.Repository, dir, branch)
 		if err != nil {
@@ -901,9 +898,6 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		}
 	} else if repo.Type == entity.EmptyRepoType {
 		fmt.Println("empty repo")
-		if repo.GitRepo.GitDirectory != nil {
-			dir = *repo.EmptyDirectory
-		}
 		repoPath := filepath.Join(w.BuildWorkspacePath(), dir)
 		if !PathExists(repoPath) {
 			fmt.Println("setting up empty repo")
