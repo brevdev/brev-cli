@@ -907,7 +907,7 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		if repo.GitRepo.Branch != nil {
 			branch = *repo.GitRepo.Branch
 		}
-		err := w.GitCloneIfDNE(repo.Repository, repoPath, branch)
+		err = w.GitCloneIfDNE(repo.Repository, repoPath, branch)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -915,7 +915,7 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		fmt.Println("empty repo")
 		if !PathExists(repoPath) {
 			fmt.Println("setting up empty repo")
-			err := os.MkdirAll(repoPath, 0o775) //nolint:gosec // occurs in safe area
+			err = os.MkdirAll(repoPath, 0o775) //nolint:gosec // occurs in safe area
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
