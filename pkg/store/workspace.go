@@ -36,8 +36,8 @@ type CreateWorkspacesOptions struct {
 	DotBrevPath       string `json:"dotBrevPath"`
 
 	IDEConfig *entity.IDEConfig `json:"ideConfig"`
-	Repos     entity.Repos      `json:"repos"`
-	Execs     entity.Execs      `json:"execs"`
+	Repos     entity.ReposV0    `json:"repos"`
+	Execs     entity.ExecsV0    `json:"execs"`
 }
 
 var (
@@ -78,7 +78,7 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 }
 
 func (c *CreateWorkspacesOptions) WithCustomSetupRepo(gitRepo string, path string) *CreateWorkspacesOptions {
-	c.Repos = entity.Repos{
+	c.Repos = entity.ReposV0{
 		"configRepo": entity.RepoV0{
 			Repository:    gitRepo,
 			SetupExecPath: path,
@@ -396,8 +396,11 @@ type SetupParamsV0 struct {
 	UserBrevPath      string `json:"userBrevPath"`
 	UserSetupExecPath string `json:"userSetupExecPath"`
 
-	Repos entity.Repos `json:"repos"` // the new way to handle repos, user and project should be here
-	Execs entity.Execs `json:"execs"` // the new way to handle setup scripts
+	ReposV0 entity.ReposV0 `json:"repos"` // the new way to handle repos, user and project should be here
+	ExecsV0 entity.ExecsV0 `json:"execs"` // the new way to handle setup scripts
+
+	ReposV1 entity.ReposV1 `json:"reposV1"`
+	ExecsV1 entity.ExecsV1 `json:"execsV1"`
 
 	IDEConfigs IDEConfigs `json:"ideConfig"`
 

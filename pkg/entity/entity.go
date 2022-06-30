@@ -41,8 +41,32 @@ type (
 		ExecWorkDir   string   `json:"execWorkDir"`
 		DependsOn     []string `json:"dependsOn"`
 	}
-	Repos map[RepoName]RepoV0
+	ReposV0 map[RepoName]RepoV0
+	RepoV1  struct {
+		Type RepoType `json:"type"`
+		GitRepo
+		EmptyRepo
+	}
+	ReposV1 map[RepoName]RepoV1
 )
+type RepoType string
+
+const (
+	GitRepoType   RepoType = "git"
+	EmptyRepoType RepoType = "empty"
+)
+
+type GitRepo struct {
+	Repository string `json:"repository,omitempty"`
+	GitRepoOptions
+}
+type GitRepoOptions struct {
+	Branch       *string `json:"branch,omitempty"`           // branch, tag, commit
+	GitDirectory *string `json:"gitRepoDirectory,omitempty"` // need to be different names than emptyrepo
+}
+type EmptyRepo struct {
+	EmptyDirectory *string `json:"emptyRepoDirectory,omitempty"` // need to be different names than gitrepo
+}
 
 type (
 	ExecName string
@@ -51,7 +75,42 @@ type (
 		ExecWorkDir string   `json:"execWorkDir"`
 		DependsOn   []string `json:"dependsOn"`
 	}
-	Execs map[ExecName]ExecV0
+	ExecsV0 map[ExecName]ExecV0
+	ExecV1  struct {
+		Type  ExecType   `json:"type"`  // string or path // default=str
+		Stage *ExecStage `json:"stage"` // start, build // default=start
+		ExecOptions
+		StringExec
+		PathExec
+	}
+	ExecOptions struct {
+		ExecWorkDir    *string    `json:"execWorkDir"`
+		LogPath        *string    `json:"logPath"`
+		LogArchivePath *string    `json:"logArchivePath"`
+		DependsOn      []ExecName `json:"dependsOn"`
+	}
+	ExecsV1 map[ExecName]ExecV1
+)
+
+type ExecType string
+
+const StringExecType ExecType = "string"
+
+type StringExec struct {
+	ExecStr string `json:"execStr,omitempty"`
+}
+
+const PathExecType ExecType = "path"
+
+type PathExec struct {
+	ExecPath string `json:"execPath,omitempty"`
+}
+
+type ExecStage string
+
+const (
+	StartStage ExecStage = "start"
+	BuildStage ExecStage = "build"
 )
 
 type UpdateUser struct {
@@ -197,8 +256,8 @@ type Workspace struct {
 	NetworkID         string            `json:"networkId"`
 
 	StartupScriptPath string    `json:"startupScriptPath"`
-	Repos             Repos     `json:"repos"`
-	Execs             Execs     `json:"execs"`
+	Repos             ReposV0   `json:"repos"`
+	Execs             ExecsV0   `json:"execs"`
 	IDEConfig         IDEConfig `json:"ideConfig"`
 
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`

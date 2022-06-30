@@ -46,16 +46,87 @@ var SupportedContainers = []ContainerParams{
 	},
 }
 
-func Test_UserBrevProjectBrev(t *testing.T) {
+func Test_UserBrevProjectBrevV0(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return
 	}
 	params := NewTestSetupParams(keys)
-	params.Repos = entity.Repos{
+	params.ReposV0 = entity.ReposV0{
 		"test-config": entity.RepoV0{
 			Repository: "github.com:brevdev/test-repo-dotbrev.git",
 			Directory:  "test-config",
+		},
+	}
+
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-config")
+		AssertTestRepoSetupRan(t, w, "test-config")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-config")
+		AssertTestRepoSetupRan(t, w, "test-config")
+	})
+
+	assert.Nil(t, err)
+}
+
+func Test_UserBrevProjectBrevV1(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+	dir := "test-config"
+	params.ReposV1 = entity.ReposV1{
+		"test-config": entity.RepoV1{
+			Type: entity.GitRepoType,
+			GitRepo: entity.GitRepo{
+				Repository: "github.com:brevdev/test-repo-dotbrev.git",
+				GitRepoOptions: entity.GitRepoOptions{
+					GitDirectory: &dir,
+				},
+			},
+		},
+	}
+
+	execWorkDir := "test-config"
+	log := "test-config/.brev/logs"
+	logA := "test-config/.brev/logs/archive"
+	stage := entity.StartStage
+	params.ExecsV1 = entity.ExecsV1{
+		"test-config-setup": entity.ExecV1{
+			Type:  entity.PathExecType,
+			Stage: &stage,
+			ExecOptions: entity.ExecOptions{
+				ExecWorkDir:    &execWorkDir,
+				LogPath:        &log,
+				LogArchivePath: &logA,
+			},
+			PathExec: entity.PathExec{
+				ExecPath: "test-config/.brev/setup.sh",
+			},
 		},
 	}
 
@@ -467,13 +538,13 @@ func Test_ChangePwd(t *testing.T) {
 	params.WorkspaceProjectRepo = ""
 	params.WorkspaceBaseRepo = ""
 
-	params.Execs = entity.Execs{
+	params.ExecsV0 = entity.ExecsV0{
 		"exec-name": entity.ExecV0{
 			Exec:        "echo 'my exec ran'",
 			ExecWorkDir: "test-repo-dotbrev",
 		},
 	}
-	params.Repos = entity.Repos{
+	params.ReposV0 = entity.ReposV0{
 		"repo-name": entity.RepoV0{
 			Repository:    "github.com:brevdev/test-repo-dotbrev.git",
 			Branch:        "",

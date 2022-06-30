@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -118,8 +119,10 @@ type WorkspaceIniter struct {
 	WorkspaceDir       string
 	User               *user.User
 	Params             *store.SetupParamsV0
-	Repos              entity.Repos
-	Execs              entity.Execs
+	ReposV0            entity.ReposV0
+	ExecsV0            entity.ExecsV0
+	ReposV1            entity.ReposV1
+	ExecsV1            entity.ExecsV1
 	VscodeExtensionIDs []string
 }
 
@@ -127,13 +130,13 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 	userRepo := makeUserRepo(*params)
 	projectReop := makeProjectRepo(*params)
 
-	params.Repos = mergeRepos(userRepo, projectReop, params.Repos)
+	params.ReposV0 = mergeRepos(userRepo, projectReop, params.ReposV0)
 
 	workspaceDir := "/home/brev/workspace"
 
-	params.Repos = initRepos(params.Repos)
+	params.ReposV0 = initRepos(params.ReposV0)
 
-	if (params.Execs == nil || len(params.Execs) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
+	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
 		defaultScript := "#!/bin/bash\n"
 		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
 		params.ProjectSetupScript = &b64DefaultScript
@@ -141,7 +144,7 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 
 	standardSetup := makeExecFromSetupParams(*params)
 
-	params.Execs = mergeExecs(standardSetup, params.Execs)
+	params.ExecsV0 = mergeExecs(standardSetup, params.ExecsV0)
 
 	vscodeExtensionIDs := []string{}
 	ideConfig, ok := params.IDEConfigs["vscode"]
@@ -153,15 +156,17 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 		WorkspaceDir:       workspaceDir,
 		User:               user,
 		Params:             params,
-		Repos:              params.Repos,
-		Execs:              params.Execs,
+		ReposV0:            params.ReposV0,
+		ExecsV0:            params.ExecsV0,
+		ReposV1:            params.ReposV1,
+		ExecsV1:            params.ExecsV1,
 		VscodeExtensionIDs: vscodeExtensionIDs,
 	}
 }
 
-func makeUserRepo(params store.SetupParamsV0) entity.Repos {
+func makeUserRepo(params store.SetupParamsV0) entity.ReposV0 {
 	if params.WorkspaceBaseRepo != "" {
-		return entity.Repos{
+		return entity.ReposV0{
 			"user-config": {
 				Repository:    params.WorkspaceBaseRepo,
 				Directory:     "user-dotbrev",
@@ -172,13 +177,13 @@ func makeUserRepo(params store.SetupParamsV0) entity.Repos {
 			},
 		}
 	} else {
-		return entity.Repos{}
+		return entity.ReposV0{}
 	}
 }
 
-func makeProjectRepo(params store.SetupParamsV0) entity.Repos {
-	if params.WorkspaceProjectRepo == "" && len(params.Repos) > 0 {
-		return entity.Repos{}
+func makeProjectRepo(params store.SetupParamsV0) entity.ReposV0 {
+	if params.WorkspaceProjectRepo == "" && len(params.ReposV0) > 0 {
+		return entity.ReposV0{}
 	}
 	if params.ProjectFolderName == "" {
 		if params.WorkspaceProjectRepo != "" {
@@ -187,7 +192,7 @@ func makeProjectRepo(params store.SetupParamsV0) entity.Repos {
 			params.ProjectFolderName = getDefaultProjectFolderNameFromHost(params.WorkspaceHost)
 		}
 	}
-	return entity.Repos{
+	return entity.ReposV0{
 		"project": {
 			Repository:    params.WorkspaceProjectRepo,
 			Directory:     params.ProjectFolderName,
@@ -199,8 +204,8 @@ func makeProjectRepo(params store.SetupParamsV0) entity.Repos {
 	}
 }
 
-func mergeRepos(repos ...entity.Repos) entity.Repos {
-	newRepos := entity.Repos{}
+func mergeRepos(repos ...entity.ReposV0) entity.ReposV0 {
+	newRepos := entity.ReposV0{}
 	for _, rs := range repos {
 		for n, r := range rs {
 			newRepos[n] = r
@@ -209,8 +214,8 @@ func mergeRepos(repos ...entity.Repos) entity.Repos {
 	return newRepos
 }
 
-func mergeExecs(repos ...entity.Execs) entity.Execs {
-	newRepos := entity.Execs{}
+func mergeExecs(repos ...entity.ExecsV0) entity.ExecsV0 {
+	newRepos := entity.ExecsV0{}
 	for _, rs := range repos {
 		for n, r := range rs {
 			newRepos[n] = r
@@ -219,9 +224,9 @@ func mergeExecs(repos ...entity.Execs) entity.Execs {
 	return newRepos
 }
 
-func makeExecFromSetupParams(params store.SetupParamsV0) entity.Execs {
+func makeExecFromSetupParams(params store.SetupParamsV0) entity.ExecsV0 {
 	if params.ProjectSetupScript != nil {
-		return entity.Execs{
+		return entity.ExecsV0{
 			"setup.sh": {
 				Exec:        *params.ProjectSetupScript,
 				ExecWorkDir: "",
@@ -229,7 +234,7 @@ func makeExecFromSetupParams(params store.SetupParamsV0) entity.Execs {
 			},
 		}
 	}
-	return entity.Execs{}
+	return entity.ExecsV0{}
 }
 
 func initRepo(repo entity.RepoV0) entity.RepoV0 {
@@ -246,8 +251,8 @@ func initRepo(repo entity.RepoV0) entity.RepoV0 {
 	return repo
 }
 
-func initRepos(repos entity.Repos) entity.Repos {
-	newRepos := entity.Repos{}
+func initRepos(repos entity.ReposV0) entity.ReposV0 {
+	newRepos := entity.ReposV0{}
 	for n, r := range repos {
 		newRepos[n] = initRepo(r)
 	}
@@ -380,9 +385,20 @@ func (w WorkspaceIniter) Setup() error {
 
 func (w WorkspaceIniter) SetupRepos() error {
 	var setupErr error
-	for n, r := range w.Repos {
+	for n, r := range w.ReposV0 {
 		fmt.Printf("setting up %s\n", n)
-		err := w.setupRepo(r)
+		err := w.setupRepoV0(r)
+		if err != nil {
+			fmt.Printf("setup failed %s\n", n)
+			setupErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("setup failed %s", n)))
+		} else {
+			fmt.Printf("setup success %s\n", n)
+		}
+	}
+	for n, r := range w.ReposV1 {
+		_ = r
+		fmt.Printf("setting up %s\n", n)
+		err := w.setupRepoV1(r)
 		if err != nil {
 			fmt.Printf("setup failed %s\n", n)
 			setupErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("setup failed %s", n)))
@@ -403,8 +419,18 @@ func (w WorkspaceIniter) RunExecs() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	var execErr error
-	for n, e := range w.Execs {
-		err := w.runExec(n, e)
+	for n, e := range w.ExecsV0 {
+		err := w.runExecV0(n, e)
+		if err != nil {
+			fmt.Printf("exec failed %s\n", n)
+			execErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("exec failed %s", n)))
+		} else {
+			fmt.Printf("exec success %s\n", n)
+		}
+	}
+	for n, e := range w.ExecsV1 {
+		_ = e
+		err := w.runExecV1(n, e)
 		if err != nil {
 			fmt.Printf("exec failed %s\n", n)
 			execErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("exec failed %s", n)))
@@ -418,7 +444,117 @@ func (w WorkspaceIniter) RunExecs() error {
 	return nil
 }
 
-func (w WorkspaceIniter) runExec(name entity.ExecName, exec entity.ExecV0) error {
+func (w WorkspaceIniter) runExecV1(name entity.ExecName, exec entity.ExecV1) error {
+	execWorkDir := ""
+	if exec.ExecWorkDir != nil {
+		execWorkDir = *exec.ExecWorkDir
+	}
+	workDirPath := filepath.Join(w.BuildWorkspacePath(), execWorkDir)
+	if path.IsAbs(execWorkDir) {
+		workDirPath = execWorkDir
+	}
+
+	execPath, err := w.GetExecPath(name, exec)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	logPath, err := w.GetLogPath(name, exec)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	logArchPath, err := w.GetLogArchivePath(name, exec)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if exec.Type == entity.StringExecType {
+		err = w.CreateTempStrExecFile(execPath, exec.ExecStr)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	err = RunSetupScript(logPath, workDirPath, execPath, w.User, logArchPath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) CreateTempStrExecFile(execPath string, execStr string) error {
+	f, err := os.OpenFile(execPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o700) //nolint:gosec // overwrite
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = ChownFileToUser(f, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	out := util.DecodeBase64OrReturnSelf(execStr)
+	_, err = f.Write(out)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = f.Close() // must close before run setup script
+	if err != nil {
+		fmt.Println(err)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) GetExecPath(name entity.ExecName, exec entity.ExecV1) (string, error) {
+	execPath := ""
+	if exec.Type == entity.PathExecType { //nolint:gocritic // i like if
+		execPath = filepath.Join(w.BuildWorkspacePath(), exec.ExecPath)
+		if path.IsAbs(exec.ExecPath) {
+			execPath = exec.ExecPath
+		}
+	} else if exec.Type == entity.StringExecType {
+		dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
+		execPath = filepath.Join(dotBrev, string(name))
+	} else {
+		return "", fmt.Errorf("warning: exec type not supported: '%s'", exec.Type)
+	}
+	return execPath, nil
+}
+
+func (w WorkspaceIniter) GetLogPath(name entity.ExecName, exec entity.ExecV1) (string, error) {
+	logPath := ""
+	if exec.LogPath == nil || *exec.LogPath == "" {
+		execPath, err := w.GetExecPath(name, exec)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		dir, _ := path.Split(execPath)
+		logPath = path.Join(dir, "logs")
+	} else {
+		logPath = filepath.Join(w.BuildWorkspacePath(), *exec.LogPath)
+		if path.IsAbs(*exec.LogPath) {
+			logPath = *exec.LogPath
+		}
+	}
+	return logPath, nil
+}
+
+func (w WorkspaceIniter) GetLogArchivePath(name entity.ExecName, exec entity.ExecV1) (string, error) {
+	logArchPath := ""
+	if exec.LogPath == nil || *exec.LogPath == "" {
+		logPath, err := w.GetLogPath(name, exec)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		logArchPath = path.Join(logPath, "archive")
+	} else {
+		logArchPath = filepath.Join(w.BuildWorkspacePath(), *exec.LogArchivePath)
+		if path.IsAbs(*exec.LogPath) {
+			logArchPath = *exec.LogPath
+		}
+	}
+	return logArchPath, nil
+}
+
+func (w WorkspaceIniter) runExecV0(name entity.ExecName, exec entity.ExecV0) error {
 	workDir := filepath.Join(w.BuildWorkspacePath(), exec.ExecWorkDir)
 	dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
 	logPath := filepath.Join(dotBrev, "logs")
@@ -443,7 +579,7 @@ func (w WorkspaceIniter) runExec(name entity.ExecName, exec entity.ExecV0) error
 		fmt.Println(err)
 	}
 
-	err = RunSetupScript(logPath, workDir, setupExecPath, w.User)
+	err = RunSetupScript(logPath, workDir, setupExecPath, w.User, "")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -630,7 +766,7 @@ func (w WorkspaceIniter) EnsureGitAuthOrError() error {
 }
 
 func (w WorkspaceIniter) ShouldCheckGithubAuth() bool {
-	for _, r := range w.Repos {
+	for _, r := range w.ReposV0 {
 		res := strings.Contains(r.Repository, "github")
 		if res {
 			return true
@@ -640,7 +776,7 @@ func (w WorkspaceIniter) ShouldCheckGithubAuth() bool {
 }
 
 func (w WorkspaceIniter) ShouldCheckGitlabAuth() bool {
-	for _, r := range w.Repos {
+	for _, r := range w.ReposV0 {
 		res := strings.Contains(r.Repository, "gitlab")
 		if res {
 			return true
@@ -749,7 +885,60 @@ func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
 	return nil
 }
 
-func (w WorkspaceIniter) setupRepo(repo entity.RepoV0) error {
+func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
+	dir := ""
+	if repo.Type == entity.GitRepoType { //nolint:gocritic // i like if
+		if repo.GitDirectory != nil {
+			dir = *repo.GitDirectory
+		}
+		branch := ""
+		if repo.GitRepo.Branch != nil {
+			dir = *repo.GitRepo.Branch
+		}
+		err := w.GitCloneIfDNE(repo.Repository, dir, branch)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else if repo.Type == entity.EmptyRepoType {
+		fmt.Println("empty repo")
+		if repo.GitRepo.GitDirectory != nil {
+			dir = *repo.EmptyDirectory
+		}
+		repoPath := filepath.Join(w.BuildWorkspacePath(), dir)
+		if !PathExists(repoPath) {
+			fmt.Println("setting up empty repo")
+			err := os.MkdirAll(repoPath, 0o775) //nolint:gosec // occurs in safe area
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = ChownFilePathToUser(repoPath, w.User)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			cmd := CmdBuilder("git", "init")
+			cmd.Dir = repoPath
+			err = w.CmdAsUser(cmd)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = cmd.Run()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
+	} else {
+		return fmt.Errorf("repo type not supported %s", repo.Type)
+	}
+
+	brevPath := filepath.Join(dir, ".brev")
+	err := w.setupDotBrev(brevPath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 	repoPath := filepath.Join(w.BuildWorkspacePath(), repo.Directory)
 	workDirPath := filepath.Join(repoPath, repo.ExecWorkDir)
 	if repo.Repository == "" {
@@ -791,7 +980,7 @@ func (w WorkspaceIniter) setupRepo(repo entity.RepoV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = RunSetupScript(logsPath, workDirPath, setupExecPath, w.User)
+	err = RunSetupScript(logsPath, workDirPath, setupExecPath, w.User, "")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -890,10 +1079,12 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 	return nil
 }
 
-func RunSetupScript(logsPath string, workingDir string, setupExecPath string, user *user.User) error {
+func RunSetupScript(logsPath string, workingDir string, setupExecPath string, user *user.User, archivePath string) error {
 	namePrefix := util.RemoveFileExtenstion(filepath.Base(setupExecPath))
 	setupLogPath := filepath.Join(logsPath, fmt.Sprintf("%s.log", namePrefix))
-	archivePath := filepath.Join(logsPath, "archive")
+	if archivePath == "" {
+		archivePath = filepath.Join(logsPath, "archive")
+	}
 	archiveLogFile := filepath.Join(archivePath, fmt.Sprintf("%s-%s.log", namePrefix, time.Now().UTC().Format(time.RFC3339)))
 	if workingDir == "" {
 		workingDir = filepath.Dir(setupExecPath)
