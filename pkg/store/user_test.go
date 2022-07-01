@@ -109,7 +109,7 @@ func TestUpdateUser(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	url := fmt.Sprintf("%s/%s?utm_source=cli", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(usersIDPathPattern, expected.ID))
+	url := fmt.Sprintf("%s/%s?local=true&utm_source=cli", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(usersIDPathPattern, expected.ID))
 	httpmock.RegisterResponder("PUT", url, res)
 
 	u, err := s.UpdateUser(expected.ID, &entity.UpdateUser{
@@ -140,7 +140,7 @@ func TestApproveUser(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	url := fmt.Sprintf("%s/%s/%s/approve?utm_source=cli", s.authHTTPClient.restyClient.BaseURL, usersPath, expected.ID)
+	url := fmt.Sprintf("%s/%s/%s/approve?local=true&utm_source=cli", s.authHTTPClient.restyClient.BaseURL, usersPath, expected.ID)
 	httpmock.RegisterResponder("POST", url, res)
 
 	u, err := s.ApproveUserByID(expected.ID)
