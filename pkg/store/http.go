@@ -48,11 +48,21 @@ type AuthHTTPStore struct {
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
+	// err never returned from GetCurrentWorkspaceID
+	id, _ := f.GetCurrentWorkspaceID()
+	if id == "" {
+		c.restyClient.SetQueryParam("local", "true")
+	}
 	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
 	return &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
 }
 
 func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
+	// err never returned from GetCurrentWorkspaceID
+	id, _ := n.GetCurrentWorkspaceID()
+	if id == "" {
+		c.restyClient.SetQueryParam("local", "true")
+	}
 	return &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
 }
 
