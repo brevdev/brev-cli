@@ -385,9 +385,9 @@ func (w WorkspaceIniter) Setup() error {
 
 func (w WorkspaceIniter) SetupRepos() error {
 	var setupErr error
-	for n, r := range w.ReposV0 {
-		fmt.Printf("setting up %s\n", n)
-		err := w.setupRepoV0(r)
+	for n, r := range w.ReposV1 {
+		fmt.Printf("setting up repo v1 %s\n", n)
+		err := w.setupRepoV1(r)
 		if err != nil {
 			fmt.Printf("setup failed %s\n", n)
 			setupErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("setup failed %s", n)))
@@ -395,10 +395,9 @@ func (w WorkspaceIniter) SetupRepos() error {
 			fmt.Printf("setup success %s\n", n)
 		}
 	}
-	for n, r := range w.ReposV1 {
-		_ = r
-		fmt.Printf("setting up %s\n", n)
-		err := w.setupRepoV1(r)
+	for n, r := range w.ReposV0 {
+		fmt.Printf("setting up repo v0 %s\n", n)
+		err := w.setupRepoV0(r)
 		if err != nil {
 			fmt.Printf("setup failed %s\n", n)
 			setupErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("setup failed %s", n)))
