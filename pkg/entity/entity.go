@@ -14,7 +14,8 @@ type AuthTokens struct {
 }
 
 type IDEConfig struct {
-	VSCode VSCodeConfig `json:"vscode"`
+	DefaultWorkingDir string       `json:"defaultWorkingDir"`
+	VSCode            VSCodeConfig `json:"vscode"`
 } // @Name IDEConfig
 
 type VSCodeConfig struct {
@@ -311,7 +312,9 @@ type WorkspaceTemplate struct {
 
 func (w Workspace) GetProjectFolderPath() string {
 	var folderName string
-	if len(w.GitRepo) > 0 {
+	if w.IDEConfig.DefaultWorkingDir != "" {
+		return w.IDEConfig.DefaultWorkingDir
+	} else if len(w.GitRepo) > 0 {
 		splitBySlash := strings.Split(w.GitRepo, "/")[1]
 		repoPath := strings.Split(splitBySlash, ".git")[0]
 		folderName = repoPath
