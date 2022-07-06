@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -36,8 +37,13 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	defer done()
+	fmt.Printf("brev %s\n", version.Version)
+
+	fmt.Println("------ Setup Begin ------")
 	err = wi.Setup()
+	fmt.Println("------ Setup End ------")
 	if err != nil {
+		fmt.Println("------ Failure ------")
 		time.Sleep(time.Millisecond * 100) // wait for buffer to be written
 		logFile, errF := ioutil.ReadFile(logFilePath)
 		if errF != nil {
@@ -45,6 +51,8 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 		}
 		breverrors.GetDefaultErrorReporter().AddBreadCrumb(breverrors.ErrReportBreadCrumb{Type: "log-file", Message: string(logFile)})
 		return breverrors.WrapAndTrace(err)
+	} else {
+		fmt.Println("------ Success ------")
 	}
 	return nil
 }
@@ -321,8 +329,13 @@ func (w WorkspaceIniter) BuildWorkspacePath(suffix ...string) string {
 }
 
 func (w WorkspaceIniter) Setup() error {
-	fmt.Println("------ Preparing the workspace ------")
-	err := w.PrepareWorkspace()
+	cmd := CmdStringBuilder("echo user: $(whoami) && echo pwd: $(pwd)")
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = w.PrepareWorkspace()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
