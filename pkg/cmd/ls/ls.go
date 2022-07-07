@@ -273,14 +273,14 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
 		displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 
-		// if !enableSSHCol {
-		// 	ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-		// 	for _, v := range userWorkspaces {
-		// 		if v.Status == entity.Running {
-		// 			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
-		// 		}
-		// 	}
-		// }
+		if !enableSSHCol {
+			ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
+			for _, v := range userWorkspaces {
+				if v.Status == entity.Running {
+					ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+				}
+			}
+		}
 	}
 }
 
