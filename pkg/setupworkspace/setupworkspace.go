@@ -195,7 +195,7 @@ func makeProjectRepo(params store.SetupParamsV0) entity.ReposV0 {
 	}
 	if params.ProjectFolderName == "" {
 		if params.WorkspaceProjectRepo != "" {
-			params.ProjectFolderName = getDefaultProjectFolderNameFromRepo(params.WorkspaceProjectRepo)
+			params.ProjectFolderName = entity.GetDefaultProjectFolderNameFromRepo(params.WorkspaceProjectRepo)
 		} else {
 			params.ProjectFolderName = getDefaultProjectFolderNameFromHost(params.WorkspaceHost)
 		}
@@ -254,7 +254,7 @@ func initRepo(repo entity.RepoV0) entity.RepoV0 {
 		repo.SetupExecPath = filepath.Join(repo.BrevPath, "setup.sh")
 	}
 	if repo.Directory == "" {
-		repo.Directory = getDefaultProjectFolderNameFromRepo(repo.Repository)
+		repo.Directory = entity.GetDefaultProjectFolderNameFromRepo(repo.Repository)
 	}
 	return repo
 }
@@ -265,10 +265,6 @@ func initRepos(repos entity.ReposV0) entity.ReposV0 {
 		newRepos[n] = initRepo(r)
 	}
 	return newRepos
-}
-
-func getDefaultProjectFolderNameFromRepo(repo string) string {
-	return strings.Split(repo[strings.LastIndex(repo, "/")+1:], ".")[0]
 }
 
 func getDefaultProjectFolderNameFromHost(host uri.Host) string {

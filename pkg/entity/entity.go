@@ -2,6 +2,7 @@ package entity
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -312,17 +313,23 @@ type WorkspaceTemplate struct {
 
 func (w Workspace) GetProjectFolderPath() string {
 	var folderName string
-	if w.IDEConfig.DefaultWorkingDir != "" {
-		return w.IDEConfig.DefaultWorkingDir
-	} else if len(w.GitRepo) > 0 {
-		splitBySlash := strings.Split(w.GitRepo, "/")[1]
-		repoPath := strings.Split(splitBySlash, ".git")[0]
-		folderName = repoPath
+	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
+		if path.IsAbs(w.IDEConfig.DefaultWorkingDir) {
+			return w.IDEConfig.DefaultWorkingDir
+		} else {
+			folderName = w.IDEConfig.DefaultWorkingDir
+		}
+	} else if w.GitRepo != "" {
+		folderName = GetDefaultProjectFolderNameFromRepo(w.GitRepo)
 	} else {
 		folderName = w.Name
 	}
 
-	return filepath.Join("/home/brev/workspace/", folderName)
+	return filepath.Join("/home/brev/workspace/", folderName) // TODO make workspace dir configurable
+}
+
+func GetDefaultProjectFolderNameFromRepo(repo string) string {
+	return strings.Split(repo[strings.LastIndex(repo, "/")+1:], ".")[0]
 }
 
 const featureSimpleNames = false

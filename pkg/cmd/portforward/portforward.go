@@ -112,7 +112,7 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 	defer signal.Stop(signals)
 
 	portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
-	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, sshName) //nolint:gosec // variables are sanitzed or user specified
+	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, sshName, "-N") //nolint:gosec // variables are sanitzed or user specified
 	cmdSHH.Stdin = os.Stdin
 	fmt.Println("portforwarding...")
 	fmt.Printf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
