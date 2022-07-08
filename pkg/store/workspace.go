@@ -63,7 +63,7 @@ var (
 var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
-	isStoppable := false
+	isStoppable := true
 	return &CreateWorkspacesOptions{
 		Name:                 name,
 		WorkspaceGroupID:     clusterID,
