@@ -92,7 +92,64 @@ func Test_UserBrevProjectBrevV0(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func Test_UserBrevProjectBrevV1(t *testing.T) {
+func Test_UserBrevProjectBrevV1Minimal(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+	params.WorkspaceProjectRepo = ""
+	params.ReposV1 = entity.ReposV1{
+		"test-repo-dotbrev": entity.RepoV1{
+			Type: entity.GitRepoType,
+			GitRepo: entity.GitRepo{
+				Repository:     "github.com:brevdev/test-repo-dotbrev.git",
+				GitRepoOptions: entity.GitRepoOptions{},
+			},
+		},
+	}
+
+	execWorkDir := "test-repo-dotbrev"
+	params.ExecsV1 = entity.ExecsV1{
+		"test-config-setup": entity.ExecV1{
+			Type: entity.PathExecType,
+			ExecOptions: entity.ExecOptions{
+				ExecWorkDir: &execWorkDir,
+			},
+			PathExec: entity.PathExec{
+				ExecPath: "test-repo-dotbrev/.brev/setup.sh",
+			},
+		},
+	}
+
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertValidUserBrevSetup(t, w, "user-dotbrev")
+		AssertTestUserRepoSetupRan(t, w, "user-dotbrev")
+
+		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
+		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
+	})
+
+	assert.Nil(t, err)
+}
+
+func Test_UserBrevProjectBrevV1All(t *testing.T) {
 	keys, err := GetTestKeys()
 	if !assert.Nil(t, err) {
 		return

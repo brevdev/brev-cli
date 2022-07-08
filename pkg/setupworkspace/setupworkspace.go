@@ -563,7 +563,7 @@ func (w WorkspaceIniter) GetLogPath(name entity.ExecName, exec entity.ExecV1) (s
 
 func (w WorkspaceIniter) GetLogArchivePath(name entity.ExecName, exec entity.ExecV1) (string, error) {
 	logArchPath := ""
-	if exec.LogPath == nil || *exec.LogPath == "" {
+	if exec.LogArchivePath == nil || *exec.LogArchivePath == "" {
 		logPath, err := w.GetLogPath(name, exec)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
