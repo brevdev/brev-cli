@@ -418,7 +418,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 	if startOptions.Name != "" {
 		cwOptions.Name = startOptions.Name
 	} else {
-		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(cwOptions.Name))
+		t.Vprintf("Name flag omitted, using auto generated name: %s\n", t.Green(cwOptions.Name))
 	}
 
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
@@ -446,7 +446,7 @@ func IsUrl(str string) bool {
 }
 
 func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
-	t.Vprintf("This is the setup script: %s", setupScriptURLOrPath)
+	t.Vprintf("This is the setup script: %s\n", setupScriptURLOrPath)
 	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
 	// fetch contents of file
 	// todo: read contents of file
@@ -478,7 +478,7 @@ func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScr
 	if (startOptions.Name) != "" {
 		newWorkspace.Name = startOptions.Name
 	} else {
-		t.Vprintf("Name flag omitted, using auto generated name: %s", t.Green(newWorkspace.Name))
+		t.Vprintf("Name flag omitted, using auto generated name: %s\n", t.Green(newWorkspace.Name))
 	}
 
 	var orgID string
