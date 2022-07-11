@@ -1,6 +1,8 @@
 package runtasks
 
 import (
+	_ "embed"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -10,7 +12,11 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/spf13/cobra"
+	stripmd "github.com/writeas/go-strip-markdown"
 )
+
+//go:embed doc.md
+var long string
 
 func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	var detached bool
@@ -20,7 +26,7 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 		Use:                   "run-tasks",
 		DisableFlagsInUseLine: true,
 		Short:                 "Run background tasks for brev",
-		Long:                  "Run tasks keeps the ssh config up to date and a background vpn daemon to connect you to your service mesh. Run with -d to run as a detached daemon in the background. To force a refresh to your config use the refresh command.",
+		Long:                  stripmd.Strip(long),
 		Example:               "brev run-tasks -d",
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		RunE: func(cmd *cobra.Command, args []string) error {
