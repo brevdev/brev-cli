@@ -1,6 +1,7 @@
 package reset
 
 import (
+	_ "embed"
 	"strings"
 	"time"
 
@@ -14,12 +15,13 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/spf13/cobra"
+	stripmd "github.com/writeas/go-strip-markdown"
 )
 
 var (
-	startLong    = "Reset your machine if it's acting up. This deletes the machine and gets you a fresh one."
-	startExample = `brev reset <ws_name>...
-  brev reset --hard <ws_name>...`
+	//go:embed doc.md
+	long         string
+	startExample = `brev reset <ws_name>...`
 )
 
 type ResetStore interface {
@@ -41,10 +43,9 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Use:                   "reset",
 		DisableFlagsInUseLine: true,
 		Short:                 "Reset a workspace if it's in a weird state.",
-		Long:                  startLong,
+		Long:                  stripmd.Strip(long),
 		Example:               startExample,
-		// Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
-		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			for _, arg := range args {
 				if hardreset {
@@ -63,12 +64,15 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		},
 	}
 
-	cmd.Flags().BoolVarP(&hardreset, "hard", "", false, "deletes the workspace and creates a fresh version WARNING: this is destructive and workspace state not tracked in git is lost")
+	cmd.Flags().BoolVarP(&hardreset, "hard", "", false, "DEPRECATED: use brev recreate")
 	return cmd
 }
 
 // hardResetProcess deletes an existing workspace and creates a new one
 func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
+	t.Vprint(t.Red("THIS COMMAND IS DEPRECATED"))
+	t.Vprint(t.Red("use brev recreate " + workspaceName + " instead"))
+
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(resetStore, workspaceName)
 	if err != nil {
