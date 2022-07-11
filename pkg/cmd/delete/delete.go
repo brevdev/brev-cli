@@ -1,6 +1,8 @@
 package delete
 
 import (
+	_ "embed"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -8,10 +10,12 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
+	stripmd "github.com/writeas/go-strip-markdown"
 )
 
 var (
-	deleteLong    = "Delete a Brev workspace that you no longer need. If you have a .brev setup script, you can get a new one without setting up."
+	//go:embed doc.md
+	deleteLong    string
 	deleteExample = "brev delete <ws_name>"
 )
 
@@ -27,7 +31,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 		Use:                   "delete",
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete a Brev workspace",
-		Long:                  deleteLong,
+		Long:                  stripmd.Strip(deleteLong),
 		Example:               deleteExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
