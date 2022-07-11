@@ -28,7 +28,7 @@ touch pkg/cmd/recreate/doc.md
 
 add the following template to `recreate.go`
 
-```
+```go
 // Package recreate is for the recreate command
 package recreate
 
@@ -73,7 +73,7 @@ func RunReCreate(_ *terminal.terminal,_ []string, _ reCreateStore) error {
 
 Implement `RunReCreate`
 
-```
+```go
 // Package recreate is for the recreate command
 package recreate
 
