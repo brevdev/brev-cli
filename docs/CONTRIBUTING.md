@@ -17,8 +17,6 @@ BREV_API_URL=http://localhost:8080
 
 ## adding new commands
 
-- TODO: include embedded docs in snippets
-
 create a directory in `pkg/cmd` for your command, a go file, and documentation
 file
 
