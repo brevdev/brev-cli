@@ -19,15 +19,6 @@ This command has the effect of updating the base image of a workspace to the
 latest.  If your workspace has a git remote source, the workspace will start
 with a fresh copy of the remote source and run the workspace setupscript.
 
-
-## DESCRIPTION
-
-reset a workspace will stop a workspace, then start a workspace, perserving
-files in `/home/brev/workspace/`. This will have the effect of rerunning your
-setupscript in a newley created workspace with no changes made to it, and
-replacing your workspace with that.
-
-
 ## EXAMPLE
 
 recreate a workspace with the name `naive-pubsub`
