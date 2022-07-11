@@ -17,15 +17,201 @@ BREV_API_URL=http://localhost:8080
 
 ## adding new commands
 
+- TODO: include embedded docs in snippets
 
-https://github.com/spf13/cobra/blob/master/user_guide.md
+create a directory in `pkg/cmd` for your command, a go file, and documentation
+file
 
-`pkg/cmd/logout/logout.go` is a minimal command to go off of for adding new commands.
+```
+mkdir pkg/cmd/recreate/
+touch pkg/cmd/recreate/recreate.go
+touch pkg/cmd/recreate/doc.md
+```
 
-commands for the cli should follow `<VERB>` `<NOUN>` pattern.
+add the following template to `recreate.go`
+
+```
+// Package recreate is for the recreate command
+package recreate
+
+import (
+	_ "embed"
+
+	"github.com/spf13/cobra"
+
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	stripmd "github.com/writeas/go-strip-markdown"
+)
+
+//go:embed doc.md
+var long string
+
+type reCreateStore interface{}
+
+func NewCmdRecreate(t *terminal.terminal, store reCreateStore) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "recreate",
+		DisableFlagsInUseLine: true,
+		Short:                 "TODO",
+		Long:                  stripmd.Strip(long),
+		Example:               "TODO",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := RunReCreate(t, args, store)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
+
+func RunReCreate(_ *terminal.terminal,_ []string, _ reCreateStore) error {
+	return nil
+}
+
+```
+
+Implement `RunReCreate`
+
+```
+// Package recreate is for the recreate command
+package recreate
+
+import (
+	_ "embed"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/terminal"
+)
+
+//go:embed doc.md
+var long string
+
+type recreateStore interface {
+	completions.CompletionStore
+	util.GetWorkspaceByNameOrIDErrStore
+	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetCurrentUser() (*entity.User, error)
+	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
+	GetWorkspace(id string) (*entity.Workspace, error)
+	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
+}
+
+func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "recreate",
+		DisableFlagsInUseLine: true,
+		Short:                 "TODO",
+		Long:                  "TODO",
+		Example:               "TODO",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := RunRecreate(t, args, store)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
+
+func RunRecreate(t *terminal.terminal, args []string, recreateStore recreateStore) error {
+	for _, arg := range args {
+		err := hardResetProcess(arg, t, recreateStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
+}
+// ...
+```
+
+add command to `pkg/cmd/cmd.go`
+
+```diff
+diff --git a/pkg/cmd/cmd.go b/pkg/cmd/cmd.go
+index a33540c..b03d5f2 100644
+--- a/pkg/cmd/cmd.go
++++ b/pkg/cmd/cmd.go
+@@ -23,6 +23,7 @@ import (
+        "github.com/brevdev/brev-cli/pkg/cmd/portforward"
+        "github.com/brevdev/brev-cli/pkg/cmd/profile"
+        "github.com/brevdev/brev-cli/pkg/cmd/proxy"
++       "github.com/brevdev/brev-cli/pkg/cmd/recreate"
+        "github.com/brevdev/brev-cli/pkg/cmd/refresh"
+        "github.com/brevdev/brev-cli/pkg/cmd/reset"
+        "github.com/brevdev/brev-cli/pkg/cmd/runtasks"
+@@ -243,6 +244,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
+        cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
+
+        cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
++       cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
+ }
+
+ func hasHousekeepingCommands(cmd *cobra.Command) bool {
+```
+
+test your function
+
+```
+make && ./brev recreate
+```
+
+add documentation by editing `pkg/cmd/recreate/doc.md`. Docs should fill out the
+minimum fields:
+
+```
+# ReCreate  Workspace by name or ID.
+
+## SYNOPSIS
+
+```
+    brev recreate [ Workspace Name or ID... ]
+```
+
+## DESCRIPTION
+
+recreate a workspace is equivalent to running the following commands:
+
+```
+brev delete payments-fronted
+brev start payments-frontend
+```
+
+This command has the effect of updating the base image of a workspace to the
+latest.  If your workspace has a git remote source, the workspace will start
+with a fresh copy of the remote source and run the workspace setupscript.
+
+## EXAMPLE
+
+recreate a workspace with the name `payments-frontend`
+
+```
+$ brev reset payments-frontend
+TODO
+```
+
+## SEE ALSO
+
+	TODO
+```
 
 Don't forget to add a debug command to `.vscode/launch.json`
-
 
 ### Terminal
 
