@@ -174,39 +174,16 @@ add documentation by editing `pkg/cmd/recreate/doc.md`. Docs should fill out the
 minimum fields:
 
 ```
-# ReCreate  Workspace by name or ID.
-
+<!-- Insert title here -->
+# 
 ## SYNOPSIS
-
-```
-    brev recreate [ Workspace Name or ID... ]
-```
 
 ## DESCRIPTION
 
-recreate a workspace is equivalent to running the following commands:
-
-```
-brev delete payments-fronted
-brev start payments-frontend
-```
-
-This command has the effect of updating the base image of a workspace to the
-latest.  If your workspace has a git remote source, the workspace will start
-with a fresh copy of the remote source and run the workspace setupscript.
-
 ## EXAMPLE
-
-recreate a workspace with the name `payments-frontend`
-
-```
-$ brev reset payments-frontend
-TODO
-```
 
 ## SEE ALSO
 
-	TODO
 ```
 
 Don't forget to add a debug command to `.vscode/launch.json`

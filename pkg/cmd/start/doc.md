@@ -4,7 +4,7 @@
 
 ```
 
-brev start {<workspace name or id or git url >... | -e} {-n | --name} {-c | --class}
+brev start {<workspace name or id or git url or file path>... | -e} {-n | --name} {-c | --class}
     { -s | --setup-script} {-r | --setup-repo}] {-p | --setup-path }
     { -o | --org}
 
