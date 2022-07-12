@@ -22,6 +22,11 @@ basic invocation of this command is
 
 ```
 $ brev start -e -n foo
+```
+
+which has an output similar too:
+
+```
 name foo
 template 4nbb4lg2s ubuntu
 resource class 2x8
@@ -43,6 +48,11 @@ or
 
 ```
 $ brev start --empty --name foo
+```
+
+which has an output similar too:
+
+```
 name foo
 template 4nbb4lg2s ubuntu
 resource class 2x8
@@ -70,20 +80,37 @@ rather than wait for workspace to be successfully created before exiting.
 
 ```
 $ brev start -d -e -n bar
+```
+
+which has an output similar too:
+
+```
 name bar
 template 4nbb4lg2s ubuntu
 resource class 2x8
 workspace group brev-test-brevtenant-cluster
 Workspace is starting. This can take up to 2 minutes the first time.
-$
 ```
 
 ### Create a workspace from a file path
 
+if in your current directory has a directory in it called `merge-json`, you can
+create a workspace using the contents of that directory using
+`brev start merge-json`
+
 ```
 $ ls
 merge-json
+```
+
+```
 $ brev start merge-json
+
+```
+
+which has an output similar too:
+
+```
 Workspace is starting. This can take up to 2 minutes the first time.
 
 name merge-json
@@ -105,6 +132,11 @@ Connect to the workspace:
 
 ```
 $ brev start https://github.com/brevdev/react-starter-app
+```
+
+which has an output similar too:
+
+```
 Workspace is starting. This can take up to 2 minutes the first time.
 
 name react-starter-app
@@ -129,6 +161,11 @@ have not joined appear at the bottom of the output.
 
 ```
 $ brev ls --all
+```
+
+which has an output similar too:
+
+```
 You have 1 workspace in Org brev.dev
  NAME                             STATUS    URL                                                                       ID
  brev-cli                         RUNNING   brev-cli-p09m-brevdev.wgt-us-west-2-test.brev.dev                         x1yxqp09m
@@ -157,6 +194,11 @@ join the project new-docs
 
 ```
 $ brev start new-docs
+```
+
+which has an output similar too:
+
+```
 Name flag omitted, using auto generated name: new-docs
 Workspace is starting. This can take up to 2 minutes the first time.
 
@@ -176,8 +218,15 @@ You can safely ctrl+c to exit
 If you have already joined a workspace and have stopped it with `brev stop`,
 you can start it again with `brev start`
 
+view your current workspaces with `brev ls`
+
 ```
 $ brev ls
+```
+
+which has an output similar too:
+
+```
 You have 1 workspace in Org brev.dev
  NAME                             STATUS     URL                                                                       ID
  linear-client                    STOPPED    linear-client-yw1a-brevdev.wgt-us-west-2-test.brev.dev                    gov5jyw1a
@@ -187,7 +236,15 @@ Connect to running workspace:
 	brev shell linear-client	# brev shell <NAME> -> ssh into workspace (shortcut)
 	ssh linear-client-yw1a	# ssh <SSH-NAME> -> ssh directly to workspace
 
+```
+join the workspace
+```
 $ brev start linear-client
+```
+
+which has an output similar too:
+
+```
 Workspace linear-client is starting.
 Note: this can take about a minute. Run 'brev ls' to check status
 
