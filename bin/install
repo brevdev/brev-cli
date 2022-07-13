@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+set -e
+
+# Some useful colors and other formatting
+Red='\e[0;31m'
+Green='\e[0;32m'
+Dim='\033[2m'
+Yellow='\e[33m'
+NoF='\e[0m' # clear formatting
+
+# This variable is assigned value in which_os() and
+# then we just return it (simple caching, not necessary, but nice).
+declare myos
+declare myshell
+
+# Helps us download the right versions of brev-cli itself and JetBrains Gateway.
+#
+# TODO: it seems like it makes sense to support cygwin, but I was advised
+# against adding now, because Tailscale breaks it.
+#
+which_os() {
+  [[ -n "$myos" ]] && echo "$os" && return # printing cached value and returning.
+  case "$OSTYPE" in
+    linux*)  myos="linux";;
+    darwin*) myos="mac";;
+    *)
+      >&2 echo -e "\n${Red}ERROR: ${NoF}$OSTYPE${Red} not supported, sorry.${NoF}\n"
+      exit 1
+      ;;
+  esac
+  echo "$myos"
+}
+
+# This will help us add necessary code to the right rc-file.
+# Before, it only added code to .zshrc, which, of course, MacOSX used as the
+# the default one, but Linux doesn't even have it installed by default.
+which_shell() {
+  # IMPORTANT: this script prints back the shell that is default for the current
+  #            and NOT the one that is running this script. And that's exactly
+  #            what we want, because we want to put "the stuff" into the right
+  #            rc-file, which is read by the shell our user actually uses
+  #            on a daily basis.
+  #
+  # Tested with the following shells: sh, bash, zsh, tcsh, csh, fish
+  # And on these operating systems:       FreeBSD, Ubuntu, MacOSX
+  sh -c 'echo "$(getent passwd $USER 2> /dev/null || echo $SHELL)" | grep -oE "[^\/]+$"'
+}
+
+dl_file() {
+
+  local fn="$1"
+  # These two variables are variables for a reason. And sometimes,
+  # their content doesn't strictly reflect their names, but it's rather
+  # insignificant, so as to bother about it.
+  local hostname="$2"
+  local hostpath="$3"
+
+  # We'll download the file using whatever program is available, even resorting to
+  # telnet in the order in which the variables are listed here. We'll only use
+  # those that can download via https.
+  #
+  # Bash v3.2, which is very old, but is not updated on MacOSX by default SHOULD be
+  # able to support arrays already, so no problem.
+  declare -a dl_program_names=( wget curl )
+  for n in "${dl_program_names[@]}"; do
+    dl_cmd="$(which $n)"
+    [[ -n "$dl_cmd" ]] && dl_cmd_name="$n" && break
+  done
+
+  case $dl_cmd_name in
+    wget) dl_cmd+=" --show-progress -qO  -O $fn 'https://$URL_HOST/$URL_PATH'";;
+    curl) dl_cmd+=" -L -o $fn 'https://$URL_HOST/$URL_PATH'";;
+  esac
+
+
+  # Obviously, ask the user if they wanted to overwrite the file. Maybe not.
+  if [[ -e "$fn" ]]; then
+    echo -e "  ${Yellow}WARNING: file${NoF} $fn ${Yellow}already exists.${NoF}"
+    echo -e "  Would you like to overwrite it? (y/n): "
+    read overwrite_file
+    echo "" # extra blank line after the user prompt.
+
+    if [[ "$overwrite_file" == "y" ]]; then
+      rm $fn
+      echo "    ${Dim}File${NoF} $fn ${Dim}was removed and will now be downloaded again.${NoF}"
+      download_target_file
+      local download_exit_code=$?
+    else
+      echo 'Okay, will not do anything. Exiting.'
+      exit
+    fi
+  fi
+
+  echo -e "    ${Dim} Downloading $fn now...${NoF}"
+
+  if [[ $download_exit_code -gt 0 ]] || [[ -e $fn ]]; then
+    >&2 echo -e "\n${Red}ERROR: file ${White}$fn${Red} has not been downloaded"
+    >&2 echo -e "for some reason OR it has not been downloaded fully."
+    >&2 echo -e "${NoF}\n"
+  fi
+
+}
+
+install_jetbrains_gateway() {
+
+  echo "  Downloading and installing ${Blue}JetBrains Gateway${NoF}..."
+
+  local fn="./gateway.tar.gz"
+  local url_host='data.services.jetbrains.com' # https:// added manually. FOR A REASON.
+  local url path="products/download?code=GW&platform=$(which_os)&type=eap,rc,release,beta"
+
+  local fn="$1"
+  echo -e "   ${Dim}Installing JetBrains Gateway...${NoF}"
+
+  tmp_dir=$(mktemp -d)
+  tar -C "$tmp_dir" -xf gateway.tar.gz && rm "$fn"
+  "$tmp_dir"/*/bin/gateway.sh          && rm -r "$tmp_dir"
+
+  echo -e "${Green}Done.${NoF}"
+
+}
+
+install_latest() {
+  local header="Accept: application/vnd.github.v3.text+json"
+  local tags_url="https://api.github.com/repos/brevdev/brev-cli/tags?per_page=1"
+  local dl_url_prefix="https://github.com/brevdev/brev-cli/releases/download/"
+  local fetched_tag=$(curl -H "$header" "$tags_url")
+  local tag="$(echo "$fetched_tag" |  grep -o 'v\.*' | sed 's/"//g')"
+  local tag_abbr="$(echo "$fetched_tag" | grep -o 'v\.*' | sed 's/v//' | sed 's/"//g')"
+  local fn = "brev-cli_${tag_abbr}_$(which_os)_amd64.tar.gz"
+
+  mkdir -p /tmp/brev
+  dl_file "/tmp/brev/$fn" \
+    "$dl_url_prefix" "brev-cli_${tag_abbr}_$(which_os)_amd64.tar.gz"
+
+  tar -xzvf /tmp/brev/brev.tar.gz -C /tmp/brev
+  sudo mkdir -p /opt/brev/bin
+  sudo cp /tmp/brev/brev /opt/brev/bin
+  rm -rf /tmp/brev/
+
+  export PATH=/opt/brev/bin:$PATH
+  echo PATH=/opt/brev/bin:$PATH >> ~/.$(which_shell)rc
+}
+
+
+echo "Installing ${Blue}brev-cli${NoF}..."
+install_latest
+
+# We're installing JetBrains by default, much like the previously existing
+# scripts. The flag -J would tell it NOT TO install JetBrains.
+if [[ ! "${@}" =~ \s-J\s ]]; then
+  install_jetbrains_gateway
+fi
+echo "${Green}Installation of brevdev-cli completed successully."
