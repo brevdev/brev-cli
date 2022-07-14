@@ -14,7 +14,7 @@ func NewCmdOrgLs(t *terminal.Terminal, orgcmdStore OrgCmdStore) *cobra.Command {
 		Annotations: map[string]string{"context": ""},
 		Use:         "ls",
 		Short:       "List your organizations",
-		Long:        `List your organizations, your current org will be prefixed
+		Long: `List your organizations, your current org will be prefixed
 with * and highlighted with green`,
 		Example: `brev org ls`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
