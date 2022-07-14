@@ -1,4 +1,4 @@
-# Delete a Workspace by name or ID.
+Delete a Workspace by name or ID.
 
 ## SYNOPSIS
 

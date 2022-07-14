@@ -1,24 +1,39 @@
-# start creates, starts, and joins you to workspaces
-
-## SYNOPSIS
-
-```
-
-brev start {<workspace name or id or git url or file path>... | -e} {-n | --name} {-c | --class}
-    { -s | --setup-script} {-r | --setup-repo}] {-p | --setup-path }
-    { -o | --org}
+create start and join a workspace
+## Synopsis
 
 ```
 
-## DESCRIPTION
+brev start { ARG | -e} {-n | --name} {-c | --class} { -s | --setup-script}
+	{-r | --setup-repo} {-p | --setup-path } { -o | --org}
+```
 
-The behavior of brev start is dependent on the context that you are in. The most
-basic invocation of this command is
+## Description
+
+brev start can do the following:
+
+- start a stopped workspace
+- join a workspace in an organization
+- create an empty workspace
+- create a workspace from a directory on your computer
+- create a workspace from a git url
+
+## Flags
+
+### -n --name <name>
+
+specify the name for your workspace instead of brev-cli generating one for you.
+
+for example, to override the name of a workspace when creating a workspace from
+a git repo you could do it with then `-n` flag. This example creates a repo with
+the name `cli` from the git repo `https://github.com/brevdev/brev-cli`.
+
+```
+$ brev start https://github.com/brevdev/brev-cli -n cli
+```
 
 
-## EXAMPLES
-
-### create an empty workspace
+## Examples
+### Create an empty workspace
 
 ```
 $ brev start -e -n foo

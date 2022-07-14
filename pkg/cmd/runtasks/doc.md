@@ -1,12 +1,10 @@
-# RunTasks runs background daemons for brev
-
-## SYNOPSIS
+##### Synopsis
 
 ```
     brev run-tasks -d
 ```
 
-## DESCRIPTION
+##### Description
 
 In order for brev to connect to workspaces, there needs to be background daemons
 running to manage some things on your local machines environment. Currently, the
@@ -19,7 +17,7 @@ configure this command to be run at boot.
 
 This command is set to be deprecated in favor of `brev configure`.
 
-## EXAMPLE
+##### Examples
 
 to run tasks in the background
 
@@ -38,6 +36,6 @@ $ brev run-tasks
 
 ```
 
-## SEE ALSO
+##### See Also
 - [Configuring SSH Proxy Daemon at Boot](https://docs.brev.dev/howto/configure-ssh-proxy-daemon-at-boot/)
 -TODO brev configure docs

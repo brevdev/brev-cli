@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/invite"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -28,6 +29,7 @@ type OrgCmdStore interface {
 	vpn.ServiceMeshStore
 	SetDefaultOrganization(org *entity.Organization) error
 	GetServerSockFile() string
+	CreateInviteLink(organizationID string) (string, error)
 }
 
 func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
@@ -70,6 +72,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 
 	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
 	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore, noorgcmdStore))
+	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))
 
 	return cmd
 }

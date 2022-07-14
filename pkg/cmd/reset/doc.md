@@ -1,4 +1,3 @@
-# Reset a Workspace by name or ID.
 
 ## SYNOPSIS
 
