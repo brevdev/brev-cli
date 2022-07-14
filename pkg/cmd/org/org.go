@@ -62,11 +62,6 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 		},
 	}
 
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noorgcmdStore, t))
-	if err != nil {
-		t.Errprint(err, "cli err")
-	}
-
 	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
 	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))
