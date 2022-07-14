@@ -68,7 +68,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 	}
 
 	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
-	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore, noorgcmdStore))
+	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))
 
 	return cmd

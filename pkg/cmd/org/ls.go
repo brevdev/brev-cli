@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdOrgLs(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
+func NewCmdOrgLs(t *terminal.Terminal, orgcmdStore OrgCmdStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
 		Use:         "ls",
