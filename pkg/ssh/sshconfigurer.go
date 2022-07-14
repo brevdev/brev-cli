@@ -146,7 +146,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier()), w.ID, pk)
+		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier()), w.ID, pk, w.GetProjectFolderPath())
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -165,6 +165,8 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
   PasswordAuthentication no
+  RequestTTY yes
+  RemoteCommand cd {{ .Dir }}; $SHELL
 
 `
 
@@ -173,15 +175,17 @@ type SSHConfigEntryV2 struct {
 	IdentityFile string
 	User         string
 	ProxyCommand string
+	Dir          string
 }
 
-func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath string) (string, error) {
+func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath string, dir string) (string, error) {
 	proxyCommand := makeProxyCommand(workspaceID)
 	entry := SSHConfigEntryV2{
 		Alias:        alias,
 		IdentityFile: privateKeyPath,
 		User:         "brev",
 		ProxyCommand: proxyCommand,
+		Dir:          dir,
 	}
 
 	tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)

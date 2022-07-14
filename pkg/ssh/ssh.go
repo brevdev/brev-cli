@@ -34,6 +34,8 @@ const workspaceSSHConfigTemplate = `Host {{ .Host }}
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
   PasswordAuthentication no
+  RequestTTY yes
+  RemoteCommand cd {{ .Dir }}; $SHELL
 
 `
 
@@ -47,6 +49,7 @@ type (
 		User         string
 		IdentityFile string
 		Port         string
+		Dir          string
 	}
 	SSHStore interface {
 		GetUserSSHConfig() (string, error)
@@ -182,13 +185,14 @@ func sshConfigFromString(config string) (*ssh_config.Config, error) {
 	return sshConfig, nil
 }
 
-func MakeSSHEntry(workspaceIdentifier entity.WorkspaceLocalID, port string, privateKeyPath string) (string, error) {
+func MakeSSHEntry(workspaceIdentifier entity.WorkspaceLocalID, port string, privateKeyPath string, dir string) (string, error) {
 	wsc := workspaceSSHConfig{
 		Host:         workspaceIdentifier,
 		Hostname:     "localhost",
 		User:         "brev",
 		IdentityFile: privateKeyPath,
 		Port:         port,
+		Dir:          dir,
 	}
 
 	tmpl, err := template.New(string(workspaceIdentifier)).Parse(workspaceSSHConfigTemplate)
@@ -285,7 +289,7 @@ func (s *SSHConfig) Sync(identifierPortMapping IdentityPortMap) error {
 
 	for key, value := range identifierPortMapping {
 		if !brevhosts[key] {
-			entry, err2 := MakeSSHEntry(key, value, s.privateKey)
+			entry, err2 := MakeSSHEntry(key, value, s.privateKey, "/home/brev/workspace")
 			if err2 != nil {
 				return breverrors.WrapAndTrace(err2)
 			}
