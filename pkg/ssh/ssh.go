@@ -31,6 +31,9 @@ const workspaceSSHConfigTemplate = `Host {{ .Host }}
   IdentityFile {{ .IdentityFile }}
   User brev
   Port {{ .Port }}
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
 
 `
 
