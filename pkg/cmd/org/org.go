@@ -42,7 +42,6 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
   brev org
   brev org ls
   brev org set <NAME>
-  brev org new --name <NAME>
 		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
