@@ -64,7 +64,6 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 		},
 	}
 
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noorgcmdStore, t))
 	if err != nil {
 		t.Errprint(err, "cli err")
