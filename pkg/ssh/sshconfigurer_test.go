@@ -100,6 +100,8 @@ Host %s
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
   PasswordAuthentication no
+  RequestTTY yes
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 Host %s
   IdentityFile /my/priv/key.pem
@@ -109,6 +111,8 @@ Host %s
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
   PasswordAuthentication no
+  RequestTTY yes
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
