@@ -49,7 +49,8 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noorgcmdStore, t))
 	if err != nil {
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")

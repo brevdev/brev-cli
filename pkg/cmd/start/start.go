@@ -98,8 +98,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(err)
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 	return cmd
 }

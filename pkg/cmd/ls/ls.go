@@ -65,7 +65,8 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginLsStore, t))
 	if err != nil {
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")

@@ -60,8 +60,8 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(err)
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	return cmd
@@ -185,8 +185,8 @@ func NewCmdPortForward(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Co
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(err)
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	return cmd

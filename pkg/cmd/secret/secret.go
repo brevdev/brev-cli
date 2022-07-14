@@ -66,16 +66,16 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		return []string{"file", "variable"}, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(err)
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	err = cmd.RegisterFlagCompletionFunc("scope", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"org", "private"}, cobra.ShellCompDirectiveNoSpace
 	})
 	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(err)
-		t.Errprint(err, "cli err")
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	return cmd
