@@ -97,12 +97,18 @@ Host %s
   User brev
   ProxyCommand brev proxy test-id-1
   ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
 
 Host %s
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-2
   ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
