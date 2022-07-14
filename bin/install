@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# THIS IS A SINGULAR INSTALLATION SCRIPT, REGARDLESS OF YOUR OS.
+# It has no dependencies, works find on bash 3.2 (the one that's default on
+# MacOSX).
+
+# This script
+# a) automatically detects your operating system
+# b) downloads the appropriate files for (a)
+# c) untars the download files to temp dirs, installs them, cleans up
+
 set -e
 
 # Some useful colors and other formatting
@@ -6,6 +16,7 @@ Red='\e[0;31m'
 Green='\e[0;32m'
 Dim='\033[2m'
 Yellow='\e[33m'
+Cyan='\e[0;36m'
 NoF='\e[0m' # clear formatting
 
 # This variable is assigned value in which_os() and
@@ -21,8 +32,8 @@ declare myshell
 which_os() {
   [[ -n "$myos" ]] && echo "$os" && return # printing cached value and returning.
   case "$OSTYPE" in
-    linux*)  myos="linux";;
-    darwin*) myos="mac";;
+    linux*)  local myos="linux";;
+    darwin*) local myos="mac";;
     *)
       >&2 echo -e "\n${Red}ERROR: ${NoF}$OSTYPE${Red} not supported, sorry.${NoF}\n"
       exit 1
@@ -34,16 +45,25 @@ which_os() {
 # This will help us add necessary code to the right rc-file.
 # Before, it only added code to .zshrc, which, of course, MacOSX used as the
 # the default one, but Linux doesn't even have it installed by default.
+#
+#     Tested with the following shells:  sh, bash, zsh, tcsh, csh, fish
+#     And on these operating systems:    FreeBSD, Ubuntu, MacOSX
+#
+# IMPORTANT: this script prints back the shell that is default for the current
+#            and NOT the one that is running this script. And that's exactly
+#            what we want, because we want to put "the stuff" into the right
+#            rc-file, which is read by the shell our user actually uses
+#            on a daily basis.
+#
 which_shell() {
-  # IMPORTANT: this script prints back the shell that is default for the current
-  #            and NOT the one that is running this script. And that's exactly
-  #            what we want, because we want to put "the stuff" into the right
-  #            rc-file, which is read by the shell our user actually uses
-  #            on a daily basis.
-  #
-  # Tested with the following shells: sh, bash, zsh, tcsh, csh, fish
-  # And on these operating systems:       FreeBSD, Ubuntu, MacOSX
-  sh -c 'echo "$(getent passwd $USER 2> /dev/null || echo $SHELL)" | grep -oE "[^\/]+$"'
+  # For MacOSX, one cannot get user's SHELL with `getent`, because it might
+  # simply not be installed, which is why we use this additional code here.
+  if [[ $(which_os) == 'darwin' ]]; then
+    dscl . -read $HOME | grep 'UserShell:' | awk '{print $2}' | grep -oE '[a-zA-Z0-9]*$'
+  # This the usual linux/BSD way of finding out user's shell...
+  else
+    sh -c 'echo "$(getent passwd $USER 2> /dev/null || echo $SHELL)" | grep -oE "[^\/]+$"'
+  fi
 }
 
 dl_file() {
@@ -68,10 +88,9 @@ dl_file() {
   done
 
   case $dl_cmd_name in
-    wget) dl_cmd+=" --show-progress -qO  -O $fn 'https://$URL_HOST/$URL_PATH'";;
-    curl) dl_cmd+=" -L -o $fn 'https://$URL_HOST/$URL_PATH'";;
+    wget) dl_cmd+=" --show-progress -q -O $fn 'https://$URL_HOST/$URL_PATH'";;
+    curl) dl_cmd+=" -L -O $fn 'https://$URL_HOST/$URL_PATH'";;
   esac
-
 
   # Obviously, ask the user if they wanted to overwrite the file. Maybe not.
   if [[ -e "$fn" ]]; then
@@ -83,7 +102,8 @@ dl_file() {
     if [[ "$overwrite_file" == "y" ]]; then
       rm $fn
       echo "    ${Dim}File${NoF} $fn ${Dim}was removed and will now be downloaded again.${NoF}"
-      download_target_file
+      echo -e "Running\n\$${Dim}$dl_cmd${NoF}\n"
+      $dl_cmd # <-- ACTUAL PLACE WHERE WE RUN THE COMMAND TO DOWNLOAD THE FILE
       local download_exit_code=$?
     else
       echo 'Okay, will not do anything. Exiting.'
@@ -108,10 +128,13 @@ install_jetbrains_gateway() {
   local fn="./gateway.tar.gz"
   local url_host='data.services.jetbrains.com' # https:// added manually. FOR A REASON.
   local url path="products/download?code=GW&platform=$(which_os)&type=eap,rc,release,beta"
-
   local fn="$1"
-  echo -e "   ${Dim}Installing JetBrains Gateway...${NoF}"
 
+  echo -e "   ${Dim}Installing JetBrains Gateway...${NoF}"
+  dl_file "$fn" "$url_host" "$url_path"
+
+
+  echo -e "   ${Dim}Extracting and installing JetBrains gateway...${NoF}"
   tmp_dir=$(mktemp -d)
   tar -C "$tmp_dir" -xf gateway.tar.gz && rm "$fn"
   "$tmp_dir"/*/bin/gateway.sh          && rm -r "$tmp_dir"
@@ -121,34 +144,71 @@ install_jetbrains_gateway() {
 }
 
 install_latest() {
+
   local header="Accept: application/vnd.github.v3.text+json"
   local tags_url="https://api.github.com/repos/brevdev/brev-cli/tags?per_page=1"
   local dl_url_prefix="https://github.com/brevdev/brev-cli/releases/download/"
+
   local fetched_tag=$(curl -H "$header" "$tags_url")
-  local tag="$(echo "$fetched_tag" |  grep -o 'v\.*' | sed 's/"//g')"
+  local tag="$(echo "$fetched_tag" | grep -o 'v\.*' | sed 's/"//g')"
   local tag_abbr="$(echo "$fetched_tag" | grep -o 'v\.*' | sed 's/v//' | sed 's/"//g')"
   local fn = "brev-cli_${tag_abbr}_$(which_os)_amd64.tar.gz"
 
-  mkdir -p /tmp/brev
-  dl_file "/tmp/brev/$fn" \
-    "$dl_url_prefix" "brev-cli_${tag_abbr}_$(which_os)_amd64.tar.gz"
+  local brev_cli_suffix="${tag_abbr}_$(which_os)"
 
-  tar -xzvf /tmp/brev/brev.tar.gz -C /tmp/brev
+  # Step 1: download the file
+  echo -e "   ${Dim}Downloading latest brevdev-cli...${NoF}"
+  dl_file "/tmp/brev/$fn" "$dl_url_prefix" "$fn"
+
+
+  # Step 2: untar it into a specially created temporary dir
+  echo -e "   ${Dim}Extracting and installing brevdev-cli...${NoF}"
+  mkdir -p "/tmp/brev/brev-cli_$brev_cli_suffix"
+  tar -xzvf "/tmp/brev/$fn" -C "/tmp/brev/brev-cli_$brev_cli_suffix"
+
+  # Step 3: inform the user that we are going to place the executable into
+  #         the /opt/brev/bin directory and add it to the path. And actually
+  #         do it, yes. How dare we.
+  brev_bin_dir="/opt/brev/bin"
+
+  echo -e "    ${Yellow}Creating ${Bold}${Cyan}$brev_bin_dir${NoF} for the brevdev"
+  echo -e "    executables. It will automatically added the to the PATH environment"
+  echo -e "    variable (unless it's already present there, of course). Both now and"
+  echo -e "    An appropriate line is also to be added into your $brev_bin_dir.\n"
+  echo -e "      NOTE: both things will be only in case the PATH doesn't currently include"
+  echo -e "      ${Cyan}$brev_bin_dir.${NoF}\n"
+
+  echo -e "\n${Bold}It's going to ask to enter your password${NoF}(same as for sudo)"
+  echo -e "so we can create that directory. It would be of great help"
+  echo -e "if you cooperated. Thank you.\n"
+
+
+  # Step 3.1: copy the executable
   sudo mkdir -p /opt/brev/bin
-  sudo cp /tmp/brev/brev /opt/brev/bin
-  rm -rf /tmp/brev/
+  sudo cp /tmp/brev/brev-cli_$brev_cli_suffix/brev /opt/brev/bin
 
-  export PATH=/opt/brev/bin:$PATH
-  echo PATH=/opt/brev/bin:$PATH >> ~/.$(which_shell)rc
+  # Step 3.1: add 
+  if [[ "$(echo "$PATH" | grep -oE "(^|:)$brev_bin_dir:"
+    exp_cmd="export PATH='$brev_bin_dir:$PATH'"
+    $exp_cmd
+    echo -n "$exp_cmd" >> $HOME/.$(which_shell)rc # -n rids us of a newline
+  fi
+
+  # Step 4: Clean up the temporary directory and files
+  echo -e "   ${Dim}Cleaning up the temporary files...${NoF}"
+  rm -rf "/tmp/brev/brev-cli_$suffix"
+
 }
 
-
+### THAT'S WHERE THE SCRIPT STARTS
+#
 echo "Installing ${Blue}brev-cli${NoF}..."
-install_latest
+install_latest || exit 1
 
 # We're installing JetBrains by default, much like the previously existing
 # scripts. The flag -J would tell it NOT TO install JetBrains.
-if [[ ! "${@}" =~ \s-J\s ]]; then
+if [[ ! "${@}" =~ \s-J\s*.*$ ]]; then
   install_jetbrains_gateway
 fi
-echo "${Green}Installation of brevdev-cli completed successully."
+
+echo "${Green}Installation of brevdev-cli completed successfully.${NoF}"
