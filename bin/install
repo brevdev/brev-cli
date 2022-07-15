@@ -292,16 +292,8 @@ fi
 # scripts. The flag -J would tell it NOT TO install JetBrains.
 if [[ ! "${@}" =~ \s-J\s*.*$ ]]; then
   install_jetbrains_gateway
-  # I tried to do a nice thing the jetbrain's script behavior is non-standard,
-  # it appears. Couldn't properly fetch its STDERR and it seems to just force
-  # the caller script (this one) to exit if there's an error. Not nice,
-  # JetBrains. But user will still get the error message from JetBrains script,
-  # albeit, not as nicely formatted.
-  #
-  # So we're only left with printing this in case of success. But, unfortunately
-  # There isn't any way for us to ensure we delete the temporary files either
-  # in that case. Again. Not a problem, because they're in the /tmp/ dir
-  # and will get cleaned up eventually. Or I find a workaround.
+  # Jetbrain's script behavior is non-standard, so we use the fact existence of
+  # error log file to display the error/success message.
   if [[ -f $tmp_dir/jetbrains_gw_install_error.log ]]; then
     # Now we can really tell, whether this program returned an error or not:
     err="$(cat $tmp_dir/jetbrains_gw_install_error.log | grep -v '^\s*$')"
