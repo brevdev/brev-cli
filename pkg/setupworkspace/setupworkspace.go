@@ -1072,7 +1072,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 		if !strings.HasPrefix(url, "git@") && !strings.HasPrefix(url, "http") {
 			url = "git@" + url
 		}
-		fmt.Printf("cloning %s", url)
+		fmt.Printf("cloning %s to dir '%s'", url, dirPath)
 		cmd := CmdBuilder("git", "clone", "--recursive", url, dirPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
