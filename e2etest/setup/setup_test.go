@@ -636,3 +636,65 @@ func Test_ChangePwd(t *testing.T) {
 	})
 	assert.Nil(t, err)
 }
+
+func Test_Bitbucket(t *testing.T) {
+	keys, err := GetTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+	params := NewTestSetupParams(keys)
+	params.ProjectFolderName = "cranked"
+	params.WorkspaceProjectRepo = ""
+	params.WorkspaceBaseRepo = "github.com:naderkhalil/dotbrev.git"
+	params.UserSetupExecPath = ".brev/setup.sh"
+
+	dir := "classranked"
+	params.ReposV1 = entity.ReposV1{
+		"test-config": entity.RepoV1{
+			Type: entity.GitRepoType,
+			GitRepo: entity.GitRepo{
+				Repository: "git@bitbucket.org:classranked/classranked.git",
+				GitRepoOptions: entity.GitRepoOptions{
+					GitDirectory: &dir,
+				},
+			},
+		},
+	}
+	folderName := dir
+	stage := entity.StartStage
+	params.ExecsV1 = entity.ExecsV1{
+		"test-config-setup": entity.ExecV1{
+			Type:  entity.PathExecType,
+			Stage: &stage,
+			ExecOptions: entity.ExecOptions{
+				ExecWorkDir: &dir,
+			},
+			PathExec: entity.PathExec{
+				ExecPath: "classranked/.brev/setup.sh",
+			},
+		},
+	}
+
+	client := NewStdWorkspaceTestClient(params, SupportedContainers)
+
+	err = client.Test(func(w Workspace, err error) {
+		assert.Nil(t, err)
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, folderName)
+		AssertCustomTestRepoSetupRan(t, w, folderName, "repo setup script ran", "brev", filepath.Join("/home/brev/workspace", folderName, ".brev"), "setup.log")
+		AssertCustomTestRepoSetupRan(t, w, "/home/brev/workspace", "my exec ran", "brev", filepath.Join("/home/brev/workspace", folderName), "exec-name.log")
+
+		err1 := w.Reset()
+		if !assert.Nil(t, err1) {
+			return
+		}
+
+		AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+		AssertValidBrevProjRepo(t, w, folderName)
+		AssertCustomTestRepoSetupRan(t, w, folderName, "repo setup script ran", "brev", filepath.Join("/home/brev/workspace", folderName, ".brev"), "setup.log")
+		AssertCustomTestRepoSetupRan(t, w, "/home/brev/workspace", "my exec ran", "brev", filepath.Join("/home/brev/workspace", folderName), "exec-name.log")
+	})
+	assert.Nil(t, err)
+}
