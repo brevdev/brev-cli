@@ -12,7 +12,7 @@ import (
 )
 
 type SetupWorkspaceStore interface {
-	GetSetupParams() (*store.SetupParamsV0, error)
+	GetSetupParams(path string) (*store.SetupParamsV0, error)
 	WriteSetupScript(script string) error
 	GetSetupScriptPath() string
 	GetCurrentUser() (*entity.User, error)
@@ -35,7 +35,7 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 			}
 			fmt.Println("setting up workspace")
 
-			params, err := store.GetSetupParams()
+			params, err := store.GetSetupParams("/etc/meta/setup_v0.json")
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}

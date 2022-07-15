@@ -413,8 +413,8 @@ type (
 	IDEConfigs map[IDEName]IdeConfig
 )
 
-func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
-	file, err := f.fs.Open("/etc/meta/setup_v0.json")
+func (f FileStore) GetSetupParams(path string) (*SetupParamsV0, error) {
+	file, err := f.fs.Open(path)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
