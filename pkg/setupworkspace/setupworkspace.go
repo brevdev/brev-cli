@@ -715,7 +715,11 @@ func (w WorkspaceIniter) SetupGit(username string, email string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
+	cmd = CmdStringBuilder(fmt.Sprintf("ssh-keyscan bitbucket.org >> %s", w.BuildHomePath(".ssh", "known_hosts")))
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	cmd = CmdBuilder("git", "config", "--global", "user.email", fmt.Sprintf(`"%s"`, email))
 	err = w.CmdAsUser(cmd)
 	if err != nil {
@@ -1072,7 +1076,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 		if !strings.HasPrefix(url, "git@") && !strings.HasPrefix(url, "http") {
 			url = "git@" + url
 		}
-		fmt.Printf("cloning %s to dir '%s'", url, dirPath)
+		fmt.Printf("cloning %s to dir '%s'\n", url, dirPath)
 		cmd := CmdBuilder("git", "clone", "--recursive", url, dirPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
