@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+
+# THIS IS A SINGULAR INSTALLATION SCRIPT, REGARDLESS OF YOUR OS.
+# It has no dependencies, and even works with Bash v3.2 (the one that's default on
+# MacOSX), so we're all good.
+
+# While performing each component there's dedicated installation function,
+# which may use other shared functions to complement its functionality.
+# In general, each component installation function will do this:
+
+#   a) Detect your operating system
+#   b) Download the appropriate file for your OS.
+#   c) The file will then be un-tarred into its own dir.
+#   d) Perform the necessary installation steps (run execs, copy files, etc.)
+#
+#   f) And, finally, it'll clean up by removing the dir into which the which
+#      the downloaded component was un-tarred
+#
+#      NOTE about (c) - it doesn't delete the .tar files, because why download them
+#      again? Instead, it will nicely ask the user if they wanted to CONTINUE and
+#      then it would untar them, do what it has to do, and rm -rf the directories,
+#      leaving .tar files as is. Since it's all in the /tmp/* directory it'll get
+#      cleaned up eventually, so no big deal.
+
+set -e
+
+# Some useful colors and other formatting
+Red='\e[0;31m'
+Green='\e[0;32m'
+Dim='\033[2m'
+Yellow='\e[33m'
+Cyan='\e[0;36m'
+Bold='\033[1m'
+White='\033[0;37m'
+
+# Colors independent of user settings, we'll prefix them with _
+_White='\033[0;37;256m'
+_Yellow='\e[38;5;226m' # yellow
+_BRed='\e[38;5;9m'
+_On_Black='\e[48;5;16m' # Black background
+_BYellow_OnBlack="${_On_Black}${_Yellow}${Bold}"
+_BRed_OnBlack="${_On_Black}${_BRed}${Bold}"
+NoF='\e[0m' # clear formatting
+
+# This variable is assigned value in which_os() and
+# then we just return it (simple caching, not necessary, but nice).
+declare myos
+declare myshell
+
+tmp_dir='/tmp/brev-dev' # shared directory for whatever brev downloads
+mkdir -p $tmp_dir
+
+# Helps us download the right versions of brev-cli itself and JetBrains Gateway.
+#
+# TODO: it seems like it makes sense to support cygwin, but I was advised
+# against adding now, because Tailscale breaks it.
+#
+which_os() {
+  [[ -n "$myos" ]] && echo "$myos" && return # printing cached value and returning.
+  case "$OSTYPE" in
+    linux*)  local myos="linux";;
+    darwin*) local myos="mac";;
+    *)
+      >&2 echo -e "\n${Red}ERROR: ${NoF}$OSTYPE${Red} not supported, sorry.${NoF}\n"
+      exit 1
+      ;;
+  esac
+  echo "$myos"
+}
+
+# This will help us add necessary code to the right rc-file.
+# Before, it only added code to .zshrc, which, of course, MacOSX used as the
+# the default one, but Linux doesn't even have it installed by default.
+#
+#     Tested with the following shells:  sh, bash, zsh, tcsh, csh, fish
+#     And on these operating systems:    FreeBSD, Ubuntu, MacOSX
+#
+# IMPORTANT: this script prints back the shell that is default for the current
+#            and NOT the one that is running this script. And that's exactly
+#            what we want, because we want to put "the stuff" into the right
+#            rc-file, which is read by the shell our user actually uses
+#            on a daily basis.
+#
+which_shell() {
+  # For MacOSX, one cannot get user's SHELL with `getent`, because it might
+  # simply not be installed, which is why we use this additional code here.
+  if [[ $(which_os) == 'darwin' ]]; then
+    dscl . -read $HOME | grep 'UserShell:' | awk '{print $2}' | grep -oE '[a-zA-Z0-9]*$'
+  # This the usual linux/BSD way of finding out user's shell...
+  else
+    sh -c 'echo "$(getent passwd $USER 2> /dev/null || echo $SHELL)" | grep -oE "[^\/]+$"'
+  fi
+}
+
+dl_file() {
+
+  local fn="$1"
+  # These two variables are variables for a reason. And sometimes,
+  # their content doesn't strictly reflect their names, but it's rather
+  # insignificant, so as to bother about it.
+  local hostname="$(echo "$2" | sed 's|^/||')"
+  local hostpath="$(echo "$3" | sed 's|^/||')"
+  local url="https://$hostname/$hostpath"
+
+  # We'll download the file using whatever program is available, even resorting to
+  # telnet in the order in which the variables are listed here. We'll only use
+  # those that can download via https.
+  #
+  # Bash v3.2, which is very old, but is not updated on MacOSX by default SHOULD be
+  # able to support arrays already, so no problem.
+  declare -a dl_program_names=( wget curl )
+  for n in "${dl_program_names[@]}"; do
+    dl_cmd="$(which $n)"
+    [[ -n "$dl_cmd" ]] && dl_cmd_name="$n" && break
+  done
+
+  case $dl_cmd_name in
+    wget) dl_cmd="wget -O $tmp_dir/$fn $url";;
+    curl) dl_cmd="curl -L -o $tmp_dir/$fn $url";;
+    *)
+      >&2 echo -en "\n${Red}ERROR: you don't have neither ${NoF}curl${Red}"
+      >&2 echo -e "nor ${NoF}wget${Red} installed. Nothing to download files with."
+      >&2 echo -e "Please install one of them\n"
+      exit 1
+      ;;
+  esac
+
+  # Obviously, ask the user if they wanted to overwrite the file. Maybe not.
+  if [[ -e "$tmp_dir/$fn" ]]; then
+    echo -e "  ${Yellow}WARNING: file${NoF} $tmp_dir/$fn ${Yellow}already exists.${NoF}"
+    echo -en "  Would you like to Overwrite it or Continue with the existing one? (y/c): "
+    read overwrite_file
+    echo "" # extra blank line after the user prompt.
+
+    if [[ "$overwrite_file" == "y" ]]; then
+      rm "$tmp_dir/$fn"
+      echo -e "    ${Dim}File${NoF} $fn ${Dim}was removed and"
+      echo -e "    it will be downloaded again now...${NoF}"
+      $dl_cmd # <-- FIRST PLACE WHERE WE RUN THE COMMAND TO DOWNLOAD THE FILE
+    elif [[ "$overwrite_file" == "c" ]]; then
+      return 0
+    else
+      return 1
+    fi
+  else
+    $dl_cmd # <-- THE ONLY OTHER PLACE WE RUN THE COMMAND TO DOWNLOAD
+  fi
+
+}
+
+install_jetbrains_gateway() {
+  echo -e "  Downloading and installing ${Blue}JetBrains Gateway${NoF}..."
+  local fn="jetbrains_gateway.tar.gz"
+  local host_name='data.services.jetbrains.com' # https:// added manually. FOR A REASON.
+  local host_path="products/download?code=GW&platform=$(which_os)&type=eap,rc,release,beta"
+
+  dl_file "$fn" "$host_name" "$host_path"
+
+  echo -e "  ${Dim}Extracting and installing JetBrains gateway...${NoF}"
+  # Longer options for tar, because, see the same comment install_latest()...
+  local untar_dir="$tmp_dir/$(tar \
+    --extract --gzip --verbose --directory="$tmp_dir" --file="$tmp_dir/$fn")"
+  untar_dir="$(echo -e "$untar_dir" | head -n 1)"
+
+  ${untar_dir}bin/gateway.sh 2> $tmp_dir/jetbrains_gw_install_error.log || rm -rf $untar_dir
+  rm -rf $untar_dir
+
+}
+
+install_latest() {
+
+  local header="Accept: application/vnd.github.v3.text+json"
+  local tags_url="https://api.github.com/repos/brevdev/brev-cli/tags?per_page=1"
+
+  # Step 0: getting all info about the latest tag from Github.
+  local fetched_tag=$(curl --silent -H "$header" "$tags_url")
+
+  local tag="$(echo "$fetched_tag"     |\
+    grep -o '"name": ".*"'             |\
+    sed -E 's/"name": "([^"]+)"/\1/')"
+
+  # Basically, losing the preceding "v" with a possible "." char.
+  local tag_abbr="$(echo "$tag" | sed -E 's/^v\.?(.*$)/\1/')"
+  local release_url_path="github.com/brevdev/brev-cli/releases/download/$tag"
+
+  local brev_cli_suffix="${tag_abbr}_$(which_os)"
+  local fn="brev-cli_${tag_abbr}_$(which_os)_amd64.tar.gz"
+
+  # Step 1: download the file
+  echo -e "  ${Dim}Downloading latest brevdev-cli $tag...${NoF}"
+  dl_file "$fn" "$release_url_path" "$fn"
+
+  # Step 2: untar it into a specially created temporary dir
+  echo -e "  ${Dim}Extracting and installing brevdev-cli...${NoF}"
+  local untar_dir="$tmp_dir/brev-cli_${brev_cli_suffix}_amd64"
+
+  mkdir -p $untar_dir
+  # Longer options for tar, because clarity! No one wants to grep the man
+  # pages later, right? ESPECIALLY for `tar`. Just because, tar, yes, just
+  # because, you...
+  #
+  # And here, we're also sending output to /dev/null because we don't need it.
+  # Unlike in the install_jetbrains_gateway() case, we don't need the dir name,
+  # we already know, it's in $untar_dir
+  tar --extract --verbose --gzip \
+    --file="$tmp_dir/$fn" --directory="$untar_dir" > /dev/null
+  # Let's no remove the file, for now. Why download every time?
+  # rm "$tmp_dir/$fn"
+
+  # Step 3: inform the user that we are going to place the executable into
+  #         the /opt/brev/bin directory and add it to the path. And actually
+  #         do it, yes. How dare we.
+  brev_bin_dir="/opt/brev/bin"
+
+  echo -e  "  ${Yellow}Creating ${Bold}${Cyan}$brev_bin_dir${NoF}${Dim} for the brevdev executables${NoF}"
+
+  echo -e "  ${Yellow}It MAY ask you to enter your password${NoF}"
+  echo -e "  ${Dim}(same as for sudo) so we can create that directory."
+  echo -e "  It would be of great help if you cooperated. Thank you.${NoF}\n"
+
+  # Step 3.1: copy the executable
+  sudo mkdir -p $brev_bin_dir
+  sudo cp $untar_dir/brev $brev_bin_dir/
+
+  # If for some reason the file hasn't been copied,
+  # we return 1, which will signal the main program to print an error message.
+  [[ -f $brev_bin_dir/brev ]] || return 1
+
+  # Step 3.2: copy `brev` binary to its desired system destination and add this
+  # destination to $PATH. NOTE: it makes no sense to actually call `export $PATH`
+  # here, because it's bash script. If the user happens to be using zsh, it
+  # would have no effect on him because this script is a child process. As soon
+  # as it exits, variables disappear, exported or not.
+  local shellrc="$HOME/.$(which_shell)rc"
+  if [[ -z "$(echo "$PATH" | grep -oE "(^|:)$brev_bin_dir:")" ]]; then
+
+    echo -e  "  ${Dim}Adding ${Cyan}$brev_bin_dir${White} into the \$PATH variable"
+    echo -e  "  by appending an appropriate line to your $shellrc file.${NoF}\n"
+
+    if [[ -w "$shellrc" ]]; then
+
+      if [[ -z "$(cat "$shellrc" |\
+               grep -E 'PATH="'  |\
+               grep -E "(\"|:)$brev_bin_dir:")"
+        ]]; then
+        # ATTENTION: the following `echo` is not like the other ones. It writes to
+        # a file, so if you'll ever find yourself refactoring this code, this
+        # line shell remain.
+        echo "PATH=\"$brev_bin_dir:\$PATH\"; export PATH" >> \
+          $HOME/.$(which_shell)rc # -n rids us of a newline
+
+        # Now these `echo`s ARE like the other ones... Refactor away.
+        local logout_reminder="Do NOT forget to log out and "
+        logout_reminder+=" log back in again for the changes to take effect."
+
+        echo -e  "  Updated $HOME/.$(which_shell)rc${NoF}"
+        echo -e  "  ${Yellow}${Bold}$(printf '%0.s⠶' $(seq 1 ${#logout_reminder}))${NoF}"
+        echo -en "  ${_BYellow_OnBlack}$logout_reminder${NoF}\n"
+        echo -e  "  ${Yellow}${Bold}$(printf '%0.s⠶' $(seq 1 ${#logout_reminder}))${NoF}"
+      else
+        echo -e  "  ${Dim}\$PATH has already been appropriately updated with"
+        echo -e  "  the $brev_bin_dir directory in your $shellrc file. Nothing to add.${NoF}"
+      fi
+    else
+      >&2 echo -en "  ${_BRed_OnBlack}Cannot update $HOME/.$(which_shell)rc - "
+      >&2 echo -e  "no permission to write to this file or it doesn't exist.${NoF}"
+      >&2 echo -en "  ${Bold}${Yellow}Please add "
+      >&2 echo -e  "${Cyan}$brev_bin_dir${Yellow}${Bold} into the \$PATH variable${NoF}"
+    fi
+  fi
+
+  # Step 4: Clean up the temporary directory and files
+  echo -en "  ${Dim}Cleaning up the temporary files..."
+  rm -rf "$untar_dir"
+  echo -e "done.${NoF}"
+
+}
+
+### THAT'S WHERE THE SCRIPT STARTS
+#
+echo "Starting the installation process..."
+install_latest
+if [[ $? == 0 ]]; then
+  echo -e "${Green}Installation of brev-cli completed successfully.${NoF}\n"
+else
+  echo -e "${Red}Could not complete brev-cli installation.${NoF}"
+  echo -e "  ${Dim}Check with the error messages above${Dim}\n"
+  exit 1
+fi
+
+# We're installing JetBrains by default, much like the previously existing
+# scripts. The flag -J would tell it NOT TO install JetBrains.
+if [[ ! "${@}" =~ \s-J\s*.*$ ]]; then
+  install_jetbrains_gateway
+  # Jetbrain's script behavior is non-standard, so we use the fact existence of
+  # error log file to display the error/success message.
+  if [[ -f $tmp_dir/jetbrains_gw_install_error.log ]]; then
+    # Now we can really tell, whether this program returned an error or not:
+    err="$(cat $tmp_dir/jetbrains_gw_install_error.log | grep -v '^\s*$')"
+    rm $tmp_dir/jetbrains_gw_install_error.log 
+
+    if [[ -n "$err" ]]; then
+      echo -e "  ${Red}${Bold}ERROR while installing Jetbrains gateway${NoF}"
+      echo -e "${Red}$(echo -e "$err" | sed 's/^/    /')${NoF}"
+      exit 1
+    fi
+  else
+    echo -e "${Green}Installation of JetBrains Gateway completed successfully.${NoF}"
+  fi
+fi
