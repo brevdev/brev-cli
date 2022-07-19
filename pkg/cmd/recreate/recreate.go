@@ -114,8 +114,8 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 	options = resolveWorkspaceUserOptions(options, user)
 
 	options.StartupScriptPath = workspace.StartupScriptPath
-	options.Execs = workspace.Execs
-	options.Repos = workspace.Repos
+	options.Execs = workspace.ExecsV0
+	options.Repos = workspace.ReposV0
 	options.IDEConfig = &workspace.IDEConfig
 
 	w, err := recreateStore.CreateWorkspace(orgID, options)
@@ -163,8 +163,8 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 	options = resolveWorkspaceUserOptions(options, user)
 
 	options.StartupScriptPath = workspace.StartupScriptPath
-	options.Execs = workspace.Execs
-	options.Repos = workspace.Repos
+	options.Execs = workspace.ExecsV0
+	options.Repos = workspace.ReposV0
 	options.IDEConfig = &workspace.IDEConfig
 
 	w, err := recreateStore.CreateWorkspace(orgID, options)

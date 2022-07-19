@@ -57,7 +57,7 @@ func (r RepoV1) GetDir() (string, error) {
 	if r.Type == GitRepoType { //nolint:gocritic // i like ifs
 		return r.GitRepo.GetDir(), nil
 	} else if r.Type == EmptyRepoType {
-		return r.EmptyDirectory, nil
+		return *r.EmptyDirectory, nil
 	} else {
 		return "", fmt.Errorf("error: invalid type in getting dir of repov1")
 	}
@@ -87,7 +87,7 @@ type GitRepoOptions struct {
 	GitDirectory *string `json:"gitRepoDirectory,omitempty"` // need to be different names than emptyrepo
 }
 type EmptyRepo struct {
-	EmptyDirectory string `json:"emptyRepoDirectory,omitempty"` // need to be different names than gitrepo
+	EmptyDirectory *string `json:"emptyRepoDirectory,omitempty"` // need to be different names than gitrepo
 }
 
 type (
@@ -279,8 +279,10 @@ type Workspace struct {
 	NetworkID         string            `json:"networkId"`
 
 	StartupScriptPath string    `json:"startupScriptPath"`
-	Repos             ReposV0   `json:"repos"`
-	Execs             ExecsV0   `json:"execs"`
+	ReposV0           ReposV0   `json:"repos"`
+	ExecsV0           ExecsV0   `json:"execs"`
+	ReposV1           *ReposV1  `json:"reposV1"`
+	ExecsV1           *ExecsV1  `json:"execsV1"`
 	IDEConfig         IDEConfig `json:"ideConfig"`
 
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
@@ -321,8 +323,21 @@ func (w Workspace) GetProjectFolderPath() string {
 		}
 	} else if w.GitRepo != "" {
 		folderName = GetDefaultProjectFolderNameFromRepo(w.GitRepo)
+	} else if w.ReposV1 != nil {
+		// on reposV1 but have no default working dir
+		if len(*w.ReposV1) == 1 {
+			for _, v := range *w.ReposV1 {
+				if v.Type == GitRepoType {
+					folderName = *v.GitDirectory
+				} else {
+					folderName = *v.EmptyDirectory
+				}
+			}
+		} else {
+			return "/home/brev/workspace/"
+		}
 	} else {
-		folderName = w.Name
+		return "/home/brev/workspace/"
 	}
 
 	return filepath.Join("/home/brev/workspace/", folderName) // TODO make workspace dir configurable
