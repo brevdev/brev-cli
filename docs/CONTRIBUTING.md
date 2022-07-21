@@ -13,7 +13,10 @@ VERSION=unknown
 BREV_API_URL=http://localhost:8080
 # BREV_API_URL=<your backend>
 ```
-
+## running a command against a brev-deploy workspace
+```
+make && BREV_API_URL=`brev ls | grep brev-deploy | awk '{ print "https://8080-"$3 }'` ./brev start https://gitlab.com/reedrichards/lucksacks.git
+```
 
 ## adding new commands
 
@@ -175,7 +178,7 @@ minimum fields:
 
 ```
 <!-- Insert title here -->
-# 
+#
 ## SYNOPSIS
 
 ## DESCRIPTION
