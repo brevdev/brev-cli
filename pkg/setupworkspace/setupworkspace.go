@@ -924,18 +924,11 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 			branch = *repo.GitRepo.Branch
 		}
 		fmt.Println("setuprepov1: ", repoPath, repo.GitRepo.HTTPURL, repo.GitRepo.HTTPSURL, repo.GitRepo.SSHURL, branch)
-		didClone := false
 		for _, repoURL := range []string{repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL, repo.Repository} {
 			err = w.GitCloneIfDNE(repoURL, repoPath, branch)
-			if err == nil {
-				didClone = true
-			}
-
 		}
-		if !didClone {
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
 
 	} else if repo.Type == entity.EmptyRepoType {
@@ -1004,7 +997,6 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 		var err error
 		for _, repoURL := range []string{repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL} {
 			err = w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
-
 		}
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
