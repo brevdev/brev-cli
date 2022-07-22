@@ -15,7 +15,7 @@ BREV_API_URL=http://localhost:8080
 ```
 ## running a command against a brev-deploy workspace
 ```
-make && BREV_API_URL=`brev ls | grep brev-deploy | awk '{ print "https://8080-"$3 }'` ./brev start https://gitlab.com/reedrichards/lucksacks.git
+make && BREV_API_URL=`brev ls | grep brev-deploy | awk '{ print "https://8080-"$3 }'` ./brev start https://gitlab.com/reedrichards/hn
 ```
 
 ## adding new commands
