@@ -925,7 +925,7 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		}
 		fmt.Println("setuprepov1: ", repoPath, repo.GitRepo.HTTPURL, repo.GitRepo.HTTPSURL, repo.GitRepo.SSHURL, branch)
 		didClone := false
-		for _, repoURL := range []string{repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL} {
+		for _, repoURL := range []string{repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL, repo.Repository} {
 			err = w.GitCloneIfDNE(repoURL, repoPath, branch)
 			if err == nil {
 				didClone = true
@@ -1001,13 +1001,15 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 		}
 	} else {
 		fmt.Println("setuprepov0: ", repoPath, repo.GitSSHURL, repo.GitHTTPURL, repo.GitHTTPSURL)
-
+		var err error
 		for _, repoURL := range []string{repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL} {
-			err := w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
+			err = w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
+
 		}
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
 	}
 
 	brevPath := filepath.Join(repoPath, repo.BrevPath)
