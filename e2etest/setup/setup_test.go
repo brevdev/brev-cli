@@ -636,3 +636,94 @@ func Test_ChangePwd(t *testing.T) {
 	})
 	assert.Nil(t, err)
 }
+
+func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
+	noauthKeys, err := GetUnauthedTestKeys()
+	if !assert.Nil(t, err) {
+		return
+	}
+
+	params := NewTestSetupParams(noauthKeys)
+	dir := "test-config"
+
+	execWorkDir := "test-config"
+	log := "test-config/.brev/logs"
+	logA := "test-config/.brev/logs/archive"
+	stage := entity.StartStage
+	params.ExecsV1 = entity.ExecsV1{
+		"test-config-setup": entity.ExecV1{
+			Type:  entity.PathExecType,
+			Stage: &stage,
+			ExecOptions: entity.ExecOptions{
+				ExecWorkDir:    &execWorkDir,
+				LogPath:        &log,
+				LogArchivePath: &logA,
+			},
+			PathExec: entity.PathExec{
+				ExecPath: "test-config/.brev/setup.sh",
+			},
+		},
+	}
+
+	// table tests
+	type args struct {
+		repo     string
+		SSHURL   *string
+		HTTPURL  *string
+		HTTPSURL *string
+	}
+	// have to define SSHRURL, HTTPURL, HTTPSURL separately because they are pointers
+	// cant &args{} directly in for loop because golang-ci-lint complains
+	githubsshURL := "github.com:brevdev/test-repo-dotbrev.git"
+	githubhttpURL := "http://github.com/brevdev/test-repo-dotbrev"
+	githubhttpsURL := "https://github.com/brevdev/test-repo-dotbrev"
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "github",
+			args: args{
+				repo:     "github.com:brevdev/test-repo-dotbrev.git",
+				SSHURL:   &githubsshURL,
+				HTTPURL:  &githubhttpURL,
+				HTTPSURL: &githubhttpsURL,
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			params.ReposV1 = entity.ReposV1{
+				"test-config": entity.RepoV1{
+					Type: entity.GitRepoType,
+					GitRepo: entity.GitRepo{
+						Repository: tt.args.repo,
+						SSHURL:     tt.args.SSHURL,
+						HTTPURL:    tt.args.HTTPURL,
+						HTTPSURL:   tt.args.HTTPSURL,
+						GitRepoOptions: entity.GitRepoOptions{
+							GitDirectory: &dir,
+						},
+					},
+				},
+			}
+			client := NewStdWorkspaceTestClient(params, SupportedContainers)
+			err := client.Test(func(w Workspace, err error) {
+				assert.Nil(t, err)
+				AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
+
+				AssertValidBrevProjRepo(t, w, "test-config")
+				AssertCustomTestRepoSetupRan(t, w, "test-config", "repo setup script ran", "brev", filepath.Join("/home/brev/workspace", "test-config", ".brev"), "setup.log")
+				AssertCustomTestRepoSetupRan(t, w, "/home/brev/workspace", "my exec ran", "brev", filepath.Join("/home/brev/workspace", "test-config"), "exec-name.log")
+			})
+			if !tt.wantErr {
+				assert.Nil(t, err)
+			} else {
+				assert.NotNil(t, err)
+			}
+		})
+	}
+}
