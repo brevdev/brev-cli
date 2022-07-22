@@ -42,6 +42,10 @@ type (
 		SetupExecPath string   `json:"setupExecPath"`
 		ExecWorkDir   string   `json:"execWorkDir"`
 		DependsOn     []string `json:"dependsOn"`
+		RawOrigin     string   `json:"rawOrigin"`
+		GitSSHURL     string   `json:"gitSSHURL"`   // set if this exitsts
+		GitHTTPURL    string   `json:"gitHTTPURL"`  // set if this exists
+		GitHTTPSURL   string   `json:"gitHTTPSURL"` // set if this exists
 	}
 	ReposV0 map[RepoName]RepoV0
 	RepoV1  struct {
@@ -71,6 +75,9 @@ const (
 type GitRepo struct {
 	Repository string `json:"repository,omitempty"`
 	GitRepoOptions
+	SSHURL   *string `json:"sshURL,omitempty"`
+	HTTPURL  *string `json:"httpURL,omitempty"`
+	HTTPSURL *string `json:"httpsURL,omitempty"`
 }
 
 func (g GitRepo) GetDir() string {
