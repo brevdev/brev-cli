@@ -923,10 +923,13 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		if repo.GitRepo.Branch != nil {
 			branch = *repo.GitRepo.Branch
 		}
-		err = w.GitCloneIfDNE(repo.Repository, repoPath, branch)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		for _, repoURL := range []string{*repo.GitRepo.SSHURL, *repo.GitRepo.HTTPSURL, *repo.GitRepo.HTTPURL} {
+			err = w.GitCloneIfDNE(repoURL, repoPath, branch)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
+
 	} else if repo.Type == entity.EmptyRepoType {
 		fmt.Println("empty repo")
 		if !PathExists(repoPath) {
@@ -989,9 +992,11 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 			}
 		}
 	} else {
-		err := w.GitCloneIfDNE(repo.Repository, repo.Directory, repo.Branch)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		for _, repoURL := range []string{repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL} {
+			err := w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
 	}
 
