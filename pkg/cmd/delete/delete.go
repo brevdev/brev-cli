@@ -63,7 +63,7 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Deleting workspace %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
+	t.Vprintf("Deleting dev environment %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
 
 	return nil
 }

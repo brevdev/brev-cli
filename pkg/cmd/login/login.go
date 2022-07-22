@@ -89,8 +89,8 @@ func (o LoginOptions) checkIfInWorkspace() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
-		fmt.Println("can not login to workspace")
-		return breverrors.NewValidationError("can not login to workspace")
+		fmt.Println("can not login to dev environment")
+		return breverrors.NewValidationError("can not login to dev environment")
 	}
 
 	return nil
@@ -410,18 +410,18 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 	}
 
 	if len(allWorkspaces) == 0 {
-		t.Vprintf(t.Green("create a workspace:\n"))
+		t.Vprintf(t.Green("create a dev environment:\n"))
 		t.Vprintf(t.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
 	}
 	if len(userWorkspaces) == 0 && len(allWorkspaces) > 1 {
-		t.Vprintf(t.Green("list teammates workspaces:\n"))
+		t.Vprintf(t.Green("list teammates dev environments:\n"))
 		t.Vprintf(t.Yellow("\tbrev ls --all\n"))
 
-		t.Vprintf(t.Green("join a teammate's workspace:\n"))
+		t.Vprintf(t.Green("clone a teammate's dev environment:\n"))
 		t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev start %s\n", allWorkspaces[0].Name)))
 	}
 	if len(userWorkspaces) > 0 {
-		t.Vprintf(t.Green("list your workspaces:\n"))
+		t.Vprintf(t.Green("list your dev environments:\n"))
 		t.Vprintf(t.Yellow("\tbrev ls\n"))
 	}
 

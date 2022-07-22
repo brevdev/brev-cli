@@ -62,7 +62,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	}
 
 	// spinner.Suffix = "  Resolving workspaces"
-	t.Print("Resolving workspaces...")
+	t.Print("Resolving dev environments...")
 	workspaces, err := GetActiveWorkspaces(s.upStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -76,7 +76,7 @@ func (s *upOptions) Complete(t *terminal.Terminal, _ *cobra.Command, _ []string)
 	}
 	if len(runningWorkspaces) != len(workspaces) {
 		// if above message of skipped workspaces was displayed, show how to start:
-		t.Vprint(t.Yellow("\tYou can start a workspace with %s", t.Green("$ brev start <name>")))
+		t.Vprint(t.Yellow("\tYou can start a dev environment with %s", t.Green("$ brev start <name>")))
 	}
 
 	var sshConfigurer SSHConfigurer
@@ -180,7 +180,7 @@ func (o Up) Run() error {
 }
 
 func GetActiveWorkspaces(upStore UpStore) ([]entity.WorkspaceWithMeta, error) {
-	// fmt.Println("Resolving workspaces...")
+	// fmt.Println("Resolving dev environments...")
 
 	org, err := upStore.GetActiveOrganizationOrDefault()
 	if err != nil {

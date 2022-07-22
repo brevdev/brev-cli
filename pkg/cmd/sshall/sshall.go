@@ -135,7 +135,7 @@ func (s SSHAll) Run() error {
 	}()
 
 	if len(s.workspaces) == 0 {
-		fmt.Println("No workspaces in org")
+		fmt.Println("No dev environments in org")
 		return nil
 	}
 

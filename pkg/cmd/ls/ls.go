@@ -252,12 +252,12 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Org
 
 func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
 	if len(userWorkspaces) == 0 {
-		ls.terminal.Vprint(ls.terminal.Yellow("No workspaces in org %s\n", org.Name))
+		ls.terminal.Vprint(ls.terminal.Yellow("No dev environments in org %s\n", org.Name))
 		if len(allWorkspaces) > 0 {
-			ls.terminal.Vprintf(ls.terminal.Green("See teammates' workspaces:\n"))
+			ls.terminal.Vprintf(ls.terminal.Green("See teammates' dev environments:\n"))
 			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
-			ls.terminal.Vprintf(ls.terminal.Green("Start a new workspace:\n"))
+			ls.terminal.Vprintf(ls.terminal.Green("Start a new dev environment:\n"))
 			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
 		}
 		if len(otherOrgs) > 1 {
@@ -266,7 +266,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf(ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
 		}
 	} else {
-		ls.terminal.Vprintf("You have %d workspaces in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
+		ls.terminal.Vprintf("You have %d dev environments in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
 		displayWorkspacesTable(ls.terminal, userWorkspaces)
 
 		fmt.Print("\n")
@@ -290,10 +290,10 @@ func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Worksp
 	for _, w := range workspaces {
 		if w.Status == entity.Running {
 			foundRunning = true
-			t.Vprintf(t.Green("Connect to running workspace:\n"))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", w.Name)))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", w.Name)))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to workspace\n", w.GetLocalIdentifier())))
+			t.Vprintf(t.Green("Connect to running dev environment:\n"))
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open dev environment in preferred editor\n", w.Name)))
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into dev environment (shortcut)\n", w.Name)))
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to dev environment\n", w.GetLocalIdentifier())))
 			if enableSSHCol {
 				t.Vprintf(t.Yellow("\tssh <SSH> ex: ssh %s\n", w.GetLocalIdentifier()))
 			}
@@ -301,8 +301,8 @@ func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Worksp
 		}
 	}
 	if !foundRunning && len(workspaces) > 0 {
-		t.Vprintf(t.Green("Start a stopped workspace:\n"))
-		t.Vprintf(t.Yellow("\tbrev start %s # brev start <NAME> -> start stopped workspace\n", workspaces[0].Name))
+		t.Vprintf(t.Green("Start a stopped dev environment:\n"))
+		t.Vprintf(t.Yellow("\tbrev start %s # brev start <NAME> -> start stopped dev environment\n", workspaces[0].Name))
 	}
 }
 
@@ -311,7 +311,7 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 	for _, w := range workspaces {
 		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
 			if !foundAResettableWorkspace {
-				t.Vprintf(t.Red("Reset unhealthy or failed workspaces:\n"))
+				t.Vprintf(t.Red("Reset unhealthy or failed dev environment:\n"))
 			}
 			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
 			foundAResettableWorkspace = true

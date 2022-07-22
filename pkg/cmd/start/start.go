@@ -181,10 +181,10 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options St
 	userWorkspaces := store.FilterForUserWorkspaces(workspaces, user.ID)
 	if len(userWorkspaces) > 0 {
 		if len(userWorkspaces) > 1 {
-			breverrors.NewValidationError(fmt.Sprintf("multiple workspaces found with id/name %s", options.RepoOrPathOrNameOrID))
+			breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", options.RepoOrPathOrNameOrID))
 		}
 		if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
-			t.Print(t.Yellow(fmt.Sprintf("Warning: local path found and workspace name/id found %s. Using workspace name/id. If you meant to specify a local path change directory and try again.", options.RepoOrPathOrNameOrID)))
+			t.Print(t.Yellow(fmt.Sprintf("Warning: local path found and dev environment name/id found %s. Using dev environment name/id. If you meant to specify a local path change directory and try again.", options.RepoOrPathOrNameOrID)))
 		}
 		err := startStopppedWorkspace(&userWorkspaces[0], startStore, t, options)
 		if err != nil {
@@ -333,7 +333,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprint("Workspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	if options.Detached {
 		return nil
@@ -344,7 +344,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 		}
 
 		fmt.Print("\n")
-		t.Vprint(t.Green("Your workspace is ready!\n"))
+		t.Vprint(t.Green("Your dev environment is ready!\n"))
 		displayConnectBreadCrumb(t, w)
 
 		return nil
@@ -371,14 +371,14 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 
 func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
 	if workspace.Status != entity.Stopped {
-		return breverrors.NewValidationError(fmt.Sprintf("Workspace is not stopped status=%s", workspace.Status))
+		return breverrors.NewValidationError(fmt.Sprintf("Dev environment is not stopped status=%s", workspace.Status))
 	}
 	if startOptions.WorkspaceClass != "" {
-		return breverrors.NewValidationError("Workspace already exists. Can not pass workspace class flag to start stopped workspace")
+		return breverrors.NewValidationError("Dev environment already exists. Can not pass dev environment class flag to start stopped dev environment")
 	}
 
 	if startOptions.Name != "" {
-		t.Vprint("Existing workspace found. Name flag ignored.")
+		t.Vprint("Existing dev environment found. Name flag ignored.")
 	}
 
 	startedWorkspace, err := startStore.StartWorkspace(workspace.ID)
@@ -386,7 +386,7 @@ func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("Workspace %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("Dev environment %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
 	// Don't poll and block the shell if detached flag is set
 	if startOptions.Detached {
@@ -399,7 +399,7 @@ func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, 
 	}
 
 	fmt.Print("\n")
-	t.Vprint(t.Green("Your workspace is ready!\n"))
+	t.Vprint(t.Green("Your dev environment is ready!\n"))
 	displayConnectBreadCrumb(t, startedWorkspace)
 
 	return nil
@@ -423,7 +423,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
 
-	t.Vprint("Workspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
@@ -555,7 +555,7 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 }
 
 func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
-	t.Vprint("Workspace is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
@@ -586,7 +586,7 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 		return breverrors.WrapAndTrace(err)
 	}
 	fmt.Print("\n")
-	t.Vprint(t.Green("Your workspace is ready!\n"))
+	t.Vprint(t.Green("Your dev environment is ready!\n"))
 
 	displayConnectBreadCrumb(t, w)
 
@@ -594,10 +594,10 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 }
 
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the workspace:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in preferred editor\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to workspace\n", workspace.GetLocalIdentifier())))
+	t.Vprintf(t.Green("Connect to the dev environment:\n"))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open dev environment in preferred editor\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into dev environment (shortcut)\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to dev environment\n", workspace.GetLocalIdentifier())))
 }
 
 func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {

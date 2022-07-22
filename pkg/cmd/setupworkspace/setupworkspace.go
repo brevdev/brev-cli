@@ -33,7 +33,7 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			fmt.Println("setting up workspace")
+			fmt.Println("setting up dev environment")
 
 			params, err := store.GetSetupParams()
 			if err != nil {
@@ -59,7 +59,7 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			fmt.Println("done setting up workspace")
+			fmt.Println("done setting up dev environment")
 			return nil
 		},
 	}

@@ -80,7 +80,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("Turning off all of your workspaces")
+	t.Vprintf("Turning off all of your dev environments")
 	for _, v := range workspaces {
 		if v.Status == entity.Running {
 			_, err = stopStore.StopWorkspace(v.ID)
@@ -106,7 +106,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 			return breverrors.WrapAndTrace(err)
 		} else {
 			if user.GlobalUserType == entity.Admin {
-				fmt.Println("admin trying to stop any workspace")
+				fmt.Println("admin trying to stop any dev environment")
 				workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
@@ -121,7 +121,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	} else {
-		t.Vprintf(t.Green("Workspace "+workspace.Name+" is stopping.\n") +
+		t.Vprintf(t.Green("Dev environment "+workspace.Name+" is stopping.\n") +
 			"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 	}
 

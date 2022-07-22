@@ -78,12 +78,12 @@ func makeProxyURL(w *entity.Workspace) string {
 
 func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 	if !featureflag.DisableSSHProxyVersionCheck() {
-		fmt.Println("checking workspace version")
+		fmt.Println("checking dev environment version")
 		err := checkWorkspaceInfraVersionOrErr(workspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		fmt.Println("checking workspace image version")
+		fmt.Println("checking dev environment image version")
 		err = checkWorkspaceImageVersionOrErr(workspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -98,7 +98,7 @@ func CheckWorkspaceCanSSH(workspace *entity.Workspace) error {
 
 func checkWorkspaceStatusOrErr(workspace *entity.Workspace) error {
 	if workspace.Status != entity.Running {
-		return breverrors.NewValidationError(fmt.Sprintf("workspace is not in RUNNING state, status: %s", workspace.Status))
+		return breverrors.NewValidationError(fmt.Sprintf("dev environment is not in RUNNING state, status: %s", workspace.Status))
 	}
 	return nil
 }
@@ -123,14 +123,14 @@ func checkWorkspaceImageVersionOrErr(workspace *entity.Workspace) error {
 		}
 
 		if !imageContraints.Check(wiv) && !strings.HasSuffix(imageSplit[0], allowedWorkspaceImage) {
-			return breverrors.NewValidationError(fmt.Sprintf("workspace image version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli", workspace.WorkspaceTemplate.Image))
+			return breverrors.NewValidationError(fmt.Sprintf("dev environment image version %s is not supported with this cli version\n upgrade your dev environment or downgrade your cli", workspace.WorkspaceTemplate.Image))
 		}
 	}
 	return nil
 }
 
 func checkWorkspaceInfraVersionOrErr(workspace *entity.Workspace) error {
-	fmt.Printf("workspace version: %s\n", workspace.Version)
+	fmt.Printf("dev environment version: %s\n", workspace.Version)
 	if workspace.Version != "" {
 		wv, err := version.NewVersion(workspace.Version)
 		if err != nil {
@@ -141,10 +141,10 @@ func checkWorkspaceInfraVersionOrErr(workspace *entity.Workspace) error {
 			return breverrors.WrapAndTrace(err)
 		}
 		if !workspaceInfraConstraints.Check(wv) {
-			return breverrors.NewValidationError(fmt.Sprintf("workspace of version %s is not supported with this cli version\n upgrade your workspace or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion))
+			return breverrors.NewValidationError(fmt.Sprintf("dev environment of version %s is not supported with this cli version\n upgrade your dev environment or downgrade your cli. Supported %s", workspace.Version, allowedWorkspaceInfraVersion))
 		}
 	} else {
-		fmt.Println("workspace version blank assuming dev, not checking constraint")
+		fmt.Println("dev environment version blank assuming dev, not checking constraint")
 	}
 	return nil
 }

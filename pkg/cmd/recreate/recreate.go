@@ -74,7 +74,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Yellow("Deleting workspace - %s.", deletedWorkspace.Name))
+	t.Vprint(t.Yellow("Deleting dev environment - %s.", deletedWorkspace.Name))
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
@@ -93,7 +93,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
 func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("Workspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
+	t.Vprint(t.Green("Dev environment is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
 	var orgID string
 	activeorg, err := recreateStore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -128,14 +128,14 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprint(t.Green("\nYour dev environment is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 	return nil
 }
 
 // hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
 func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("Workspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint(t.Green("Dev environment is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name
 	if len(workspace.Name) == 0 {
@@ -177,7 +177,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprint(t.Green("\nYour dev environment is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 	return nil

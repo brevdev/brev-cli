@@ -109,6 +109,6 @@ func profile(personalSettingsRepo string, t *terminal.Terminal, profileStore Pro
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Your personal config has been updated. All new workspaces will run this script.\n")
+	t.Vprintf("Your personal config has been updated. All new dev environments will run this script.\n")
 	return nil
 }

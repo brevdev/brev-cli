@@ -50,7 +50,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
 	// todo check if workspace is stopped and start if it if it is stopped
-	fmt.Println("finding your workspace...")
+	fmt.Println("finding your dev environment...")
 
 	res := refresh.RunRefreshAsync(tstore)
 

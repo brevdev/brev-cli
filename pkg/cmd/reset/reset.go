@@ -70,9 +70,6 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 
 // hardResetProcess deletes an existing workspace and creates a new one
 func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
-	t.Vprint(t.Red("THIS COMMAND IS DEPRECATED"))
-	t.Vprint(t.Red("use brev recreate " + workspaceName + " instead"))
-
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(resetStore, workspaceName)
 	if err != nil {
@@ -84,7 +81,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Yellow("Deleting workspace - %s.", deletedWorkspace.Name))
+	t.Vprint(t.Yellow("Deleting dev environment - %s.", deletedWorkspace.Name))
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
@@ -98,12 +95,14 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 			return breverrors.WrapAndTrace(err)
 		}
 	}
+	t.Vprint(t.Red("NOTE: THIS COMMAND IS DEPRECATED"))
+	t.Vprint(t.Red("It still worked, but use brev recreate " + workspaceName + " next time"))
 	return nil
 }
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
 func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("Workspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
+	t.Vprint(t.Green("Dev environment is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
 	var orgID string
 	activeorg, err := resetStore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -138,18 +137,18 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprint(t.Green("\nYour dev environment is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 	return nil
 }
 
 // hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
 func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("Workspace is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint(t.Green("Dev environment is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name
 	if len(workspace.Name) == 0 {
-		return breverrors.NewValidationError("name field is required for empty workspaces")
+		return breverrors.NewValidationError("name field is required for empty dev environments")
 	}
 
 	// ensure org
@@ -187,7 +186,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green("\nYour workspace is ready!"))
+	t.Vprint(t.Green("\nYour dev environment is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 	return nil
@@ -246,7 +245,7 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("Workspace %s is resetting.\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("Dev environment %s is resetting.\n", startedWorkspace.Name))
 	t.Vprintf("Note: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil
