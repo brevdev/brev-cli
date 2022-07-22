@@ -58,7 +58,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "start",
 		DisableFlagsInUseLine: true,
-		Short:                 "Start a workspace if it's stopped, or create one from url",
+		Short:                 "Start a dev environment if it's stopped, or create one from url",
 		Long:                  startLong,
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),

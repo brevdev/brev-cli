@@ -30,7 +30,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "delete",
 		DisableFlagsInUseLine: true,
-		Short:                 "Delete a Brev workspace",
+		Short:                 "Delete a Brev dev environment",
 		Long:                  stripmd.Strip(deleteLong),
 		Example:               deleteExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),

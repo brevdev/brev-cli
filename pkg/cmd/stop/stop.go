@@ -36,7 +36,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "stop",
 		DisableFlagsInUseLine: true,
-		Short:                 "Stop a workspace if it's running",
+		Short:                 "Stop a dev environment if it's running",
 		Long:                  stopLong,
 		Example:               stopExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs()),

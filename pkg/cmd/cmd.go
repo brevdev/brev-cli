@@ -112,9 +112,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		Use:           "brev",
-		Short:         "brev client for managing workspaces",
+		Short:         "brev client for managing dev environments",
 		Long: `
-      brev client for managing workspaces
+      brev client for managing dev environment
 
       Find more information at:
             https://brev.dev`,
@@ -374,7 +374,7 @@ Examples:
 
 {{- if hasWorkspaceCommands . }}
 
-Workspace Commands:
+Dev Environment Commands:
 {{- range workspaceCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}

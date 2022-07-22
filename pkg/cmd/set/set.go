@@ -31,7 +31,7 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 		Annotations:       map[string]string{"context": ""},
 		Use:               "set",
 		Short:             "Set active org (helps with completion)",
-		Long:              "Set your organization to view, open, create workspaces etc",
+		Long:              "Set your organization to view, open, create dev environments etc",
 		Example:           `brev set <org name>`,
 		Args:              cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		ValidArgsFunction: completions.GetOrgsNameCompletionHandler(noLoginSetStore, t),

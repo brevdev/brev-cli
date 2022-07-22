@@ -28,7 +28,7 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open a shell in your workspace",
+		Short:                 "[beta] open a shell in your dev environment",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),

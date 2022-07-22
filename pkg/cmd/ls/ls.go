@@ -36,8 +36,8 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
 		Use:         "ls",
-		Short:       "List workspaces within active org",
-		Long:        "List workspaces within your active org. List all workspaces if no active org is set.",
+		Short:       "List dev environments within active org",
+		Long:        "List dev environments within your active org. List all dev environments if no active org is set.",
 		Example: `
   brev ls
   brev ls orgs
