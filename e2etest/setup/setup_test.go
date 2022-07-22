@@ -668,9 +668,9 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 	// table tests
 	type args struct {
 		repo     string
-		SSHURL   *string
-		HTTPURL  *string
-		HTTPSURL *string
+		SSHURL   string
+		HTTPURL  string
+		HTTPSURL string
 	}
 	// have to define SSHRURL, HTTPURL, HTTPSURL separately because they are pointers
 	// cant &args{} directly in for loop because golang-ci-lint complains
@@ -687,9 +687,9 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 			name: "github",
 			args: args{
 				repo:     "github.com:brevdev/test-repo-dotbrev.git",
-				SSHURL:   &githubsshURL,
-				HTTPURL:  &githubhttpURL,
-				HTTPSURL: &githubhttpsURL,
+				SSHURL:   githubsshURL,
+				HTTPURL:  githubhttpURL,
+				HTTPSURL: githubhttpsURL,
 			},
 			wantErr: false,
 		},
@@ -710,9 +710,9 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 					},
 				},
 			}
+			fmt.Println("args: ", tt.args)
 			client := NewStdWorkspaceTestClient(params, SupportedContainers)
 			err := client.Test(func(w Workspace, err error) {
-				assert.Nil(t, err)
 				AssertWorkspaceSetup(t, w, params.WorkspacePassword, string(params.WorkspaceHost))
 
 				AssertValidBrevProjRepo(t, w, "test-config")

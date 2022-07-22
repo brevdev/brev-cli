@@ -923,8 +923,16 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		if repo.GitRepo.Branch != nil {
 			branch = *repo.GitRepo.Branch
 		}
-		for _, repoURL := range []string{*repo.GitRepo.SSHURL, *repo.GitRepo.HTTPSURL, *repo.GitRepo.HTTPURL} {
+		fmt.Println("setuprepov1: ", repoPath, repo.GitRepo.HTTPURL, repo.GitRepo.HTTPSURL, repo.GitRepo.SSHURL, branch)
+		didClone := false
+		for _, repoURL := range []string{repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL} {
 			err = w.GitCloneIfDNE(repoURL, repoPath, branch)
+			if err == nil {
+				didClone = true
+			}
+
+		}
+		if !didClone {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -992,6 +1000,8 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 			}
 		}
 	} else {
+		fmt.Println("setuprepov0: ", repoPath, repo.GitSSHURL, repo.GitHTTPURL, repo.GitHTTPSURL)
+
 		for _, repoURL := range []string{repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL} {
 			err := w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
 			if err != nil {
@@ -1078,6 +1088,7 @@ func (w WorkspaceIniter) setupDotBrev(dotBrevPath string) error {
 func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string) error {
 	if !PathExists(dirPath) {
 		// TODO implement multiple retry
+		fmt.Println("pre", url)
 		if !strings.HasPrefix(url, "git@") && !strings.HasPrefix(url, "http") {
 			url = "git@" + url
 		}

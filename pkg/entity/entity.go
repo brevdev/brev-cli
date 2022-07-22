@@ -75,9 +75,9 @@ const (
 type GitRepo struct {
 	Repository string `json:"repository,omitempty"`
 	GitRepoOptions
-	SSHURL   *string `json:"sshURL,omitempty"`
-	HTTPURL  *string `json:"httpURL,omitempty"`
-	HTTPSURL *string `json:"httpsURL,omitempty"`
+	SSHURL   string `json:"sshURL,omitempty"`
+	HTTPURL  string `json:"httpURL,omitempty"`
+	HTTPSURL string `json:"httpsURL,omitempty"`
 }
 
 func (g GitRepo) GetDir() string {
