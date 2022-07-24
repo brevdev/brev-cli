@@ -24,6 +24,8 @@ func init() {
 	}
 }
 
+const testConfig = "test-config"
+
 func NewStdWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []ContainerParams, options ...WorkspaceTestClientOption) *WorkspaceTestClient {
 	pc, _, _, ok := runtime.Caller(1)
 	if !ok {
@@ -53,9 +55,9 @@ func Test_UserBrevProjectBrevV0(t *testing.T) {
 	}
 	params := NewTestSetupParams(keys)
 	params.ReposV0 = entity.ReposV0{
-		"test-config": entity.RepoV0{
+		testConfig: entity.RepoV0{
 			Repository: "github.com:brevdev/test-repo-dotbrev.git",
-			Directory:  "test-config",
+			Directory:  testConfig,
 		},
 	}
 
@@ -71,8 +73,8 @@ func Test_UserBrevProjectBrevV0(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 
-		AssertValidBrevProjRepo(t, w, "test-config")
-		AssertTestRepoSetupRan(t, w, "test-config")
+		AssertValidBrevProjRepo(t, w, testConfig)
+		AssertTestRepoSetupRan(t, w, testConfig)
 
 		err1 := w.Reset()
 		if !assert.Nil(t, err1) {
@@ -85,8 +87,8 @@ func Test_UserBrevProjectBrevV0(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 
-		AssertValidBrevProjRepo(t, w, "test-config")
-		AssertTestRepoSetupRan(t, w, "test-config")
+		AssertValidBrevProjRepo(t, w, testConfig)
+		AssertTestRepoSetupRan(t, w, testConfig)
 	})
 
 	assert.Nil(t, err)
@@ -155,9 +157,9 @@ func Test_UserBrevProjectBrevV1All(t *testing.T) {
 		return
 	}
 	params := NewTestSetupParams(keys)
-	dir := "test-config"
+	dir := testConfig
 	params.ReposV1 = entity.ReposV1{
-		"test-config": entity.RepoV1{
+		testConfig: entity.RepoV1{
 			Type: entity.GitRepoType,
 			GitRepo: entity.GitRepo{
 				Repository: "github.com:brevdev/test-repo-dotbrev.git",
@@ -168,7 +170,7 @@ func Test_UserBrevProjectBrevV1All(t *testing.T) {
 		},
 	}
 
-	execWorkDir := "test-config"
+	execWorkDir := testConfig
 	log := "test-config/.brev/logs"
 	logA := "test-config/.brev/logs/archive"
 	stage := entity.StartStage
@@ -199,8 +201,8 @@ func Test_UserBrevProjectBrevV1All(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 
-		AssertValidBrevProjRepo(t, w, "test-config")
-		AssertTestRepoSetupRan(t, w, "test-config")
+		AssertValidBrevProjRepo(t, w, testConfig)
+		AssertTestRepoSetupRan(t, w, testConfig)
 
 		err1 := w.Reset()
 		if !assert.Nil(t, err1) {
@@ -213,8 +215,8 @@ func Test_UserBrevProjectBrevV1All(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-dotbrev")
 		AssertTestRepoSetupRan(t, w, "test-repo-dotbrev")
 
-		AssertValidBrevProjRepo(t, w, "test-config")
-		AssertTestRepoSetupRan(t, w, "test-config")
+		AssertValidBrevProjRepo(t, w, testConfig)
+		AssertTestRepoSetupRan(t, w, testConfig)
 	})
 
 	assert.Nil(t, err)
@@ -644,9 +646,9 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 	}
 
 	params := NewTestSetupParams(noauthKeys)
-	dir := "test-config"
+	dir := testConfig
 
-	execWorkDir := "test-config"
+	execWorkDir := testConfig
 	log := "test-config/.brev/logs"
 	logA := "test-config/.brev/logs/archive"
 	stage := entity.StartStage
@@ -673,7 +675,6 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 		HTTPSURL string
 	}
 
-	
 	githubsshURL := "github.com:brevdev/test-repo-dotbrev.git"
 	githubhttpURL := "http://github.com/brevdev/test-repo-dotbrev"
 	githubhttpsURL := "https://github.com/brevdev/test-repo-dotbrev"
@@ -697,7 +698,7 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			params.ReposV1 = entity.ReposV1{
-				"test-config": entity.RepoV1{
+				testConfig: entity.RepoV1{
 					Type: entity.GitRepoType,
 					GitRepo: entity.GitRepo{
 						Repository: tt.args.repo,
@@ -713,7 +714,7 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 			fmt.Println("args: ", tt.args)
 			client := NewStdWorkspaceTestClient(params, SupportedContainers)
 			err := client.Test(func(w Workspace, err error) {
-				AssertValidBrevProjRepo(t, w, "test-config")
+				AssertValidBrevProjRepo(t, w, testConfig)
 			})
 			if !tt.wantErr {
 				assert.Nil(t, err)
