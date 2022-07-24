@@ -22,7 +22,7 @@ func init() {
 	if dir == "" {
 		dir = "/home/brev/workspace/brev-cli" // TODO relative path
 	}
-
+	fmt.Println(dir)
 	cmd.Dir = dir
 	_, err := cmd.CombinedOutput()
 	if err != nil {
