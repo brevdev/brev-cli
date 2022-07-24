@@ -19,6 +19,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/parse/pkg/parse"
+
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/uri"
 	"github.com/brevdev/brev-cli/pkg/util"
@@ -924,7 +926,18 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 			branch = *repo.GitRepo.Branch
 		}
 		fmt.Println("setuprepov1: ", repoPath, repo.GitRepo.HTTPURL, repo.GitRepo.HTTPSURL, repo.GitRepo.SSHURL, branch)
-		for _, repoURL := range []string{repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL, repo.Repository} {
+		repos := []string{
+			repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL, repo.Repository,
+			parse.GetSSHURLFromOrigin(repo.Repository), parse.GetHTTPSURLFromOrigin(repo.Repository), parse.GetHTTPURLFromOrigin(repo.Repository),
+		}
+		nonEmptyRepos := []string{}
+		for _, r := range repos {
+			if r != "" {
+				nonEmptyRepos = append(nonEmptyRepos, r)
+			}
+		}
+		fmt.Println("nonEmptyRepos: ", nonEmptyRepos)
+		for _, repoURL := range nonEmptyRepos {
 			err = w.GitCloneIfDNE(repoURL, repoPath, branch)
 		}
 		if err != nil {
@@ -994,8 +1007,21 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 		}
 	} else {
 		fmt.Println("setuprepov0: ", repoPath, repo.GitSSHURL, repo.GitHTTPURL, repo.GitHTTPSURL)
+		repos := []string{
+			repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL, repo.Repository,
+			parse.GetSSHURLFromOrigin(repo.Repository), parse.GetHTTPSURLFromOrigin(repo.Repository), parse.GetHTTPURLFromOrigin(repo.Repository),
+		}
+		nonEmptyRepos := []string{}
+		for _, r := range repos {
+			if r != "" {
+				nonEmptyRepos = append(nonEmptyRepos, r)
+			}
+		}
+		fmt.Println("nonEmptyRepos", nonEmptyRepos)
+
 		var err error
-		for _, repoURL := range []string{repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL} {
+
+		for _, repoURL := range nonEmptyRepos {
 			err = w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
 		}
 		if err != nil {
