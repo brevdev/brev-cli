@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+
+env:
+  BREV_SETUP_TEST_CMD_DIR: /home/runner/work/brev-cli/brev-cli
+
 jobs:
   ci:
     strategy:
