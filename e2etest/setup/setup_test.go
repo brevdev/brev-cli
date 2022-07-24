@@ -19,6 +19,7 @@ func init() {
 	fmt.Println("building binary")
 	cmd := exec.Command("/usr/bin/make", "fast-build")
 	dir := os.Getenv("BREV_SETUP_TEST_CMD_DIR")
+	fmt.Println(dir) 	
 	if dir == "" {
 		dir = "/home/brev/workspace/brev-cli" // TODO relative path
 	}
