@@ -256,3 +256,6 @@ review-mark-done:
 	git tag -a ${review_tag}
 	git push origin latest-review --force
 	git push origin ${review_tag}
+
+gen-e2e:
+	cat e2etest/setup/setup_test.go|  grep -Eo "Test_\w+" | xargs python bin/gen-e2e-actions.py

@@ -1,4 +1,4 @@
-name: e2etest
+name: e2etest-Test_httpGit
 
 on:
   push:
@@ -33,4 +33,5 @@ jobs:
           echo '{"cgroup-parent":"/actions_job","storage-driver":"vfs"}' | sudo tee /etc/docker/daemon.json
           sudo systemctl start docker
       - name: test
-        run: make test-e2e
+
+        run: go test -timeout 240s -run ^Test_httpGit$ github.com/brevdev/brev-cli/e2etest/setup

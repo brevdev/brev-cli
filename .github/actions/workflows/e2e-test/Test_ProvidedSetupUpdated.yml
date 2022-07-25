@@ -1,0 +1,37 @@
+name: e2etest-Test_ProvidedSetupUpdated
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+
+env:
+  BREV_SETUP_TEST_CMD_DIR: /home/runner/work/brev-cli/brev-cli
+
+jobs:
+  ci:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+      - name: Force GitHub Actions' docker daemon to use vfs.
+        run: |
+          sudo systemctl stop docker
+          echo '{"cgroup-parent":"/actions_job","storage-driver":"vfs"}' | sudo tee /etc/docker/daemon.json
+          sudo systemctl start docker
+      - name: test
+
+        run: go test -timeout 240s -run ^Test_ProvidedSetupUpdated$ github.com/brevdev/brev-cli/e2etest/setup
