@@ -329,16 +329,17 @@ func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
 func GetTestKeys(prefix string) (*store.KeyPair, error) {
 	kp := store.KeyPair{}
 	path := filepath.Join(prefix, "assets", "test_keypair.json")
-	err := files.ReadJSON(files.AppFs, path, &kp) // TODO relative path
+	err := files.ReadJSON(files.AppFs, path, &kp)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &kp, nil
 }
 
-func GetUnauthedTestKeys() (*store.KeyPair, error) {
+func GetUnauthedTestKeys(prefix string) (*store.KeyPair, error) {
 	kp := store.KeyPair{}
-	err := files.ReadJSON(files.AppFs, "/home/brev/workspace/brev-cli/assets/test_noauth_keypair.json", &kp) // TODO relative path
+	path := filepath.Join(prefix, "assets", "test_keypair.json")
+	err := files.ReadJSON(files.AppFs, path, &kp)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

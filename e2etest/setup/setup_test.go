@@ -21,7 +21,7 @@ func init() {
 	fmt.Println("building binary")
 	cmd := exec.Command("/usr/bin/make", "fast-build")
 	if testCMDDir == "" {
-		testCMDDir = "/home/brev/workspace/brev-cli" // TODO relative path
+		testCMDDir = "/home/brev/workspace/brev-cli"
 	}
 	cmd.Dir = testCMDDir
 	_, err := cmd.CombinedOutput()
@@ -473,7 +473,7 @@ func Test_ProvidedSetupUpdated(t *testing.T) {
 }
 
 func Test_UnauthenticatedSSHKey(t *testing.T) {
-	noauthKeys, err := GetUnauthedTestKeys()
+	noauthKeys, err := GetUnauthedTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -504,7 +504,7 @@ func Test_UnauthenticatedSSHKey(t *testing.T) {
 }
 
 func Test_httpGit(t *testing.T) {
-	noauthKeys, err := GetUnauthedTestKeys()
+	noauthKeys, err := GetUnauthedTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -646,7 +646,7 @@ func Test_ChangePwd(t *testing.T) {
 }
 
 func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
-	noauthKeys, err := GetUnauthedTestKeys()
+	noauthKeys, err := GetUnauthedTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
