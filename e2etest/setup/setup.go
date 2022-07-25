@@ -326,9 +326,10 @@ func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
 	}
 }
 
-func GetTestKeys() (*store.KeyPair, error) {
+func GetTestKeys(prefix string) (*store.KeyPair, error) {
 	kp := store.KeyPair{}
-	err := files.ReadJSON(files.AppFs, "/home/brev/workspace/brev-cli/assets/test_keypair.json", &kp) // TODO relative path
+	path := filepath.Join(prefix, "assets", "test_keypair.json")
+	err := files.ReadJSON(files.AppFs, path, &kp) // TODO relative path
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

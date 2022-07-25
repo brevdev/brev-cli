@@ -15,16 +15,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var testCMDDir = os.Getenv("BREV_SETUP_TEST_CMD_DIR")
+
 func init() {
 	fmt.Println("building binary")
 	cmd := exec.Command("/usr/bin/make", "fast-build")
-	dir := os.Getenv("BREV_SETUP_TEST_CMD_DIR")
-	fmt.Println(dir)
-	if dir == "" {
-		dir = "/home/brev/workspace/brev-cli" // TODO relative path
+	if testCMDDir == "" {
+		testCMDDir = "/home/brev/workspace/brev-cli" // TODO relative path
 	}
-	fmt.Println(dir)
-	cmd.Dir = dir
+	cmd.Dir = testCMDDir
 	_, err := cmd.CombinedOutput()
 	if err != nil {
 		panic(err)
@@ -56,7 +55,7 @@ var SupportedContainers = []ContainerParams{
 }
 
 func Test_UserBrevProjectBrevV0(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir) // todo add path param with test dir env
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -102,7 +101,7 @@ func Test_UserBrevProjectBrevV0(t *testing.T) {
 }
 
 func Test_UserBrevProjectBrevV1Minimal(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -159,7 +158,7 @@ func Test_UserBrevProjectBrevV1Minimal(t *testing.T) {
 }
 
 func Test_UserBrevProjectBrevV1All(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -230,7 +229,7 @@ func Test_UserBrevProjectBrevV1All(t *testing.T) {
 }
 
 func Test_NoProjectBrev(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -261,7 +260,7 @@ func Test_NoProjectBrev(t *testing.T) {
 }
 
 func Test_NoUserBrevNoProj(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -284,7 +283,7 @@ func Test_NoUserBrevNoProj(t *testing.T) {
 }
 
 func Test_NoUserBrevProj(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -321,7 +320,7 @@ func Test_NoUserBrevProj(t *testing.T) {
 const testRepoNoDotBrev = "github.com:brevdev/test-repo-no-dotbrev.git"
 
 func Test_ProjectRepoNoBrev(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -352,7 +351,7 @@ func Test_ProjectRepoNoBrev(t *testing.T) {
 const ProvidedSetupScriptMsg = "provided setup script ran"
 
 func Test_ProvidedSetupRanNoProj(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -386,7 +385,7 @@ func Test_ProvidedSetupRanNoProj(t *testing.T) {
 }
 
 func Test_ProvidedSetupFileChange(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -427,7 +426,7 @@ func Test_ProvidedSetupFileChange(t *testing.T) {
 }
 
 func Test_ProvidedSetupUpdated(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -479,7 +478,7 @@ func Test_UnauthenticatedSSHKey(t *testing.T) {
 		return
 	}
 
-	workskeys, err := GetTestKeys()
+	workskeys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -524,7 +523,7 @@ func Test_httpGit(t *testing.T) {
 }
 
 func Test_VscodeExtension(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -563,7 +562,7 @@ func Test_VscodeExtension(t *testing.T) {
 }
 
 func Test_CustomBranchCustomSetupCustomFolder(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
@@ -596,7 +595,7 @@ func Test_CustomBranchCustomSetupCustomFolder(t *testing.T) {
 }
 
 func Test_ChangePwd(t *testing.T) {
-	keys, err := GetTestKeys()
+	keys, err := GetTestKeys(testCMDDir)
 	if !assert.Nil(t, err) {
 		return
 	}
