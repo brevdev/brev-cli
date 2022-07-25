@@ -488,7 +488,7 @@ func Test_UnauthenticatedSSHKey(t *testing.T) {
 	client := NewStdWorkspaceTestClient(params, SupportedContainers)
 
 	err = client.Test(func(w Workspace, err error) {
-		assert.Error(t, err)
+		assert.Nil(t, err)
 		params.WorkspaceKeyPair = workskeys
 		w.UpdateParams(params)
 		err1 := w.Reset()
