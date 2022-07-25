@@ -24,7 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-    runs-on: ${{ matrix.os }}
+    runs-on: [self-hosted]
     defaults:
       run:
         shell: bash
