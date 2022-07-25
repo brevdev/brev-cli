@@ -56,7 +56,7 @@ if __name__ == "__main__":
         print(USAGE_TEXT)
         sys.exit(1)
 
-    file_path_prefix = [".github", "actions", "workflows", "e2e-test"]
+    file_path_prefix = [".github", "workflows"]
     Path("/".join(file_path_prefix)).mkdir(parents=True, exist_ok=True)
 
 
