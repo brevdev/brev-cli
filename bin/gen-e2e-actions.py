@@ -24,7 +24,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-    runs-on: [self-hosted]
+    runs-on: [default]
     defaults:
       run:
         shell: bash
