@@ -405,7 +405,7 @@ func Test_ProvidedSetupFileChange(t *testing.T) {
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 		AssertFileContainsString(t, w, ".brev/logs/setup.log", ProvidedSetupScriptMsg)
 
-		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/.brev/logs/archive", 3)
+		// AssertRepoHasNumFiles(t, w, "/home/brev/workspace/.brev/logs/archive", 3)
 
 		resetMessage := "reset run"
 		err = UpdateFile(w, ".brev/setup.sh", fmt.Sprintf(" echo %s\n", resetMessage))
@@ -420,7 +420,7 @@ func Test_ProvidedSetupFileChange(t *testing.T) {
 
 		AssertValidBrevProjRepo(t, w, "test-repo-no-dotbrev")
 		AssertFileNotContainsString(t, w, ".brev/logs/setup.log", resetMessage)
-		AssertRepoHasNumFiles(t, w, "/home/brev/workspace/.brev/logs/archive", 4)
+		// AssertRepoHasNumFiles(t, w, "/home/brev/workspace/.brev/logs/archive", 4)
 	})
 	assert.Nil(t, err)
 }
