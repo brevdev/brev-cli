@@ -18,12 +18,13 @@ import (
 var testCMDDir = os.Getenv("BREV_SETUP_TEST_CMD_DIR")
 
 func init() {
-	fmt.Println("building binary")
 	cmd := exec.Command("/usr/bin/make", "fast-build")
 	if testCMDDir == "" {
 		testCMDDir = "/home/brev/workspace/brev-cli"
 	}
 	cmd.Dir = testCMDDir
+
+	fmt.Printf("building binary in &s\n", testCMDDir)
 	_, err := cmd.CombinedOutput()
 	if err != nil {
 		panic(err)

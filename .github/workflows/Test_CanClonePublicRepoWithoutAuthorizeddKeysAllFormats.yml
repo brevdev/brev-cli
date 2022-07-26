@@ -9,7 +9,7 @@ on:
 
 
 env:
-  BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/brev-cli/actions-runner/_work/brev-cli/brev-cli
+  BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
   Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats:
