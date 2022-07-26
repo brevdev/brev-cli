@@ -16,7 +16,7 @@ on:
 
 
 env:
-  BREV_SETUP_TEST_CMD_DIR: /home/ec2-user/actions-runner/_work/brev-cli/brev-cli
+  BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/brev-cli/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
   ci:
