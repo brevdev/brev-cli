@@ -30,11 +30,11 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.18
-      - name: Force GitHub Actions' docker daemon to use vfs.
-        run: |
-          sudo systemctl stop docker
-          echo '{"cgroup-parent":"/actions_job","storage-driver":"vfs"}' | sudo tee /etc/docker/daemon.json
-          sudo systemctl start docker
+      # - name: Force GitHub Actions' docker daemon to use vfs.
+      #   run: |
+      #     sudo systemctl stop docker
+      #     echo '{"cgroup-parent":"/actions_job","storage-driver":"vfs"}' | sudo tee /etc/docker/daemon.json
+      #     sudo systemctl start docker
       - name: test
 
         run: """ + f"go test -timeout 240s -run ^{test_name}$ github.com/brevdev/brev-cli/e2etest/setup\n"
