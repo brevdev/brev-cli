@@ -20,7 +20,7 @@ env:
 
 jobs:
   ci:
-    runs-on: [default]
+    runs-on: [self-hosted]
     defaults:
       run:
         shell: bash
