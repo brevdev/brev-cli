@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	resty "github.com/go-resty/resty/v2"
@@ -38,6 +39,7 @@ func NewRestyClient(brevAPIURL string) *resty.Client {
 	restyClient := resty.New()
 	restyClient.SetBaseURL(brevAPIURL)
 	restyClient.SetQueryParam("utm_source", "cli")
+	restyClient.SetQueryParam("utm_cli_version", version.Version)
 	return restyClient
 }
 
