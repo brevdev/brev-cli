@@ -12,7 +12,8 @@ env:
   BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/brev-cli/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
-  ci:
+  Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats:
+
     runs-on: [self-hosted]
     defaults:
       run:

@@ -19,7 +19,7 @@ env:
   BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/brev-cli/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
-  ci:
+  """ + f"{test_name}:\n" + """
     runs-on: [self-hosted]
     defaults:
       run:
