@@ -26,9 +26,6 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v2
-        with:
-          path: /home/brev/workspace/brev-cli
-
       # - uses: actions/setup-go@v2
       #   with:
       #     go-version: 1.18
