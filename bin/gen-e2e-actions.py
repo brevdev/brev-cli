@@ -20,10 +20,6 @@ env:
 
 jobs:
   ci:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-20.04]
     runs-on: [default]
     defaults:
       run:
