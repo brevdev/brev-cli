@@ -26,7 +26,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v2
-        path: /home/brev/workspace/brev-cli
+        with:
+          path: /home/brev/workspace/brev-cli
 
       # - uses: actions/setup-go@v2
       #   with:
