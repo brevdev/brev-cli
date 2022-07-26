@@ -39,9 +39,10 @@ func NewStdWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams
 	}
 	details := runtime.FuncForPC(pc)
 	testNamePrefix := strings.Split(details.Name(), ".")[2]
+	binPath := filepath.Join(testCMDDir, "bin")
 
 	return NewWorkspaceTestClient(setupParams, containerParams, append([]WorkspaceTestClientOption{
-		BrevBinaryPath{BinaryPath: "/home/brev/workspace/brev-cli/brev"}, // TODO relativ path
+		BrevBinaryPath{BinaryPath: binPath}, // TODO relativ path
 		TestNamePrefix{Name: testNamePrefix},
 	}, options...)...)
 }
