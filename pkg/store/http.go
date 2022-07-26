@@ -39,7 +39,7 @@ func NewRestyClient(brevAPIURL string) *resty.Client {
 	restyClient := resty.New()
 	restyClient.SetBaseURL(brevAPIURL)
 	restyClient.SetQueryParam("utm_source", "cli")
-	restyClient.SetQueryParam("utm_cli_version", version.Version)
+	restyClient.SetQueryParam("cli_version", version.Version)
 	return restyClient
 }
 
