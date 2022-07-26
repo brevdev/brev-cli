@@ -15,15 +15,15 @@ on:
   workflow_dispatch:
 
 
-# env:
-#   BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/brev-cli/actions-runner/_work/brev-cli/brev-cli
+env:
+  BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
   """ + f"{test_name}:\n" + """
     runs-on: [self-hosted]
     defaults:
       run:
-        shell: bash
+        shell: zsh
     steps:
       - uses: actions/checkout@v2
       # - uses: actions/setup-go@v2
