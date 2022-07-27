@@ -10,8 +10,6 @@ def generate_file_content(test_name):
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 
@@ -19,7 +17,6 @@ env:
   BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
-    if: github.actor!= 'depbot'   # ignore the pull request which comes from user depbot.
   """ + f"{test_name}:\n" + """
     runs-on: [self-hosted]
     steps:

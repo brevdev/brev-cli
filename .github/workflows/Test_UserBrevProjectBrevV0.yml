@@ -3,8 +3,6 @@ name: e2etest-Test_UserBrevProjectBrevV0
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 
@@ -12,7 +10,6 @@ env:
   BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
-    if: github.actor!= 'depbot'   # ignore the pull request which comes from user depbot.
   Test_UserBrevProjectBrevV0:
 
     runs-on: [self-hosted]
