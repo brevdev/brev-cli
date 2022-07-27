@@ -226,7 +226,7 @@ when releasing make sure to
 
 ## e2e tests
 
-generate workflows for github actions  
+### generate workflows for github actions  
 
 ```
 make gen-e2e
@@ -245,7 +245,7 @@ brev start https://github.com/brevdev/brev-cli
 in this repo in `~/workspace`  run the commands from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
 
 ```sh
-mkdir actions-runner && cd actions-runner
+mkdir actions-runner && cd actions-runner 
 curl -o actions-runner-linux-x64-2.294.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.294.0/actions-runner-linux-x64-2.294.0.tar.gz
 tar xzf ./actions-runner-linux-x64-2.294.0.tar.gz
 ./config.sh --url https://github.com/brevdev/brev-cli --token $TOKEN 
