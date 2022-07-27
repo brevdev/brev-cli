@@ -21,9 +21,6 @@ env:
 jobs:
   """ + f"{test_name}:\n" + """
     runs-on: [self-hosted]
-    defaults:
-      run:
-        shell: zsh
     steps:
       - uses: actions/checkout@v2
       # - uses: actions/setup-go@v2
