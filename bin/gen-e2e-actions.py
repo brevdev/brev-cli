@@ -19,6 +19,7 @@ env:
   BREV_SETUP_TEST_CMD_DIR: /home/brev/workspace/actions-runner/_work/brev-cli/brev-cli
 
 jobs:
+    if: github.actor!= 'depbot'   # ignore the pull request which comes from user depbot.
   """ + f"{test_name}:\n" + """
     runs-on: [self-hosted]
     steps:
