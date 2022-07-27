@@ -232,6 +232,25 @@ generate workflows for github actions
 make gen-e2e
 ```
 
+### configure a runner fo e2e tests 
+
+TODO:
+  - configure workspace env var for token
+
+start a workspace using this repo as a base 
+
+```sh
+brev start https://github.com/brevdev/brev-cli
+```
+in this repo in `~/workspace`  run the commands from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
+
+```sh
+mkdir actions-runner && cd actions-runner
+curl -o actions-runner-linux-x64-2.294.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.294.0/actions-runner-linux-x64-2.294.0.tar.gz
+tar xzf ./actions-runner-linux-x64-2.294.0.tar.gz
+./config.sh --url https://github.com/brevdev/brev-cli --token $TOKEN 
+./run.sh
+```
 ## Maintainance
 
 Remember to update Go version in [.github/workflows](.github/workflows), [Makefile](Makefile) and [devcontainer.json](.devcontainer/devcontainer.json).
