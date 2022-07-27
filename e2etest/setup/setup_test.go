@@ -40,7 +40,7 @@ func NewStdWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams
 	}
 	details := runtime.FuncForPC(pc)
 	testNamePrefix := strings.Split(details.Name(), ".")[2]
-	binPath := filepath.Join(testCMDDir, "bin")
+	binPath := filepath.Join(testCMDDir, "brev")
 
 	return NewWorkspaceTestClient(setupParams, containerParams, append([]WorkspaceTestClientOption{
 		BrevBinaryPath{BinaryPath: binPath}, // TODO relativ path
