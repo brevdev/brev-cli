@@ -224,6 +224,13 @@ when releasing make sure to
 
 2. [ ] release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
+## e2e tests
+
+generate workflows for github actions  
+
+```
+make gen-e2e
+```
 
 ## Maintainance
 
