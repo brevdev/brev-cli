@@ -24,7 +24,7 @@ func init() {
 	}
 	cmd.Dir = testCMDDir
 
-	fmt.Printf("building binary in &s\n", testCMDDir)
+	fmt.Printf("building binary in %s\n", testCMDDir)
 	_, err := cmd.CombinedOutput()
 	if err != nil {
 		panic(err)
