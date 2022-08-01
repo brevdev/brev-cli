@@ -81,7 +81,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 			_, errStore := tstore.UpdateUser(workspace.CreatedByUserID,
 				&entity.UpdateUser{
 					OnboardingData: map[string]interface{}{
-						"pathError": time.Now().Unix(),
+						"pathErrorTS": time.Now().UTC().Unix(),
 					},
 				})
 			if errStore != nil {
