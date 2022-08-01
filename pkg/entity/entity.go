@@ -148,7 +148,7 @@ type UpdateUser struct {
 	Name              string                 `json:"name,omitempty"`
 	Email             string                 `json:"email,omitempty"`
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
-	OnboardingStatus  map[string]interface{} `json:"onboardingData,omitempty"` // todo fix inconsitency
+	OnboardingData    map[string]interface{} `json:"onboardingData,omitempty"`
 	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
 }
 
@@ -169,7 +169,7 @@ type User struct {
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType    GlobalUserType         `json:"globalUserType"`
 	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
-	OnboardingStatus  map[string]interface{} `json:"onboardingData"` // todo fix inconsitency
+	OnboardingData    map[string]interface{} `json:"onboardingData"`
 }
 
 type UserKeys struct {
@@ -404,7 +404,7 @@ func (w Workspace) GetNodeIdentifierForVPN() string {
 	return string(w.createSimpleName())
 }
 
-type OnboardingStatus struct {
+type OnboardingData struct {
 	Editor  string `json:"editor"`
 	SSH     bool   `json:"ssh"`
 	UsedCLI bool   `json:"usedCli"`
@@ -437,11 +437,11 @@ func safeBoolMap(mapStrInter map[string]interface{}, key string, fallback bool) 
 	return fallback
 }
 
-func (u User) GetOnboardingStatus() (*OnboardingStatus, error) {
-	x := &OnboardingStatus{
-		Editor:  safeStringMap(u.OnboardingStatus, "editor", ""), // empty string is the false state here
-		SSH:     safeBoolMap(u.OnboardingStatus, "SSH", false),
-		UsedCLI: safeBoolMap(u.OnboardingStatus, "usedCLI", false),
+func (u User) GetOnboardingData() (*OnboardingData, error) {
+	x := &OnboardingData{
+		Editor:  safeStringMap(u.OnboardingData, "editor", ""), // empty string is the false state here
+		SSH:     safeBoolMap(u.OnboardingData, "SSH", false),
+		UsedCLI: safeBoolMap(u.OnboardingData, "usedCLI", false),
 	}
 	return x, nil
 }

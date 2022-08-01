@@ -189,7 +189,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 
 func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) error {
 	// figure out if we should onboard the user
-	currentOnboardingStatus, err := user.GetOnboardingStatus()
+	currentOnboardingStatus, err := user.GetOnboardingData()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -233,10 +233,10 @@ func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) 
 
 	user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
 		// username, name, and email are required fields, but we only care about onboarding status
-		Username:         user.Username,
-		Name:             user.Name,
-		Email:            user.Email,
-		OnboardingStatus: util.MapAppend(user.OnboardingStatus, newOnboardingStatus),
+		Username:       user.Username,
+		Name:           user.Name,
+		Email:          user.Email,
+		OnboardingData: util.MapAppend(user.OnboardingData, newOnboardingStatus),
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
