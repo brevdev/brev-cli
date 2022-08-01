@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -24,6 +26,7 @@ var (
 type OpenStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
+	UpdateUser(string, *entity.UpdateUser) (*entity.User, error)
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
@@ -74,6 +77,16 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
+
+			_, errStore := tstore.UpdateUser(workspace.CreatedByUserID,
+				&entity.UpdateUser{
+					OnboardingData: map[string]interface{}{
+						"pathError": time.Now().Unix(),
+					},
+				})
+			if errStore != nil {
+				return errors.New(errMsg + "\n" + errStore.Error())
+			}
 			return errors.New(errMsg)
 		}
 		return breverrors.WrapAndTrace(err)
