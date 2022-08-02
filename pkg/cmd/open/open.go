@@ -77,8 +77,8 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) e
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
-
-			_, errStore := tstore.UpdateUser(workspace.CreatedByUserID,
+			_, errStore := tstore.UpdateUser(
+				workspace.CreatedByUserID,
 				&entity.UpdateUser{
 					OnboardingData: map[string]interface{}{
 						"pathErrorTS": time.Now().UTC().Unix(),
