@@ -35,7 +35,7 @@ type ConfigUpdater struct {
 var _ tasks.Task = ConfigUpdater{}
 
 func (c ConfigUpdater) Run() error {
-	err := c.Store.WritePrivateKey(c.PrivateKey) // this is kinda silly since the private key does not change
+	err := c.Store.WritePrivateKey(c.PrivateKey) 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
