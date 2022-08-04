@@ -1,4 +1,5 @@
 create start and join a workspace
+
 ## Synopsis
 
 ```
@@ -31,8 +32,8 @@ the name `cli` from the git repo `https://github.com/brevdev/brev-cli`.
 $ brev start https://github.com/brevdev/brev-cli -n cli
 ```
 
-
 ## Examples
+
 ### Create an empty workspace
 
 ```
@@ -86,7 +87,6 @@ connect to the workspace:
 ```
 
 view your workspace with `brev ls`
-
 
 ### create a workspace, and do not block shell until workspace is created
 
@@ -143,7 +143,6 @@ Connect to the workspace:
 ```
 
 ### Create a workspace from a git repository
-
 
 ```
 $ brev start https://github.com/brevdev/react-starter-app
@@ -252,7 +251,9 @@ Connect to running workspace:
 	ssh linear-client-yw1a	# ssh <SSH-NAME> -> ssh directly to workspace
 
 ```
+
 join the workspace
+
 ```
 $ brev start linear-client
 ```

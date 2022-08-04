@@ -13,7 +13,9 @@ VERSION=unknown
 BREV_API_URL=http://localhost:8080
 # BREV_API_URL=<your backend>
 ```
+
 ## running a command against a brev-deploy workspace
+
 ```
 make && BREV_API_URL=`brev ls | grep brev-deploy | awk '{ print "https://8080-"$3 }'` ./brev start https://gitlab.com/reedrichards/hn
 ```
@@ -215,12 +217,12 @@ make version-bump-minor
 ```
 
 make a major release
+
 ```
 make version-bump-major
 ```
 
 when releasing make sure to
-
 
 2. [ ] release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
@@ -231,7 +233,7 @@ inside of it.
 
 ### generate workflows for github actions
 
-It takes forever to run these sequentially, so we use github actions to run them in parallel. I tried running them sequentially in github actions, but it  timed out.
+It takes forever to run these sequentially, so we use github actions to run them in parallel. I tried running them sequentially in github actions, but it timed out.
 to generate the workflows for github actions, run:
 
 ```
@@ -241,14 +243,16 @@ make gen-e2e
 ### configure a runner fo e2e tests
 
 TODO:
-  - configure workspace env var for token
+
+- configure workspace env var for token
 
 start a workspace using this repo as a base
 
 ```sh
 brev start https://github.com/brevdev/brev-cli
 ```
-in this repo in `~/workspace`  run the commands from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
+
+in this repo in `~/workspace` run the commands from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
 
 ```sh
 mkdir actions-runner && cd actions-runner
@@ -262,8 +266,6 @@ tar xzf ./actions-runner-linux-x64-2.294.0.tar.gz
 
 sometimes, if a runner has not been allocated for a while, there will be a bunch
 of queued jobs. To remove them, set your github token and run:
-
-
 
 ```
 export GH_TOKEN=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
@@ -286,7 +288,6 @@ Notable files:
 - [Makefile](Makefile) - Make targets used for development, [CI build](.github/workflows) and [.vscode/tasks.json](.vscode/tasks.json),
 - [go.mod](go.mod) - [Go module definition](https://github.com/golang/go/wiki/Modules#gomod),
 - [tools.go](tools.go) - [build tools](https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module).
-
 
 ## Note for admins
 

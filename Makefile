@@ -53,6 +53,8 @@ fmt: ## go fmt
 lint: ## golangci-lint
 	$(call print-target)
 	golangci-lint run --timeout 5m
+	# lint all readme files with prettier
+	find . -name "*.md" -exec npx prettier --write {} \;
 
 .PHONY: test
 test: ## go test with race detector and code covarage

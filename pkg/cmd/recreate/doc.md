@@ -1,4 +1,4 @@
-# Re Create  Workspace by name or ID.
+# Re Create Workspace by name or ID.
 
 ## SYNOPSIS
 
@@ -16,7 +16,7 @@ brev start payments-frontend
 ```
 
 This command has the effect of updating the base image of a workspace to the
-latest.  If your workspace has a git remote source, the workspace will start
+latest. If your workspace has a git remote source, the workspace will start
 with a fresh copy of the remote source and run the workspace setupscript.
 
 ## EXAMPLE
@@ -43,4 +43,4 @@ SSH into your machine:
 
 ## SEE ALSO
 
-	TODO
+    TODO

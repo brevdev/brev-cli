@@ -15,12 +15,9 @@ https://console.brev.dev
 https://docs.brev.dev
 
 ---
-https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-affe-063a76eca9da.mp4
 
+https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-affe-063a76eca9da.mp4
 
 ## Contributing
 
 We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
-
-
-

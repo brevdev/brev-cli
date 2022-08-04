@@ -1,6 +1,7 @@
 ## EXAMPLES
 
 stop multiple workspaces
+
 ```
 $ brev stop brev-deploy naive-pubsub bar euler54 merge-json
 Workspace brev-deploy is stopping.
