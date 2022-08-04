@@ -710,9 +710,6 @@ func Test_CanClonePublicRepoWithoutAuthorizeddKeysAllFormats(t *testing.T) {
 					Type: entity.GitRepoType,
 					GitRepo: entity.GitRepo{
 						Repository: tt.args.repo,
-						SSHURL:     tt.args.SSHURL,
-						HTTPURL:    tt.args.HTTPURL,
-						HTTPSURL:   tt.args.HTTPSURL,
 						GitRepoOptions: entity.GitRepoOptions{
 							GitDirectory: &dir,
 						},

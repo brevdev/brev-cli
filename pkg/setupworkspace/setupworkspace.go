@@ -915,6 +915,23 @@ func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
 	return nil
 }
 
+func allRepoFormats(repo string) []string {
+	repos := []string{
+		repo,
+		parse.GetSSHURLFromOrigin(repo),
+		parse.GetHTTPSURLFromOrigin(repo),
+		parse.GetHTTPURLFromOrigin(repo),
+	}
+	// some of these may be empty strings
+	nonEmptyRepos := []string{}
+	for _, r := range repos {
+		if r != "" {
+			nonEmptyRepos = append(nonEmptyRepos, r)
+		}
+	}
+	return nonEmptyRepos
+}
+
 func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 	repoPath, err := w.GetRepoPath(repo)
 	if err != nil {
@@ -925,19 +942,10 @@ func (w WorkspaceIniter) setupRepoV1(repo entity.RepoV1) error {
 		if repo.GitRepo.Branch != nil {
 			branch = *repo.GitRepo.Branch
 		}
-		fmt.Println("setuprepov1: ", repoPath, repo.GitRepo.HTTPURL, repo.GitRepo.HTTPSURL, repo.GitRepo.SSHURL, branch)
-		repos := []string{
-			repo.GitRepo.SSHURL, repo.GitRepo.HTTPSURL, repo.GitRepo.HTTPURL, repo.Repository,
-			parse.GetSSHURLFromOrigin(repo.Repository), parse.GetHTTPSURLFromOrigin(repo.Repository), parse.GetHTTPURLFromOrigin(repo.Repository),
-		}
-		nonEmptyRepos := []string{}
-		for _, r := range repos {
-			if r != "" {
-				nonEmptyRepos = append(nonEmptyRepos, r)
-			}
-		}
-		fmt.Println("nonEmptyRepos: ", nonEmptyRepos)
-		for _, repoURL := range nonEmptyRepos {
+		fmt.Println("setuprepov1: ", repoPath, branch)
+		repository := repo.GitRepo.Repository
+		repos := allRepoFormats(repository)
+		for _, repoURL := range repos {
 			err = w.GitCloneIfDNE(repoURL, repoPath, branch)
 		}
 		if err != nil {
@@ -1006,22 +1014,9 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 			}
 		}
 	} else {
-		fmt.Println("setuprepov0: ", repoPath, repo.GitSSHURL, repo.GitHTTPURL, repo.GitHTTPSURL)
-		repos := []string{
-			repo.GitSSHURL, repo.GitHTTPSURL, repo.GitHTTPURL, repo.Repository,
-			parse.GetSSHURLFromOrigin(repo.Repository), parse.GetHTTPSURLFromOrigin(repo.Repository), parse.GetHTTPURLFromOrigin(repo.Repository),
-		}
-		nonEmptyRepos := []string{}
-		for _, r := range repos {
-			if r != "" {
-				nonEmptyRepos = append(nonEmptyRepos, r)
-			}
-		}
-		fmt.Println("nonEmptyRepos", nonEmptyRepos)
-
+		repos := allRepoFormats(repo.Repository)
 		var err error
-
-		for _, repoURL := range nonEmptyRepos {
+		for _, repoURL := range repos {
 			err = w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
 		}
 		if err != nil {
