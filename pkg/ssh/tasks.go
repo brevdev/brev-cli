@@ -4,7 +4,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 )
 
@@ -65,11 +64,11 @@ func GetSSHConfigs(store SSHConfigurerTaskStore) ([]Config, error) {
 			store,
 		),
 	}
-	if featureflag.ServiceMeshSSH(user.GlobalUserType) {
-		configs = []Config{
-			NewSSHConfigurerServiceMesh(store),
-		}
-	}
+	// if featureflag.ServiceMeshSSH(user.GlobalUserType) {
+	// 	configs = []Config{
+	// 		NewSSHConfigurerServiceMesh(store),
+	// 	}
+	// }
 	jetbrainsConfigurer, err := NewSSHConfigurerJetBrains(store)
 	// add jetbrainsconfigurer to configs if we can, but if we can't that
 	// shouldn't prevent us from setting up the other configs
