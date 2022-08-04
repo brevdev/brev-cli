@@ -21,7 +21,7 @@ ci: dev diff
 
 .PHONY: github-ci
 github-ci: ## github actions doesn't need diff since it is always running on latest commit
-github-ci: dev 
+github-ci: dev
 
 .PHONY: clean
 clean: ## remove files created during build pipeline
@@ -238,7 +238,7 @@ fetch-tags:
 
 version-bump: fetch-tags
 	[ "${type}" ] || ( echo "'type' not provided [patch, minor, major]"; exit 1 )
-	bump2version --current-version $(shell git describe --tags --abbrev=0) ${type} --list --tag --serialize v{major}.{minor}.{patch} --tag-name {new_version}  | grep new_version | sed -r s,"^.*=",, | xargs git push origin 
+	bump2version --current-version $(shell git describe --tags --abbrev=0) ${type} --list --tag --serialize v{major}.{minor}.{patch} --tag-name {new_version}  | grep new_version | sed -r s,"^.*=",, | xargs git push origin
 
 
 lr := $(shell git rev-parse latest-review)
@@ -259,3 +259,7 @@ review-mark-done:
 
 gen-e2e:
 	cat e2etest/setup/setup_test.go|  grep -Eo "Test_\w+" | xargs python bin/gen-e2e-actions.py
+
+## removed queued jobs from github actions
+remove-queued-jobs:
+	./bin/remove-queued-jobs.sh

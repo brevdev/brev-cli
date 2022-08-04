@@ -226,18 +226,24 @@ when releasing make sure to
 
 ## e2e tests
 
-### generate workflows for github actions  
+e2e tests are tests that spawn a docker container and runs brev setupworkspace
+inside of it.
+
+### generate workflows for github actions
+
+It takes forever to run these sequentially, so we use github actions to run them in parallel. I tried running them sequentially in github actions, but it  timed out.
+to generate the workflows for github actions, run:
 
 ```
 make gen-e2e
 ```
 
-### configure a runner fo e2e tests 
+### configure a runner fo e2e tests
 
 TODO:
   - configure workspace env var for token
 
-start a workspace using this repo as a base 
+start a workspace using this repo as a base
 
 ```sh
 brev start https://github.com/brevdev/brev-cli
@@ -245,12 +251,25 @@ brev start https://github.com/brevdev/brev-cli
 in this repo in `~/workspace`  run the commands from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
 
 ```sh
-mkdir actions-runner && cd actions-runner 
+mkdir actions-runner && cd actions-runner
 curl -o actions-runner-linux-x64-2.294.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.294.0/actions-runner-linux-x64-2.294.0.tar.gz
 tar xzf ./actions-runner-linux-x64-2.294.0.tar.gz
-./config.sh --url https://github.com/brevdev/brev-cli --token $TOKEN 
+./config.sh --url https://github.com/brevdev/brev-cli --token $TOKEN
 ./run.sh
 ```
+
+### remove queued jobs from github actions
+
+sometimes, if a runner has not been allocated for a while, there will be a bunch
+of queued jobs. To remove them, set your github token and run:
+
+
+
+```
+export GH_TOKEN=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
+make remove-queued-jobs
+```
+
 ## Maintainance
 
 Remember to update Go version in [.github/workflows](.github/workflows), [Makefile](Makefile) and [devcontainer.json](.devcontainer/devcontainer.json).
@@ -269,7 +288,7 @@ Notable files:
 - [tools.go](tools.go) - [build tools](https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module).
 
 
-## Note for admins 
+## Note for admins
 
 default configuration is broken for admins, add this config to your `~/brev`
 
