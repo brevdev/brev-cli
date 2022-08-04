@@ -55,10 +55,10 @@ func NewSSHConfigurerTask(store SSHConfigurerTaskStore) SSHConfigurerTask {
 }
 
 func GetSSHConfigs(store SSHConfigurerTaskStore) ([]Config, error) {
-	user, err := store.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+	// // user, err := store.GetCurrentUser()
+	// if err != nil {
+	// 	return nil, breverrors.WrapAndTrace(err)
+	// }
 	configs := []Config{
 		NewSSHConfigurerV2(
 			store,
