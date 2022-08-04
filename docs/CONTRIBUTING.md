@@ -267,3 +267,14 @@ Notable files:
 - [Makefile](Makefile) - Make targets used for development, [CI build](.github/workflows) and [.vscode/tasks.json](.vscode/tasks.json),
 - [go.mod](go.mod) - [Go module definition](https://github.com/golang/go/wiki/Modules#gomod),
 - [tools.go](tools.go) - [build tools](https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module).
+
+
+## Note for admins 
+
+default configuration is broken for admins, add this config to your `~/brev`
+
+```yaml
+feature:
+  not_admin: true
+  service_mesh: false
+```
