@@ -290,7 +290,7 @@ Requires=docker.service
 After=docker.service
 
 [Service]
-ExecStart=/bin/bash -c "cd /home/brev/workspace/actions-runner && ./run.sh"
+ExecStart=/bin/bash -l -c "cd /home/brev/workspace/actions-runner && ./run.sh"
 Restart=always
 RestartSec=10
 User=brev
@@ -369,7 +369,12 @@ ssh ghub-runner-xwdm sudo journalctl -f  -xeu actions-runner.service
 
 #### debugging notes
 
-when editing the service file, run `sudo systemctl daemon-reload`
+when editing the service file, run 
+```
+sudo systemctl daemon-reload
+sudo systemctl restart actions-runner.service
+``` 
+to have it take effect
 
 
 
