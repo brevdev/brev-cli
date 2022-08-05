@@ -353,8 +353,8 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host strin
 
 	time.Sleep(5000 * time.Millisecond) // sometimes localhost:2278 returs bad error
 
-	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login")
-	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request")
+	AssertInternalCurlOuputContains(t, w, "localhost:22778", "Found. Redirecting to ./login", 100)
+	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request", 100)
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", password)
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", host)
 	AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
@@ -417,12 +417,17 @@ func AssertUser(t *testing.T, w Workspace, expectedUser string) {
 	assert.Equal(t, expectedUser, strings.TrimSpace(string(out)))
 }
 
-func AssertInternalCurlOuputContains(t *testing.T, w Workspace, url string, contains string) {
+func AssertInternalCurlOuputContains(t *testing.T, w Workspace, url string, contains string, retries int) {
 	t.Helper()
-	out, err := w.Exec("curl", "-s", url)
-	assert.Nil(t, err)
-	o := string(out)
-	assert.Contains(t, o, contains)
+	for retries > 0 {
+		retries--
+		out, err := w.Exec("curl", "-s", url)
+		assert.Nil(t, err)
+		if strings.Contains(string(out), contains) {
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // func AssertCodeServerPasswordWorks(t *testing.T) {
