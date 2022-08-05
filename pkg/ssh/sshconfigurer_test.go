@@ -101,9 +101,9 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-
+  
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
-
+  
 Host %s
   IdentityFile /my/priv/key.pem
   User brev
@@ -113,9 +113,9 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-
+  
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
-
+  
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
 	assert.Equal(t, correct, cStr)
