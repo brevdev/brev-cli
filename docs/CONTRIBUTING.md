@@ -327,6 +327,11 @@ Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: Cur
 Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: 2022-08-05 18:09:58Z: Listening for Jobs
 ```
 
+log into docker to avoid getting rate limited
+```
+docker login 
+```
+
 viewing logs on a remote machine
 
  1. get the ssh host key from the remote machine
