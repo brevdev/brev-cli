@@ -318,6 +318,45 @@ Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: Cur
 Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: 2022-08-05 18:09:58Z: Listening for Jobs
 ```
 
+viewing logs on a remote machine
+
+ 1. get the ssh host key from the remote machine
+
+```sh
+brev ls
+```
+
+which has an output similar to
+
+```
+λ brev ls
+You have 3 workspaces in Org brev-new
+ NAME                      STATUS   URL                                                                 ID
+ ghub-runner               RUNNING  ghub-runner-xwdm-brev-new.wgt-us-west-2-test.brev.dev               sl9b6xwdm
+ ghub-runner-1             RUNNING  ghub-runner-1-mtpe-brev-new.wgt-us-west-2-test.brev.dev             4rl8nmtpe
+ ghub-runner-2             RUNNING  ghub-runner-2-lz9m-brev-new.wgt-us-west-2-test.brev.dev             4tzjilz9m
+
+Connect to running workspace:
+	brev open brev-cli	# brev open <NAME> -> open workspace in preferred editor
+	brev shell brev-cli	# brev shell <NAME> -> ssh into workspace (shortcut)
+	ssh brev-cli-p7gs	# ssh <SSH-NAME> -> ssh directly to workspace
+Or ssh:
+	ssh ghub-runner-xwdm
+	ssh ghub-runner-1-mtpe
+	ssh ghub-runner-2-lz9m
+                                                                                                                                               Py base
+~
+λ
+```
+
+to get the logs from `ghub-runner`, you can use ssh to connect to the workspace,
+run a command, and then send the output back to your local machine.
+
+```sh
+ssh ghub-runner-xwdm sudo journalctl -f  -xeu actions-runner.service
+```
+
+
 
 #### debugging notes
 
