@@ -490,8 +490,12 @@ func AssertFileNotContainsString(t *testing.T, w Workspace, filePath string, con
 func AssertDockerRunning(t *testing.T, w Workspace) bool {
 	t.Helper()
 
-	_, err := w.Exec("docker", "run", "hello-world")
-	return assert.Nil(t, err)
+	_, err := w.Exec("docker", "info")
+
+	assert.Nil(t, err)
+	out, err := w.Exec("systemctl", "is-active", "docker")
+	assert.Nil(t, err)
+	return strings.Contains(string(out), "active")
 }
 
 func AssertRepoHasNumFiles(t *testing.T, w Workspace, filePath string, num int) {
