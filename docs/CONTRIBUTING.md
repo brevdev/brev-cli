@@ -281,8 +281,7 @@ Requires=docker.service
 After=docker.service
 
 [Service]
-ExecStart=/bin/bash /home/brev/workspace/actions-runner/run.sh
-WorkingDirectory=/home/brev/workspace/actions-runner
+ExecStart=/bin/bash -c "cd /home/brev/workspace/actions-runner && ./run.sh"
 Restart=always
 RestartSec=10
 User=brev
@@ -308,7 +307,7 @@ sudo systemctl enable actions-runner.service
 view the logs to make sure it is working
 
 ```sh
-sudo journalctl -xeu -f actions-runner.service
+sudo journalctl -xeu actions-runner.service
 ```
 
 which should have an output similar to
