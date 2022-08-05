@@ -91,6 +91,11 @@ func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
 	assert.Nil(t, err)
+	// sometimes vs code is not happy with the formatting
+	// so if the formatting is not correct then the test will fail
+	// if you run into this test failing b/c of the formatting
+	// this might be why and you can try to fix it by reverting to the original
+	// version of the test before vscode autoformats the config
 	correct := fmt.Sprintf(`# included in /my/user/config
 Host %s
   IdentityFile /my/priv/key.pem
@@ -101,9 +106,9 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-  
+
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
-  
+
 Host %s
   IdentityFile /my/priv/key.pem
   User brev
@@ -113,9 +118,9 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-  
+
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
-  
+
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
 	assert.Equal(t, correct, cStr)
