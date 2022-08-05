@@ -245,13 +245,22 @@ make gen-e2e
 start a workspace using this repo as a base
 
 ```sh
-brev start https://github.com/brevdev/brev-cli
+brev start https://github.com/brevdev/brev-cli -n bcli-runner-0
 ```
+
+
+open a shell in your environment 
+
+```sh
+brev shell bcli-runner-0
+```
+
 
 in this repo in `~/workspace`, run:
 
 create `~/workspace/actions-runner` directory, and install actions-runner into
 it
+
 
 ```sh
 mkdir ~/workspace/actions-runner && cd ~/workspace/actions-runner
