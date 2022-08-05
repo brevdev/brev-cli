@@ -419,7 +419,11 @@ func AssertInternalCurlOuputContains(t *testing.T, w Workspace, url string, cont
 	for retries > 0 {
 		retries--
 		out, err := w.Exec("curl", "-s", url)
-		assert.Nil(t, err)
+		if retries == 0 {
+
+			assert.Nil(t, err)
+			assert.Contains(t, string(out), contains)
+		}
 		if strings.Contains(string(out), contains) {
 			return
 		}
