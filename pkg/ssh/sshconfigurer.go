@@ -92,7 +92,7 @@ func NewSSHConfigUpdater(store ConfigUpaterFactoryStore) ConfigUpdater {
 
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand
 type SSHConfigurerV2 struct {
-	store SSHConfigurerV2Store
+	store        SSHConfigurerV2Store
 	runRemoteCMD bool
 }
 
@@ -113,7 +113,7 @@ var _ Config = SSHConfigurerV2{}
 
 func NewSSHConfigurerV2(store SSHConfigurerV2Store, runRemoteCMD bool) *SSHConfigurerV2 {
 	return &SSHConfigurerV2{
-		store: store,
+		store:        store,
 		runRemoteCMD: runRemoteCMD,
 	}
 }

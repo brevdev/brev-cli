@@ -249,7 +249,7 @@ brev start https://github.com/brevdev/brev-cli -n bcli-runner-0
 ```
 
 
-open a shell in your environment 
+open a shell in your environment
 
 ```sh
 brev shell bcli-runner-0
@@ -316,7 +316,7 @@ sudo systemctl enable actions-runner.service
 view the logs to make sure it is working
 
 ```sh
-sudo journalctl -f -xeu actions-runner.service 
+sudo journalctl -f -xeu actions-runner.service
 ```
 
 which should have an output similar to
@@ -369,12 +369,12 @@ ssh ghub-runner-xwdm sudo journalctl -f  -xeu actions-runner.service
 
 #### debugging notes
 
-when editing the service file, run 
+when editing the service file, run
 ```
 sudo systemctl daemon-reload
 sudo systemctl restart actions-runner.service
-sudo journalctl -f -xeu actions-runner.service 
-``` 
+sudo journalctl -f -xeu actions-runner.service
+```
 to have it take effect
 
 
@@ -391,8 +391,9 @@ make remove-queued-jobs
 
 ## Known issues:
 
-- sometimes github rate limits pulls
-- sometimes dockerhub rate limits pulls
+- sometimes github rate limits pulls.
+- on first run, the runner will take a while pulling the workspace image, which
+  causes the e2e tests to fail b/c they will timeout.
 
 ## Maintainance
 

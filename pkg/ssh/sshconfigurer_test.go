@@ -101,6 +101,7 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 Host %s
@@ -112,6 +113,7 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
@@ -154,7 +156,7 @@ Include /my/brev/config
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{},true)
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 	bscp, err := c.store.GetBrevSSHConfigPath()
 	if !assert.Nil(t, err) {
 		return
