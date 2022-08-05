@@ -133,6 +133,15 @@ func GetBrevSSHConfigPath(home string) (string, error) {
 	return brevSSHConfigPath, nil
 }
 
+func GetOnboardingStepPath(home string) (string, error) {
+	path, err := GetBrevHome(home)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	brevOnboardingFilePath := filepath.Join(path, "onboarding_step.json")
+	return brevOnboardingFilePath, nil
+}
+
 func GetNewBackupSSHConfigFilePath(home string) (*string, error) {
 	fp, err := makeBrevFilePath(GetNewBackupSSHConfigFileName(), home)
 	if err != nil {
