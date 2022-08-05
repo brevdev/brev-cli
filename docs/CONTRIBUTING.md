@@ -290,7 +290,7 @@ Requires=docker.service
 After=docker.service
 
 [Service]
-ExecStart=/bin/bash -l -c "cd /home/brev/workspace/actions-runner && ./run.sh"
+ExecStart=/bin/zsh -l -c "cd /home/brev/workspace/actions-runner && ./run.sh"
 Restart=always
 RestartSec=10
 User=brev
@@ -316,7 +316,7 @@ sudo systemctl enable actions-runner.service
 view the logs to make sure it is working
 
 ```sh
-sudo journalctl -xeu actions-runner.service
+sudo journalctl -f -xeu actions-runner.service 
 ```
 
 which should have an output similar to
@@ -373,6 +373,7 @@ when editing the service file, run
 ```
 sudo systemctl daemon-reload
 sudo systemctl restart actions-runner.service
+sudo journalctl -f -xeu actions-runner.service 
 ``` 
 to have it take effect
 
