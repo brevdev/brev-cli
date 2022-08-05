@@ -242,25 +242,89 @@ make gen-e2e
 
 ### configure a runner fo e2e tests
 
-TODO:
-
-- configure workspace env var for token
-
 start a workspace using this repo as a base
 
 ```sh
 brev start https://github.com/brevdev/brev-cli
 ```
 
-in this repo in `~/workspace` run the commands from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
+in this repo in `~/workspace`, run:
+
+create `~/workspace/actions-runner` directory, and install actions-runner into
+it
 
 ```sh
-mkdir actions-runner && cd actions-runner
+mkdir ~/workspace/actions-runner && cd ~/workspace/actions-runner
 curl -o actions-runner-linux-x64-2.294.0.tar.gz -L https://github.com/actions/runner/releases/download/v2.294.0/actions-runner-linux-x64-2.294.0.tar.gz
 tar xzf ./actions-runner-linux-x64-2.294.0.tar.gz
-./config.sh --url https://github.com/brevdev/brev-cli --token $TOKEN
-./run.sh
 ```
+
+get the configure command and token from from [new linux runner](https://github.com/brevdev/brev-cli/settings/actions/runners/new?arch=x64&os=linux)
+
+```
+./config.sh --url https://github.com/brevdev/brev-cli --token  --unattended
+```
+
+create a systemd service to run the actions runner
+
+switch to root
+
+```sh
+sudo su
+```
+
+```sh
+cat <<EOF > /etc/systemd/system/actions-runner.service
+[Unit]
+Description=github actions runner for brev-cli
+Requires=docker.service
+After=docker.service
+
+[Service]
+ExecStart=/bin/bash /home/brev/workspace/actions-runner/run.sh
+WorkingDirectory=/home/brev/workspace/actions-runner
+Restart=always
+RestartSec=10
+User=brev
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+optionally switch back to brev user
+
+```sh
+su brev
+```
+
+start and enable the service
+
+```sh
+sudo systemctl start actions-runner.service
+sudo systemctl enable actions-runner.service
+```
+
+view the logs to make sure it is working
+
+```sh
+sudo journalctl -xeu -f actions-runner.service
+```
+
+which should have an output similar to
+
+```
+Aug 05 18:09:57 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: √ Connected to GitHub
+Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: Current runner version: '2.294.0'
+Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: 2022-08-05 18:09:58Z: Listening for Jobs
+```
+
+
+#### debugging notes
+
+when editing the service file, run `sudo systemctl daemon-reload`
+
+
 
 ### remove queued jobs from github actions
 
@@ -268,9 +332,14 @@ sometimes, if a runner has not been allocated for a while, there will be a bunch
 of queued jobs. To remove them, set your github token and run:
 
 ```
-export GH_TOKEN=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
+export GH_TOKEN=
 make remove-queued-jobs
 ```
+
+## Known issues:
+
+- sometimes github rate limits pulls
+- sometimes dockerhub rate limits pulls
 
 ## Maintainance
 
