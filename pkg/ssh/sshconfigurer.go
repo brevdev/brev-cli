@@ -169,9 +169,9 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-  {{ if .RunRemoteCMD }}
+{{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
-  {{ end }}
+{{ end }}
 `
 
 type SSHConfigEntryV2 struct {
