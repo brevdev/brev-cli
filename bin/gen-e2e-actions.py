@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+import os
 import sys
 from pathlib import Path
-import os
 
 USAGE_TEXT = ""
 
@@ -21,6 +21,9 @@ jobs:
     runs-on: [self-hosted]
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
       - name: expire test cache
         run: go clean -testcache
       - name: test
