@@ -231,6 +231,17 @@ when releasing make sure to
 e2e tests are tests that spawn a docker container and runs brev setupworkspace
 inside of it.
 
+The can be run with the command
+
+```
+make e2e-test
+```
+
+they are also run with github actions when your commit contains the text `e2e-test`.
+
+its convienent to run the e2e tests on github because you can run them in parallel,
+and they take less time to run than running them sequentially.
+
 ### generate workflows for github actions
 
 It takes forever to run these sequentially, so we use github actions to run them in parallel. I tried running them sequentially in github actions, but it timed out.
@@ -329,7 +340,7 @@ Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: 202
 
 log into docker to avoid getting rate limited
 ```
-docker login 
+docker login
 ```
 
 viewing logs on a remote machine
