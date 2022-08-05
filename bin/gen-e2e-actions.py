@@ -3,8 +3,6 @@ import os
 import sys
 from pathlib import Path
 
-USAGE_TEXT = ""
-
 
 def generate_file_content(test_name):
     return (
@@ -56,7 +54,7 @@ def create_file_if_not_exist(path):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print(USAGE_TEXT)
+        print("Usage: python gen-e2e-actions.py <file path>")
         sys.exit(1)
 
     file_path_prefix = [".github", "workflows"]
