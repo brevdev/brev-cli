@@ -389,8 +389,12 @@ to have it take effect
 sometimes, if a runner has not been allocated for a while, there will be a bunch
 of queued jobs. To remove them, set your github token and run:
 
+[create a personal access token](https://github.com/settings/tokens)
+
+
+
 ```
-export GH_TOKEN=
+export GH_TOKEN=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
 make remove-queued-jobs
 ```
 
