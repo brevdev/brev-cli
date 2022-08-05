@@ -24,6 +24,7 @@ type ShellStore interface {
 }
 
 func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
+	var runRemoteCMD bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
@@ -33,19 +34,20 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runShellCommand(store, args[0])
+			err := runShellCommand(store, args[0], runRemoteCMD)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&runRemoteCMD, "remote", "r", true, "run remote commands")
 
 	return cmd
 }
 
-func runShellCommand(sstore ShellStore, workspaceNameOrID string) error {
-	res := refresh.RunRefreshAsync(sstore)
+func runShellCommand(sstore ShellStore, workspaceNameOrID string, runRemoteCMD bool) error {
+	res := refresh.RunRefreshAsync(sstore, runRemoteCMD)
 
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {

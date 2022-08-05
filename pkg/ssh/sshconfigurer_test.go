@@ -88,7 +88,7 @@ func (d DummySSHConfigurerV2Store) DoesJetbrainsFilePathExist() (bool, error) {
 }
 
 func TestCreateNewSSHConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
 	assert.Nil(t, err)
 	correct := fmt.Sprintf(`# included in /my/user/config
@@ -126,7 +126,7 @@ Host %s
 }
 
 func TestEnsureConfigHasInclude(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 
 	err := c.EnsureConfigHasInclude()
 	assert.Nil(t, err)
@@ -134,7 +134,7 @@ func TestEnsureConfigHasInclude(t *testing.T) {
 }
 
 func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 	bscp, err := c.store.GetBrevSSHConfigPath()
 	if !assert.Nil(t, err) {
 		return
@@ -154,7 +154,7 @@ Include /my/brev/config
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{},true)
 	bscp, err := c.store.GetBrevSSHConfigPath()
 	if !assert.Nil(t, err) {
 		return

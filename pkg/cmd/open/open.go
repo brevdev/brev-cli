@@ -30,6 +30,8 @@ type OpenStore interface {
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
+	var runRemotCMD bool
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
@@ -39,23 +41,24 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runOpenCommand(t, store, args[0])
+			err := runOpenCommand(t, store, args[0], runRemotCMD)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&runRemotCMD, "remote", "r", true, "run remote command")
 
 	return cmd
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, runRemoteCMD bool) error {
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your dev environment...")
 
-	res := refresh.RunRefreshAsync(tstore)
+	res := refresh.RunRefreshAsync(tstore, runRemoteCMD)
 
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {

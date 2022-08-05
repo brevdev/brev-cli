@@ -20,6 +20,8 @@ var long string
 
 func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	var detached bool
+	// would be nice to have a way to pass in a list of tasks to run instead of the default
+	var  runRemoteCMD bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
@@ -30,15 +32,16 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 		Example:               "brev run-tasks -d",
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunTasks(t, store, detached)
+			err := RunTasks(t, store, detached, runRemoteCMD)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 
+	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
+	cmd.Flags().BoolVarP(&runRemoteCMD, "run-remote-cmd", "r", true, "run the command on the environment to cd into ws default dir")
 	return cmd
 }
 
@@ -51,8 +54,8 @@ type RunTasksStore interface {
 	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
-func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
-	ts, err := getDefaultTasks(store)
+func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached, runRemoteCMD bool) error {
+	ts, err := getDefaultTasks(store, runRemoteCMD)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -70,8 +73,8 @@ func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
 	return nil
 }
 
-func getDefaultTasks(store RunTasksStore) ([]tasks.Task, error) {
-	configs, err := ssh.GetSSHConfigs(store)
+func getDefaultTasks(store RunTasksStore, runRemoteCMD bool) ([]tasks.Task, error) {
+	configs, err := ssh.GetSSHConfigs(store, runRemoteCMD)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

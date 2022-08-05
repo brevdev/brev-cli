@@ -84,6 +84,7 @@ func NewSSHConfigUpdater(store ConfigUpaterFactoryStore) ConfigUpdater {
 		Configs: []Config{
 			NewSSHConfigurerV2(
 				store,
+				true,
 			),
 		},
 	}
@@ -92,6 +93,7 @@ func NewSSHConfigUpdater(store ConfigUpaterFactoryStore) ConfigUpdater {
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand
 type SSHConfigurerV2 struct {
 	store SSHConfigurerV2Store
+	runRemoteCMD bool
 }
 
 type SSHConfigurerV2Store interface {
@@ -109,9 +111,10 @@ type SSHConfigurerV2Store interface {
 
 var _ Config = SSHConfigurerV2{}
 
-func NewSSHConfigurerV2(store SSHConfigurerV2Store) *SSHConfigurerV2 {
+func NewSSHConfigurerV2(store SSHConfigurerV2Store, runRemoteCMD bool) *SSHConfigurerV2 {
 	return &SSHConfigurerV2{
 		store: store,
+		runRemoteCMD: runRemoteCMD,
 	}
 }
 
@@ -146,7 +149,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier()), w.ID, pk, w.GetProjectFolderPath())
+		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier()), w.ID, pk, w.GetProjectFolderPath(), s.runRemoteCMD)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -166,8 +169,9 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
-
+  {{ end }}
 `
 
 type SSHConfigEntryV2 struct {
@@ -176,9 +180,10 @@ type SSHConfigEntryV2 struct {
 	User         string
 	ProxyCommand string
 	Dir          string
+	RunRemoteCMD bool
 }
 
-func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath string, dir string) (string, error) {
+func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath string, dir string, runRemoteCMD bool) (string, error) {
 	proxyCommand := makeProxyCommand(workspaceID)
 	entry := SSHConfigEntryV2{
 		Alias:        alias,
@@ -186,6 +191,7 @@ func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath strin
 		User:         "brev",
 		ProxyCommand: proxyCommand,
 		Dir:          dir,
+		RunRemoteCMD: runRemoteCMD,
 	}
 
 	tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
