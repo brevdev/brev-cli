@@ -26,6 +26,7 @@ func PromptSelectInput(pc PromptSelectContent) string {
 	prompt := promptui.Select{
 		Label: pc.Label,
 		Items: pc.Items,
+
 		// Templates: templates,
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/initfile"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
@@ -118,6 +119,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
       Find more information at:
             https://brev.dev`,
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			hello.CanWeOnboard(t)
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
 			// version info gets in the way of the output for
@@ -214,6 +218,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
 	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))
+	cmd.AddCommand(hello.NewCmdHello(t, noLoginCmdStore))
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
