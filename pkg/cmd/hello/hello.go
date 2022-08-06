@@ -15,7 +15,7 @@ type HelloStore interface {
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
-func NewCmdHello(_ *terminal.Terminal, store HelloStore) *cobra.Command {
+func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
 		Use:                   "hello",
@@ -25,8 +25,7 @@ func NewCmdHello(_ *terminal.Terminal, store HelloStore) *cobra.Command {
 		Example:               "brev hello",
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// fmt.Println("ayo")
-			TESTReadAndWriteFile()
+			RunOnboarding(t)
 			return nil
 		},
 	}
@@ -48,8 +47,9 @@ func RunOnboarding(t *terminal.Terminal) {
 	s := "Welcome to Brev!"
 	TypeItToMe(s)
 
-	t.Vprint("\n")
+	s = "\nBrev is a dev tool for creating and sharing dev environments"
+	TypeItToMe(s)
 
-	s = "Brev is a dev tool for creating and sharing dev environments"
+	s = "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
 	TypeItToMe(s)
 }
