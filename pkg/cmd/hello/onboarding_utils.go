@@ -32,11 +32,11 @@ func CanWeOnboard(t *terminal.Terminal) {
 
 func TESTReadAndWriteFile() error {
 	fmt.Println("reading file")
-	res, err := GetOnboardingStep()
+	res, err := GetOnboardingObject()
 	if err != nil {
 		return err
 	}
-	fmt.Println(res)
+	fmt.Println(res.Step)
 
 	newVal := 1
 	fmt.Println("writing " + fmt.Sprint(newVal) + " to file")
@@ -45,11 +45,11 @@ func TESTReadAndWriteFile() error {
 		return err
 	}
 
-	res, err = GetOnboardingStep()
+	res, err = GetOnboardingObject()
 	if err != nil {
 		return err
 	}
-	fmt.Println(res)
+	fmt.Println(res.Step)
 
 	return nil
 }
@@ -68,14 +68,15 @@ func GetOnboardingFilePath() (string, error) {
 }
 
 type OnboardingObject struct {
-	Step int `json:"step"`
+	Step            int  `json:"step"`
+	HasRunBrevShell bool `json:"hasRunBrevShell"`
 }
 
-func GetOnboardingStep() (int, error) {
+func GetOnboardingObject() (*OnboardingObject, error) {
 	// get path
 	path, err := GetOnboardingFilePath()
 	if err != nil {
-		return 0, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// BANANA: ensure path exists
@@ -91,11 +92,11 @@ func GetOnboardingStep() (int, error) {
 	var oo OnboardingObject
 	err = files.ReadJSON(files.AppFs, path, &oo)
 	if err != nil {
-		return 0, breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// return data
-	return oo.Step, nil
+	return &oo, nil
 }
 
 func SetOnboardingStep(step int) error {
@@ -118,6 +119,40 @@ func SetOnboardingStep(step int) error {
 	oo := OnboardingObject{
 		Step: step,
 	}
+	err = files.OverwriteJSON(files.AppFs, path, &oo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// return data
+	return nil
+}
+
+func SetHasRunShell(hasRunShell bool) error {
+	// get path
+	path, err := GetOnboardingFilePath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// BANANA: ensure path exists
+	// exists, err := afero.Exists(s.fs, path)
+	// if err != nil {
+	// 	return 0, breverrors.WrapAndTrace(err)
+	// }
+	// if !exists {
+	// 	return nil, &breverrors.CredentialsFileNotFound{}
+	// }
+
+	// read file
+	var oo OnboardingObject
+	err = files.ReadJSON(files.AppFs, path, &oo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// write file
+	oo.HasRunBrevShell = hasRunShell
 	err = files.OverwriteJSON(files.AppFs, path, &oo)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

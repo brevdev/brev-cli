@@ -48,7 +48,8 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// fmt.Println("ayo")
-			hello.TESTReadAndWriteFile()
+			hello.SetHasRunShell(true)
+
 			return nil
 		},
 	}

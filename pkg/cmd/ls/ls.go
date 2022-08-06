@@ -7,6 +7,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/entity/virtualproject"
@@ -43,6 +44,9 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
   brev ls orgs
   brev ls --org <orgid>
 		`,
+		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+			hello.Step1(t)
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -272,16 +276,16 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		fmt.Print("\n")
 
 		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
-		displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
+		// displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 
-		if !enableSSHCol {
-			ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-			for _, v := range userWorkspaces {
-				if v.Status == entity.Running {
-					ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
-				}
-			}
-		}
+		// if !enableSSHCol {
+		// 	ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
+		// 	for _, v := range userWorkspaces {
+		// 		if v.Status == entity.Running {
+		// 			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
+		// 		}
+		// 	}
+		// }
 	}
 }
 

@@ -119,7 +119,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 
       Find more information at:
             https://brev.dev`,
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		PostRun: func(cmd *cobra.Command, args []string) {
 			hello.CanWeOnboard(t)
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

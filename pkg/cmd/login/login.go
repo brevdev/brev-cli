@@ -11,6 +11,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -65,7 +66,10 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Short:                 "Log into brev",
 		Long:                  "Log into brev",
 		Example:               "brev login",
-		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
+		PostRun: func(cmd *cobra.Command, args []string) {
+			hello.CanWeOnboard(t)
+		},
+		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.RunLogin(t, loginToken, skipBrowser)
 			if err != nil {

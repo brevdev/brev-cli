@@ -23,7 +23,6 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 		Long:                  "Get a quick onboarding of the Brev CLI",
 		Short:                 "Get a quick onboarding of the Brev CLI",
 		Example:               "brev hello",
-		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			RunOnboarding(t)
 			return nil
@@ -50,6 +49,11 @@ func RunOnboarding(t *terminal.Terminal) {
 	s = "\nBrev is a dev tool for creating and sharing dev environments"
 	TypeItToMe(s)
 
-	s = "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
+	s = "\n\nI'm Nader 👋  Co-founder of Brev. I'll show you around"
+	s += "\nbtw, text me or call me if you need anything"
+	s += ". My cell is " + t.Yellow("(858) 465-0990")
+	TypeItToMe(s)
+
+	s = "\n\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
 	TypeItToMe(s)
 }

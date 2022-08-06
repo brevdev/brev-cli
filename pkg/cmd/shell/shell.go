@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -72,6 +73,14 @@ func runSSH(sshAlias string) error {
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
+
+	// BANANA: there's probably a better place for this.
+	// 		persistentPOSTrun for this function never gets called...
+	// 		I could set this to the prerun, but then it happens before they ssh in
+	// 		....
+	// This boolean tells the onboarding to continue to the next step!
+	hello.SetHasRunShell(true)
+
 	err := sshCmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
