@@ -12,7 +12,11 @@ import (
 func CanWeOnboard(t *terminal.Terminal) {
 	terminal.DisplayBrevLogo(t)
 
-	t.Vprintf(t.Green("\n\nHey! Looks like it's your first time using Brev!\n"))
+	s := t.Green("\n\nHey! Looks like it's your first time using Brev!\n")
+
+	TypeItToMe(s)
+
+	// t.Vprintf()
 
 	res := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "Want a quick tour?",
