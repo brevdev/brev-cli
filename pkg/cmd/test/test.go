@@ -37,7 +37,7 @@ type ServiceMeshStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
-func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
+func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
@@ -47,8 +47,19 @@ func NewCmdTest(_ *terminal.Terminal, store TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// fmt.Println("ayo")
-			hello.SetHasRunShell(true)
+			// fmt.Printf("NAME   ID     URL      SOMETHING ELSE")
+			// hello.TypeItToMe("\n\n\n")
+			// hello.TypeItToMe("☝️ this is the name of your environment (which you can use to open the environment)")
+			// time.Sleep(1 * time.Second)
+			// fmt.Printf("\332K\r")
+			// fmt.Println("                                                                                     ")
+			// hello.TypeItToMe("              ☝️ you can expose your localhost to this public URL")
+			// time.Sleep(1 * time.Second)
+			// fmt.Printf("\332K\r")
+			// fmt.Printf("bye world")
+			// fmt.Printf("bye world")
+
+			hello.Step1(t)
 
 			return nil
 		},

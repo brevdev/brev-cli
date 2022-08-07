@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -75,6 +76,8 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	hello.SetHasRunOpen(true)
 
 	err = openVsCodeWithSSH(string(localIdentifier), projPath)
 	if err != nil {

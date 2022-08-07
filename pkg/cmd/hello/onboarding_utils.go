@@ -10,8 +10,6 @@ import (
 )
 
 func CanWeOnboard(t *terminal.Terminal) {
-	terminal.DisplayBrevLogo(t)
-
 	s := t.Green("\n\nHey! Looks like it's your first time using Brev!\n")
 
 	TypeItToMe(s)
@@ -70,6 +68,7 @@ func GetOnboardingFilePath() (string, error) {
 type OnboardingObject struct {
 	Step            int  `json:"step"`
 	HasRunBrevShell bool `json:"hasRunBrevShell"`
+	HasRunBrevOpen  bool `json:"hasRunBrevOpen"`
 }
 
 func GetOnboardingObject() (*OnboardingObject, error) {
@@ -97,6 +96,32 @@ func GetOnboardingObject() (*OnboardingObject, error) {
 
 	// return data
 	return &oo, nil
+}
+
+func SetOnboardingObject(oo OnboardingObject) error {
+	// get path
+	path, err := GetOnboardingFilePath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// BANANA: ensure path exists
+	// exists, err := afero.Exists(s.fs, path)
+	// if err != nil {
+	// 	return 0, breverrors.WrapAndTrace(err)
+	// }
+	// if !exists {
+	// 	return nil, &breverrors.CredentialsFileNotFound{}
+	// }
+
+	// write file
+	err = files.OverwriteJSON(files.AppFs, path, &oo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// return data
+	return nil
 }
 
 func SetOnboardingStep(step int) error {
@@ -153,6 +178,40 @@ func SetHasRunShell(hasRunShell bool) error {
 
 	// write file
 	oo.HasRunBrevShell = hasRunShell
+	err = files.OverwriteJSON(files.AppFs, path, &oo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// return data
+	return nil
+}
+
+func SetHasRunOpen(hasRunOpen bool) error {
+	// get path
+	path, err := GetOnboardingFilePath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// BANANA: ensure path exists
+	// exists, err := afero.Exists(s.fs, path)
+	// if err != nil {
+	// 	return 0, breverrors.WrapAndTrace(err)
+	// }
+	// if !exists {
+	// 	return nil, &breverrors.CredentialsFileNotFound{}
+	// }
+
+	// read file
+	var oo OnboardingObject
+	err = files.ReadJSON(files.AppFs, path, &oo)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// write file
+	oo.HasRunBrevOpen = hasRunOpen
 	err = files.OverwriteJSON(files.AppFs, path, &oo)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
