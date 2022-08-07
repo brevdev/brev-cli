@@ -28,9 +28,10 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) en
 	} else if firstWorkspace.Status == "DEPLOYING" {
 		// TODO: STALL
 	} else {
-		t.Vprintf(t.Yellow("Please create a dev environment for the walk through. "))
-		t.Vprintf("\nYou can do that here: %s\n", t.Yellow("https://console.brev.dev/environments/new"))
-		t.Vprintf("\nRun %s to start this walk through again", t.Yellow("brev hello"))
+		s := t.Yellow("Please create a running dev environment for this walk through. ")
+		s += "\nYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
+		s += "\n\nRun " + t.Yellow("brev hello") + " to start this walk through again"
+		TypeItToMe(s)
 		// // BANANA: This whole section feels like feature creep
 		// // Do they have a running workspace? -> use it
 		// if len(runningWorkspaces) > 0 {
