@@ -3,18 +3,27 @@ package hello
 import (
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-func CanWeOnboard(t *terminal.Terminal) {
-	s := t.Green("\n\nHey! Looks like it's your first time using Brev!\n")
+func GetFirstName(name string) string {
+	appropriatelyCapitalized := strings.Title(strings.ToLower(name))
+	split := strings.Split(appropriatelyCapitalized, " ")
+	if len(split) > 1 {
+		return split[0]
+	}
+	return name
+}
+
+func CanWeOnboard(t *terminal.Terminal, user *entity.User) {
+	s := t.Green("\n\nHi " + GetFirstName(user.Name) + "! Looks like it's your first time using Brev!\n")
 
 	TypeItToMe(s)
-
-	// t.Vprintf()
 
 	res := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "Want a quick tour?",
@@ -22,7 +31,7 @@ func CanWeOnboard(t *terminal.Terminal) {
 		Items:    []string{"Yes!", "No, I'll read docs later"},
 	})
 	if res == "Yes!" {
-		RunOnboarding(t)
+		RunOnboarding(t, user)
 	} else {
 		t.Vprintf("\nOkay, you can always read the docs at %s\n\n", t.Yellow("https://brev.dev/docs"))
 	}

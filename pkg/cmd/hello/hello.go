@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -13,6 +14,7 @@ import (
 
 type HelloStore interface {
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
@@ -26,7 +28,13 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// terminal.DisplayBrevLogo(t)
 			t.Vprint("\n")
-			RunOnboarding(t)
+
+			user, err := store.GetCurrentUser()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			RunOnboarding(t, user)
 			return nil
 		},
 	}
@@ -45,14 +53,12 @@ func TypeItToMe(s string) {
 	}
 }
 
-func RunOnboarding(t *terminal.Terminal) {
+func RunOnboarding(t *terminal.Terminal, user *entity.User) {
 	terminal.DisplayBrevLogo(t)
 	t.Vprint("\n")
 
-	s := "Welcome to Brev!"
-	TypeItToMe(s)
+	s := "Hey " + GetFirstName(user.Name) + "!\n"
 
-	s = "\nBrev is a dev tool for creating and sharing dev environments"
 	TypeItToMe(s)
 
 	s = "\n\nI'm Nader 👋  Co-founder of Brev. I'll show you around"
@@ -60,6 +66,9 @@ func RunOnboarding(t *terminal.Terminal) {
 	s += ". My cell is " + t.Yellow("(415) 237-2247")
 	TypeItToMe(s)
 
-	s = "\n\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
+	s = "\n\nBrev is a dev tool for creating and sharing dev environments"
+	TypeItToMe(s)
+
+	s = "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
 	TypeItToMe(s)
 }
