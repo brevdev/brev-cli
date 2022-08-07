@@ -3,12 +3,14 @@ package hello
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/spf13/afero"
 )
 
 func GetFirstName(name string) string {
@@ -80,6 +82,36 @@ type OnboardingObject struct {
 	HasRunBrevOpen  bool `json:"hasRunBrevOpen"`
 }
 
+func SetupDefaultOnboardingFile() error {
+	// get path
+	path, err := GetOnboardingFilePath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	exists, err := afero.Exists(files.AppFs, path)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !exists {
+		if err = files.AppFs.MkdirAll(filepath.Dir(path), 0o775); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		_, err = files.AppFs.Create(path)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		oo := OnboardingObject{0, false, false}
+		err = files.OverwriteJSON(files.AppFs, path, &oo)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	return nil
+}
+
 func GetOnboardingObject() (*OnboardingObject, error) {
 	// get path
 	path, err := GetOnboardingFilePath()
@@ -87,14 +119,8 @@ func GetOnboardingObject() (*OnboardingObject, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	// BANANA: ensure path exists
-	// exists, err := afero.Exists(s.fs, path)
-	// if err != nil {
-	// 	return 0, breverrors.WrapAndTrace(err)
-	// }
-	// if !exists {
-	// 	return nil, &breverrors.CredentialsFileNotFound{}
-	// }
+	// Ensure file exists
+	SetupDefaultOnboardingFile()
 
 	// read file
 	var oo OnboardingObject
@@ -114,14 +140,8 @@ func SetOnboardingObject(oo OnboardingObject) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// BANANA: ensure path exists
-	// exists, err := afero.Exists(s.fs, path)
-	// if err != nil {
-	// 	return 0, breverrors.WrapAndTrace(err)
-	// }
-	// if !exists {
-	// 	return nil, &breverrors.CredentialsFileNotFound{}
-	// }
+	// Ensure file exists
+	SetupDefaultOnboardingFile()
 
 	// write file
 	err = files.OverwriteJSON(files.AppFs, path, &oo)
@@ -140,14 +160,8 @@ func SetOnboardingStep(step int) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// BANANA: ensure path exists
-	// exists, err := afero.Exists(s.fs, path)
-	// if err != nil {
-	// 	return 0, breverrors.WrapAndTrace(err)
-	// }
-	// if !exists {
-	// 	return nil, &breverrors.CredentialsFileNotFound{}
-	// }
+	// Ensure file exists
+	SetupDefaultOnboardingFile()
 
 	// write file
 	oo := OnboardingObject{
@@ -169,14 +183,8 @@ func SetHasRunShell(hasRunShell bool) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// BANANA: ensure path exists
-	// exists, err := afero.Exists(s.fs, path)
-	// if err != nil {
-	// 	return 0, breverrors.WrapAndTrace(err)
-	// }
-	// if !exists {
-	// 	return nil, &breverrors.CredentialsFileNotFound{}
-	// }
+	// Ensure file exists
+	SetupDefaultOnboardingFile()
 
 	// read file
 	var oo OnboardingObject
@@ -203,14 +211,8 @@ func SetHasRunOpen(hasRunOpen bool) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// BANANA: ensure path exists
-	// exists, err := afero.Exists(s.fs, path)
-	// if err != nil {
-	// 	return 0, breverrors.WrapAndTrace(err)
-	// }
-	// if !exists {
-	// 	return nil, &breverrors.CredentialsFileNotFound{}
-	// }
+	// Ensure file exists
+	SetupDefaultOnboardingFile()
 
 	// read file
 	var oo OnboardingObject

@@ -1,6 +1,8 @@
 package test
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -59,7 +61,14 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
 
-			hello.Step1(t)
+			oo, err := hello.GetOnboardingObject()
+			if err != nil {
+				fmt.Println(err)
+			}
+
+			fmt.Println(oo.HasRunBrevOpen)
+			fmt.Println(oo.HasRunBrevShell)
+			fmt.Println(oo.Step)
 
 			return nil
 		},
