@@ -1,8 +1,6 @@
 package test
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -61,14 +59,18 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
 
-			oo, err := hello.GetOnboardingObject()
+			allWorkspaces, err := store.GetWorkspaces("ejmrvoj8m", nil)
 			if err != nil {
-				fmt.Println(err)
+				return err
+			}
+			var workspaces []entity.Workspace
+			for _, v := range allWorkspaces {
+				if v.CreatedByUserID == "62ga2fflb" {
+					workspaces = append(workspaces, v)
+				}
 			}
 
-			fmt.Println(oo.HasRunBrevOpen)
-			fmt.Println(oo.HasRunBrevShell)
-			fmt.Println(oo.Step)
+			hello.Step1(t, workspaces)
 
 			return nil
 		},
