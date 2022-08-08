@@ -49,11 +49,11 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// fmt.Printf("NAME   ID     URL      SOMETHING ELSE")
 			// hello.TypeItToMe("\n\n\n")
-			// hello.TypeItToMe("☝️ this is the name of your environment (which you can use to open the environment)")
+			// hello.TypeItToMe("👆 this is the name of your environment (which you can use to open the environment)")
 			// time.Sleep(1 * time.Second)
 			// fmt.Printf("\332K\r")
 			// fmt.Println("                                                                                     ")
-			// hello.TypeItToMe("              ☝️ you can expose your localhost to this public URL")
+			// hello.TypeItToMe("              👆 you can expose your localhost to this public URL")
 			// time.Sleep(1 * time.Second)
 			// fmt.Printf("\332K\r")
 			// fmt.Printf("bye world")

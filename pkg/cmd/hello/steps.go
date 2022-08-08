@@ -88,7 +88,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 	// a while loop in golang
 	sum := 0
 	spinner := t.NewSpinner()
-	spinner.Suffix = "☝️ try that, I'll wait"
+	spinner.Suffix = "👆 try that, I'll wait"
 	spinner.Start()
 	for sum > -1 {
 		sum += 1
@@ -98,13 +98,25 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 		if res.HasRunBrevShell {
 			spinner.Suffix = "🎉 you did it!"
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
 			break
 		} else {
 			time.Sleep(1 * time.Second)
 		}
 	}
+
+	s = "\nHit enter to continue:"
+	TypeItToMe(s)
+
+	fmt.Print("\n")
+	bold := color.New(color.Bold).SprintFunc()
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+		Label:      "   " + bold("▸"),
+		ErrorMsg:   "error",
+		AllowEmpty: true,
+	})
 
 	// TODO: "ready to try opening vs code to that environment?"
 	s = "\n\nAwesome! Now try opening VS Code in that environment"
@@ -123,7 +135,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 		if res.HasRunBrevOpen {
 			spinner.Suffix = "🎉 you did it!"
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
 			sum += 1
 			break
@@ -132,19 +144,32 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 	}
 
+	s = "\nHit enter to continue:"
+	TypeItToMe(s)
+
+	fmt.Print("\n")
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+		Label:      "   " + bold("▸"),
+		ErrorMsg:   "error",
+		AllowEmpty: true,
+	})
+
 	handleLocalhostURLIfDefaultProject(firstWorkspace, t)
 
 	s = "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
-	s += "Head to the console at " + t.Green("https://console.brev.dev") + " to create a new dev environment or share it with people"
-	s += "\n\nYou can also read the docs at " + t.Yellow("https://brev.dev/docs") + "\n\n"
+	s += "\n\nUse the console " + t.Green("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
+	s += "\nand use this CLI to code the way you would normally 🤙"
+	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev/docs") + " and let us know if we can help!\n"
+	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
 	TypeItToMe(s)
 }
 
 func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
 	if ws.Name == DEFAULT_WORKSPACE {
-		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost"
-		s += "\nFrom within that Brev dev environment, run " + t.Yellow("npm run start") + " to spin up the service"
-		s += "\nThen instead of going to localhost:3000, \n\tgo to " + t.Yellow("https://3000-%s", ws.DNS)
+		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost."
+		s += "\nFrom within that Brev dev environment,\n\tRun " + t.Yellow("npm run start") + " to spin up the service"
+		s += "\nThen instead of going to localhost:3000, \n\tGo to " + t.Yellow("https://3000-%s", ws.DNS)
 
 		TypeItToMe(s)
 
@@ -154,7 +179,7 @@ func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Termina
 		s = "\n\nGive that a shot then press enter👆:"
 		TypeItToMe(s)
 
-		fmt.Println("\n")
+		fmt.Print("\n")
 		_ = terminal.PromptGetInput(terminal.PromptContent{
 			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
 			Label:      "   " + bold("▸"),
