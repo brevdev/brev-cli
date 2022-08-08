@@ -1,20 +1,24 @@
 package hello
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/fatih/color"
 )
 
 func Stall(t *terminal.Terminal, workspace entity.Workspace) {
 }
 
+const DEFAULT_WORKSPACE = "first-workspace-react"
+
 func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) entity.Workspace {
 	var firstWorkspace entity.Workspace
 	var runningWorkspaces []entity.Workspace
 	for _, v := range workspaces {
-		if v.Name == "first-workspace-react" {
+		if v.Name == DEFAULT_WORKSPACE {
 			firstWorkspace = v
 		}
 		if v.Status == "RUNNING" {
@@ -102,6 +106,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 	}
 
+	// TODO: "ready to try opening vs code to that environment?"
 	s = "\n\nAwesome! Now try opening VS Code in that environment"
 	s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
 	TypeItToMe(s)
@@ -127,8 +132,36 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 	}
 
+	handleLocalhostURLIfDefaultProject(firstWorkspace, t)
+
 	s = "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
 	s += "Head to the console at " + t.Green("https://console.brev.dev") + " to create a new dev environment or share it with people"
 	s += "\n\nYou can also read the docs at " + t.Yellow("https://brev.dev/docs") + "\n\n"
 	TypeItToMe(s)
+}
+
+func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
+	if ws.Name == DEFAULT_WORKSPACE {
+		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost"
+		s += "\nFrom within that Brev dev environment, run " + t.Yellow("npm run start") + " to spin up the service"
+		s += "\nThen instead of going to localhost:3000, \n\tgo to " + t.Yellow("https://3000-%s", ws.DNS)
+
+		TypeItToMe(s)
+
+		// TODO: Give that a shot then press enter
+		bold := color.New(color.Bold).SprintFunc()
+
+		s = "\n\nGive that a shot then press enter👆:"
+		TypeItToMe(s)
+
+		fmt.Println("\n")
+		_ = terminal.PromptGetInput(terminal.PromptContent{
+			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+			Label:      "   " + bold("▸"),
+			ErrorMsg:   "error",
+			AllowEmpty: true,
+		})
+
+		fmt.Print("\n")
+	}
 }
