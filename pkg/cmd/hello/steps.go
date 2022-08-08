@@ -25,6 +25,7 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) en
 	if firstWorkspace.Status == "RUNNING" {
 		// all is good, proceed.
 		// always prefer to do the demo with the first workspace react cus it's setup properly
+		return firstWorkspace
 	} else if firstWorkspace.Status == "DEPLOYING" {
 		// TODO: STALL
 	} else {

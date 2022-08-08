@@ -33,7 +33,6 @@ type LsStore interface {
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
 	var org string
-	var workspaces []entity.Workspace
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
@@ -46,7 +45,31 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
   brev ls --org <orgid>
 		`,
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			hello.Step1(t, workspaces)
+			// Getting the workspaces should go in the hello.go file but then
+			// requires passing in stores and that makes it hard to use in other commands
+			org, err := getOrgForRunLs(loginLsStore, org)
+			if err != nil {
+				return
+			}
+
+			allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
+			if err != nil {
+				return
+			}
+
+			user, err := loginLsStore.GetCurrentUser()
+			if err != nil {
+				return
+			}
+
+			var myWorkspaces []entity.Workspace
+			for _, v := range allWorkspaces {
+				if v.CreatedByUserID == user.ID {
+					myWorkspaces = append(myWorkspaces, v)
+				}
+			}
+
+			hello.Step1(t, myWorkspaces)
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
@@ -59,7 +82,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org, showAll, workspaces)
+			err := RunLs(t, loginLsStore, args, org, showAll)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -108,7 +131,7 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, workspaces []entity.Workspace) error {
+func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
 	ls := NewLs(lsStore, t)
 	user, err := lsStore.GetCurrentUser()
 	if err != nil {
@@ -124,12 +147,12 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, args[0], user, org, showAll, workspaces)
+		err = handleLsArg(ls, args[0], user, org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(org, user, showAll, workspaces)
+		err = ls.RunWorkspaces(org, user, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -140,7 +163,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	return nil
 }
 
-func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool, workspaces []entity.Workspace) error {
+func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
 	// todo refactor this to cmd.register
 	//nolint:gocritic // idk how to write this as a switch
 	if util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization") { // handle org, orgs, and organization(s)
@@ -150,7 +173,7 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 		}
 		return nil
 	} else if util.IsSingularOrPlural(arg, "workspace") {
-		err := ls.RunWorkspaces(org, user, showAll, workspaces)
+		err := ls.RunWorkspaces(org, user, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -327,14 +350,11 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 	}
 }
 
-func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool, workspace []entity.Workspace) error {
+func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
 	allWorkspaces, err := ls.lsStore.GetWorkspaces(org.ID, nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	// BANANA: this could be put somewhere better, but we have to update this object
-	workspace = store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
 	orgs, err := ls.lsStore.GetOrganizations(nil)
 	if err != nil {
