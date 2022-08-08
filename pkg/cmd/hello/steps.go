@@ -14,7 +14,7 @@ func Stall(t *terminal.Terminal, workspace entity.Workspace) {
 
 const DEFAULT_WORKSPACE = "first-workspace-react"
 
-func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) entity.Workspace {
+func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *entity.Workspace {
 	var firstWorkspace entity.Workspace
 	var runningWorkspaces []entity.Workspace
 	for _, v := range workspaces {
@@ -29,14 +29,17 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) en
 	if firstWorkspace.Status == "RUNNING" {
 		// all is good, proceed.
 		// always prefer to do the demo with the first workspace react cus it's setup properly
-		return firstWorkspace
+		return &firstWorkspace
 	} else if firstWorkspace.Status == "DEPLOYING" {
 		// TODO: STALL
 	} else {
-		s := t.Yellow("Please create a running dev environment for this walk through. ")
+		s := t.Red("Please create a running dev environment for this walk through. ")
 		s += "\nYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\nRun " + t.Yellow("brev hello") + " to start this walk through again"
+		s += "\n\nRun " + t.Yellow("brev hello") + " to start this walk through again\n"
 		TypeItToMe(s)
+		return nil
+		// TODO: EXIT THE ONBOARDING
+
 		// // BANANA: This whole section feels like feature creep
 		// // Do they have a running workspace? -> use it
 		// if len(runningWorkspaces) > 0 {
@@ -63,7 +66,7 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) en
 		// }
 	}
 
-	return firstWorkspace
+	return &firstWorkspace
 }
 
 /*
@@ -72,6 +75,9 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) en
 */
 func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 	firstWorkspace := GetWorkspaceOrStall(t, workspaces)
+	if firstWorkspace == nil {
+		return
+	}
 
 	s := "\n\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
 	s += "\nIf the dev environment is " + t.Green("RUNNING") + ", you can open it."
@@ -155,7 +161,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		AllowEmpty: true,
 	})
 
-	handleLocalhostURLIfDefaultProject(firstWorkspace, t)
+	handleLocalhostURLIfDefaultProject(*firstWorkspace, t)
 
 	s = "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
 	s += "\n\nUse the console " + t.Green("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
