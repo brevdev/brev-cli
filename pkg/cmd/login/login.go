@@ -179,15 +179,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 		}
 	}
 
-	ob, err := user.GetOnboardingData()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// if user chooses vscode as editor preference, import ide config
-	if ob.Editor == "VSCode" {
-		err = importideconfig.RunImportIDEConfig(t, o.LoginStore)
-	}
+	err = importideconfig.RunImportIDEConfig(t, o.LoginStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
