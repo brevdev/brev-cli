@@ -57,6 +57,9 @@ func TypeItToMe(s string) {
 var wg sync.WaitGroup
 
 func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) {
+	// Reset the onboarding object to walk through the onboarding fresh
+	SetOnboardingObject(OnboardingObject{0, false, false})
+
 	terminal.DisplayBrevLogo(t)
 	t.Vprint("\n")
 

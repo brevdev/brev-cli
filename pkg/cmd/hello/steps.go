@@ -99,13 +99,6 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	s += "\n\nIn a new terminal, try running " + t.Green("brev shell %s", firstWorkspace.Name) + " to get a terminal in your dev environment\n"
 	TypeItToMe(s)
 
-	// Reset the onboarding object to walk through the onboarding fresh
-	res, err := GetOnboardingObject()
-	if err != nil {
-		return
-	}
-	SetOnboardingObject(OnboardingObject{res.Step, false, false})
-
 	// a while loop in golang
 	sum := 0
 	spinner := t.NewSpinner()

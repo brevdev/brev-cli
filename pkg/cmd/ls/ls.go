@@ -46,31 +46,33 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
   brev ls --org <orgid>
 		`,
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			// Getting the workspaces should go in the hello.go file but then
-			// requires passing in stores and that makes it hard to use in other commands
-			org, err := getOrgForRunLs(loginLsStore, org)
-			if err != nil {
-				return
-			}
-
-			allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
-			if err != nil {
-				return
-			}
-
-			user, err := loginLsStore.GetCurrentUser()
-			if err != nil {
-				return
-			}
-
-			var myWorkspaces []entity.Workspace
-			for _, v := range allWorkspaces {
-				if v.CreatedByUserID == user.ID {
-					myWorkspaces = append(myWorkspaces, v)
+			if hello.ShouldWeRunOnboarding(loginLsStore) {
+				// Getting the workspaces should go in the hello.go file but then
+				// requires passing in stores and that makes it hard to use in other commands
+				org, err := getOrgForRunLs(loginLsStore, org)
+				if err != nil {
+					return
 				}
-			}
 
-			hello.Step1(t, myWorkspaces, user, loginLsStore)
+				allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
+				if err != nil {
+					return
+				}
+
+				user, err := loginLsStore.GetCurrentUser()
+				if err != nil {
+					return
+				}
+
+				var myWorkspaces []entity.Workspace
+				for _, v := range allWorkspaces {
+					if v.CreatedByUserID == user.ID {
+						myWorkspaces = append(myWorkspaces, v)
+					}
+				}
+
+				hello.Step1(t, myWorkspaces, user, loginLsStore)
+			}
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
