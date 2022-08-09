@@ -47,8 +47,7 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 func TypeItToMe(s string) {
 	sRunes := []rune(s)
 	for i := 0; i < len(sRunes); i++ {
-		// BANANA: undo this
-		time.Sleep(7 * time.Millisecond)
+		time.Sleep(47 * time.Millisecond)
 
 		fmt.Printf("%c", sRunes[i])
 	}
