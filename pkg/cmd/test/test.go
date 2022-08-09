@@ -3,6 +3,7 @@ package test
 import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -58,21 +59,8 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
 
-			user, _ := store.GetCurrentUser()
-			// hello.CanWeOnboard(t, user, store)
-
-			currentOnboardingStatus, err := user.GetOnboardingData()
-			if err != nil {
-				t.Vprint(t.Red(err.Error()))
-			}
-
-			t.Vprintf("\nOnboarding Skipped: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingSkipped))
-			t.Vprintf("\nCliOnboardingIntro: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingIntro))
-			t.Vprintf("\nCliOnboardingLs: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingLs))
-			t.Vprintf("\nCliOnboardingBrevOpen: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingBrevOpen))
-			t.Vprintf("\nCliOnboardingBrevShell: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingBrevShell))
-			t.Vprintf("\nCliOnboardingCompleted: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingCompleted))
-			t.Vprintf("\n")
+			s := "\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome"
+			hello.TypeItToMe(s)
 			return nil
 		},
 	}

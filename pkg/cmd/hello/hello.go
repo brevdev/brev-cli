@@ -1,8 +1,12 @@
 package hello
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -45,6 +49,40 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 }
 
 func TypeItToMe(s string) {
+	sleepSpeed := 47
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer ctx.Done()
+	// Exit gracefully by cancelling the ipnserver context in most common cases:
+	// interrupted from the TTY or killed by a service manager.
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
+	// SIGPIPE sometimes gets generated when CLIs disconnect from
+	// tailscaled. The default action is to terminate the process, we
+	// want to keep running.
+	signal.Ignore(syscall.SIGPIPE)
+	go func() {
+		select {
+		case <-interrupt:
+			// logf("tailscaled got signal %v; shutting down", s)
+			sleepSpeed = 1 / 2
+			// cancel()
+		case <-ctx.Done():
+			cancel()
+			// continue
+		}
+	}()
+
+	sRunes := []rune(s)
+	for i := 0; i < len(sRunes); i++ {
+		// if context cancelled then exit
+		time.Sleep(time.Duration(sleepSpeed) * time.Millisecond)
+
+		fmt.Printf("%c", sRunes[i])
+	}
+}
+
+func TypeItToMeOLD(s string) {
 	sRunes := []rune(s)
 	for i := 0; i < len(sRunes); i++ {
 		time.Sleep(47 * time.Millisecond)
