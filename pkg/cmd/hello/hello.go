@@ -2,6 +2,7 @@ package hello
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -15,6 +16,7 @@ import (
 type HelloStore interface {
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
+	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 }
 
 func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
@@ -34,7 +36,7 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			RunOnboarding(t, user)
+			RunOnboarding(t, user, store)
 			return nil
 		},
 	}
@@ -45,15 +47,16 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 func TypeItToMe(s string) {
 	sRunes := []rune(s)
 	for i := 0; i < len(sRunes); i++ {
-		// sleep for 100ms
-		// BANANA: put this back to 47
+		// BANANA: undo this
 		time.Sleep(17 * time.Millisecond)
 
 		fmt.Printf("%c", sRunes[i])
 	}
 }
 
-func RunOnboarding(t *terminal.Terminal, user *entity.User) {
+var wg sync.WaitGroup
+
+func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) {
 	terminal.DisplayBrevLogo(t)
 	t.Vprint("\n")
 
@@ -69,6 +72,19 @@ func RunOnboarding(t *terminal.Terminal, user *entity.User) {
 	s = "\n\nBrev is a dev tool for creating and sharing dev environments"
 	TypeItToMe(s)
 
-	s = "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
+	wg.Add(2)
+	go finishOutput(t)
+	go MarkOnboardingStepCompleted(t, user, store)
+	wg.Wait()
+}
+
+func finishOutput(t *terminal.Terminal) {
+	s := "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
 	TypeItToMe(s)
+	wg.Done()
+}
+
+func MarkOnboardingStepCompleted(t *terminal.Terminal, user *entity.User, store HelloStore) {
+	CompletedOnboardingIntro(user, store)
+	wg.Done()
 }

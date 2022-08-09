@@ -42,6 +42,7 @@ type LoginStore interface {
 	GetServerSockFile() string
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
+	hello.HelloStore
 }
 
 type Auth interface {
@@ -67,13 +68,13 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		PostRun: func(cmd *cobra.Command, args []string) {
-			shouldWe := hello.ShouldWeRunOnboarding()
+			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
 			if shouldWe {
 				user, err := loginStore.GetCurrentUser()
 				if err != nil {
 					return
 				}
-				hello.CanWeOnboard(t, user)
+				hello.CanWeOnboard(t, user, loginStore)
 			}
 		},
 		Args: cmderrors.TransformToValidationError(cobra.NoArgs),

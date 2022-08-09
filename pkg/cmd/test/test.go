@@ -59,22 +59,32 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
 
-			allWorkspaces, err := store.GetWorkspaces("ejmrvoj8m", nil)
+			user, _ := store.GetCurrentUser()
+			hello.CanWeOnboard(t, user, store)
+
+			currentOnboardingStatus, err := user.GetOnboardingData()
 			if err != nil {
-				return err
-			}
-			var workspaces []entity.Workspace
-			for _, v := range allWorkspaces {
-				if v.CreatedByUserID == "62ga2fflb" {
-					workspaces = append(workspaces, v)
-				}
+				t.Vprint(t.Red(err.Error()))
 			}
 
-			hello.Step1(t, workspaces)
-
+			t.Vprintf("\nOnboarding Skipped: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingSkipped))
+			t.Vprintf("\nCliOnboardingIntro: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingIntro))
+			t.Vprintf("\nCliOnboardingLs: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingLs))
+			t.Vprintf("\nCliOnboardingBrevOpen: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingBrevOpen))
+			t.Vprintf("\nCliOnboardingBrevShell: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingBrevShell))
+			t.Vprintf("\nCliOnboardingCompleted: %v", prettyPrintBoolean(t, currentOnboardingStatus.CliOnboardingCompleted))
+			t.Vprintf("\n")
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func prettyPrintBoolean(t *terminal.Terminal, res bool) string {
+	if res {
+		return t.Green("%v", res)
+	} else {
+		return t.Red("%v", res)
+	}
 }

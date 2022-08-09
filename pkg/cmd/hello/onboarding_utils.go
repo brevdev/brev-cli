@@ -21,7 +21,7 @@ func GetFirstName(name string) string {
 	return name
 }
 
-func ShouldWeRunOnboarding() bool {
+func ShouldWeRunOnboarding(store HelloStore) bool {
 	oo, err := GetOnboardingObject()
 	if err != nil {
 		return true
@@ -33,7 +33,7 @@ func ShouldWeRunOnboarding() bool {
 	}
 }
 
-func CanWeOnboard(t *terminal.Terminal, user *entity.User) {
+func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) {
 	s := t.Green("\n\nHi " + GetFirstName(user.Name) + "! Looks like it's your first time using Brev!\n")
 
 	TypeItToMe(s)
@@ -44,13 +44,15 @@ func CanWeOnboard(t *terminal.Terminal, user *entity.User) {
 		Items:    []string{"Yes!", "No, I'll read docs later"},
 	})
 	if res == "Yes!" {
-		RunOnboarding(t, user)
+		RunOnboarding(t, user, store)
 	} else {
 		_ = SetOnboardingObject(OnboardingObject{
 			Step:            1,
 			HasRunBrevOpen:  true,
 			HasRunBrevShell: true,
 		})
+
+		_ = SkippedOnboarding(user, store)
 
 		t.Vprintf("\nOkay, you can always read the docs at %s\n\n", t.Yellow("https://brev.dev/docs"))
 	}

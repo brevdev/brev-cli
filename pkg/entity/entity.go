@@ -398,9 +398,15 @@ func (w Workspace) GetNodeIdentifierForVPN() string {
 }
 
 type OnboardingData struct {
-	Editor  string `json:"editor"`
-	SSH     bool   `json:"ssh"`
-	UsedCLI bool   `json:"usedCli"`
+	Editor                 string `json:"editor"`
+	SSH                    bool   `json:"ssh"`
+	UsedCLI                bool   `json:"usedCli"`
+	CliOnboardingSkipped   bool   `json:"cliOnboardingSkipped"`
+	CliOnboardingIntro     bool   `json:"cliOnboardingIntro"`
+	CliOnboardingLs        bool   `json:"cliOnboardingLs"`
+	CliOnboardingBrevOpen  bool   `json:"cliOnboardingBrevOpen"`
+	CliOnboardingBrevShell bool   `json:"cliOnboardingBrevShell"`
+	CliOnboardingCompleted bool   `json:"cliOnboardingCompleted"`
 }
 
 // https://stackoverflow.com/questions/27545270/how-to-get-a-value-from-map/
@@ -432,9 +438,15 @@ func safeBoolMap(mapStrInter map[string]interface{}, key string, fallback bool) 
 
 func (u User) GetOnboardingData() (*OnboardingData, error) {
 	x := &OnboardingData{
-		Editor:  safeStringMap(u.OnboardingData, "editor", ""), // empty string is the false state here
-		SSH:     safeBoolMap(u.OnboardingData, "SSH", false),
-		UsedCLI: safeBoolMap(u.OnboardingData, "usedCLI", false),
+		Editor:                 safeStringMap(u.OnboardingData, "editor", ""), // empty string is the false state here
+		SSH:                    safeBoolMap(u.OnboardingData, "SSH", false),
+		UsedCLI:                safeBoolMap(u.OnboardingData, "usedCLI", false),
+		CliOnboardingSkipped:   safeBoolMap(u.OnboardingData, "cliOnboardingSkipped", false),
+		CliOnboardingIntro:     safeBoolMap(u.OnboardingData, "cliOnboardingIntro", false),
+		CliOnboardingLs:        safeBoolMap(u.OnboardingData, "cliOnboardingLs", false),
+		CliOnboardingBrevOpen:  safeBoolMap(u.OnboardingData, "cliOnboardingBrevOpen", false),
+		CliOnboardingBrevShell: safeBoolMap(u.OnboardingData, "cliOnboardingBrevShell", false),
+		CliOnboardingCompleted: safeBoolMap(u.OnboardingData, "cliOnboardingCompleted", false),
 	}
 	return x, nil
 }
