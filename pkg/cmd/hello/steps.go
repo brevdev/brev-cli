@@ -12,48 +12,76 @@ import (
 func Stall(t *terminal.Terminal, workspace entity.Workspace) {
 }
 
-const DEFAULT_WORKSPACE = "first-workspace-react"
+const DEFAULT_DEV_ENV_NAME = "first-workspace-react"
 
 /*
 	Return nil to exit the onboarding
 */
-func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *entity.Workspace {
-	var firstWorkspace entity.Workspace
-	var runningWorkspaces []entity.Workspace
+func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *entity.Workspace {
+	var firstDevEnv entity.Workspace
+	var runningDevEnvs []entity.Workspace
+	noneFound := true
 	for _, v := range workspaces {
-		if v.Name == DEFAULT_WORKSPACE {
-			firstWorkspace = v
+		if v.Name == DEFAULT_DEV_ENV_NAME {
+			firstDevEnv = v
+			noneFound = false
 		}
 		if v.Status == "RUNNING" {
-			runningWorkspaces = append(runningWorkspaces, v)
+			runningDevEnvs = append(runningDevEnvs, v)
 		}
 	}
 
-	if firstWorkspace.Status == "RUNNING" {
-		// all is good, proceed.
-		// always prefer to do the demo with the first workspace react cus it's setup properly
-		return &firstWorkspace
-	} else if firstWorkspace.Status == "DEPLOYING" {
-		// TODO: STALL
-	} else if firstWorkspace.Status == "UNHEALTHY" {
-		s := t.Red("Your workspace seems stuck. Can you reach out to support?")
-		s += "\nMessage us "
-		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
-		s += "\n\t via text or call 👉 " + t.Yellow("(415) 237-2247\n")
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walkthrough when your dev env is ready\n"
-		TypeItToMe(s)
-	} else if firstWorkspace.Status == "STOPPED" {
-		// TODO: tell them to start it then try again
-	} else {
+	if noneFound {
 		s := t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DEFAULT_WORKSPACE)
-		s += "\n\nRun: " + t.Yellow("brev hello") + " to start this walk through again when your dev env is ready\n"
+		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DEFAULT_DEV_ENV_NAME)
+		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
 	}
 
-	return &firstWorkspace
+	if firstDevEnv.Status == "RUNNING" {
+		// all is good, proceed.
+		return &firstDevEnv
+	} else if firstDevEnv.Status == "DEPLOYING" {
+		s := t.Yellow("Your dev environment is deploying.")
+		s += "\nPlease wait for it to finish deploying then run " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		TypeItToMe(s)
+		return nil
+
+	} else if firstDevEnv.Status == "UNHEALTHY" {
+		s := t.Red("Your dev environment seems stuck. Can you reach out to support?")
+		s += "\nMessage us "
+		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
+		s += "\n\t via text or call 👉 " + t.Yellow("(415) 237-2247\n")
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		TypeItToMe(s)
+		return nil
+
+	} else if firstDevEnv.Status == "STOPPED" {
+		s := t.Yellow("Your dev environment is stopped.")
+		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DEFAULT_DEV_ENV_NAME)
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		TypeItToMe(s)
+		return nil
+
+	} else if firstDevEnv.Status == "STOPPING" {
+		s := t.Yellow("Your dev environment is stopped.")
+		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DEFAULT_DEV_ENV_NAME)
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		TypeItToMe(s)
+		return nil
+
+	} else {
+		s := t.Red("Please create a running dev environment for this walk through. ")
+		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
+		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DEFAULT_DEV_ENV_NAME)
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		TypeItToMe(s)
+		return nil
+	}
+
+	return &firstDevEnv
 }
 
 /*
@@ -61,7 +89,7 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *e
 		The user just ran brev ls
 */
 func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
-	firstWorkspace := GetWorkspaceOrStall(t, workspaces)
+	firstWorkspace := GetDevEnvOrStall(t, workspaces)
 	if firstWorkspace == nil {
 		return
 	}
@@ -161,7 +189,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 }
 
 func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
-	if ws.Name == DEFAULT_WORKSPACE {
+	if ws.Name == DEFAULT_DEV_ENV_NAME {
 		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost."
 		s += "\nFrom within that Brev dev environment,\n\tRun " + t.Yellow("npm run start") + " to spin up the service"
 		s += "\nThen instead of going to localhost:3000, \n\tGo to " + t.Yellow("https://3000-%s", ws.DNS)
