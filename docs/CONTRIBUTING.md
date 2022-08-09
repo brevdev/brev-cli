@@ -434,7 +434,7 @@ Notable files:
 
 ## Note for admins
 
-default configuration is broken for admins, add this config to your `~/brev`
+default configuration is broken for admins, add this config to your `~/.brev/config.yaml`
 
 ```yaml
 feature:
