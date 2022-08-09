@@ -1,6 +1,7 @@
 package hello
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -51,6 +52,20 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 func TypeItToMe(s string) {
 	sleepSpeed := 47
 
+	// Make outgoing reader routine
+	outgoing := make(chan string)
+	go func() {
+		inputReader := bufio.NewReader(os.Stdin)
+		for {
+			o, err := inputReader.ReadString('\n')
+			if err != nil {
+				fmt.Printf("outgoing error: %v", err)
+				return
+			}
+			outgoing <- o
+		}
+	}()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer ctx.Done()
 	// Exit gracefully by cancelling the ipnserver context in most common cases:
@@ -62,14 +77,19 @@ func TypeItToMe(s string) {
 	// want to keep running.
 	signal.Ignore(syscall.SIGPIPE)
 	go func() {
-		select {
-		case <-interrupt:
-			// logf("tailscaled got signal %v; shutting down", s)
-			sleepSpeed = 1 / 2
-			// cancel()
-		case <-ctx.Done():
-			cancel()
-			// continue
+		for {
+			select {
+			case <-outgoing:
+				sleepSpeed = sleepSpeed / 2
+
+			case <-interrupt:
+				// fmt.Printf("\r")
+				sleepSpeed = 0
+				// cancel()
+			case <-ctx.Done():
+				cancel()
+				// continue
+			}
 		}
 	}()
 
@@ -77,7 +97,6 @@ func TypeItToMe(s string) {
 	for i := 0; i < len(sRunes); i++ {
 		// if context cancelled then exit
 		time.Sleep(time.Duration(sleepSpeed) * time.Millisecond)
-
 		fmt.Printf("%c", sRunes[i])
 	}
 }
