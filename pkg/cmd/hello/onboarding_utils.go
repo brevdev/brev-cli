@@ -36,7 +36,7 @@ func ShouldWeRunOnboarding(store HelloStore) bool {
 func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) {
 	s := t.Green("\n\nHi " + GetFirstName(user.Name) + "! Looks like it's your first time using Brev!\n")
 
-	TypeItToMe(s)
+	TypeItToMeUnskippable(s)
 
 	res := terminal.PromptSelectInput(terminal.PromptSelectContent{
 		Label:    "Want a quick tour?",

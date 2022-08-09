@@ -101,10 +101,10 @@ func TypeItToMe(s string) {
 	}
 }
 
-func TypeItToMeOLD(s string) {
+func TypeItToMeUnskippable(s string) {
 	sRunes := []rune(s)
 	for i := 0; i < len(sRunes); i++ {
-		time.Sleep(47 * time.Millisecond)
+		time.Sleep(37 * time.Millisecond)
 
 		fmt.Printf("%c", sRunes[i])
 	}
@@ -121,24 +121,20 @@ func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) {
 
 	s := "Hey " + GetFirstName(user.Name) + "!\n"
 
-	TypeItToMe(s)
-
-	s = "\n\nI'm Nader 👋  Co-founder of Brev. I'll show you around"
+	s += "\n\nI'm Nader 👋  Co-founder of Brev. I'll show you around"
 	s += "\nbtw, text me or call me if you need anything"
 	s += ". My cell is " + t.Yellow("(415) 237-2247")
-	TypeItToMe(s)
 
-	s = "\n\nBrev is a dev tool for creating and sharing dev environments"
-	TypeItToMe(s)
+	s += "\n\nBrev is a dev tool for creating and sharing dev environments"
+	s += "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
 
 	wg.Add(2)
-	go finishOutput(t)
+	go finishOutput(t, s)
 	go MarkOnboardingStepCompleted(t, user, store)
 	wg.Wait()
 }
 
-func finishOutput(t *terminal.Terminal) {
-	s := "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
+func finishOutput(t *terminal.Terminal, s string) {
 	TypeItToMe(s)
 	wg.Done()
 }
