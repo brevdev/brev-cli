@@ -1,7 +1,6 @@
 package hello
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +21,18 @@ func GetFirstName(name string) string {
 	return name
 }
 
+func ShouldWeRunOnboarding() bool {
+	oo, err := GetOnboardingObject()
+	if err != nil {
+		return true
+	}
+	if oo.Step == 0 && oo.HasRunBrevOpen == false && oo.HasRunBrevShell == false {
+		return true
+	} else {
+		return false
+	}
+}
+
 func CanWeOnboard(t *terminal.Terminal, user *entity.User) {
 	s := t.Green("\n\nHi " + GetFirstName(user.Name) + "! Looks like it's your first time using Brev!\n")
 
@@ -35,32 +46,14 @@ func CanWeOnboard(t *terminal.Terminal, user *entity.User) {
 	if res == "Yes!" {
 		RunOnboarding(t, user)
 	} else {
+		_ = SetOnboardingObject(OnboardingObject{
+			Step:            1,
+			HasRunBrevOpen:  true,
+			HasRunBrevShell: true,
+		})
+
 		t.Vprintf("\nOkay, you can always read the docs at %s\n\n", t.Yellow("https://brev.dev/docs"))
 	}
-}
-
-func TESTReadAndWriteFile() error {
-	fmt.Println("reading file")
-	res, err := GetOnboardingObject()
-	if err != nil {
-		return err
-	}
-	fmt.Println(res.Step)
-
-	newVal := 1
-	fmt.Println("writing " + fmt.Sprint(newVal) + " to file")
-	err = SetOnboardingStep(1)
-	if err != nil {
-		return err
-	}
-
-	res, err = GetOnboardingObject()
-	if err != nil {
-		return err
-	}
-	fmt.Println(res.Step)
-
-	return nil
 }
 
 func GetOnboardingFilePath() (string, error) {

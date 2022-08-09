@@ -80,8 +80,6 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 		TypeItToMe(s)
 		return nil
 	}
-
-	return &firstDevEnv
 }
 
 /*
