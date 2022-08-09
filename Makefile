@@ -20,7 +20,7 @@ ci: ## CI build
 ci: dev diff
 
 .PHONY: github-ci
-github-ci: ## github actions doesn't need diff since it is always running on latest commit
+github-ci: ## github actions shouldn't run git diff
 github-ci: dev
 
 .PHONY: clean
