@@ -14,6 +14,9 @@ func Stall(t *terminal.Terminal, workspace entity.Workspace) {
 
 const DEFAULT_WORKSPACE = "first-workspace-react"
 
+/*
+	Return nil to exit the onboarding
+*/
 func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *entity.Workspace {
 	var firstWorkspace entity.Workspace
 	var runningWorkspaces []entity.Workspace
@@ -32,38 +35,22 @@ func GetWorkspaceOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *e
 		return &firstWorkspace
 	} else if firstWorkspace.Status == "DEPLOYING" {
 		// TODO: STALL
+	} else if firstWorkspace.Status == "UNHEALTHY" {
+		s := t.Red("Your workspace seems stuck. Can you reach out to support?")
+		s += "\nMessage us "
+		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
+		s += "\n\t via text or call 👉 " + t.Yellow("(415) 237-2247\n")
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walkthrough when your dev env is ready\n"
+		TypeItToMe(s)
+	} else if firstWorkspace.Status == "STOPPED" {
+		// TODO: tell them to start it then try again
 	} else {
 		s := t.Red("Please create a running dev environment for this walk through. ")
-		s += "\nYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\nRun " + t.Yellow("brev hello") + " to start this walk through again\n"
+		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
+		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DEFAULT_WORKSPACE)
+		s += "\n\nRun: " + t.Yellow("brev hello") + " to start this walk through again when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
-		// TODO: EXIT THE ONBOARDING
-
-		// // BANANA: This whole section feels like feature creep
-		// // Do they have a running workspace? -> use it
-		// if len(runningWorkspaces) > 0 {
-		// 	firstWorkspace = runningWorkspaces[0]
-		// } else {
-		// 	// No running workspaces, do they have a workspace that is deploying? -> use it
-		// 	for _, v := range workspaces {
-		// 		if v.Status == "DEPLOYING" {
-		// 			firstWorkspace = v
-		// 			// STALL
-		// 		}
-		// 	}
-
-		// 	// No workspace? -> tell them to create one...
-		// 	t.Vprintf("\n You don't have a dev environment yet. Go to the console to create a new one: https://console.brev.dev")
-		// 	res := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		// 		Label:    "Want me to create a demo environment for you?",
-		// 		ErrorMsg: "Please pick yes or no",
-		// 		Items:    []string{"Yes", "No thanks, I'll do it'"},
-		// 	})
-		// 	if res == "Yes" {
-		// 		// TODO: create workspace react....
-		// 	}
-		// }
 	}
 
 	return &firstWorkspace
@@ -169,6 +156,8 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev/docs") + " and let us know if we can help!\n"
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
 	TypeItToMe(s)
+
+	// TODO: hit the backend and update the onboarding object
 }
 
 func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
