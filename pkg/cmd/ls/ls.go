@@ -28,6 +28,7 @@ type LsStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	hello.HelloStore
 }
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
@@ -69,7 +70,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 				}
 			}
 
-			hello.Step1(t, myWorkspaces)
+			hello.Step1(t, myWorkspaces, user, loginLsStore)
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)

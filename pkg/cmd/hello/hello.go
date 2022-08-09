@@ -48,7 +48,7 @@ func TypeItToMe(s string) {
 	sRunes := []rune(s)
 	for i := 0; i < len(sRunes); i++ {
 		// BANANA: undo this
-		time.Sleep(17 * time.Millisecond)
+		time.Sleep(7 * time.Millisecond)
 
 		fmt.Printf("%c", sRunes[i])
 	}

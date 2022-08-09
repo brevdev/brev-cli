@@ -65,9 +65,9 @@ func CompletedOnboardingLs(user *entity.User, store HelloStore) error {
 	return nil
 }
 
-func CompletedOnboardingOpen(user *entity.User, store HelloStore) error {
+func CompletedOnboardingShell(user *entity.User, store HelloStore) error {
 	newOnboardingStatus := make(map[string]interface{})
-	newOnboardingStatus["cliOnboardingBrevOpen"] = true
+	newOnboardingStatus["cliOnboardingBrevShell"] = true
 
 	_, err := store.UpdateUser(user.ID, &entity.UpdateUser{
 		// username, name, and email are required fields, but we only care about onboarding status
@@ -83,9 +83,9 @@ func CompletedOnboardingOpen(user *entity.User, store HelloStore) error {
 	return nil
 }
 
-func CompletedOnboardingShell(user *entity.User, store HelloStore) error {
+func CompletedOnboardingOpen(user *entity.User, store HelloStore) error {
 	newOnboardingStatus := make(map[string]interface{})
-	newOnboardingStatus["cliOnboardingBrevShell"] = true
+	newOnboardingStatus["cliOnboardingBrevOpen"] = true
 
 	_, err := store.UpdateUser(user.ID, &entity.UpdateUser{
 		// username, name, and email are required fields, but we only care about onboarding status

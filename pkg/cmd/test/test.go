@@ -3,7 +3,6 @@ package test
 import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -60,7 +59,7 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 
 			user, _ := store.GetCurrentUser()
-			hello.CanWeOnboard(t, user, store)
+			// hello.CanWeOnboard(t, user, store)
 
 			currentOnboardingStatus, err := user.GetOnboardingData()
 			if err != nil {

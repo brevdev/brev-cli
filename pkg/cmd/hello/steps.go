@@ -86,7 +86,9 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	Step 1:
 		The user just ran brev ls
 */
-func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
+func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.User, store HelloStore) {
+	CompletedOnboardingLs(user, store)
+
 	firstWorkspace := GetDevEnvOrStall(t, workspaces)
 	if firstWorkspace == nil {
 		return
@@ -125,6 +127,8 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 	}
 
+	CompletedOnboardingShell(user, store)
+
 	s = "\nHit enter to continue:"
 	TypeItToMe(s)
 
@@ -137,7 +141,6 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		AllowEmpty: true,
 	})
 
-	// TODO: "ready to try opening vs code to that environment?"
 	s = "\n\nAwesome! Now try opening VS Code in that environment"
 	s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
 	TypeItToMe(s)
@@ -163,6 +166,8 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 		}
 	}
 
+	CompletedOnboardingOpen(user, store)
+
 	s = "\nHit enter to continue:"
 	TypeItToMe(s)
 
@@ -183,7 +188,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace) {
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
 	TypeItToMe(s)
 
-	// TODO: hit the backend and update the onboarding object
+	CompletedOnboarding(user, store)
 }
 
 func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
