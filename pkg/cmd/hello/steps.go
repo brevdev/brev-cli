@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/fatih/color"
 )
 
@@ -134,43 +135,62 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		AllowEmpty: true,
 	})
 
-	s = "\n\nAwesome! Now try opening VS Code in that environment"
-	s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
-	TypeItToMe(s)
-
-	// a while loop in golang
-	sum = 0
-	spinner.Suffix = "☝️ try that, I'll wait"
-	spinner.Start()
-	for sum < 1 {
-		sum += sum
-		res, err := GetOnboardingObject()
-		if err != nil {
+	// TODO: check if VS Code is preferred editor
+	currentOnboardingStatus, err := user.GetOnboardingData()
+	if err != nil {
+		return
+	}
+	if currentOnboardingStatus.Editor == "VSCode" {
+		// TODO: check if ext is installed
+		isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+		if !isInstalled || err != nil {
+			// The error here is most likely because code isn't in path and we depend on that
+			// TODO: remove the dependency on code being in path
+			s = t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
+			s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
+			// s += "Here's a video of me installing the VS Code extension 👉 " + ""
+			TypeItToMe(s)
 			return
 		}
-		if res.HasRunBrevOpen {
-			spinner.Suffix = "🎉 you did it!"
-			time.Sleep(250 * time.Millisecond)
-			spinner.Stop()
-			sum += 1
-			break
-		} else {
-			time.Sleep(1 * time.Second)
+
+		s = "\n\nAwesome! Now try opening VS Code in that environment"
+		s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
+		TypeItToMe(s)
+
+		// a while loop in golang
+		sum = 0
+		spinner.Suffix = "☝️ try that, I'll wait"
+		spinner.Start()
+		for sum < 1 {
+			sum += sum
+			res, err := GetOnboardingObject()
+			if err != nil {
+				return
+			}
+			if res.HasRunBrevOpen {
+				spinner.Suffix = "🎉 you did it!"
+				time.Sleep(250 * time.Millisecond)
+				spinner.Stop()
+				sum += 1
+				break
+			} else {
+				time.Sleep(1 * time.Second)
+			}
 		}
+
+		CompletedOnboardingOpen(user, store)
+
+		s = "\nHit enter to continue:"
+		TypeItToMe(s)
+
+		fmt.Print("\n")
+		_ = terminal.PromptGetInput(terminal.PromptContent{
+			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+			Label:      "   " + bold("▸"),
+			ErrorMsg:   "error",
+			AllowEmpty: true,
+		})
 	}
-
-	CompletedOnboardingOpen(user, store)
-
-	s = "\nHit enter to continue:"
-	TypeItToMe(s)
-
-	fmt.Print("\n")
-	_ = terminal.PromptGetInput(terminal.PromptContent{
-		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
-		Label:      "   " + bold("▸"),
-		ErrorMsg:   "error",
-		AllowEmpty: true,
-	})
 
 	handleLocalhostURLIfDefaultProject(*firstWorkspace, t)
 

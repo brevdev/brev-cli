@@ -59,8 +59,11 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
 
-			s := "\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome\nHey rob and nader yall awesome"
+			s := t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
+			s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
+			// s += "Here's a video of me installing the VS Code extension 👉 " + ""
 			hello.TypeItToMe(s)
+
 			return nil
 		},
 	}

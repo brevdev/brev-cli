@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -24,7 +25,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
-	"golang.org/x/text/encoding/charmap"
 )
 
 type LoginOptions struct {
@@ -364,7 +364,7 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore, ide string) (string, error) {
 	if ide == "VSCode" {
 		// Check if user uses VSCode and intall extension for user
-		isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+		isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
 		if err != nil {
 			t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
 			t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
@@ -382,7 +382,7 @@ func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore, ide str
 			_ = cmd.Run()
 
 			// verify installation
-			isInstalled, err := isVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+			isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
 
 			// tell the user to install manually if still not installed
 			if !isInstalled || err != nil {
@@ -446,21 +446,6 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 	}
 
 	return nil
-}
-
-func isVSCodeExtensionInstalled(extensionID string) (bool, error) {
-	cmdddd := exec.Command("code", "--list-extensions") // #nosec G204
-	in, err := cmdddd.Output()
-	if err != nil {
-		return false, breverrors.WrapAndTrace(err)
-	}
-
-	d := charmap.CodePage850.NewDecoder()
-	out, err := d.Bytes(in)
-	if err != nil {
-		return false, breverrors.WrapAndTrace(err)
-	}
-	return strings.Contains(string(out), extensionID), nil
 }
 
 func CheckAndInstallGateway(t *terminal.Terminal, store LoginStore) error {

@@ -4,11 +4,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/hashicorp/go-multierror"
+	"golang.org/x/text/encoding/charmap"
 )
 
 // This package should only be used as a holding pattern to be later moved into more specific packages
@@ -87,4 +89,19 @@ func DoesPathExist(path string) bool {
 		return false
 	}
 	return false
+}
+
+func IsVSCodeExtensionInstalled(extensionID string) (bool, error) {
+	cmdddd := exec.Command("code", "--list-extensions") // #nosec G204
+	in, err := cmdddd.Output()
+	if err != nil {
+		return false, err
+	}
+
+	d := charmap.CodePage850.NewDecoder()
+	out, err := d.Bytes(in)
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(string(out), extensionID), nil
 }
