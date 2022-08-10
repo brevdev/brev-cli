@@ -13,6 +13,37 @@ import (
 
 const DefaultDevEnvName = "first-workspace-react"
 
+func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
+	s := ""
+	switch status {
+	case "RUNNING":
+	case "DEPLOYING":
+		s += t.Yellow("Your dev environment is deploying.")
+		s += "\nPlease wait for it to finish deploying then run " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+	case "UNHEALTHY":
+		s += t.Red("Your dev environment seems stuck. Can you reach out to support?")
+		s += "\nMessage us "
+		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
+		s += "\n\t via text or call 👉 " + t.Yellow("(415) 237-2247\n")
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+	case "STOPPED":
+		s += t.Yellow("Your dev environment is stopped.")
+		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+
+	case "STOPPING":
+		s += t.Yellow("Your dev environment is stopped.")
+		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+	default:
+		s += t.Red("Please create a running dev environment for this walk through. ")
+		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
+		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+	}
+	return s
+}
+
 /*
 	Return nil to exit the onboarding
 */
@@ -38,44 +69,11 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 		TypeItToMe(s)
 		return nil
 	}
-	switch firstDevEnv.Status {
-	case "RUNNING":
-		return &firstDevEnv
-	case "DEPLOYING":
-		s := t.Yellow("Your dev environment is deploying.")
-		s += "\nPlease wait for it to finish deploying then run " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
-		TypeItToMe(s)
-		return nil
-	case "UNHEALTHY":
-		s := t.Red("Your dev environment seems stuck. Can you reach out to support?")
-		s += "\nMessage us "
-		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
-		s += "\n\t via text or call 👉 " + t.Yellow("(415) 237-2247\n")
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
-		TypeItToMe(s)
-		return nil
-	case "STOPPED":
-		s := t.Yellow("Your dev environment is stopped.")
-		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
-		TypeItToMe(s)
-		return nil
-
-	case "STOPPING":
-		s := t.Yellow("Your dev environment is stopped.")
-		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
-		TypeItToMe(s)
-		return nil
-
-	default:
-		s := t.Red("Please create a running dev environment for this walk through. ")
-		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
-		TypeItToMe(s)
-		return nil
+	msg := GetTextBasedONStatus(firstDevEnv.Status, t)
+	if msg != "" {
+		TypeItToMe(msg)
 	}
+	return &firstDevEnv
 }
 
 /*
