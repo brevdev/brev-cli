@@ -655,6 +655,38 @@ alice=bob`,
 				},
 			},
 		},
+		{
+			name: "don't include invalid env var names",
+			args: args{
+				input: `export f$*;=nader-testing`,
+			},
+			want: []item{
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
+					typ: itemError,
+					val: "unexpected semicolon",
+				},
+			},
+		},
+		{
+			name: "don't include invalid env var names w/o semicolon",
+			args: args{
+				input: `export f$*=nader-testing`,
+			},
+			want: []item{
+				{
+					typ: itemSpace,
+					val: " ",
+				},
+				{
+					typ: itemError,
+					val: "unexpected key character: '$'",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

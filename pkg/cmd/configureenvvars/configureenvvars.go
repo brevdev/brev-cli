@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alessio/shellescape"
 	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -62,6 +63,11 @@ func generateExportString(brevEnvsString, envFileContents string) string {
 	brevEnvKeys := strings.Split(brevEnvsString, ",")
 
 	envfileEntries := parse(envFileContents)
+	for key, val := range envfileEntries {
+		if !strings.HasPrefix(val, "'") { // already quoted
+			envfileEntries[key] = shellescape.Quote(val)
+		}
+	}
 	envFileKeys := keys(envfileEntries)
 	// sort to make tests consistent
 	sort.Slice(envFileKeys, func(i, j int) bool {

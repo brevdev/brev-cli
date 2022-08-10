@@ -3,6 +3,7 @@ package configureenvvars
 import (
 	"fmt"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -147,15 +148,15 @@ func lexText(l *lexer) stateFn {
 const hyphen = "-"
 
 func lexKey(l *lexer) stateFn {
-	if strings.Contains(l.input[l.start:l.pos], hyphen) {
-		return l.errorf("key contains hyphen")
+	s := l.input[l.start:l.pos]
+	// determine if s alphanumeric or an underscore
+	// https://stackoverflow.com/questions/2821043/allowed-characters-in-linux-environment-variable-names
+	for _, r := range s {
+		if !(unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_') {
+			return l.errorf("unexpected key character: %q", r)
+		}
 	}
-	if strings.Contains(l.input[l.start:l.pos], space) {
-		return l.errorf("key contains space")
-	}
-	if strings.Contains(l.input[l.start:l.pos], tab) {
-		return l.errorf("key contains tab")
-	}
+
 	l.emit(itemKey)
 	return lexEquals
 }
@@ -174,6 +175,9 @@ func lexEquals(l *lexer) stateFn {
 
 func lexSemiColon(l *lexer) stateFn {
 	l.next()
+	if l.input[l.start:l.pos] != semicolon {
+		return l.errorf("unexpected semicolon")
+	}
 	l.emit(itemSemiColon)
 	return lexText
 }
