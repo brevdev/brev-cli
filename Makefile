@@ -48,13 +48,14 @@ vet: ## go vet
 fmt: ## go fmt
 	$(call print-target)
 	gofumpt -l -w .
+	find . -name "*.md" -exec npx prettier --write {} \;
 
 .PHONY: lint
 lint: ## golangci-lint
 	$(call print-target)
 	golangci-lint run --timeout 5m
-	# lint all readme files with prettier
-	find . -name "*.md" -exec npx prettier --write {} \;
+	find . -name "*.md" -exec npx prettier -c {} \;
+
 
 .PHONY: test
 test: ## go test with race detector and code covarage
