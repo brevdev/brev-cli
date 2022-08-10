@@ -79,9 +79,12 @@ func runSSH(sshAlias string) error {
 	// 		I could set this to the prerun, but then it happens before they ssh in
 	// 		....
 	// This boolean tells the onboarding to continue to the next step!
-	hello.SetHasRunShell(true)
+	err := hello.SetHasRunShell(true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	err := sshCmd.Run()
+	err = sshCmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

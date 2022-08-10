@@ -424,29 +424,30 @@ func safeStringMap(mapStrInter map[string]interface{}, key, fallback string) str
 }
 
 // https://stackoverflow.com/questions/27545270/how-to-get-a-value-from-map/
-func safeBoolMap(mapStrInter map[string]interface{}, key string, fallback bool) bool {
+// return false if map key does not exist
+func safeFalseBoolMap(mapStrInter map[string]interface{}, key string) bool {
 	var value bool
 	var ok bool
 	if x, found := mapStrInter[key]; found {
 		if value, ok = x.(bool); !ok {
-			return fallback
+			return false
 		}
 		return value
 	}
-	return fallback
+	return false
 }
 
 func (u User) GetOnboardingData() (*OnboardingData, error) {
 	x := &OnboardingData{
 		Editor:                 safeStringMap(u.OnboardingData, "editor", ""), // empty string is the false state here
-		SSH:                    safeBoolMap(u.OnboardingData, "SSH", false),
-		UsedCLI:                safeBoolMap(u.OnboardingData, "usedCLI", false),
-		CliOnboardingSkipped:   safeBoolMap(u.OnboardingData, "cliOnboardingSkipped", false),
-		CliOnboardingIntro:     safeBoolMap(u.OnboardingData, "cliOnboardingIntro", false),
-		CliOnboardingLs:        safeBoolMap(u.OnboardingData, "cliOnboardingLs", false),
-		CliOnboardingBrevOpen:  safeBoolMap(u.OnboardingData, "cliOnboardingBrevOpen", false),
-		CliOnboardingBrevShell: safeBoolMap(u.OnboardingData, "cliOnboardingBrevShell", false),
-		CliOnboardingCompleted: safeBoolMap(u.OnboardingData, "cliOnboardingCompleted", false),
+		SSH:                    safeFalseBoolMap(u.OnboardingData, "SSH"),
+		UsedCLI:                safeFalseBoolMap(u.OnboardingData, "usedCLI"),
+		CliOnboardingSkipped:   safeFalseBoolMap(u.OnboardingData, "cliOnboardingSkipped"),
+		CliOnboardingIntro:     safeFalseBoolMap(u.OnboardingData, "cliOnboardingIntro"),
+		CliOnboardingLs:        safeFalseBoolMap(u.OnboardingData, "cliOnboardingLs"),
+		CliOnboardingBrevOpen:  safeFalseBoolMap(u.OnboardingData, "cliOnboardingBrevOpen"),
+		CliOnboardingBrevShell: safeFalseBoolMap(u.OnboardingData, "cliOnboardingBrevShell"),
+		CliOnboardingCompleted: safeFalseBoolMap(u.OnboardingData, "cliOnboardingCompleted"),
 	}
 	return x, nil
 }

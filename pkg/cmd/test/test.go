@@ -37,7 +37,7 @@ type ServiceMeshStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
-func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
+func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",

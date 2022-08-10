@@ -77,7 +77,10 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		return breverrors.WrapAndTrace(err)
 	}
 
-	hello.SetHasRunOpen(true)
+	err = hello.SetHasRunOpen(true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	err = openVsCodeWithSSH(string(localIdentifier), projPath)
 	if err != nil {

@@ -45,23 +45,23 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
   brev ls orgs
   brev ls --org <orgid>
 		`,
-		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if hello.ShouldWeRunOnboarding(loginLsStore) {
+		PersistentPostRunE: func(cmd *cobra.Command, args []string)  error {
+			if hello.ShouldWeRunOnboarding() {
 				// Getting the workspaces should go in the hello.go file but then
 				// requires passing in stores and that makes it hard to use in other commands
 				org, err := getOrgForRunLs(loginLsStore, org)
 				if err != nil {
-					return
+					return err
 				}
 
 				allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
 				if err != nil {
-					return
+					return err
 				}
 
 				user, err := loginLsStore.GetCurrentUser()
 				if err != nil {
-					return
+					return	err
 				}
 
 				var myWorkspaces []entity.Workspace
@@ -71,8 +71,13 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 					}
 				}
 
-				hello.Step1(t, myWorkspaces, user, loginLsStore)
+				err = hello.Step1(t, myWorkspaces, user, loginLsStore)
+				if err != nil {
+					return err
+				}
+
 			}
+			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)

@@ -120,7 +120,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
       Find more information at:
             https://brev.dev`,
 		PostRun: func(cmd *cobra.Command, args []string) {
-			shouldWe := hello.ShouldWeRunOnboarding(loginCmdStore)
+			shouldWe := hello.ShouldWeRunOnboarding()
 			if shouldWe {
 				user, err := loginCmdStore.GetCurrentUser()
 				if err != nil {

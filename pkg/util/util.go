@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+
 	"github.com/hashicorp/go-multierror"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -60,7 +61,7 @@ func (r RunEResult) Await() error {
 		}
 	}
 	if allErr != nil {
-		return errors.WrapAndTrace(allErr)
+		return breverrors.WrapAndTrace(allErr)
 	}
 	return nil
 }
@@ -95,13 +96,13 @@ func IsVSCodeExtensionInstalled(extensionID string) (bool, error) {
 	cmdddd := exec.Command("code", "--list-extensions") // #nosec G204
 	in, err := cmdddd.Output()
 	if err != nil {
-		return false, err
+		return false, breverrors.WrapAndTrace(err)
 	}
 
 	d := charmap.CodePage850.NewDecoder()
 	out, err := d.Bytes(in)
 	if err != nil {
-		return false, err
+		return false, breverrors.WrapAndTrace(err)
 	}
 	return strings.Contains(string(out), extensionID), nil
 }

@@ -41,7 +41,10 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			RunOnboarding(t, user, store)
+			err = RunOnboarding(t, user, store)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			return nil
 		},
 	}
@@ -75,7 +78,7 @@ func TypeItToMe(s string) {
 		for {
 			select {
 			case <-outgoing:
-				sleepSpeed = sleepSpeed / 2
+				sleepSpeed /= 2
 
 			case <-interrupt:
 				sleepSpeed = 0
@@ -104,9 +107,12 @@ func TypeItToMeUnskippable(s string) {
 
 var wg sync.WaitGroup
 
-func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) {
+func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) error {
 	// Reset the onboarding object to walk through the onboarding fresh
-	SetOnboardingObject(OnboardingObject{0, false, false})
+	err := SetOnboardingObject(OnboardingObject{0, false, false})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	terminal.DisplayBrevLogo(t)
 	t.Vprint("\n")
@@ -124,14 +130,19 @@ func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) {
 	go finishOutput(t, s)
 	go MarkOnboardingStepCompleted(t, user, store)
 	wg.Wait()
+	return nil
 }
 
-func finishOutput(t *terminal.Terminal, s string) {
+func finishOutput(_ *terminal.Terminal, s string) {
 	TypeItToMe(s)
 	wg.Done()
 }
 
-func MarkOnboardingStepCompleted(t *terminal.Terminal, user *entity.User, store HelloStore) {
-	CompletedOnboardingIntro(user, store)
+func MarkOnboardingStepCompleted(_ *terminal.Terminal, user *entity.User, store HelloStore) {
+	err := CompletedOnboardingIntro(user, store)
+	if err != nil {
+		// todo howto get this to sentry?
+		fmt.Printf("error marking onboarding step completed: %v", err)
+	}
 	wg.Done()
 }

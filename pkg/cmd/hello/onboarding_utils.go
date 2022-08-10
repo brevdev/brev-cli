@@ -21,19 +21,19 @@ func GetFirstName(name string) string {
 	return name
 }
 
-func ShouldWeRunOnboarding(store HelloStore) bool {
+func ShouldWeRunOnboarding() bool {
 	oo, err := GetOnboardingObject()
 	if err != nil {
 		return true
 	}
-	if oo.Step == 0 && oo.HasRunBrevOpen == false && oo.HasRunBrevShell == false {
+	if oo.Step == 0 && !oo.HasRunBrevOpen && !oo.HasRunBrevShell {
 		return true
 	} else {
 		return false
 	}
 }
 
-func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) {
+func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) error {
 	s := t.Green("\n\nHi " + GetFirstName(user.Name) + "! Looks like it's your first time using Brev!\n")
 
 	TypeItToMeUnskippable(s)
@@ -44,7 +44,10 @@ func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) {
 		Items:    []string{"Yes!", "No, I'll read docs later"},
 	})
 	if res == "Yes!" {
-		RunOnboarding(t, user, store)
+		err := RunOnboarding(t, user, store)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	} else {
 		_ = SetOnboardingObject(OnboardingObject{
 			Step:            1,
@@ -56,6 +59,7 @@ func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) {
 
 		t.Vprintf("\nOkay, you can always read the docs at %s\n\n", t.Yellow("https://brev.dev/docs"))
 	}
+	return nil
 }
 
 func GetOnboardingFilePath() (string, error) {
@@ -115,7 +119,10 @@ func GetOnboardingObject() (*OnboardingObject, error) {
 	}
 
 	// Ensure file exists
-	SetupDefaultOnboardingFile()
+	err = SetupDefaultOnboardingFile()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 
 	// read file
 	var oo OnboardingObject
@@ -136,7 +143,10 @@ func SetOnboardingObject(oo OnboardingObject) error {
 	}
 
 	// Ensure file exists
-	SetupDefaultOnboardingFile()
+	err = SetupDefaultOnboardingFile()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	// write file
 	err = files.OverwriteJSON(files.AppFs, path, &oo)
@@ -156,7 +166,10 @@ func SetOnboardingStep(step int) error {
 	}
 
 	// Ensure file exists
-	SetupDefaultOnboardingFile()
+	err = SetupDefaultOnboardingFile()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	// write file
 	oo := OnboardingObject{
@@ -179,7 +192,10 @@ func SetHasRunShell(hasRunShell bool) error {
 	}
 
 	// Ensure file exists
-	SetupDefaultOnboardingFile()
+	err = SetupDefaultOnboardingFile()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	// read file
 	var oo OnboardingObject
@@ -207,7 +223,10 @@ func SetHasRunOpen(hasRunOpen bool) error {
 	}
 
 	// Ensure file exists
-	SetupDefaultOnboardingFile()
+	err = SetupDefaultOnboardingFile()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	// read file
 	var oo OnboardingObject
@@ -227,12 +246,7 @@ func SetHasRunOpen(hasRunOpen bool) error {
 	return nil
 }
 
-func tellMeAboutBrevAndPoll(t *terminal.Terminal, env entity.Workspace) {
-	s := "In the beginning..."
-	TypeItToMe(s)
-}
-
-func Poll(t *terminal.Terminal, env entity.Workspace) {
+func Poll() {
 	s := "Got it."
 	TypeItToMe(s)
 }

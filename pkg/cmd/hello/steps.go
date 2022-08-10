@@ -5,15 +5,13 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/fatih/color"
 )
 
-func Stall(t *terminal.Terminal, workspace entity.Workspace) {
-}
-
-const DEFAULT_DEV_ENV_NAME = "first-workspace-react"
+const DefaultDevEnvName = "first-workspace-react"
 
 /*
 	Return nil to exit the onboarding
@@ -23,7 +21,7 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	var runningDevEnvs []entity.Workspace
 	noneFound := true
 	for _, v := range workspaces {
-		if v.Name == DEFAULT_DEV_ENV_NAME {
+		if v.Name == DefaultDevEnvName {
 			firstDevEnv = v
 			noneFound = false
 		}
@@ -35,22 +33,20 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	if noneFound {
 		s := t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DEFAULT_DEV_ENV_NAME)
+		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
 		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
 	}
-
-	if firstDevEnv.Status == "RUNNING" {
-		// all is good, proceed.
+	switch firstDevEnv.Status {
+	case "RUNNING":
 		return &firstDevEnv
-	} else if firstDevEnv.Status == "DEPLOYING" {
+	case "DEPLOYING":
 		s := t.Yellow("Your dev environment is deploying.")
 		s += "\nPlease wait for it to finish deploying then run " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
-
-	} else if firstDevEnv.Status == "UNHEALTHY" {
+	case "UNHEALTHY":
 		s := t.Red("Your dev environment seems stuck. Can you reach out to support?")
 		s += "\nMessage us "
 		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
@@ -58,25 +54,24 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
-
-	} else if firstDevEnv.Status == "STOPPED" {
+	case "STOPPED":
 		s := t.Yellow("Your dev environment is stopped.")
-		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DEFAULT_DEV_ENV_NAME)
+		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
 
-	} else if firstDevEnv.Status == "STOPPING" {
+	case "STOPPING":
 		s := t.Yellow("Your dev environment is stopped.")
-		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DEFAULT_DEV_ENV_NAME)
+		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
 
-	} else {
+	default:
 		s := t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DEFAULT_DEV_ENV_NAME)
+		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
@@ -87,12 +82,15 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	Step 1:
 		The user just ran brev ls
 */
-func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.User, store HelloStore) {
-	CompletedOnboardingLs(user, store)
+func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.User, store HelloStore) error {
+	err := CompletedOnboardingLs(user, store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	firstWorkspace := GetDevEnvOrStall(t, workspaces)
 	if firstWorkspace == nil {
-		return
+		return nil
 	}
 
 	s := "\n\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
@@ -106,22 +104,26 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	spinner.Suffix = "👆 try that, I'll wait"
 	spinner.Start()
 	for sum > -1 {
-		sum += 1
-		res, err := GetOnboardingObject()
-		if err != nil {
-			return
+		sum++
+
+		res, err2 := GetOnboardingObject()
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
 		if res.HasRunBrevShell {
 			spinner.Suffix = "🎉 you did it!"
 			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
 			break
-		} else {
-			time.Sleep(1 * time.Second)
 		}
+		time.Sleep(1 * time.Second)
+
 	}
 
-	CompletedOnboardingShell(user, store)
+	err = CompletedOnboardingShell(user, store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	s = "\nHit enter to continue:"
 	TypeItToMe(s)
@@ -138,19 +140,19 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	// TODO: check if VS Code is preferred editor
 	currentOnboardingStatus, err := user.GetOnboardingData()
 	if err != nil {
-		return
+		return breverrors.WrapAndTrace(err)
 	}
 	if currentOnboardingStatus.Editor == "VSCode" {
 		// TODO: check if ext is installed
-		isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
-		if !isInstalled || err != nil {
+		isInstalled, err2 := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+		if !isInstalled || err2 != nil {
 			// The error here is most likely because code isn't in path and we depend on that
 			// TODO: remove the dependency on code being in path
 			s = t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
 			s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
 			// s += "Here's a video of me installing the VS Code extension 👉 " + ""
 			TypeItToMe(s)
-			return
+			return nil
 		}
 
 		s = "\n\nAwesome! Now try opening VS Code in that environment"
@@ -163,22 +165,24 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		spinner.Start()
 		for sum < 1 {
 			sum += sum
-			res, err := GetOnboardingObject()
-			if err != nil {
-				return
+			res, err2 := GetOnboardingObject()
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
 			}
 			if res.HasRunBrevOpen {
 				spinner.Suffix = "🎉 you did it!"
 				time.Sleep(250 * time.Millisecond)
 				spinner.Stop()
-				sum += 1
 				break
-			} else {
-				time.Sleep(1 * time.Second)
 			}
+			time.Sleep(1 * time.Second)
+
 		}
 
-		CompletedOnboardingOpen(user, store)
+		err = CompletedOnboardingOpen(user, store)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 
 		s = "\nHit enter to continue:"
 		TypeItToMe(s)
@@ -201,11 +205,15 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
 	TypeItToMe(s)
 
-	CompletedOnboarding(user, store)
+	err = CompletedOnboarding(user, store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
-	if ws.Name == DEFAULT_DEV_ENV_NAME {
+	if ws.Name == DefaultDevEnvName {
 		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost."
 		s += "\nFrom within that Brev dev environment,\n\tRun " + t.Yellow("npm run start") + " to spin up the service"
 		s += "\nThen instead of going to localhost:3000, \n\tGo to " + t.Yellow("https://3000-%s", ws.DNS)
