@@ -70,11 +70,3 @@ func NewCmdTest(t *terminal.Terminal, store TestStore) *cobra.Command {
 
 	return cmd
 }
-
-func prettyPrintBoolean(t *terminal.Terminal, res bool) string {
-	if res {
-		return t.Green("%v", res)
-	} else {
-		return t.Red("%v", res)
-	}
-}
