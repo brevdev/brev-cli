@@ -227,24 +227,6 @@ func SetHasRunOpen(hasRunOpen bool) error {
 	return nil
 }
 
-func stall(t *terminal.Terminal, env entity.Workspace) {
-	s := "\nYour dev environment is still deploying. Sometimes this happens and it takes a lot longer than usual."
-	s += "\nWe're working really hard to fix that."
-	s += "\n\n"
-	TypeItToMe(s)
-
-	res := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label:    "In the meantime, I can tell you a bit about us?",
-		ErrorMsg: "Please pick yes or no",
-		Items:    []string{"Yes!", "Nah, just show me a spinner"},
-	})
-	if res == "Yes!" {
-		tellMeAboutBrevAndPoll(t, env)
-	} else {
-		Poll(t, env)
-	}
-}
-
 func tellMeAboutBrevAndPoll(t *terminal.Terminal, env entity.Workspace) {
 	s := "In the beginning..."
 	TypeItToMe(s)
