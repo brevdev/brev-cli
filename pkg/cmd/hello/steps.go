@@ -76,6 +76,37 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	return &firstDevEnv
 }
 
+func printLsIntroText(t *terminal.Terminal, firstWorkspace entity.Workspace) {
+	s := "\n\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
+	s += "\nIf the dev environment is " + t.Green("RUNNING") + ", you can open it."
+	s += "\n\nIn a new terminal, try running " + t.Green("brev shell %s", firstWorkspace.Name) + " to get a terminal in your dev environment\n"
+	TypeItToMe(s)
+}
+
+func printAskInstallVsCode(t *terminal.Terminal) {
+	// The error here is most likely because code isn't in path and we depend on that
+	// TODO: remove the dependency on code being in path
+	s := t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
+	s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
+	// s += "Here's a video of me installing the VS Code extension 👉 " + ""
+	TypeItToMe(s)
+}
+
+func printBrevOpen(t *terminal.Terminal, firstWorkspace entity.Workspace) {
+	s := "\n\nAwesome! Now try opening VS Code in that environment"
+	s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
+	TypeItToMe(s)
+}
+
+func printCompletedOnboarding(t *terminal.Terminal) {
+	s := "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
+	s += "\n\nUse the console " + t.Green("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
+	s += "\nand use this CLI to code the way you would normally 🤙"
+	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev/docs") + " and let us know if we can help!\n"
+	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
+	TypeItToMe(s)
+}
+
 /*
 	Step 1:
 		The user just ran brev ls
@@ -90,12 +121,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	if firstWorkspace == nil {
 		return nil
 	}
-
-	s := "\n\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
-	s += "\nIf the dev environment is " + t.Green("RUNNING") + ", you can open it."
-	s += "\n\nIn a new terminal, try running " + t.Green("brev shell %s", firstWorkspace.Name) + " to get a terminal in your dev environment\n"
-	TypeItToMe(s)
-
+	printLsIntroText(t, *firstWorkspace)
 	// a while loop in golang
 	sum := 0
 	spinner := t.NewSpinner()
@@ -123,10 +149,8 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		return breverrors.WrapAndTrace(err)
 	}
 
-	s = "\nHit enter to continue:"
-	TypeItToMe(s)
-
-	fmt.Print("\n")
+	TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
+	fmt.Println()
 	bold := color.New(color.Bold).SprintFunc()
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
@@ -144,18 +168,11 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		// TODO: check if ext is installed
 		isInstalled, err2 := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
 		if !isInstalled || err2 != nil {
-			// The error here is most likely because code isn't in path and we depend on that
-			// TODO: remove the dependency on code being in path
-			s = t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
-			s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
-			// s += "Here's a video of me installing the VS Code extension 👉 " + ""
-			TypeItToMe(s)
+			printAskInstallVsCode(t)
 			return nil
 		}
 
-		s = "\n\nAwesome! Now try opening VS Code in that environment"
-		s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
-		TypeItToMe(s)
+		printBrevOpen(t, *firstWorkspace)
 
 		// a while loop in golang
 		sum = 0
@@ -182,10 +199,9 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 			return breverrors.WrapAndTrace(err)
 		}
 
-		s = "\nHit enter to continue:"
-		TypeItToMe(s)
+		TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
+		fmt.Println()
 
-		fmt.Print("\n")
 		_ = terminal.PromptGetInput(terminal.PromptContent{
 			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
 			Label:      "   " + bold("▸"),
@@ -195,14 +211,7 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	}
 
 	handleLocalhostURLIfDefaultProject(*firstWorkspace, t)
-
-	s = "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
-	s += "\n\nUse the console " + t.Green("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
-	s += "\nand use this CLI to code the way you would normally 🤙"
-	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev/docs") + " and let us know if we can help!\n"
-	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
-	TypeItToMe(s)
-
+	printCompletedOnboarding(t)
 	err = CompletedOnboarding(user, store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
