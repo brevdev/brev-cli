@@ -210,12 +210,10 @@ func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Termina
 		s += "\nFrom within that Brev dev environment,\n\tRun " + t.Yellow("npm run start") + " to spin up the service"
 		s += "\nThen instead of going to localhost:3000, \n\tGo to " + t.Yellow("https://3000-%s", ws.DNS)
 
-		TypeItToMe(s)
-
 		// TODO: Give that a shot then press enter
 		bold := color.New(color.Bold).SprintFunc()
 
-		s = "\n\nGive that a shot then press enter👆:"
+		s += "\n\nGive that a shot then press enter👆:"
 		TypeItToMe(s)
 
 		fmt.Print("\n")
