@@ -361,27 +361,141 @@ export export=bob`,
 			},
 			want: envVars{"foo": "foo&bar>baz"},
 		},
-		// todo add these cases in the correct formaat
-		// 		{"Empty", "", "", ""},
+
+		// todo add these cases in the correct formaat'
 		// {"Emptyish", " ", "", ""},
+		{
+			name: "emptyish",
+			args: args{
+				content: " ",
+			},
+			want: e,
+		},
 		// {"OnlyComment", "# ...", "", ""},
+		{
+			name: "only comment",
+			args: args{
+				content: "# ...",
+			},
+			want: nil,
+		},
+
 		// {"OnlyCommentish", " # ...", "", ""},
+		{
+			name: "only commentish",
+			args: args{
+				content: " # ...",
+			},
+			want: nil,
+		},
 		// {"EmptyValue", "FoO=", "FoO", ""},
+		{
+			name: "empty value",
+			args: args{
+				content: "FoO=",
+			},
+			want: envVars{"FoO": ""},
+		},
 		// {"EmptyValueComment", "F=# ...", "F", ""},
+		{
+			name: "empty value comment",
+			args: args{
+				content: "F=# ...",
+			},
+			want: envVars{"F": ""},
+		},
 		// {"EmptyValueSpace", "F_O= ", "F_O", ""},
+		{
+			name: "empty value space",
+			args: args{
+				content: "F_O= ",
+			},
+			want: envVars{"F_O": ""},
+		},
 		// {"EmptyValueSpaceComment", "F= # ...", "F", ""},
-		// {"Simple", "FOO=bar", "FOO", "bar"},
-		// {"Export", "export FOO=bar", "FOO", "bar"},
+		{
+			name: "empty value space comment",
+			args: args{
+				content: "F= # ...",
+			},
+			want: envVars{"F": ""},
+		},
 		// {"Spaces", " FOO = bar baz ", "FOO", "bar baz"},
+		{
+			name: "spaces",
+			args: args{
+				content: " FOO = bar baz ",
+			},
+			want: envVars{"FOO": "bar baz"},
+		},
+
 		// {"Tabs", "	FOO	= 	bar 	", "FOO", "bar"},
+		{
+			name: "tabs",
+			args: args{
+				content: "	FOO	= 	bar 	",
+			},
+			want: envVars{"FOO": "bar"},
+		},
 		// {"ExportSpaces", "export FOO = bar", "FOO", "bar"},
+		{
+			name: "export spaces",
+			args: args{
+				content: "export FOO = bar",
+			},
+			want: envVars{"FOO": "bar"},
+		},
 		// {"ExportAsKey", "export = bar", "export", "bar"},
+		{
+			name: "export as key",
+			args: args{
+				content: "export = bar",
+			},
+			want: envVars{"export": "bar"},
+		},
 		// {"Nums", "A1B2C3=a1b2c3", "A1B2C3", "a1b2c3"},
-		// {"Comments", "FOO=bar # ok", "FOO", "bar"},
+		{
+			name: "nums",
+			args: args{
+				content: "A1B2C3=a1b2c3",
+			},
+			want: envVars{"A1B2C3": "a1b2c3"},
+		},
+		// {"Comments", "FOO=bar # ok", "FOO", "bar"},'
+		{
+			name: "comments",
+			args: args{
+				content: "FOO=bar # ok",
+			},
+			want: envVars{"FOO": "bar"},
+		},
 		// {"EmptyComments1", "FOO=#bar#", "FOO", ""},
+		{
+			name: "empty comments 1",
+			args: args{
+				content: "FOO=#bar#",
+			},
+			want: envVars{"FOO": ""},
+		},
 		// {"EmptyComments2", "FOO= # bar ", "FOO", ""},
+		{
+			name: "empty comments 2",
+			args: args{
+				content: "FOO= # bar ",
+			},
+			want: envVars{"FOO": ""},
+		},
+
 		// {"DoubleQuotes", `FOO="bar#"`, "FOO", "bar#"},
+		{
+			name: "double quotes",
+			args: args{
+				content: `FOO="bar#"`,
+			},
+			want: envVars{"FOO": "bar#"},
+		},
 		// {"DoubleQuoteNewline", `FOO="bar\n"`, "FOO", "bar\n"},
+		
 		// {"DoubleQuoteNewlineComment", `FOO="bar\n" # comment`, "FOO", "bar\n"},
 		// {"DoubleQuoteSpaces", `FOO = " bar\t" `, "FOO", " bar\t"},
 		// {"SingleQuotes", "FOO='bar#'", "FOO", "bar#"},
