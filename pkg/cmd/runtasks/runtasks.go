@@ -21,7 +21,7 @@ var long string
 func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	var detached bool
 	// would be nice to have a way to pass in a list of tasks to run instead of the default
-	var  runRemoteCMD bool
+	var runRemoteCMD bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},

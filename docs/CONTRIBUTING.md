@@ -259,19 +259,16 @@ start a workspace using this repo as a base
 brev start https://github.com/brevdev/brev-cli -n bcli-runner-0
 ```
 
-
 open a shell in your environment
 
 ```sh
 brev shell bcli-runner-0
 ```
 
-
 in this repo in `~/workspace`, run:
 
 create `~/workspace/actions-runner` directory, and install actions-runner into
 it
-
 
 ```sh
 mkdir ~/workspace/actions-runner && cd ~/workspace/actions-runner
@@ -339,13 +336,14 @@ Aug 05 18:09:58 w8s-ghub-runner-xwdm-brev-new-5ffb99758d-vdjdn bash[441429]: 202
 ```
 
 log into docker to avoid getting rate limited
+
 ```
 docker login
 ```
 
 viewing logs on a remote machine
 
- 1. get the ssh host key from the remote machine
+1.  get the ssh host key from the remote machine
 
 ```sh
 brev ls
@@ -381,19 +379,17 @@ run a command, and then send the output back to your local machine.
 ssh ghub-runner-xwdm sudo journalctl -f  -xeu actions-runner.service
 ```
 
-
-
 #### debugging notes
 
 when editing the service file, run
+
 ```
 sudo systemctl daemon-reload
 sudo systemctl restart actions-runner.service
 sudo journalctl -f -xeu actions-runner.service
 ```
+
 to have it take effect
-
-
 
 ### remove queued jobs from github actions
 
@@ -401,8 +397,6 @@ sometimes, if a runner has not been allocated for a while, there will be a bunch
 of queued jobs. To remove them, set your github token and run:
 
 [create a personal access token](https://github.com/settings/tokens)
-
-
 
 ```
 export GH_TOKEN=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

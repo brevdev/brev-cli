@@ -14,7 +14,7 @@ type SSHConfigurerTaskStore interface {
 }
 
 type SSHConfigurerTask struct {
-	Store SSHConfigurerTaskStore
+	Store        SSHConfigurerTaskStore
 	runRemoteCMD bool
 }
 
@@ -51,7 +51,7 @@ func (sct SSHConfigurerTask) Configure() error {
 
 func NewSSHConfigurerTask(store SSHConfigurerTaskStore, runRemoteCMD bool) SSHConfigurerTask {
 	return SSHConfigurerTask{
-		Store: store,
+		Store:        store,
 		runRemoteCMD: runRemoteCMD,
 	}
 }
