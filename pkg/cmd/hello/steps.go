@@ -108,24 +108,9 @@ func printCompletedOnboarding(t *terminal.Terminal) {
 	TypeItToMe(s)
 }
 
-/*
-	Step 1:
-		The user just ran brev ls
-*/
-func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.User, store HelloStore) error {
-	err := CompletedOnboardingLs(user, store)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	firstWorkspace := GetDevEnvOrStall(t, workspaces)
-	if firstWorkspace == nil {
-		return nil
-	}
-	printLsIntroText(t, *firstWorkspace)
+func waitSpinner(spinner *spinner.Spinner) error {
 	// a while loop in golang
 	sum := 0
-	spinner := t.NewSpinner()
 	spinner.Suffix = "👆 try that, I'll wait"
 	spinner.Start()
 	for sum > -1 {
@@ -143,6 +128,29 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		}
 		time.Sleep(1 * time.Second)
 
+	}
+	return nil
+}
+
+/*
+	Step 1:
+		The user just ran brev ls
+*/
+func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.User, store HelloStore) error {
+	err := CompletedOnboardingLs(user, store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	firstWorkspace := GetDevEnvOrStall(t, workspaces)
+	if firstWorkspace == nil {
+		return nil
+	}
+	printLsIntroText(t, *firstWorkspace)
+	spinner := t.NewSpinner()
+	err = waitSpinner(spinner)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = CompletedOnboardingShell(user, store)
@@ -213,48 +221,48 @@ func doVsCodeOnboarding(
 	spinner *spinner.Spinner,
 	bold func(a ...interface{}) string,
 ) error {
-		// TODO: check if ext is installed
-		isInstalled, err2 := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
-		if !isInstalled || err2 != nil {
-			printAskInstallVsCode(t)
-			return nil
-		}
-
-		printBrevOpen(t, *firstWorkspace)
-
-		// a while loop in golang
-		sum := 0
-		spinner.Suffix = "☝️ try that, I'll wait"
-		spinner.Start()
-		for sum < 1 {
-			sum += sum
-			res, err2 := GetOnboardingObject()
-			if err2 != nil {
-				return breverrors.WrapAndTrace(err2)
-			}
-			if res.HasRunBrevOpen {
-				spinner.Suffix = "🎉 you did it!"
-				time.Sleep(250 * time.Millisecond)
-				spinner.Stop()
-				break
-			}
-			time.Sleep(1 * time.Second)
-
-		}
-
-		err := CompletedOnboardingOpen(user, store)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
-		fmt.Println()
-
-		_ = terminal.PromptGetInput(terminal.PromptContent{
-			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
-			Label:      "   " + bold("▸"),
-			ErrorMsg:   "error",
-			AllowEmpty: true,
-		})
+	// TODO: check if ext is installed
+	isInstalled, err2 := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+	if !isInstalled || err2 != nil {
+		printAskInstallVsCode(t)
 		return nil
+	}
+
+	printBrevOpen(t, *firstWorkspace)
+
+	// a while loop in golang
+	sum := 0
+	spinner.Suffix = "☝️ try that, I'll wait"
+	spinner.Start()
+	for sum < 1 {
+		sum += sum
+		res, err2 := GetOnboardingObject()
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
+		}
+		if res.HasRunBrevOpen {
+			spinner.Suffix = "🎉 you did it!"
+			time.Sleep(250 * time.Millisecond)
+			spinner.Stop()
+			break
+		}
+		time.Sleep(1 * time.Second)
+
+	}
+
+	err := CompletedOnboardingOpen(user, store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
+	fmt.Println()
+
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+		Label:      "   " + bold("▸"),
+		ErrorMsg:   "error",
+		AllowEmpty: true,
+	})
+	return nil
 }
