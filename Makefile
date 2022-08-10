@@ -47,12 +47,18 @@ fmt: ## go fmt
 	npm install prettier
 	find . -name "*.md" -exec prettier --write {} \;
 
+fmtcheck: ## go fmt --check
+	$(call print-target)
+	# gofumpt check
+	gofumpter -l -d -e .
+	npm install prettier
+	find . -name "*.md" -exec prettier --check {} \;
+
 .PHONY: lint
 lint: ## golangci-lint
 	$(call print-target)
 	golangci-lint run --timeout 5m
-	npm install prettier
-	find . -name "*.md" -exec prettier -c {} \;
+;
 
 
 .PHONY: test
