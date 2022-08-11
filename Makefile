@@ -48,7 +48,7 @@ fmt: ## go fmt
 fmtcheck: ## go fmt --check
 	$(call print-target)
 	# gofumpt check
-	gofumpter -l -d -e .
+	gofumpt -l -d -e .
 
 .PHONY: lint
 lint: ## golangci-lint
