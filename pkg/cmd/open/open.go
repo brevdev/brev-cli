@@ -66,7 +66,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspace.Status != "RUNNING" {
-		return cmderrors.WorkspaceNotRunning{Status: workspace.Status}
+		return breverrors.WorkspaceNotRunning{Status: workspace.Status}
 	}
 
 	projPath := workspace.GetProjectFolderPath()

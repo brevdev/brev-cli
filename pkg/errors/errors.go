@@ -164,3 +164,11 @@ func (e *CredentialsFileNotFound) Directive() string {
 func (e *CredentialsFileNotFound) Error() string {
 	return "credentials file not found"
 }
+
+type WorkspaceNotRunning struct {
+	Status string
+}
+
+func (e WorkspaceNotRunning) Error() string {
+	return fmt.Sprintf("workspace status %s is not RUNNING, please wait until workspace is RUNNING to start", e.Status)
+}

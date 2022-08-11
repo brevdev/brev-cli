@@ -14,13 +14,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-type WorkspaceNotRunning struct {
-	Status string
-}
 
-func (e WorkspaceNotRunning) Error() string {
-	return fmt.Sprintf("workspace status %s is not RUNNING, please wait until workspace is RUNNING to start", e.Status)
-}
 
 // determines if should print error stack trace and/or send to crash monitor
 func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
@@ -57,7 +51,7 @@ func DisplayAndHandleError(err error) {
 		case breverrors.ValidationError:
 			// do not report error
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
-		case WorkspaceNotRunning: // report error to track when this occurs, but don't print stacktrace to user unless in dev mode
+		case breverrors.WorkspaceNotRunning: // report error to track when this occurs, but don't print stacktrace to user unless in dev mode
 			er.ReportError(err)
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
 		default:
