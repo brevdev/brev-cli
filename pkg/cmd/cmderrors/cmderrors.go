@@ -14,8 +14,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-
-
 // determines if should print error stack trace and/or send to crash monitor
 func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
 	er := breverrors.GetDefaultErrorReporter()
