@@ -44,15 +44,11 @@ vet: ## go vet
 fmt: ## go fmt
 	$(call print-target)
 	gofumpt -l -w .
-	npm install prettier
-	find . -name "*.md" -exec prettier --write {} \;
 
 fmtcheck: ## go fmt --check
 	$(call print-target)
 	# gofumpt check
 	gofumpter -l -d -e .
-	npm install prettier
-	find . -name "*.md" -exec prettier --check {} \;
 
 .PHONY: lint
 lint: ## golangci-lint
