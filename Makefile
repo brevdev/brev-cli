@@ -58,8 +58,6 @@ fmtcheck: ## go fmt --check
 lint: ## golangci-lint
 	$(call print-target)
 	golangci-lint run --timeout 5m
-;
-
 
 .PHONY: test
 test: ## go test with race detector and code covarage
