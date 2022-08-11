@@ -14,6 +14,14 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+type WorkspaceNotRunning struct {
+	Status string
+}
+
+func (e WorkspaceNotRunning) Error() string {
+	return fmt.Sprintf("workspace status %s is not RUNNING, please wait until workspace is RUNNING to start", e.Status)
+}
+
 // determines if should print error stack trace and/or send to crash monitor
 func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
 	er := breverrors.GetDefaultErrorReporter()
@@ -35,6 +43,13 @@ func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
 }
 
 func DisplayAndHandleError(err error) {
+	er := breverrors.GetDefaultErrorReporter()
+	er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
+		Type:     "default",
+		Category: "stacktrace",
+		Level:    string(sentry.LevelError),
+		Message:  err.Error(),
+	})
 	if err != nil {
 		t := terminal.New()
 		prettyErr := ""
@@ -42,17 +57,13 @@ func DisplayAndHandleError(err error) {
 		case breverrors.ValidationError:
 			// do not report error
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
+		case WorkspaceNotRunning: // report error to track when this occurs, but don't print stacktrace to user unless in dev mode
+			er.ReportError(err)
+			prettyErr = (t.Yellow(errors.Cause(err).Error()))
 		default:
 			if isSneakyValidationErr(err) {
 				prettyErr = (t.Yellow(errors.Cause(err).Error()))
 			} else {
-				er := breverrors.GetDefaultErrorReporter()
-				er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
-					Type:     "default",
-					Category: "stacktrace",
-					Level:    string(sentry.LevelError),
-					Message:  err.Error(),
-				})
 				er.ReportError(err)
 				prettyErr = (t.Red(errors.Cause(err).Error()))
 			}
