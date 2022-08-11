@@ -65,6 +65,9 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if workspace.Status != "RUNNING" {
+		return errors.New("workspace status is not RUNNING, please wait until workspace is RUNNING to start")
+	}
 
 	projPath := workspace.GetProjectFolderPath()
 
