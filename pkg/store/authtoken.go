@@ -39,21 +39,15 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 }
 
 func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
-	workspaceID, err := f.GetCurrentWorkspaceID()
+	serviceToken, err := f.GetCurrentWorkspaceServiceToken()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if workspaceID != "" {
-		var serviceToken string
-		serviceToken, err = f.GetCurrentWorkspaceServiceToken()
-		if err == nil {
-			return &entity.AuthTokens{
-				AccessToken: serviceToken,
-			}, nil
-		} else {
-			// log that getting service account token failed
-			_ = 0 // noop to make linter happy
-		}
+
+	if serviceToken != "" {
+		return &entity.AuthTokens{
+			AccessToken: serviceToken,
+		}, nil
 	}
 
 	brevCredentialsFile, err := f.getBrevCredentialsFile()
