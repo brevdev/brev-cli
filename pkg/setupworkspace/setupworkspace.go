@@ -137,14 +137,14 @@ type WorkspaceIniter struct {
 }
 
 func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *WorkspaceIniter {
-	userRepo := makeUserRepo(*params)
-	projectReop := makeProjectRepo(*params)
+	userRepo := MakeUserRepo(*params)
+	projectReop := MakeProjectRepo(*params)
 
-	params.ReposV0 = mergeRepos(userRepo, projectReop, params.ReposV0)
+	params.ReposV0 = MergeRepos(userRepo, projectReop, params.ReposV0)
 
 	workspaceDir := "/home/brev/workspace"
 
-	params.ReposV0 = initRepos(params.ReposV0)
+	params.ReposV0 = InitRepos(params.ReposV0)
 
 	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
 		defaultScript := "#!/bin/bash\n"
@@ -152,9 +152,9 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 		params.ProjectSetupScript = &b64DefaultScript
 	}
 
-	standardSetup := makeExecFromSetupParams(*params)
+	standardSetup := MakeExecFromSetupParams(*params)
 
-	params.ExecsV0 = mergeExecs(standardSetup, params.ExecsV0)
+	params.ExecsV0 = MergeExecs(standardSetup, params.ExecsV0)
 
 	vscodeExtensionIDs := []string{}
 	ideConfig, ok := params.IDEConfigs["vscode"]
@@ -174,7 +174,7 @@ func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *Workspace
 	}
 }
 
-func makeUserRepo(params store.SetupParamsV0) entity.ReposV0 {
+func MakeUserRepo(params store.SetupParamsV0) entity.ReposV0 {
 	if params.WorkspaceBaseRepo != "" {
 		return entity.ReposV0{
 			"user-config": {
@@ -191,7 +191,7 @@ func makeUserRepo(params store.SetupParamsV0) entity.ReposV0 {
 	}
 }
 
-func makeProjectRepo(params store.SetupParamsV0) entity.ReposV0 {
+func MakeProjectRepo(params store.SetupParamsV0) entity.ReposV0 {
 	if params.WorkspaceProjectRepo == "" && len(params.ReposV0) > 0 {
 		return entity.ReposV0{}
 	}
@@ -214,7 +214,7 @@ func makeProjectRepo(params store.SetupParamsV0) entity.ReposV0 {
 	}
 }
 
-func mergeRepos(repos ...entity.ReposV0) entity.ReposV0 {
+func MergeRepos(repos ...entity.ReposV0) entity.ReposV0 {
 	newRepos := entity.ReposV0{}
 	for _, rs := range repos {
 		for n, r := range rs {
@@ -224,7 +224,7 @@ func mergeRepos(repos ...entity.ReposV0) entity.ReposV0 {
 	return newRepos
 }
 
-func mergeExecs(repos ...entity.ExecsV0) entity.ExecsV0 {
+func MergeExecs(repos ...entity.ExecsV0) entity.ExecsV0 {
 	newRepos := entity.ExecsV0{}
 	for _, rs := range repos {
 		for n, r := range rs {
@@ -234,7 +234,7 @@ func mergeExecs(repos ...entity.ExecsV0) entity.ExecsV0 {
 	return newRepos
 }
 
-func makeExecFromSetupParams(params store.SetupParamsV0) entity.ExecsV0 {
+func MakeExecFromSetupParams(params store.SetupParamsV0) entity.ExecsV0 {
 	if params.ProjectSetupScript != nil {
 		return entity.ExecsV0{
 			"setup.sh": {
@@ -261,7 +261,7 @@ func initRepo(repo entity.RepoV0) entity.RepoV0 {
 	return repo
 }
 
-func initRepos(repos entity.ReposV0) entity.ReposV0 {
+func InitRepos(repos entity.ReposV0) entity.ReposV0 {
 	newRepos := entity.ReposV0{}
 	for n, r := range repos {
 		newRepos[n] = initRepo(r)
