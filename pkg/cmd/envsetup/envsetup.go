@@ -1,7 +1,6 @@
 package envsetup
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -91,14 +90,6 @@ func RunEnvSetup(store envsetupStore, name string, forceEnableSetup bool) error 
 }
 
 type envInitier struct {
-	WorkspaceDir       string
-	User               *user.User
-	Params             *store.SetupParamsV0
-	ReposV0            entity.ReposV0
-	ExecsV0            entity.ExecsV0
-	ReposV1            entity.ReposV1
-	ExecsV1            entity.ExecsV1
-	VscodeExtensionIDs []string
 	setupworkspace.WorkspaceIniter
 }
 
@@ -168,41 +159,9 @@ func (e envInitier) PrepareWorkspace() error {
 }
 
 func newEnvIniter(user *user.User, params *store.SetupParamsV0) *envInitier {
-	userRepo := setupworkspace.MakeUserRepo(*params)
-	projectReop := setupworkspace.MakeProjectRepo(*params)
+	workspaceIniter := setupworkspace.NewWorkspaceIniter(user, params)
 
-	params.ReposV0 = setupworkspace.MergeRepos(userRepo, projectReop, params.ReposV0)
-
-	workspaceDir := "/home/brev/workspace"
-
-	params.ReposV0 = setupworkspace.InitRepos(params.ReposV0)
-
-	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
-		defaultScript := "#!/bin/bash\n"
-		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
-		params.ProjectSetupScript = &b64DefaultScript
-	}
-
-	standardSetup := setupworkspace.MakeExecFromSetupParams(*params)
-
-	params.ExecsV0 = setupworkspace.MergeExecs(standardSetup, params.ExecsV0)
-
-	vscodeExtensionIDs := []string{}
-	ideConfig, ok := params.IDEConfigs["vscode"]
-	if ok {
-		vscodeExtensionIDs = ideConfig.ExtensionIDs
-	}
-
-	return &envInitier{
-		WorkspaceDir:       workspaceDir,
-		User:               user,
-		Params:             params,
-		ReposV0:            params.ReposV0,
-		ExecsV0:            params.ExecsV0,
-		ReposV1:            params.ReposV1,
-		ExecsV1:            params.ExecsV1,
-		VscodeExtensionIDs: vscodeExtensionIDs,
-	}
+	return &envInitier{*workspaceIniter}
 }
 
 func setupEnv(params *store.SetupParamsV0) error {
