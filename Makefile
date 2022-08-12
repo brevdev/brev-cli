@@ -264,3 +264,9 @@ gen-e2e:
 ## removed queued jobs from github actions
 remove-queued-jobs:
 	./bin/remove-queued-jobs.sh
+
+new-cmd:
+	mkdir -p pkg/cmd/${name}
+	touch pkg/cmd/${name}/${name}.go
+	# populate the template
+	./bin/newcmd.sh ${name} > pkg/cmd/${name}/${name}.go

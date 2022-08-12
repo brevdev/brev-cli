@@ -22,107 +22,34 @@ make && BREV_API_URL=`brev ls | grep brev-deploy | awk '{ print "https://8080-"$
 
 ## adding new commands
 
-create a directory in `pkg/cmd` for your command, a go file, and documentation
-file
+to generate a new file in `pkg/cmd/<command>` run:
 
 ```
-mkdir pkg/cmd/recreate/
-touch pkg/cmd/recreate/recreate.go
-touch pkg/cmd/recreate/doc.md
+make new-cmd name=<command>
 ```
-
-add the following template to `recreate.go`
+in `pkg/cmd/<command>` you should see an output similar to:
 
 ```go
-// Package recreate is for the recreate command
-package recreate
+package envsetup
 
 import (
-	_ "embed"
-
 	"github.com/spf13/cobra"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	stripmd "github.com/writeas/go-strip-markdown"
-)
-
-//go:embed doc.md
-var long string
-
-type reCreateStore interface{}
-
-func NewCmdRecreate(t *terminal.terminal, store reCreateStore) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:                   "recreate",
-		DisableFlagsInUseLine: true,
-		Short:                 "TODO",
-		Long:                  stripmd.Strip(long),
-		Example:               "TODO",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunReCreate(t, args, store)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
-		},
-	}
-	return cmd
-}
-
-func RunReCreate(_ *terminal.terminal,_ []string, _ reCreateStore) error {
-	return nil
-}
-
-```
-
-Implement `RunReCreate`
-
-```go
-// Package recreate is for the recreate command
-package recreate
-
-import (
-	_ "embed"
-	"strings"
-	"time"
-
-	"github.com/spf13/cobra"
-
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/config"
-	"github.com/brevdev/brev-cli/pkg/entity"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-//go:embed doc.md
-var long string
+type envsetupStore interface{}
 
-type recreateStore interface {
-	completions.CompletionStore
-	util.GetWorkspaceByNameOrIDErrStore
-	ResetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetCurrentUser() (*entity.User, error)
-	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
-	GetWorkspace(id string) (*entity.Workspace, error)
-	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
-}
-
-func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
+func NewCMDenvsetup(t *terminal.Terminal, store envsetupStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "recreate",
+		Use:                   "envsetup",
 		DisableFlagsInUseLine: true,
 		Short:                 "TODO",
 		Long:                  "TODO",
 		Example:               "TODO",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunRecreate(t, args, store)
+			err := Runenvsetup(t, args, store)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -132,19 +59,12 @@ func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
 	return cmd
 }
 
-func RunRecreate(t *terminal.terminal, args []string, recreateStore recreateStore) error {
-	for _, arg := range args {
-		err := hardResetProcess(arg, t, recreateStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
+func Runenvsetup(t *terminal.Terminal, args []string, store envsetupStore) error {
 	return nil
 }
-// ...
 ```
 
-add command to `pkg/cmd/cmd.go`
+after you have implemented `Runenvsetup`, add the command to `pkg/cmd/cmd.go`
 
 ```diff
 diff --git a/pkg/cmd/cmd.go b/pkg/cmd/cmd.go
@@ -155,7 +75,7 @@ index a33540c..b03d5f2 100644
         "github.com/brevdev/brev-cli/pkg/cmd/portforward"
         "github.com/brevdev/brev-cli/pkg/cmd/profile"
         "github.com/brevdev/brev-cli/pkg/cmd/proxy"
-+       "github.com/brevdev/brev-cli/pkg/cmd/recreate"
++       "github.com/brevdev/brev-cli/pkg/cmd/envsetup"
         "github.com/brevdev/brev-cli/pkg/cmd/refresh"
         "github.com/brevdev/brev-cli/pkg/cmd/reset"
         "github.com/brevdev/brev-cli/pkg/cmd/runtasks"
@@ -163,7 +83,7 @@ index a33540c..b03d5f2 100644
         cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 
         cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
-+       cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
++       cmd.AddCommand(envsetupNewCMDenvsetup.(t, loginCmdStore))
  }
 
  func hasHousekeepingCommands(cmd *cobra.Command) bool {
