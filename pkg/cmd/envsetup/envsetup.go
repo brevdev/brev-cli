@@ -100,11 +100,6 @@ func (e envInitier) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = e.PrepareWorkspace()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	postPrepare := util.RunEAsync(
 		func() error {
 			err0 := e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
@@ -154,12 +149,11 @@ func (e envInitier) Setup() error {
 	return nil
 }
 
-func (e envInitier) PrepareWorkspace() error {
-	return nil
-}
-
 func newEnvIniter(user *user.User, params *store.SetupParamsV0) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user, params)
+
+	// overwirte WorkspaceDir since its hardcoded in setupworkspace
+	workspaceIniter.WorkspaceDir = user.HomeDir
 
 	return &envInitier{*workspaceIniter}
 }
