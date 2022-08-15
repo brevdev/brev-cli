@@ -37,6 +37,7 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 	// add debugger flag to toggle features when running command through a debugger
 	// this is useful for debugging setup scripts
 	debugger := false
+	configureSystemSSHConfig := true
 
 	cmd := &cobra.Command{
 		Use:                   name,
@@ -45,7 +46,7 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 		Long:                  "TODO",
 		Example:               "TODO",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunEnvSetup(store, name, forceEnableSetup, debugger)
+			err := RunEnvSetup(store, name, forceEnableSetup, debugger, configureSystemSSHConfig)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -54,10 +55,11 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 	}
 	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")
 	cmd.PersistentFlags().BoolVar(&debugger, "debugger", debugger, "toggle features that don't play well with debuggers")
+	cmd.PersistentFlags().BoolVar(&configureSystemSSHConfig, "configure-system-ssh-config", configureSystemSSHConfig, "configure system ssh config")
 	return cmd
 }
 
-func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger bool) error {
+func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger, configureSystemSSHConfig bool) error {
 	breverrors.GetDefaultErrorReporter().AddTag("command", name)
 	_, err := store.GetCurrentWorkspaceID() // do this to error reporting
 	if err != nil {
@@ -85,7 +87,7 @@ func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger bo
 		return nil
 	}
 
-	err = setupEnv(params)
+	err = setupEnv(params, configureSystemSSHConfig)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -95,6 +97,7 @@ func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger bo
 
 type envInitier struct {
 	setupworkspace.WorkspaceIniter
+	ConfigureSystemSSHConfig bool
 }
 
 func (e envInitier) Setup() error {
@@ -119,7 +122,7 @@ func (e envInitier) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
- 	err = e.SetupGit(e.Params.WorkspaceUsername, e.Params.WorkspaceEmail)
+	err = e.SetupGit(e.Params.WorkspaceUsername, e.Params.WorkspaceEmail)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -207,33 +210,39 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	sshConfigPath := filepath.Join("/etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", e.User.Username))
-	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
+	if e.ConfigureSystemSSHConfig {
+
+		sshConfigPath := filepath.Join("/etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", e.User.Username))
+		sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
 AuthorizedKeysFile      %s
 PasswordAuthentication no`, authorizedKeyPath)
-	err = os.WriteFile(sshConfigPath, []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		err = os.WriteFile(sshConfigPath, []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	return nil
 }
 
-func newEnvIniter(user *user.User, params *store.SetupParamsV0) *envInitier {
+func newEnvIniter(user *user.User, params *store.SetupParamsV0, configureSystemSSHConfig bool) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user, params)
 
 	// overwirte WorkspaceDir since its hardcoded in setupworkspace
 	workspaceIniter.WorkspaceDir = user.HomeDir
 
-	return &envInitier{*workspaceIniter}
+	return &envInitier{
+		*workspaceIniter,
+		configureSystemSSHConfig,
+	}
 }
 
-func setupEnv(params *store.SetupParamsV0) error {
+func setupEnv(params *store.SetupParamsV0, configureSystemSSHConfig bool) error {
 	user, err := setupworkspace.GetUserFromUserStr("1000")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	wi := newEnvIniter(user, params)
+	wi := newEnvIniter(user, params, configureSystemSSHConfig)
 	// set logfile path to ~/.brev/envsetup.log
 	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")
 	done, err := mirrorPipesToFile(logFilePath)

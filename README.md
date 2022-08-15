@@ -21,3 +21,15 @@ https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-
 ## Contributing
 
 We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
+
+
+pretty prin json from /etc/metadata/setup_v0.json
+
+```sh
+cat /etc/metadata/setup_v0.json | python -m json.tool
+```
+
+```sh
+```
+
+```sh

@@ -122,6 +122,96 @@ Don't forget to add a debug command to `.vscode/launch.json`
 
 `F1` → `Tasks: Run Build Task (Ctrl+Shift+B or ⇧⌘B)` to execute the build pipeline.
 
+## debugging envsetup with delve
+
+some of our commands need to be run as root and vscode's debugging tools don't work well with that. Debugging with delve is an easy way to do that.
+
+
+### installation
+
+```
+go get github.com/go-delve/delve/cmd/dlv
+go install github.com/go-delve/delve/cmd/dlv
+```
+
+### usage
+
+   set a breakpoint where it is relevant with `runtime.Breakpoint()`
+
+```go
+func (lsc LinuxSystemdConfigurer) Install() error {
+	_ = lsc.UnInstall() // best effort
+	runtime.Breakpoint()
+	err := lsc.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	//nolint //this is never defined by a user
+	out, err := exec.Command("systemctl", "enable", lsc.ServiceName).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running systemctl enable %s: %v, %s", lsc.DestConfigFile, err, out)
+	}
+	//nolint //this is never defined by a user
+	out, err = exec.Command("systemctl", "start", lsc.ServiceName).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error running systemctl start %s: %v, %s", lsc.DestConfigFile, err, out)
+	}
+	return nil
+}
+```
+
+   from the project root run
+
+```sh
+dlv debug github.com/brevdev/brev-cli -- envsetup --debugger
+```
+
+
+   the first prompt is before the program runs, and in this prompt hit `c` to continue to the first breakpoint
+
+``` shell
+$ dlv debug github.com/brevdev/brev-cli -- tasks configure --all --user $UID
+Type 'help' for list of commands.
+(dlv) c
+> [hardcoded-breakpoint] github.com/brevdev/brev-cli/pkg/autostartconf.LinuxSystemdConfigurer.Install() ./pkg/autostartconf/linux.go:25 (hits total:0) (PC: 0x15946fc)
+    20: }
+    21:
+    22: func (lsc LinuxSystemdConfigurer) Install() error {
+    23:         _ = lsc.UnInstall() // best effort
+    24:         runtime.Breakpoint()
+=>  25:         err := lsc.WriteString(lsc.DestConfigFile, lsc.ValueConfigFile)
+    26:         if err != nil {
+    27:                 return breverrors.WrapAndTrace(err)
+    28:         }
+    29:         //nolint //this is never defined by a user
+    30:         out, err := exec.Command("systemctl", "enable", lsc.ServiceName).CombinedOutput()
+(dlv)
+```
+
+   view the value of a variable with `print`
+
+```sh
+(dlv) print lsc
+github.com/brevdev/brev-cli/pkg/autostartconf.LinuxSystemdConfigurer {
+        AutoStartStore: github.com/brevdev/brev-cli/pkg/autostartconf.AutoStartStore nil,
+        ValueConfigFile: "\n[Install]\nWantedBy=multi-user.target\n\n[Unit]\nDescription=Brev S...+126 more",
+        DestConfigFile: "/etc/systemd/system/brevvpnd.service",
+        ServiceName: "brevvpnd",}
+(dlv) print lsc.AutoStartStore
+github.com/brevdev/brev-cli/pkg/autostartconf.AutoStartStore nil
+(dlv)
+```
+
+   exit the debugger with `exit`
+
+```sh
+(dlv) exit
+```
+
+   make sure that you remove your breakpoints when finished
+
+
+
 ## Release
 
 make a patch release
