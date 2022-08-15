@@ -34,6 +34,9 @@ const name = "envsetup"
 
 func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 	var forceEnableSetup bool
+	// add debugger flag to toggle features when running command through a debugger
+	// this is useful for debugging setup scripts
+	debugger := false
 
 	cmd := &cobra.Command{
 		Use:                   name,
@@ -42,7 +45,7 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 		Long:                  "TODO",
 		Example:               "TODO",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunEnvSetup(store, name, forceEnableSetup)
+			err := RunEnvSetup(store, name, forceEnableSetup, debugger)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -50,11 +53,11 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")
-
+	cmd.PersistentFlags().BoolVar(&debugger, "debugger", debugger, "toggle features that don't play well with debuggers")
 	return cmd
 }
 
-func RunEnvSetup(store envsetupStore, name string, forceEnableSetup bool) error {
+func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger bool) error {
 	breverrors.GetDefaultErrorReporter().AddTag("command", name)
 	_, err := store.GetCurrentWorkspaceID() // do this to error reporting
 	if err != nil {
@@ -67,7 +70,7 @@ func RunEnvSetup(store envsetupStore, name string, forceEnableSetup bool) error 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if !featureflag.IsDev() {
+	if !featureflag.IsDev() && !debugger {
 		_, err = store.GetCurrentUser() // do this to set error user reporting
 		if err != nil {
 			fmt.Println(err)
@@ -116,7 +119,7 @@ func (e envInitier) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = e.SetupGit(e.Params.WorkspaceUsername, e.Params.WorkspaceEmail)
+ 	err = e.SetupGit(e.Params.WorkspaceUsername, e.Params.WorkspaceEmail)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -231,7 +234,8 @@ func setupEnv(params *store.SetupParamsV0) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	wi := newEnvIniter(user, params)
-	logFilePath := "/var/log/brev-workspace.log"
+	// set logfile path to ~/.brev/envsetup.log
+	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")
 	done, err := mirrorPipesToFile(logFilePath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
