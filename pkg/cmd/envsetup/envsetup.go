@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/user"
+	"path/filepath"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -142,6 +143,72 @@ func (e envInitier) Setup() error {
 	}
 
 	err = postPrepare.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+func (e envInitier) SetupSSH(keys *store.KeyPair) error {
+	cmd := setupworkspace.CmdBuilder("mkdir", "-p", e.BuildHomePath(".ssh"))
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	idRsa, err := os.Create(e.BuildHomePath(".ssh", "id_rsa"))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer setupworkspace.PrintErrFromFunc(idRsa.Close)
+	_, err = idRsa.Write([]byte(keys.PrivateKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = idRsa.Chmod(0o400)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	idRsaPub, err := os.Create(e.BuildHomePath(".ssh", "id_rsa.pub"))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer setupworkspace.PrintErrFromFunc(idRsaPub.Close)
+	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = idRsaPub.Chmod(0o400)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	c := fmt.Sprintf(`eval "$(ssh-agent -s)" && ssh-add %s`, e.BuildHomePath(".ssh", "id_rsa"))
+	cmd = setupworkspace.CmdStringBuilder(c)
+	err = cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	authorizedKeyPath := e.BuildHomePath(".ssh", "authorized_keys")
+	// append to avoid overwriting existing entries for authorized_keys
+	authorizedKeyFile, err := os.OpenFile(authorizedKeyPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer setupworkspace.PrintErrFromFunc(authorizedKeyFile.Close)
+	_, err = authorizedKeyFile.Write([]byte(keys.PublicKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	sshConfigPath := filepath.Join("/etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", e.User.Username))
+	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
+AuthorizedKeysFile      %s
+PasswordAuthentication no`, authorizedKeyPath)
+	err = os.WriteFile(sshConfigPath, []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
