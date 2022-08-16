@@ -53,7 +53,7 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 					errors = multierror.Append(err)
 				}
 			}
-			if  errors != nil {
+			if errors != nil {
 				return breverrors.WrapAndTrace(errors)
 			}
 			return nil
@@ -205,7 +205,24 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 	}
 
 	authorizedKeyPath := e.BuildHomePath(".ssh", "authorized_keys")
-	// append to avoid overwriting existing entries for authorized_keys
+
+	err = appendToAuthorizedKeys(keys, authorizedKeyPath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if e.ConfigureSystemSSHConfig {
+		err = configureSystemSSHConfig(e, authorizedKeyPath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	return nil
+}
+
+func appendToAuthorizedKeys(keys *store.KeyPair, authorizedKeyPath string) error {
+	//nolint:gosec //todo is this a prob?
 	authorizedKeyFile, err := os.OpenFile(authorizedKeyPath, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -215,26 +232,25 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
 
-	if e.ConfigureSystemSSHConfig {
-
-		sshConfigPath := filepath.Join("/etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", e.User.Username))
-		sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
+func configureSystemSSHConfig(e envInitier, authorizedKeyPath string) error {
+	sshConfigPath := filepath.Join("/etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", e.User.Username))
+	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
 AuthorizedKeysFile      %s
 PasswordAuthentication no`, authorizedKeyPath)
-		err = os.WriteFile(sshConfigPath, []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	err := os.WriteFile(sshConfigPath, []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
-
 	return nil
 }
 
 func newEnvIniter(user *user.User, params *store.SetupParamsV0, configureSystemSSHConfig bool) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user, params)
 
-	// overwirte WorkspaceDir since its hardcoded in setupworkspace
+	// overwrite WorkspaceDir since its hardcoded in setupworkspace
 	workspaceIniter.WorkspaceDir = user.HomeDir
 
 	return &envInitier{
@@ -264,6 +280,7 @@ func setupEnv(params *store.SetupParamsV0, configureSystemSSHConfig bool) error 
 	if err != nil {
 		fmt.Println("------ Failure ------")
 		time.Sleep(time.Millisecond * 100) // wait for buffer to be written
+		//nolint:gosec // constant
 		logFile, errF := ioutil.ReadFile(logFilePath)
 		if errF != nil {
 			return multierror.Append(err, errF)
