@@ -40,7 +40,7 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 
 func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	serviceToken, err := f.GetCurrentWorkspaceServiceToken()
-	if err != nil && serviceToken != "" {
+	if err == nil && serviceToken != "" {
 		return &entity.AuthTokens{
 			AccessToken: serviceToken,
 		}, nil
@@ -72,6 +72,7 @@ func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
 	// safely check if file exists
 
 	exists, err := f.FileExists(saTokenFilePath)
+
 
 	if !exists || err != nil {
 		return "", err
