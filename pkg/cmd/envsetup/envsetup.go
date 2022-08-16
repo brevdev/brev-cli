@@ -30,14 +30,21 @@ type envsetupStore interface {
 	GetCurrentWorkspaceID() (string, error)
 }
 
+type nologinEnvStore interface {
+	LoginWithToken(token string) error
+}
+
 const name = "envsetup"
 
-func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
+func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Command {
 	var forceEnableSetup bool
 	// add debugger flag to toggle features when running command through a debugger
 	// this is useful for debugging setup scripts
 	debugger := false
 	configureSystemSSHConfig := true
+
+	// if a token flag is supplied, log in with it
+	var token string
 
 	cmd := &cobra.Command{
 		Use:                   name,
@@ -48,7 +55,16 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var errors error
 			for _, arg := range args {
-				err := RunEnvSetup(store, name, forceEnableSetup, debugger, configureSystemSSHConfig, arg)
+				err := RunEnvSetup(
+					store,
+					name,
+					forceEnableSetup,
+					debugger,
+					configureSystemSSHConfig,
+					arg,
+					token,
+					noLoginStore,
+				)
 				if err != nil {
 					errors = multierror.Append(err)
 				}
@@ -62,10 +78,24 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&forceEnableSetup, "force-enable", false, "force the setup script to run despite params")
 	cmd.PersistentFlags().BoolVar(&debugger, "debugger", debugger, "toggle features that don't play well with debuggers")
 	cmd.PersistentFlags().BoolVar(&configureSystemSSHConfig, "configure-system-ssh-config", configureSystemSSHConfig, "configure system ssh config")
+	cmd.PersistentFlags().StringVar(&token, "token", "", "token to use for login")
 	return cmd
 }
 
-func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger, configureSystemSSHConfig bool, workspaceid string) error {
+func RunEnvSetup(
+	store envsetupStore,
+	name string,
+	forceEnableSetup, debugger, configureSystemSSHConfig bool,
+	workspaceid, token string,
+	noLoginStore nologinEnvStore,
+) error {
+	if token != "" {
+		err := noLoginStore.LoginWithToken(token)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
 	breverrors.GetDefaultErrorReporter().AddTag("command", name)
 	_, err := store.GetCurrentWorkspaceID() // do this to error reporting
 	if err != nil {

@@ -258,7 +258,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
-	cmd.AddCommand(envsetup.NewCmdEnvSetup(loginCmdStore))
+	cmd.AddCommand(envsetup.NewCmdEnvSetup(loginCmdStore, loginAuth))
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
