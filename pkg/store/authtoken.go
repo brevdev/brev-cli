@@ -40,11 +40,7 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 
 func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	serviceToken, err := f.GetCurrentWorkspaceServiceToken()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	if serviceToken != "" {
+	if err != nil && serviceToken != "" {
 		return &entity.AuthTokens{
 			AccessToken: serviceToken,
 		}, nil
@@ -73,6 +69,14 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 
 func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
 	saTokenFilePath := getServiceTokenFilePath()
+	// safely check if file exists
+
+	exists, err := f.FileExists(saTokenFilePath)
+
+	if !exists || err != nil {
+		return "", err
+	}
+
 	saTokenFile, err := f.fs.Open(saTokenFilePath)
 	defer saTokenFile.Close() //nolint: errcheck // defer is fine
 	if err != nil {

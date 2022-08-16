@@ -23,7 +23,7 @@ import (
 )
 
 type envsetupStore interface {
-	GetSetupParams() (*store.SetupParamsV0, error)
+	GetENVSetupParams(wsid string) (*store.SetupParamsV0, error)
 	WriteSetupScript(script string) error
 	GetSetupScriptPath() string
 	GetCurrentUser() (*entity.User, error)
@@ -46,9 +46,15 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 		Long:                  "TODO",
 		Example:               "TODO",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunEnvSetup(store, name, forceEnableSetup, debugger, configureSystemSSHConfig)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			var errors error
+			for _, arg := range args {
+				err := RunEnvSetup(store, name, forceEnableSetup, debugger, configureSystemSSHConfig, arg)
+				if err != nil {
+					errors = multierror.Append(err)
+				}
+			}
+			if  errors != nil {
+				return breverrors.WrapAndTrace(errors)
 			}
 			return nil
 		},
@@ -59,7 +65,7 @@ func NewCmdEnvSetup(store envsetupStore) *cobra.Command {
 	return cmd
 }
 
-func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger, configureSystemSSHConfig bool) error {
+func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger, configureSystemSSHConfig bool, workspaceid string) error {
 	breverrors.GetDefaultErrorReporter().AddTag("command", name)
 	_, err := store.GetCurrentWorkspaceID() // do this to error reporting
 	if err != nil {
@@ -67,7 +73,7 @@ func RunEnvSetup(store envsetupStore, name string, forceEnableSetup, debugger, c
 	}
 	fmt.Println("setting up dev environment")
 
-	params, err := store.GetSetupParams()
+	params, err := store.GetENVSetupParams(workspaceid)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

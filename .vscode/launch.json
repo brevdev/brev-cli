@@ -213,9 +213,13 @@
       // "envFile": "${workspaceFolder}/local.env",
       "args": [
         "envsetup",
+        "do150t0d3",
         "--debugger",
         "--configure-system-ssh-config=false"
       ],
+      "env": {
+        "BREV_API_URL": "http://localhost:8080"
+      }
     },
   ]
 }

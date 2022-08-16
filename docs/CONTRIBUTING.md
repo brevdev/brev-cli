@@ -10,7 +10,7 @@
 
 ```
 VERSION=unknown
-BREV_API_URL=http://localhost:8080
+BREV_API_URL=http://localhost:8080 
 # BREV_API_URL=<your backend>
 ```
 

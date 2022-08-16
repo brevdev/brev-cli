@@ -368,6 +368,27 @@ func (s AuthHTTPStore) ResetWorkspace(workspaceID string) (*entity.Workspace, er
 	return &result, nil
 }
 
+var (
+	workspaceSetupPathPattern = fmt.Sprintf("%s/setup", workspacePathPattern)
+	workspaceSetupPath        = fmt.Sprintf(workspaceSetupPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+)
+
+func (s AuthHTTPStore) GetENVSetupParams(workspaceID string) (*SetupParamsV0, error) {
+	var result SetupParamsV0
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		Get(workspaceSetupPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
 type KeyPair struct {
 	PublicKeyData  string `json:"publicKeyData"`
 	PrivateKeyData string `json:"privateKeyData"`
