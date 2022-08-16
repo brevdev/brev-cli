@@ -73,7 +73,6 @@ func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
 
 	exists, err := f.FileExists(saTokenFilePath)
 
-
 	if !exists || err != nil {
 		return "", err
 	}
