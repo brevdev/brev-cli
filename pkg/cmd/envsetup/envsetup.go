@@ -325,7 +325,7 @@ func setupEnv(params *store.SetupParamsV0, configureSystemSSHConfig bool) error 
 
 func mirrorPipesToFile(logFile string) (func(), error) {
 	// check if parent dir exists, if not create it
-	err := os.MkdirAll(filepath.Dir(logFile), 0o755)
+	err := os.MkdirAll(filepath.Dir(logFile), 0o750)
 	if err != nil {
 		return nil, err
 	}
