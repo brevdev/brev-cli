@@ -327,7 +327,7 @@ func mirrorPipesToFile(logFile string) (func(), error) {
 	// check if parent dir exists, if not create it
 	err := os.MkdirAll(filepath.Dir(logFile), 0o750)
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	// https://gist.github.com/jerblack/4b98ba48ed3fb1d9f7544d2b1a1be287
 	// open file read/write | create if not exist | clear file at open if exists
