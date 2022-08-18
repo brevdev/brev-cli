@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const WorkspaceGroupDevPlane = "devplane-brev-1"
+
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -314,6 +316,13 @@ type WorkspaceTemplate struct {
 }
 
 func (w Workspace) GetProjectFolderPath() string {
+	var prefix string
+	switch w.WorkspaceGroupID {
+	case WorkspaceGroupDevPlane:
+		prefix = "/home/ubuntu"
+	default:
+		prefix = "/home/brev/workspace"
+	}
 	var folderName string
 	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
 		if path.IsAbs(w.IDEConfig.DefaultWorkingDir) {
@@ -334,13 +343,13 @@ func (w Workspace) GetProjectFolderPath() string {
 				}
 			}
 		} else {
-			return "/home/brev/workspace/"
+			return prefix
 		}
 	} else {
-		return "/home/brev/workspace/"
+		return prefix
 	}
 
-	return filepath.Join("/home/brev/workspace/", folderName) // TODO make workspace dir configurable
+	return filepath.Join(prefix, folderName) // TODO make workspace dir configurable
 }
 
 func GetDefaultProjectFolderNameFromRepo(repo string) string {

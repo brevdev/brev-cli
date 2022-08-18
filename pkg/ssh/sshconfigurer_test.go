@@ -208,7 +208,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: workspaceGroupDevPlane,
+					WorkspaceGroupID: entity.WorkspaceGroupDevPlane,
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -262,7 +262,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+  RemoteCommand cd /home/brev/gitrepo; $SHELL
 
 `,
 		},

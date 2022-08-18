@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const workspaceGroupDevPlane = "devplane-brev-1"
 
 type ConfigUpdaterStore interface {
 	autostartconf.AutoStartStore
@@ -206,7 +205,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, run
 	var tmpl *template.Template
 	var err error
 	switch workspace.WorkspaceGroupID {
-	case workspaceGroupDevPlane:
+	case entity.WorkspaceGroupDevPlane:
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
