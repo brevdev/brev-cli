@@ -16,6 +16,8 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+const workspaceGroupDevPlane = "devplane-brev-1"
+
 type ConfigUpdaterStore interface {
 	autostartconf.AutoStartStore
 	GetContextWorkspaces() ([]entity.Workspace, error)
@@ -149,7 +151,7 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigEntryV2(string(w.GetLocalIdentifier()), w.ID, pk, w.GetProjectFolderPath(), s.runRemoteCMD)
+		entry, err := makeSSHConfigEntryV2(w, pk, s.runRemoteCMD)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -174,6 +176,20 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
 {{ end }}
 `
 
+const SSHConfigEntryTemplateV3 = `Host {{ .Alias }}
+  Hostname {{ .HostName }}
+  IdentityFile {{ .IdentityFile }}
+  User {{ .User }}
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+{{ if .RunRemoteCMD }}
+  RemoteCommand cd {{ .Dir }}; $SHELL
+{{ end }}
+`
+
 type SSHConfigEntryV2 struct {
 	Alias        string
 	IdentityFile string
@@ -181,23 +197,46 @@ type SSHConfigEntryV2 struct {
 	ProxyCommand string
 	Dir          string
 	RunRemoteCMD bool
+	HostName     string
 }
 
-func makeSSHConfigEntryV2(alias string, workspaceID string, privateKeyPath string, dir string, runRemoteCMD bool) (string, error) {
-	proxyCommand := makeProxyCommand(workspaceID)
-	entry := SSHConfigEntryV2{
-		Alias:        alias,
-		IdentityFile: privateKeyPath,
-		User:         "brev",
-		ProxyCommand: proxyCommand,
-		Dir:          dir,
-		RunRemoteCMD: runRemoteCMD,
+func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, runRemoteCMD bool) (string, error) {
+	alias := string(workspace.GetLocalIdentifier())
+	var entry SSHConfigEntryV2
+	var tmpl *template.Template
+	var err error
+	switch workspace.WorkspaceGroupID {
+	case workspaceGroupDevPlane:
+		entry = SSHConfigEntryV2{
+			Alias:        alias,
+			IdentityFile: privateKeyPath,
+			User:         "ubuntu",
+			Dir:          workspace.GetProjectFolderPath(),
+			RunRemoteCMD: runRemoteCMD,
+			HostName:     workspace.DNS,
+		}
+		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+	default:
+		proxyCommand := makeProxyCommand(workspace.ID)
+
+		entry = SSHConfigEntryV2{
+			Alias:        alias,
+			IdentityFile: privateKeyPath,
+			User:         "brev",
+			ProxyCommand: proxyCommand,
+			Dir:          workspace.GetProjectFolderPath(),
+			RunRemoteCMD: runRemoteCMD,
+		}
+		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV2)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+
 	}
 
-	tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
 	buf := &bytes.Buffer{}
 	err = tmpl.Execute(buf, entry)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -186,4 +187,97 @@ blaksdf;asdf;
 	correct = `Include /my/brev/config
 ` + userConf
 	assert.Equal(t, correct, newConf)
+}
+
+func Test_makeSSHConfigEntryV2(t *testing.T) {
+	type args struct {
+		workspace      entity.Workspace
+		privateKeyPath string
+		runRemoteCMD   bool
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    string
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test workspace group makes different config entry",
+			args: args{
+				workspace: entity.Workspace{
+					ID:               "test-id-2",
+					Name:             "testName2",
+					WorkspaceGroupID: workspaceGroupDevPlane,
+					OrganizationID:   "oi",
+					WorkspaceClassID: "wci",
+					CreatedByUserID:  "cui",
+					DNS:              "test2-dns-org.brev.sh",
+					Status:           entity.Running,
+					Password:         "sdfal",
+					GitRepo:          "gitrepo",
+				},
+				privateKeyPath: "/my/priv/key.pem",
+				runRemoteCMD:   true,
+			},
+			want: `Host testname2-id-2
+  Hostname test2-dns-org.brev.sh
+  IdentityFile /my/priv/key.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+
+`,
+		},
+				{
+			name: "test workspace entry gets created properly",
+			args: args{
+				workspace: entity.Workspace{
+					ID:               "test-id-2",
+					Name:             "testName2",
+					WorkspaceGroupID: "test-id-2",
+					OrganizationID:   "oi",
+					WorkspaceClassID: "wci",
+					CreatedByUserID:  "cui",
+					DNS:              "test2-dns-org.brev.sh",
+					Status:           entity.Running,
+					Password:         "sdfal",
+					GitRepo:          "gitrepo",
+				},
+				privateKeyPath: "/my/priv/key.pem",
+				runRemoteCMD:   true,
+			},
+			want: `Host testname2-id-2
+  IdentityFile /my/priv/key.pem
+  User brev
+  ProxyCommand brev proxy test-id-2
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.runRemoteCMD)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("makeSSHConfigEntryV2() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			diff := cmp.Diff(tt.want, got)
+			if diff != "" {
+				t.Fatalf(diff)
+			}
+		})
+	}
 }
