@@ -234,7 +234,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
 
 `,
 		},
-				{
+		{
 			name: "test workspace entry gets created properly",
 			args: args{
 				workspace: entity.Workspace{
