@@ -29,6 +29,7 @@ var (
   brev start <git url>
   brev start <git url> --org myFancyOrg
 	`
+	instanceTypes = []string{"p4d.24xlarge", "p3.2xlarge", "p3.8xlarge", "p3.16xlarge", "p3dn.24xlarge", "p2.xlarge", "p2.8xlarge", "p2.16xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge", "g5.16xlarge", "g5.12xlarge", "g5.24xlarge", "g5.48xlarge", "g5g.xlarge", "g5g.2xlarge", "g5g.4xlarge", "g5g.8xlarge", "g5g.16xlarge", "g5g.metal", "g4dn.xlarge", "g4dn.2xlarge", "g4dn.4xlarge", "g4dn.8xlarge", "g4dn.16xlarge", "g4dn.12xlarge", "g4dn.metal", "g4ad.xlarge", "g4ad.2xlarge", "g4ad.4xlarge", "g4ad.8xlarge", "g4ad.16xlarge", "g3s.xlarge", "g3.4xlarge", "g3.8xlarge", "g3.16xlarge"}
 )
 
 type StartStore interface {
@@ -42,6 +43,15 @@ type StartStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetSetupScriptContentsByURL(url string) (string, error)
 	GetFileAsString(path string) (string, error)
+}
+
+func validateInstanceType(instanceType string) bool {
+	for _, v := range instanceTypes {
+		if instanceType == v {
+			return true
+		}
+	}
+	return false
 }
 
 func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -69,6 +79,15 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 			if len(args) > 0 {
 				repoOrPathOrNameOrID = args[0]
 			}
+
+			if instanceType != "" {
+				isValid := validateInstanceType(instanceType)
+				if !isValid {
+					err := fmt.Errorf("invalid instance type: %s", instanceType)
+					return breverrors.WrapAndTrace(err)
+				}
+			}
+
 			err := runStartWorkspace(t, StartOptions{
 				RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
 				Name:                 name,
