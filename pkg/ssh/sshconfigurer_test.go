@@ -230,7 +230,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
 `,
 		},
@@ -262,7 +262,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/gitrepo; $SHELL
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 `,
 		},
