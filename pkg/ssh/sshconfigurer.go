@@ -16,7 +16,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-
 type ConfigUpdaterStore interface {
 	autostartconf.AutoStartStore
 	GetContextWorkspaces() ([]entity.Workspace, error)
