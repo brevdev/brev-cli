@@ -23,6 +23,7 @@ type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
+	InstanceType         string               `json:"instanceType"`
 	IsStoppable          *bool                `json:"isStoppable,omitempty"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	PrimaryApplicationID string               `json:"primaryApplicationId"`
@@ -87,6 +88,11 @@ func (c *CreateWorkspacesOptions) WithCustomSetupRepo(gitRepo string, path strin
 
 func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesOptions {
 	c.GitRepo = gitRepo
+	return c
+}
+
+func (c *CreateWorkspacesOptions) WithInstanceType(instanceType string) *CreateWorkspacesOptions {
+	c.InstanceType = instanceType
 	return c
 }
 

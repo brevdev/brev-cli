@@ -53,6 +53,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	var setupScript string
 	var setupRepo string
 	var setupPath string
+	// GPU instance options
+	var instanceType string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -76,6 +78,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 				SetupPath:            setupPath,
 				WorkspaceClass:       workspaceClass,
 				Detached:             detached,
+				InstanceType:         instanceType,
 			}, startStore)
 			if err != nil {
 				if strings.Contains(err.Error(), "duplicate workspace with name") {
@@ -96,6 +99,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "repo that holds env setup script. you must pass in --setup-path if you use this argument")
 	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to env setup script. If you include --setup-repo we will apply this argument to that repo")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
+	// GPU options
+	cmd.Flags().StringVarP(&instanceType, "instance", "i", "", "GPU instance type. See docs.brev.dev/gpu for details")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
 		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
@@ -113,6 +118,7 @@ type StartOptions struct {
 	SetupPath            string
 	WorkspaceClass       string
 	Detached             bool
+	InstanceType         string
 }
 
 func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
@@ -327,6 +333,10 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 
 	if len(setupScriptContents) > 0 {
 		cwOptions.WithStartupScript(setupScriptContents)
+	}
+
+	if options.InstanceType != "" {
+		cwOptions.WithInstanceType(options.InstanceType)
 	}
 
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
@@ -574,6 +584,10 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 
 	if startOptions.SetupScript != "" {
 		options.WithStartupScript(startOptions.SetupScript)
+	}
+
+	if startOptions.InstanceType != "" {
+		options.WithInstanceType(startOptions.InstanceType)
 	}
 
 	w, err := startStore.CreateWorkspace(orgID, options)
