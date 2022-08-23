@@ -68,7 +68,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			shouldWe := hello.ShouldWeRunOnboarding()
+			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
 			if shouldWe {
 				user, err := loginStore.GetCurrentUser()
 				if err != nil {

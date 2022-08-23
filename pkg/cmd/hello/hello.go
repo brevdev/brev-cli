@@ -22,6 +22,7 @@ type HelloStore interface {
 	GetAllWorkspaces(options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
+	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {

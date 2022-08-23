@@ -1,13 +1,15 @@
 package test
 
 import (
+	"fmt"
+
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/util"
 
 	"github.com/spf13/cobra"
 )
@@ -59,10 +61,14 @@ func NewCmdTest(t *terminal.Terminal, _ TestStore) *cobra.Command {
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
 
-			s := t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
-			s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
-			// s += "Here's a video of me installing the VS Code extension 👉 " + ""
-			hello.TypeItToMe(s)
+			// s := t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
+			// s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
+			// // s += "Here's a video of me installing the VS Code extension 👉 " + ""
+			// hello.TypeItToMe(s)
+
+			res := util.DoesPathExist("/Users/naderkhalil/brev-cli")
+			// res := util.DoesPathExist("/home/brev/workspace")
+			fmt.Println(res)
 
 			return nil
 		},

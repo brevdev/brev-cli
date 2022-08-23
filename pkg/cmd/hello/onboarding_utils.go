@@ -21,7 +21,15 @@ func GetFirstName(name string) string {
 	return name
 }
 
-func ShouldWeRunOnboarding() bool {
+func ShouldWeRunOnboarding(s HelloStore) bool {
+	workspaceID, err := s.GetCurrentWorkspaceID()
+	if err != nil {
+		return false
+	}
+	if workspaceID != "" {
+		return false
+	}
+
 	oo, err := GetOnboardingObject()
 	if err != nil {
 		return true
