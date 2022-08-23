@@ -212,6 +212,10 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	err = e.ChownFileToUser(idRsa)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	idRsaPub, err := os.Create(e.BuildHomePath(".ssh", "id_rsa.pub"))
 	if err != nil {
@@ -226,6 +230,10 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	err = e.ChownFileToUser(idRsaPub)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	c := fmt.Sprintf(`eval "$(ssh-agent -s)" && ssh-add %s`, e.BuildHomePath(".ssh", "id_rsa"))
 	cmd = setupworkspace.CmdStringBuilder(c)
@@ -236,7 +244,7 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 
 	authorizedKeyPath := e.BuildHomePath(".ssh", "authorized_keys")
 
-	err = appendToAuthorizedKeys(keys, authorizedKeyPath)
+	err = appendToAuthorizedKeys(e, keys, authorizedKeyPath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -251,7 +259,7 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 	return nil
 }
 
-func appendToAuthorizedKeys(keys *store.KeyPair, authorizedKeyPath string) error {
+func appendToAuthorizedKeys(e envInitier, keys *store.KeyPair, authorizedKeyPath string) error {
 	//nolint:gosec //todo is this a prob?
 	authorizedKeyFile, err := os.OpenFile(authorizedKeyPath, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -262,6 +270,12 @@ func appendToAuthorizedKeys(keys *store.KeyPair, authorizedKeyPath string) error
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	// chown to user
+	err = e.ChownFileToUser(authorizedKeyFile)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
 
