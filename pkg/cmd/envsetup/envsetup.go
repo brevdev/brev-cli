@@ -199,38 +199,12 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	idRsa, err := os.Create(e.BuildHomePath(".ssh", "id_rsa"))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	defer setupworkspace.PrintErrFromFunc(idRsa.Close)
-	_, err = idRsa.Write([]byte(keys.PrivateKeyData))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = idRsa.Chmod(0o400)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.ChownFileToUser(idRsa)
+	err = createPrivateKey(e, keys)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	idRsaPub, err := os.Create(e.BuildHomePath(".ssh", "id_rsa.pub"))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	defer setupworkspace.PrintErrFromFunc(idRsaPub.Close)
-	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = idRsaPub.Chmod(0o400)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.ChownFileToUser(idRsaPub)
+	err = createPublicKey(e, keys)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -256,6 +230,49 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 		}
 	}
 
+	return nil
+}
+
+// extract creating private key to function
+func createPrivateKey(e envInitier, keys *store.KeyPair) error {
+	idRsa, err := os.Create(e.BuildHomePath(".ssh", "id_rsa"))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer setupworkspace.PrintErrFromFunc(idRsa.Close)
+	_, err = idRsa.Write([]byte(keys.PrivateKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = idRsa.Chmod(0o400)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.ChownFileToUser(idRsa)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func createPublicKey(e envInitier, keys *store.KeyPair) error {
+	idRsaPub, err := os.Create(e.BuildHomePath(".ssh", "id_rsa.pub"))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer setupworkspace.PrintErrFromFunc(idRsaPub.Close)
+	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = idRsaPub.Chmod(0o400)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.ChownFileToUser(idRsaPub)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
