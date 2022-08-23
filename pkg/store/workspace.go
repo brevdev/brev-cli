@@ -274,6 +274,25 @@ func (s AuthHTTPStore) GetWorkspace(workspaceID string) (*entity.Workspace, erro
 	return &result, nil
 }
 
+// strawberry-banana
+// path params might not be correct, if you have bugs double check
+func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, modifyWSReq entity.ModifyWorkspaceRequest) (*entity.Workspace, error) {
+	var result entity.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		SetBody(modifyWSReq).
+		Put(workspacePath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
 func (s AuthHTTPStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, error) {
 	var result entity.Workspace
 	res, err := s.authHTTPClient.restyClient.R().

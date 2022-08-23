@@ -460,3 +460,17 @@ func (u User) GetOnboardingData() (*OnboardingData, error) {
 	}
 	return x, nil
 }
+
+type ModifyWorkspaceRequest struct {
+	WorkspaceClass    string    `json:"workspaceClassId"`
+	IsStoppable       *bool     `json:"isStoppable"`
+	StartupScriptPath string    `json:"startupScriptPath"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	IDEConfig         IDEConfig `json:"ideConfig"`
+	Repos             ReposV0   `json:"repos"`
+	Execs             ExecsV0   `json:"execs"`
+	ReposV1           *ReposV1  `json:"reposV1"`
+	ExecsV1           *ExecsV1  `json:"execsV1"`
+	InstanceType      string    `json:"instanceType"`
+}
