@@ -32,6 +32,14 @@ type ConfigUpdater struct {
 	PrivateKey string
 }
 
+func NewConfigUpdater(store ConfigUpdaterStore, configs []Config, privateKey string) *ConfigUpdater {
+	return &ConfigUpdater{
+		Store:      store,
+		Configs:    configs,
+		PrivateKey: privateKey,
+	}
+}
+
 var _ tasks.Task = ConfigUpdater{}
 
 func (c ConfigUpdater) Run() error {
@@ -76,18 +84,6 @@ func (c ConfigUpdater) Configure() error {
 type ConfigUpaterFactoryStore interface {
 	ConfigUpdaterStore
 	SSHConfigurerV2Store
-}
-
-func NewSSHConfigUpdater(store ConfigUpaterFactoryStore) ConfigUpdater {
-	return ConfigUpdater{
-		Store: store,
-		Configs: []Config{
-			NewSSHConfigurerV2(
-				store,
-				true,
-			),
-		},
-	}
 }
 
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand

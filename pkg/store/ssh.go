@@ -135,6 +135,9 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 }
 
 func (f FileStore) WritePrivateKey(pem string) error {
+	if pem == "" {
+		return errors.New("empty pem")
+	}
 	home, err := f.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

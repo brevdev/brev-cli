@@ -6,6 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -22,6 +23,7 @@ type TaskMap map[string]tasks.Task
 var all bool // used for run command
 
 type TaskStore interface {
+	k8s.K8sStore
 	CopyBin(targetBin string) error
 	WriteString(path, data string) error
 	RegisterNode(publicKey string) error

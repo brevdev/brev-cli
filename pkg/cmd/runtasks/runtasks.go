@@ -88,11 +88,7 @@ func getDefaultTasks(store RunTasksStore, runRemoteCMD bool) ([]tasks.Task, erro
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.ConfigUpdater{
-		Store:      store,
-		Configs:    configs,
-		PrivateKey: privateKey,
-	}
+	cu := ssh.NewConfigUpdater(store, configs, privateKey)
 
 	return []tasks.Task{cu}, nil
 }

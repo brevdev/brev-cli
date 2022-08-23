@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -18,6 +19,7 @@ type RefreshStore interface {
 	ssh.ConfigUpdaterStore
 	ssh.SSHConfigurerV2Store
 	GetCurrentUser() (*entity.User, error)
+	k8s.K8sStore
 }
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
@@ -97,10 +99,17 @@ func GetConfigUpdater(store RefreshStore, runRemotCMD bool) (*ssh.ConfigUpdater,
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.ConfigUpdater{
-		Store:   store,
-		Configs: configs,
+	// get private key and set here
+	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(store) // to resolve
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	privateKey := workspaceGroupClientMapper.GetPrivateKey()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	return &cu, nil
+	cu := ssh.NewConfigUpdater(store, configs, privateKey)
+
+	return cu, nil
 }
