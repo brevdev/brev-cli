@@ -271,6 +271,7 @@ type Workspace struct {
 	OrganizationID   string `json:"organizationId"`
 	// WorkspaceClassID is resources, like "2x8"
 	WorkspaceClassID  string            `json:"workspaceClassId"`
+	InstanceType      string            `json:"instanceType,omitempty"`
 	CreatedByUserID   string            `json:"createdByUserId"`
 	DNS               string            `json:"dns"`
 	Status            string            `json:"status"`

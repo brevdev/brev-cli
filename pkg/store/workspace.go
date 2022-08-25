@@ -19,15 +19,17 @@ var (
 	workspaceOrgPath        = fmt.Sprintf(workspaceOrgPathPattern, fmt.Sprintf("{%s}", orgIDParamName))
 )
 
-type UpdateWorkspaceReqBody struct {
+type ModifyWorkspaceRequest struct {
 	WorkspaceClassID  string            `json:"workspaceClassId,omitempty"`
-	InstanceType      string            `json:"instanceType,omitempty"`
 	IsStoppable       bool              `json:"isStoppable,omitempty"`
 	StartupScriptPath string            `json:"startupScriptPath,omitempty"`
 	Name              string            `json:"name,omitempty"`
 	IDEConfig         *entity.IDEConfig `json:"ideConfig,omitempty"`
-	ReposV1           entity.ReposV1    `json:"reposV1,omitempty"`
-	ExecsV1           entity.ExecsV1    `json:"execsV1,omitempty"`
+	Repos             entity.ReposV0    `json:"repos,omitempty"`
+	Execs             entity.ExecsV0    `json:"execs,omitempty"`
+	ReposV1           *entity.ReposV1   `json:"reposV1,omitempty"`
+	ExecsV1           *entity.ExecsV1   `json:"execsV1,omitempty"`
+	InstanceType      string            `json:"instanceType,omitempty"`
 }
 
 type CreateWorkspacesOptions struct {
@@ -285,15 +287,17 @@ func (s AuthHTTPStore) GetWorkspace(workspaceID string) (*entity.Workspace, erro
 	return &result, nil
 }
 
-// strawberry-banana
-// path params might not be correct, if you have bugs double check
-func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, modifyWSReq entity.ModifyWorkspaceRequest) (*entity.Workspace, error) {
+func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, options *ModifyWorkspaceRequest) (*entity.Workspace, error) {
+	if options == nil {
+		return nil, fmt.Errorf("options can not be nil")
+	}
+
 	var result entity.Workspace
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetPathParam(workspaceIDParamName, workspaceID).
 		SetResult(&result).
-		SetBody(modifyWSReq).
+		SetBody(options).
 		Put(workspacePath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -301,6 +305,11 @@ func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, modifyWSReq entity.Mo
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
+	fmt.Printf("name %s\n", result.Name)
+	fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
+	fmt.Printf("resource class %s\n", result.WorkspaceClassID)
+	fmt.Printf("instance %s\n", result.InstanceType)
+	fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 	return &result, nil
 }
 

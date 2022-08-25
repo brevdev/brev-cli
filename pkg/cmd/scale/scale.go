@@ -4,7 +4,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -20,9 +22,10 @@ var (
 
 type ScaleStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
+	ModifyWorkspace(organizationID string, options *store.ModifyWorkspaceRequest) (*entity.Workspace, error)
 }
 
-func NewCmdScale(t *terminal.Terminal, store ScaleStore) *cobra.Command {
+func NewCmdScale(t *terminal.Terminal, sstore ScaleStore) *cobra.Command {
 	// var instanceType string
 	var gpu string
 	var cpu string
@@ -38,7 +41,7 @@ func NewCmdScale(t *terminal.Terminal, store ScaleStore) *cobra.Command {
 				return breverrors.NewValidationError("You must provide an instance with flage -i")
 			}
 
-			err := Runscale(t, args, gpu, cpu, store)
+			err := Runscale(t, args, gpu, cpu, sstore)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -49,20 +52,30 @@ func NewCmdScale(t *terminal.Terminal, store ScaleStore) *cobra.Command {
 	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type.  See docs.brev.dev/gpu for details")
 	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type.  See docs.brev.dev/gpu for details")
 	// cmd.Flags().StringVarP(&instanceType, "instance", "i", "", "GPU or CPU instance type.  See docs.brev.dev/gpu for details")
-	// cmd.Flags().StringVarP(&instanceType, "instance", "i", "", "GPU or CPU instance type.  See docs.brev.dev/gpu for details")
 	return cmd
 }
 
-func Runscale(t *terminal.Terminal, args []string, gpu string, cpu string, store ScaleStore) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
+func Runscale(t *terminal.Terminal, args []string, gpu string, cpu string, sstore ScaleStore) error {
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, args[0])
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	var modifyBody store.ModifyWorkspaceRequest
+
 	if gpu != "" {
+		modifyBody.InstanceType = gpu
 		t.Vprintf("\nScaling %s to %s GPU\n", workspace.Name, gpu)
 	} else if cpu != "" {
+		modifyBody.WorkspaceClassID = cpu
 		t.Vprintf("\nScaling %s to %s CPU\n", workspace.Name, cpu)
 	}
+
+	ws, err := sstore.ModifyWorkspace(workspace.ID, &modifyBody)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprintf("\n%s scaled to %s\n", ws.Name, ws.InstanceType)
 
 	return nil
 }
