@@ -413,7 +413,7 @@ func (f FileStore) ChownFilePathToUser(filePath string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = os.Chown(filePath, int(uid), int(gid))
+	err = f.fs.Chown(filePath, int(uid), int(gid))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
