@@ -23,8 +23,8 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/kevinburke/ssh_config"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/kevinburke/ssh_config"
 )
 
 const workspaceSSHConfigTemplate = `Host {{ .Host }}
