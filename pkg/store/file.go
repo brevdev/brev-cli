@@ -404,8 +404,6 @@ func (f FileStore) GetFileAsString(path string) (string, error) {
 	return res, nil
 }
 
-
-
 func (f FileStore) ChownFilePathToUser(filePath string) error {
 	uid, err := strconv.ParseInt(f.User.Uid, 10, 32)
 	if err != nil {
