@@ -19,6 +19,17 @@ var (
 	workspaceOrgPath        = fmt.Sprintf(workspaceOrgPathPattern, fmt.Sprintf("{%s}", orgIDParamName))
 )
 
+type UpdateWorkspaceReqBody struct {
+	WorkspaceClassID  string            `json:"workspaceClassId,omitempty"`
+	InstanceType      string            `json:"instanceType,omitempty"`
+	IsStoppable       bool              `json:"isStoppable,omitempty"`
+	StartupScriptPath string            `json:"startupScriptPath,omitempty"`
+	Name              string            `json:"name,omitempty"`
+	IDEConfig         *entity.IDEConfig `json:"ideConfig,omitempty"`
+	ReposV1           entity.ReposV1    `json:"reposV1,omitempty"`
+	ExecsV1           entity.ExecsV1    `json:"execsV1,omitempty"`
+}
+
 type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
