@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -348,10 +349,8 @@ func (f FileStore) GetBrevHomePath() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	brevHome, err := files.GetBrevHome(home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+	brevHome := files.GetBrevHome(home)
+
 	return brevHome, nil
 }
 
@@ -361,6 +360,16 @@ func (f FileStore) BuildBrevHome() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	err = files.BuildBrevHome(f.fs, home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// chown to store user if set
+	path, err := f.GetBrevHomePath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = f.ChownFilePathToUser(path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -393,4 +402,46 @@ func (f FileStore) GetFileAsString(path string) (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return res, nil
+}
+
+
+
+func (f FileStore) ChownFilePathToUser(filePath string) error {
+	uid, err := strconv.ParseInt(f.User.Uid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	gid, err := strconv.ParseInt(f.User.Gid, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = os.Chown(filePath, int(uid), int(gid))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+// needs a functions that will:
+// given a path:
+// will create the path and parent dirs if not exists as store user
+// will create file if not exists as store user, as well open it as read write for appending
+// then return the file so it can be used as an io multiwriter with stdout
+// call it GetOrCreateSetupLogFile(path string) (io.ReaderWriter error)
+func (f FileStore) GetOrCreateSetupLogFile(path string) (afero.File, error) {
+	err := f.fs.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	file, err := f.fs.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	err = f.ChownFilePathToUser(path)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return file, nil
 }

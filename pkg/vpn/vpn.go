@@ -251,18 +251,16 @@ func (t TailscaleConfigurer) ApplyConfig() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	outfilePath, err := files.GetTailScaleOutFilePath(home)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	outfile, err := t.store.GetOrCreateFile(*outfilePath)
+	outfilePath := files.GetTailScaleOutFilePath(home)
+
+	outfile, err := t.store.GetOrCreateFile(outfilePath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	origStderr := os.Stderr
 
 	go func() {
-		err = doOnFileTailLine(*outfilePath, t.handleTailscaleOutput)
+		err = doOnFileTailLine(outfilePath, t.handleTailscaleOutput)
 		if err != nil {
 			fmt.Print(err)
 		}

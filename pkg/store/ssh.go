@@ -57,10 +57,7 @@ func (f FileStore) GetBrevSSHConfigPath() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	path, err := files.GetBrevSSHConfigPath(home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+	path := files.GetBrevSSHConfigPath(home)
 	return path, nil
 }
 
@@ -85,10 +82,8 @@ func (f FileStore) WriteBrevSSHConfig(config string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	bsp, err := files.GetBrevSSHConfigPath(home)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	bsp := files.GetBrevSSHConfigPath(home)
+
 	err = f.fs.MkdirAll(filepath.Dir(bsp), 0o755)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -105,7 +100,7 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	backupFilePath, err := files.GetNewBackupSSHConfigFilePath(home)
+	backupFilePath := files.GetNewBackupSSHConfigFilePath(home)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -125,27 +120,59 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = afero.WriteFile(f.fs, *backupFilePath, []byte(buf.String()), 0o644)
+	err = afero.WriteFile(f.fs, backupFilePath, []byte(buf.String()), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	fmt.Printf("Editing ssh config, backed up at path %s\n", *backupFilePath)
+	fmt.Printf("Editing ssh config, backed up at path %s\n", backupFilePath)
 	return nil
 }
 
 func (f FileStore) WritePrivateKey(pem string) error {
-	if pem == "" {
-		return errors.New("empty pem")
+	err := f.CheckPrivateKey(pem)
+	if err != nil {
+		// if error type is of type store.ErrorInvalidPrivateKey, create it
+		if _, ok := err.(ErrorInvalidPrivateKey); ok {
+			// create new private key file
+			home, err2 := f.UserHomeDir()
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
+			}
+			err2 = files.WriteSSHPrivateKey(f.fs, pem, home)
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
+			}
+			return nil
+		}
+	} else {
+		return breverrors.WrapAndTrace(err)
 	}
-	home, err := f.UserHomeDir()
+	return nil
+}
+
+type ErrorInvalidPrivateKey struct {
+	error
+}
+
+// check if the private key exists and is configured correctly
+func (f FileStore) CheckPrivateKey(pem string) error {
+	privateKeyPath, err := f.GetPrivateKeyPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	privateKey, err := f.fs.Open(privateKeyPath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = files.WriteSSHPrivateKey(f.fs, pem, home)
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, privateKey)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	if buf.String() != pem {
+		return ErrorInvalidPrivateKey{errors.New("private key does not match")}
 	}
 	return nil
 }
@@ -155,10 +182,8 @@ func (f FileStore) GetPrivateKeyPath() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	path, err := files.GetSSHPrivateKeyPath(home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+	path := files.GetSSHPrivateKeyPath(home)
+
 	return path, nil
 }
 

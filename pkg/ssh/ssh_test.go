@@ -122,10 +122,7 @@ func makeMockSSHStore() (*store.FileStore, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	orgPath, err := files.GetActiveOrgsPath(home)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+	orgPath := files.GetActiveOrgsPath(home)
 	err = afero.WriteFile(mfs, orgPath, []byte(`{"id":"ejmrvoj8m","name":"brev.dev"}`), 0o644)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

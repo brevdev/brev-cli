@@ -71,52 +71,36 @@ func GetNewBackupSSHConfigFileName() string {
 }
 
 func BuildBrevHome(fs afero.Fs, userHome string) error {
-	brevHome, err := GetBrevHome(userHome)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	brevHome := GetBrevHome(userHome)
 	if err := fs.MkdirAll(brevHome, defaultFilePermission); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func makeBrevFilePath(filename string, userHome string) (*string, error) {
-	brevHome, err := GetBrevHome(userHome)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+func makeBrevFilePath(filename string, userHome string) string {
+	brevHome := GetBrevHome(userHome)
 	fpath := filepath.Join(brevHome, filename)
-
-	return &fpath, nil
+	return fpath
 }
 
-func GetBrevHome(userHome string) (string, error) {
-	return filepath.Join(userHome, brevDirectory), nil
+func GetBrevHome(userHome string) string {
+	return filepath.Join(userHome, brevDirectory)
 }
 
-func GetActiveOrgsPath(home string) (string, error) {
-	fpath, err := makeBrevFilePath(activeOrgFile, home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	return *fpath, nil
+func GetActiveOrgsPath(home string) string {
+	fpath := makeBrevFilePath(activeOrgFile, home)
+	return fpath
 }
 
-func GetPersonalSettingsCachePath(home string) (string, error) {
-	fpath, err := makeBrevFilePath(personalSettingsCache, home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	return *fpath, nil
+func GetPersonalSettingsCachePath(home string) string {
+	fpath := makeBrevFilePath(personalSettingsCache, home)
+	return fpath
 }
 
-func GetSSHPrivateKeyPath(home string) (string, error) {
-	fpath, err := makeBrevFilePath(GetSSHPrivateKeyFileName(), home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	return *fpath, nil
+func GetSSHPrivateKeyPath(home string) string {
+	fpath := makeBrevFilePath(GetSSHPrivateKeyFileName(), home)
+	return fpath
 }
 
 func GetUserSSHConfigPath(home string) (string, error) {
@@ -124,38 +108,27 @@ func GetUserSSHConfigPath(home string) (string, error) {
 	return sshConfigPath, nil
 }
 
-func GetBrevSSHConfigPath(home string) (string, error) {
-	path, err := GetBrevHome(home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+func GetBrevSSHConfigPath(home string) string {
+	path := GetBrevHome(home)
 	brevSSHConfigPath := filepath.Join(path, "ssh_config")
-	return brevSSHConfigPath, nil
+	return brevSSHConfigPath
 }
 
-func GetOnboardingStepPath(home string) (string, error) {
-	path, err := GetBrevHome(home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+func GetOnboardingStepPath(home string) string {
+	path := GetBrevHome(home)
 	brevOnboardingFilePath := filepath.Join(path, "onboarding_step.json")
-	return brevOnboardingFilePath, nil
+	return brevOnboardingFilePath
 }
 
-func GetNewBackupSSHConfigFilePath(home string) (*string, error) {
-	fp, err := makeBrevFilePath(GetNewBackupSSHConfigFileName(), home)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return fp, nil
+func GetNewBackupSSHConfigFilePath(home string) string {
+	fp := makeBrevFilePath(GetNewBackupSSHConfigFileName(), home)
+
+	return fp
 }
 
-func GetTailScaleOutFilePath(home string) (*string, error) {
-	fp, err := makeBrevFilePath(GetTailScaleOutFileName(), home)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return fp, nil
+func GetTailScaleOutFilePath(home string) string {
+	fp := makeBrevFilePath(GetTailScaleOutFileName(), home)
+	return fp
 }
 
 // ReadJSON reads data from a file into the given struct
@@ -275,11 +248,8 @@ func OverwriteString(fs afero.Fs, filepath string, data string) error {
 }
 
 func WriteSSHPrivateKey(fs afero.Fs, data string, home string) error {
-	pkPath, err := GetSSHPrivateKeyPath(home)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = fs.MkdirAll(filepath.Dir(pkPath), defaultFilePermission)
+	pkPath := GetSSHPrivateKeyPath(home)
+	err := fs.MkdirAll(filepath.Dir(pkPath), defaultFilePermission)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

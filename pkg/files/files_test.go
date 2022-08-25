@@ -23,12 +23,6 @@ func (s *filesTestSuite) TestGetUserSSHConfigPath() {
 	s.Nil(err)
 }
 
-func (s *filesTestSuite) TestGetNewBackupSSHConfigFilePath() {
-	home, _ := os.UserHomeDir()
-	_, err := GetNewBackupSSHConfigFilePath(home)
-	s.Nil(err)
-}
-
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestFiles(t *testing.T) {

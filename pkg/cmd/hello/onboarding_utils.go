@@ -75,11 +75,7 @@ func GetOnboardingFilePath() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	path, err := files.GetOnboardingStepPath(home)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-
+	path := files.GetOnboardingStepPath(home)
 	return path, nil
 }
 
