@@ -130,49 +130,13 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 }
 
 func (f FileStore) WritePrivateKey(pem string) error {
-	err := f.CheckPrivateKey(pem)
-	if err != nil {
-		// if error type is of type store.ErrorInvalidPrivateKey, create it
-		if _, ok := err.(ErrorInvalidPrivateKey); ok {
-			// create new private key file
-			home, err2 := f.UserHomeDir()
-			if err2 != nil {
-				return breverrors.WrapAndTrace(err2)
-			}
-			err2 = files.WriteSSHPrivateKey(f.fs, pem, home)
-			if err2 != nil {
-				return breverrors.WrapAndTrace(err2)
-			}
-			return nil
-		}
-	} else {
-		return breverrors.WrapAndTrace(err)
+	home, err2 := f.UserHomeDir()
+	if err2 != nil {
+		return breverrors.WrapAndTrace(err2)
 	}
-	return nil
-}
-
-type ErrorInvalidPrivateKey struct {
-	error
-}
-
-// check if the private key exists and is configured correctly
-func (f FileStore) CheckPrivateKey(pem string) error {
-	privateKeyPath, err := f.GetPrivateKeyPath()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	privateKey, err := f.fs.Open(privateKeyPath)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	buf := new(strings.Builder)
-	_, err = io.Copy(buf, privateKey)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if buf.String() != pem {
-		return ErrorInvalidPrivateKey{errors.New("private key does not match")}
+	err2 = files.WriteSSHPrivateKey(f.fs, pem, home)
+	if err2 != nil {
+		return breverrors.WrapAndTrace(err2)
 	}
 	return nil
 }

@@ -23,7 +23,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/kevinburke/ssh_config"
 )
 
@@ -72,7 +71,6 @@ type (
 		privateKey string
 	}
 	SSHConfigurerStore interface {
-		CheckPrivateKey(pem string) error
 		WritePrivateKey(pem string) error
 	}
 	SSHConfigurer struct {
@@ -401,21 +399,10 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 }
 
 func (sshConfigurer *SSHConfigurer) Sync() error {
-	err := sshConfigurer.store.CheckPrivateKey(sshConfigurer.privateKey)
-
+	err := sshConfigurer.store.WritePrivateKey(sshConfigurer.privateKey)
 	if err != nil {
-		// if error type is of type store.ErrorInvalidPrivateKey, create it
-		if _, ok := err.(store.ErrorInvalidPrivateKey); ok {
-
-			err = sshConfigurer.store.WritePrivateKey(sshConfigurer.privateKey)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-		}
-	} else {
 		return breverrors.WrapAndTrace(err)
 	}
-
 	identityPortMap, err := sshConfigurer.GetIdentityPortMap()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
