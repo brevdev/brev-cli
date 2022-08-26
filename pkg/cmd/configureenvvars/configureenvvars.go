@@ -8,13 +8,13 @@ import (
 
 	"github.com/alessio/shellescape"
 	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
 const (
 	BREV_WORKSPACE_ENV_PATH  = "/home/brev/workspace/.env"
+	BREV_DEV_PLANE_ENV_PATH  = "/home/ubuntu/.brev/.env"
 	BREV_MANGED_ENV_VARS_KEY = "BREV_MANAGED_ENV_VARS"
 )
 
@@ -49,10 +49,10 @@ func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore
 
 func RunConfigureEnvVars(cevStore ConfigureEnvVarsStore) (string, error) {
 	brevEnvsString := os.Getenv(BREV_MANGED_ENV_VARS_KEY)
-	envFileContents, err := cevStore.GetFileAsString(BREV_WORKSPACE_ENV_PATH)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
+	// intentionally ignoring err
+	envFileContents, _ := cevStore.GetFileAsString(BREV_WORKSPACE_ENV_PATH)
+	devplaneContents, _ := cevStore.GetFileAsString(BREV_DEV_PLANE_ENV_PATH)
+	envFileContents = envFileContents + "\n" + devplaneContents
 	return generateExportString(brevEnvsString, envFileContents), nil
 }
 
