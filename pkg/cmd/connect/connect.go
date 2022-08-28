@@ -8,16 +8,16 @@ import (
 )
 
 var (
-	short   = "TODO"
-	long    = "TODO"
-	example = "TODO"
+	short   = "Connect Brev to your AWS account"
+	long    = "Connect Brev to your AWS account"
+	example = "brev connect"
 )
 
 type connectStore interface{}
 
 func NewCmdConnect(t *terminal.Terminal, store connectStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "connect",
+		Use:                   "connect-aws",
 		DisableFlagsInUseLine: true,
 		Short:                 short,
 		Long:                  long,
@@ -34,5 +34,23 @@ func NewCmdConnect(t *terminal.Terminal, store connectStore) *cobra.Command {
 }
 
 func RunConnect(t *terminal.Terminal, args []string, store connectStore) error {
+	t.Vprintf("Connect the AWS IAM user to create dev environments in your AWS account.\n\n")
+	// t.Vprintf(t.Yellow("Connect the AWS IAM user to create dev environments in your AWS account.\n\n"))
+
+	AccessKeyID := terminal.PromptGetInput(terminal.PromptContent{
+		Label:    "Access Key ID: ",
+		ErrorMsg: "error",
+	})
+
+	SecretAccessKey := terminal.PromptGetInput(terminal.PromptContent{
+		Label:    "Secret Access Key: ",
+		ErrorMsg: "error",
+		Mask:     '*',
+	})
+
+	t.Vprintf("\n")
+	t.Vprintf(AccessKeyID)
+	t.Vprintf(SecretAccessKey)
+
 	return nil
 }

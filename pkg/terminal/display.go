@@ -93,6 +93,7 @@ type PromptContent struct {
 	Label      string
 	Default    string
 	AllowEmpty bool
+	Mask       rune
 }
 
 func PromptGetInput(pc PromptContent) string {
@@ -119,6 +120,9 @@ func PromptGetInput(pc PromptContent) string {
 		Validate:  validate,
 		Default:   pc.Default,
 		AllowEdit: true,
+	}
+	if pc.Mask != 0 {
+		prompt.Mask = pc.Mask
 	}
 
 	result, err := prompt.Run()
