@@ -10,15 +10,21 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
+var (
+	short   = "TODO"
+	long    = "TODO"
+	example = "TODO"
+)
+
 type $1Store interface {}
 
 func NewCmd$1(t *terminal.Terminal, store $1Store) *cobra.Command {
     cmd := &cobra.Command{
         Use:                   "$1",
         DisableFlagsInUseLine: true,
-        Short:                 "TODO",
-        Long:                  "TODO",
-        Example:               "TODO",
+        Short:                 short,
+        Long:                  long,
+        Example:               example,
         RunE: func(cmd *cobra.Command, args []string) error {
             err := Run$1(t, args, store)
             if err != nil {
