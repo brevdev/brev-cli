@@ -264,6 +264,18 @@ const (
 	Unavailable = "UNAVAILABLE"
 )
 
+type WorkspaceGroup struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	BaseDNS        string `json:"baseDns"`
+	Status         string `json:"status"`
+	Platform       string `json:"platform"`
+	PlatformID     string `json:"platformId"`
+	PlatformRegion string `json:"platformRegion"`
+	Version        string `json:"version"`
+	TenantType     string `json:"tenantType"`
+} // @Name WorkspaceGroup
+
 type Workspace struct {
 	ID               string `json:"id"`
 	Name             string `json:"name"`
