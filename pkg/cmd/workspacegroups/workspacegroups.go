@@ -1,8 +1,9 @@
 package workspacegroups
 
 import (
-	"fmt"
+	"os"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -33,7 +34,7 @@ func NewCmdWorkspaceGroups(t *terminal.Terminal, store WorkspaceGroupsStore) *co
 	return cmd
 }
 
-func RunWorkspaceGroups(t *terminal.Terminal, args []string, store WorkspaceGroupsStore) error {
+func RunWorkspaceGroups(_ *terminal.Terminal, _ []string, store WorkspaceGroupsStore) error {
 	org, err := store.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -42,6 +43,27 @@ func RunWorkspaceGroups(t *terminal.Terminal, args []string, store WorkspaceGrou
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	fmt.Println(wsgs)
+
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "PLATFORM ID", "PLATFORM TYPE"}
+	ta.AppendHeader(header)
+	for _, w := range wsgs {
+		workspaceRow := []table.Row{{
+			w.Name, w.PlatformID, w.Platform,
+		}}
+		ta.AppendRows(workspaceRow)
+	}
+	ta.Render()
 	return nil
+}
+
+func getBrevTableOptions() table.Options {
+	options := table.OptionsDefault
+	options.DrawBorder = false
+	options.SeparateColumns = false
+	options.SeparateRows = false
+	options.SeparateHeader = false
+	return options
 }
