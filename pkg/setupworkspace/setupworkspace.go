@@ -1017,7 +1017,7 @@ func (w WorkspaceIniter) setupRepoV0(repo entity.RepoV0) error {
 		repos := allRepoFormats(repo.Repository)
 		var err error
 		for _, repoURL := range repos {
-			err = w.GitCloneIfDNE(repoURL, repo.Directory, repo.Branch)
+			err = w.GitCloneIfDNE(repoURL, repoPath, repo.Branch)
 		}
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
