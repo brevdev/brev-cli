@@ -1101,20 +1101,14 @@ func (w WorkspaceIniter) setupDotBrev(dotBrevPath string) error {
 }
 
 func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string) error {
-	// check if dirpath contains a git repo by looking for .git and not using PathExists
-	wspath := filepath.Join(w.BuildHomePath(), dirPath)
-	gitPath := filepath.Join(wspath, ".git")
-	fmt.Println("checking if git repo exists at", wspath)
-	// sleep for ten seconds
-	// time.Sleep(10 * time.Second)
-	if !PathExists(gitPath) {
+	if !PathExists(dirPath) {
 		// TODO implement multiple retry
 		fmt.Println("pre", url)
 		if !strings.HasPrefix(url, "git@") && !strings.HasPrefix(url, "http") {
 			url = "git@" + url
 		}
-		fmt.Printf("cloning %s to dir '%s'\n", url, gitPath)
-		cmd := CmdBuilder("git", "clone", "--recursive", url, wspath)
+		fmt.Printf("cloning %s to dir '%s'\n", url, dirPath)
+		cmd := CmdBuilder("git", "clone", "--recursive", url, dirPath)
 		err := w.CmdAsUser(cmd)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -1136,7 +1130,7 @@ func (w WorkspaceIniter) GitCloneIfDNE(url string, dirPath string, branch string
 			}
 		}
 	} else {
-		fmt.Printf("path already exists, did not clone %s to %s\n", url, wspath)
+		fmt.Printf("path already exists, did not clone %s to %s\n", url, dirPath)
 	}
 	return nil
 }
