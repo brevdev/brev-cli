@@ -20,7 +20,7 @@ var testCMDDir = os.Getenv("BREV_SETUP_TEST_CMD_DIR")
 func init() {
 	cmd := exec.Command("/usr/bin/make", "fast-build")
 	if testCMDDir == "" {
-		testCMDDir = "/home/brev/workspace/brev-cli"
+		testCMDDir = "/home/ubuntu/brev-cli"
 	}
 	cmd.Dir = testCMDDir
 

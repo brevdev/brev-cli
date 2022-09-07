@@ -64,7 +64,7 @@ test: ## go test with race detector and code covarage
 .PHONY: test-e2e
 test-e2e: ## go test with race detector and code covarage
 	$(call print-target)
-	go test -timeout 40m -race -covermode=atomic -coverprofile=coverage.out ./e2etest/...
+	go test -timeout 90m -race -covermode=atomic -coverprofile=coverage.out ./e2etest/...
 
 .PHONY: mod-tidy
 mod-tidy: ## go mod tidy

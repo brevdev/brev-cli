@@ -79,7 +79,10 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 		containerName := fmt.Sprintf("%s-%s", allOptions.TestNamePrefix, p.Name)
 		// [a-zA-Z0-9][a-zA-Z0-9_.-]
 		workspace := NewTestWorkspace(allOptions.BrevBinaryPath, containerName, p.Image, p.Ports, setupParams)
-		_ = workspace.Done()
+		err := workspace.Done()
+		if err != nil {
+			fmt.Println(err)
+		}
 		workspace.ShowOut = true
 		workspaces = append(workspaces, workspace)
 	}
@@ -173,6 +176,7 @@ func (w TestWorkspace) Setup() error {
 
 	dockerRunArgs = append(append([]string{"run"}, dockerRunArgs...), []string{w.Image, "bash"}...)
 
+	time.Sleep(time.Second * 2)
 	cmdR := exec.Command("docker", dockerRunArgs...) //nolint:gosec // for tests
 	if w.ShowOut {
 		sendToOut(cmdR)
@@ -301,7 +305,10 @@ func (w TestWorkspace) Done() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_ = w.RmContainer()
+	err = w.RmContainer()
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	err = w.RmVolume()
 	if err != nil {
