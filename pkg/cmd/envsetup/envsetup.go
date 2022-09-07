@@ -320,10 +320,7 @@ PasswordAuthentication no`, authorizedKeyPath)
 }
 
 func newEnvIniter(user *user.User, params *store.SetupParamsV0, configureSystemSSHConfig bool) *envInitier {
-	workspaceIniter := setupworkspace.NewWorkspaceIniter(user, params)
-
-	// overwrite WorkspaceDir since its hardcoded in setupworkspace
-	workspaceIniter.WorkspaceDir = user.HomeDir
+	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
 
 	return &envInitier{
 		*workspaceIniter,

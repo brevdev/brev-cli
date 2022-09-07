@@ -32,7 +32,9 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	wi := NewWorkspaceIniter(user, params)
+
+	workspaceDir := "/home/brev/workspace"
+	wi := NewWorkspaceIniter(workspaceDir, user, params)
 	logFilePath := "/var/log/brev-workspace.log"
 	done, err := mirrorPipesToFile(logFilePath)
 	if err != nil {
@@ -136,13 +138,11 @@ type WorkspaceIniter struct {
 	VscodeExtensionIDs []string
 }
 
-func NewWorkspaceIniter(user *user.User, params *store.SetupParamsV0) *WorkspaceIniter {
+func NewWorkspaceIniter(workspaceDir string, user *user.User, params *store.SetupParamsV0) *WorkspaceIniter {
 	userRepo := MakeUserRepo(*params)
 	projectReop := MakeProjectRepo(*params)
 
 	params.ReposV0 = MergeRepos(userRepo, projectReop, params.ReposV0)
-
-	workspaceDir := "/home/brev/workspace"
 
 	params.ReposV0 = InitRepos(params.ReposV0)
 
