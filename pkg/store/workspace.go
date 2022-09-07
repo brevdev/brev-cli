@@ -418,7 +418,7 @@ var (
 	workspaceSetupPath        = fmt.Sprintf(workspaceSetupPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
 )
 
-func (s AuthHTTPStore) GetENVSetupParams(workspaceID string) (*SetupParamsV0, error) {
+func (s AuthHTTPStore) GetEnvSetupParams(workspaceID string) (*SetupParamsV0, error) {
 	var result SetupParamsV0
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").

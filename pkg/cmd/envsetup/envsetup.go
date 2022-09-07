@@ -1,6 +1,7 @@
 package envsetup
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,7 +25,7 @@ import (
 )
 
 type envsetupStore interface {
-	GetENVSetupParams(wsid string) (*store.SetupParamsV0, error)
+	GetEnvSetupParams(wsid string) (*store.SetupParamsV0, error)
 	WriteSetupScript(script string) error
 	GetSetupScriptPath() string
 	GetCurrentUser() (*entity.User, error)
@@ -108,10 +109,15 @@ func RunEnvSetup(
 	}
 	fmt.Println("setting up dev environment")
 
-	params, err := store.GetENVSetupParams(workspaceid)
+	params, err := store.GetEnvSetupParams(workspaceid)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	res, err := json.MarshalIndent(params, "", "")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Println(string(res))
 
 	if !featureflag.IsDev() && !debugger {
 		_, err = store.GetCurrentUser() // do this to set error user reporting
