@@ -425,20 +425,52 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "STATUS", "URL", "ID"}
+	header := table.Row{"Name", "Status", "Url", "ID", "Machine"}
 	if enableSSHCol {
-		header = table.Row{"NAME", "STATUS", "URL", "SSH", "ID"}
+		header = table.Row{"Name", "Status", "Url", "SSH", "ID", "Machine"}
 	}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.ID}}
+		instanceString := getInstanceString(w)
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.ID, instanceString}}
 		if enableSSHCol {
-			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.GetLocalIdentifier(), w.ID}}
+			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.GetLocalIdentifier(), w.ID, instanceString}}
 		}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
+}
+
+func getClassIDString(classID string) string {
+	// switch statement on class ID
+	switch classID {
+	case "2x2":
+		return "2 cpu | 2 gb ram"
+	case "2x4":
+		return "2 cpu | 4 gb ram"
+	case "2x8":
+		return "2 cpu | 8 gb ram"
+	case "4x16":
+		return "2 cpu | 16 gb ram"
+	case "8x32":
+		return "8 cpu | 32 gb ram"
+	case "16x32":
+		return "16 cpu | 32 gb ram"
+	default:
+		return classID
+
+	}
+}
+
+func getInstanceString(w entity.Workspace) string {
+	var instanceString string
+	if w.WorkspaceClassID != "" {
+		instanceString = getClassIDString(w.WorkspaceClassID)
+	} else {
+		instanceString = w.InstanceType + " (gpu)"
+	}
+	return instanceString
 }
 
 func getWorkspaceDisplayStatus(w entity.Workspace) string {
