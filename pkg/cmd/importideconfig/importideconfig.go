@@ -10,6 +10,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/hashicorp/go-multierror"
 	"github.com/tidwall/gjson"
 	"golang.org/x/text/encoding/charmap"
 
@@ -54,7 +55,15 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 	// intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
 	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if strings.Contains(err.Error(), "no such file or directory") {
+			var err1 error
+			paths, err1 = recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode-server/extensions")
+			if err1 != nil {
+				return multierror.Append(err, err1)
+			}
+		} else {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	for _, v := range paths {
 		pathWithoutHome := strings.Split(v, homedir+"/")[1]
