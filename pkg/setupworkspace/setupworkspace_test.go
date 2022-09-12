@@ -38,6 +38,7 @@ func TestFilePerm(_ *testing.T) {
 }
 
 func Test_InstallVscode(t *testing.T) {
+	t.Skip()
 	user, err := GetUserFromUserStr("ubuntu")
 	if err != nil {
 		assert.NoError(t, err)
