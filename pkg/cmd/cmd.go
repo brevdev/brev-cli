@@ -99,10 +99,10 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	if err != nil {
 		fmt.Printf("%v\n", err)
 	}
-	noLoginCmdStore := fsStore.WithNoAuthHTTPClient(
+	noAuthCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).
-		WithAuth(noLoginAuth)
+	)
+	noLoginCmdStore := noAuthCmdStore.WithAuth(noLoginAuth)
 
 	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
 	if err != nil {
@@ -177,7 +177,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printVersion {
-				v, err := remoteversion.BuildVersionString(t, noLoginCmdStore)
+				v, err := remoteversion.BuildVersionString(t, noAuthCmdStore)
 				if err != nil {
 					t.Errprint(err, "Failed to determine version")
 					return breverrors.WrapAndTrace(err)
