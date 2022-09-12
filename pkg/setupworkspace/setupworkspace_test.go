@@ -37,6 +37,20 @@ func TestFilePerm(_ *testing.T) {
 	// }
 }
 
+func Test_InstallVscode(t *testing.T) {
+	user, err := GetUserFromUserStr("ubuntu")
+	if err != nil {
+		assert.NoError(t, err)
+		return
+	}
+	wi := WorkspaceIniter{User: user}
+	err = wi.InstallVscode()
+	if err != nil {
+		assert.NoError(t, err)
+		return
+	}
+}
+
 func TestSendLogToFile(t *testing.T) {
 	cmd := CmdBuilder("echo", "hi")
 	done, err := SendLogToFiles(cmd, "test.txt")
