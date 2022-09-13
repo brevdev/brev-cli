@@ -1,13 +1,8 @@
 package hello
 
 import (
-	"bufio"
-	"context"
 	"fmt"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -54,41 +49,41 @@ func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 }
 
 func TypeItToMe(s string) {
-	sleepSpeed := 47
+	sleepSpeed := 27
 
-	// Make outgoing reader routine
-	outgoing := make(chan string)
-	go func() {
-		inputReader := bufio.NewReader(os.Stdin)
-		for {
-			o, err := inputReader.ReadString('\n')
-			if err != nil {
-				fmt.Printf("outgoing error: %v", err)
-				return
-			}
-			outgoing <- o
-		}
-	}()
+	// // Make outgoing reader routine
+	// outgoing := make(chan string)
+	// go func() {
+	// 	inputReader := bufio.NewReader(os.Stdin)
+	// 	for {
+	// 		o, err := inputReader.ReadString('\n')
+	// 		if err != nil {
+	// 			fmt.Printf("outgoing error: %v", err)
+	// 			return
+	// 		}
+	// 		outgoing <- o
+	// 	}
+	// }()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer ctx.Done()
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer ctx.Done()
+	// interrupt := make(chan os.Signal, 1)
+	// signal.Notify(interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	go func() {
-		for {
-			select {
-			case <-outgoing:
-				sleepSpeed /= 2
+	// go func() {
+	// 	for {
+	// 		select {
+	// 		case <-outgoing:
+	// 			sleepSpeed /= 2
 
-			case <-interrupt:
-				sleepSpeed = 0
+	// 		case <-interrupt:
+	// 			sleepSpeed = 0
 
-			case <-ctx.Done():
-				cancel()
-			}
-		}
-	}()
+	// 		case <-ctx.Done():
+	// 			cancel()
+	// 		}
+	// 	}
+	// }()
 
 	sRunes := []rune(s)
 	for i := 0; i < len(sRunes); i++ {
