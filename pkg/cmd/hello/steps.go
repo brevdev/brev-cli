@@ -49,15 +49,11 @@ func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 	Return nil to exit the onboarding
 */
 func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *entity.Workspace {
-	var firstDevEnv entity.Workspace
 	var runningDevEnvs []entity.Workspace
 	noneFound := true
 	for _, v := range workspaces {
-		if v.Name == DefaultDevEnvName {
-			firstDevEnv = v
-			noneFound = false
-		}
 		if v.Status == "RUNNING" {
+			noneFound = false
 			runningDevEnvs = append(runningDevEnvs, v)
 		}
 	}
@@ -70,11 +66,11 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 		TypeItToMe(s)
 		return nil
 	}
-	msg := GetTextBasedONStatus(firstDevEnv.Status, t)
+	msg := GetTextBasedONStatus(runningDevEnvs[0].Status, t)
 	if msg != "" {
 		TypeItToMe(msg)
 	}
-	return &firstDevEnv
+	return &runningDevEnvs[0]
 }
 
 func printLsIntroText(t *terminal.Terminal, firstWorkspace entity.Workspace) {
