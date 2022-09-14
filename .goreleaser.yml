@@ -31,7 +31,6 @@ brews:
     install: |
       bin.install "brev"
       generate_completions_from_executable("#{bin}/brev", "completion")
-
     test: |
       system "#{bin}/brev" "--version"
 
