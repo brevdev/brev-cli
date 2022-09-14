@@ -5,10 +5,13 @@ import (
 	"os/exec"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -22,9 +25,11 @@ var (
 type ShellStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
-func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
+func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
 	var runRemoteCMD bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -34,6 +39,7 @@ func NewCmdShell(_ *terminal.Terminal, store ShellStore) *cobra.Command {
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runShellCommand(store, args[0], runRemoteCMD)
 			if err != nil {

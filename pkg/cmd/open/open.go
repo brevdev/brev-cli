@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/alessio/shellescape"
@@ -28,9 +30,11 @@ type OpenStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
 	UpdateUser(string, *entity.UpdateUser) (*entity.User, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 }
 
-func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
+func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
 	var runRemotCMD bool
 
 	cmd := &cobra.Command{
@@ -41,6 +45,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore) *cobra.Command {
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
+		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := runOpenCommand(t, store, args[0], runRemotCMD)
 			if err != nil {
