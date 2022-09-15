@@ -99,9 +99,9 @@ func TestCreateNewSSHConfig(t *testing.T) {
 	// version of the test before vscode autoformats the config
 	correct := fmt.Sprintf(`# included in /my/user/config
 Host %s
+  Hostname test1-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
-  User brev
-  ProxyCommand brev proxy test-id-1
+  User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
@@ -111,9 +111,9 @@ Host %s
   RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 Host %s
+  Hostname test2-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
-  User brev
-  ProxyCommand brev proxy test-id-2
+  User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
