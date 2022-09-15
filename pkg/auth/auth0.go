@@ -135,7 +135,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 				"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 				"device_code": {state.DeviceCode},
 			}
-			r, err := http.PostForm(a.OauthTokenEndpoint, data) //nolint:noctx // ignoring api call since planning to refactor api
+			r, err := http.PostForm(a.OauthTokenEndpoint, data)
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 			}
@@ -193,7 +193,7 @@ func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
 		"scope":     {strings.Join(requiredScopes, " ")},
 		"audience":  {a.Audience},
 	}
-	r, err := http.PostForm(a.DeviceCodeEndpoint, data) //nolint:noctx // ignoring noctx since planning on refactoring api calls
+	r, err := http.PostForm(a.DeviceCodeEndpoint, data)
 	if err != nil {
 		return State{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}
@@ -256,7 +256,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 		"refresh_token": {refreshToken},
 	}
 
-	r, err := http.PostForm(a.OauthTokenEndpoint, payload) //nolint:noctx // this is copied from above
+	r, err := http.PostForm(a.OauthTokenEndpoint, payload)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}

@@ -189,7 +189,7 @@ blaksdf;asdf;
 	assert.Equal(t, correct, newConf)
 }
 
-func Test_makeSSHConfigEntryV2(t *testing.T) {
+func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 	type args struct {
 		workspace      entity.Workspace
 		privateKeyPath string
