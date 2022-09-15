@@ -11,6 +11,12 @@ import (
 
 const WorkspaceGroupDevPlane = "devplane-brev-1"
 
+
+var LegacyWorkspaceGroups = map[string]bool{
+	"k8s.brevstack.com":            true,
+	"brev-test-brevtenant-cluster": true,
+}
+
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`

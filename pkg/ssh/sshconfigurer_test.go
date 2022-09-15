@@ -203,7 +203,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
 	}{
 		// TODO: Add test cases.
 		{
-			name: "test workspace group makes different config entry",
+			name: "test devplane uses ubuntu",
 			args: args{
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
@@ -235,12 +235,76 @@ func Test_makeSSHConfigEntryV2(t *testing.T) {
 `,
 		},
 		{
-			name: "test workspace entry gets created properly",
+			name: "test by default we use devplane user",
 			args: args{
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
 					WorkspaceGroupID: "test-id-2",
+					OrganizationID:   "oi",
+					WorkspaceClassID: "wci",
+					CreatedByUserID:  "cui",
+					DNS:              "test2-dns-org.brev.sh",
+					Status:           entity.Running,
+					Password:         "sdfal",
+					GitRepo:          "gitrepo",
+				},
+				privateKeyPath: "/my/priv/key.pem",
+				runRemoteCMD:   true,
+			},
+			want: `Host testname2-id-2
+  Hostname test2-dns-org.brev.sh
+  IdentityFile /my/priv/key.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+
+`,
+		},
+		{
+			name: "test legacy workspace uses brev user 1",
+			args: args{
+				workspace: entity.Workspace{
+					ID:               "test-id-2",
+					Name:             "testName2",
+					WorkspaceGroupID: "k8s.brevstack.com", // a legacy wsg
+					OrganizationID:   "oi",
+					WorkspaceClassID: "wci",
+					CreatedByUserID:  "cui",
+					DNS:              "test2-dns-org.brev.sh",
+					Status:           entity.Running,
+					Password:         "sdfal",
+					GitRepo:          "gitrepo",
+				},
+				privateKeyPath: "/my/priv/key.pem",
+				runRemoteCMD:   true,
+			},
+			want: `Host testname2-id-2
+  IdentityFile /my/priv/key.pem
+  User brev
+  ProxyCommand brev proxy test-id-2
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+
+`,
+		},
+		{
+			name: "test legacy workspace uses brev user 1",
+			args: args{
+				workspace: entity.Workspace{
+					ID:               "test-id-2",
+					Name:             "testName2",
+					WorkspaceGroupID: "brev-test-brevtenant-cluster", // a legacy wsg
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",

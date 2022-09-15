@@ -194,32 +194,24 @@ type SSHConfigEntryV2 struct {
 	HostName     string
 }
 
+func containsKey[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
+}
+
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, runRemoteCMD bool) (string, error) {
 	alias := string(workspace.GetLocalIdentifier())
 	var entry SSHConfigEntryV2
 	var tmpl *template.Template
 	var err error
-	switch workspace.WorkspaceGroupID {
-	case entity.WorkspaceGroupDevPlane:
-		entry = SSHConfigEntryV2{
-			Alias:        alias,
-			IdentityFile: privateKeyPath,
-			User:         "ubuntu",
-			Dir:          workspace.GetProjectFolderPath(),
-			RunRemoteCMD: runRemoteCMD,
-			HostName:     workspace.DNS,
-		}
-		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-	default:
+
+	if containsKey(entity.LegacyWorkspaceGroups, workspace.WorkspaceGroupID) {
 		proxyCommand := makeProxyCommand(workspace.ID)
 
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
-			User:         "brev",
+			User:         "brev", // todo param-user
 			ProxyCommand: proxyCommand,
 			Dir:          workspace.GetProjectFolderPath(),
 			RunRemoteCMD: runRemoteCMD,
@@ -228,7 +220,19 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, run
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-
+	} else {
+		entry = SSHConfigEntryV2{
+			Alias:        alias,
+			IdentityFile: privateKeyPath,
+			User:         "ubuntu", // todo param-user
+			Dir:          workspace.GetProjectFolderPath(),
+			RunRemoteCMD: runRemoteCMD,
+			HostName:     workspace.DNS,
+		}
+		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 	}
 
 	buf := &bytes.Buffer{}
