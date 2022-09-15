@@ -449,11 +449,11 @@ func (f FileStore) GetOrCreateSetupLogFile(path string) (afero.File, error) {
 // download a file from a url to a target path
 func (f FileStore) DownloadBinary(url string, target string) error {
 	// Get the data
-	resp, err := http.Get(url)
+	resp, err := http.Get(url) //nolint:gosec // the urls are hardcoded and trusted
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // defer
 
 	// create target path if not exists
 	err = f.fs.MkdirAll(filepath.Dir(target), 0o755)
@@ -466,7 +466,7 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer out.Close()
+	defer out.Close() //nolint:errcheck // defer
 
 	// uncompress if gzipped
 	var reader io.Reader
@@ -480,7 +480,7 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 	}
 
 	// Write the body to file
-	_, err = io.Copy(out, reader)
+	_, err = io.Copy(out, reader) //nolint:gosec // the urls are hardcoded and trusted
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
