@@ -19,6 +19,7 @@ type AutoStartStore interface {
 	UserHomeDir() (string, error)
 	Remove(target string) error
 	FileExists(target string) (bool, error)
+	DownloadBinary(url string, target string) error
 }
 
 type DaemonConfigurer interface {
@@ -232,4 +233,34 @@ User=` + store.GetOSUser() + `
 		}
 	}
 	return nil
+}
+
+func NewBrevMonConfigure(
+	store AutoStartStore,
+) DaemonConfigurer {
+	return StaticBinaryConfigurer{
+		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
+			Store: store,
+			ValueConfigFile: `
+[Unit]
+Description=brevmon
+After=network.target
+
+[Service]
+User=root
+Type=exec
+ExecStart=/usr/local/bin/brevmon
+ExecReload=/usr/local/bin/brevmon
+Restart=always
+
+[Install]
+WantedBy=default.target
+`,
+			ServiceName: "brevmon.service",
+			ServiceType: "system",
+		},
+
+		URL:  "https://brevmon.brev.dev/brevmon.tar.gz",
+		Name: "brevmon",
+	}
 }

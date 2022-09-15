@@ -1,11 +1,13 @@
 package store
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -442,4 +444,51 @@ func (f FileStore) GetOrCreateSetupLogFile(path string) (afero.File, error) {
 	}
 
 	return file, nil
+}
+
+// download a file from a url to a target path
+func (f FileStore) DownloadBinary(url string, target string) error {
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close()
+
+	// create target path if not exists
+	err = f.fs.MkdirAll(filepath.Dir(target), 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// Create the file
+	out, err := f.fs.Create(target)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer out.Close()
+
+	// uncompress if gzipped
+	var reader io.Reader
+	if strings.HasSuffix(url, ".gz") {
+		reader, err = gzip.NewReader(resp.Body)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		reader = resp.Body
+	}
+
+	// Write the body to file
+	_, err = io.Copy(out, reader)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// make file executable
+	err = f.fs.Chmod(target, 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }

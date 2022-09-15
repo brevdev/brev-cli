@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -34,6 +35,12 @@ type envsetupStore interface {
 	GetOrCreateSetupLogFile(path string) (afero.File, error)
 	GetBrevHomePath() (string, error)
 	BuildBrevHome() error
+	CopyBin(targetBin string) error
+	WriteString(path, data string) error
+	UserHomeDir() (string, error)
+	Remove(target string) error
+	FileExists(target string) (bool, error)
+	DownloadBinary(url string, target string) error
 }
 
 type nologinEnvStore interface {
@@ -138,6 +145,7 @@ func RunEnvSetup(
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
 	fmt.Println("done setting up dev environment")
 	return nil
 }
@@ -145,6 +153,7 @@ func RunEnvSetup(
 type envInitier struct {
 	setupworkspace.WorkspaceIniter
 	ConfigureSystemSSHConfig bool
+	brevMonConfigurer        autostartconf.DaemonConfigurer
 }
 
 func (e envInitier) Setup() error {
@@ -193,6 +202,11 @@ func (e envInitier) Setup() error {
 
 	if setupErr != nil {
 		return breverrors.WrapAndTrace(setupErr)
+	}
+
+	err = e.brevMonConfigurer.Install()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = postPrepare.Await()
@@ -319,12 +333,13 @@ PasswordAuthentication no`, authorizedKeyPath)
 	return nil
 }
 
-func newEnvIniter(user *user.User, params *store.SetupParamsV0, configureSystemSSHConfig bool) *envInitier {
+func newEnvIniter(user *user.User, params *store.SetupParamsV0, configureSystemSSHConfig bool, store autostartconf.AutoStartStore) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
 
 	return &envInitier{
 		*workspaceIniter,
 		configureSystemSSHConfig,
+		autostartconf.NewBrevMonConfigure(store),
 	}
 }
 
@@ -337,7 +352,7 @@ func setupEnv(store envsetupStore, params *store.SetupParamsV0, configureSystemS
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	wi := newEnvIniter(user, params, configureSystemSSHConfig)
+	wi := newEnvIniter(user, params, configureSystemSSHConfig, store)
 	// set logfile path to ~/.brev/envsetup.log
 	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")
 	done, err := mirrorPipesToFile(store, logFilePath)
