@@ -173,6 +173,11 @@ func (e envInitier) Setup() error {
 		},
 	)
 
+	err = e.brevMonConfigurer.Install()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = e.SetupSSH(e.Params.WorkspaceKeyPair)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -202,11 +207,6 @@ func (e envInitier) Setup() error {
 
 	if setupErr != nil {
 		return breverrors.WrapAndTrace(setupErr)
-	}
-
-	err = e.brevMonConfigurer.Install()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
 	}
 
 	err = postPrepare.Await()
