@@ -260,7 +260,7 @@ WantedBy=default.target
 			ServiceType: "system",
 		},
 
-		URL:  "https://brevmon.brev.dev/brevmon.tar.gz",
+		URL:  "https://s3.amazonaws.com/brevmon.brev.dev/brevmon.tar.gz",
 		Name: "brevmon",
 	}
 }

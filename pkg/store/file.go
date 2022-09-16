@@ -469,6 +469,8 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 	defer out.Close() //nolint:errcheck // defer
 
 	// uncompress if gzipped
+	// todo - this is a bit hacky, we should check the content type of the
+	// response or the bytes to see if it is gzipped
 	var reader io.Reader
 	if strings.HasSuffix(url, ".gz") {
 		reader, err = gzip.NewReader(resp.Body)
