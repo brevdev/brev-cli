@@ -1,6 +1,7 @@
 package store
 
 import (
+	"archive/tar"
 	"compress/gzip"
 	"encoding/json"
 	"errors"
@@ -455,6 +456,11 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 	}
 	defer resp.Body.Close() //nolint:errcheck // defer
 
+	// check response code
+	if resp.StatusCode >= 400 {
+		return breverrors.WrapAndTrace(fmt.Errorf("bad status code: %d", resp.StatusCode))
+	}
+
 	// create target path if not exists
 	err = f.fs.MkdirAll(filepath.Dir(target), 0o755)
 	if err != nil {
@@ -468,20 +474,8 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 	}
 	defer out.Close() //nolint:errcheck // defer
 
-	// uncompress if gzipped
-	// todo - this is a bit hacky, we should check the content type of the
-	// response or the bytes to see if it is gzipped
-	var reader io.Reader
-	if strings.HasSuffix(url, ".gz") {
-		reader, err = gzip.NewReader(resp.Body)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
-		reader = resp.Body
-	}
-
-	// Write the body to file
+	reader := trytoUnTarGZ(resp.Body)
+	// overwrite the file with the downloaded data
 	_, err = io.Copy(out, reader) //nolint:gosec // the urls are hardcoded and trusted
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -493,4 +487,18 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+// get reader from tar.gz file
+func trytoUnTarGZ(in io.Reader) io.Reader {
+	gzReader, err := gzip.NewReader(in)
+	if err != nil {
+		return in
+	}
+	tarReader := tar.NewReader(gzReader)
+	_, err = tarReader.Next()
+	if err != nil {
+		return gzReader
+	}
+	return tarReader
 }
