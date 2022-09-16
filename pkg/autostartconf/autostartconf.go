@@ -238,7 +238,7 @@ User=` + store.GetOSUser() + `
 func NewBrevMonConfigure(
 	store AutoStartStore,
 ) DaemonConfigurer {
-	return StaticBinaryConfigurer{
+	return AptBinaryConfigurer{
 		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
 			Store: store,
 			ValueConfigFile: `
@@ -262,5 +262,8 @@ WantedBy=default.target
 
 		URL:  "https://s3.amazonaws.com/brevmon.brev.dev/brevmon.tar.gz",
 		Name: "brevmon",
+		aptDependencies: []string{
+			"libpcap-dev",
+		},
 	}
 }
