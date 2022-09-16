@@ -476,7 +476,7 @@ func (f FileStore) DownloadBinary(url string, target string) error {
 
 	reader := trytoUnTarGZ(resp.Body)
 	// overwrite the file with the downloaded data
-	_, err = io.Copy(out, reader) //nolint:gosec // the urls are hardcoded and trusted
+	_, err = io.Copy(out, reader)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
