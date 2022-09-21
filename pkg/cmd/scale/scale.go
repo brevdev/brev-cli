@@ -49,8 +49,8 @@ func NewCmdScale(t *terminal.Terminal, sstore ScaleStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type.  See https://docs.brev.dev/reference/gpu/#gpu-instance-types for details")
-	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type.  See https://docs.brev.dev/reference/gpu/#cpu-instance-types for details")
+	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type.  See https://docs.brev.dev/docs/reference/gpu/#gpu-instance-types for details")
+	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type.  See https://docs.brev.dev/docs/reference/gpu/#cpu-instance-types for details")
 	// cmd.Flags().StringVarP(&instanceType, "instance", "i", "", "GPU or CPU instance type.  See docs.brev.dev/gpu for details")
 	return cmd
 }
