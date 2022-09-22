@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/brevdev/brev-cli/pkg/collections"
 )
 
 const WorkspaceGroupDevPlane = "devplane-brev-1"
@@ -335,11 +337,11 @@ type WorkspaceTemplate struct {
 
 func (w Workspace) GetProjectFolderPath() string {
 	var prefix string
-	switch w.WorkspaceGroupID {
-	case WorkspaceGroupDevPlane:
-		prefix = "/home/ubuntu"
-	default:
+
+	if collections.MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
 		prefix = "/home/brev/workspace"
+	} else {
+		prefix = "/home/ubuntu"
 	}
 	var folderName string
 	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
