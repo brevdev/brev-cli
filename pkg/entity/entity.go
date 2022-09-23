@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/brevdev/brev-cli/pkg/collections"
 )
 
 const WorkspaceGroupDevPlane = "devplane-brev-1"
@@ -335,10 +333,15 @@ type WorkspaceTemplate struct {
 	Port        int    `json:"port"`
 }
 
+func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
+}
+
 func (w Workspace) GetProjectFolderPath() string {
 	var prefix string
 
-	if collections.MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
+	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
 		prefix = "/home/brev/workspace"
 	} else {
 		prefix = "/home/ubuntu"

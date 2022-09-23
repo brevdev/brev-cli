@@ -108,7 +108,7 @@ Host %s
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
 Host %s
   Hostname test2-dns-org.brev.sh
@@ -120,7 +120,7 @@ Host %s
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
@@ -262,7 +262,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
+  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
 `,
 		},

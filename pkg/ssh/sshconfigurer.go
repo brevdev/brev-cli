@@ -10,7 +10,6 @@ import (
 	"text/template"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
-	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
@@ -195,13 +194,18 @@ type SSHConfigEntryV2 struct {
 	HostName     string
 }
 
+func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
+}
+
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, runRemoteCMD bool) (string, error) {
 	alias := string(workspace.GetLocalIdentifier())
 	var entry SSHConfigEntryV2
 	var tmpl *template.Template
 	var err error
 
-	if collections.MapContainsKey(entity.LegacyWorkspaceGroups, workspace.WorkspaceGroupID) {
+	if MapContainsKey(entity.LegacyWorkspaceGroups, workspace.WorkspaceGroupID) {
 		proxyCommand := makeProxyCommand(workspace.ID)
 
 		entry = SSHConfigEntryV2{
