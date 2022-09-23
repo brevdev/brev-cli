@@ -30,6 +30,7 @@ brews:
     description: "CLI tool for managing workspaces provided by brev.dev"
     install: |
       bin.install "brev"
+      generate_completions_from_executable("#{bin}/brev", "completion")
     test: |
       system "#{bin}/brev" "--version"
 
