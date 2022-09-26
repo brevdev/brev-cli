@@ -232,9 +232,6 @@ make a major release
 make version-bump-major
 ```
 
-when releasing make sure to
-
-2. [ ] release new version of [workspace-images](https://github.com/brevdev/workspace-images)
 
 ## e2e tests
 
