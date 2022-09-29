@@ -264,7 +264,7 @@ func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, pat
 	scanner := bufio.NewScanner(cmdReader)
 	errChannel := make(chan error)
 
-	go scanLoggerFile(t, scanner, sshAlias, path, s, &vscodeAlreadyOpened, &showLogsToUser, errChannel)
+	go scanLoggerFile(scanner, sshAlias, path, s, &vscodeAlreadyOpened, &showLogsToUser, errChannel)
 
 	err = cmd.Start()
 	if err != nil {
@@ -284,10 +284,10 @@ func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, pat
 	return nil
 }
 
-func scanLoggerFile(t *terminal.Terminal, scanner *bufio.Scanner, sshAlias string, path string, s *spinner.Spinner, vscodeAlreadyOpened *bool, showLogsToUser *bool, err chan error) {
+func scanLoggerFile(scanner *bufio.Scanner, sshAlias string, path string, s *spinner.Spinner, vscodeAlreadyOpened *bool, showLogsToUser *bool, err chan error) {
 	for scanner.Scan() {
 		if *showLogsToUser {
-			fmt.Println(t.Yellow("\n", scanner.Text()))
+			fmt.Println("\n", scanner.Text())
 		}
 		if strings.Contains(scanner.Text(), "------ Setup End ------") || strings.Contains(scanner.Text(), "------ Git repo cloned ------") {
 			if !*vscodeAlreadyOpened {
