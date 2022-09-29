@@ -206,9 +206,7 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 
 func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) {
 	counter := 0
-	// s := t.NewSpinner()
-	// s.Start()
-	for { // IT'S KINDA SLOW FIRST TIME UNFORNTUATELY :)
+	for {
 		cmd := exec.Command("ssh", "-o", "RemoteCommand=none", "-o", "ConnectTimeout=1", sshAlias, "echo", "hello")
 		_, err := cmd.CombinedOutput()
 		if err == nil {
