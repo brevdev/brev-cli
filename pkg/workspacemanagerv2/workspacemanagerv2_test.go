@@ -67,6 +67,7 @@ func Test_NewWorkspaceManager(t *testing.T) {
 }
 
 func Test_StartWorkspaceManager(t *testing.T) {
+	t.Skip()
 	ctx := context.Background()
 	cm := DockerContainerManager{}
 	store := TestStore{}
@@ -76,6 +77,7 @@ func Test_StartWorkspaceManager(t *testing.T) {
 }
 
 func Test_StopWorkspaceManager(t *testing.T) {
+	t.Skip()
 	ctx := context.Background()
 	cm := DockerContainerManager{}
 	store := TestStore{}
@@ -85,6 +87,7 @@ func Test_StopWorkspaceManager(t *testing.T) {
 }
 
 func Test_ResetWorkspaceManager(t *testing.T) {
+	t.Skip()
 	ctx := context.Background()
 	cm := DockerContainerManager{}
 	store := TestStore{}

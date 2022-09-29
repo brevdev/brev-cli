@@ -199,6 +199,7 @@ func (e envInitier) Setup() error {
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
+	fmt.Println("------ Git repo cloned ------")
 
 	err = e.RunExecs()
 	if err != nil {

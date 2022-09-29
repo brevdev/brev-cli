@@ -1,12 +1,15 @@
 package open
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/alessio/shellescape"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -16,8 +19,8 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/briandowns/spinner"
 
-	"github.com/alessio/shellescape"
 	"github.com/spf13/cobra"
 )
 
@@ -62,27 +65,6 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	return cmd
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, openStore OpenStore) error {
-	s := t.NewSpinner()
-	isReady := false
-	s.Suffix = " hang tight 🤙"
-	s.Start()
-	for !isReady {
-		time.Sleep(5 * time.Second)
-		ws, err := openStore.GetWorkspace(wsid)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
-		if ws.Status == state {
-			s.Suffix = "Workspace is ready!"
-			s.Stop()
-			isReady = true
-		}
-	}
-	return nil
-}
-
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, runRemoteCMD bool) error {
 	// todo check if workspace is stopped and start if it if it is stopped
@@ -95,28 +77,12 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspace.Status == "STOPPED" { // we start the env for the user
-		activeOrg, err := tstore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		startedWorkspace, err := tstore.StartWorkspace(workspaces[0].ID)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
-		err = pollUntil(t, workspace.ID, entity.Running, tstore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
+	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 
 	if workspace.Status != "RUNNING" {
 		return breverrors.WorkspaceNotRunning{Status: workspace.Status}
@@ -125,8 +91,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 	projPath := workspace.GetProjectFolderPath()
 
 	localIdentifier := workspace.GetLocalIdentifier()
-
-	t.Vprintf(t.Yellow("\nOpening VSCode to %s 🤙\n", projPath))
 
 	err = res.Await()
 	if err != nil {
@@ -138,7 +102,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = openVsCodeWithSSH(string(localIdentifier), projPath)
+	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, runRemoteCMD)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
@@ -156,20 +120,212 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		}
 		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
+
+func pollUntil(t *terminal.Terminal, wsid string, state string, openStore OpenStore) error {
+	s := t.NewSpinner()
+	isReady := false
+	s.Suffix = " hang tight 🤙"
+	s.Start()
+	for !isReady {
+		time.Sleep(5 * time.Second)
+		ws, err := openStore.GetWorkspace(wsid)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		s.Suffix = "  workspace is currently " + strings.ToLower(ws.Status)
+		if ws.Status == state {
+			s.Suffix = "Workspace is ready!"
+			s.Stop()
+			isReady = true
+		}
+	}
+	return nil
+}
+
+func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, workspace *entity.Workspace) error {
+	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	startedWorkspace, err := tstore.StartWorkspace(workspaces[0].ID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
+	err = pollUntil(t, workspace.ID, entity.Running, tstore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
 
 // Opens code editor. Attempts to install code in path if not installed already
-func openVsCodeWithSSH(sshAlias string, path string) error {
-	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
+func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstore OpenStore, runRemoteCMD bool) error {
+	// infinite for loop:
+	res := refresh.RunRefreshAsync(tstore, runRemoteCMD)
+	err := res.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	s := t.NewSpinner()
+	s.Start()
+	waitForSSHToBeAvailable(t, s, sshAlias)
 
+	waitForLoggerFileToBeAvailable(t, s, sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	setupFinished, err := checkSetupFinished(sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !setupFinished {
+		err = streamOutput(t, s, sshAlias, path)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		err = openVsCode(sshAlias, path)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	return nil
+}
+
+func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) {
+	counter := 0
+	// s := t.NewSpinner()
+	// s.Start()
+	for { // IT'S KINDA SLOW FIRST TIME UNFORNTUATELY :)
+		cmd := exec.Command("ssh", "-o", "RemoteCommand=none", "-o", "ConnectTimeout=1", sshAlias, "echo", "hello")
+		_, err := cmd.CombinedOutput()
+		if err == nil {
+			return
+		}
+		if counter == 10 {
+			s.Suffix = t.Green(" booting up your machine 🤙")
+		}
+
+		counter++
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func waitForLoggerFileToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) {
+	counter := 0
+	for {
+		cmd := exec.Command("ssh", "-o", "RemoteCommand=none", "-o", "ConnectTimeout=1", sshAlias, "tail", "-n", "1", "/var/log/brev-workspace.log")
+		_, err := cmd.CombinedOutput()
+		if err == nil {
+			return
+		}
+		if counter == 5 {
+			s.Suffix = t.Green(" setting up Ubuntu...")
+		}
+		if counter == 20 {
+			s.Suffix = t.Green(" installing a few more bits and bobs... ")
+		}
+		if counter == 27 {
+			s.Suffix = t.Green(" this is only slow the first time... ")
+		}
+		counter++
+		time.Sleep(1 * time.Second)
+
+	}
+}
+
+func checkSetupFinished(sshAlias string) (bool, error) {
+	out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "tail", "-n", "50", "/var/log/brev-workspace.log").CombinedOutput() // RemoteCommand=none
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return strings.Contains(string(out), "------ Setup End ------"), nil
+}
+
+func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, path string) error {
+	s.Suffix = t.Green(" should be no more than a minute now...hit ENTER to see logs")
+	cmd := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "tail", "-f", "/var/log/brev-workspace.log")
+	cmdReader, err := cmd.StdoutPipe()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	vscodeAlreadyOpened := false
+	showLogsToUser := false
+	scanner := bufio.NewScanner(cmdReader)
+	errChannel := make(chan error)
+
+	go scanLoggerFile(t, scanner, sshAlias, path, s, &vscodeAlreadyOpened, &showLogsToUser, errChannel)
+
+	err = cmd.Start()
+	if err != nil {
+		os.Exit(0)
+		return breverrors.WrapAndTrace(err)
+	}
+	go showLogsToUserIfTheyPressEnter(t, sshAlias, &showLogsToUser, s)
+	out := <-errChannel
+	if out != nil {
+		return out
+	}
+	err = cmd.Wait()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+func scanLoggerFile(t *terminal.Terminal, scanner *bufio.Scanner, sshAlias string, path string, s *spinner.Spinner, vscodeAlreadyOpened *bool, showLogsToUser *bool, err chan error) {
+	for scanner.Scan() {
+		if *showLogsToUser {
+			fmt.Println(t.Yellow("\n", scanner.Text()))
+		}
+		if strings.Contains(scanner.Text(), "------ Setup End ------") || strings.Contains(scanner.Text(), "------ Git repo cloned ------") {
+			if !*vscodeAlreadyOpened {
+				s.Stop()
+				err <- openVsCode(sshAlias, path)
+				*vscodeAlreadyOpened = true
+
+			}
+		}
+		if strings.Contains(scanner.Text(), "------ Setup End ------") {
+			s.Stop()
+			os.Exit(0)
+		}
+	}
+}
+
+func openVsCode(sshAlias string, path string) error {
+	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
 	return nil
+}
+
+func showLogsToUserIfTheyPressEnter(t *terminal.Terminal, sshAlias string, showLogsToUser *bool, s *spinner.Spinner) {
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		*showLogsToUser = true
+		out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput()
+		fmt.Print(t.Yellow(string(out)))
+		if err != nil {
+			fmt.Println(err)
+		}
+		s.Suffix = ""
+	}
 }
