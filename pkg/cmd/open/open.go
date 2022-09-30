@@ -180,6 +180,7 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 	}
 	s := t.NewSpinner()
 	s.Start()
+	s.Suffix = "  opening VS Code"
 	waitForSSHToBeAvailable(t, s, sshAlias)
 
 	waitForLoggerFileToBeAvailable(t, s, sshAlias)
