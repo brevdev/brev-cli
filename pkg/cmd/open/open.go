@@ -324,7 +324,7 @@ func showLogsToUserIfTheyPressEnter(t *terminal.Terminal, sshAlias string, showL
 	for scanner.Scan() {
 		*showLogsToUser = true
 		out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput()
-		fmt.Print(t.Yellow(string(out)))
+		fmt.Print(string(out))
 		if err != nil {
 			fmt.Println(err)
 		}
