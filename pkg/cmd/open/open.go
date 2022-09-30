@@ -180,7 +180,7 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 	}
 	s := t.NewSpinner()
 	s.Start()
-	s.Suffix = "  opening VS Code"
+	s.Suffix = "  checking if your environment is ready..."
 	waitForSSHToBeAvailable(t, s, sshAlias)
 
 	waitForLoggerFileToBeAvailable(t, s, sshAlias)
@@ -197,11 +197,14 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
+		s.Suffix = " it's ready!"
+		time.Sleep(1 * time.Second)
 		err = openVsCode(sshAlias, path)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
+	t.Vprint("\n")
 	return nil
 }
 
