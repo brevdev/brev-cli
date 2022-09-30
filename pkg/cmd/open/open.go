@@ -275,7 +275,7 @@ func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, pat
 		os.Exit(0)
 		return breverrors.WrapAndTrace(err)
 	}
-	go showLogsToUserIfTheyPressEnter(t, sshAlias, &showLogsToUser, s)
+	go showLogsToUserIfTheyPressEnter(sshAlias, &showLogsToUser, s)
 	out := <-errChannel
 	if out != nil {
 		return out
@@ -319,7 +319,7 @@ func openVsCode(sshAlias string, path string) error {
 	return nil
 }
 
-func showLogsToUserIfTheyPressEnter(t *terminal.Terminal, sshAlias string, showLogsToUser *bool, s *spinner.Spinner) {
+func showLogsToUserIfTheyPressEnter(sshAlias string, showLogsToUser *bool, s *spinner.Spinner) {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		*showLogsToUser = true
