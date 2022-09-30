@@ -142,10 +142,10 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
-	fmt.Printf("name %s\n", result.Name)
-	fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
-	fmt.Printf("resource class %s\n", result.WorkspaceClassID)
-	fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
+	// fmt.Printf("name %s\n", result.Name)
+	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
+	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
+	// fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 	return &result, nil
 }
 

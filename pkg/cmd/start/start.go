@@ -59,12 +59,11 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	var name string
 	var detached bool
 	var empty bool
-	var workspaceClass string
 	var setupScript string
 	var setupRepo string
 	var setupPath string
-	// GPU instance options
-	var instanceType string
+	var gpu string
+	var cpu string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -80,10 +79,10 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 				repoOrPathOrNameOrID = args[0]
 			}
 
-			if instanceType != "" {
-				isValid := validateInstanceType(instanceType)
+			if gpu != "" {
+				isValid := validateInstanceType(gpu)
 				if !isValid {
-					err := fmt.Errorf("invalid instance type: %s", instanceType)
+					err := fmt.Errorf("invalid GPU instance type: %s", gpu)
 					return breverrors.WrapAndTrace(err)
 				}
 			}
@@ -95,12 +94,12 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 				SetupScript:          setupScript,
 				SetupRepo:            setupRepo,
 				SetupPath:            setupPath,
-				WorkspaceClass:       workspaceClass,
+				WorkspaceClass:       cpu,
 				Detached:             detached,
-				InstanceType:         instanceType,
+				InstanceType:         gpu,
 			}, startStore)
 			if err != nil {
-				if strings.Contains(err.Error(), "duplicate workspace with name") {
+				if strings.Contains(err.Error(), "duplicate environment with name") {
 					t.Vprint(t.Yellow("try running:"))
 					t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
 					t.Vprint(t.Yellow("\tbrev delete [name]"))
@@ -113,13 +112,13 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
-	cmd.Flags().StringVarP(&workspaceClass, "class", "c", "", "workspace resource class (cpu x memory) default 2x8 [2x8, 4x16, 8x32, 16x32]")
+	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "takes a raw gist url to an env setup script")
 	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "repo that holds env setup script. you must pass in --setup-path if you use this argument")
 	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to env setup script. If you include --setup-repo we will apply this argument to that repo")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	// GPU options
-	cmd.Flags().StringVarP(&instanceType, "instance", "i", "", "GPU instance type. See docs.brev.dev/gpu for details")
+	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type. See docs.brev.dev/gpu for details")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
 		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
@@ -358,10 +357,14 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 		cwOptions.WithInstanceType(options.InstanceType)
 	}
 
+	s := t.NewSpinner()
+	s.Suffix = " Creating your instance. Hang tight 🤙"
+	s.Start()
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	s.Stop()
 	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	if options.Detached {
@@ -452,12 +455,15 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
 
-	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
-
+	s := t.NewSpinner()
+	s.Suffix = " Creating your instance. Hang tight 🤙"
+	s.Start()
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	s.Stop()
+	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	err = pollUntil(t, w.ID, entity.Running, startStore, true)
 	if err != nil {
@@ -609,10 +615,14 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 		options.WithInstanceType(startOptions.InstanceType)
 	}
 
+	s := t.NewSpinner()
+	s.Suffix = " Creating your instance. Hang tight 🤙"
+	s.Start()
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	s.Stop()
 
 	err = pollUntil(t, w.ID, entity.Running, startStore, true)
 	if err != nil {
@@ -647,9 +657,9 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
+		s.Suffix = "  environment is " + strings.ToLower(ws.Status)
 		if ws.Status == state {
-			s.Suffix = "Workspace is ready!"
+			s.Suffix = "Environment is ready!"
 			s.Stop()
 			isReady = true
 		}
