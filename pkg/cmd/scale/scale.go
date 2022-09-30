@@ -1,6 +1,8 @@
 package scale
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
@@ -63,19 +65,37 @@ func Runscale(t *terminal.Terminal, args []string, gpu string, cpu string, sstor
 
 	var modifyBody store.ModifyWorkspaceRequest
 
+	s := t.NewSpinner()
+
 	if gpu != "" {
 		modifyBody.InstanceType = gpu
-		t.Vprintf("\nScaling %s to %s GPU\n", workspace.Name, gpu)
+		s.Suffix = fmt.Sprintf(" Scaling %s to %s GPU", workspace.Name, gpu)
+
 	} else if cpu != "" {
 		modifyBody.WorkspaceClassID = cpu
-		t.Vprintf("\nScaling %s to %s CPU\n", workspace.Name, cpu)
+		s.Suffix = fmt.Sprintf(" Scaling %s to %s CPU", workspace.Name, cpu)
+
 	}
 
+	s.Start()
 	ws, err := sstore.ModifyWorkspace(workspace.ID, &modifyBody)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("\n%s scaled to %s\n", ws.Name, ws.InstanceType)
+	s.Stop()
+
+	// fmt.Printf("name %s\n", result.Name)
+	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
+	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
+	// fmt.Printf("instance %s\n", result.InstanceType)
+	// fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
+
+	if gpu != "" {
+		t.Vprintf("\n\nEnvironment %s scaled to %s 🤙\n", t.Green(ws.Name), t.Green(ws.InstanceType))
+	} else if cpu != "" {
+		t.Vprintf("\n\nEnvironment %s scaled to %s 🤙\n", t.Green(ws.Name), t.Green(ws.WorkspaceClassID))
+	}
+	t.Vprintf("\n%s", t.Yellow("Your environment might still be rebooting.  Check the status with `brev ls`\n"))
 
 	return nil
 }

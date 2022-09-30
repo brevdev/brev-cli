@@ -425,17 +425,17 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"Name", "Status", "Url", "ID", "Machine"}
+	header := table.Row{"Name", "Status", "ID", "Machine"}
 	if enableSSHCol {
-		header = table.Row{"Name", "Status", "Url", "SSH", "ID", "Machine"}
+		header = table.Row{"Name", "Status", "SSH", "ID", "Machine"}
 	}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := getInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.ID, instanceString}}
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.ID, instanceString}}
 		if enableSSHCol {
-			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.DNS, w.GetLocalIdentifier(), w.ID, instanceString}}
+			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.GetLocalIdentifier(), w.ID, instanceString}}
 		}
 		ta.AppendRows(workspaceRow)
 	}
