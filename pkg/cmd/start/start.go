@@ -357,6 +357,15 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 		cwOptions.WithInstanceType(options.InstanceType)
 	}
 
+	t.Vprintf("Creating environment %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
+	t.Vprintf("\tname %s\n", t.Green(cwOptions.Name))
+	if options.InstanceType != "" {
+		t.Vprintf("\tGPU instance %s\n", t.Green(options.InstanceType))
+	} else {
+		t.Vprintf("\tCPU instance %s\n", t.Green(cwOptions.WorkspaceClassID))
+	}
+	t.Vprintf("\tCloud %s\n\n", t.Green(cwOptions.WorkspaceGroupID))
+
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
 	s.Start()
@@ -365,7 +374,6 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 		return breverrors.WrapAndTrace(err)
 	}
 	s.Stop()
-	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	if options.Detached {
 		return nil
@@ -455,6 +463,15 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
 
+	t.Vprintf("Creating environment %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
+	t.Vprintf("\tname %s\n", cwOptions.Name)
+	if cwOptions.InstanceType != "" {
+		t.Vprintf("\tGPU instance %s\n", cwOptions.InstanceType)
+	} else {
+		t.Vprintf("\tCPU instance %s\n", cwOptions.WorkspaceClassID)
+	}
+	t.Vprintf("\tCloud %s\n", cwOptions.WorkspaceGroupID)
+
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
 	s.Start()
@@ -463,7 +480,6 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 		return breverrors.WrapAndTrace(err)
 	}
 	s.Stop()
-	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	err = pollUntil(t, w.ID, entity.Running, startStore, true)
 	if err != nil {
@@ -590,7 +606,6 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 }
 
 func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
-	t.Vprint("Dev environment is starting. " + t.Yellow("This can take up to 2 minutes the first time.\n"))
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
@@ -615,6 +630,15 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 		options.WithInstanceType(startOptions.InstanceType)
 	}
 
+	t.Vprintf("Creating environment %s in org %s\n", t.Green(workspace.Name), t.Green(orgID))
+	t.Vprintf("\tname %s\n", workspace.Name)
+	if options.InstanceType != "" {
+		t.Vprintf("\tGPU instance %s\n", options.InstanceType)
+	} else {
+		t.Vprintf("\tCPU instance %s\n", options.WorkspaceClassID)
+	}
+	t.Vprintf("\tCloud %s\n", options.WorkspaceGroupID)
+
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
 	s.Start()
@@ -638,9 +662,9 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
 	t.Vprintf(t.Green("Connect to the dev environment:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open dev environment in preferred editor\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open dev environment in VS Code\n", workspace.Name)))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into dev environment (shortcut)\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to dev environment\n", workspace.GetLocalIdentifier())))
+	// t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to dev environment\n", workspace.GetLocalIdentifier())))
 }
 
 func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {
