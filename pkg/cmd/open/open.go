@@ -217,7 +217,7 @@ func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias 
 			return
 		}
 		if counter == 10 {
-			s.Suffix = t.Green(" booting up your machine 🤙")
+			s.Suffix = t.Green(" waiting for connection to be ready 🤙")
 		}
 
 		counter++

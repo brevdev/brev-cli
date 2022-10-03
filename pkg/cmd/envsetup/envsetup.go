@@ -188,13 +188,9 @@ func (e envInitier) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = e.RunApplicationScripts(e.Params.WorkspaceApplicationStartScripts)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	var setupErr error
 
+	fmt.Println("------ starting repo setup ------")
 	err = e.SetupRepos()
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
