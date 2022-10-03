@@ -195,6 +195,7 @@ func (e envInitier) Setup() error {
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
+	time.Sleep(1 * time.Second) // wait for things to flush??
 	fmt.Println("------ Git repo cloned ------")
 
 	err = e.RunExecs()
