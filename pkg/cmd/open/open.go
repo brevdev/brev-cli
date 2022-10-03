@@ -197,7 +197,7 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		s.Suffix = " it's ready!"
+		s.Suffix = " Environment is ready. Opening VS Code 🤙"
 		time.Sleep(1 * time.Second)
 		err = openVsCode(sshAlias, path)
 		if err != nil {
