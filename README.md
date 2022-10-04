@@ -4,6 +4,8 @@
 
 # Brev.dev
 
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/pill-border-lg.png)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+
 [Brev.dev](https://brev.dev) makes it easy to develop on remote machines. Use Brev.dev to start a project and share your development environment.
 
 ## Get Started
