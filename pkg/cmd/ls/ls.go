@@ -452,7 +452,7 @@ func getClassIDString(classID string) string {
 	case "2x8":
 		return "2 cpu | 8 gb ram"
 	case "4x16":
-		return "2 cpu | 16 gb ram"
+		return "4 cpu | 16 gb ram"
 	case "8x32":
 		return "8 cpu | 32 gb ram"
 	case "16x32":
