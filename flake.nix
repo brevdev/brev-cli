@@ -4,6 +4,11 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:NixOS/nixpkgs";
+    #  nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-20.09-darwin";
+    # darwin.url = "github:lnl7/nix-darwin/master";
+    # darwin.inputs.nixpkgs.follows = "nixpkgs";
+
+
   };
 
   outputs =
@@ -32,6 +37,11 @@
         gocode-gomod
         godef
         golint
+        delve
+        go-tools
+        gotests
+        darwin.apple_sdk.frameworks.CoreFoundation
+        libiconv
         # pkgs.rustc
         # pkgs.cargo
         # frameworks.Security
