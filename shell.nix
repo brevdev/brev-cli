@@ -2,12 +2,11 @@
 
 with pkgs;
 let
-    # x = import (builtins.fetchTarball {
-    #     url = "https://github.com/NixOS/nixpkgs/archive/ff8b619cfecb98bb94ae49ca7ceca937923a75fa.tar.gz";
-    #     sha256 = "0h7wqi8xnxs7dimc1xd0cmzvni5d526v6ch385iapsws7lqmwpva";
-    # }) {};
+    pkgs = import (builtins.fetchTarball {
+        url = "https://github.com/NixOS/nixpkgs/archive/ff8b619cfecb98bb94ae49ca7ceca937923a75fa.tar.gz";
+    }) {};
 
-    # myPkg = x.golangci-lint;
+    myPkg = pkgs.golangci-lint;
 in
 mkShell {
   nativeBuildInputs = [
