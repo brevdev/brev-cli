@@ -1,0 +1,5 @@
+{
+  outputs = { self }: {
+    foo = "bar";
+  };
+}

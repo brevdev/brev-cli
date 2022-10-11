@@ -15,7 +15,7 @@ mkShell {
     gopls
     tmux
     gofumpt
-    golangci-lint #myPkg # instead of golang-lint-ci or whatever the package was called
+    # golangci-lint #myPkg # instead of golang-lint-ci or whatever the package was called
     gosec
     delve
     go-tools

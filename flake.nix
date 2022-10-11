@@ -13,9 +13,6 @@ inputs = {
   # inputs.system = { type = "nixExpr"; value = "x86_64-linux"; }
 
   outputs = { self, nixpkgs, flake-utils }:
-    let     
-    system = "x86_64-linux";
-    in
     flake-utils.lib.eachDefaultSystem
       (system:
         let pkgs = nixpkgs.legacyPackages.${system}; in
