@@ -96,3 +96,13 @@ echo "" | sudo tee -a ~/.zshrc
 echo "export PATH=\$PATH:\$HOME/.local/bin" | sudo tee -a ~/.zshrc
 
 newgrp docker 
+# NIX STUFF:
+wget https://nixos.org/nix/install -O nix-install
+yes | sh nix-install --daemon
+echo "build-users-group = nixbld
+keep-outputs = true
+keep-derivations = true
+experimental-features = nix-command flakes
+trusted-users = root ubuntu
+build-users-group = nixbld
+" > /etc/nix/nix.conf

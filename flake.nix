@@ -1,61 +1,26 @@
 {
-  description = "A Nix-flake-based Go 1.17 development environment";
-
-  inputs = {
+  description = "golang development environment (neovim + nvim_lsp + treesitter)";
+inputs = {
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs.url = "github:NixOS/nixpkgs";
-    #  nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-20.09-darwin";
-    # darwin.url = "github:lnl7/nix-darwin/master";
-    # darwin.inputs.nixpkgs.follows = "nixpkgs";
-
-
+    # system = {
+    #   type = "nixExpr";
+    #   value = "x86_64-linux";
+    # };
+    # system.type = "nixExpr";
+    # system.value = "x86_64-linux"; 
   };
+  # inputs.flake-utils.url = "github:numtide/flake-utils";
+  # inputs.system = { type = "nixExpr"; value = "x86_64-linux"; }
 
-  outputs =
-    { self
-    , flake-utils
-    , nixpkgs
-    }:
-
-    flake-utils.lib.eachDefaultSystem (system:
-    let
-      goVersion = 18;
-      overlays = [ (self: super: { go = super."go_1_${toString goVersion}"; }) ];
-      pkgs = import nixpkgs { inherit overlays system; };
-      # frameworks = pkgs.darwin.apple_sdk.frameworks;
-
+  outputs = { self, nixpkgs, flake-utils }:
+    let     
+    system = "x86_64-linux";
     in
-    {
-      devShell = pkgs.mkShellNoCC {
-        buildInputs = with pkgs; [
-          go
-          gotools
-        gopls
-        go-outline
-        gocode
-        gopkgs
-        gocode-gomod
-        godef
-        golint
-        delve
-        go-tools
-        gotests
-        darwin.apple_sdk.frameworks.CoreFoundation
-        libiconv
-        # pkgs.rustc
-        # pkgs.cargo
-        # frameworks.Security
-        # frameworks.CoreFoundation
-        # frameworks.CoreServices
-        ];
-
-        shellHook = ''
-          ${pkgs.go}/bin/go version
-          
-        '';
-      };
-    });
+    flake-utils.lib.eachDefaultSystem
+      (system:
+        let pkgs = nixpkgs.legacyPackages.${system}; in
+        {
+          devShell = import ./shell.nix { inherit pkgs; };
+        }
+      );
 }
-
-# export PS1="[$name] \[$txtgrn\]\u@\h\[$txtwht\]:\[$bldpur\]\w \[$txtcyn\]\$git_branch\[$txtred\]\$git_dirty \[$bldylw\]\$aws_env\[$txtrst\]\$ "
-# export NIX_LDFLAGS="-F${frameworks.CoreFoundation}/Library/Frameworks -framework CoreFoundation $NIX_LDFLAGS";
