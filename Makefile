@@ -270,3 +270,7 @@ new-cmd:
 	touch pkg/cmd/${name}/${name}.go
 	# populate the template
 	./bin/newcmd.sh ${name} > pkg/cmd/${name}/${name}.go
+
+.PHONY: develop-with-nix
+develop-with-nix:
+	nix develop .

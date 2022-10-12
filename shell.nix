@@ -1,4 +1,4 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ system ? builtins.currentSystem, pkgs ? import <nixpkgs> { inherit system; } }:
 
 with pkgs;
 let
@@ -8,23 +8,30 @@ let
          url = "https://github.com/NixOS/nixpkgs/";                       
          ref = "refs/heads/nixpkgs-unstable";                     
          rev = "ff8b619cfecb98bb94ae49ca7ceca937923a75fa";                                           
-     }) {};                                                                           
-
-     myPkg = pkgs.golangci-lint;
+    #  }) {};    
+     }) {
+      inherit system;
+    };                                                                         
+    flake-utils = {
+      url = "github:numtide/flake-utils";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+     olderVersionOfGolangci-lint = pkgs.golangci-lint;
+    #  system = builtins.currentSystem;
 in
-mkShell {
-  nativeBuildInputs = [
-    go_1_18
-    gopls
-    tmux
-    gofumpt
-    myPkg
-    # golangci-lint #myPkg # instead of golang-lint-ci or whatever the package was called
-    # nix-shell -p golangci-lint -I nixpkgs=https://github.com/NixOS/nixpkgs/archive/ff8b619cfecb98bb94ae49ca7ceca937923a75fa.tar.gz
-    gosec
-    delve
-    go-tools
-    gotests
-    gomodifytags
-  ];
-}
+          mkShell {
+            nativeBuildInputs = [
+              go_1_18
+              gopls
+              tmux
+              gofumpt
+              olderVersionOfGolangci-lint
+              gosec
+              delve
+              go-tools
+              gotests
+              gomodifytags
+            ];
+            # pkgs.system="x86_64-linux";
+          }
+        # )

@@ -96,7 +96,8 @@ echo "" | sudo tee -a ~/.zshrc
 echo "export PATH=\$PATH:\$HOME/.local/bin" | sudo tee -a ~/.zshrc
 
 newgrp docker 
-# NIX STUFF:
+
+# NIX STUFF (this can be installed without any of the above and it should still work):
 wget https://nixos.org/nix/install -O nix-install
 yes | sh nix-install --daemon
 sudo sh -c "echo 'build-users-group = nixbld
