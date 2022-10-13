@@ -24,6 +24,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/meshd"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
+	"github.com/brevdev/brev-cli/pkg/cmd/postinstall"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
@@ -267,6 +269,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
 	cmd.AddCommand(envsetup.NewCmdEnvSetup(loginCmdStore, loginAuth))
+	cmd.AddCommand(postinstall.NewCmdpostinstall(t, loginCmdStore))
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
