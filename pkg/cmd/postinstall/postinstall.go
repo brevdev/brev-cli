@@ -1,8 +1,6 @@
 package postinstall
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -15,7 +13,9 @@ var (
 	example = "TODO"
 )
 
-type postinstallStore interface{}
+type postinstallStore interface{
+	RegisterNotificationEmail(string ) error
+}
 
 func NewCmdpostinstall(t *terminal.Terminal, store postinstallStore) *cobra.Command {
 	cmd := &cobra.Command{
@@ -35,7 +35,20 @@ func NewCmdpostinstall(t *terminal.Terminal, store postinstallStore) *cobra.Comm
 	return cmd
 }
 
-func Runpostinstall(t *terminal.Terminal, args []string, store postinstallStore) error {
-	fmt.Println("TODO")
+func Runpostinstall(
+	t *terminal.Terminal,
+	args []string,
+	store postinstallStore,
+) error {
+	email := terminal.PromptGetInput(terminal.PromptContent{
+		Label:    "Email: ",
+		ErrorMsg: "error",
+	})
+
+	err := store.RegisterNotificationEmail(email)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
