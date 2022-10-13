@@ -13,8 +13,8 @@ var (
 	example = "TODO"
 )
 
-type postinstallStore interface{
-	RegisterNotificationEmail(string ) error
+type postinstallStore interface {
+	RegisterNotificationEmail(string) error
 }
 
 func NewCmdpostinstall(t *terminal.Terminal, store postinstallStore) *cobra.Command {
@@ -25,7 +25,7 @@ func NewCmdpostinstall(t *terminal.Terminal, store postinstallStore) *cobra.Comm
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := Runpostinstall(t, args, store)
+			err := Runpostinstall(store)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -36,8 +36,6 @@ func NewCmdpostinstall(t *terminal.Terminal, store postinstallStore) *cobra.Comm
 }
 
 func Runpostinstall(
-	t *terminal.Terminal,
-	args []string,
 	store postinstallStore,
 ) error {
 	email := terminal.PromptGetInput(terminal.PromptContent{
