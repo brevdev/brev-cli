@@ -23,9 +23,6 @@ rm -rf "$TMP_DIR"
 # make the binary executable
 chmod +x /usr/local/bin/brev
 
-# verify the installation
-brev --version
-
 # run post install commands
 
 brev postinstall
