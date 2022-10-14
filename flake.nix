@@ -12,6 +12,9 @@ inputs = {
          let pkgs = nixpkgs.legacyPackages.${system}; in
          {
           devShell = import ./shell.nix { inherit pkgs system; };
+          shellHook = ''
+            echo "hallo"
+          '';
          }
        );
 }
