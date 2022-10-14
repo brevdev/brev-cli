@@ -17,7 +17,7 @@ type postinstallStore interface {
 	RegisterNotificationEmail(string) error
 }
 
-func NewCmdpostinstall(t *terminal.Terminal, store postinstallStore) *cobra.Command {
+func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "postinstall",
 		DisableFlagsInUseLine: true,
