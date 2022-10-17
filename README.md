@@ -10,20 +10,11 @@
 
 ## Install the cli
 
-### MacOS
-
+### MacOS and Linux
 
 ```
 brew install brevdev/homebrew-brev/brev
 ```
-
-### Linux
-
-```
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest-linux.sh)"
-```
-```
-
 
 ## Get Started
 
