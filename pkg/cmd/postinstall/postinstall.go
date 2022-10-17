@@ -15,6 +15,7 @@ var (
 
 type postinstallStore interface {
 	RegisterNotificationEmail(string) error
+	WriteString(path, data string) error
 }
 
 func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Command {
@@ -43,9 +44,12 @@ func Runpostinstall(
 		ErrorMsg: "error",
 	})
 
-	// todo store email on filesystem somewhere
+	err := store.WriteString("/etc/brev/email", email)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-	err := store.RegisterNotificationEmail(email)
+	err = store.RegisterNotificationEmail(email)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

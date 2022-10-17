@@ -26,6 +26,8 @@ chmod +x /usr/local/bin/brev
 # verify the installation
 brev --version
 
-# run post install commands
+# run post install commands, write now creates a file in etc
+# to store email so needs root
 
-brev postinstall
+
+sudo brev postinstall
