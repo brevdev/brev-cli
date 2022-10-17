@@ -8,6 +8,23 @@
 
 [Brev.dev](https://brev.dev) makes it easy to develop on remote machines. Use Brev.dev to start a project and share your development environment.
 
+## Install the cli
+
+### MacOS
+
+
+```
+brew install brevdev/homebrew-brev/brev
+```
+
+### Linux
+
+```
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest-linux.sh)"
+```
+```
+
+
 ## Get Started
 
 https://console.brev.dev
@@ -23,5 +40,3 @@ https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-
 ## Contributing
 
 We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
-
-
