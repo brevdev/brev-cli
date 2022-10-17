@@ -43,6 +43,8 @@ func Runpostinstall(
 		ErrorMsg: "error",
 	})
 
+	// todo store email on filesystem somewhere
+
 	err := store.RegisterNotificationEmail(email)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
