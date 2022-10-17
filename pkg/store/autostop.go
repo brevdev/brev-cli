@@ -12,7 +12,7 @@ func (n NoAuthHTTPStore) RegisterNotificationEmail(email string) error {
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
 		SetBody(map[string]any{
-			email: email,
+			"email": email,
 		}).
 		Post(pathRegisterNotificationEmail)
 	if err != nil {
