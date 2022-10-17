@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -eo pipefail
+set -eoux pipefail
 
 # Install the latest version of the Linux binary
 
@@ -17,7 +17,7 @@ wget --directory-prefix=$TMP_DIR $DOWNLOAD_URL
 tar -xzf $TMP_DIR/brev* -C $TMP_DIR # glob is a hack to get the filename
 
 # move the binary to the bin directory
-mv $TMP_DIR/brev /usr/local/bin/brev
+sudo mv $TMP_DIR/brev /usr/local/bin/brev
 
 # remove the tmp directory
 rm -rf $TMP_DIR
