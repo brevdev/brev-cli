@@ -46,7 +46,7 @@ func Runpostinstall(
 
 	err := store.WriteEmail(email)
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = store.RegisterNotificationEmail(email)
