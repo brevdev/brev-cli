@@ -502,3 +502,19 @@ func trytoUnTarGZ(in io.Reader) io.Reader {
 	}
 	return tarReader
 }
+
+func (f FileStore) WriteEmail(email string) error {
+	err := f.WriteString("/etc/brev/email", email)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (f FileStore) ReadEmail() (string, error) {
+	filestring, err := f.GetFileAsString("/etc/brev/email")
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return filestring, nil
+}
