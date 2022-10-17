@@ -2,6 +2,8 @@ package delete
 
 import (
 	_ "embed"
+	"fmt"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
@@ -55,15 +57,44 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(deleteStore, workspaceName)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		err := handleAdminUser(err, deleteStore)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
-	deletedWorkspace, err := deleteStore.DeleteWorkspace(workspace.ID)
+	var workspaceID string
+	if workspace != nil {
+		workspaceID = workspace.ID
+	} else {
+		workspaceID = workspaceName
+	}
+
+	deletedWorkspace, err := deleteStore.DeleteWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprintf("Deleting dev environment %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
 
+	return nil
+}
+
+func handleAdminUser(err error, deleteStore DeleteStore) error {
+	if strings.Contains(err.Error(), "not found") {
+		user, err1 := deleteStore.GetCurrentUser()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		if user.GlobalUserType != "Admin" {
+			return breverrors.WrapAndTrace(err)
+		} else {
+			fmt.Println("attempting to delete a workspace you don't own as admin")
+		}
+	} else {
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
 	return nil
 }
