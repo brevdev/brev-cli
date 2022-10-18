@@ -19,10 +19,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 
+	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ids"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/dev-plane/pkg/collections"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"

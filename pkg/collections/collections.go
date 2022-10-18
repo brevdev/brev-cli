@@ -3,7 +3,17 @@
 package collections
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"reflect"
 	"sort"
+	"time"
+
+	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/jinzhu/copier"
+	"github.com/mitchellh/mapstructure"
+	"golang.org/x/exp/constraints"
 )
 
 func Duplicate[T any](x T) []T {
@@ -239,4 +249,331 @@ func Contains[T comparable](s []T, e T) bool {
 func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 	_, ok := m[key]
 	return ok
+}
+
+func ValueOrZero[T any](ptr *T) T {
+	if ptr == nil {
+		res, _ := reflect.Zero(reflect.TypeOf(ptr)).Interface().(T)
+		return res
+	} else {
+		return *ptr
+	}
+}
+
+func ListHas[K any](list []K, item K, has func(l, r K) bool) bool {
+	for _, listItem := range list {
+		if has(listItem, item) {
+			return true
+		}
+	}
+	return false
+}
+
+func ListContains[K comparable](list []K, item K) bool {
+	return ListHas(list, item, func(l, r K) bool { return l == r })
+}
+
+func ManyIntegersToInts[T constraints.Integer](i []T) []int {
+	return Map(i, func(i T) int { return int(i) })
+}
+
+func ManyStringLikeToStrings[T ~string](i []T) []string {
+	return Map(i, func(i T) string { return string(i) })
+}
+
+func MapE[T, R any](items []T, mapper func(T) (R, error)) ([]R, error) {
+	results := []R{}
+	for _, item := range items {
+		res, err := mapper(item)
+		if err != nil {
+			return results, errors.WrapAndTrace(err)
+		}
+		results = append(results, res)
+	}
+	return results, nil
+}
+
+func Accumulate[T any](items []T, accumulator func(T, T) T) T {
+	result := items[0]
+	for _, item := range items[1:] {
+		result = accumulator(result, item)
+	}
+	return result
+}
+
+func AccumulateE[T any](items []T, accumulator func(T, T) (T, error)) (T, error) {
+	result := items[0]
+	for _, item := range items[1:] {
+		var err error
+		result, err = accumulator(result, item)
+		if err != nil {
+			var zero T
+			return zero, errors.WrapAndTrace(err)
+		}
+	}
+	return result, nil
+}
+
+func Flatten[T any](listOfLists [][]T) []T {
+	result := []T{}
+	for _, list := range listOfLists {
+		result = append(result, list...)
+	}
+	return result
+}
+
+func FoldlE[T any, R any](fn func(acc R, next T) (R, error), base R, list []T) (R, error) {
+	for _, value := range list {
+		var err error
+		base, err = fn(base, value)
+		if err != nil {
+			var zero R
+			return zero, errors.WrapAndTrace(err)
+		}
+	}
+	return base, nil
+}
+
+// Take a list of things and a function that returns a list of things then combines list after mapping (return early from error)
+// func T -> [R, R, R ...]
+// [T, T, T ...] -> [R, R, R ...]
+func FlatmapE[T any, R any](fn func(some T) ([]R, error), list []T) ([]R, error) {
+	return FoldlE(func(acc []R, el T) ([]R, error) {
+		res, err := fn(el)
+		if err != nil {
+			return nil, errors.WrapAndTrace(err)
+		}
+		return Concat(acc, res), nil
+	}, []R{}, list)
+}
+
+// func T -> R
+// [T, T, T ...] -> [R, R, R ...]
+func Map[T, R any](items []T, mapper func(T) R) []R {
+	results := []R{}
+	for _, item := range items {
+		results = append(results, mapper(item))
+	}
+	return results
+}
+
+func MapFromList[T any, R comparable](list []T, keySelector func(l T) R) map[R]T {
+	result := map[R]T{}
+	for _, item := range list {
+		result[keySelector(item)] = item
+	}
+	return result
+}
+
+func ListOfPointersToListOfValues[T any](list []*T) []T {
+	return Map(list, func(i *T) T { return *i })
+}
+
+func DefaultValue[T any](value T, defaultValue T) T {
+	if reflect.ValueOf(value).IsZero() {
+		return defaultValue
+	} else {
+		return value
+	}
+}
+
+func DefaultPtr[T any](value *T, defaultValue T) T {
+	if reflect.ValueOf(value).IsZero() {
+		return defaultValue
+	} else {
+		return *value
+	}
+}
+
+// return default if ptr is nil or de-referenced ptr value is empty
+func DefaultPtrOrValue[T any](value *T, defaultValue T) T {
+	if value == nil || reflect.ValueOf(*value).IsZero() {
+		return defaultValue
+	} else {
+		return *value
+	}
+}
+
+// right maps override left if they have the same key
+func MergeMaps[K comparable, V any](maps ...map[K]V) map[K]V {
+	result := map[K]V{}
+	for _, m := range maps {
+		for k, v := range m {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+func GetAValueFromMap[K comparable, V any](m map[K]V) *V {
+	for _, v := range m {
+		return &v
+	}
+	return nil
+}
+
+func ListOfSomethingToListOfAny[T any](l []T) []any {
+	newList := []any{}
+	for _, item := range l {
+		newList = append(newList, item)
+	}
+	return newList
+}
+
+func Ptr[T any](x T) *T {
+	return &x
+}
+
+func Deref[T any](x *T) T {
+	return *x
+}
+
+// return value or nil if value is zero
+func ZeroValueToNil[T any](x T) *T {
+	if reflect.ValueOf(x).IsZero() {
+		return nil
+	} else {
+		return &x
+	}
+}
+
+func IsEmpty[T any](x T) bool {
+	return reflect.ValueOf(x).IsZero()
+}
+
+func IsEmptyValP[T any](x *T) bool {
+	if x == nil {
+		return true
+	} else {
+		return reflect.ValueOf(*x).IsZero()
+	}
+}
+
+func ReturnOnCondition[T any](ctx context.Context, fetcher func(ctx context.Context) (T, error), conditional func(i T) bool, updateDuration time.Duration) (T, error) {
+	for {
+		result, err := fetcher(ctx)
+		if err != nil {
+			return result, errors.WrapAndTrace(err)
+		}
+		if conditional(result) {
+			return result, nil
+		}
+		time.Sleep(updateDuration)
+	}
+}
+
+func InitialNotEqual[T any](i T) func(l T) bool {
+	return func(l T) bool {
+		return !reflect.DeepEqual(i, l)
+	}
+}
+
+func FromJSON[T any](j []byte) (T, error) {
+	var t T
+	err := json.Unmarshal(j, &t)
+	if err != nil {
+		return t, errors.WrapAndTrace(err)
+	}
+	return t, nil
+}
+
+func TryCopyToNew[T any, R any](t T, options copier.Option) (R, error) {
+	var r R
+	if err := copier.CopyWithOption(&r, t, options); err != nil {
+		return r, errors.WrapAndTrace(err)
+	}
+	return r, nil
+}
+
+func TryCopyTo[T any, R any](t T, r R, options copier.Option) (R, error) {
+	if err := copier.CopyWithOption(&r, t, options); err != nil {
+		return r, errors.WrapAndTrace(err)
+	}
+	return r, nil
+}
+
+func GetMapKeys[K comparable, V any](m map[K]V) []K {
+	keys := []K{}
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+func GetMapValues[K comparable, V any](m map[K]V) []V {
+	values := []V{}
+	for _, v := range m {
+		values = append(values, v)
+	}
+	return values
+}
+
+type Params[T any] struct {
+	Value T
+	Ctx   context.Context
+}
+
+type Result[T any] struct {
+	Value T
+	Err   error
+}
+
+func (r Result[T]) Unwrap() (T, error) {
+	return r.Value, r.Err
+}
+
+// pass in m a map of string to any
+func MapToStruct[T any](m any) (T, error) {
+	var t T
+	err := mapstructure.Decode(m, &t)
+	if err != nil {
+		return t, errors.WrapAndTrace(err)
+	}
+	return t, nil
+}
+
+func RemoveDuplicates[T comparable](list []T) []T {
+	seen := map[T]bool{}
+	result := []T{}
+	for _, item := range list {
+		if !seen[item] {
+			result = append(result, item)
+			seen[item] = true
+		}
+	}
+	return result
+}
+
+func ContainsDuplicatesErr[T comparable](list []T) error {
+	seen := map[T]bool{}
+	for _, item := range list {
+		if seen[item] {
+			return fmt.Errorf("duplicate item: %v", item)
+		}
+		seen[item] = true
+	}
+	return nil
+}
+
+// takes a list of items and checks if items are elements in another list
+func ListItemsAreErr[T comparable](items []T, are []T) error {
+	check := map[T]bool{}
+	for _, r := range are {
+		check[r] = true
+	}
+	for _, i := range items {
+		if !check[i] {
+			return fmt.Errorf("item %v is not in list %v", i, are)
+		}
+	}
+	return nil
+}
+
+func Find[T any](list []*T, f func(*T) bool) *T {
+	for _, item := range list {
+		if f(item) {
+			return item
+		}
+	}
+	return nil
 }
