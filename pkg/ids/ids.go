@@ -1,6 +1,6 @@
 package ids
 
-import "github.com/brevdev/dev-plane/pkg/prefixid"
+import "github.com/brevdev/brev-cli/pkg/prefixid"
 
 type (
 	CloudCredID             prefixid.PrefixID
