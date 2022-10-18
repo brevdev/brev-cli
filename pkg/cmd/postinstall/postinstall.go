@@ -26,7 +26,7 @@ func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Comm
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := Runpostinstall(store)
+			err := Runpostinstall(store, args)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -38,11 +38,17 @@ func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Comm
 
 func Runpostinstall(
 	store postinstallStore,
+	args []string,
 ) error {
-	email := terminal.PromptGetInput(terminal.PromptContent{
-		Label:    "Email: ",
-		ErrorMsg: "error",
-	})
+	var email string
+	if len(args) > 0 {
+		email = args[0]
+	} else {
+		email = terminal.PromptGetInput(terminal.PromptContent{
+			Label:    "Email: ",
+			ErrorMsg: "error",
+		})
+	}
 
 	err := store.WriteEmail(email)
 	if err != nil {
