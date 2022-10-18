@@ -172,3 +172,7 @@ type WorkspaceNotRunning struct {
 func (e WorkspaceNotRunning) Error() string {
 	return fmt.Sprintf("workspace status %s is not RUNNING, please wait until workspace is RUNNING to start", e.Status)
 }
+
+func New(message string) error { // TODO: maybe this isn't the right type of error - it is from dev-plane so probably not relevant to the cli
+	return errors.New(message)
+}

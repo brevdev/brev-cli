@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-
-set -eoux pipefail
+# Install the latest version of the Linux binary
 
 # Install the latest version of the Linux binary
 

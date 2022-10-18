@@ -19,31 +19,32 @@ type postinstallStore interface {
 }
 
 func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Command {
+	// var email string
+
 	cmd := &cobra.Command{
-		Use:                   "postinstall",
-		DisableFlagsInUseLine: true,
-		Short:                 short,
-		Long:                  long,
-		Example:               example,
+		Use: "postinstall",
+		// DisableFlagsInUseLine: true,
+		Short:   short,
+		Long:    long,
+		Example: example,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := Runpostinstall(store, args)
+			email := ""
+			if len(args) > 0 {
+				email = args[0]
+			}
+			err := Runpostinstall(store, email)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+
 	return cmd
 }
 
-func Runpostinstall(
-	store postinstallStore,
-	args []string,
-) error {
-	var email string
-	if len(args) > 0 {
-		email = args[0]
-	} else {
+func Runpostinstall(store postinstallStore, email string) error {
+	if email == "" {
 		email = terminal.PromptGetInput(terminal.PromptContent{
 			Label:    "Email: ",
 			ErrorMsg: "error",

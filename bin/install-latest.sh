@@ -1,10 +1,24 @@
-#!/bin/sh
-LATEST_TAG_FULL=$(curl -H "Accept: application/vnd.github.v3.text+json" "https://api.github.com/repos/brevdev/brev-cli/tags?per_page=1" |  grep -o "\"v.*\"" | sed 's/"//g')
-LATEST_TAG_ABBREV=$(curl -H "Accept: application/vnd.github.v3.text+json" "https://api.github.com/repos/brevdev/brev-cli/tags?per_page=1" |  grep -o "\"v.*\"" | sed 's/v//' | sed 's/"//g')
-mkdir -p /tmp/brev
-curl -L https://github.com/brevdev/brev-cli/releases/download/${LATEST_TAG_FULL}/brev-cli_${LATEST_TAG_ABBREV}_$(uname | awk '{print tolower($0)}')_amd64.tar.gz > /tmp/brev/brev.tar.gz
-tar -xzvf /tmp/brev/brev.tar.gz -C /tmp/brev
-sudo mkdir -p /opt/brev/bin
-sudo cp /tmp/brev/brev /opt/brev/bin
-export PATH=/opt/brev/bin:$PATH
-echo PATH=/opt/brev/bin:$PATH >> ~/.zshrc
+#!/usr/bin/env bash
+# Install the latest version of the Linux binary
+
+set -eo pipefail
+
+# Get THE DOWNLOAD URL
+DOWNLOAD_URL=$(curl -s https://brevapi.us-west-2-prod.control-plane.brev.dev)
+
+# download the tar to a tmp directory
+
+TMP_DIR=$(mktemp -d)
+curl -sL "$DOWNLOAD_URL" -o "$TMP_DIR/brev.tar.gz"
+
+# extract the tar to the bin directory
+tar -xzf "$TMP_DIR/brev.tar.gz" -C "$TMP_DIR"
+
+# move the binary to the bin directory
+mv "$TMP_DIR/brev" /usr/local/bin/brev
+
+# remove the tmp directory
+rm -rf "$TMP_DIR"
+
+# make the binary executable
+chmod +x /usr/local/bin/brev
