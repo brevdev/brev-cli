@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/jinzhu/copier"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/exp/constraints"
