@@ -14,7 +14,7 @@ import (
 	"sort"
 	"strings"
 
-	collections "github.com/brevdev/brev-cli/pkg/cli-collections"
+	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
