@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/alessio/shellescape"
-	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
+	collections "github.com/brevdev/brev-cli/pkg/cli-collections" //nolint:typecheck
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )

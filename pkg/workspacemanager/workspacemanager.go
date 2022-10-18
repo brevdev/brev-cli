@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck // uses generic code
+	collections "github.com/brevdev/brev-cli/pkg/cli-collections" //nolint:typecheck // uses generic code
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 )
