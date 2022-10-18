@@ -119,8 +119,6 @@ github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPn
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/bgentry/speakeasy v0.1.0/go.mod h1:+zsyZBPWlz7T6j88CTgSN5bM796AkVf0kBD4zp0CCIs=
 github.com/bketelsen/crypt v0.0.4/go.mod h1:aI6NrJ0pMGgvZKL1iVgXLnfIFJtfV+bKCoqOes/6LfM=
-github.com/brevdev/dev-plane v0.5.44 h1:WCjFeIBrL+iMwcr59/NFZlHRzqYHkLzJ2iNIPzZL5ks=
-github.com/brevdev/dev-plane v0.5.44/go.mod h1:iVMmlwD0EuEW1B8+/4LAQmAdHuqzhQSWZ/llo7wWMw4=
 github.com/brevdev/parse v0.0.9-beta h1:Er4NNFeS7Y/vV6AdBbkOOVKrF5Vn6FXXfBJIeUiPdfs=
 github.com/brevdev/parse v0.0.9-beta/go.mod h1:ML13fBCP6yZsZearRnglD+6UlqkpiVN7Hjf8R9pd0TY=
 github.com/briandowns/spinner v1.16.0 h1:DFmp6hEaIx2QXXuqSJmtfSBSAjRmpGiKG6ip2Wm/yOs=

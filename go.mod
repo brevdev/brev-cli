@@ -13,7 +13,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.20
 	github.com/aws/aws-sdk-go-v2/service/pricing v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.13.18
-	github.com/brevdev/dev-plane v0.5.44
 	github.com/brevdev/parse v0.0.9-beta
 	github.com/briandowns/spinner v1.16.0
 	github.com/fatih/color v1.13.0
