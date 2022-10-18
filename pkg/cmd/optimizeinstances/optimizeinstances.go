@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/mail"
 	"strings"
 	"sync"
 	"time"
@@ -97,9 +98,7 @@ func NewCmdOptimizeInstances(t *terminal.Terminal, store optimizeInstancesStore)
 }
 
 func OptimizeInstances(t *terminal.Terminal, args []string, _ optimizeInstancesStore) error {
-	fmt.Print(t.Yellow("Please enter your email address: "))
-	var userEmail string
-	_, err := fmt.Scanln(&userEmail)
+	userEmail, err := getUserEmail(t, "Please enter your email address: ")
 	if err != nil {
 		return errors.WrapAndTrace(err)
 	}
@@ -144,6 +143,24 @@ func OptimizeInstances(t *terminal.Terminal, args []string, _ optimizeInstancesS
 		}
 	}
 	return errors.WrapAndTrace(result)
+}
+
+func getUserEmail(t *terminal.Terminal, promptText string) (string, error) {
+	fmt.Print(t.Yellow(promptText))
+	var userEmail string
+	_, err := fmt.Scanln(&userEmail)
+	if err != nil {
+		return "", errors.WrapAndTrace(err)
+	}
+	if validEmail(userEmail) {
+		return userEmail, nil
+	}
+	return getUserEmail(t, "Please enter a valid email address: ")
+}
+
+func validEmail(email string) bool {
+	_, err := mail.ParseAddress(email)
+	return err == nil
 }
 
 func findAWSClientWithCorrectRegion(ctx context.Context, instanceID string) (AWSClient, error) {
