@@ -57,9 +57,9 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(deleteStore, workspaceName)
 	if err != nil {
-		err := handleAdminUser(err, deleteStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		err1 := handleAdminUser(err, deleteStore)
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
 		}
 	}
 
@@ -88,13 +88,14 @@ func handleAdminUser(err error, deleteStore DeleteStore) error {
 		}
 		if user.GlobalUserType != "Admin" {
 			return breverrors.WrapAndTrace(err)
-		} else {
-			fmt.Println("attempting to delete a workspace you don't own as admin")
 		}
-	} else {
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		fmt.Println("attempting to delete a workspace you don't own as admin")
+		return nil
 	}
+
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }

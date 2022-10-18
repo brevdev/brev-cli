@@ -13,7 +13,7 @@ type instanceIdentityDocument struct {
 
 func (n *NoAuthHTTPStore) GetInstanceType() (string, error) {
 	var iid instanceIdentityDocument
-	resp, err := http.Get(" http://169.254.169.254/latest/dynamic/instance-identity/document")
+	resp, err := http.Get("http://169.254.169.254/latest/dynamic/instance-identity/document")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
