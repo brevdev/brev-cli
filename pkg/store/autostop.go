@@ -28,6 +28,9 @@ const pathRecordAutoStop = "api/autostop/record"
 type RecordAutopstopBody struct {
 	Email        string
 	InstanceType string
+	Region       string
+	Name         string
+	EnvID        string
 }
 
 func (n NoAuthHTTPStore) RecordAutoStop(
