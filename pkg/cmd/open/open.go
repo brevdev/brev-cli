@@ -254,11 +254,11 @@ func waitForLoggerFileToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, ss
 }
 
 func checkSetupFinished(sshAlias string) (bool, error) {
-	out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "tail", "-n", "50", "/var/log/brev-workspace.log").CombinedOutput() // RemoteCommand=none
+	out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput() // RemoteCommand=none
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	return strings.Contains(string(out), "------ Setup End ------"), nil
+	return (strings.Contains(string(out), "------ Setup End ------") || strings.Contains(string(out), "------ Git repo cloned ------")), nil
 }
 
 func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, path string, waitForSetupToFinish bool) error {
