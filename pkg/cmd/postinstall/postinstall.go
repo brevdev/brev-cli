@@ -3,6 +3,7 @@ package postinstall
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
@@ -14,6 +15,7 @@ var (
 )
 
 type postinstallStore interface {
+	autostartconf.AutoStartStore
 	RegisterNotificationEmail(string) error
 	WriteEmail(email string) error
 }
@@ -57,6 +59,13 @@ func Runpostinstall(store postinstallStore, email string) error {
 	}
 
 	err = store.RegisterNotificationEmail(email)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	brevmonConfigurer := autostartconf.NewBrevMonConfigure(store)
+
+	err = brevmonConfigurer.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
