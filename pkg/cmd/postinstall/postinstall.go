@@ -34,7 +34,10 @@ func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Comm
 			if len(args) > 0 {
 				email = args[0]
 			}
-			err := Runpostinstall(store, email)
+			err := Runpostinstall(
+				store,
+				email,
+			)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -45,7 +48,10 @@ func NewCmdpostinstall(_ *terminal.Terminal, store postinstallStore) *cobra.Comm
 	return cmd
 }
 
-func Runpostinstall(store postinstallStore, email string) error {
+func Runpostinstall(
+	store postinstallStore,
+	email string,
+) error {
 	if email == "" {
 		email = terminal.PromptGetInput(terminal.PromptContent{
 			Label:    "Email: ",

@@ -503,8 +503,21 @@ func trytoUnTarGZ(in io.Reader) io.Reader {
 	return tarReader
 }
 
+const mailFilePath = "/etc/brev/email"
+
 func (f FileStore) WriteEmail(email string) error {
-	err := f.WriteString("/etc/brev/email", email)
+	exists, err := f.FileExists(mailFilePath)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if exists {
+		err = f.Remove(mailFilePath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	err = f.WriteString(mailFilePath, email)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -512,7 +525,7 @@ func (f FileStore) WriteEmail(email string) error {
 }
 
 func (f FileStore) ReadEmail() (string, error) {
-	filestring, err := f.GetFileAsString("/etc/brev/email")
+	filestring, err := f.GetFileAsString(mailFilePath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
