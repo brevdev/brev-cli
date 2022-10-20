@@ -4,7 +4,7 @@
 set -eo pipefail
 
 # Get THE DOWNLOAD URL
-DOWNLOAD_URL=$(curl -s https://brevapi.us-west-2-prod.control-plane.brev.dev)
+DOWNLOAD_URL=$(curl -s  https://brevapi.us-west-2-prod.control-plane.brev.dev/api/autostop/cli-download-url)
 
 # download the tar to a tmp directory
 
