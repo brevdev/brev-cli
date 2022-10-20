@@ -97,6 +97,24 @@ func NewCmdOptimizeInstances(t *terminal.Terminal, store optimizeInstancesStore)
 	return cmd
 }
 
+func NewCmdOptimize(t *terminal.Terminal, store optimizeInstancesStore) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "optimize",
+		DisableFlagsInUseLine: true,
+		Short:                 short,
+		Long:                  long,
+		Example:               example,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := OptimizeInstances(t, args, store)
+			if err != nil {
+				return errors.WrapAndTrace(err)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
+
 func OptimizeInstances(t *terminal.Terminal, args []string, _ optimizeInstancesStore) error {
 	userEmail, err := getUserEmail(t, "Please enter your email address: ")
 	if err != nil {

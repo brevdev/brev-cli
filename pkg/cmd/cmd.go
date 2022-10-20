@@ -254,6 +254,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(optimizeinstances.NewCmdOptimizeInstances(t, loginCmdStore))
+	cmd.AddCommand(optimizeinstances.NewCmdOptimize(t, loginCmdStore))
+
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
@@ -272,6 +274,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
 	cmd.AddCommand(envsetup.NewCmdEnvSetup(loginCmdStore, loginAuth))
 	cmd.AddCommand(postinstall.NewCmdpostinstall(t, loginCmdStore))
+	cmd.AddCommand(postinstall.NewCMDOptimizeThis(t, loginCmdStore))
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
