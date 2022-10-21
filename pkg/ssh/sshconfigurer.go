@@ -200,7 +200,7 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 }
 
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, runRemoteCMD bool) (string, error) {
-	alias := string(workspace.GetLocalIdentifier())
+	alias := workspace.Name
 	var entry SSHConfigEntryV2
 	var tmpl *template.Template
 	var err error
