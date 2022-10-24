@@ -41,6 +41,7 @@ type envsetupStore interface {
 	Remove(target string) error
 	FileExists(target string) (bool, error)
 	DownloadBinary(url string, target string) error
+	AppendString(path string, content string) error
 }
 
 type nologinEnvStore interface {
@@ -58,6 +59,8 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 
 	// if a token flag is supplied, log in with it
 	var token string
+
+	var datadogAPIKey string
 
 	cmd := &cobra.Command{
 		Use:                   name,
@@ -77,6 +80,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 					arg,
 					token,
 					noLoginStore,
+					datadogAPIKey,
 				)
 				if err != nil {
 					errors = multierror.Append(err)
@@ -92,6 +96,8 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 	cmd.PersistentFlags().BoolVar(&debugger, "debugger", debugger, "toggle features that don't play well with debuggers")
 	cmd.PersistentFlags().BoolVar(&configureSystemSSHConfig, "configure-system-ssh-config", configureSystemSSHConfig, "configure system ssh config")
 	cmd.PersistentFlags().StringVar(&token, "token", "", "token to use for login")
+	cmd.PersistentFlags().StringVar(&datadogAPIKey, "datadog API key", "", "datadog API key to use for logging")
+
 	return cmd
 }
 
@@ -101,6 +107,7 @@ func RunEnvSetup(
 	forceEnableSetup, debugger, configureSystemSSHConfig bool,
 	workspaceid, token string,
 	noLoginStore nologinEnvStore,
+	datadogAPIKey string,
 ) error {
 	if token != "" {
 		err := noLoginStore.LoginWithToken(token)
@@ -141,7 +148,12 @@ func RunEnvSetup(
 		return nil
 	}
 
-	err = setupEnv(store, params, configureSystemSSHConfig)
+	err = setupEnv(
+		store,
+		params,
+		configureSystemSSHConfig,
+		datadogAPIKey,
+	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -154,6 +166,8 @@ type envInitier struct {
 	setupworkspace.WorkspaceIniter
 	ConfigureSystemSSHConfig bool
 	brevMonConfigurer        autostartconf.DaemonConfigurer
+	datadogAPIKey            string
+	store                    envsetupStore
 }
 
 func (e envInitier) Setup() error {
@@ -172,10 +186,16 @@ func (e envInitier) Setup() error {
 			return nil
 		},
 	)
-
 	err = e.brevMonConfigurer.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	if e.datadogAPIKey != "" {
+		err = e.SetupDatadog()
+		if err != nil {
+			log.Println(err) // if this fails we don't want to stop the setup
+		}
 	}
 
 	err = e.SetupSSH(e.Params.WorkspaceKeyPair)
@@ -208,6 +228,62 @@ func (e envInitier) Setup() error {
 	}
 
 	err = postPrepare.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+func (e envInitier) SetupDatadog() error {
+	cmd := setupworkspace.CmdBuilder(
+		"bash",
+		"-c",
+		"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)",
+	)
+	cmd.Env = append(cmd.Env, []string{
+		"DD_API_KEY=" + e.datadogAPIKey,
+		"DD_AGENT_MAJOR_VERSION=7",
+		"DD_SITE=\"datadoghq.com\"",
+	}...)
+	err := cmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = e.store.WriteString("/etc/datadog-agent/conf.d/systemd.d/conf.yaml", `
+init_config:
+instances:
+    ## @param unit_names - list of strings - required
+    ## List of systemd units to monitor.
+    ## Full names must be used. Examples: ssh.service, docker.socket
+    #
+  - unit_names:
+      - ssh.service
+      - brevmon.service
+`)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = e.store.WriteString("/etc/datadog-agent/conf.d/journald.d/conf.yaml", `
+logs:
+    - type: journald
+      path: /var/log/journal/
+      include_units:
+          - brevmon.service
+          - sshd.service
+`)
+
+	err = setupworkspace.BuildAndRunCmd("usermod -a -G systemd-journal dd-agent")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// add logs_enabled: true to /etc/datadog-agent/datadog.yaml
+	e.store.AppendString("/etc/datadog-agent/datadog.yaml", `logs_enabled: true`)
+
+	err = setupworkspace.BuildAndRunCmd("systemctl restart datadog-agent")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -331,17 +407,30 @@ PasswordAuthentication no`, authorizedKeyPath)
 	return nil
 }
 
-func newEnvIniter(user *user.User, params *store.SetupParamsV0, configureSystemSSHConfig bool, store autostartconf.AutoStartStore) *envInitier {
+func newEnvIniter(
+	user *user.User,
+	params *store.SetupParamsV0,
+	configureSystemSSHConfig bool,
+	store envsetupStore,
+	datadogApiKey string,
+) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
 
 	return &envInitier{
 		*workspaceIniter,
 		configureSystemSSHConfig,
 		autostartconf.NewBrevMonConfigure(store),
+		datadogApiKey,
+		store,
 	}
 }
 
-func setupEnv(store envsetupStore, params *store.SetupParamsV0, configureSystemSSHConfig bool) error {
+func setupEnv(
+	store envsetupStore,
+	params *store.SetupParamsV0,
+	configureSystemSSHConfig bool,
+	datadogAPIKey string,
+) error {
 	err := store.BuildBrevHome()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -350,7 +439,13 @@ func setupEnv(store envsetupStore, params *store.SetupParamsV0, configureSystemS
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	wi := newEnvIniter(user, params, configureSystemSSHConfig, store)
+	wi := newEnvIniter(
+		user,
+		params,
+		configureSystemSSHConfig,
+		store,
+		datadogAPIKey,
+	)
 	// set logfile path to ~/.brev/envsetup.log
 	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")
 	done, err := mirrorPipesToFile(store, logFilePath)

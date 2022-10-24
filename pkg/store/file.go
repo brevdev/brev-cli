@@ -531,3 +531,18 @@ func (f FileStore) ReadEmail() (string, error) {
 	}
 	return filestring, nil
 }
+
+// append a string to a file
+func (f FileStore) AppendString(path string, content string) error {
+	file, err := f.fs.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer file.Close() //nolint:errcheck // defer
+
+	_, err = file.WriteString(content)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
