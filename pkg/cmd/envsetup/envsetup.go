@@ -245,7 +245,7 @@ func (e envInitier) SetupDatadog() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	defer resp.Body.Close() // nolint: errcheck // we don't care about the error here b/c defer
+	defer resp.Body.Close() //nolint: errcheck // we don't care about the error here b/c defer
 
 	if resp.StatusCode != 200 {
 		return breverrors.WrapAndTrace(fmt.Errorf("failed to download datadog install script"))
