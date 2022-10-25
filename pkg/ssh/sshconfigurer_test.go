@@ -220,7 +220,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testname2-id-2
+			want: `Host testName2
   Hostname test2-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
   User ubuntu
@@ -252,7 +252,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testname2-id-2
+			want: `Host testName2
   Hostname test2-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
   User ubuntu
@@ -284,7 +284,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testname2-id-2
+			want: `Host testName2
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-2
@@ -316,7 +316,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testname2-id-2
+			want: `Host testName2
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-2
