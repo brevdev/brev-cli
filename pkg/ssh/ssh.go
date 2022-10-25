@@ -194,7 +194,7 @@ func MakeSSHEntry(workspaceIdentifier string, port string, privateKeyPath string
 		Dir:          dir,
 	}
 
-	tmpl, err := template.New(string(workspaceIdentifier)).Parse(workspaceSSHConfigTemplate)
+	tmpl, err := template.New(workspaceIdentifier).Parse(workspaceSSHConfigTemplate)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -316,7 +316,7 @@ func (s SSHConfig) GetBrevPorts() (BrevPorts, error) {
 	portSet := make(BrevPorts)
 	hostnames := s.GetBrevHostValues()
 	for _, name := range hostnames {
-		port, err := s.sshConfig.Get(string(name), "Port")
+		port, err := s.sshConfig.Get(name, "Port")
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
