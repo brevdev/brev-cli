@@ -34,7 +34,7 @@ type SSHAll struct {
 }
 
 type SSHResolver interface {
-	GetConfiguredWorkspacePort(string) (string, error)
+	GetConfiguredWorkspacePort(entity.WorkspaceLocalID) (string, error)
 	GetPrivateKeyPath() (string, error)
 }
 

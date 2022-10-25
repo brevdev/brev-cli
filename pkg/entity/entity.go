@@ -379,8 +379,18 @@ func GetDefaultProjectFolderNameFromRepo(repo string) string {
 	return strings.Split(repo[strings.LastIndex(repo, "/")+1:], ".")[0]
 }
 
-func (w Workspace) GetLocalIdentifier() string {
-	return w.Name
+const featureSimpleNames = false
+
+func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
+	if featureSimpleNames {
+		return w.createSimpleName()
+	} else {
+		return w.createUniqueReadableName()
+	}
+}
+
+func (w Workspace) createUniqueReadableName() WorkspaceLocalID {
+	return WorkspaceLocalID(fmt.Sprintf("%s-%s", CleanSubdomain(w.Name), MakeIDSuffix(w.ID)))
 }
 
 func MakeIDSuffix(id string) string {

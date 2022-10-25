@@ -200,7 +200,7 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 }
 
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, runRemoteCMD bool) (string, error) {
-	alias := workspace.Name
+	alias := string(workspace.GetLocalIdentifier())
 	var entry SSHConfigEntryV2
 	var tmpl *template.Template
 	var err error
@@ -357,7 +357,7 @@ func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspa
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigServiceMeshEntry(w.GetLocalIdentifier(), w.GetNodeIdentifierForVPN(), pk)
+		entry, err := makeSSHConfigServiceMeshEntry(string(w.GetLocalIdentifier()), w.GetNodeIdentifierForVPN(), pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -487,7 +487,7 @@ func makeJetbrainsConfigEntry(host, keypath string) JetbrainsGatewayConfigXMLSSH
 		Port:       "22",
 		KeyPath:    keypath,
 		Username:   "brev",
-		CustomName: host,
+		CustomName: entity.WorkspaceLocalID(host),
 		NameFormat: "CUSTOM",
 		Options: []JetbrainsGatewayConfigXMLSSHOption{
 			{

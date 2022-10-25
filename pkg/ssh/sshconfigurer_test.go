@@ -122,8 +122,8 @@ Host %s
 
   RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
-`, somePlainWorkspaces[0].Name,
-		somePlainWorkspaces[1].Name)
+`, somePlainWorkspaces[0].GetLocalIdentifier(),
+		somePlainWorkspaces[1].GetLocalIdentifier())
 	assert.Equal(t, correct, cStr)
 
 	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})
@@ -220,7 +220,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testName2
+			want: `Host testname2-id-2
   Hostname test2-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
   User ubuntu
@@ -252,7 +252,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testName2
+			want: `Host testname2-id-2
   Hostname test2-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
   User ubuntu
@@ -284,7 +284,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testName2
+			want: `Host testname2-id-2
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-2
@@ -316,7 +316,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
-			want: `Host testName2
+			want: `Host testname2-id-2
   IdentityFile /my/priv/key.pem
   User brev
   ProxyCommand brev proxy test-id-2
