@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -236,17 +237,40 @@ func (e envInitier) Setup() error {
 }
 
 func (e envInitier) SetupDatadog() error {
-	cmd := setupworkspace.CmdBuilder(
-		"bash",
-		"-c",
-		"$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script.sh)",
-	)
-	cmd.Env = append(cmd.Env, []string{
-		"DD_API_KEY=" + e.datadogAPIKey,
-		"DD_AGENT_MAJOR_VERSION=7",
-		"DD_SITE=\"datadoghq.com\"",
-	}...)
-	err := cmd.Run()
+	installScriptUrl := "https://s3.amazonaws.com/dd-agent/scripts/install_script.sh"
+	var installScript string
+
+	resp, err := http.Get(installScriptUrl)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return breverrors.WrapAndTrace(fmt.Errorf("failed to download datadog install script"))
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	installScript = string(bodyBytes)
+
+	cmd := setupworkspace.CmdStringBuilder(installScript)
+
+	cmd.Env = append(cmd.Env,
+		append(
+			os.Environ(),
+			[]string{
+				"DD_API_KEY=" + e.datadogAPIKey,
+				"DD_AGENT_MAJOR_VERSION=7",
+				"DD_SITE=\"datadoghq.com\"",
+			}...,
+		)...)
+
+	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
