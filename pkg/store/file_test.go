@@ -174,8 +174,8 @@ func TestFileStore_AppendString(t *testing.T) {
 		fields               fields
 		args                 args
 		wantErr              bool
-		path  string
-		content 	string
+		path                 string
+		content              string
 		expectedFileContents string
 	}{
 		// TODO: Add test cases.
@@ -189,8 +189,8 @@ func TestFileStore_AppendString(t *testing.T) {
 				"bar",
 			},
 			wantErr:              false,
-			path: "foo",
-			content: "bar",
+			path:                 "foo",
+			content:              "bar",
 			expectedFileContents: "barbar",
 		},
 		{
@@ -203,11 +203,10 @@ func TestFileStore_AppendString(t *testing.T) {
 				"\nbar\n",
 			},
 			wantErr:              false,
-			path: "foo",
-			content: "bar",
+			path:                 "foo",
+			content:              "bar",
 			expectedFileContents: "bar\nbar\n",
 		},
-		
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,7 +215,10 @@ func TestFileStore_AppendString(t *testing.T) {
 				fs:         tt.fields.fs,
 				User:       nil,
 			}
-			f.WriteString(tt.args.path, tt.args.content)
+			err := f.WriteString(tt.args.path, tt.args.content)
+			if err != nil {
+				t.Errorf("error writing string to file %s", err)
+			}
 			if err := f.AppendString(tt.args.path, tt.args.content); (err != nil) != tt.wantErr {
 				t.Errorf("FileStore.AppendString() error = %v, wantErr %v", err, tt.wantErr)
 			}
