@@ -107,7 +107,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, runRemoteCMD, waitForSetupToFinish)
+	err = openVsCodeWithSSH(t, localIdentifier, projPath, tstore, runRemoteCMD, waitForSetupToFinish)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""

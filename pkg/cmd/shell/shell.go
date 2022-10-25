@@ -60,7 +60,7 @@ func runShellCommand(sstore ShellStore, workspaceNameOrID string, runRemoteCMD b
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	sshName := string(workspace.GetLocalIdentifier())
+	sshName := workspace.GetLocalIdentifier()
 
 	err = res.Await()
 	if err != nil {

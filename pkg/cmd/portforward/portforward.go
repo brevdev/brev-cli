@@ -104,7 +104,7 @@ func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (str
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	sshName := string(workspace.GetLocalIdentifier())
+	sshName := workspace.GetLocalIdentifier()
 	return sshName, nil
 }
 
