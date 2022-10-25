@@ -237,15 +237,15 @@ func (e envInitier) Setup() error {
 }
 
 func (e envInitier) SetupDatadog() error {
-	installScriptUrl := "https://s3.amazonaws.com/dd-agent/scripts/install_script.sh"
+	installScriptURL := "https://s3.amazonaws.com/dd-agent/scripts/install_script.sh"
 	var installScript string
 
-	resp, err := http.Get(installScriptUrl)
+	resp, err := http.Get(installScriptURL)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	defer resp.Body.Close()
+	defer resp.Body.Close() // nolint: errcheck // we don't care about the error here b/c defer
 
 	if resp.StatusCode != 200 {
 		return breverrors.WrapAndTrace(fmt.Errorf("failed to download datadog install script"))
