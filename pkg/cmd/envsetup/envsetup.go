@@ -96,7 +96,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 	cmd.PersistentFlags().BoolVar(&debugger, "debugger", debugger, "toggle features that don't play well with debuggers")
 	cmd.PersistentFlags().BoolVar(&configureSystemSSHConfig, "configure-system-ssh-config", configureSystemSSHConfig, "configure system ssh config")
 	cmd.PersistentFlags().StringVar(&token, "token", "", "token to use for login")
-	cmd.PersistentFlags().StringVar(&datadogAPIKey, "datadog API key", "", "datadog API key to use for logging")
+	cmd.PersistentFlags().StringVar(&datadogAPIKey, "datadog-api-key", "", "datadog API key to use for logging")
 
 	return cmd
 }
