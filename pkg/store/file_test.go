@@ -157,3 +157,62 @@ func TestFileStore_GetOrCreateFile(t *testing.T) {
 		})
 	}
 }
+
+func TestFileStore_AppendString(t *testing.T) {
+	bs := MakeMockBasicStore()
+	fs := afero.NewMemMapFs()
+	type fields struct {
+		BasicStore BasicStore
+		fs         afero.Fs
+	}
+	type args struct {
+		path    string
+		content string
+	}
+	tests := []struct {
+		name                 string
+		fields               fields
+		args                 args
+		wantErr              bool
+		expectedFileContents string
+	}{
+		// TODO: Add test cases.
+		{
+			name: "append to file",
+			fields: fields{
+				*bs, fs,
+			},
+			args: args{
+				"foo",
+				"bar",
+			},
+			wantErr:              false,
+			expectedFileContents: "barbar",
+		},
+		{
+			name: "append to file",
+			fields: fields{
+				*bs, fs,
+			},
+			args: args{
+				"foo",
+				"\nbar\n",
+			},
+			wantErr:              false,
+			expectedFileContents: "bar\nbar\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := FileStore{
+				BasicStore: tt.fields.BasicStore,
+				fs:         tt.fields.fs,
+				User:       nil,
+			}
+			f.WriteString("foo", "bar")
+			if err := f.AppendString(tt.args.path, tt.args.content); (err != nil) != tt.wantErr {
+				t.Errorf("FileStore.AppendString() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
