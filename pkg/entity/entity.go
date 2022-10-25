@@ -381,12 +381,8 @@ func GetDefaultProjectFolderNameFromRepo(repo string) string {
 
 const featureSimpleNames = false
 
-func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
-	if featureSimpleNames {
-		return w.createSimpleName()
-	} else {
-		return w.createUniqueReadableName()
-	}
+func (w Workspace) GetLocalIdentifier() string {
+	return w.Name
 }
 
 func (w Workspace) createUniqueReadableName() WorkspaceLocalID {

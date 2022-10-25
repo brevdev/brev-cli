@@ -41,10 +41,10 @@ const workspaceSSHConfigTemplate = `Host {{ .Host }}
 
 type (
 	BrevPorts          map[string]bool
-	BrevHostValuesSet  map[entity.WorkspaceLocalID]bool
-	IdentityPortMap    map[entity.WorkspaceLocalID]string
+	BrevHostValuesSet  map[string]bool
+	IdentityPortMap    map[string]string
 	workspaceSSHConfig struct {
-		Host         entity.WorkspaceLocalID
+		Host         string
 		Hostname     string
 		User         string
 		IdentityFile string
@@ -60,7 +60,7 @@ type (
 	Reader interface {
 		GetBrevPorts() (BrevPorts, error)
 		GetBrevHostValueSet() BrevHostValuesSet
-		GetConfiguredWorkspacePort(workspaceIdentifier entity.WorkspaceLocalID) (string, error)
+		GetConfiguredWorkspacePort(workspaceIdentifier string) (string, error)
 	}
 	Writer interface {
 		Sync(IdentityPortMap) error
@@ -98,7 +98,7 @@ type (
 	}
 	JetbrainsGatewayConfigXMLSSHConfig struct {
 		ID               string                               `xml:"id,attr,omitempty"`
-		CustomName       entity.WorkspaceLocalID              `xml:"customName,attr,omitempty"`
+		CustomName       string                               `xml:"customName,attr,omitempty"`
 		NameFormat       string                               `xml:"nameFormat,attr,omitempty"`
 		UseOpenSSHConfig string                               `xml:"useOpenSSHConfig,attr,omitempty"`
 		Host             string                               `xml:"host,attr,omitempty"`
@@ -153,10 +153,9 @@ func checkIfBrevHost(host ssh_config.Host, privateKeyPath string) bool {
 	return false
 }
 
-func checkIfHostIsActive(hoststring string, activeWorksSpaces []entity.WorkspaceLocalID) bool {
-	maybeHostname := workspaceIdentifierFromHost(hoststring)
+func checkIfHostIsActive(hoststring string, activeWorksSpaces []string) bool {
 	for _, workspaceIdentifier := range activeWorksSpaces {
-		if workspaceIdentifier == maybeHostname {
+		if workspaceIdentifier == hoststring {
 			return true
 		}
 	}
@@ -185,7 +184,7 @@ func sshConfigFromString(config string) (*ssh_config.Config, error) {
 	return sshConfig, nil
 }
 
-func MakeSSHEntry(workspaceIdentifier entity.WorkspaceLocalID, port string, privateKeyPath string, dir string) (string, error) {
+func MakeSSHEntry(workspaceIdentifier string, port string, privateKeyPath string, dir string) (string, error) {
 	wsc := workspaceSSHConfig{
 		Host:         workspaceIdentifier,
 		Hostname:     "localhost",
@@ -244,7 +243,7 @@ func NewSSHConfig(store SSHStore) (*SSHConfig, error) {
 
 func (s *SSHConfig) PruneInactiveWorkspaces(identityPortMap IdentityPortMap) error {
 	newConfig := ""
-	var activeWorkspaces []entity.WorkspaceLocalID
+	var activeWorkspaces []string
 	for key := range identityPortMap {
 		activeWorkspaces = append(activeWorkspaces, key)
 	}
@@ -269,15 +268,14 @@ func (s *SSHConfig) PruneInactiveWorkspaces(identityPortMap IdentityPortMap) err
 }
 
 // Hostname is a loaded term so using values
-func (s SSHConfig) GetBrevHostValues() []entity.WorkspaceLocalID {
+func (s SSHConfig) GetBrevHostValues() []string {
 	privateKeyPath := s.privateKey
-	var brevHosts []entity.WorkspaceLocalID
+	var brevHosts []string
 	for _, host := range s.sshConfig.Hosts {
-		hostname := workspaceIdentifierFromHost(host.String())
 		// is this host a brev entry? if not, we don't care, and on to the
 		// next one
 		if checkIfBrevHost(*host, privateKeyPath) {
-			brevHosts = append(brevHosts, hostname)
+			brevHosts = append(brevHosts, host.String())
 		}
 	}
 	return brevHosts
@@ -336,7 +334,7 @@ func (s SSHConfig) GetBrevHostValueSet() BrevHostValuesSet {
 	return brevHostValuesSet
 }
 
-func (s SSHConfig) GetConfiguredWorkspacePort(workspaceIdentifier entity.WorkspaceLocalID) (string, error) {
+func (s SSHConfig) GetConfiguredWorkspacePort(workspaceIdentifier string) (string, error) {
 	config, err := NewSSHConfig(s.store) // forces load from disk
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -374,7 +372,7 @@ func (sshConfigurer *SSHConfigurer) GetIdentityPortMap() (IdentityPortMap, error
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	port := 2222
-	identifierPortMapping := make(map[entity.WorkspaceLocalID]string)
+	identifierPortMapping := make(map[string]string)
 	for _, workspaceIdentifier := range activeWorkspaces {
 		if !brevHostValuesSet[workspaceIdentifier] {
 			for ports[fmt.Sprint(port)] {
@@ -418,8 +416,8 @@ func (sshConfigurer *SSHConfigurer) Sync() error {
 	return nil
 }
 
-func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []entity.WorkspaceLocalID {
-	var workspaceIdentifiers []entity.WorkspaceLocalID
+func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []string {
+	var workspaceIdentifiers []string
 	for _, workspace := range sshConfigurer.workspaces {
 		fmt.Println(workspace.Name)
 		workspaceIdentifiers = append(workspaceIdentifiers, workspace.GetLocalIdentifier())
@@ -427,7 +425,7 @@ func (sshConfigurer *SSHConfigurer) GetActiveWorkspaceIdentifiers() []entity.Wor
 	return workspaceIdentifiers
 }
 
-func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspaceIdentifier entity.WorkspaceLocalID) (string, error) {
+func (sshConfigurer SSHConfigurer) GetConfiguredWorkspacePort(workspaceIdentifier string) (string, error) {
 	port, err := sshConfigurer.Reader.GetConfiguredWorkspacePort(workspaceIdentifier)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -463,7 +461,7 @@ func NewJetBrainsGatewayConfig(store JetBrainsGatewayConfigStore) (*JetBrainsGat
 
 func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) error {
 	brevhosts := jbgc.GetBrevHostValueSet()
-	activeWorkspaces := make(map[entity.WorkspaceLocalID]bool)
+	activeWorkspaces := make(map[string]bool)
 	privateKeyPath, err := jbgc.store.GetPrivateKeyPath()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -475,7 +473,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 				Port:       value,
 				KeyPath:    privateKeyPath,
 				Username:   "brev",
-				CustomName: (key),
+				CustomName: key,
 				NameFormat: "CUSTOM",
 				Options: []JetbrainsGatewayConfigXMLSSHOption{
 					{
@@ -485,7 +483,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 				},
 			})
 		}
-		activeWorkspaces[(key)] = true
+		activeWorkspaces[key] = true
 	}
 	var sshConfigs []JetbrainsGatewayConfigXMLSSHConfig
 	for _, conf := range jbgc.config.Component.Configs.SSHConfigs {
@@ -525,7 +523,7 @@ func (jbgc *JetBrainsGatewayConfig) GetBrevHostValueSet() BrevHostValuesSet {
 	return brevHostValueSet
 }
 
-func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspaceIdentifier entity.WorkspaceLocalID) (string, error) {
+func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspaceIdentifier string) (string, error) {
 	// load config from disk
 	config, err := jbgc.store.GetJetBrainsConfig()
 	if err != nil {

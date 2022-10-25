@@ -487,7 +487,7 @@ func makeJetbrainsConfigEntry(host, keypath string) JetbrainsGatewayConfigXMLSSH
 		Port:       "22",
 		KeyPath:    keypath,
 		Username:   "brev",
-		CustomName: entity.WorkspaceLocalID(host),
+		CustomName: host,
 		NameFormat: "CUSTOM",
 		Options: []JetbrainsGatewayConfigXMLSSHOption{
 			{
