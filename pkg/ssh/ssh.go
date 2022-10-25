@@ -339,7 +339,7 @@ func (s SSHConfig) GetConfiguredWorkspacePort(workspaceIdentifier string) (strin
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	port, err := config.sshConfig.Get(string(workspaceIdentifier), "Port")
+	port, err := config.sshConfig.Get(workspaceIdentifier, "Port")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -478,7 +478,7 @@ func (jbgc *JetBrainsGatewayConfig) Sync(identifierPortMapping IdentityPortMap) 
 				Options: []JetbrainsGatewayConfigXMLSSHOption{
 					{
 						Name:  "CustomName",
-						Value: string(key),
+						Value: key,
 					},
 				},
 			})

@@ -357,7 +357,7 @@ func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspa
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		entry, err := makeSSHConfigServiceMeshEntry(string(w.GetLocalIdentifier()), w.GetNodeIdentifierForVPN(), pk)
+		entry, err := makeSSHConfigServiceMeshEntry(w.GetLocalIdentifier(), w.GetNodeIdentifierForVPN(), pk)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
