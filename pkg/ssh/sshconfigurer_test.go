@@ -122,8 +122,8 @@ Host %s
 
   RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
-`, somePlainWorkspaces[0].GetLocalIdentifier(),
-		somePlainWorkspaces[1].GetLocalIdentifier())
+`, somePlainWorkspaces[0].Name,
+		somePlainWorkspaces[1].Name)
 	assert.Equal(t, correct, cStr)
 
 	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})
