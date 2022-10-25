@@ -274,6 +274,9 @@ logs:
           - brevmon.service
           - sshd.service
 `)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	err = setupworkspace.BuildAndRunCmd("usermod -a -G systemd-journal dd-agent")
 	if err != nil {
@@ -281,7 +284,11 @@ logs:
 	}
 
 	// add logs_enabled: true to /etc/datadog-agent/datadog.yaml
-	e.store.AppendString("/etc/datadog-agent/datadog.yaml", `logs_enabled: true`)
+	err = e.store.AppendString("/etc/datadog-agent/datadog.yaml", `logs_enabled: true`)
+
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	err = setupworkspace.BuildAndRunCmd("systemctl restart datadog-agent")
 	if err != nil {
@@ -412,7 +419,7 @@ func newEnvIniter(
 	params *store.SetupParamsV0,
 	configureSystemSSHConfig bool,
 	store envsetupStore,
-	datadogApiKey string,
+	datadogAPIKey string,
 ) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
 
@@ -420,7 +427,7 @@ func newEnvIniter(
 		*workspaceIniter,
 		configureSystemSSHConfig,
 		autostartconf.NewBrevMonConfigure(store),
-		datadogApiKey,
+		datadogAPIKey,
 		store,
 	}
 }
