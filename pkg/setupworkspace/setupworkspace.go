@@ -651,6 +651,7 @@ func CmdStringBuilder(c string) *exec.Cmd {
 
 func BuildAndRunCmd(name string, args ...string) error {
 	cmd := CmdBuilder(name, args...)
+	cmd.Env = append(cmd.Env, os.Environ()...)
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
