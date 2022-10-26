@@ -306,7 +306,13 @@ logs:
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = setupworkspace.BuildAndRunCmd("/usr/sbin/usermod -a -G systemd-journal dd-agent")
+	err = setupworkspace.BuildAndRunCmd(
+		"/usr/sbin/usermod",
+		"-a",
+		"-G",
+		"systemd-journal",
+		"dd-agent",
+	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -318,7 +324,11 @@ logs:
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = setupworkspace.BuildAndRunCmd("systemctl restart datadog-agent")
+	err = setupworkspace.BuildAndRunCmd(
+		"systemctl",
+		"restart",
+		"datadog-agent",
+	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
