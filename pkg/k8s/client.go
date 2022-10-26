@@ -33,7 +33,7 @@ type K8sClientConfig interface {
 	GetCA() []byte
 }
 
-func NewDefaultClient(config K8sClientConfig) K8sClient {
+func NewDefaultClient(config K8sClientConfig) (K8sClient, error) {
 	restConfig := dynamic.ConfigFor(&rest.Config{
 		Host:    config.GetHost(),
 		APIPath: "/api",
@@ -46,13 +46,13 @@ func NewDefaultClient(config K8sClientConfig) K8sClient {
 
 	k8sClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		panic(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	return &DefaultClient{
 		k8sClientset:  k8sClient,
 		k8sRestConfig: restConfig,
-	}
+	}, nil
 }
 
 func (c DefaultClient) GetK8sClient() *kubernetes.Clientset {
@@ -88,7 +88,10 @@ func NewDefaultWorkspaceGroupClientMapper(k8sStore K8sStore) (*DefaultWorkspaceG
 			key:  []byte(keys.PrivateKey),
 			ca:   []byte(wk.CA),
 		}
-		wkc[wk.GroupID] = NewDefaultClient(rcc)
+		wkc[wk.GroupID], err = NewDefaultClient(rcc)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 		wka[wk.GroupID] = wk.APIURL
 	}
 
