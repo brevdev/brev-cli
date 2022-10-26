@@ -4,15 +4,13 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 )
 
 type SSHConfigurerTaskStore interface {
-	k8s.K8sStore
 	ConfigUpdaterStore
 	SSHConfigurerV2Store
-	GetCurrentUser() (*entity.User, error)
+	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
 type SSHConfigurerTask struct {
@@ -32,17 +30,12 @@ func (sct SSHConfigurerTask) Run() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// get private key and set here
-	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(sct.Store) // to resolve
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	privateKey := workspaceGroupClientMapper.GetPrivateKey()
+	keys, err := sct.Store.GetCurrentUserKeys()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cu := NewConfigUpdater(sct.Store, configs, privateKey)
+	cu := NewConfigUpdater(sct.Store, configs, keys.PrivateKey)
 	err = tasks.RunTasks([]tasks.Task{cu})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

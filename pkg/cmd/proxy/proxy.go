@@ -9,7 +9,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/huproxyclient"
-	"github.com/brevdev/brev-cli/pkg/k8s"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
@@ -150,14 +149,11 @@ func checkWorkspaceInfraVersionOrErr(workspace *entity.Workspace) error {
 }
 
 func WriteUserPrivateKey(store ProxyStore) error {
-	workspaceGroupClientMapper, err := k8s.NewDefaultWorkspaceGroupClientMapper(
-		store,
-	)
+	keys, err := store.GetCurrentUserKeys()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	privateKey := workspaceGroupClientMapper.GetPrivateKey()
-	err = store.WritePrivateKey(privateKey)
+	err = store.WritePrivateKey(keys.PrivateKey)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
