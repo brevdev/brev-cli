@@ -319,6 +319,18 @@ func openVsCode(sshAlias string, path string) error {
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
 	err := cmd.Run()
 	if err != nil {
+		err = openVsCodeViaExecutable(sshAlias, path)
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func openVsCodeViaExecutable(sshAlias string, path string) error {
+	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
+	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
+	cmd := exec.Command("/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code", "--folder-uri", vscodeString) // #nosec G204
+	err := cmd.Run()
+	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
