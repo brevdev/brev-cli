@@ -178,12 +178,12 @@ func (e envInitier) Setup() error {
 	}
 	err = e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
 	if err != nil {
-		// todo alert sentry 
+		// todo alert sentry
 		fmt.Println(err)
 	}
 	err = e.brevMonConfigurer.Install()
 	if err != nil {
-		// todo dont fail but alert sentry 
+		// todo dont fail but alert sentry
 		return breverrors.WrapAndTrace(err)
 	}
 

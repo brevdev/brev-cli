@@ -192,7 +192,7 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	setupFinished, err := checkSetupFinished(sshAlias)
+	setupFinished, err := checkSetupFinished(sshAlias, waitForSetupToFinish)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -253,12 +253,12 @@ func waitForLoggerFileToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, ss
 	}
 }
 
-func checkSetupFinished(sshAlias string) (bool, error) {
+func checkSetupFinished(sshAlias string, waitForSetupToFinish bool) (bool, error) {
 	out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput() // RemoteCommand=none
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	return (strings.Contains(string(out), "------ Setup End ------") || strings.Contains(string(out), "------ Git repo cloned ------")), nil
+	return (strings.Contains(string(out), "------ Setup End ------") || (!waitForSetupToFinish && strings.Contains(string(out), "------ Git repo cloned ------"))), nil
 }
 
 func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, path string, waitForSetupToFinish bool) error {
