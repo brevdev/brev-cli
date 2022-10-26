@@ -275,7 +275,6 @@ func (e envInitier) SetupDatadog() error {
 		out, err0 := cmd.CombinedOutput()
 		if err0 != nil {
 			return breverrors.WrapAndTrace(err0)
-
 		}
 		return breverrors.WrapAndTrace(fmt.Errorf("failed to install datadog agent: %s", string(out)))
 	}
