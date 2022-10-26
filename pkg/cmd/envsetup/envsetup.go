@@ -23,7 +23,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/brevdev/brev-cli/pkg/util"
 )
 
 type envsetupStore interface {
@@ -177,16 +176,10 @@ func (e envInitier) Setup() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	postPrepare := util.RunEAsync(
-		func() error {
-			err0 := e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
-			if err0 != nil {
-				fmt.Println(err0)
-			}
-			return nil
-		},
-	)
+	err = e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
+	if err != nil {
+		fmt.Println(err)
+	}
 	err = e.brevMonConfigurer.Install()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -226,11 +219,6 @@ func (e envInitier) Setup() error {
 
 	if setupErr != nil {
 		return breverrors.WrapAndTrace(setupErr)
-	}
-
-	err = postPrepare.Await()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil
