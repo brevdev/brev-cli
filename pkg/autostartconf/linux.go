@@ -60,7 +60,6 @@ func (lsc *LinuxSystemdConfigurer) WithFlags(flags []string) *LinuxSystemdConfig
 		lsc.ExecString += " " + flag
 	}
 	return lsc
-
 }
 
 func (lsc LinuxSystemdConfigurer) getDestConfigFile() string {
