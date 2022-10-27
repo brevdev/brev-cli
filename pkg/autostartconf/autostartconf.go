@@ -210,21 +210,25 @@ func NewSSHConfigurer(store AutoStartStore) DaemonConfigurer {
 
 func NewBrevMonConfigure(
 	store AutoStartStore,
+	disableAutostop bool,
 ) DaemonConfigurer {
+	lsc := LinuxSystemdConfigurer{
+		Store:       store,
+		ExecString:  "/usr/local/bin/brevmon",
+		ServiceName: "brevmon.service",
+		WantedBy:    "default.target",
+		After:       "network.target",
+		Type:        "exec",
+		User:        "root",
+		ServiceType: "system",
+	}
+	if disableAutostop {
+		lsc.WithFlags([]string{"--disable-autostop"})
+	}
 	return AptBinaryConfigurer{
-		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
-			Store:       store,
-			ExecString:  "/usr/local/bin/brevmon",
-			ServiceName: "brevmon.service",
-			WantedBy:    "default.target",
-			After:       "network.target",
-			Type:        "exec",
-			User:        "root",
-			ServiceType: "system",
-		},
-
-		URL:  "https://s3.amazonaws.com/brevmon.brev.dev/brevmon.tar.gz",
-		Name: "brevmon",
+		LinuxSystemdConfigurer: lsc,
+		URL:                    "https://s3.amazonaws.com/brevmon.brev.dev/brevmon.tar.gz",
+		Name:                   "brevmon",
 		aptDependencies: []string{
 			"libpcap-dev",
 		},

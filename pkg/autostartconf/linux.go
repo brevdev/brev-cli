@@ -55,6 +55,14 @@ WantedBy=` + lsc.WantedBy
 	return unit
 }
 
+func (lsc *LinuxSystemdConfigurer) WithFlags(flags []string) *LinuxSystemdConfigurer {
+	for _, flag := range flags {
+		lsc.ExecString += " " + flag
+	}
+	return lsc
+
+}
+
 func (lsc LinuxSystemdConfigurer) getDestConfigFile() string {
 	return path.Join(systemDConfigDir, lsc.ServiceName)
 }

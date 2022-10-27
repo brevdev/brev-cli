@@ -83,6 +83,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 					token,
 					noLoginStore,
 					datadogAPIKey,
+					disableAutoStop,
 				)
 				if err != nil {
 					errors = multierror.Append(err)
@@ -99,7 +100,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 	cmd.PersistentFlags().BoolVar(&configureSystemSSHConfig, "configure-system-ssh-config", configureSystemSSHConfig, "configure system ssh config")
 	cmd.PersistentFlags().StringVar(&token, "token", "", "token to use for login")
 	cmd.PersistentFlags().StringVar(&datadogAPIKey, "datadog-api-key", "", "datadog API key to use for logging")
-	cmd.PersistentFlags().BoolVar(&disableAutoStop, "disable-auto-stop", false, "disable auto stop")
+	cmd.PersistentFlags().BoolVar(&disableAutoStop, "disable-autostop", false, "disable auto stop")
 	return cmd
 }
 
@@ -110,6 +111,7 @@ func RunEnvSetup(
 	workspaceid, token string,
 	noLoginStore nologinEnvStore,
 	datadogAPIKey string,
+	disableAutoStop bool,
 ) error {
 	if token != "" {
 		err := noLoginStore.LoginWithToken(token)
@@ -155,6 +157,7 @@ func RunEnvSetup(
 		params,
 		configureSystemSSHConfig,
 		datadogAPIKey,
+		disableAutoStop,
 	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -450,13 +453,14 @@ func newEnvIniter(
 	configureSystemSSHConfig bool,
 	store envsetupStore,
 	datadogAPIKey string,
+	disableAutostop bool,
 ) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
 
 	return &envInitier{
 		*workspaceIniter,
 		configureSystemSSHConfig,
-		autostartconf.NewBrevMonConfigure(store),
+		autostartconf.NewBrevMonConfigure(store, disableAutostop),
 		datadogAPIKey,
 		store,
 	}
@@ -467,6 +471,7 @@ func setupEnv(
 	params *store.SetupParamsV0,
 	configureSystemSSHConfig bool,
 	datadogAPIKey string,
+	disableAutostop bool,
 ) error {
 	err := store.BuildBrevHome()
 	if err != nil {
@@ -482,6 +487,7 @@ func setupEnv(
 		configureSystemSSHConfig,
 		store,
 		datadogAPIKey,
+		disableAutostop,
 	)
 	// set logfile path to ~/.brev/envsetup.log
 	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")
