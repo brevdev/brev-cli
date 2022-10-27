@@ -8,15 +8,52 @@ import (
 )
 
 type LinuxSystemdConfigurer struct {
-	Store           AutoStartStore
-	ValueConfigFile string
-	ServiceName     string
-	ServiceType     string
+	Store       AutoStartStore
+	ExecString  string
+	WantedBy    string
+	After       string
+	ServiceName string
+	Type        string
+	User        string
+	ServiceType string
 }
 
 const (
 	systemDConfigDir = "/etc/systemd/system/"
 )
+
+func (lsc LinuxSystemdConfigurer) ValueConfigFile() string {
+	// [Unit]
+	// Description=brevmon
+	// After=network.target
+
+	// [Service]
+	// User=root
+	// Type=exec
+	// ExecStart=/usr/local/bin/brevmon
+	// ExecReload=/usr/local/bin/brevmon
+	// Restart=always
+
+	// [Install]
+	// WantedBy=default.target
+	unit := `[Unit]
+Description=` + lsc.ServiceName + `
+After=` + lsc.After + `
+
+[Service]`
+	if lsc.User != "" {
+		unit += `
+User=` + lsc.User
+	}
+	unit += `Type=` + lsc.Type + `
+ExecStart=` + lsc.ExecString + `
+ExecReload=` + lsc.ExecString + `
+Restart=always
+
+[Install]
+WantedBy=` + lsc.WantedBy
+	return unit
+}
 
 func (lsc LinuxSystemdConfigurer) getDestConfigFile() string {
 	return path.Join(systemDConfigDir, lsc.ServiceName)
@@ -49,7 +86,7 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = lsc.Store.WriteString(lsc.getDestConfigFile(), lsc.ValueConfigFile)
+	err = lsc.Store.WriteString(lsc.getDestConfigFile(), lsc.ValueConfigFile())
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

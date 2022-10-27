@@ -62,6 +62,8 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 
 	var datadogAPIKey string
 
+	var disableAutoStop bool
+
 	cmd := &cobra.Command{
 		Use:                   name,
 		DisableFlagsInUseLine: true,
@@ -97,7 +99,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 	cmd.PersistentFlags().BoolVar(&configureSystemSSHConfig, "configure-system-ssh-config", configureSystemSSHConfig, "configure system ssh config")
 	cmd.PersistentFlags().StringVar(&token, "token", "", "token to use for login")
 	cmd.PersistentFlags().StringVar(&datadogAPIKey, "datadog-api-key", "", "datadog API key to use for logging")
-
+	cmd.PersistentFlags().BoolVar(&disableAutoStop, "disable-auto-stop", false, "disable auto stop")
 	return cmd
 }
 

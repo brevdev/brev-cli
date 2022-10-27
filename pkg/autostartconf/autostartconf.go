@@ -48,20 +48,11 @@ func NewVPNConfig(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
 	case osLinux:
 		return LinuxSystemdConfigurer{
-			Store: store,
-			ValueConfigFile: `
-[Install]
-WantedBy=multi-user.target
-
-[Unit]
-Description=Brev vpn daemon
-After=systemd-user-sessions.service
-
-[Service]
-Type=simple
-ExecStart=brev tasks run vpnd
-Restart=always
-`,
+			Store:       store,
+			ExecString:  "brev tasks run vpnd",
+			WantedBy:    "multi-user.target",
+			After:       "systemd-user-sessions.service",
+			Type:        "simple",
 			ServiceName: "brevvpnd.service",
 			ServiceType: "system",
 		}
@@ -107,20 +98,11 @@ func NewRPCConfig(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
 	case osLinux:
 		return LinuxSystemdConfigurer{
-			Store: store,
-			ValueConfigFile: `
-[Install]
-WantedBy=multi-user.target
-
-[Unit]
-Description=Brev rpc daemon
-After=systemd-user-sessions.service
-
-[Service]
-Type=simple
-ExecStart=brev tasks run rpcd --user ` + store.GetOSUser() + `
-Restart=always
-`,
+			Store:       store,
+			ExecString:  "brev tasks run rpcd --user " + store.GetOSUser(),
+			WantedBy:    "multi-user.target",
+			After:       "systemd-user-sessions.service",
+			Type:        "simple",
 			ServiceName: "brevrpcd.service",
 			ServiceType: "system",
 		}
@@ -177,21 +159,12 @@ func NewSSHConfigurer(store AutoStartStore) DaemonConfigurer {
 	switch runtime.GOOS {
 	case osLinux:
 		return LinuxSystemdConfigurer{
-			Store: store,
-			ValueConfigFile: `
-[Install]
-WantedBy=multi-user.target
-
-[Unit]
-Description=Brev ssh configurer daemon
-After=systemd-user-sessions.service
-
-[Service]
-Type=simple
-ExecStart=brev tasks run sshcd --user ` + store.GetOSUser() + `
-Restart=always
-User=` + store.GetOSUser() + `
-`,
+			Store:       store,
+			ExecString:  "brev tasks run sshcd --user " + store.GetOSUser(),
+			WantedBy:    "multi-user.target",
+			After:       "systemd-user-sessions.service",
+			Type:        "simple",
+			User:        store.GetOSUser(),
 			ServiceName: "brevsshcd.service",
 			ServiceType: "user",
 		}
@@ -240,23 +213,13 @@ func NewBrevMonConfigure(
 ) DaemonConfigurer {
 	return AptBinaryConfigurer{
 		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
-			Store: store,
-			ValueConfigFile: `
-[Unit]
-Description=brevmon
-After=network.target
-
-[Service]
-User=root
-Type=exec
-ExecStart=/usr/local/bin/brevmon
-ExecReload=/usr/local/bin/brevmon
-Restart=always
-
-[Install]
-WantedBy=default.target
-`,
+			Store:       store,
+			ExecString:  "/usr/local/bin/brevmon",
 			ServiceName: "brevmon.service",
+			WantedBy:    "default.target",
+			After:       "network.target",
+			Type:        "exec",
+			User:        "root",
 			ServiceType: "system",
 		},
 
