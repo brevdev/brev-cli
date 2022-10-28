@@ -190,7 +190,7 @@ func (e envInitier) Setup() error {
 	err = e.brevMonConfigurer.Install()
 	if err != nil {
 		// todo dont fail but alert sentry
-		return breverrors.WrapAndTrace(err)
+		log.Println(err) // if this fails we don't want to stop the setup
 	}
 
 	if e.datadogAPIKey != "" {
