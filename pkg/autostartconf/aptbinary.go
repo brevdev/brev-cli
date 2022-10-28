@@ -33,7 +33,7 @@ func (abc AptBinaryConfigurer) Install() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = abc.Store.WriteString(abc.getDestConfigFile(), abc.ValueConfigFile())
+	err = abc.Store.WriteString(abc.getDestConfigFile(), abc.ValueConfigFile)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

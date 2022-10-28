@@ -97,7 +97,7 @@ func Runpostinstall(
 		return breverrors.WrapAndTrace(err)
 	}
 
-	brevmonConfigurer := autostartconf.NewBrevMonConfigure(store, false)
+	brevmonConfigurer := autostartconf.NewBrevMonConfigure(store)
 
 	err = brevmonConfigurer.Install()
 	if err != nil {

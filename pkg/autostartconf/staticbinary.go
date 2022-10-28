@@ -24,7 +24,7 @@ func (sbc StaticBinaryConfigurer) Install() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = sbc.Store.WriteString(sbc.getDestConfigFile(), sbc.ValueConfigFile())
+	err = sbc.Store.WriteString(sbc.getDestConfigFile(), sbc.ValueConfigFile)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
