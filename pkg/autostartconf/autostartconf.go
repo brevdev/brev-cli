@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
-	"strings"
 )
 
 const (
@@ -238,35 +237,27 @@ User=` + store.GetOSUser() + `
 
 func NewBrevMonConfigure(
 	store AutoStartStore,
-	disableAutostop bool,
 ) DaemonConfigurer {
-	configFile := `[Unit]
+	return AptBinaryConfigurer{
+		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
+			Store: store,
+			ValueConfigFile: `
+[Unit]
 Description=brevmon
 After=network.target
 
 [Service]
 User=root
 Type=exec
-ExecStart=
+ExecStart=/usr/local/bin/brevmon
 ExecReload=/usr/local/bin/brevmon
 Restart=always
 
 [Install]
 WantedBy=default.target
-`
-	if disableAutostop {
-		configFile = strings.ReplaceAll(
-			configFile,
-			"/usr/local/bin/brevmon",
-			"/usr/local/bin/brevmon --disable-autostop",
-		)
-	}
-	return AptBinaryConfigurer{
-		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
-			Store:           store,
-			ValueConfigFile: configFile,
-			ServiceName:     "brevmon.service",
-			ServiceType:     "system",
+`,
+			ServiceName: "brevmon.service",
+			ServiceType: "system",
 		},
 
 		URL:  "https://s3.amazonaws.com/brevmon.brev.dev/brevmon.tar.gz",

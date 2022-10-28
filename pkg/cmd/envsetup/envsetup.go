@@ -83,7 +83,6 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 					token,
 					noLoginStore,
 					datadogAPIKey,
-					disableAutostop,
 				)
 				if err != nil {
 					errors = multierror.Append(err)
@@ -112,7 +111,6 @@ func RunEnvSetup(
 	workspaceid, token string,
 	noLoginStore nologinEnvStore,
 	datadogAPIKey string,
-	disableAutostop bool,
 ) error {
 	if token != "" {
 		err := noLoginStore.LoginWithToken(token)
@@ -158,7 +156,6 @@ func RunEnvSetup(
 		params,
 		configureSystemSSHConfig,
 		datadogAPIKey,
-		disableAutostop,
 	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -454,14 +451,13 @@ func newEnvIniter(
 	configureSystemSSHConfig bool,
 	store envsetupStore,
 	datadogAPIKey string,
-	disableAbleAUtosop bool,
 ) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
 
 	return &envInitier{
 		*workspaceIniter,
 		configureSystemSSHConfig,
-		autostartconf.NewBrevMonConfigure(store, disableAbleAUtosop),
+		autostartconf.NewBrevMonConfigure(store),
 		datadogAPIKey,
 		store,
 	}
@@ -472,7 +468,6 @@ func setupEnv(
 	params *store.SetupParamsV0,
 	configureSystemSSHConfig bool,
 	datadogAPIKey string,
-	disableAutoStop bool,
 ) error {
 	err := store.BuildBrevHome()
 	if err != nil {
@@ -488,7 +483,6 @@ func setupEnv(
 		configureSystemSSHConfig,
 		store,
 		datadogAPIKey,
-		disableAutoStop,
 	)
 	// set logfile path to ~/.brev/envsetup.log
 	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")
