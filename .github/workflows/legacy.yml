@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: 1.18
-
+          cache: true
       - name: Build
         run: make ci
       - name: Upload coverage
@@ -63,6 +63,6 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: 1.18
-
+          cache: true
       - name: Release test
         run: make build

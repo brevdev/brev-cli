@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-go@v3
         with:
           go-version: 1.18
-      - name: expire test cache
+          cache: true      - name: expire test cache
         run: go clean -testcache
       - name: test
         run: go test -timeout 240s -run ^Test_NoProjectBrev$ github.com/brevdev/brev-cli/e2etest/setup

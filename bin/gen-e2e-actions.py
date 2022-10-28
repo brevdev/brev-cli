@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: 1.18
-      - name: expire test cache
+          cache: true      - name: expire test cache
         run: go clean -testcache
       - name: test
         run: """
