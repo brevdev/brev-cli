@@ -246,7 +246,7 @@ After=network.target
 [Service]
 User=root
 Type=exec
-ExecStart=
+ExecStart=/usr/local/bin/brevmon
 ExecReload=/usr/local/bin/brevmon
 Restart=always
 
@@ -261,7 +261,7 @@ After=network.target
 [Service]
 User=root
 Type=exec
-ExecStart=
+ExecStart=/usr/local/bin/brevmon --disable-autostop
 ExecReload=/usr/local/bin/brevmon --disable-autostop
 Restart=always
 
