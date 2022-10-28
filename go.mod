@@ -14,7 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/pricing v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.13.18
 	github.com/brevdev/parse v0.0.9-beta
-	github.com/briandowns/spinner v1.16.0
+	github.com/briandowns/spinner v1.19.0
 	github.com/fatih/color v1.13.0
 	github.com/getsentry/sentry-go v0.14.0
 	github.com/gin-gonic/gin v1.8.1
