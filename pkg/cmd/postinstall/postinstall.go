@@ -98,7 +98,7 @@ func Runpostinstall(
 	}
 
 	brevmonConfigurer := autostartconf.NewBrevMonConfigure(
-		store, 
+		store,
 		false,
 		"10m", // todo pass brevmon args instead of individual args
 	)
