@@ -97,7 +97,11 @@ func Runpostinstall(
 		return breverrors.WrapAndTrace(err)
 	}
 
-	brevmonConfigurer := autostartconf.NewBrevMonConfigure(store, false)
+	brevmonConfigurer := autostartconf.NewBrevMonConfigure(
+		store, 
+		false,
+		"10m", // todo pass brevmon args instead of individual args
+	)
 
 	err = brevmonConfigurer.Install()
 	if err != nil {

@@ -238,6 +238,7 @@ User=` + store.GetOSUser() + `
 func NewBrevMonConfigure(
 	store AutoStartStore,
 	disableAutostop bool,
+	reportInterval string,
 ) DaemonConfigurer {
 	configFile := `[Unit]
 Description=brevmon
@@ -261,8 +262,8 @@ After=network.target
 [Service]
 User=root
 Type=exec
-ExecStart=/usr/local/bin/brevmon --disable-autostop
-ExecReload=/usr/local/bin/brevmon --disable-autostop
+ExecStart=/usr/local/bin/brevmon --disable-autostop --report-interval ` + reportInterval + `
+ExecReload=/usr/local/bin/brevmon --disable-autostop --report-interval ` + reportInterval + `
 Restart=always
 
 [Install]
