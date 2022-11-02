@@ -192,7 +192,7 @@ func (e envInitier) Setup() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = setupworkspace.BuildAndRunCmd("apt", "remove", "unattended-upgrades")
+	err = setupworkspace.BuildAndRunCmd("apt-get", "-y", "remove", "unattended-upgrades")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
