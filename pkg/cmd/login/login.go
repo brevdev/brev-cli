@@ -219,13 +219,13 @@ func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) 
 	}
 	newOnboardingStatus := make(map[string]interface{})
 	// todo make this one api call
-	if !currentOnboardingStatus.SSH {
-		err = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		newOnboardingStatus["SSH"] = true
-	}
+	// if !currentOnboardingStatus.SSH {
+	// 	err = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
+	// 	if err != nil {
+	// 		return breverrors.WrapAndTrace(err)
+	// 	}
+	// 	newOnboardingStatus["SSH"] = true
+	// }
 
 	var ide string
 	if currentOnboardingStatus.Editor == "" {
