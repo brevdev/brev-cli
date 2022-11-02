@@ -188,14 +188,6 @@ func (e envInitier) Setup() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = setupworkspace.BuildAndRunCmd("systemctl", "stop", "unattended-upgrades")
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = setupworkspace.BuildAndRunCmd("apt", "remove", "unattended-upgrades")
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	err = e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
 	if err != nil {
 		// todo alert sentry
