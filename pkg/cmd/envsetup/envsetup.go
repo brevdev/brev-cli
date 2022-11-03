@@ -477,13 +477,15 @@ func createPublicKey(e envInitier, keys *store.KeyPair) error {
 }
 
 func appendToAuthorizedKeys(e envInitier, keys *store.KeyPair, authorizedKeyPath string) error {
+	// TODO check if pub key already exists before appending
 	//nolint:gosec //todo is this a prob?
 	authorizedKeyFile, err := os.OpenFile(authorizedKeyPath, os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	defer setupworkspace.PrintErrFromFunc(authorizedKeyFile.Close)
-	_, err = authorizedKeyFile.Write([]byte(keys.PublicKeyData))
+	pkdWithNewLine := fmt.Sprintf("%s\n", keys.PublicKeyData)
+	_, err = authorizedKeyFile.Write([]byte(pkdWithNewLine))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
