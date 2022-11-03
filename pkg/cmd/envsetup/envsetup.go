@@ -23,6 +23,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/util"
 )
 
 type envsetupStore interface {
@@ -182,12 +183,21 @@ type envInitier struct {
 	store                    envsetupStore
 }
 
-func (e envInitier) Setup() error {
-	cmd := setupworkspace.CmdStringBuilder("echo user: $(whoami) && echo pwd: $(pwd)")
+func appendLogToFile(content string, file string) error {
+	cmd := setupworkspace.CmdStringBuilder(fmt.Sprintf(`echo "%s" >> %s`, content, file))
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
+
+func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
+	err := appendLogToFile("setup started", "/var/log/brev-setup-steps.log")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = setupworkspace.BuildAndRunCmd("systemctl", "stop", "unattended-upgrades")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -196,23 +206,22 @@ func (e envInitier) Setup() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
+
+	cmd := setupworkspace.CmdStringBuilder("echo user: $(whoami) && echo pwd: $(pwd)")
+	err = cmd.Run()
 	if err != nil {
-		// todo alert sentry
-		fmt.Println(err)
-	}
-	err = e.brevMonConfigurer.Install()
-	if err != nil {
-		// todo dont fail but alert sentry
-		log.Println(err) // if this fails we don't want to stop the setup
+		return breverrors.WrapAndTrace(err)
 	}
 
-	if e.datadogAPIKey != "" {
-		err = e.SetupDatadog()
-		if err != nil {
-			log.Println(err) // if this fails we don't want to stop the setup
-		}
-	}
+	postPrepare := util.RunEAsync(
+		func() error {
+			err0 := e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
+			if err0 != nil {
+				fmt.Println(err0)
+			}
+			return nil
+		},
+	)
 
 	err = e.SetupSSH(e.Params.WorkspaceKeyPair)
 	if err != nil {
@@ -226,21 +235,58 @@ func (e envInitier) Setup() error {
 
 	var setupErr error
 
-	fmt.Println("------ starting repo setup ------")
+	err = appendLogToFile("starting repo setup", "/var/log/brev-steps.log")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	err = e.SetupRepos()
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
-	time.Sleep(1 * time.Second) // wait for things to flush??
 	fmt.Println("------ Git repo cloned ------")
+	err = appendLogToFile("repo setup done", "/var/log/brev-steps.log")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
+	err = appendLogToFile("starting to run execs", "/var/log/brev-steps.log")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	err = e.RunExecs()
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
+	err = appendLogToFile("done running execs", "/var/log/brev-steps.log")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	if setupErr != nil {
 		return breverrors.WrapAndTrace(setupErr)
+	}
+
+	err = e.brevMonConfigurer.Install()
+	if err != nil {
+		// todo dont fail but alert sentry
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if e.datadogAPIKey != "" {
+		err = e.SetupDatadog()
+		if err != nil {
+			log.Println(err) // if this fails we don't want to stop the setup
+		}
+	}
+
+	err = postPrepare.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = appendLogToFile("setup done", "/var/log/brev-steps.log")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	return nil
