@@ -4,5 +4,8 @@ import "testing"
 
 func Test_appendLogToFile(t *testing.T) {
 	t.Skip()
-	appendLogToFile("test", "test")
+	err := appendLogToFile("test", "test")
+	if err != nil {
+		t.Errorf("error appending to file %s", err)
+	}
 }
