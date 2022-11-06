@@ -44,7 +44,7 @@ func Runbmon(_ *terminal.Terminal, _ []string, store bmonStore) error {
 	)
 	err := bmonConfig.Install()
 	if err != nil {
-		return err
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
