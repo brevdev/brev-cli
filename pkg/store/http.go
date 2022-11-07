@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
@@ -40,8 +41,10 @@ func NewRestyClient(brevAPIURL string) *resty.Client {
 	restyClient.SetBaseURL(brevAPIURL)
 	restyClient.SetQueryParam("utm_source", "cli")
 	restyClient.SetQueryParam("cli_version", version.Version)
+	restyClient.SetQueryParam("os", runtime.GOOS)
 	return restyClient
 }
+
 
 type AuthHTTPStore struct {
 	NoAuthHTTPStore
