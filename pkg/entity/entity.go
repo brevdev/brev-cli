@@ -379,14 +379,8 @@ func GetDefaultProjectFolderNameFromRepo(repo string) string {
 	return strings.Split(repo[strings.LastIndex(repo, "/")+1:], ".")[0]
 }
 
-const featureSimpleNames = false
-
 func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
-	if featureSimpleNames {
-		return w.createSimpleName()
-	} else {
-		return w.createUniqueReadableName()
-	}
+	return w.createSimpleName()
 }
 
 func (w Workspace) createUniqueReadableName() WorkspaceLocalID {
@@ -422,7 +416,7 @@ func (w Workspace) GetSSHURL() string {
 }
 
 func (w Workspace) createSimpleName() WorkspaceLocalID {
-	return WorkspaceLocalID(CleanSubdomain(w.Name))
+	return WorkspaceLocalID(w.Name)
 }
 
 func (w Workspace) GetNodeIdentifierForVPN() string {
