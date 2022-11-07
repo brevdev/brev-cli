@@ -45,7 +45,6 @@ func NewRestyClient(brevAPIURL string) *resty.Client {
 	return restyClient
 }
 
-
 type AuthHTTPStore struct {
 	NoAuthHTTPStore
 	authHTTPClient           *AuthHTTPClient
