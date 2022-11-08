@@ -249,6 +249,11 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		return breverrors.WrapAndTrace(err)
 	}
 
+	err = e.SetupEnvVars()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = appendLogToFile("starting to run execs", "/var/log/brev-steps.log")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -430,6 +435,45 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 		}
 	}
 
+	return nil
+}
+
+func (e envInitier) SetupEnvVars() error {
+	// set env vars
+	err := e.store.AppendString("/etc/bash.bashrc", `
+_brev_hook() {
+  local previous_exit_status=$?;
+  trap -- '' SIGINT;
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brev configure-env-vars bash)";
+  trap - SIGINT;
+  return $previous_exit_status;
+};
+if ! [[ "${PROMPT_COMMAND:-}" =~ _brev_hook ]]; then
+  PROMPT_COMMAND="_brev_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+fi
+`)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = e.store.AppendString("/etc/zsh/zshrc", `
+_brev_hook() {
+  trap -- '' SIGINT;
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brev configure-env-vars zsh)";
+  trap - SIGINT;
+}
+typeset -ag precmd_functions;
+if [[ -z "${precmd_functions[(r)_brev_hook]+1}" ]]; then
+  precmd_functions=( _brev_hook ${precmd_functions[@]} )
+fi
+typeset -ag chpwd_functions;
+if [[ -z "${chpwd_functions[(r)_brev_hook]+1}" ]]; then
+  chpwd_functions=( _brev_hook ${chpwd_functions[@]} )
+fi
+`)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
