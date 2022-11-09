@@ -319,16 +319,47 @@ func openVsCode(sshAlias string, path string) error {
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
 	err := cmd.Run()
 	if err != nil {
-		err = openVsCodeViaExecutable(sshAlias, path)
-		return breverrors.WrapAndTrace(err)
+		err = openVsCodeViaExecutable(sshAlias, path, "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code")
+	}
+	if err != nil {
+		err = openVsCodeViaExecutable(sshAlias, path, "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code")
+	}
+	if err != nil {
+		err = openVsCodeViaExecutable(sshAlias, path, "/usr/share/code/bin/code")
+	}
+	if err != nil {
+		err = openVsCodeViaExecutable(sshAlias, path, "/usr/share/code-insiders/bin/code")
+	}
+	if err != nil {
+		// in wsl get the windows user name and try to open vscode via that
+		// list dirs in /mnt/c/Users
+		dirs := []string{}
+		files, err := os.ReadDir("/mnt/c/Users") // todo use store to list dirs
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		for _, f := range files {
+			if f.IsDir() {
+				dirs = append(dirs, f.Name())
+			}
+		}
+		for _, dir := range dirs {
+			err = openVsCodeViaExecutable(sshAlias, path, fmt.Sprintf("/mnt/c/Users/%s/AppData/Local/Programs/Microsoft VS Code/Code.exe", dir))
+			if err == nil {
+				break
+			}
+		}
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	return nil
 }
 
-func openVsCodeViaExecutable(sshAlias string, path string) error {
+func openVsCodeViaExecutable(sshAlias, path, vscodepath string) error {
 	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
-	cmd := exec.Command("/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code", "--folder-uri", vscodeString) // #nosec G204
+	cmd := exec.Command(vscodepath, "--folder-uri", vscodeString) // #nosec G204
 	err := cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
