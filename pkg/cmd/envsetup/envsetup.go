@@ -444,7 +444,7 @@ func (e envInitier) SetupEnvVars() error {
 _brev_hook() {
   local previous_exit_status=$?;
   trap -- '' SIGINT;
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brev configure-env-vars bash)";
+  eval "$(/usr/local/bin/brev configure-env-vars bash)";
   trap - SIGINT;
   return $previous_exit_status;
 };
@@ -459,7 +459,7 @@ fi
 	err = e.store.AppendString("/etc/zsh/zshrc", `
 _brev_hook() {
   trap -- '' SIGINT;
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brev configure-env-vars zsh)";
+  eval "$(/usr/local/bin/brev configure-env-vars zsh)";
   trap - SIGINT;
 }
 typeset -ag precmd_functions;
