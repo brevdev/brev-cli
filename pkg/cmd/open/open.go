@@ -339,7 +339,7 @@ func openVsCode(sshAlias string, path string) error {
 			return breverrors.WrapAndTrace(err)
 		}
 		for _, f := range files {
-			if f.IsDir() {
+			if f.IsDir() && f.Name() != "All Users" && f.Name() != "Default" && f.Name() != "Default User" && f.Name() != "Public" {
 				dirs = append(dirs, f.Name())
 			}
 		}
