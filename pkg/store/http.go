@@ -16,10 +16,11 @@ import (
 type NoAuthHTTPStore struct {
 	FileStore
 	noAuthHTTPClient *NoAuthHTTPClient
+	BasicStore
 }
 
 func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
-	return &NoAuthHTTPStore{*f, c}
+	return &NoAuthHTTPStore{*f, c, f.BasicStore}
 }
 
 // Used if need new instance to customize settings
@@ -49,6 +50,15 @@ type AuthHTTPStore struct {
 	NoAuthHTTPStore
 	authHTTPClient           *AuthHTTPClient
 	isRefreshTokenHandlerSet bool
+	BasicStore
+}
+
+func (n *NoAuthHTTPStore) GetWindowsDir() (string, error) {
+	return n.GetWindowsDir()
+}
+
+func (s *AuthHTTPStore) GetWindowsDir() (string, error) {
+	return s.GetWindowsDir()
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
