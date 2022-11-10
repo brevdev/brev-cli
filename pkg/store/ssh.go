@@ -52,6 +52,18 @@ func (f FileStore) GetUserSSHConfigPath() (string, error) {
 	return path, nil
 }
 
+func (f FileStore) GetWSLHostUserSSHConfigPath() (string, error) {
+	home, err := f.GetWSLHostHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetUserSSHConfigPath(home)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return path, nil
+}
+
 func (f FileStore) GetBrevSSHConfigPath() (string, error) {
 	home, err := f.UserHomeDir()
 	if err != nil {

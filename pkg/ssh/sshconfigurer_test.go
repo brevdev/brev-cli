@@ -44,6 +44,10 @@ func (d DummyStore) GetWorkspaces() ([]entity.Workspace, error) {
 
 type DummySSHConfigurerV2Store struct{}
 
+func (d DummySSHConfigurerV2Store) GetWSLHostUserSSHConfigPath() (string, error) {
+	return "", nil
+}
+
 func (d DummySSHConfigurerV2Store) OverrideWriteSSHConfig(_ string) error {
 	return nil
 }

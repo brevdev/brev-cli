@@ -14,6 +14,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/hashicorp/go-multierror"
+	"github.com/samber/mo"
 )
 
 type ConfigUpdaterStore interface {
@@ -103,6 +104,7 @@ type SSHConfigurerV2Store interface {
 	GetJetBrainsConfig() (string, error)
 	WriteJetBrainsConfig(config string) error
 	DoesJetbrainsFilePathExist() (bool, error)
+	GetWSLHostUserSSHConfigPath() (string, error)
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -120,7 +122,10 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = s.store.WriteBrevSSHConfig(newConfig)
+	err = s.store.WriteBrevSSHConfig(
+		mo.TupleToResult(s.CreateWSLConfig(workspaces)).OrElse(newConfig),
+	)
+
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -133,12 +138,33 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	return nil
 }
 
+func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string, error) {
+	configPath, err := s.store.GetWSLHostUserSSHConfigPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return sshConfig, nil
+}
+
 func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
 	configPath, err := s.store.GetUserSSHConfigPath()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return sshConfig, nil
+}
+
+func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, s SSHConfigurerV2) (string, error) {
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 		pk, err := s.store.GetPrivateKeyPath()

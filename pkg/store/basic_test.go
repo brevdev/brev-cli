@@ -54,7 +54,7 @@ func TestBasicStore_GetWindowsDir(t *testing.T) {
 			b := BasicStore{
 				envGetter: tt.fields.envGetter,
 			}
-			got, err := b.GetWindowsDir()
+			got, err := b.GetWSLHostHomeDir()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("BasicStore.GetWindowsDir() error = %v, wantErr %v", err, tt.wantErr)
 				return
