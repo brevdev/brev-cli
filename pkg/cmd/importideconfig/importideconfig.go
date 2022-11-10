@@ -12,6 +12,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/hashicorp/go-multierror"
+	"github.com/samber/lo"
+	"github.com/samber/mo"
 	"github.com/tidwall/gjson"
 	"golang.org/x/text/encoding/charmap"
 
@@ -58,21 +60,34 @@ func importIDEConfigError(err error) error {
 	return &ImportIDEConfigError{Err: err}
 }
 
+func identity[T any](t T) (T, error) {
+	return t, nil
+}
+
+func wrapAndTrace[T any, A Mult](result A) A {
+	return result.Match(identity[T], func(err error) (T, error) {
+		return mo.None[T]().OrEmpty(), breverrors.WrapAndTrace(err)
+	})
+}
+
+type MultiErrorResult[T] = mo.Either[T, *multierror.Error]
+
+// todo what if I want both?
+func tupleToMultiErrorResult[T any](t T, err error) M {
+	if err != nil {
+		return mo.Right[T, *multierror.Error](multierror.Append(err))
+	}
+	return mo.Left[T, *multierror.Error](t)
+}
+
 func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error {
 	fmt.Println("updating vscode extensions...")
-	homedir, err := os.UserHomeDir()
-	if err != nil {
-		return breverrors.WrapAndTrace(importIDEConfigError(err))
-	}
-
-	windowsUserDir, err := store.GetWindowsDir()
-	if err != nil {
-		return breverrors.WrapAndTrace(importIDEConfigError(err))
-	}
-
 	var extensions []entity.VscodeExtensionMetadata
 	me := multierror.Append(nil)
-	for _, dir := range []string{homedir, windowsUserDir} {
+	for _, dir := range []mo.Either[string, *multierror.Error]{
+		wrapAndTrace(store.GetWindowsDir()).Map(tupleToMultiErrorResult[string, *multierror.Error]),
+	} {
+
 		exts, err2 := getExtensions(dir)
 		if err2 != nil {
 			me = multierror.Append(me, err2)
@@ -150,11 +165,37 @@ func appendPath(a string, b string) string {
 	return path.Join(a, b)
 }
 
-func getExtensions(homedir string) ([]entity.VscodeExtensionMetadata, error) {
+func getExtensions(homedir mo.Result[string]) ([]entity.VscodeExtensionMetadata, error) {
 	var extensions []entity.VscodeExtensionMetadata
 
+	// homedir.Match(
+	// 	func(dir string) (mo.Result[string], error) {
+	// 		paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
+	// 		if err != nil {
+	// 			return mo.None[string](), err
+	// 		}
+
+	paths := lo.Reduce(
+		homedir,
+		func(acc []mo.Result[string], homedir mo.Result, _ int) []mo.Result[string] {
+			return homedir.Match(
+				func(dir string) mo.Result[string] {
+					merr := tupleToMultiErrorResult(recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions"))
+					if err != nil {
+						return mo.None[string]()
+					}
+					return mo.Some(paths)
+				},
+				func(err error) mo.Result[string] {
+					return mo.None[string]()
+				},
+			)
+		},
+		[]mo.Result[string]{},
+	)
+
 	// intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
-	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
+	// paths, err :=
 	if err != nil {
 		if strings.Contains(err.Error(), "no such file or directory") {
 			var err1 error
