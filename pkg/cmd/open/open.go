@@ -38,6 +38,7 @@ type OpenStore interface {
 	StartWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetWindowsDir() (string, error)
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
@@ -197,14 +198,14 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 		return breverrors.WrapAndTrace(err)
 	}
 	if !setupFinished {
-		err = streamOutput(t, s, sshAlias, path, waitForSetupToFinish)
+		err = streamOutput(t, s, sshAlias, path, waitForSetupToFinish, tstore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
 		s.Suffix = " Environment is ready. Opening VS Code 🤙"
 		time.Sleep(1 * time.Second)
-		err = openVsCode(sshAlias, path)
+		err = openVsCode(sshAlias, path, tstore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -261,7 +262,14 @@ func checkSetupFinished(sshAlias string, waitForSetupToFinish bool) (bool, error
 	return (strings.Contains(string(out), "------ Setup End ------") || (!waitForSetupToFinish && strings.Contains(string(out), "------ Git repo cloned ------"))), nil
 }
 
-func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, path string, waitForSetupToFinish bool) error {
+func streamOutput(
+	t *terminal.Terminal,
+	s *spinner.Spinner,
+	sshAlias string,
+	path string,
+	waitForSetupToFinish bool,
+	store OpenStore,
+) error {
 	s.Suffix = t.Green(" should be no more than a minute now...hit ENTER to see logs")
 	cmd := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "tail", "-f", "/var/log/brev-workspace.log")
 	cmdReader, err := cmd.StdoutPipe()
@@ -273,7 +281,17 @@ func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, pat
 	scanner := bufio.NewScanner(cmdReader)
 	errChannel := make(chan error)
 
-	go scanLoggerFile(scanner, sshAlias, path, s, &vscodeAlreadyOpened, &showLogsToUser, errChannel, waitForSetupToFinish)
+	go scanLoggerFile(
+		scanner,
+		sshAlias,
+		path,
+		s,
+		&vscodeAlreadyOpened,
+		&showLogsToUser,
+		errChannel,
+		waitForSetupToFinish,
+		store,
+	)
 
 	err = cmd.Start()
 	if err != nil {
@@ -293,7 +311,17 @@ func streamOutput(t *terminal.Terminal, s *spinner.Spinner, sshAlias string, pat
 	return nil
 }
 
-func scanLoggerFile(scanner *bufio.Scanner, sshAlias string, path string, s *spinner.Spinner, vscodeAlreadyOpened *bool, showLogsToUser *bool, err chan error, waitForSetupToFinish bool) {
+func scanLoggerFile(
+	scanner *bufio.Scanner,
+	sshAlias string,
+	path string,
+	s *spinner.Spinner,
+	vscodeAlreadyOpened *bool,
+	showLogsToUser *bool,
+	err chan error,
+	waitForSetupToFinish bool,
+	store OpenStore,
+) {
 	for scanner.Scan() {
 		if *showLogsToUser {
 			fmt.Println("\n", scanner.Text())
@@ -301,7 +329,7 @@ func scanLoggerFile(scanner *bufio.Scanner, sshAlias string, path string, s *spi
 		if strings.Contains(scanner.Text(), "------ Setup End ------") || (!waitForSetupToFinish && strings.Contains(scanner.Text(), "------ Git repo cloned ------")) {
 			if !*vscodeAlreadyOpened {
 				s.Stop()
-				err <- openVsCode(sshAlias, path)
+				err <- openVsCode(sshAlias, path, store)
 				*vscodeAlreadyOpened = true
 
 			}
@@ -313,7 +341,7 @@ func scanLoggerFile(scanner *bufio.Scanner, sshAlias string, path string, s *spi
 	}
 }
 
-func openVsCode(sshAlias string, path string) error {
+func openVsCode(sshAlias string, path string, store OpenStore) error {
 	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
@@ -330,27 +358,20 @@ func openVsCode(sshAlias string, path string) error {
 	if err != nil {
 		err = openVsCodeViaExecutable(sshAlias, path, "/usr/share/code-insiders/bin/code")
 	}
+	dir, err := store.GetWindowsDir()
 	if err != nil {
-		// in wsl get the windows user name and try to open vscode via that
-		// list dirs in /mnt/c/Users
-		dirs := []string{}
-		files, err := os.ReadDir("/mnt/c/Users") // todo use store to list dirs
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		for _, f := range files {
-			if f.IsDir() && f.Name() != "All Users" && f.Name() != "Default" && f.Name() != "Default User" && f.Name() != "Public" {
-				dirs = append(dirs, f.Name())
-			}
-		}
-		for _, dir := range dirs {
-			err = openVsCodeViaExecutable(sshAlias, path, fmt.Sprintf("/mnt/c/Users/%s/AppData/Local/Programs/Microsoft VS Code/Code.exe", dir))
-			if err == nil {
-				break
-			}
-		}
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
+	}
+	if err != nil {
+		e := openVsCodeViaExecutable(
+			sshAlias,
+			path,
+			fmt.Sprintf(
+				"/mnt/c/Users/%s/AppData/Local/Programs/Microsoft VS Code/Code.exe",
+				dir,
+			))
+		if e != nil {
+			return e
 		}
 	}
 	return nil

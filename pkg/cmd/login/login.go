@@ -43,6 +43,7 @@ type LoginStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 	hello.HelloStore
+	importideconfig.ImportIDEConfigStore
 }
 
 type Auth interface {
@@ -85,6 +86,11 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.RunLogin(t, loginToken, skipBrowser)
 			if err != nil {
+				// if err is ImportIDEConfigError, log err with sentry but continue
+				if _, ok := err.(*importideconfig.ImportIDEConfigError); !ok {
+					return breverrors.WrapAndTrace(err)
+				}
+				// todo alert sentry
 				err2 := RunTasksForUser(t)
 				if err2 != nil {
 					err = multierror.Append(err, err2)

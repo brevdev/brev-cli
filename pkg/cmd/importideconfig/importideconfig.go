@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -25,6 +26,7 @@ var startExample = "[internal] test"
 type ImportIDEConfigStore interface {
 	GetCurrentUser() (*entity.User, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
+	GetWindowsDir() (string, error)
 }
 
 func NewCmdImportIDEConfig(t *terminal.Terminal, s ImportIDEConfigStore) *cobra.Command {
@@ -44,45 +46,48 @@ func NewCmdImportIDEConfig(t *terminal.Terminal, s ImportIDEConfigStore) *cobra.
 	return cmd
 }
 
+type ImportIDEConfigError struct {
+	Err error
+}
+
+func (e *ImportIDEConfigError) Error() string {
+	return e.Err.Error()
+}
+
+func importIDEConfigError(err error) error {
+	return &ImportIDEConfigError{Err: err}
+}
+
 func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error {
 	fmt.Println("updating vscode extensions...")
 	homedir, err := os.UserHomeDir()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(importIDEConfigError(err))
+	}
+
+	windowsUserDir, err := store.GetWindowsDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(importIDEConfigError(err))
 	}
 
 	var extensions []entity.VscodeExtensionMetadata
-	// intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
-	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
-	if err != nil {
-		if strings.Contains(err.Error(), "no such file or directory") {
-			var err1 error
-			paths, err1 = recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode-server/extensions")
-			if err1 != nil {
-				return multierror.Append(err, err1)
-			}
-		} else {
-			return breverrors.WrapAndTrace(err)
+	me := multierror.Append(nil)
+	for _, dir := range []string{homedir, windowsUserDir} {
+		exts, err2 := getExtensions(dir)
+		if err2 != nil {
+			me = multierror.Append(me, err2)
 		}
-	}
-	for _, v := range paths {
-		pathWithoutHome := strings.Split(v, homedir+"/")[1]
-
-		// of the format
-		//       .vscode / extensions / extension_name / package.json
-		//          1          2              3               4s
-		if len(strings.Split(pathWithoutHome, "/")) == 4 {
-			obj, err0 := createVSCodeMetadataObject(homedir, pathWithoutHome)
-			if err0 != nil {
-				return err0
-			}
-			extensions = append(extensions, *obj)
-		}
+		extensions = append(extensions, exts...)
 	}
 
+	if me.ErrorOrNil() != nil && len(extensions) == 0 {
+		return breverrors.WrapAndTrace(importIDEConfigError(err))
+	}
+
+	// todo print me (multierror) if not nil
 	user, err := store.GetCurrentUser()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(importIDEConfigError(err))
 	}
 
 	_, err = store.UpdateUser(user.ID, &entity.UpdateUser{
@@ -93,7 +98,7 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 		},
 	})
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(importIDEConfigError(err))
 	}
 
 	return nil
@@ -142,7 +147,40 @@ func appendPath(a string, b string) string {
 	if a == "." {
 		return b
 	}
-	return a + "/" + b
+	return path.Join(a, b)
+}
+
+func getExtensions(homedir string) ([]entity.VscodeExtensionMetadata, error) {
+	var extensions []entity.VscodeExtensionMetadata
+
+	// intentionally reading from .vscode and not .vscode_extensions because if they want the extension, it should be installed locally
+	paths, err := recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode/extensions")
+	if err != nil {
+		if strings.Contains(err.Error(), "no such file or directory") {
+			var err1 error
+			paths, err1 = recursivelyFindFile([]string{"package.json"}, homedir+"/.vscode-server/extensions")
+			if err1 != nil {
+				return nil, multierror.Append(err, err1)
+			}
+		} else {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	}
+	for _, v := range paths {
+		pathWithoutHome := strings.Split(v, homedir+"/")[1]
+
+		// of the format
+		//       .vscode / extensions / extension_name / package.json
+		//          1          2              3               4s
+		if len(strings.Split(pathWithoutHome, "/")) == 4 {
+			obj, err0 := createVSCodeMetadataObject(homedir, pathWithoutHome)
+			if err0 != nil {
+				return nil, err0
+			}
+			extensions = append(extensions, *obj)
+		}
+	}
+	return extensions, nil
 }
 
 // Returns list of paths to file
