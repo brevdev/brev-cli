@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
+	user "github.com/tweekmonster/luser"
 )
 
 const (
@@ -202,6 +203,67 @@ func TestVerifyPrivateKey(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if err := VerifyPrivateKey(tt.args.key); (err != nil) != tt.wantErr {
 				t.Errorf("VerifyPrivateKey() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestFileStore_GetWSLHostUserSSHConfigPath(t *testing.T) {
+	type fields struct {
+		BasicStore BasicStore
+		fs         afero.Fs
+		User       *user.User
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		want    string
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			name: "when in wsl, returns the correct path",
+			fields: fields{
+				BasicStore: BasicStore{
+					envGetter: func(s string) string {
+						return "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/:/mnt/c/WINDOWS/System32/OpenSSH/:/mnt/c/Users/15854/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/15854/AppData/Local/Programs/Microsoft VS Code/bin:/snap/bin"
+					},
+				},
+				fs:   afero.NewMemMapFs(),
+				User: nil,
+			},
+			want:    "/mnt/c/Users/15854/.ssh/config",
+			wantErr: false,
+		},
+		{
+			name: "when not in wsl, returns the correct path",
+			fields: fields{
+				BasicStore: BasicStore{
+					envGetter: func(s string) string {
+						return ""
+					},
+				},
+				fs:   afero.NewMemMapFs(),
+				User: nil,
+			},
+			want:    "/home/ubuntu/.ssh/config",
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := FileStore{
+				BasicStore: tt.fields.BasicStore,
+				fs:         tt.fields.fs,
+				User:       tt.fields.User,
+			}
+			got, err := f.GetWSLHostUserSSHConfigPath()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("FileStore.GetWSLHostUserSSHConfigPath() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("FileStore.GetWSLHostUserSSHConfigPath() = %v, want %v", got, tt.want)
 			}
 		})
 	}
