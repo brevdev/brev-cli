@@ -35,6 +35,8 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pkg/errors v0.9.1
 	github.com/robfig/cron/v3 v3.0.1
+	github.com/samber/lo v1.33.0
+	github.com/samber/mo v1.5.1
 	github.com/schollz/progressbar/v3 v3.9.0
 	github.com/segmentio/ksuid v1.0.4
 	github.com/sevlyar/go-daemon v0.1.5
