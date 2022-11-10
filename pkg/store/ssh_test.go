@@ -236,18 +236,18 @@ func TestFileStore_GetWSLHostUserSSHConfigPath(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "when not in wsl, returns the correct path",
+			name: "when not in wsl, returns err",
 			fields: fields{
 				BasicStore: BasicStore{
 					envGetter: func(s string) string {
-						return ""
+						return "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
 					},
 				},
 				fs:   afero.NewMemMapFs(),
 				User: nil,
 			},
-			want:    "/home/ubuntu/.ssh/config",
-			wantErr: false,
+			want:    "",
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
