@@ -348,7 +348,7 @@ type vscodePathStore interface {
 	GetWindowsDir() (string, error)
 }
 
-var commonVSCodePaths = []string{
+var commonVSCodePaths = lo.Map([]string{
 	"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
 	"/usr/bin/code",
 	"/usr/local/bin/code",
@@ -358,12 +358,13 @@ var commonVSCodePaths = []string{
 	"/usr/share/code-insiders/bin/code-insiders",
 	"/usr/share/code-oss/bin/code-oss",
 	"/usr/share/code/bin/code",
-}
-
-func getCommonVsCodePaths(store vscodePathStore) []mo.Result[string] {
-	paths := lo.Map(commonVSCodePaths, func(path string, _ int) mo.Result[string] {
+},
+	func(path string, _ int) mo.Result[string] {
 		return mo.Ok(path)
 	})
+
+func getCommonVsCodePaths(store vscodePathStore) []mo.Result[string] {
+	paths := commonVSCodePaths
 	paths = append(paths, mo.TupleToResult(store.GetWindowsDir()).Match(
 		func(dir string) (string, error) {
 			return fmt.Sprintf(
