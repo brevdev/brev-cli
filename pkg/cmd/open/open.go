@@ -380,20 +380,12 @@ func getCommonVsCodePaths(store vscodePathStore) []mo.Result[string] {
 
 func tryToOpenVsCodeViaExecutable(sshAlias, path string, vscodepaths []mo.Result[string]) error {
 	errs := multierror.Append(nil)
-	for _, dir := range vscodepaths {
-		err := openVsCodeViaExecutable(sshAlias, path, dir.Match(
-			func(dir string) (string, error) {
-				return dir, nil
-			},
-			func(err error) (string, error) {
-				errs = multierror.Append(errs, err)
-				return "", err
-			},
-		).OrEmpty())
+	for _, vscodepath := range vscodepaths {
+		err := openVsCodeViaExecutable(sshAlias, path, vscodepath)
 		if err != nil {
 			errs = multierror.Append(errs, err)
 		} else {
-			return breverrors.WrapAndTrace(errs)
+			return breverrors.WrapAndTrace(errs.ErrorOrNil())
 		}
 	}
 	return breverrors.WrapAndTrace(errs.ErrorOrNil())
@@ -414,14 +406,22 @@ func openVsCode(sshAlias string, path string, store OpenStore) error {
 	return nil
 }
 
-func openVsCodeViaExecutable(sshAlias, path, vscodepath string) error {
-	if vscodepath == "" {
-		return nil
-	}
-	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
-	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
-	cmd := exec.Command(vscodepath, "--folder-uri", vscodeString) // #nosec G204
-	err := cmd.Run()
+func openVsCodeViaExecutable(sshAlias, path string, vscodepath mo.Result[string]) error {
+	err := vscodepath.Match(
+		func(vscodepath string) (string, error) {
+			vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
+			vscodeString = shellescape.QuoteCommand([]string{vscodeString})
+			cmd := exec.Command(vscodepath, "--folder-uri", vscodeString) // #nosec G204
+			err := cmd.Run()
+			if err != nil {
+				return "", breverrors.WrapAndTrace(err)
+			}
+			return "", nil
+		},
+		func(err error) (string, error) {
+			return "", breverrors.WrapAndTrace(err)
+		},
+	).Error()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
