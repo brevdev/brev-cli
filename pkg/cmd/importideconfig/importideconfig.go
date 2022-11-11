@@ -65,14 +65,17 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 		return breverrors.WrapAndTrace(importIDEConfigError(err))
 	}
 
-	windowsUserDir, err := store.GetWindowsDir()
+	windowsUserDir, _ := store.GetWindowsDir()
 	if err != nil {
-		return breverrors.WrapAndTrace(importIDEConfigError(err))
+		// todo multierror
 	}
 
 	var extensions []entity.VscodeExtensionMetadata
 	me := multierror.Append(nil)
 	for _, dir := range []string{homedir, windowsUserDir} {
+		if dir == "" {
+			continue
+		}
 		exts, err2 := getExtensions(dir)
 		if err2 != nil {
 			me = multierror.Append(me, err2)
