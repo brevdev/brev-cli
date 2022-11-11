@@ -403,6 +403,7 @@ func TestSSHConfigurerV2_Update(t *testing.T) {
 		windowsSSHConfig       string
 		windowsBrevSSHConfig   string
 		windowsSSHConfigExists bool
+		skip                   bool
 	}{
 		// TODO: Add test cases.
 		{
@@ -446,71 +447,75 @@ Host testName1
 			windowsBrevSSHConfig:   ``,
 			windowsSSHConfigExists: false,
 		},
-		// 		{
-		// 			name: "test update with windows",
-		// 			fields: fields{
-		// 				store:        makeMockWSLFS(),
-		// 				runRemoteCMD: false,
-		// 			},
-		// 			args: args{
-		// 				workspaces: []entity.Workspace{
-		// 					{
-		// 						ID:               "test-id-1",
-		// 						Name:             "testName1",
-		// 						WorkspaceGroupID: "test-id-1",
-		// 						OrganizationID:   "oi",
-		// 						WorkspaceClassID: "wci",
-		// 						CreatedByUserID:  "cui",
-		// 						DNS:              "test1-dns-org.brev.sh",
-		// 						Status:           entity.Running,
-		// 						Password:         "sdfal",
-		// 						GitRepo:          "gitrepo",
-		// 					},
-		// 				},
-		// 			},
-		// 			wantErr:        false,
-		// 			linuxSSHConfig: "Include /home/ubuntu/.brev/ssh_config\n",
-		// 			linuxBrevSSHConfig: `# included in /home/ubuntu/.ssh/config
-		// Host testName1
-		//   Hostname test1-dns-org.brev.sh
-		//   IdentityFile /home/ubuntu/.brev/brev.pem
-		//   User ubuntu
-		//   ServerAliveInterval 30
-		//   UserKnownHostsFile /dev/null
-		//   StrictHostKeyChecking no
-		//   PasswordAuthentication no
-		//   RequestTTY yes
+		{
+			name: "test update with windows",
+			fields: fields{
+				store:        makeMockWSLFS(),
+				runRemoteCMD: false,
+			},
+			args: args{
+				workspaces: []entity.Workspace{
+					{
+						ID:               "test-id-1",
+						Name:             "testName1",
+						WorkspaceGroupID: "test-id-1",
+						OrganizationID:   "oi",
+						WorkspaceClassID: "wci",
+						CreatedByUserID:  "cui",
+						DNS:              "test1-dns-org.brev.sh",
+						Status:           entity.Running,
+						Password:         "sdfal",
+						GitRepo:          "gitrepo",
+					},
+				},
+			},
+			wantErr:        false,
+			linuxSSHConfig: "Include /home/ubuntu/.brev/ssh_config\n",
+			linuxBrevSSHConfig: `# included in /home/ubuntu/.ssh/config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile /home/ubuntu/.brev/brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
 
-		// `,
-		// 			windowsSSHConfig: `# included in C:\\Users\\15854\\.ssh\\config
-		// Host testName1
-		//   Hostname test1-dns-org.brev.sh
-		//   IdentityFile C:\\Users\\15854\\.brev\\brev.pem
-		//   User ubuntu
-		//   ServerAliveInterval 30
-		//   UserKnownHostsFile /dev/null
-		//   StrictHostKeyChecking no
-		//   PasswordAuthentication no
-		//   RequestTTY yes
+`,
+			windowsSSHConfig: `# included in C:\\Users\\15854\\.ssh\\config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile C:\\Users\\15854\\.brev\\brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
 
-		// `,
-		// 			windowsBrevSSHConfig: `# included in C:\\Users\\15854\\.brev\\ssh_config
-		// Host testName1
-		//   Hostname test1-dns-org.brev.sh
-		//   IdentityFile C:\\Users\\15854\\.brev\\brev.pem
-		//   User ubuntu
-		//   ServerAliveInterval 30
-		//   UserKnownHostsFile /dev/null
-		//   StrictHostKeyChecking no
-		//   PasswordAuthentication no
-		//   RequestTTY yes
+`,
+			windowsBrevSSHConfig: `# included in C:\\Users\\15854\\.brev\\ssh_config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile C:\\Users\\15854\\.brev\\brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
 
-		// `,
-		// 			windowsSSHConfigExists: true,
-		// 		},
+`,
+			windowsSSHConfigExists: true,
+			skip:                   true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip {
+				t.Skip()
+			}
 			s := SSHConfigurerV2{
 				store: tt.fields.store,
 			}
