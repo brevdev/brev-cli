@@ -20,6 +20,11 @@ func NewBasicStore() *BasicStore {
 	}
 }
 
+func (b *BasicStore) WithEnvGetter(f func(string) string) *BasicStore {
+	b.envGetter = f
+	return b
+}
+
 // look in path on wsl to find out which user is the user on windows that is running wsl
 // PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/:/mnt/c/WINDOWS/System32/OpenSSH/:/mnt/c/Users/15854/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/15854/AppData/Local/Programs/Microsoft VS Code/bin:/snap/bin
 func (b BasicStore) GetWSLHostHomeDir() (string, error) {

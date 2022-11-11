@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/google/go-cmp/cmp"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -353,6 +355,75 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 			diff := cmp.Diff(tt.want, got)
 			if diff != "" {
 				t.Fatalf(diff)
+			}
+		})
+	}
+}
+
+func makeMockFS() *store.FileStore {
+	bs := store.NewBasicStore().WithEnvGetter(
+		func(s string) string {
+			return "test"
+		},
+	)
+	fs := bs.WithFileSystem(afero.NewMemMapFs())
+	return fs
+}
+
+func newUpdateStore() SSHConfigurerV2Store {
+	store := makeMockFS()
+	return store
+}
+
+func TestSSHConfigurerV2_Update(t *testing.T) {
+	type fields struct {
+		store        SSHConfigurerV2Store
+		runRemoteCMD bool
+	}
+	type args struct {
+		workspaces []entity.Workspace
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test update",
+			fields: fields{
+				store:        newUpdateStore(),
+				runRemoteCMD: false,
+			},
+			args: args{
+				workspaces: []entity.Workspace{
+					{
+						ID:               "test-id-1",
+						Name:             "testName1",
+						WorkspaceGroupID: "test-id-1",
+						OrganizationID:   "oi",
+						WorkspaceClassID: "wci",
+						CreatedByUserID:  "cui",
+						DNS:              "test1-dns-org.brev.sh",
+						Status:           entity.Running,
+						Password:         "sdfal",
+						GitRepo:          "gitrepo",
+					},
+				},
+			},
+			wantErr: false,
+		},
+
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := SSHConfigurerV2{
+				store:        tt.fields.store,
+				runRemoteCMD: tt.fields.runRemoteCMD,
+			}
+			if err := s.Update(tt.args.workspaces); (err != nil) != tt.wantErr {
+				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

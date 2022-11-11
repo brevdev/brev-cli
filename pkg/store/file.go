@@ -28,6 +28,10 @@ type FileStore struct {
 	User *user.User
 }
 
+func (f *FileStore) GetWindowsDir() (string, error) {
+	return f.BasicStore.GetWSLHostHomeDir()
+}
+
 func (b *BasicStore) WithFileSystem(fs afero.Fs) *FileStore {
 	return &FileStore{*b, fs, nil}
 }
