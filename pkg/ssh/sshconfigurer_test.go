@@ -385,7 +385,7 @@ func makeMockWSLFS() *store.FileStore {
 	return fs
 }
 
-func TestSSHConfigurerV2_Update(t *testing.T) {
+func TestSSHConfigurerV2_Update(t *testing.T) { //nolint:funlen // this is a test
 	type fields struct {
 		store        SSHConfigurerV2Store
 		runRemoteCMD bool
