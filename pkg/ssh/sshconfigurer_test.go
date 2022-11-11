@@ -378,9 +378,14 @@ func makeMockFS() *store.FileStore {
 	return fs
 }
 
-func newUpdateStore() SSHConfigurerV2Store {
-	store := makeMockFS()
-	return store
+func makeMockWSLFS() *store.FileStore {
+	bs := store.NewBasicStore().WithEnvGetter(
+		func(s string) string {
+			return "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/:/mnt/c/WINDOWS/System32/OpenSSH/:/mnt/c/Users/15854/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/15854/AppData/Local/Programs/Microsoft VS Code/bin:/snap/bin"
+		},
+	)
+	fs := bs.WithFileSystem(afero.NewMemMapFs())
+	return fs
 }
 
 func TestSSHConfigurerV2_Update(t *testing.T) {
@@ -399,13 +404,14 @@ func TestSSHConfigurerV2_Update(t *testing.T) {
 		linuxSSHConfig         string
 		linuxBrevSSHConfig     string
 		windowsSSHConfig       string
+		windowsBrevSSHConfig   string
 		windowsSSHConfigExists bool
 	}{
 		// TODO: Add test cases.
 		{
 			name: "test update",
 			fields: fields{
-				store:        newUpdateStore(),
+				store:        makeMockFS(),
 				runRemoteCMD: false,
 			},
 			args: args{
@@ -440,7 +446,70 @@ Host testName1
 `,
 
 			windowsSSHConfig:       ``,
+			windowsBrevSSHConfig:   ``,
 			windowsSSHConfigExists: false,
+		},
+		{
+			name: "test update with windows",
+			fields: fields{
+				store:        makeMockWSLFS(),
+				runRemoteCMD: false,
+			},
+			args: args{
+				workspaces: []entity.Workspace{
+					{
+						ID:               "test-id-1",
+						Name:             "testName1",
+						WorkspaceGroupID: "test-id-1",
+						OrganizationID:   "oi",
+						WorkspaceClassID: "wci",
+						CreatedByUserID:  "cui",
+						DNS:              "test1-dns-org.brev.sh",
+						Status:           entity.Running,
+						Password:         "sdfal",
+						GitRepo:          "gitrepo",
+					},
+				},
+			},
+			wantErr:        false,
+			linuxSSHConfig: "Include /home/ubuntu/.brev/ssh_config\n",
+			linuxBrevSSHConfig: `# included in /home/ubuntu/.ssh/config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile /home/ubuntu/.brev/brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+`,
+			windowsSSHConfig: `# included in C:\\Users\\15854\\.ssh\\config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile C:\\Users\\15854\\.brev\\brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+`,
+			windowsBrevSSHConfig: `# included in C:\\Users\\15854\\.brev\\ssh_config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile C:\\Users\\15854\\.brev\\brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+
+`,
+			windowsSSHConfigExists: true,
 		},
 	}
 	for _, tt := range tests {
@@ -478,6 +547,15 @@ Host testName1
 					t.Fatal(err)
 				}
 				diff = cmp.Diff(tt.windowsSSHConfig, windowsConfig)
+				if diff != "" {
+					t.Fatalf(diff)
+				}
+
+				windowsBrevSSHConfig, err := s.store.GetFileAsString("/mnt/c/Users/test/.brev/ssh_config")
+				if err != nil {
+					t.Fatal(err)
+				}
+				diff = cmp.Diff(tt.windowsBrevSSHConfig, windowsBrevSSHConfig)
 				if diff != "" {
 					t.Fatalf(diff)
 				}
