@@ -53,7 +53,7 @@ type AuthHTTPStore struct {
 	BasicStore
 }
 
-func (n *NoAuthHTTPStore) {
+func (n *NoAuthHTTPStore) GetWindowsDir() (string, error) {
 	return n.FileStore.GetWSLHostHomeDir()
 }
 
