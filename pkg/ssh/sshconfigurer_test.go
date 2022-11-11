@@ -558,7 +558,7 @@ Host testName1
 				}
 				diff = cmp.Diff(tt.windowsBrevSSHConfig, windowsBrevSSHConfig)
 				if diff != "" {
-				t.Fatalf(diff)
+					t.Fatalf(diff)
 				}
 			}
 		})
