@@ -116,16 +116,6 @@ func NewSSHConfigurerV2(store SSHConfigurerV2Store, runRemoteCMD bool) *SSHConfi
 	}
 }
 
-// func identity[T any](t T) (T, error) {
-// 	return t, nil
-// }
-
-// func wrapAndTrace[T any, A Mult](result A) A {
-// 	return result.Match(identity[T], func(err error) (T, error) {
-// 		return mo.None[T]().OrEmpty(), breverrors.WrapAndTrace(err)
-// 	})
-// }
-
 func wrapAndTrace[T any](t T, err error) (T, error) {
 	if err != nil {
 		return t, breverrors.WrapAndTrace(err)
@@ -151,13 +141,18 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	err := mo.TupleToResult(s.CreateWSLConfig(workspaces)).Match(
 		writeSSHConfig(s.store),
 		func(err error) (string, error) {
-			return wrapAndTrace(s.CreateNewSSHConfig(workspaces))
+			return "", breverrors.WrapAndTrace(err)
 		},
-	).Match(
+	).MapErr(
+		func(err error) (string, error) {
+			conf, e := wrapAndTrace(s.CreateNewSSHConfig(workspaces))
+			if e != nil {
+				return "", multierror.Append(err, e)
+			}
+			return conf, nil
+		},
+	).Map(
 		writeSSHConfig(s.store),
-	func(err error) (string, error) {
-			return "", err
-		},
 	).Error()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
