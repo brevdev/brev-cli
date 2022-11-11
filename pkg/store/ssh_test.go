@@ -253,9 +253,9 @@ func TestFileStore_GetWSLHostUserSSHConfigPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := FileStore{
-				b: tt.fields.BasicStore,
-				fs:         tt.fields.fs,
-				User:       tt.fields.User,
+				b:    tt.fields.BasicStore,
+				fs:   tt.fields.fs,
+				User: tt.fields.User,
 			}
 			got, err := f.GetWSLHostUserSSHConfigPath()
 			if (err != nil) != tt.wantErr {
