@@ -139,7 +139,7 @@ func getTaskMap(store TaskStore, runRemoteCMD bool) TaskMap {
 	taskmap["vpnd"] = vpnd
 	rpcd := server.NewRPCServerTask(store)
 	taskmap["rpcd"] = rpcd
-	sshcd := ssh.NewSSHConfigurerTask(store, runRemoteCMD)
+	sshcd := ssh.NewSSHConfigurerTask(store)
 	taskmap["sshcd"] = sshcd
 	return taskmap
 }

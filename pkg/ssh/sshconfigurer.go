@@ -90,7 +90,6 @@ type ConfigUpaterFactoryStore interface {
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand
 type SSHConfigurerV2 struct {
 	store        SSHConfigurerV2Store
-	runRemoteCMD bool
 }
 
 type SSHConfigurerV2Store interface {
@@ -113,10 +112,9 @@ type SSHConfigurerV2Store interface {
 
 var _ Config = SSHConfigurerV2{}
 
-func NewSSHConfigurerV2(store SSHConfigurerV2Store, runRemoteCMD bool) *SSHConfigurerV2 {
+func NewSSHConfigurerV2(store SSHConfigurerV2Store) *SSHConfigurerV2 {
 	return &SSHConfigurerV2{
 		store:        store,
-		runRemoteCMD: runRemoteCMD,
 	}
 }
 
@@ -150,6 +148,7 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	}
 
 	// todo ensure has include
+
 	return nil
 }
 
@@ -195,7 +194,7 @@ func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, s SSHCon
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 
-		entry, err := makeSSHConfigEntryV2(w, pkpath, s.runRemoteCMD)
+		entry, err := makeSSHConfigEntryV2(w, pkpath)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -249,7 +248,7 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 	return ok
 }
 
-func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, runRemoteCMD bool) (string, error) {
+func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
 	alias := string(workspace.GetLocalIdentifier())
 	var entry SSHConfigEntryV2
 	var tmpl *template.Template
@@ -264,7 +263,6 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, run
 			User:         "brev", // todo param-user
 			ProxyCommand: proxyCommand,
 			Dir:          workspace.GetProjectFolderPath(),
-			RunRemoteCMD: runRemoteCMD,
 		}
 		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV2)
 		if err != nil {
@@ -276,7 +274,6 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, run
 			IdentityFile: privateKeyPath,
 			User:         "ubuntu", // todo param-user
 			Dir:          workspace.GetProjectFolderPath(),
-			RunRemoteCMD: runRemoteCMD,
 			HostName:     workspace.DNS,
 		}
 		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)

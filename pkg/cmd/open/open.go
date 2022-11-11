@@ -45,7 +45,6 @@ type OpenStore interface {
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
-	var runRemotCMD bool
 	var waitForSetupToFinish bool
 
 	cmd := &cobra.Command{
@@ -58,24 +57,23 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runOpenCommand(t, store, args[0], runRemotCMD, waitForSetupToFinish)
+			err := runOpenCommand(t, store, args[0], waitForSetupToFinish)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&runRemotCMD, "remote", "r", true, "run remote command")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 
 	return cmd
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, runRemoteCMD bool, waitForSetupToFinish bool) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, waitForSetupToFinish bool) error {
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your dev environment...")
-	res := refresh.RunRefreshAsync(tstore, runRemoteCMD)
+	res := refresh.RunRefreshAsync(tstore)
 
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
@@ -111,7 +109,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, r
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, runRemoteCMD, waitForSetupToFinish)
+	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, waitForSetupToFinish)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
@@ -180,9 +178,9 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 }
 
 // Opens code editor. Attempts to install code in path if not installed already
-func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstore OpenStore, runRemoteCMD bool, waitForSetupToFinish bool) error {
+func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstore OpenStore, waitForSetupToFinish bool) error {
 	// infinite for loop:
-	res := refresh.RunRefreshAsync(tstore, runRemoteCMD)
+	res := refresh.RunRefreshAsync(tstore)
 	err := res.Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

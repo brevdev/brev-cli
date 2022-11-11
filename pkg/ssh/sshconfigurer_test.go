@@ -111,7 +111,7 @@ func (d DummySSHConfigurerV2Store) GetFileAsString(_ string) (string, error) {
 }
 
 func TestCreateNewSSHConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
 	assert.Nil(t, err)
 	// sometimes vs code is not happy with the formatting
@@ -156,7 +156,7 @@ Host %s
 }
 
 func TestEnsureConfigHasInclude(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 
 	err := c.EnsureConfigHasInclude()
 	assert.Nil(t, err)
@@ -164,7 +164,7 @@ func TestEnsureConfigHasInclude(t *testing.T) {
 }
 
 func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	bscp, err := c.store.GetBrevSSHConfigPath()
 	if !assert.Nil(t, err) {
 		return
@@ -184,7 +184,7 @@ Include /my/brev/config
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	bscp, err := c.store.GetBrevSSHConfigPath()
 	if !assert.Nil(t, err) {
 		return
@@ -355,7 +355,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.runRemoteCMD)
+			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("makeSSHConfigEntryV2() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -384,7 +384,16 @@ func makeMockWSLFS() *store.FileStore {
 			return "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/:/mnt/c/WINDOWS/System32/OpenSSH/:/mnt/c/Users/15854/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/15854/AppData/Local/Programs/Microsoft VS Code/bin:/snap/bin"
 		},
 	)
-	fs := bs.WithFileSystem(afero.NewMemMapFs())
+	f := afero.NewMemMapFs()
+	fs := bs.WithFileSystem(f)
+	dir, err := fs.GetWindowsDir()
+	if err != nil {
+		panic(err)
+	}
+	err = f.MkdirAll(dir, 0o755)
+	if err != nil {
+		panic(err)
+	}
 	return fs
 }
 
@@ -516,7 +525,6 @@ Host testName1
 		t.Run(tt.name, func(t *testing.T) {
 			s := SSHConfigurerV2{
 				store:        tt.fields.store,
-				runRemoteCMD: tt.fields.runRemoteCMD,
 			}
 			if err := s.Update(tt.args.workspaces); (err != nil) != tt.wantErr {
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
@@ -542,7 +550,7 @@ Host testName1
 
 			if tt.windowsSSHConfigExists {
 				// make sure the windows config is correct
-				windowsConfig, err := s.store.GetFileAsString("/mnt/c/Users/test/.ssh/config")
+				windowsConfig, err := tt.fields.store.GetFileAsString("/mnt/c/Users/15854/.ssh/config")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -551,7 +559,7 @@ Host testName1
 					t.Fatalf(diff)
 				}
 
-				windowsBrevSSHConfig, err := s.store.GetFileAsString("/mnt/c/Users/test/.brev/ssh_config")
+				windowsBrevSSHConfig, err := s.store.GetFileAsString("/mnt/c/Users/15854/.brev/ssh_config")
 				if err != nil {
 					t.Fatal(err)
 				}

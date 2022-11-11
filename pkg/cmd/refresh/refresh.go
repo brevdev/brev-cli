@@ -22,7 +22,6 @@ type RefreshStore interface {
 }
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
-	var runRemoteCMD bool
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "refresh",
@@ -39,7 +38,7 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Println("refreshing brev...")
-			err := RunRefresh(store, runRemoteCMD)
+			err := RunRefresh(store)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -47,13 +46,12 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&runRemoteCMD, "remote", "r", true, "run remote commands")
 
 	return cmd
 }
 
-func RunRefresh(store RefreshStore, runRemoteCMD bool) error {
-	cu, err := GetConfigUpdater(store, runRemoteCMD)
+func RunRefresh(store RefreshStore) error {
+	cu, err := GetConfigUpdater(store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -76,7 +74,7 @@ func (r *RefreshRes) Await() error {
 	return r.er
 }
 
-func RunRefreshAsync(rstore RefreshStore, runRemoteCMD bool) *RefreshRes {
+func RunRefreshAsync(rstore RefreshStore) *RefreshRes {
 	var wg sync.WaitGroup
 
 	res := RefreshRes{wg: &wg}
@@ -84,7 +82,7 @@ func RunRefreshAsync(rstore RefreshStore, runRemoteCMD bool) *RefreshRes {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := RunRefresh(rstore, runRemoteCMD)
+		err := RunRefresh(rstore)
 		if err != nil {
 			res.er = err
 		}
@@ -92,8 +90,8 @@ func RunRefreshAsync(rstore RefreshStore, runRemoteCMD bool) *RefreshRes {
 	return &res
 }
 
-func GetConfigUpdater(store RefreshStore, runRemotCMD bool) (*ssh.ConfigUpdater, error) {
-	configs, err := ssh.GetSSHConfigs(store, runRemotCMD)
+func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
+	configs, err := ssh.GetSSHConfigs(store)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

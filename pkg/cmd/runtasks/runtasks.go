@@ -31,7 +31,7 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 		Example:               "brev run-tasks -d",
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(0)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunTasks(t, store, detached, runRemoteCMD)
+			err := RunTasks(t, store, detached)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -53,8 +53,8 @@ type RunTasksStore interface {
 	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
-func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached, runRemoteCMD bool) error {
-	ts, err := getDefaultTasks(store, runRemoteCMD)
+func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
+	ts, err := getDefaultTasks(store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -72,8 +72,8 @@ func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached, runRemoteCMD 
 	return nil
 }
 
-func getDefaultTasks(store RunTasksStore, runRemoteCMD bool) ([]tasks.Task, error) {
-	configs, err := ssh.GetSSHConfigs(store, runRemoteCMD)
+func getDefaultTasks(store RunTasksStore) ([]tasks.Task, error) {
+	configs, err := ssh.GetSSHConfigs(store)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

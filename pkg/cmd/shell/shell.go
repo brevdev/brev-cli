@@ -41,7 +41,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runShellCommand(store, args[0], runRemoteCMD)
+			err := runShellCommand(store, args[0])
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -53,8 +53,8 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	return cmd
 }
 
-func runShellCommand(sstore ShellStore, workspaceNameOrID string, runRemoteCMD bool) error {
-	res := refresh.RunRefreshAsync(sstore, runRemoteCMD)
+func runShellCommand(sstore ShellStore, workspaceNameOrID string) error {
+	res := refresh.RunRefreshAsync(sstore)
 
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {

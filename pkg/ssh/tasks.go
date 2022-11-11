@@ -14,8 +14,7 @@ type SSHConfigurerTaskStore interface {
 }
 
 type SSHConfigurerTask struct {
-	Store        SSHConfigurerTaskStore
-	runRemoteCMD bool
+	Store SSHConfigurerTaskStore
 }
 
 var _ tasks.Task = SSHConfigurerTask{}
@@ -25,7 +24,7 @@ func (sct SSHConfigurerTask) GetTaskSpec() tasks.TaskSpec {
 }
 
 func (sct SSHConfigurerTask) Run() error {
-	configs, err := GetSSHConfigs(sct.Store, sct.runRemoteCMD)
+	configs, err := GetSSHConfigs(sct.Store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -52,14 +51,13 @@ func (sct SSHConfigurerTask) Configure() error {
 	return nil
 }
 
-func NewSSHConfigurerTask(store SSHConfigurerTaskStore, runRemoteCMD bool) SSHConfigurerTask {
+func NewSSHConfigurerTask(store SSHConfigurerTaskStore) SSHConfigurerTask {
 	return SSHConfigurerTask{
-		Store:        store,
-		runRemoteCMD: runRemoteCMD,
+		Store: store,
 	}
 }
 
-func GetSSHConfigs(store SSHConfigurerTaskStore, runRemoteCMD bool) ([]Config, error) {
+func GetSSHConfigs(store SSHConfigurerTaskStore) ([]Config, error) {
 	// // user, err := store.GetCurrentUser()
 	// if err != nil {
 	// 	return nil, breverrors.WrapAndTrace(err)
@@ -67,7 +65,6 @@ func GetSSHConfigs(store SSHConfigurerTaskStore, runRemoteCMD bool) ([]Config, e
 	configs := []Config{
 		NewSSHConfigurerV2(
 			store,
-			runRemoteCMD,
 		),
 	}
 	// if featureflag.ServiceMeshSSH(user.GlobalUserType) {

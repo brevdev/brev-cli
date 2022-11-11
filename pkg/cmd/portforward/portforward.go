@@ -31,7 +31,6 @@ type PortforwardStore interface {
 
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
 	var port string
-	var runRemoteCMD bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forward",
@@ -45,7 +44,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if port == "" {
 				port = startInput(t)
 			}
-			err := runPortforward(pfStore, args[0], port, runRemoteCMD)
+			err := runPortforward(pfStore, args[0], port)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -60,12 +59,11 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
 		fmt.Print(breverrors.WrapAndTrace(err))
 	}
-	cmd.Flags().BoolVarP(&runRemoteCMD, "run-remote-cmd", "r", false, "run remote command")
 
 	return cmd
 }
 
-func runPortforward(pfStore PortforwardStore, nameOrID string, portString string, runRemoteCMD bool) error {
+func runPortforward(pfStore PortforwardStore, nameOrID string, portString string) error {
 	var portSplit []string
 	if strings.Contains(portString, ":") {
 		portSplit = strings.Split(portString, ":")
@@ -76,7 +74,7 @@ func runPortforward(pfStore PortforwardStore, nameOrID string, portString string
 		return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
 	}
 
-	res := refresh.RunRefreshAsync(pfStore, runRemoteCMD)
+	res := refresh.RunRefreshAsync(pfStore)
 
 	sshName, err := ConvertNametoSSHName(pfStore, nameOrID)
 	if err != nil {
