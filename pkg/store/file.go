@@ -23,17 +23,28 @@ import (
 )
 
 type FileStore struct {
-	BasicStore
-	fs   afero.Fs
-	User *user.User
+	b                 BasicStore
+	fs                afero.Fs
+	User              *user.User
+	userHomeDirGetter func() (string, error)
 }
 
 func (f *FileStore) GetWindowsDir() (string, error) {
-	return f.BasicStore.GetWSLHostHomeDir()
+	return f.b.GetWSLHostHomeDir()
+}
+
+func (f *FileStore) WithUserHomeDirGetter(userHomeDirGetter func() (string, error)) *FileStore {
+	f.userHomeDirGetter = userHomeDirGetter
+	return f
 }
 
 func (b *BasicStore) WithFileSystem(fs afero.Fs) *FileStore {
-	return &FileStore{*b, fs, nil}
+	f := &FileStore{
+		b:    *b,
+		fs:   fs,
+		User: nil,
+	}
+	return f.WithUserHomeDirGetter(getUserHomeDir(f))
 }
 
 func (f *FileStore) WithUserID(userID string) (*FileStore, error) {
@@ -339,16 +350,22 @@ func (f FileStore) CopyBin(targetBin string) error {
 	return nil
 }
 
-func (f FileStore) UserHomeDir() (string, error) {
-	if f.User != nil {
-		return f.User.HomeDir, nil
-	} else {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
+func getUserHomeDir(f *FileStore) func() (string, error) {
+	return func() (string, error) {
+		if f.User != nil {
+			return f.User.HomeDir, nil
+		} else {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return "", breverrors.WrapAndTrace(err)
+			}
+			return home, nil
 		}
-		return home, nil
 	}
+}
+
+func (f FileStore) UserHomeDir() (string, error) {
+	return f.userHomeDirGetter()
 }
 
 func (f FileStore) GetBrevHomePath() (string, error) {

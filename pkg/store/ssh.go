@@ -41,7 +41,7 @@ func (f FileStore) GetUserSSHConfig() (string, error) {
 }
 
 func (f FileStore) GetWSLUserSSHConfig() (string, error) {
-	home, err := f.GetWSLHostHomeDir()
+	home, err := f.b.GetWSLHostHomeDir()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -75,7 +75,7 @@ func (f FileStore) GetUserSSHConfigPath() (string, error) {
 }
 
 func (f FileStore) GetWSLHostUserSSHConfigPath() (string, error) {
-	home, err := f.GetWSLHostHomeDir()
+	home, err := f.b.GetWSLHostHomeDir()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -96,7 +96,7 @@ func (f FileStore) GetBrevSSHConfigPath() (string, error) {
 }
 
 func (f FileStore) GetWSLHostBrevSSHConfigPath() (string, error) {
-	home, err := f.GetWSLHostHomeDir()
+	home, err := f.b.GetWSLHostHomeDir()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -121,7 +121,7 @@ func (f FileStore) WriteUserSSHConfig(config string) error {
 }
 
 func (f FileStore) WriteWSLUserSSHConfig(config string) error {
-	home, err := f.GetWSLHostHomeDir()
+	home, err := f.b.GetWSLHostHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -155,7 +155,7 @@ func (f FileStore) WriteBrevSSHConfig(config string) error {
 }
 
 func (f FileStore) WriteBrevSSHConfigWSL(config string) error {
-	home, err := f.GetWSLHostHomeDir()
+	home, err := f.b.GetWSLHostHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -215,7 +215,7 @@ func (f FileStore) WritePrivateKey(pem string) error {
 		return breverrors.WrapAndTrace(err2)
 	}
 	// write ssh key to windows if possible
-	windowsHome, err := f.GetWSLHostHomeDir()
+	windowsHome, err := f.b.GetWSLHostHomeDir()
 	if err != nil {
 		return nil
 	}

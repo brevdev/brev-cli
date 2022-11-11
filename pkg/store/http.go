@@ -20,7 +20,7 @@ type NoAuthHTTPStore struct {
 }
 
 func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
-	return &NoAuthHTTPStore{*f, c, f.BasicStore}
+	return &NoAuthHTTPStore{*f, c, f.b}
 }
 
 // Used if need new instance to customize settings
@@ -54,11 +54,11 @@ type AuthHTTPStore struct {
 }
 
 func (n *NoAuthHTTPStore) GetWindowsDir() (string, error) {
-	return n.FileStore.GetWSLHostHomeDir()
+	return n.GetWSLHostHomeDir()
 }
 
 func (s *AuthHTTPStore) GetWindowsDir() (string, error) {
-	return s.FileStore.GetWSLHostHomeDir()
+	return s.GetWSLHostHomeDir()
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {

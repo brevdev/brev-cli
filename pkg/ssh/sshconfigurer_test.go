@@ -379,7 +379,11 @@ func makeMockFS() SSHConfigurerV2Store {
 	)
 	fs := bs.WithFileSystem(afero.NewMemMapFs())
 
-	return fs
+	return fs.WithUserHomeDirGetter(
+		func() (string, error) {
+			return "/home/test", nil
+		},
+	)
 }
 
 func makeMockWSLFS() SSHConfigurerV2Store {
@@ -398,7 +402,11 @@ func makeMockWSLFS() SSHConfigurerV2Store {
 	if err != nil {
 		panic(err)
 	}
-	return fs
+	return fs.WithUserHomeDirGetter(
+		func() (string, error) {
+			return "/home/test", nil
+		},
+	)
 }
 
 func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
@@ -445,11 +453,11 @@ func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
 				},
 			},
 			wantErr:        false,
-			linuxSSHConfig: "Include /home/ubuntu/.brev/ssh_config\n",
-			linuxBrevSSHConfig: `# included in /home/ubuntu/.ssh/config
+			linuxSSHConfig: "Include /home/test/.brev/ssh_config\n",
+			linuxBrevSSHConfig: `# included in /home/test/.ssh/config
 Host testName1
   Hostname test1-dns-org.brev.sh
-  IdentityFile /home/ubuntu/.brev/brev.pem
+  IdentityFile /home/test/.brev/brev.pem
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -486,11 +494,11 @@ Host testName1
 				},
 			},
 			wantErr:        false,
-			linuxSSHConfig: "Include /home/ubuntu/.brev/ssh_config\n",
-			linuxBrevSSHConfig: `# included in /home/ubuntu/.ssh/config
+			linuxSSHConfig: "Include /home/test/.brev/ssh_config\n",
+			linuxBrevSSHConfig: `# included in /home/test/.ssh/config
 Host testName1
   Hostname test1-dns-org.brev.sh
-  IdentityFile /home/ubuntu/.brev/brev.pem
+  IdentityFile /home/test/.brev/brev.pem
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -527,7 +535,7 @@ Host testName1
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			// make sure the linux config is correct
-			linuxConfig, err := s.store.GetFileAsString("/home/ubuntu/.ssh/config")
+			linuxConfig, err := s.store.GetFileAsString("/home/test/.ssh/config")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -536,7 +544,7 @@ Host testName1
 				t.Fatalf(diff)
 			}
 
-			linuxBrevSSHConfig, err := s.store.GetFileAsString("/home/ubuntu/.brev/ssh_config")
+			linuxBrevSSHConfig, err := s.store.GetFileAsString("/home/test/.brev/ssh_config")
 			if err != nil {
 				t.Fatal(err)
 			}

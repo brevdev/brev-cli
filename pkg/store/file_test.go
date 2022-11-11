@@ -70,7 +70,7 @@ func TestFileStore_FileExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := FileStore{
-				BasicStore: tt.fields.BasicStore,
+				b: tt.fields.BasicStore,
 				fs:         tt.fields.fs,
 			}
 			_, err := f.GetOrCreateFile(tt.args.fileToCreate)
@@ -145,7 +145,7 @@ func TestFileStore_GetOrCreateFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := FileStore{
-				BasicStore: tt.fields.BasicStore,
+				b: tt.fields.BasicStore,
 				fs:         tt.fields.fs,
 			}
 
@@ -211,7 +211,7 @@ func TestFileStore_AppendString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := FileStore{
-				BasicStore: tt.fields.BasicStore,
+				b: tt.fields.BasicStore,
 				fs:         tt.fields.fs,
 				User:       nil,
 			}
