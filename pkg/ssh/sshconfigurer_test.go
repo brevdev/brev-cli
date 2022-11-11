@@ -96,6 +96,10 @@ func (d DummySSHConfigurerV2Store) GetWindowsDir() (string, error) {
 	return "", nil
 }
 
+func (d DummySSHConfigurerV2Store) WriteBrevSSHConfigWSL(_ string) error {
+	return nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)

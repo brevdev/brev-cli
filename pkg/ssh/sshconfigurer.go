@@ -146,6 +146,8 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	if err != nil {
 		return nil // not a fatal error // todo update sentry
 	}
+
+	// todo ensure has include
 	return nil
 }
 
