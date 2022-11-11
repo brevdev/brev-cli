@@ -316,7 +316,7 @@ func (s SSHConfigurerV2) EnsureWSLConfigHasInclude() error {
 	}
 	if !doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
 		newConf := WSLAddIncludeToUserConfig(conf, brevConfigPath)
-		s.store.WriteWSLUserSSHConfig(newConf)
+		err := s.store.WriteWSLUserSSHConfig(newConf)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
