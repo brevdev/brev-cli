@@ -116,49 +116,16 @@ func NewSSHConfigurerV2(store SSHConfigurerV2Store, runRemoteCMD bool) *SSHConfi
 	}
 }
 
-// func identity[T any](t T) (T, error) {
-// 	return t, nil
-// }
-
-// func wrapAndTrace[T any, A Mult](result A) A {
-// 	return result.Match(identity[T], func(err error) (T, error) {
-// 		return mo.None[T]().OrEmpty(), breverrors.WrapAndTrace(err)
-// 	})
-// }
-
-func wrapAndTrace[T any](t T, err error) (T, error) {
-	if err != nil {
-		return t, breverrors.WrapAndTrace(err)
-	}
-	return t, nil
-}
-
-type sshConfWriter interface {
-	WriteBrevSSHConfig(config string) error
-}
-
-func writeSSHConfig(confWriter sshConfWriter) func(c string) (string, error) {
-	return func(c string) (string, error) {
-		err := confWriter.WriteBrevSSHConfig(c)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		return c, nil
-	}
-}
-
 func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
-	err := mo.TupleToResult(s.CreateWSLConfig(workspaces)).Match(
-		writeSSHConfig(s.store),
-		func(err error) (string, error) {
-			return wrapAndTrace(s.CreateNewSSHConfig(workspaces))
-		},
-	).Match(
-		writeSSHConfig(s.store),
-	func(err error) (string, error) {
-			return "", err
-		},
-	).Error()
+	newConfig, err := s.CreateNewSSHConfig(workspaces)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = s.store.WriteBrevSSHConfig(
+		mo.TupleToResult(s.CreateWSLConfig(workspaces)).OrElse(newConfig),
+	)
+
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
