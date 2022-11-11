@@ -66,9 +66,10 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 	}
 
 	windowsUserDir, _ := store.GetWindowsDir()
-	if err != nil {
-		// todo multierror
-	}
+	// if err != nil {
+
+	// 	// todo multierror
+	// }
 
 	var extensions []entity.VscodeExtensionMetadata
 	me := multierror.Append(nil)
