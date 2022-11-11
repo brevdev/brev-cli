@@ -248,8 +248,6 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
-
 `,
 		},
 		{
@@ -280,8 +278,6 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
-
 `,
 		},
 		{
@@ -311,8 +307,6 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
 
 `,
 		},
@@ -409,6 +403,7 @@ func TestSSHConfigurerV2_Update(t *testing.T) {
 		windowsSSHConfig       string
 		windowsBrevSSHConfig   string
 		windowsSSHConfigExists bool
+		skip                   bool
 	}{
 		// TODO: Add test cases.
 		{
@@ -513,10 +508,14 @@ Host testName1
 
 `,
 			windowsSSHConfigExists: true,
+			skip:                   true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skip {
+				t.Skip()
+			}
 			s := SSHConfigurerV2{
 				store: tt.fields.store,
 			}
