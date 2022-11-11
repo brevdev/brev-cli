@@ -54,11 +54,11 @@ type AuthHTTPStore struct {
 }
 
 func (n *NoAuthHTTPStore) GetWindowsDir() (string, error) {
-	return n.GetWindowsDir()
+	return n.FileStore.GetWSLHostHomeDir()
 }
 
 func (s *AuthHTTPStore) GetWindowsDir() (string, error) {
-	return s.GetWindowsDir()
+	return s.FileStore.GetWSLHostHomeDir()
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
