@@ -89,7 +89,7 @@ type ConfigUpaterFactoryStore interface {
 
 // SSHConfigurerV2 speciallizes in configuring ssh config with ProxyCommand
 type SSHConfigurerV2 struct {
-	store        SSHConfigurerV2Store
+	store SSHConfigurerV2Store
 }
 
 type SSHConfigurerV2Store interface {
@@ -114,7 +114,7 @@ var _ Config = SSHConfigurerV2{}
 
 func NewSSHConfigurerV2(store SSHConfigurerV2Store) *SSHConfigurerV2 {
 	return &SSHConfigurerV2{
-		store:        store,
+		store: store,
 	}
 }
 
@@ -165,7 +165,7 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 
 	pkpath := files.GetSSHPrivateKeyPath(homedir)
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s, pkpath)
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkpath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -183,14 +183,14 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s, pkPath)
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkPath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return sshConfig, nil
 }
 
-func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, s SSHConfigurerV2, pkpath string) (string, error) {
+func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, pkpath string) (string, error) {
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 

@@ -38,8 +38,7 @@ type TaskStore interface {
 }
 
 func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
-	var remoteCMD bool
-	taskMap := getTaskMap(store, remoteCMD)
+	taskMap := getTaskMap(store)
 	cmd := &cobra.Command{
 		Use:                   "tasks",
 		DisableFlagsInUseLine: true,
@@ -53,7 +52,6 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 
 	configure := NewCmdConfigure(t, store)
 	cmd.AddCommand(configure)
-	cmd.Flags().BoolP("remote", "r", true, "run remote cmd")
 	run := NewCmdRun(t, store, taskMap)
 	run.PersistentFlags().BoolVarP(&all, "all", "a", false, "specifies all tasks")
 	cmd.AddCommand(run)
@@ -62,9 +60,7 @@ func NewCmdTasks(t *terminal.Terminal, store TaskStore) *cobra.Command {
 }
 
 func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
-	var remoteCMD bool
-
-	taskMap := getTaskMap(store, remoteCMD)
+	taskMap := getTaskMap(store)
 	cmd := &cobra.Command{
 		Use:   "configure [task to configure]",
 		Short: "configure system startup daemon for task",
@@ -89,7 +85,6 @@ func NewCmdConfigure(_ *terminal.Terminal, store TaskStore) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.PersistentFlags().BoolVarP(&remoteCMD, "remote", "r", true, "configure remote daemon")
 	return cmd
 }
 
@@ -133,7 +128,7 @@ func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
 	return nil
 }
 
-func getTaskMap(store TaskStore, runRemoteCMD bool) TaskMap {
+func getTaskMap(store TaskStore) TaskMap {
 	taskmap := make(TaskMap)
 	vpnd := vpn.NewVPNDaemon(store)
 	taskmap["vpnd"] = vpnd
