@@ -107,6 +107,8 @@ type SSHConfigurerV2Store interface {
 	GetWSLHostUserSSHConfigPath() (string, error)
 	GetWindowsDir() (string, error)
 	WriteBrevSSHConfigWSL(config string) error
+	GetFileAsString(path string) (string, error)
+	FileExists(path string) (bool, error)
 }
 
 var _ Config = SSHConfigurerV2{}

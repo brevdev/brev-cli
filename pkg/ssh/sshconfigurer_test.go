@@ -102,6 +102,14 @@ func (d DummySSHConfigurerV2Store) WriteBrevSSHConfigWSL(_ string) error {
 	return nil
 }
 
+func (d DummySSHConfigurerV2Store) FileExists(_ string) (bool, error) {
+	return true, nil
+}
+
+func (d DummySSHConfigurerV2Store) GetFileAsString(_ string) (string, error) {
+	return "", nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{}, true)
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
@@ -384,10 +392,14 @@ func TestSSHConfigurerV2_Update(t *testing.T) {
 		workspaces []entity.Workspace
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
+		name                   string
+		fields                 fields
+		args                   args
+		wantErr                bool
+		linuxSSHConfig         string
+		linuxBrevSSHConfig     string
+		windowsSSHConfig       string
+		windowsSSHConfigExists bool
 	}{
 		// TODO: Add test cases.
 		{
@@ -412,9 +424,24 @@ func TestSSHConfigurerV2_Update(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
-		},
+			wantErr:        false,
+			linuxSSHConfig: "Include /home/ubuntu/.brev/ssh_config\n",
+			linuxBrevSSHConfig: `# included in /home/ubuntu/.ssh/config
+Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile /home/ubuntu/.brev/brev.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
 
+`,
+
+			windowsSSHConfig:       ``,
+			windowsSSHConfigExists: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -424,6 +451,36 @@ func TestSSHConfigurerV2_Update(t *testing.T) {
 			}
 			if err := s.Update(tt.args.workspaces); (err != nil) != tt.wantErr {
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			// make sure the linux config is correct
+			linuxConfig, err := s.store.GetFileAsString("/home/ubuntu/.ssh/config")
+			if err != nil {
+				t.Fatal(err)
+			}
+			diff := cmp.Diff(tt.linuxSSHConfig, linuxConfig)
+			if diff != "" {
+				t.Fatalf(diff)
+			}
+
+			linuxBrevSSHConfig, err := s.store.GetFileAsString("/home/ubuntu/.brev/ssh_config")
+			if err != nil {
+				t.Fatal(err)
+			}
+			diff = cmp.Diff(tt.linuxBrevSSHConfig, linuxBrevSSHConfig)
+			if diff != "" {
+				t.Fatalf(diff)
+			}
+
+			if tt.windowsSSHConfigExists {
+				// make sure the windows config is correct
+				windowsConfig, err := s.store.GetFileAsString("/mnt/c/Users/test/.ssh/config")
+				if err != nil {
+					t.Fatal(err)
+				}
+				diff = cmp.Diff(tt.windowsSSHConfig, windowsConfig)
+				if diff != "" {
+					t.Fatalf(diff)
+				}
 			}
 		})
 	}
