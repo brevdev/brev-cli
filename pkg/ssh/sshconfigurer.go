@@ -108,6 +108,9 @@ type SSHConfigurerV2Store interface {
 	WriteBrevSSHConfigWSL(config string) error
 	GetFileAsString(path string) (string, error)
 	FileExists(path string) (bool, error)
+	GetWSLHostBrevSSHConfigPath() (string, error)
+	GetWSLUserSSHConfig() (string, error)
+	WriteWSLUserSSHConfig(config string) error
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -148,6 +151,10 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	}
 
 	// todo ensure has include
+	err = s.EnsureWSLConfigHasInclude()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
@@ -294,6 +301,32 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 func makeProxyCommand(workspaceID string) string {
 	huproxyExec := "brev proxy"
 	return fmt.Sprintf("%s %s", huproxyExec, workspaceID)
+}
+
+// GetWSLHostBrevSSHConfigPath() (string, error)
+func (s SSHConfigurerV2) EnsureWSLConfigHasInclude() error {
+	// openssh-7.3
+
+	brevConfigPath, err := s.store.GetWSLHostBrevSSHConfigPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	conf, err := s.store.GetWSLUserSSHConfig()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
+		newConf, err := AddIncludeToUserConfig(conf, brevConfigPath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = s.store.WriteWSLUserSSHConfig(newConf)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	return nil
 }
 
 func (s SSHConfigurerV2) EnsureConfigHasInclude() error {

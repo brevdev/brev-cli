@@ -110,6 +110,21 @@ func (d DummySSHConfigurerV2Store) GetFileAsString(_ string) (string, error) {
 	return "", nil
 }
 
+// cannot use (DummySSHConfigurerV2Store literal) (value of type DummySSHConfigurerV2Store) as SSHConfigurerV2Store value in argument to NewSSHConfigurerV2: DummySSHConfigurerV2Store does not implement SSHConfigurerV2Store (missing method GetWSLHostBrevSSHConfigPath)
+func (d DummySSHConfigurerV2Store) GetWSLHostBrevSSHConfigPath() (string, error) {
+	return "", nil
+}
+
+// cannot use (DummySSHConfigurerV2Store literal) (value of type DummySSHConfigurerV2Store) as SSHConfigurerV2Store value in argument to NewSSHConfigurerV2: DummySSHConfigurerV2Store does not implement SSHConfigurerV2Store (missing method GetWSLUserSSHConfig)
+func (d DummySSHConfigurerV2Store) GetWSLUserSSHConfig() (string, error) {
+	return "", nil
+}
+
+// cannot use (DummySSHConfigurerV2Store literal) (value of type DummySSHConfigurerV2Store) as SSHConfigurerV2Store value in argument to NewSSHConfigurerV2: DummySSHConfigurerV2Store does not implement SSHConfigurerV2Store (missing method WriteWSLUserSSHConfig)
+func (d DummySSHConfigurerV2Store) WriteWSLUserSSHConfig(_ string) error {
+	return nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
@@ -356,17 +371,18 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 	}
 }
 
-func makeMockFS() *store.FileStore {
+func makeMockFS() SSHConfigurerV2Store {
 	bs := store.NewBasicStore().WithEnvGetter(
 		func(s string) string {
 			return "test"
 		},
 	)
 	fs := bs.WithFileSystem(afero.NewMemMapFs())
+
 	return fs
 }
 
-func makeMockWSLFS() *store.FileStore {
+func makeMockWSLFS() SSHConfigurerV2Store {
 	bs := store.NewBasicStore().WithEnvGetter(
 		func(s string) string {
 			return "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/usr/lib/wsl/lib:/mnt/c/WINDOWS/system32:/mnt/c/WINDOWS:/mnt/c/WINDOWS/System32/Wbem:/mnt/c/WINDOWS/System32/WindowsPowerShell/v1.0/:/mnt/c/WINDOWS/System32/OpenSSH/:/mnt/c/Users/15854/AppData/Local/Microsoft/WindowsApps:/mnt/c/Users/15854/AppData/Local/Programs/Microsoft VS Code/bin:/snap/bin"
@@ -385,7 +401,7 @@ func makeMockWSLFS() *store.FileStore {
 	return fs
 }
 
-func TestSSHConfigurerV2_Update(t *testing.T) { //nolint:funlen // this is a test
+func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
 	type fields struct {
 		store        SSHConfigurerV2Store
 		runRemoteCMD bool
@@ -508,7 +524,6 @@ Host testName1
 
 `,
 			windowsSSHConfigExists: true,
-			skip:                   true,
 		},
 	}
 	for _, tt := range tests {

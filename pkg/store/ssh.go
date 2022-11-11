@@ -40,6 +40,28 @@ func (f FileStore) GetUserSSHConfig() (string, error) {
 	return buf.String(), nil
 }
 
+func (f FileStore) GetWSLUserSSHConfig() (string, error) {
+	home, err := f.GetWSLHostHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path, err := files.GetUserSSHConfigPath(home)
+	if path == "" {
+		return "", errors.New("nil path when getting ssh config")
+	}
+	file, err := f.GetOrCreateFile(path)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, file)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return buf.String(), nil
+}
+
 func (f FileStore) GetUserSSHConfigPath() (string, error) {
 	home, err := f.UserHomeDir()
 	if err != nil {
@@ -73,8 +95,33 @@ func (f FileStore) GetBrevSSHConfigPath() (string, error) {
 	return path, nil
 }
 
+func (f FileStore) GetWSLHostBrevSSHConfigPath() (string, error) {
+	home, err := f.GetWSLHostHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path := files.GetBrevSSHConfigPath(home)
+	return path, nil
+}
+
 func (f FileStore) WriteUserSSHConfig(config string) error {
 	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	csp, err := files.GetUserSSHConfigPath(home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(f.fs, csp, []byte(config), 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (f FileStore) WriteWSLUserSSHConfig(config string) error {
+	home, err := f.GetWSLHostHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
