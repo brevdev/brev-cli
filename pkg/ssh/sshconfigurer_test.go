@@ -130,8 +130,6 @@ Host %s
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
-
 Host %s
   Hostname test2-dns-org.brev.sh
   IdentityFile /my/priv/key.pem
@@ -141,8 +139,6 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-
-  RemoteCommand cd /home/ubuntu/gitrepo; $SHELL
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
@@ -348,8 +344,6 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   PasswordAuthentication no
   RequestTTY yes
 
-  RemoteCommand cd /home/brev/workspace/gitrepo; $SHELL
-
 `,
 		},
 	}
@@ -524,7 +518,7 @@ Host testName1
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := SSHConfigurerV2{
-				store:        tt.fields.store,
+				store: tt.fields.store,
 			}
 			if err := s.Update(tt.args.workspaces); (err != nil) != tt.wantErr {
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
