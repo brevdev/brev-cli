@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/mo"
@@ -105,6 +106,7 @@ type SSHConfigurerV2Store interface {
 	WriteJetBrainsConfig(config string) error
 	DoesJetbrainsFilePathExist() (bool, error)
 	GetWSLHostUserSSHConfigPath() (string, error)
+	GetWindowsDir() (string, error)
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -144,7 +146,14 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s)
+	homedir, err := s.store.GetWindowsDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	pkpath := files.GetSSHPrivateKeyPath(homedir)
+
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s, pkpath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -157,21 +166,23 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s)
+	pkPath, err := s.store.GetPrivateKeyPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, s, pkPath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return sshConfig, nil
 }
 
-func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, s SSHConfigurerV2) (string, error) {
+func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, s SSHConfigurerV2, pkpath string) (string, error) {
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
-		pk, err := s.store.GetPrivateKeyPath()
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		entry, err := makeSSHConfigEntryV2(w, pk, s.runRemoteCMD)
+
+		entry, err := makeSSHConfigEntryV2(w, pkpath, s.runRemoteCMD)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
