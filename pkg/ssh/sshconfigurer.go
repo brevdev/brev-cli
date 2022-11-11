@@ -303,7 +303,6 @@ func makeProxyCommand(workspaceID string) string {
 	return fmt.Sprintf("%s %s", huproxyExec, workspaceID)
 }
 
-// GetWSLHostBrevSSHConfigPath() (string, error)
 func (s SSHConfigurerV2) EnsureWSLConfigHasInclude() error {
 	// openssh-7.3
 
@@ -316,11 +315,8 @@ func (s SSHConfigurerV2) EnsureWSLConfigHasInclude() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if !doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
-		newConf, err := AddIncludeToUserConfig(conf, brevConfigPath)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = s.store.WriteWSLUserSSHConfig(newConf)
+		newConf := WSLAddIncludeToUserConfig(conf, brevConfigPath)
+		s.store.WriteWSLUserSSHConfig(newConf)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -357,6 +353,13 @@ func (s SSHConfigurerV2) EnsureConfigHasInclude() error {
 func AddIncludeToUserConfig(conf string, brevConfigPath string) (string, error) {
 	newConf := makeIncludeBrevStr(brevConfigPath) + conf
 	return newConf, nil
+}
+
+func WSLAddIncludeToUserConfig(conf string, brevConfigPath string) string {
+	// format brevConfigPath for windows path
+	brevConfigPath = strings.ReplaceAll(brevConfigPath, "/mnt/c", "C:")
+	brevConfigPath = strings.ReplaceAll(brevConfigPath, "/", "\\")
+	return makeIncludeBrevStr(brevConfigPath) + conf
 }
 
 func makeIncludeBrevStr(brevSSHConfigPath string) string {
