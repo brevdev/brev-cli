@@ -46,6 +46,9 @@ func (f FileStore) GetWSLUserSSHConfig() (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	path, err := files.GetUserSSHConfigPath(home)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
 	if path == "" {
 		return "", errors.New("nil path when getting ssh config")
 	}
