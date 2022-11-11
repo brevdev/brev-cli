@@ -500,10 +500,10 @@ Host testName1
 
 `,
 			windowsSSHConfig: "Include C:\\Users\\15854\\.brev\\ssh_config\n",
-			windowsBrevSSHConfig: `# included in C:\\Users\\15854\\.brev\\ssh_config
+			windowsBrevSSHConfig: `# included in C:\Users\15854\.brev\ssh_config
 Host testName1
   Hostname test1-dns-org.brev.sh
-  IdentityFile C:\\Users\\15854\\.brev\\brev.pem
+  IdentityFile C:\Users\15854\.brev\brev.pem
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null

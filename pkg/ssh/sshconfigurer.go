@@ -160,7 +160,7 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 }
 
 func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string, error) {
-	configPath, err := s.store.GetWSLHostUserSSHConfigPath()
+	configPath, err := s.store.GetWSLHostBrevSSHConfigPath()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -172,7 +172,7 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 
 	pkpath := files.GetSSHPrivateKeyPath(homedir)
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkpath)
+	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath))
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -355,11 +355,14 @@ func AddIncludeToUserConfig(conf string, brevConfigPath string) (string, error) 
 	return newConf, nil
 }
 
+func toWindowsPath(path string) string {
+	path = strings.ReplaceAll(path, "/mnt/c", "C:")
+	path = strings.ReplaceAll(path, "/", "\\")
+	return path
+}
+
 func WSLAddIncludeToUserConfig(conf string, brevConfigPath string) string {
-	// format brevConfigPath for windows path
-	brevConfigPath = strings.ReplaceAll(brevConfigPath, "/mnt/c", "C:")
-	brevConfigPath = strings.ReplaceAll(brevConfigPath, "/", "\\")
-	return makeIncludeBrevStr(brevConfigPath) + conf
+	return makeIncludeBrevStr(toWindowsPath(brevConfigPath)) + conf
 }
 
 func makeIncludeBrevStr(brevSSHConfigPath string) string {
