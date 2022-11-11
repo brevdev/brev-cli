@@ -150,7 +150,7 @@ func (f FileStore) WritePrivateKey(pem string) error {
 	if err2 != nil {
 		return breverrors.WrapAndTrace(err2)
 	}
-	// write ssh key to windows if possible 
+	// write ssh key to windows if possible
 	windowsHome, err := f.GetWSLHostHomeDir()
 	if err != nil {
 		return nil
