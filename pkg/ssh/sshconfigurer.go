@@ -15,7 +15,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/hashicorp/go-multierror"
-	"github.com/samber/mo"
 )
 
 type ConfigUpdaterStore interface {
@@ -107,6 +106,7 @@ type SSHConfigurerV2Store interface {
 	DoesJetbrainsFilePathExist() (bool, error)
 	GetWSLHostUserSSHConfigPath() (string, error)
 	GetWindowsDir() (string, error)
+	WriteBrevSSHConfigWSL(config string) error
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -125,7 +125,7 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	}
 
 	err = s.store.WriteBrevSSHConfig(
-		mo.TupleToResult(s.CreateWSLConfig(workspaces)).OrElse(newConfig),
+		newConfig,
 	)
 
 	if err != nil {
@@ -137,6 +137,15 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	// try to write wsl config
+	wslConfig, err := s.CreateWSLConfig(workspaces)
+	if err != nil {
+		return nil // not a fatal error // todo update sentry
+	}
+	err = s.store.WriteBrevSSHConfigWSL(wslConfig)
+	if err != nil {
+		return nil // not a fatal error // todo update sentry
+	}
 	return nil
 }
 

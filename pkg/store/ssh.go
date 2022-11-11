@@ -107,6 +107,23 @@ func (f FileStore) WriteBrevSSHConfig(config string) error {
 	return nil
 }
 
+func (f FileStore) WriteBrevSSHConfigWSL(config string) error {
+	home, err := f.GetWSLHostHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	path := files.GetBrevSSHConfigPath(home)
+	err = f.fs.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = afero.WriteFile(f.fs, path, []byte(config), 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (f FileStore) CreateNewSSHConfigBackup() error {
 	home, err := f.UserHomeDir()
 	if err != nil {
