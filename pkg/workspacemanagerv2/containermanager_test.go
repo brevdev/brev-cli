@@ -103,38 +103,38 @@ func Test_PortMapping(t *testing.T) {
 	}
 }
 
-func Test_Volumes(t *testing.T) {
-	dcms := GetAllContainerManagers()
-	for _, cm := range dcms {
-		ctx := context.Background()
-		localPath := fmt.Sprintf("/tmp/brevcli-test-volume/%s", uuid.New().String())
-		fmt.Println(localPath)
+// func Test_Volumes(t *testing.T) {
+// 	dcms := GetAllContainerManagers()
+// 	for _, cm := range dcms {
+// 		ctx := context.Background()
+// 		localPath := fmt.Sprintf("/tmp/brevcli-test-volume/%s", uuid.New().String())
+// 		fmt.Println(localPath)
 
-		err := os.MkdirAll(localPath, os.ModePerm)
-		assert.Nil(t, err)
+// 		err := os.MkdirAll(localPath, os.ModePerm)
+// 		assert.Nil(t, err)
 
-		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600) //nolint:gosec // test
-		assert.Nil(t, err)
+// 		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600) //nolint:gosec // test
+// 		assert.Nil(t, err)
 
-		containerID, err := cm.CreateContainer(ctx, CreateContainerOptions{
-			Volumes: []Volume{
-				SimpleVolume{
-					Identifier:  localPath,
-					MountToPath: "/volume",
-				},
-			},
-			Command:     "cp",
-			CommandArgs: []string{"/volume/original", "/volume/new"},
-		}, "nginx")
-		if !assert.Nil(t, err) {
-			return
-		}
+// 		containerID, err := cm.CreateContainer(ctx, CreateContainerOptions{
+// 			Volumes: []Volume{
+// 				SimpleVolume{
+// 					Identifier:  localPath,
+// 					MountToPath: "/volume",
+// 				},
+// 			},
+// 			Command:     "cp",
+// 			CommandArgs: []string{"/volume/original", "/volume/new"},
+// 		}, "nginx")
+// 		if !assert.Nil(t, err) {
+// 			return
+// 		}
 
-		err = cm.StartContainer(ctx, containerID)
-		assert.Nil(t, err)
+// 		err = cm.StartContainer(ctx, containerID)
+// 		assert.Nil(t, err)
 
-		info, err := ioutil.ReadDir(localPath)
-		assert.Nil(t, err)
-		assert.Len(t, info, 2)
-	}
-}
+// 		info, err := ioutil.ReadDir(localPath)
+// 		assert.Nil(t, err)
+// 		assert.Len(t, info, 2)
+// 	}
+// }
