@@ -32,7 +32,12 @@ func (b BasicStore) GetWSLHostHomeDir() (string, error) {
 		return "", breverrors.New("not supported on windows")
 	}
 	if runtime.GOOS == "linux" {
-		path := b.envGetter("PATH")
+		path := ""
+		if b.envGetter == nil {
+			path = os.Getenv("PATH")
+		} else {
+			path = b.envGetter("PATH")
+		}
 		if path == "" {
 			return "", breverrors.New("PATH is empty")
 		}
