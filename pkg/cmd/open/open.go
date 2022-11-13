@@ -91,16 +91,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 			return breverrors.WrapAndTrace(err)
 		}
 	}
-	if workspace.Status == "STOPPING" {
-		err = pollUntil(t, workspace.ID, "STOPPED", tstore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
 
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 
