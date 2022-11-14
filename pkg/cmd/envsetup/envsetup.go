@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
+	_ "embed"
+
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -192,6 +194,26 @@ func appendLogToFile(content string, file string) error {
 	return nil
 }
 
+//go:embed motd.sh
+var motd string
+
+func (e *envInitier) SetupMOTD() error {
+	err := e.store.WriteString("/etc/update-motd.d/00-header", motd)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = e.store.Remove("/etc/update-motd.d/10-help-text")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.Remove("/etc/update-motd.d/50-motd-news")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	err := appendLogToFile("setup started", "/var/log/brev-setup-steps.log")
 	if err != nil {
@@ -216,6 +238,13 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	postPrepare := util.RunEAsync(
 		func() error {
 			err0 := e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
+			if err0 != nil {
+				fmt.Println(err0)
+			}
+			return nil
+		},
+		func() error {
+			err0 := e.SetupMOTD()
 			if err0 != nil {
 				fmt.Println(err0)
 			}

@@ -9,3 +9,9 @@ func Test_appendLogToFile(t *testing.T) {
 		t.Errorf("error appending to file %s", err)
 	}
 }
+
+func Test_MOTDExists(t *testing.T) {
+	if motd == "" {
+		t.Errorf("motd is empty")
+	}
+}
