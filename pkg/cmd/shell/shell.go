@@ -3,6 +3,7 @@ package shell
 import (
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -27,6 +28,8 @@ type ShellStore interface {
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	StartWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
@@ -41,7 +44,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runShellCommand(store, args[0])
+			err := runShellCommand(t, store, args[0])
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -53,13 +56,22 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	return cmd
 }
 
-func runShellCommand(sstore ShellStore, workspaceNameOrID string) error {
+func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string) error {
 	res := refresh.RunRefreshAsync(sstore)
 
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	if workspace.Status == "STOPPED" { // we start the env for the user
+		err = startWorkspaceIfStopped(t, sstore, workspaceNameOrID, workspace)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	res = refresh.RunRefreshAsync(sstore)
+
 	sshName := string(workspace.GetLocalIdentifier())
 
 	err = res.Await()
@@ -93,6 +105,53 @@ func runSSH(sshAlias string) error {
 	err = sshCmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func startWorkspaceIfStopped(t *terminal.Terminal, tstore ShellStore, wsIDOrName string, workspace *entity.Workspace) error {
+	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	startedWorkspace, err := tstore.StartWorkspace(workspaces[0].ID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
+	err = pollUntil(t, workspace.ID, entity.Running, tstore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
+func pollUntil(t *terminal.Terminal, wsid string, state string, shellStore ShellStore) error {
+	s := t.NewSpinner()
+	isReady := false
+	s.Suffix = " hang tight 🤙"
+	s.Start()
+	for !isReady {
+		time.Sleep(5 * time.Second)
+		ws, err := shellStore.GetWorkspace(wsid)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		s.Suffix = " hang tight 🤙"
+		if ws.Status == state {
+			s.Suffix = "Workspace is ready!"
+			s.Stop()
+			isReady = true
+		}
 	}
 	return nil
 }
