@@ -45,6 +45,7 @@ type envsetupStore interface {
 	FileExists(target string) (bool, error)
 	DownloadBinary(url string, target string) error
 	AppendString(path string, content string) error
+	Chmod(path string, mode os.FileMode) error
 }
 
 type nologinEnvStore interface {
@@ -200,6 +201,10 @@ var motd string
 func (e *envInitier) SetupMOTD() error {
 	_ = e.store.Remove("/etc/update-motd.d/00-header")
 	err := e.store.WriteString("/etc/update-motd.d/00-header", motd)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.Chmod("/etc/update-motd.d/00-header", 0o755)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

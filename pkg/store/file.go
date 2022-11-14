@@ -350,6 +350,14 @@ func (f FileStore) CopyBin(targetBin string) error {
 	return nil
 }
 
+func (f FileStore) Chmod(path string, mode os.FileMode) error {
+	err := f.fs.Chmod(path, mode)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func getUserHomeDir(f *FileStore) func() (string, error) {
 	return func() (string, error) {
 		if f.User != nil {
