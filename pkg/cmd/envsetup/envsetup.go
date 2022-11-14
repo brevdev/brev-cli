@@ -198,8 +198,7 @@ func appendLogToFile(content string, file string) error {
 var motd string
 
 func (e *envInitier) SetupMOTD() error {
-	// 	00-header             85-fwupd         90-updates-available       91-release-upgrade      95-hwe-eol      98-fsck-at-reboot
-	// 50-landscape-sysinfo  88-esm-announce  91-contract-ua-esm-status  92-unattended-upgrades  97-overlayroot  98-reboot-required
+	_ = e.store.Remove("/etc/update-motd.d/00-header")
 	err := e.store.WriteString("/etc/update-motd.d/00-header", motd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
