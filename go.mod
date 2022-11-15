@@ -23,7 +23,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/huproxy v0.0.0-20210816191033-a131ee126ce3
 	github.com/google/uuid v1.3.0
-	github.com/gorilla/websocket v1.4.2
+	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.4.0
 	github.com/jarcoal/httpmock v1.0.8
