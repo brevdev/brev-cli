@@ -46,7 +46,7 @@ func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 }
 
 /*
-	Return nil to exit the onboarding
+Return nil to exit the onboarding
 */
 func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *entity.Workspace {
 	var runningDevEnvs []entity.Workspace
@@ -129,8 +129,9 @@ func waitSpinner(spinner *spinner.Spinner) error {
 }
 
 /*
-	Step 1:
-		The user just ran brev ls
+Step 1:
+
+	The user just ran brev ls
 */
 func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.User, store HelloStore) error {
 	err := CompletedOnboardingLs(user, store)
