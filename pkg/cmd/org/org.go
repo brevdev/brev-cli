@@ -12,7 +12,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/jedib0t/go-pretty/v6/table"
 
 	"github.com/spf13/cobra"
@@ -26,10 +25,10 @@ type OrgCmdStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	completions.CompletionStore
-	vpn.ServiceMeshStore
 	SetDefaultOrganization(org *entity.Organization) error
 	GetServerSockFile() string
 	CreateInviteLink(organizationID string) (string, error)
+	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {

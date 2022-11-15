@@ -10,7 +10,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 )
 
 type LogoutOptions struct {
@@ -23,7 +22,6 @@ type Auth interface {
 }
 
 type LogoutStore interface {
-	vpn.ServiceMeshStore
 	ClearDefaultOrganization() error
 	GetCurrentWorkspaceID() (string, error)
 }
@@ -72,11 +70,6 @@ func (o *LogoutOptions) RunLogout() error {
 	}
 
 	err = o.store.ClearDefaultOrganization()
-	if err != nil {
-		allErr = multierror.Append(err)
-	}
-
-	err = vpn.ResetVPN(o.store)
 	if err != nil {
 		allErr = multierror.Append(err)
 	}

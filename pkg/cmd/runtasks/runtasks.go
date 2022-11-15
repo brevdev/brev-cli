@@ -9,7 +9,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/spf13/cobra"
 	stripmd "github.com/writeas/go-strip-markdown"
 )
@@ -47,7 +46,6 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 type RunTasksStore interface {
 	ssh.ConfigUpdaterStore
 	ssh.SSHConfigurerV2Store
-	vpn.ServiceMeshStore
 	tasks.RunTaskAsDaemonStore
 	GetCurrentUser() (*entity.User, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)

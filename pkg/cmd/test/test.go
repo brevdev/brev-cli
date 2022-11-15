@@ -6,8 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/server"
-	"github.com/brevdev/brev-cli/pkg/store"
+		"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
 
@@ -31,7 +30,6 @@ type TestStore interface {
 	CopyBin(targetBin string) error
 	GetSetupScriptContentsByURL(url string) (string, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
-	server.RPCServerTaskStore
 }
 
 type ServiceMeshStore interface {

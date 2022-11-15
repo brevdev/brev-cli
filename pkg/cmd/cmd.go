@@ -22,13 +22,11 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
-	"github.com/brevdev/brev-cli/pkg/cmd/meshd"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/optimizeinstances"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
-	"github.com/brevdev/brev-cli/pkg/cmd/postinstall"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
+	"github.com/brevdev/brev-cli/pkg/cmd/postinstall"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
 	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
@@ -229,7 +227,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))
-	cmd.AddCommand(meshd.NewCmdMeshD(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
 	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))

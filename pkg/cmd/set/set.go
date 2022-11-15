@@ -8,11 +8,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -20,10 +17,10 @@ import (
 
 type SetStore interface {
 	completions.CompletionStore
-	vpn.ServiceMeshStore
 	SetDefaultOrganization(org *entity.Organization) error
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetServerSockFile() string
+	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
@@ -77,21 +74,6 @@ func set(orgName string, setStore SetStore) error {
 	err = setStore.SetDefaultOrganization(&org)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
-	}
-	user, err := setStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if featureflag.IsAdmin(user.GlobalUserType) {
-		sock := setStore.GetServerSockFile()
-		c, err := server.NewClient(sock)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = c.ConfigureVPN()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
 	}
 
 	// Print workspaces within org

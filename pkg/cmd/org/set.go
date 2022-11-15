@@ -7,8 +7,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -85,21 +83,6 @@ func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprintf("Org %s is now active 🤙\n", t.Green(org.Name))
-	user, err := setStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if featureflag.IsAdmin(user.GlobalUserType) {
-		sock := setStore.GetServerSockFile()
-		c, err := server.NewClient(sock)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = c.ConfigureVPN()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
 
 	// Print workspaces within org
 

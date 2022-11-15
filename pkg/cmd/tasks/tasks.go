@@ -7,12 +7,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/k8s"
-	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
@@ -32,8 +30,6 @@ type TaskStore interface {
 	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUser() (*entity.User, error)
-	vpn.ServiceMeshStore
-	server.RPCServerTaskStore
 	ssh.ConfigUpaterFactoryStore
 }
 
@@ -130,10 +126,6 @@ func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
 
 func getTaskMap(store TaskStore) TaskMap {
 	taskmap := make(TaskMap)
-	vpnd := vpn.NewVPNDaemon(store)
-	taskmap["vpnd"] = vpnd
-	rpcd := server.NewRPCServerTask(store)
-	taskmap["rpcd"] = rpcd
 	sshcd := ssh.NewSSHConfigurerTask(store)
 	taskmap["sshcd"] = sshcd
 	return taskmap

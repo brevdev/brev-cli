@@ -16,12 +16,9 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/server"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
-	"github.com/brevdev/brev-cli/pkg/vpn"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
@@ -33,7 +30,6 @@ type LoginOptions struct {
 }
 
 type LoginStore interface {
-	vpn.ServiceMeshStore
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
@@ -44,6 +40,7 @@ type LoginStore interface {
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 	hello.HelloStore
 	importideconfig.ImportIDEConfigStore
+	UserHomeDir() (string, error)
 }
 
 type Auth interface {
@@ -194,13 +191,6 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if featureflag.IsAdmin(user.GlobalUserType) {
-		err1 := o.HandleLoginAdmin()
-		if err1 != nil {
-			return breverrors.WrapAndTrace(err1)
-		}
-	}
-
 	ob, err := user.GetOnboardingData()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -279,20 +269,6 @@ func getOtherOrg(org *entity.Organization, orgs []entity.Organization) *entity.O
 		if o.ID != org.ID {
 			return &o
 		}
-	}
-	return nil
-}
-
-func (o LoginOptions) HandleLoginAdmin() error {
-	fmt.Println("\nsetting up admin...")
-	sock := o.LoginStore.GetServerSockFile()
-	c, err := server.NewClient(sock)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = c.ConfigureVPN()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
