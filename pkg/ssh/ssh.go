@@ -3,9 +3,9 @@
 //
 // brev ssh host file entry format:
 //
-// 	Host <workspace-dns-name>
-// 		Hostname 0.0.0.0
-// 		IdentityFile /home//.brev/brev.pem
+//	Host <workspace-dns-name>
+//		Hostname 0.0.0.0
+//		IdentityFile /home//.brev/brev.pem
 //		User brev
 //		Port <some-available-port>
 //
