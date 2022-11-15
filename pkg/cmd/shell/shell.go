@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"time"
@@ -71,23 +72,48 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		}
 	}
 	res = refresh.RunRefreshAsync(sstore)
-
+	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if workspace.Status != "RUNNING" {
+		return breverrors.New("Workspace is not running")
+	}
 	sshName := string(workspace.GetLocalIdentifier())
 
 	err = res.Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	err = runSSH(sshName)
+	waitForSSHToBeAvailable(sshName)
+	err = runSSH(workspace, sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func runSSH(sshAlias string) error {
+func waitForSSHToBeAvailable(sshAlias string) {
+	counter := 0
+	for {
+		cmd := exec.Command("ssh", sshAlias, "echo", " ")
+		_, err := cmd.CombinedOutput()
+		if err == nil {
+			return
+		}
+		if counter == 1 {
+			fmt.Println("\nPerforming final checks...")
+		}
+		counter++
+		time.Sleep(1 * time.Second)
+	}
+}
+
+func runSSH(workspace *entity.Workspace, sshAlias string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
+	if workspace.GetProjectFolderPath() != "" {
+		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), "&&", "zsh") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
+	}
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
@@ -131,7 +157,6 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore ShellStore, wsIDOrName
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
 	return nil
 }
 
