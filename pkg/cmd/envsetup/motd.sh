@@ -1,39 +1,14 @@
-#!/bin/sh
-[ -r /etc/lsb-release ] && . /etc/lsb-release
+                               _  
+              _        ,-.    / ) 
+             ( `.     // /-._/ / 
+              `\ \   /(_/ / / /  
+                ; `-`  (_/ / /  
+                |       (_/ /     
+                \          /      
+Welcome to       )       /`      
+      brev.dev   /      /`       
 
-if [ -z "$DISTRIB_DESCRIPTION" ] && [ -x /usr/bin/lsb_release ]; then
-	# Fall back to using the very slow lsb_release utility
-	DISTRIB_DESCRIPTION=$(lsb_release -s -d)
-fi
-
-printf "                               _  
-"
-printf "              _        ,-.    / ) 
-"
-printf "             ( \`.     // /-._/ / 
-"
-printf "              \`\ \   /(_/ / / /  
-"
-printf "                ; \`-\`  (_/ / /  
-"
-printf "                |       (_/ /     
-"
-printf "                \          /      
-"
-printf "Welcome to       )       /\`      
-"
-printf "      brev.dev   /      /\`       
-"
-printf "
 
 Internet Speed:
-"
-
-    printf "Avg Upload: 1574.31 Mbit/s
-"
-printf "Avg Download: 1103.68 Mbit/s
-"
-printf "
-Running %s (%s %s %s)
-" "$DISTRIB_DESCRIPTION" "$(uname -o)" "$(uname -r)" "$(uname -m)"
-    
+Avg Upload: 1574.31 Mbit/s
+Avg Download: 1103.68 Mbit/s

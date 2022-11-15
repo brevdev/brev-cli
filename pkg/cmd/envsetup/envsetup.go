@@ -199,31 +199,20 @@ func appendLogToFile(content string, file string) error {
 var motd string
 
 func (e *envInitier) SetupMOTD() error {
-	_ = e.store.Remove("/etc/update-motd.d/00-header")
-	err := e.store.WriteString("/etc/update-motd.d/00-header", motd)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.store.Chmod("/etc/update-motd.d/00-header", 0o755)
+	err := e.store.WriteString("/etc/ssh/my_banner", motd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// don't error if this fails
-	_ = e.store.Remove("/etc/update-motd.d/10-help-text")
-	_ = e.store.Remove("/etc/update-motd.d/50-motd-news")
-	_ = e.store.Remove("/etc/update-motd.d/51-cloudguest")
-	_ = e.store.Remove("/etc/update-motd.d/85-fwupd")
-	_ = e.store.Remove("/etc/update-motd.d/90-updates-available")
-	_ = e.store.Remove("/etc/update-motd.d/91-release-upgrade")
-	_ = e.store.Remove("/etc/update-motd.d/95-hwe-eol")
-	_ = e.store.Remove("/etc/update-motd.d/98-fsck-at-reboot")
-	_ = e.store.Remove("/etc/update-motd.d/98-reboot-required")
-	_ = e.store.Remove("/etc/update-motd.d/97-overlayroot")
-	_ = e.store.Remove("/etc/update-motd.d/91-contract-ua-esm-status")
-	_ = e.store.Remove("/etc/update-motd.d/92-unattended-upgrades")
-	_ = e.store.Remove("/etc/update-motd.d/50-landscape-sysinfo")
-	_ = e.store.Remove("/etc/update-motd.d/88-esm-announce")
+	err = e.store.AppendString("/etc/ssh/sshd_config", "Banner /etc/ssh/my_banner")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = setupworkspace.BuildAndRunCmd("systemctl", "reload", "ssh.service")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
