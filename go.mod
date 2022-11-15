@@ -28,7 +28,7 @@ require (
 	github.com/hashicorp/go-version v1.4.0
 	github.com/jarcoal/httpmock v1.0.8
 	github.com/jinzhu/copier v0.3.5
-	github.com/kevinburke/ssh_config v1.1.0
+	github.com/kevinburke/ssh_config v1.2.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
