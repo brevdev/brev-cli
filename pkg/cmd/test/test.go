@@ -6,7 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
-		"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
 
