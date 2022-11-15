@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-//  https://en.wikipedia.org/wiki/Uniform_Resource_Identifier .
+// https://en.wikipedia.org/wiki/Uniform_Resource_Identifier .
 type (
 	Host string
 	URL  string
