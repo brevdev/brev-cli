@@ -134,8 +134,9 @@ func GetTailScaleOutFilePath(home string) string {
 // ReadJSON reads data from a file into the given struct
 //
 // Usage:
-//   var foo myStruct
-//   files.ReadJSON("tmp/a.json", &foo)
+//
+//	var foo myStruct
+//	files.ReadJSON("tmp/a.json", &foo)
 func ReadJSON(fs afero.Fs, unsafeFilePathString string, v interface{}) error {
 	safeFilePath := filepath.Clean(unsafeFilePathString)
 	f, err := fs.Open(safeFilePath)
@@ -183,14 +184,15 @@ func ReadString(fs afero.Fs, unsafeFilePathString string) (string, error) {
 // OverwriteJSON data in the target file with data from the given struct
 //
 // Usage (unstructured):
-//   OverwriteJSON("tmp/a/b/c.json", map[string]string{
-// 	    "hi": "there",
-//   })
 //
+//	  OverwriteJSON("tmp/a/b/c.json", map[string]string{
+//		    "hi": "there",
+//	  })
 //
 // Usage (struct):
-//   var foo myStruct
-//   OverwriteJSON("tmp/a/b/c.json", foo)
+//
+//	var foo myStruct
+//	OverwriteJSON("tmp/a/b/c.json", foo)
 func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 	f, err := touchFile(fs, filepath)
 	if err != nil {
@@ -222,7 +224,8 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 // OverwriteString data in the target file with data from the given string
 //
 // Usage
-//   OverwriteString("tmp/a/b/c.txt", "hi there")
+//
+//	OverwriteString("tmp/a/b/c.txt", "hi there")
 func OverwriteString(fs afero.Fs, filepath string, data string) error {
 	f, err := touchFile(fs, filepath)
 	if err != nil {
