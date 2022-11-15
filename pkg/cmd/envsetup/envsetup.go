@@ -217,6 +217,17 @@ func (e *envInitier) SetupMOTD() error {
 	return nil
 }
 
+//go:embed speedtest.py
+var speedtest string
+
+func (e *envInitier) SetupSpeedTest() error {
+	err := e.store.WriteString("/usr/local/bin/speedtest", speedtest)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	err := appendLogToFile("setup started", "/var/log/brev-setup-steps.log")
 	if err != nil {
@@ -248,6 +259,13 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		},
 		func() error {
 			err0 := e.SetupMOTD()
+			if err0 != nil {
+				fmt.Println(err0)
+			}
+			return nil
+		},
+		func() error {
+			err0 := e.SetupSpeedTest()
 			if err0 != nil {
 				fmt.Println(err0)
 			}

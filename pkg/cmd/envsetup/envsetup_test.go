@@ -15,3 +15,9 @@ func Test_MOTDExists(t *testing.T) {
 		t.Errorf("motd is empty")
 	}
 }
+
+func Test_SpeedtestExists(t *testing.T) {
+	if speedtest == "" {
+		t.Errorf("speedtest is empty")
+	}
+}
