@@ -225,6 +225,10 @@ func (e *envInitier) SetupSpeedTest() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	err = e.store.Chmod("/usr/local/bin/speedtest", 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
