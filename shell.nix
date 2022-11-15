@@ -21,7 +21,7 @@ let
 in
           mkShell {
             nativeBuildInputs = [
-              go_1_18
+              go_1_19
               gopls
               tmux
               gofumpt
