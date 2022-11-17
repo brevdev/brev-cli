@@ -490,7 +490,7 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 
 	authorizedKeyPath := e.BuildHomePath(".ssh", "authorized_keys")
 
-	err = e.store.AppendString(authorizedKeyPath, keys.PublicKeyData)
+	err = e.store.AppendString(authorizedKeyPath, "\n"+keys.PublicKeyData)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
