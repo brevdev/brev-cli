@@ -575,3 +575,7 @@ func (f FileStore) AppendString(path string, content string) error {
 	}
 	return nil
 }
+
+// func (f FileStore) ChownFileToUser(file afero.File) error {
+// 	return nil
+// }

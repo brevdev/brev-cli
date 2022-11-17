@@ -46,6 +46,7 @@ type envsetupStore interface {
 	DownloadBinary(url string, target string) error
 	AppendString(path string, content string) error
 	Chmod(path string, mode os.FileMode) error
+	ChownFilePathToUser(path string) error
 }
 
 type nologinEnvStore interface {
@@ -452,24 +453,36 @@ logs:
 }
 
 func (e envInitier) SetupSSH(keys *store.KeyPair) error {
-	cmd := setupworkspace.CmdBuilder("mkdir", "-p", e.BuildHomePath(".ssh"))
-	err := cmd.Run()
+	pkpath := e.BuildHomePath(".ssh", "id_rsa")
+	err := e.store.WriteString(pkpath, keys.PrivateKeyData)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.Chmod(pkpath, 0o600)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.ChownFilePathToUser(pkpath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = createPrivateKey(e, keys)
+	pubkpath := e.BuildHomePath(".ssh", "id_rsa.pub")
+	err = e.store.WriteString(pubkpath, keys.PublicKeyData)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.Chmod(pubkpath, 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.ChownFilePathToUser(pubkpath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = createPublicKey(e, keys)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	c := fmt.Sprintf(`eval "$(ssh-agent -s)" && ssh-add %s`, e.BuildHomePath(".ssh", "id_rsa"))
-	cmd = setupworkspace.CmdStringBuilder(c)
+	c := fmt.Sprintf(`eval "$(ssh-agent -s)" && ssh-add %s`, pkpath)
+	cmd := setupworkspace.CmdStringBuilder(c)
 	err = cmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -477,13 +490,28 @@ func (e envInitier) SetupSSH(keys *store.KeyPair) error {
 
 	authorizedKeyPath := e.BuildHomePath(".ssh", "authorized_keys")
 
-	err = appendToAuthorizedKeys(e, keys, authorizedKeyPath)
+	err = e.store.AppendString(authorizedKeyPath, keys.PublicKeyData)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.store.ChownFilePathToUser(authorizedKeyPath)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	if e.ConfigureSystemSSHConfig {
-		err = configureSystemSSHConfig(e, authorizedKeyPath)
+		err = e.store.WriteString(
+			filepath.Join(
+				"/etc",
+				"ssh",
+				"sshd_config.d",
+				fmt.Sprintf("%s.conf", e.User.Username),
+			),
+			fmt.Sprintf(
+				`PubkeyAuthentication yes
+AuthorizedKeysFile      %s
+PasswordAuthentication no`, authorizedKeyPath),
+		)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -525,83 +553,6 @@ if [[ -z "${chpwd_functions[(r)_brev_hook]+1}" ]]; then
   chpwd_functions=( _brev_hook ${chpwd_functions[@]} )
 fi
 `)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-// extract creating private key to function
-func createPrivateKey(e envInitier, keys *store.KeyPair) error {
-	idRsa, err := os.Create(e.BuildHomePath(".ssh", "id_rsa"))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	defer setupworkspace.PrintErrFromFunc(idRsa.Close)
-	_, err = idRsa.Write([]byte(keys.PrivateKeyData))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = idRsa.Chmod(0o400)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.ChownFileToUser(idRsa)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func createPublicKey(e envInitier, keys *store.KeyPair) error {
-	idRsaPub, err := os.Create(e.BuildHomePath(".ssh", "id_rsa.pub"))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	defer setupworkspace.PrintErrFromFunc(idRsaPub.Close)
-	_, err = idRsaPub.Write([]byte(keys.PublicKeyData))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = idRsaPub.Chmod(0o400)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.ChownFileToUser(idRsaPub)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func appendToAuthorizedKeys(e envInitier, keys *store.KeyPair, authorizedKeyPath string) error {
-	// TODO check if pub key already exists before appending
-	//nolint:gosec //todo is this a prob?
-	authorizedKeyFile, err := os.OpenFile(authorizedKeyPath, os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	defer setupworkspace.PrintErrFromFunc(authorizedKeyFile.Close)
-	pkdWithNewLine := fmt.Sprintf("%s\n", keys.PublicKeyData)
-	_, err = authorizedKeyFile.Write([]byte(pkdWithNewLine))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	// chown to user
-	err = e.ChownFileToUser(authorizedKeyFile)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
-}
-
-func configureSystemSSHConfig(e envInitier, authorizedKeyPath string) error {
-	sshConfigPath := filepath.Join("/etc", "ssh", "sshd_config.d", fmt.Sprintf("%s.conf", e.User.Username))
-	sshConfMod := fmt.Sprintf(`PubkeyAuthentication yes
-AuthorizedKeysFile      %s
-PasswordAuthentication no`, authorizedKeyPath)
-	err := os.WriteFile(sshConfigPath, []byte(sshConfMod), 0o644) //nolint:gosec // verified based on curr env
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
