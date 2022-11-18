@@ -452,36 +452,64 @@ logs:
 	return nil
 }
 
-func (e envInitier) SetupSSH(keys *store.KeyPair) error {
+type setupKeyI interface {
+	WriteString(path, content string) error
+	Chmod(path string, mode os.FileMode) error
+	ChownFilePathToUser(path string) error
+}
+
+func setupKey(path, content string, perm os.FileMode, store setupKeyI) error {
+	err := store.WriteString(path, content)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = store.Chmod(path, perm)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = store.ChownFilePathToUser(path)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (e envInitier) setupPrivateKey(content string) error {
 	pkpath := e.BuildHomePath(".ssh", "id_rsa")
-	err := e.store.WriteString(pkpath, keys.PrivateKeyData)
+	err := setupKey(pkpath, content, 0o600, e.store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = e.store.Chmod(pkpath, 0o600)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.store.ChownFilePathToUser(pkpath)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	return nil
+}
 
-	pubkpath := e.BuildHomePath(".ssh", "id_rsa.pub")
-	err = e.store.WriteString(pubkpath, keys.PublicKeyData)
+func (e envInitier) setupPublicKey(content string) error {
+	pubkeypath := e.BuildHomePath(".ssh", "id_rsa.pub")
+	err := setupKey(pubkeypath, content, 0o644, e.store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = e.store.Chmod(pubkpath, 0o644)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = e.store.ChownFilePathToUser(pubkpath)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	return nil
+}
 
-	c := fmt.Sprintf(`eval "$(ssh-agent -s)" && ssh-add %s`, pkpath)
+func (e envInitier) SetupSSHKeys(keys *store.KeyPair) error {
+	err := e.setupPrivateKey(keys.PrivateKeyData)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = e.setupPublicKey(keys.PublicKeyData)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (e envInitier) SetupSSH(keys *store.KeyPair) error {
+	err := e.SetupSSHKeys(keys)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	c := fmt.Sprintf(`eval "$(ssh-agent -s)" && ssh-add %s`, e.BuildHomePath(".ssh", "id_rsa"))
 	cmd := setupworkspace.CmdStringBuilder(c)
 	err = cmd.Run()
 	if err != nil {
