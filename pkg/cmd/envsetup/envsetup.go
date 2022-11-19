@@ -271,8 +271,8 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	)
 
 	err = util.RunEAsync(
-		printErr(e.SetupSSH),
-		printErr(e.SetupGit),
+		e.SetupSSH,
+		e.SetupGit,
 	).Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
