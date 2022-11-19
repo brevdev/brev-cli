@@ -341,7 +341,7 @@ func (w WorkspaceIniter) Setup() error {
 
 	postPrepare := util.RunEAsync(
 		func() error {
-			err0 := w.SetupVsCodeExtensions(w.VscodeExtensionIDs)
+			err0 := w.SetupVsCodeExtensions()
 			if err0 != nil {
 				fmt.Println(err0)
 			}
@@ -361,7 +361,7 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.SetupGit(w.Params.WorkspaceUsername, w.Params.WorkspaceEmail)
+	err = w.SetupGit()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -717,7 +717,9 @@ PasswordAuthentication no`, w.BuildHomePath(".ssh", "authorized_keys"))
 	return nil
 }
 
-func (w WorkspaceIniter) SetupGit(username string, email string) error {
+func (w WorkspaceIniter) SetupGit() error {
+	username := w.Params.WorkspaceUsername
+	email := w.Params.WorkspaceEmail
 	cmd := CmdStringBuilder(fmt.Sprintf("ssh-keyscan github.com >> %s", w.BuildHomePath(".ssh", "known_hosts")))
 	err := cmd.Run()
 	if err != nil {
@@ -883,7 +885,8 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 	return nil
 }
 
-func (w WorkspaceIniter) SetupVsCodeExtensions(extensionIDs []string) error {
+func (w WorkspaceIniter) SetupVsCodeExtensions() error {
+	extensionIDs := w.VscodeExtensionIDs
 	fmt.Println("installing vscode extensions...")
 	codePathGlob := filepath.Join(w.BuildHomePath(), ".vscode-server/bin/*/bin/code-server")
 	matches, err := filepath.Glob(codePathGlob)

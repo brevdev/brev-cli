@@ -233,6 +233,16 @@ func (e *envInitier) SetupSpeedTest() error {
 	return nil
 }
 
+func printErr(f func() error) func() error {
+	return func() error {
+		err := f()
+		if err != nil {
+			fmt.Println(err)
+		}
+		return nil
+	}
+}
+
 func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	err := appendLogToFile("setup started", "/var/log/brev-setup-steps.log")
 	if err != nil {
@@ -255,35 +265,15 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	}
 
 	postPrepare := util.RunEAsync(
-		func() error {
-			err0 := e.SetupVsCodeExtensions(e.VscodeExtensionIDs)
-			if err0 != nil {
-				fmt.Println(err0)
-			}
-			return nil
-		},
-		func() error {
-			err0 := e.SetupMOTD()
-			if err0 != nil {
-				fmt.Println(err0)
-			}
-			return nil
-		},
-		func() error {
-			err0 := e.SetupSpeedTest()
-			if err0 != nil {
-				fmt.Println(err0)
-			}
-			return nil
-		},
+		printErr(e.SetupVsCodeExtensions),
+		printErr(e.SetupMOTD),
+		printErr(e.SetupSpeedTest),
 	)
 
-	err = e.SetupSSH(e.Params.WorkspaceKeyPair)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = e.SetupGit(e.Params.WorkspaceUsername, e.Params.WorkspaceEmail)
+	err = util.RunEAsync(
+		printErr(e.SetupSSH),
+		printErr(e.SetupGit),
+	).Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -304,11 +294,6 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = e.SetupEnvVars()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	err = appendLogToFile("starting to run execs", "/var/log/brev-steps.log")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -317,6 +302,12 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
+
+	err = e.SetupEnvVars()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = appendLogToFile("done running execs", "/var/log/brev-steps.log")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -504,7 +495,8 @@ func (e envInitier) SetupSSHKeys(keys *store.KeyPair) error {
 	return nil
 }
 
-func (e envInitier) SetupSSH(keys *store.KeyPair) error {
+func (e envInitier) SetupSSH() error {
+	keys := e.Params.WorkspaceKeyPair
 	err := e.SetupSSHKeys(keys)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
