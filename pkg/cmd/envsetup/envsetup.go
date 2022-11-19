@@ -233,16 +233,6 @@ func (e *envInitier) SetupSpeedTest() error {
 	return nil
 }
 
-func printErr(f func() error) func() error {
-	return func() error {
-		err := f()
-		if err != nil {
-			fmt.Println(err)
-		}
-		return nil
-	}
-}
-
 func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	err := appendLogToFile("setup started", "/var/log/brev-setup-steps.log")
 	if err != nil {
