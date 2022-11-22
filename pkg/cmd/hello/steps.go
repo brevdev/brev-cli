@@ -177,7 +177,8 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		}
 	}
 
-	handleLocalhostURLIfDefaultProject(*firstWorkspace, t)
+	// Commenting out the below since public urls is gone
+	// handleLocalhostURLIfDefaultProject(*firstWorkspace, t)
 	printCompletedOnboarding(t)
 	err = CompletedOnboarding(user, store)
 	if err != nil {
