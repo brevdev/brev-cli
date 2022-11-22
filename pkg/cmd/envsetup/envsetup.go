@@ -256,7 +256,6 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 
 	postPrepare := util.RunEAsync(
 		e.SetupVsCodeExtensions,
-		e.SetupMOTD,
 		e.SetupSpeedTest,
 	)
 
