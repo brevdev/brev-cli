@@ -187,29 +187,29 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	return nil
 }
 
-func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
-	if ws.Name == DefaultDevEnvName {
-		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost."
-		s += "\nFrom within that Brev dev environment,\n\tRun " + t.Yellow("npm run start") + " to spin up the service"
-		s += "\nThen instead of going to localhost:3000, \n\tGo to " + t.Yellow("https://3000-%s", ws.DNS)
+// func handleLocalhostURLIfDefaultProject(ws entity.Workspace, t *terminal.Terminal) {
+// 	if ws.Name == DefaultDevEnvName {
+// 		s := "\n\nOne last thing, since you're coding in the cloud, you can get a public URL to your localhost."
+// 		s += "\nFrom within that Brev dev environment,\n\tRun " + t.Yellow("npm run start") + " to spin up the service"
+// 		s += "\nThen instead of going to localhost:3000, \n\tGo to " + t.Yellow("https://3000-%s", ws.DNS)
 
-		// TODO: Give that a shot then press enter
-		bold := color.New(color.Bold).SprintFunc()
+// 		// TODO: Give that a shot then press enter
+// 		bold := color.New(color.Bold).SprintFunc()
 
-		s += "\n\nGive that a shot then press enter👆:"
-		TypeItToMe(s)
+// 		s += "\n\nGive that a shot then press enter👆:"
+// 		TypeItToMe(s)
 
-		fmt.Print("\n")
-		_ = terminal.PromptGetInput(terminal.PromptContent{
-			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
-			Label:      "   " + bold("▸"),
-			ErrorMsg:   "error",
-			AllowEmpty: true,
-		})
+// 		fmt.Print("\n")
+// 		_ = terminal.PromptGetInput(terminal.PromptContent{
+// 			// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+// 			Label:      "   " + bold("▸"),
+// 			ErrorMsg:   "error",
+// 			AllowEmpty: true,
+// 		})
 
-		fmt.Print("\n")
-	}
-}
+// 		fmt.Print("\n")
+// 	}
+// }
 
 func doVsCodeOnboarding(
 	t *terminal.Terminal,

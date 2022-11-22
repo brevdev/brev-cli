@@ -9,6 +9,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/spf13/afero"
 )
 
@@ -21,14 +22,52 @@ func GetFirstName(name string) string {
 	return name
 }
 
-func ShouldWeRunOnboarding(s HelloStore) bool {
-	workspaceID, err := s.GetCurrentWorkspaceID()
+// The LS step should get the GetOnboardingData from the user
+// and use that to check the step "FinishedOnboarding"
+// Either way. It should set it to True
+func ShouldWeRunOnboardingLSStep(s HelloStore) bool {
+	user, err := s.GetCurrentUser()
 	if err != nil {
 		return false
 	}
-	if workspaceID != "" {
+
+	ob, err := user.GetOnboardingData()
+	if err != nil {
 		return false
 	}
+
+	if ob.FinishedOnboarding {
+		return false
+	} else {
+		// set the value and return true
+		newOnboardingStatus := make(map[string]interface{})
+		newOnboardingStatus["finishedOnboarding"] = true
+
+		user, err = s.UpdateUser(user.ID, &entity.UpdateUser{
+			// username, name, and email are required fields, but we only care about onboarding status
+			Username:       user.Username,
+			Name:           user.Name,
+			Email:          user.Email,
+			OnboardingData: util.MapAppend(user.OnboardingData, newOnboardingStatus),
+		})
+		if err != nil {
+			// TODO: what should we do here?
+			return true
+		}
+
+		return true
+	}
+}
+
+func ShouldWeRunOnboarding(s HelloStore) bool {
+	// BANANA: undo this
+	// workspaceID, err := s.GetCurrentWorkspaceID()
+	// if err != nil {
+	// 	return false
+	// }
+	// if workspaceID != "" {
+	// 	return false
+	// }
 
 	oo, err := GetOnboardingObject()
 	if err != nil {

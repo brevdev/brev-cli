@@ -423,6 +423,7 @@ type OnboardingData struct {
 	Editor                 string `json:"editor"`
 	SSH                    bool   `json:"ssh"`
 	UsedCLI                bool   `json:"usedCli"`
+	FinishedOnboarding     bool   `json:"finishedOnboarding"`
 	CliOnboardingSkipped   bool   `json:"cliOnboardingSkipped"`
 	CliOnboardingIntro     bool   `json:"cliOnboardingIntro"`
 	CliOnboardingLs        bool   `json:"cliOnboardingLs"`
@@ -464,6 +465,7 @@ func (u User) GetOnboardingData() (*OnboardingData, error) {
 		Editor:                 safeStringMap(u.OnboardingData, "editor", ""), // empty string is the false state here
 		SSH:                    safeFalseBoolMap(u.OnboardingData, "SSH"),
 		UsedCLI:                safeFalseBoolMap(u.OnboardingData, "usedCLI"),
+		FinishedOnboarding:     safeFalseBoolMap(u.OnboardingData, "finishedOnboarding"),
 		CliOnboardingSkipped:   safeFalseBoolMap(u.OnboardingData, "cliOnboardingSkipped"),
 		CliOnboardingIntro:     safeFalseBoolMap(u.OnboardingData, "cliOnboardingIntro"),
 		CliOnboardingLs:        safeFalseBoolMap(u.OnboardingData, "cliOnboardingLs"),
