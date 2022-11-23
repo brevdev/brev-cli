@@ -60,14 +60,13 @@ func ShouldWeRunOnboardingLSStep(s HelloStore) bool {
 }
 
 func ShouldWeRunOnboarding(s HelloStore) bool {
-	// BANANA: undo this
-	// workspaceID, err := s.GetCurrentWorkspaceID()
-	// if err != nil {
-	// 	return false
-	// }
-	// if workspaceID != "" {
-	// 	return false
-	// }
+	workspaceID, err := s.GetCurrentWorkspaceID()
+	if err != nil {
+		return false
+	}
+	if workspaceID != "" {
+		return false
+	}
 
 	oo, err := GetOnboardingObject()
 	if err != nil {
