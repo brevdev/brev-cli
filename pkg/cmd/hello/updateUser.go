@@ -14,6 +14,7 @@ import (
 func SkippedOnboarding(user *entity.User, store HelloStore) error {
 	newOnboardingStatus := make(map[string]interface{})
 	newOnboardingStatus["cliOnboardingSkipped"] = true
+	newOnboardingStatus["finishedOnboarding"] = true
 
 	_, err := store.UpdateUser(user.ID, &entity.UpdateUser{
 		// username, name, and email are required fields, but we only care about onboarding status
