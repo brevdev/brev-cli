@@ -43,6 +43,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
+	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -272,6 +273,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(postinstall.NewCmdpostinstall(t, loginCmdStore))
 	cmd.AddCommand(postinstall.NewCMDOptimizeThis(t, loginCmdStore))
 	cmd.AddCommand(bmon.NewCmdbmon(t, loginCmdStore))
+	cmd.AddCommand(upgrade.NewCmdUpgrade(t, loginCmdStore))
 }
 
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
