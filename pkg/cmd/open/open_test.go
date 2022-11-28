@@ -12,7 +12,7 @@ import (
 type mockVscodePathStore struct{}
 
 func (m *mockVscodePathStore) GetWindowsDir() (string, error) {
-	return "1234", nil
+	return "/mnt/c/Users/1234", nil
 }
 
 type mockVscodePathStoreAlwaysError struct{}
