@@ -373,7 +373,7 @@ func getCommonVsCodePaths(store vscodePathStore) []mo.Result[string] {
 	paths = append(paths, mo.TupleToResult(store.GetWindowsDir()).Match(
 		func(dir string) (string, error) {
 			return fmt.Sprintf(
-				"/mnt/c/Users/%s/AppData/Local/Programs/Microsoft VS Code/Code.exe",
+				"%s/AppData/Local/Programs/Microsoft VS Code/Code.exe",
 				dir,
 			), nil
 		},
