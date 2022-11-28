@@ -4,6 +4,20 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+const pathDownloadUrl = "api/autostop/cli-download-url"
+
+func (n NoAuthHTTPStore) DownloadUrl() (string, error) {
+	res, err := n.noAuthHTTPClient.restyClient.R().
+		Get(pathDownloadUrl)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return "", NewHTTPResponseError(res)
+	}
+	return res.String(), nil
+}
+
 const pathRegisterNotificationEmail = "api/autostop/register"
 
 func (n NoAuthHTTPStore) RegisterNotificationEmail(email string) error {

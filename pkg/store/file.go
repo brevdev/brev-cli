@@ -532,6 +532,63 @@ func trytoUnTarGZ(in io.Reader) io.Reader {
 	return tarReader
 }
 
+// download a file from a url to a target path
+func (f FileStore) DownloadBrevBinary(url string, target string) error {
+	// Get the data
+	resp, err := http.Get(url) //nolint:gosec // the urls are hardcoded and trusted
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // defer
+
+	// check response code
+	if resp.StatusCode >= 400 {
+		return breverrors.WrapAndTrace(fmt.Errorf("bad status code: %d", resp.StatusCode))
+	}
+
+	// create target path if not exists
+	err = f.fs.MkdirAll(filepath.Dir(target), 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// Create the file
+	out, err := f.fs.Create(target)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer out.Close() //nolint:errcheck // defer
+	gzReader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	tarReader := tar.NewReader(gzReader)
+
+	// find the brev binary in the tar and write it to the target
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if header.Name == "brev" {
+			_, err = io.Copy(out, tarReader)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
+	}
+
+	// make file executable
+	err = f.fs.Chmod(target, 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 const mailFilePath = "/etc/brev/email"
 
 func (f FileStore) WriteEmail(email string) error {

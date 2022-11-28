@@ -20,11 +20,14 @@ var (
 
 type upgradeStore interface {
 	GetOSUser() string
+	DownloadUrl() (string, error)
+	DownloadBrevBinary(url, path string) error
 }
 
-type uFunc func(t *terminal.Terminal, args []string, store upgradeStore) error
+type uFunc func(ucmd upgradeCMD) error
 
 func NewCmdUpgrade(t *terminal.Terminal, store upgradeStore) *cobra.Command {
+	var debugger bool
 	cmd := &cobra.Command{
 		Use:                   "upgrade",
 		DisableFlagsInUseLine: true,
@@ -32,7 +35,12 @@ func NewCmdUpgrade(t *terminal.Terminal, store upgradeStore) *cobra.Command {
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunUpgrade(t, args, store)
+			err := RunUpgrade(upgradeCMD{
+				t:        t,
+				args:     args,
+				store:    store,
+				debugger: debugger,
+			})
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -40,6 +48,7 @@ func NewCmdUpgrade(t *terminal.Terminal, store upgradeStore) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&debugger, "debugger", "d", false, "indicates command is being run in debugger") // todo remove -d
 	return cmd
 }
 
@@ -53,7 +62,7 @@ func (so *saveOutput) Write(p []byte) (n int, err error) {
 	if err != nil {
 		return n, breverrors.WrapAndTrace(err)
 	}
-    return n, nil
+	return n, nil
 }
 
 func runcmd(c string, args ...string) error {
@@ -70,8 +79,8 @@ func runcmd(c string, args ...string) error {
 	return nil
 }
 
-var upgradeFuncs = map[string]func(t *terminal.Terminal, args []string, store upgradeStore) error{
-	"darwin": func(_ *terminal.Terminal, _ []string, _ upgradeStore) error {
+var upgradeFuncs = map[string]uFunc{
+	"darwin": func(ucmd upgradeCMD) error {
 		err := runcmd("brew", "upgrade", "brevdev/homebrew-brev/brev")
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -79,17 +88,22 @@ var upgradeFuncs = map[string]func(t *terminal.Terminal, args []string, store up
 
 		return nil
 	},
-	"linux": func(_ *terminal.Terminal, _ []string, store upgradeStore) error {
-		uid := store.GetOSUser()
-		if uid != "0" { // root is uid 0 almost always
+	"linux": func(ucmd upgradeCMD) error {
+		uid := ucmd.store.GetOSUser()
+		if uid != "0" && !ucmd.debugger { // root is uid 0 almost always
 			return breverrors.New("You must be root to upgrade, re run with: sudo brev upgrade")
 		}
-
-		err := runcmd(
-			"bash",
-			"-c",
-			"\"$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)\"",
+		// get cli download url
+		url, err := ucmd.store.DownloadUrl()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		// download binary
+		err = ucmd.store.DownloadBrevBinary(
+			url,
+			"/usr/local/bin/brev",
 		)
+
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -102,13 +116,20 @@ func getUpgradeFunc() uFunc {
 	return mo.TupleToOption(upgradeFunc, ok).OrEmpty()
 }
 
-func RunUpgrade(t *terminal.Terminal, args []string, store upgradeStore) error {
+type upgradeCMD struct {
+	t        *terminal.Terminal
+	args     []string
+	store    upgradeStore
+	debugger bool
+}
+
+func RunUpgrade(ucmd upgradeCMD) error {
 	upgradeFunc := getUpgradeFunc()
 	if upgradeFunc == nil {
 		return breverrors.New("unsupported OS")
 	}
 
-	err := upgradeFunc(t, args, store)
+	err := upgradeFunc(ucmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
