@@ -566,17 +566,17 @@ func (f FileStore) DownloadBrevBinary(url string, target string) error {
 
 	// find the brev binary in the tar and write it to the target
 	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
+		header, err2 := tarReader.Next()
+		if err2 == io.EOF {
 			break
 		}
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
 		if header.Name == "brev" {
-			_, err = io.Copy(out, tarReader)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			_, err2 = io.Copy(out, tarReader)
+			if err2 != nil {
+				return breverrors.WrapAndTrace(err2)
 			}
 		}
 	}
