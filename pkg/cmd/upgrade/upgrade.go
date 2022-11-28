@@ -49,7 +49,11 @@ type saveOutput struct {
 
 func (so *saveOutput) Write(p []byte) (n int, err error) {
 	so.savedOutput = append(so.savedOutput, p...)
-	return os.Stdout.Write(p)
+	n, err = os.Stdout.Write(p)
+	if err != nil {
+		return n, breverrors.WrapAndTrace(err)
+	}
+    return n, nil
 }
 
 func runcmd(c string, args ...string) error {
