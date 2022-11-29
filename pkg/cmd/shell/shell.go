@@ -103,6 +103,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 func waitForSSHToBeAvailable(sshAlias string) {
 	counter := 0
 	for {
+		fmt.Println("COunter is: ", counter)
 		cmd := exec.Command("ssh", sshAlias, "echo", " ")
 		_, err := cmd.CombinedOutput()
 		if err == nil {
@@ -111,6 +112,7 @@ func waitForSSHToBeAvailable(sshAlias string) {
 		if counter == 1 {
 			fmt.Println("\nPerforming final checks...")
 		}
+		// TODO: here make sure to timeout
 		counter++
 		time.Sleep(1 * time.Second)
 	}
@@ -119,17 +121,15 @@ func waitForSSHToBeAvailable(sshAlias string) {
 func runSSH(workspace *entity.Workspace, sshAlias string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
 	if workspace.GetProjectFolderPath() != "" {
-		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), "&&", "zsh") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
+		// so this command still fails ssh test-cd-1 -o RemoteCommand="cd abc"
+		// remoteCmdArg := fmt.Sprintf("cd %s", workspace.GetProjectFolderPath())
+		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath()) //, "echo", "hello")
+		// sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), "&&", "zsh") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
 	}
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
 
-	// BANANA: there's probably a better place for this.
-	// 		persistentPOSTrun for this function never gets called...
-	// 		I could set this to the prerun, but then it happens before they ssh in
-	// 		....
-	// This boolean tells the onboarding to continue to the next step!
 	err := hello.SetHasRunShell(true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -137,7 +137,12 @@ func runSSH(workspace *entity.Workspace, sshAlias string) error {
 
 	err = sshCmd.Run()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		// so here we'd then rerun the whole thing
+		sshCmd = exec.Command("ssh", sshAlias)
+		err = sshCmd.Run()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	return nil
 }

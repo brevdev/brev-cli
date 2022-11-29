@@ -75,9 +75,12 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your dev environment...")
 	res := refresh.RunRefreshAsync(tstore)
-
+	fmt.Println("found your dev environment!")
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	fmt.Println("workspace is: ", workspace.Status)
 	if err != nil {
+		fmt.Println("workspace is: ")
+
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspace.Status == "STOPPED" { // we start the env for the user
@@ -227,16 +230,19 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 	return nil
 }
 
-func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) {
+func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) error {
 	counter := 0
 	for {
 		cmd := exec.Command("ssh", "-o", "RemoteCommand=none", "-o", "ConnectTimeout=1", sshAlias, "echo", "hello")
 		_, err := cmd.CombinedOutput()
 		if err == nil {
-			return
+			return nil
 		}
 		if counter == 10 {
 			s.Suffix = t.Green(" waiting for connection to be ready 🤙")
+		}
+		if counter == 60 {
+			return breverrors.WrapAndTrace(errors.New("timed out waiting for connection to be ready"))
 		}
 
 		counter++
