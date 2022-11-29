@@ -380,17 +380,31 @@ var commonVSCodePaths = lo.Map([]string{
 
 func getCommonVsCodePaths(store vscodePathStore) []mo.Result[string] {
 	paths := commonVSCodePaths
-	paths = append(paths, mo.TupleToResult(store.GetWindowsDir()).Match(
-		func(dir string) (string, error) {
-			return fmt.Sprintf(
-				"%s/AppData/Local/Programs/Microsoft VS Code/Code.exe",
-				dir,
-			), nil
-		},
-		func(err error) (string, error) {
-			return "", breverrors.WrapAndTrace(err) // no windows dir
-		},
-	))
+	paths = append(paths, []mo.Result[string]{
+		// not dry but it's a one off
+		mo.TupleToResult(store.GetWindowsDir()).Match(
+			func(dir string) (string, error) {
+				return fmt.Sprintf(
+					"%s/AppData/Local/Programs/Microsoft VS Code/Code.exe",
+					dir,
+				), nil
+			},
+			func(err error) (string, error) {
+				return "", breverrors.WrapAndTrace(err) // no windows dir
+			},
+		),
+		mo.TupleToResult(store.GetWindowsDir()).Match(
+			func(dir string) (string, error) {
+				return fmt.Sprintf(
+					"%s/AppData/Local/Programs/Microsoft VS Code/bin/code",
+					dir,
+				), nil
+			},
+			func(err error) (string, error) {
+				return "", breverrors.WrapAndTrace(err) // no windows dir
+			},
+		),
+	}...)
 	return paths
 }
 
