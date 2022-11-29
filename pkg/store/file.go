@@ -635,6 +635,10 @@ func (f FileStore) AppendString(path string, content string) error {
 }
 
 func (f FileStore) OverWriteString(path string, content string) error {
+	_, err := f.GetOrCreateFile(path) // hack to create file if not exists
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	// truncate file
 	file, err := f.fs.OpenFile(path, os.O_TRUNC|os.O_WRONLY, 0o644)
 	if err != nil {
