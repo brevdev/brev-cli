@@ -19,6 +19,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/lo"
@@ -134,6 +135,8 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 		}
 		return breverrors.WrapAndTrace(err)
 	}
+	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier)) // we don't care about the error here but should log with sentry
+
 	return nil
 }
 
