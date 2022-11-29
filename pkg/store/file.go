@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -627,6 +628,29 @@ func (f FileStore) AppendString(path string, content string) error {
 	defer file.Close() //nolint:errcheck // defer
 
 	_, err = file.WriteString(content)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (f FileStore) OverWriteString(path string, content string) error {
+	// truncate file
+	file, err := f.fs.OpenFile(path, os.O_TRUNC|os.O_WRONLY, 0o644)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	defer file.Close() //nolint:errcheck // defer
+	_, err = file.WriteString(content)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func (f FileStore) WriteConnectionEvent() error {
+	ts := time.Now().Format(time.RFC3339)
+	err := f.OverWriteString("/etc/brev/connection_event", ts)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
