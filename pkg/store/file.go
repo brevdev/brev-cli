@@ -650,7 +650,7 @@ func (f FileStore) OverWriteString(path string, content string) error {
 
 func (f FileStore) WriteConnectionEvent() error {
 	ts := time.Now().Format(time.RFC3339)
-	err := f.OverWriteString("/etc/brev/connection_event", ts)
+	err := f.OverWriteString("/etc/meta/connection_event", ts)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
