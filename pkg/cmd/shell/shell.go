@@ -89,9 +89,9 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	}
 	waitForSSHToBeAvailable(sshName)
 	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors, 
+	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using the shell
-	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS) 
+	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
 	err = runSSH(workspace, sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

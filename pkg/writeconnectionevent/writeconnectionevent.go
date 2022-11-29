@@ -48,7 +48,7 @@ func runCMDonEnv(privateKey, host, cmd string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
- 	 return nil
+	return nil
 }
 
 type wce interface {
