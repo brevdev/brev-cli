@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/samber/lo"
 	"github.com/samber/mo"
 )
 
@@ -36,26 +35,24 @@ func Test_getCommonVsCodePaths(t *testing.T) {
 			args: args{
 				store: &mockVscodePathStore{},
 			},
-			want: lo.Flatten([][]mo.Result[string]{
+			want: append(
 				commonVSCodePaths,
-				{
+				[]mo.Result[string]{
 					mo.Ok("/mnt/c/Users/1234/AppData/Local/Programs/Microsoft VS Code/Code.exe"),
-				},
-			}),
+					mo.Ok("/mnt/c/Users/1234/AppData/Local/Programs/Microsoft VS Code/bin/code"),
+				}...),
 		},
 		{
 			name: "test",
 			args: args{
 				store: &mockVscodePathStoreAlwaysError{},
 			},
-			want: lo.Flatten(
-				[][]mo.Result[string]{
-					commonVSCodePaths,
-					{
-						mo.Err[string](errors.New("error")),
-					},
-				},
-			),
+			want: append(
+				commonVSCodePaths,
+				[]mo.Result[string]{
+					mo.Err[string](errors.New("error")),
+					mo.Err[string](errors.New("error")),
+				}...),
 		},
 	}
 	for _, tt := range tests {
