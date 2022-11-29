@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"golang.org/x/crypto/ssh"
 )
 
