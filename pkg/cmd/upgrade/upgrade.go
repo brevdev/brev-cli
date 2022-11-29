@@ -20,7 +20,7 @@ var (
 
 type upgradeStore interface {
 	GetOSUser() string
-	DownloadUrl() (string, error)
+	DownloadURL() (string, error)
 	DownloadBrevBinary(url, path string) error
 }
 
@@ -94,7 +94,7 @@ var upgradeFuncs = map[string]uFunc{
 			return breverrors.New("You must be root to upgrade, re run with: sudo brev upgrade")
 		}
 		// get cli download url
-		url, err := ucmd.store.DownloadUrl()
+		url, err := ucmd.store.DownloadURL()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
