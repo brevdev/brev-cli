@@ -574,7 +574,7 @@ func (f FileStore) DownloadBrevBinary(url string, target string) error {
 			return breverrors.WrapAndTrace(err2)
 		}
 		if header.Name == "brev" {
-			_, err2 = io.Copy(out, tarReader)
+			_, err2 = io.Copy(out, tarReader) //nolint:gosec // assume the tar is trusted
 			if err2 != nil {
 				return breverrors.WrapAndTrace(err2)
 			}
