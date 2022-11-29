@@ -103,7 +103,6 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 func waitForSSHToBeAvailable(sshAlias string) {
 	counter := 0
 	for {
-		fmt.Println("COunter is: ", counter)
 		cmd := exec.Command("ssh", sshAlias, "echo", " ")
 		_, err := cmd.CombinedOutput()
 		if err == nil {
@@ -121,10 +120,7 @@ func waitForSSHToBeAvailable(sshAlias string) {
 func runSSH(workspace *entity.Workspace, sshAlias string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
 	if workspace.GetProjectFolderPath() != "" {
-		// so this command still fails ssh test-cd-1 -o RemoteCommand="cd abc"
-		// remoteCmdArg := fmt.Sprintf("cd %s", workspace.GetProjectFolderPath())
-		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath()) //, "echo", "hello")
-		// sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), "&&", "zsh") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
+		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), ";", "$SHELL") //, "echo", "hello")
 	}
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
@@ -137,12 +133,7 @@ func runSSH(workspace *entity.Workspace, sshAlias string) error {
 
 	err = sshCmd.Run()
 	if err != nil {
-		// so here we'd then rerun the whole thing
-		sshCmd = exec.Command("ssh", sshAlias)
-		err = sshCmd.Run()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }

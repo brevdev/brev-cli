@@ -75,12 +75,8 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your dev environment...")
 	res := refresh.RunRefreshAsync(tstore)
-	fmt.Println("found your dev environment!")
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
-	fmt.Println("workspace is: ", workspace.Status)
 	if err != nil {
-		fmt.Println("workspace is: ")
-
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspace.Status == "STOPPED" { // we start the env for the user
