@@ -120,7 +120,7 @@ func waitForSSHToBeAvailable(sshAlias string) {
 func runSSH(workspace *entity.Workspace, sshAlias string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
 	if workspace.GetProjectFolderPath() != "" {
-		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), ";", "$SHELL") //, "echo", "hello")
+		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), ";", "$SHELL") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
 	}
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout

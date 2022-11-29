@@ -199,7 +199,10 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 	s := t.NewSpinner()
 	s.Start()
 	s.Suffix = "  checking if your environment is ready..."
-	waitForSSHToBeAvailable(t, s, sshAlias)
+	err = waitForSSHToBeAvailable(t, s, sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	waitForLoggerFileToBeAvailable(t, s, sshAlias)
 	if err != nil {
