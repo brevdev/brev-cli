@@ -116,7 +116,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
+	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier)) // we don't care about the error here but should log with sentry
 	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, waitForSetupToFinish)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
@@ -135,7 +135,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 		}
 		return breverrors.WrapAndTrace(err)
 	}
-	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier)) // we don't care about the error here but should log with sentry
 
 	return nil
 }

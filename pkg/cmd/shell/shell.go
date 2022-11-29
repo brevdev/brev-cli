@@ -88,11 +88,11 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		return breverrors.WrapAndTrace(err)
 	}
 	waitForSSHToBeAvailable(sshName)
+	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS) // we don't care about the error here but should log with sentry
 	err = runSSH(workspace, sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	_ = writeconnectionevent.WriteWCEOnEnv(sstore, sshName) // we don't care about the error here but should log with sentry
 
 	return nil
 }

@@ -1,9 +1,7 @@
 package writeconnectionevent
 
 import (
-	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -33,7 +31,7 @@ func runCMDonEnv(privateKey, host, cmd string) error {
 	// Connect to the remote server and perform the SSH handshake.
 	client, err := ssh.Dial("tcp", host+":22", config)
 	if err != nil {
-		return nil
+		return breverrors.WrapAndTrace(err, "unable to connect")
 	}
 	// run  sudo systemctl status brevmon --no-pager
 
@@ -42,13 +40,10 @@ func runCMDonEnv(privateKey, host, cmd string) error {
 		return breverrors.WrapAndTrace(err, "unable to create session: %v")
 	}
 	defer session.Close() //nolint:errcheck // defer
-	var b strings.Builder
-	session.Stdout = &b
-	err = session.Run(cmd)
+	out, err := session.CombinedOutput(cmd)
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "unable to run: %v")
+		return breverrors.WrapAndTrace(err, "unable to run: %v \n %v", cmd, string(out))
 	}
-	fmt.Println(b.String())
 	err = client.Close()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -65,11 +60,14 @@ func WriteWCEOnEnv(store wce, name string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	_ = runCMDonEnv( // todo log error with sentry
+	err = runCMDonEnv( // todo log error with sentry
 		keys.PrivateKey,
 		name,
-		"brev workspace-connection-event",
+		"sudo brev write-connection-event",
 	)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
