@@ -116,7 +116,10 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier)) // we don't care about the error here but should log with sentry
+	// we don't care about the error here but should log with sentry
+	// legacy environments wont support this and cause errrors,
+	// but we don't want to block the user from using vscode
+	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
 	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, waitForSetupToFinish)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
