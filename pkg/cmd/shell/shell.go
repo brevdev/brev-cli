@@ -2,8 +2,10 @@ package shell
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
@@ -15,6 +17,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/spf13/cobra"
 )
@@ -31,6 +34,7 @@ type ShellStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	StartWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
@@ -86,6 +90,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		return breverrors.WrapAndTrace(err)
 	}
 	waitForSSHToBeAvailable(sshName)
+	_ = writeWSConnectionEvent(sstore, sshName) // we don't care about the error here but should log with sentry
 	err = runSSH(workspace, sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -178,5 +183,68 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, shellStore Shell
 			isReady = true
 		}
 	}
+	return nil
+}
+
+func runCMDonEnv(privateKey, host, cmd string) error {
+	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
+	if err != nil {
+		return breverrors.WrapAndTrace(err, "unable to parse private key")
+	}
+
+	config := &ssh.ClientConfig{
+		User: "ubuntu",
+		Auth: []ssh.AuthMethod{
+			// Use the PublicKeys method for remote authentication.
+			ssh.PublicKeys(signer),
+		},
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			// use OpenSSH's known_hosts file if you care about host validation
+			return nil
+		},
+		Timeout: 5 * time.Second,
+	}
+
+	// Connect to the remote server and perform the SSH handshake.
+	client, err := ssh.Dial("tcp", host+":22", config)
+	if err != nil {
+		return nil
+	}
+	// run  sudo systemctl status brevmon --no-pager
+
+	session, err := client.NewSession()
+	if err != nil {
+		return breverrors.WrapAndTrace(err, "unable to create session: %v")
+	}
+	defer session.Close() //nolint:errcheck // defer
+	var b strings.Builder
+	session.Stdout = &b
+	err = session.Run(cmd)
+	if err != nil {
+		return breverrors.WrapAndTrace(err, "unable to run: %v")
+	}
+	fmt.Println(b.String())
+	err = client.Close()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+type wce interface {
+	GetCurrentUserKeys() (*entity.UserKeys, error)
+}
+
+func writeWSConnectionEvent(store wce, name string) error {
+	keys, err := store.GetCurrentUserKeys()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	_ = runCMDonEnv( // todo log error with sentry
+		keys.PrivateKey,
+		name,
+		"brev workspace-connection-event",
+	)
+
 	return nil
 }
