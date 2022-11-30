@@ -276,12 +276,16 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 			return "", breverrors.WrapAndTrace(err)
 		}
 	} else {
+		hostname := workspace.DNS
+		if hostname == "" {
+			hostname = "-"
+		}
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         "ubuntu", // todo param-user
 			Dir:          workspace.GetProjectFolderPath(),
-			HostName:     workspace.DNS,
+			HostName:     hostname,
 		}
 		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)
 		if err != nil {
