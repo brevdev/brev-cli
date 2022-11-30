@@ -240,7 +240,7 @@ func openVsCodeWithSSH(
 				func(value bool) (bool, error) {
 					if value {
 						// todo log original error to sentry
-						return true, errors.New("brev open is currently not supported in a brev when accessed via the brev shell command. Please run brev open locally instead")
+						return true, errors.New("you are in a remote brev environment; brev open is not supported. Please run brev open locally instead")
 					}
 					return false, breverrors.WrapAndTrace(err)
 				},
