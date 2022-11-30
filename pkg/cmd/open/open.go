@@ -241,7 +241,7 @@ func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias 
 			s.Suffix = t.Green(" waiting for connection to be ready 🤙")
 		}
 		if counter == 60 {
-			return breverrors.WrapAndTrace(errors.New("timed out waiting for connection to be ready"))
+			return breverrors.WrapAndTrace(errors.New("\nIt looks like we can't ssh into the environment. Please try restarting it"))
 		}
 
 		counter++

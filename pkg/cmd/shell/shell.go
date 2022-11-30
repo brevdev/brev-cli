@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -87,7 +88,10 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	waitForSSHToBeAvailable(sshName)
+	err = waitForSSHToBeAvailable(sshName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	// we don't care about the error here but should log with sentry
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using the shell
@@ -100,18 +104,20 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	return nil
 }
 
-func waitForSSHToBeAvailable(sshAlias string) {
+func waitForSSHToBeAvailable(sshAlias string) error {
 	counter := 0
 	for {
-		cmd := exec.Command("ssh", sshAlias, "echo", " ")
+		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
 		_, err := cmd.CombinedOutput()
 		if err == nil {
-			return
+			return nil
 		}
-		if counter == 1 {
+		if counter == 10 {
 			fmt.Println("\nPerforming final checks...")
 		}
-		// TODO: here make sure to timeout
+		if counter == 60 {
+			return breverrors.WrapAndTrace(errors.New("\nIt looks like we can't SSH into the environment. Please try restarting it"))
+		}
 		counter++
 		time.Sleep(1 * time.Second)
 	}
