@@ -14,7 +14,6 @@ func runCMDonEnv(privateKey, host, cmd string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err, "unable to parse private key")
 	}
-
 	config := &ssh.ClientConfig{
 		User: "ubuntu",
 		Auth: []ssh.AuthMethod{
@@ -33,8 +32,6 @@ func runCMDonEnv(privateKey, host, cmd string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err, "unable to connect")
 	}
-	// run  sudo systemctl status brevmon --no-pager
-
 	session, err := client.NewSession()
 	if err != nil {
 		return breverrors.WrapAndTrace(err, "unable to create session: %v")
@@ -60,7 +57,7 @@ func WriteWCEOnEnv(store wce, name string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = runCMDonEnv( // todo log error with sentry
+	err = runCMDonEnv(
 		keys.PrivateKey,
 		name,
 		"sudo brev write-connection-event",
