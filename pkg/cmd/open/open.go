@@ -285,7 +285,7 @@ func waitForLoggerFileToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, ss
 			return
 		}
 		if counter == 5 {
-			s.Suffix = t.Green(" setting up Ubuntu...")
+			s.Suffix = t.Green(" setting up the system...")
 		}
 		if counter == 20 {
 			s.Suffix = t.Green(" installing a few more bits and bobs... ")
