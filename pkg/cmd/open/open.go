@@ -43,6 +43,7 @@ type OpenStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWindowsDir() (string, error)
+	IsWorkspace() (bool, error)
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
@@ -189,7 +190,13 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 }
 
 // Opens code editor. Attempts to install code in path if not installed already
-func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstore OpenStore, waitForSetupToFinish bool) error {
+func openVsCodeWithSSH(
+	t *terminal.Terminal,
+	sshAlias string,
+	path string,
+	tstore OpenStore,
+	waitForSetupToFinish bool,
+) error {
 	// infinite for loop:
 	res := refresh.RunRefreshAsync(tstore)
 	err := res.Await()
@@ -221,7 +228,26 @@ func openVsCodeWithSSH(t *terminal.Terminal, sshAlias string, path string, tstor
 		s.Suffix = " Environment is ready. Opening VS Code 🤙"
 		time.Sleep(1 * time.Second)
 		err = openVsCode(sshAlias, path, tstore)
+
 		if err != nil {
+			// check if we are in a brev environment, if so transform the error message
+			// to indicate that the user should run brev open locally instead of in
+			// the cloud and that we intend on supporting this in the future
+			// if there is an error getting the workspace, append that error with
+			// multierror,
+			// otherwise, just return the error
+			err = mo.TupleToResult(tstore.IsWorkspace()).Match(
+				func(value bool) (bool, error) {
+					if value {
+						return true, errors.New("brev open is not supported in a brev environment. Please run brev open locally instead")
+					}
+					return false, breverrors.WrapAndTrace(err)
+				},
+				func(err2 error) (bool, error) {
+					return false, multierror.Append(err, err2)
+				},
+			).Error()
+
 			return breverrors.WrapAndTrace(err)
 		}
 	}
