@@ -239,7 +239,8 @@ func openVsCodeWithSSH(
 			err = mo.TupleToResult(tstore.IsWorkspace()).Match(
 				func(value bool) (bool, error) {
 					if value {
-						return true, errors.New("brev open is not supported in a brev environment. Please run brev open locally instead")
+						// todo log original error to sentry
+						return true, errors.New("brev open is currently not supported in a brev when accessed via the brev shell command. Please run brev open locally instead")
 					}
 					return false, breverrors.WrapAndTrace(err)
 				},
