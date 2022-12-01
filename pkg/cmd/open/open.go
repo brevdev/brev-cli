@@ -59,7 +59,11 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runOpenCommand(t, store, args[0], waitForSetupToFinish)
+			setupDoneString := "------ Git repo cloned ------"
+			if waitForSetupToFinish {
+				setupDoneString = "------ Done running execs ------"
+			}
+			err := runOpenCommand(t, store, args[0], setupDoneString)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -72,7 +76,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, waitForSetupToFinish bool) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string) error {
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your dev environment...")
 	res := refresh.RunRefreshAsync(tstore)
@@ -120,7 +124,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, w
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using vscode
 	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
-	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, waitForSetupToFinish)
+	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
@@ -195,7 +199,7 @@ func openVsCodeWithSSH(
 	sshAlias string,
 	path string,
 	tstore OpenStore,
-	waitForSetupToFinish bool,
+	setupDoneString string,
 ) error {
 	// infinite for loop:
 	res := refresh.RunRefreshAsync(tstore)
@@ -215,12 +219,12 @@ func openVsCodeWithSSH(
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	setupFinished, err := checkSetupFinished(sshAlias, waitForSetupToFinish)
+	setupFinished, err := checkSetupFinished(sshAlias, setupDoneString)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if !setupFinished {
-		err = streamOutput(t, s, sshAlias, path, waitForSetupToFinish, tstore)
+		err = streamOutput(t, s, sshAlias, path, setupDoneString, tstore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -299,12 +303,13 @@ func waitForLoggerFileToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, ss
 	}
 }
 
-func checkSetupFinished(sshAlias string, waitForSetupToFinish bool) (bool, error) {
+func checkSetupFinished(sshAlias string, setupDoneString string) (bool, error) {
 	out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput() // RemoteCommand=none
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	return (strings.Contains(string(out), "------ Setup End ------") || (!waitForSetupToFinish && strings.Contains(string(out), "------ Git repo cloned ------"))), nil
+
+	return (strings.Contains(string(out), "------ Setup End ------") || strings.Contains(string(out), setupDoneString)), nil
 }
 
 func streamOutput(
@@ -312,7 +317,7 @@ func streamOutput(
 	s *spinner.Spinner,
 	sshAlias string,
 	path string,
-	waitForSetupToFinish bool,
+	setupDoneString string,
 	store OpenStore,
 ) error {
 	s.Suffix = t.Green(" should be no more than a minute now...hit ENTER to see logs")
@@ -334,7 +339,7 @@ func streamOutput(
 		&vscodeAlreadyOpened,
 		&showLogsToUser,
 		errChannel,
-		waitForSetupToFinish,
+		setupDoneString,
 		store,
 	)
 
@@ -364,14 +369,14 @@ func scanLoggerFile(
 	vscodeAlreadyOpened *bool,
 	showLogsToUser *bool,
 	err chan error,
-	waitForSetupToFinish bool,
+	setupDoneString string,
 	store OpenStore,
 ) {
 	for scanner.Scan() {
 		if *showLogsToUser {
 			fmt.Println("\n", scanner.Text())
 		}
-		if strings.Contains(scanner.Text(), "------ Setup End ------") || (!waitForSetupToFinish && strings.Contains(scanner.Text(), "------ Git repo cloned ------")) {
+		if strings.Contains(scanner.Text(), "------ Setup End ------") || strings.Contains(scanner.Text(), setupDoneString) {
 			if !*vscodeAlreadyOpened {
 				s.Stop()
 				err <- openVsCode(sshAlias, path, store)

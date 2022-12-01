@@ -296,7 +296,7 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
+	fmt.Println("------ Done running execs ------")
 	err = appendLogToFile("done running execs", "/var/log/brev-steps.log")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
