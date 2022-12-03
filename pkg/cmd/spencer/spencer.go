@@ -51,9 +51,9 @@ func NewCmdSpencer(t *terminal.Terminal, store OpenStore, noLoginStartStore Open
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
-		Use:                   "open",
+		Use:                   "spencer",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode to ",
+		Short:                 "[beta] OPEN ALL THE THINGS!",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
@@ -75,6 +75,21 @@ func NewCmdSpencer(t *terminal.Terminal, store OpenStore, noLoginStartStore Open
 	return cmd
 }
 
+func getFolderFromGitRepo(repo string) (string, error) {
+	// repo is of the form "https://github.com/brevdev/brev-cli.git"
+	// we want to return "brev-cli"
+	split := strings.Split(repo, "/")
+	if len(split) < 2 {
+		return "", breverrors.WrapAndTrace(errors.New("invalid repo"))
+	}
+	last := split[len(split)-1]
+	split = strings.Split(last, ".")
+	if len(split) < 2 {
+		return "", breverrors.WrapAndTrace(errors.New("invalid repo"))
+	}
+	return split[0], nil
+}
+
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string) error {
 	// todo check if workspace is stopped and start if it if it is stopped
@@ -84,6 +99,20 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	// print workspace's repo object
+	t.Vprintf("workspace: %v", workspace)
+	t.Vprintf("len of repos: %v", len(workspace.ReposV0))
+	t.Vprintf("len of reposV1: %v", len(*workspace.ReposV1))
+	// iterate over workspace's repo object and print each repo
+	t.Vprintf("\n\n~2~")
+	for _, repo := range *workspace.ReposV1 {
+		t.Vprintf("\n\nrepo: %v", repo.GitRepo.Repository)
+		folder, _ := getFolderFromGitRepo(repo.GitRepo.Repository)
+		t.Vprintf("\n\nfolder: %v", folder)
+	}
+	t.Vprintf("\n\n~~")
+
 	if workspace.Status == "STOPPED" { // we start the env for the user
 		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
 		if err != nil {
