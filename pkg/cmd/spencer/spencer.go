@@ -100,19 +100,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// print workspace's repo object
-	t.Vprintf("workspace: %v", workspace)
-	t.Vprintf("len of repos: %v", len(workspace.ReposV0))
-	t.Vprintf("len of reposV1: %v", len(*workspace.ReposV1))
-	// iterate over workspace's repo object and print each repo
-	t.Vprintf("\n\n~2~")
-	for _, repo := range *workspace.ReposV1 {
-		t.Vprintf("\n\nrepo: %v", repo.GitRepo.Repository)
-		folder, _ := getFolderFromGitRepo(repo.GitRepo.Repository)
-		t.Vprintf("\n\nfolder: %v", folder)
-	}
-	t.Vprintf("\n\n~~")
-
 	if workspace.Status == "STOPPED" { // we start the env for the user
 		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
 		if err != nil {
@@ -136,41 +123,54 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WorkspaceNotRunning{Status: workspace.Status}
 	}
 
-	projPath := workspace.GetProjectFolderPath()
+	// print workspace's repo object
+	t.Vprintf("workspace: %v", workspace)
+	t.Vprintf("len of repos: %v", len(workspace.ReposV0))
+	t.Vprintf("len of reposV1: %v", len(*workspace.ReposV1))
+	// iterate over workspace's repo object and print each repo
+	t.Vprintf("\n\n~2~")
+	for _, repo := range *workspace.ReposV1 {
+		t.Vprintf("\n\nrepo: %v", repo.GitRepo.Repository)
+		folder, _ := getFolderFromGitRepo(repo.GitRepo.Repository)
+		t.Vprintf("\n\nfolder: %v", folder)
 
-	localIdentifier := workspace.GetLocalIdentifier()
+		projPath := "/home/ubuntu/" + folder
 
-	err = res.Await()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+		localIdentifier := workspace.GetLocalIdentifier()
 
-	err = hello.SetHasRunOpen(true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors,
-	// but we don't want to block the user from using vscode
-	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
-	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString)
-	if err != nil {
-		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
-			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
-			_, errStore := tstore.UpdateUser(
-				workspace.CreatedByUserID,
-				&entity.UpdateUser{
-					OnboardingData: map[string]interface{}{
-						"pathErrorTS": time.Now().UTC().Unix(),
-					},
-				})
-			if errStore != nil {
-				return errors.New(errMsg + "\n" + errStore.Error())
-			}
-			return errors.New(errMsg)
+		err = res.Await()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
-		return breverrors.WrapAndTrace(err)
+
+		err = hello.SetHasRunOpen(true)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		// we don't care about the error here but should log with sentry
+		// legacy environments wont support this and cause errrors,
+		// but we don't want to block the user from using vscode
+		_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
+		err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString)
+		if err != nil {
+			if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
+				errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
+				_, errStore := tstore.UpdateUser(
+					workspace.CreatedByUserID,
+					&entity.UpdateUser{
+						OnboardingData: map[string]interface{}{
+							"pathErrorTS": time.Now().UTC().Unix(),
+						},
+					})
+				if errStore != nil {
+					return errors.New(errMsg + "\n" + errStore.Error())
+				}
+				return errors.New(errMsg)
+			}
+			return breverrors.WrapAndTrace(err)
+		}
 	}
+	t.Vprintf("\n\n~~")
 
 	return nil
 }
