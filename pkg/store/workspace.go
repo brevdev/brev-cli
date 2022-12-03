@@ -368,6 +368,23 @@ func (s AuthHTTPStore) StopWorkspace(workspaceID string) (*entity.Workspace, err
 	return &result, nil
 }
 
+func (s AuthHTTPStore) AutoStopWorkspace(workspaceID string) (*entity.Workspace, error) {
+	var result entity.Workspace
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetQueryParam("autoStop", "true").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetResult(&result).
+		Put(workspaceStopPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
 var (
 	workspaceStartPathPattern = fmt.Sprintf("%s/start", workspacePathPattern)
 	workspaceStartPath        = fmt.Sprintf(workspaceStartPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
