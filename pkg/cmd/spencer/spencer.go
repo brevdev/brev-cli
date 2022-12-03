@@ -129,48 +129,49 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	t.Vprintf("len of reposV1: %v", len(*workspace.ReposV1))
 	// iterate over workspace's repo object and print each repo
 	t.Vprintf("\n\n~2~")
+
+	var folders []string
 	for _, repo := range *workspace.ReposV1 {
 		t.Vprintf("\n\nrepo: %v", repo.GitRepo.Repository)
 		folder, _ := getFolderFromGitRepo(repo.GitRepo.Repository)
 		t.Vprintf("\n\nfolder: %v", folder)
-
-		projPath := "/home/ubuntu/" + folder
-
-		localIdentifier := workspace.GetLocalIdentifier()
-
-		err = res.Await()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		err = hello.SetHasRunOpen(true)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		// we don't care about the error here but should log with sentry
-		// legacy environments wont support this and cause errrors,
-		// but we don't want to block the user from using vscode
-		_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
-		err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString)
-		if err != nil {
-			if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
-				errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
-				_, errStore := tstore.UpdateUser(
-					workspace.CreatedByUserID,
-					&entity.UpdateUser{
-						OnboardingData: map[string]interface{}{
-							"pathErrorTS": time.Now().UTC().Unix(),
-						},
-					})
-				if errStore != nil {
-					return errors.New(errMsg + "\n" + errStore.Error())
-				}
-				return errors.New(errMsg)
-			}
-			return breverrors.WrapAndTrace(err)
-		}
+		folders = append(folders, "/home/ubuntu/"+folder)
 	}
 	t.Vprintf("\n\n~~")
+
+	localIdentifier := workspace.GetLocalIdentifier()
+
+	err = res.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = hello.SetHasRunOpen(true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	// we don't care about the error here but should log with sentry
+	// legacy environments wont support this and cause errrors,
+	// but we don't want to block the user from using vscode
+	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
+	err = openVsCodeWithSSH(t, string(localIdentifier), folders, tstore, setupDoneString)
+	if err != nil {
+		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
+			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
+			_, errStore := tstore.UpdateUser(
+				workspace.CreatedByUserID,
+				&entity.UpdateUser{
+					OnboardingData: map[string]interface{}{
+						"pathErrorTS": time.Now().UTC().Unix(),
+					},
+				})
+			if errStore != nil {
+				return errors.New(errMsg + "\n" + errStore.Error())
+			}
+			return errors.New(errMsg)
+		}
+		return breverrors.WrapAndTrace(err)
+	}
 
 	return nil
 }
@@ -226,7 +227,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 func openVsCodeWithSSH(
 	t *terminal.Terminal,
 	sshAlias string,
-	path string,
+	paths []string,
 	tstore OpenStore,
 	setupDoneString string,
 ) error {
@@ -253,37 +254,41 @@ func openVsCodeWithSSH(
 		return breverrors.WrapAndTrace(err)
 	}
 	if !setupFinished {
-		err = streamOutput(t, s, sshAlias, path, setupDoneString, tstore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		for _, path := range paths {
+			err = streamOutput(t, s, sshAlias, path, setupDoneString, tstore)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
 	} else {
 		s.Suffix = " Environment is ready. Opening VS Code 🤙"
 		time.Sleep(1 * time.Second)
-		err = openVsCode(sshAlias, path, tstore)
+		for _, path := range paths {
+			err = openVsCode(sshAlias, path, tstore)
+			if err != nil {
+				// check if we are in a brev environment, if so transform the error message
+				// to indicate that the user should run brev open locally instead of in
+				// the cloud and that we intend on supporting this in the future
+				// if there is an error getting the workspace, append that error with
+				// multierror,
+				// otherwise, just return the error
+				err = mo.TupleToResult(tstore.IsWorkspace()).Match(
+					func(value bool) (bool, error) {
+						if value {
+							// todo log original error to sentry
+							return true, errors.New("you are in a remote brev environment; brev open is not supported. Please run brev open locally instead")
+						}
+						return false, breverrors.WrapAndTrace(err)
+					},
+					func(err2 error) (bool, error) {
+						return false, multierror.Append(err, err2)
+					},
+				).Error()
 
-		if err != nil {
-			// check if we are in a brev environment, if so transform the error message
-			// to indicate that the user should run brev open locally instead of in
-			// the cloud and that we intend on supporting this in the future
-			// if there is an error getting the workspace, append that error with
-			// multierror,
-			// otherwise, just return the error
-			err = mo.TupleToResult(tstore.IsWorkspace()).Match(
-				func(value bool) (bool, error) {
-					if value {
-						// todo log original error to sentry
-						return true, errors.New("you are in a remote brev environment; brev open is not supported. Please run brev open locally instead")
-					}
-					return false, breverrors.WrapAndTrace(err)
-				},
-				func(err2 error) (bool, error) {
-					return false, multierror.Append(err, err2)
-				},
-			).Error()
-
-			return breverrors.WrapAndTrace(err)
+				return breverrors.WrapAndTrace(err)
+			}
 		}
+
 	}
 	t.Vprint("\n")
 	return nil
