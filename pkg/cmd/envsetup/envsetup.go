@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -47,6 +48,8 @@ type envsetupStore interface {
 	AppendString(path string, content string) error
 	Chmod(path string, mode os.FileMode) error
 	ChownFilePathToUser(path string) error
+	OverWriteString(path string, content string) error
+	GetFileAsString(path string) (string, error)
 }
 
 type nologinEnvStore interface {
@@ -200,14 +203,21 @@ func appendLogToFile(content string, file string) error {
 var motd string
 
 func (e *envInitier) SetupMOTD() error {
-	err := e.store.WriteString("/etc/ssh/my_banner", motd)
+	err := e.store.OverWriteString("/etc/ssh/my_banner", motd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = e.store.AppendString("/etc/ssh/sshd_config", "Banner /etc/ssh/my_banner")
+	fstring, err := e.store.GetFileAsString("/etc/ssh/sshd_config")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	if !strings.Contains(fstring, "Banner /etc/ssh/my_banner") {
+		err = e.store.AppendString("/etc/ssh/sshd_config", "Banner /etc/ssh/my_banner")
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	err = setupworkspace.BuildAndRunCmd("systemctl", "reload", "ssh.service")
@@ -257,6 +267,7 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	postPrepare := util.RunEAsync(
 		e.SetupVsCodeExtensions,
 		e.SetupSpeedTest,
+		e.SetupMOTD,
 	)
 
 	err = util.RunEAsync(
