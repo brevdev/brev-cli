@@ -264,7 +264,7 @@ func openVsCodeWithSSH(
 		s.Suffix = " Environment is ready. Opening VS Code 🤙"
 		time.Sleep(1 * time.Second)
 		for _, path := range paths {
-			err = openVsCode(sshAlias, path, tstore)
+			err = openVsCodeAndTerminal(sshAlias, path, tstore)
 			if err != nil {
 				// check if we are in a brev environment, if so transform the error message
 				// to indicate that the user should run brev open locally instead of in
@@ -413,7 +413,7 @@ func scanLoggerFile(
 		if strings.Contains(scanner.Text(), "------ Setup End ------") || strings.Contains(scanner.Text(), setupDoneString) {
 			if !*vscodeAlreadyOpened {
 				s.Stop()
-				err <- openVsCode(sshAlias, path, store)
+				err <- openVsCodeAndTerminal(sshAlias, path, store)
 				*vscodeAlreadyOpened = true
 
 			}
@@ -487,7 +487,7 @@ func tryToOpenVsCodeViaExecutable(sshAlias, path string, vscodepaths []mo.Result
 	return breverrors.WrapAndTrace(errs.ErrorOrNil())
 }
 
-func openVsCode(sshAlias string, path string, store OpenStore) error {
+func openVsCodeAndTerminal(sshAlias string, path string, store OpenStore) error {
 	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
 	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
@@ -498,8 +498,18 @@ func openVsCode(sshAlias string, path string, store OpenStore) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+
 	}
 	return nil
+}
+
+func openTerminal(sshableName string, path string) {
+	// ssh -t naderdev "cd /home/ubuntu/brev-docs-new ; bash --login"
+	cmd := exec.Command("ssh", "-t", sshableName, fmt.Sprintf("\"cd %s ; bash --login\"", path)) // #nosec G204
+	err := cmd.Run()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
 }
 
 func openVsCodeViaExecutable(sshAlias, path string, vscodepath mo.Result[string]) error {
