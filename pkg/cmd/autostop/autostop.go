@@ -25,14 +25,17 @@ func NewCmdautostop(t *terminal.Terminal, store autostopStore) *cobra.Command {
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return breverrors.WrapAndTrace(
-				Runautostop(
-					runAutostopArgs{
-						t:     t,
-						args:  args,
-						store: store,
-					},
-				))
+			err := Runautostop(
+				runAutostopArgs{
+					t:     t,
+					args:  args,
+					store: store,
+				},
+			)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return nil
 		},
 	}
 	return cmd
@@ -66,13 +69,18 @@ func Runautostop(args runAutostopArgs) error {
 			return mo.TupleToResult(args.store.AutoStopWorkspace(env.ID))
 		},
 	)
-	return breverrors.WrapAndTrace(
-		lo.Reduce(
-			asResults,
-			func(acc error, res mo.Result[*entity.Workspace], _ int) error {
+	err = lo.Reduce(
+		asResults,
+		func(acc error, res mo.Result[*entity.Workspace], _ int) error {
+			if res.IsError() {
 				return multierror.Append(acc, res.Error())
-			},
-			nil,
-		),
+			}
+			return acc
+		},
+		nil,
 	)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
