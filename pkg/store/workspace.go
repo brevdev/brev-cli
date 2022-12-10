@@ -208,6 +208,12 @@ func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	// pretty srue we always want to do this
+	user, err := s.GetCurrentUser()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	workspaces = FilterForUserWorkspaces(workspaces, user.ID)
 	return workspaces, nil
 }
 
