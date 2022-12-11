@@ -48,6 +48,7 @@ type OpenStore interface {
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
 	var waitForSetupToFinish bool
+	var directory string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -63,7 +64,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if waitForSetupToFinish {
 				setupDoneString = "------ Done running execs ------"
 			}
-			err := runOpenCommand(t, store, args[0], setupDoneString)
+			err := runOpenCommand(t, store, args[0], setupDoneString, directory)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -71,12 +72,13 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		},
 	}
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
+	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
 
 	return cmd
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string) error {
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your dev environment...")
 	res := refresh.RunRefreshAsync(tstore)
@@ -108,6 +110,9 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	}
 
 	projPath := workspace.GetProjectFolderPath()
+	if directory != "" {
+		projPath = directory
+	}
 
 	localIdentifier := workspace.GetLocalIdentifier()
 
