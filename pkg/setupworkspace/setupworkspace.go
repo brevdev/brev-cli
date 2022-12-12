@@ -659,6 +659,16 @@ func BuildAndRunCmd(name string, args ...string) error {
 	return nil
 }
 
+func RunCMDWithOutput(name string, args ...string) (string, error) {
+	cmd := CmdBuilder(name, args...)
+	cmd.Env = append(cmd.Env, os.Environ()...)
+	out, err := cmd.Output()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return string(out), nil
+}
+
 func (w WorkspaceIniter) SetupSSH(keys *store.KeyPair) error {
 	cmd := CmdBuilder("mkdir", "-p", w.BuildHomePath(".ssh"))
 	err := cmd.Run()
