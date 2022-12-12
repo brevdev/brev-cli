@@ -17,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
+	"github.com/samber/mo"
 
 	"github.com/spf13/cobra"
 )
@@ -38,6 +39,8 @@ type ShellStore interface {
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
 	var runRemoteCMD bool
+	var directory string
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
@@ -48,7 +51,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runShellCommand(t, store, args[0])
+			err := runShellCommand(t, store, args[0], directory)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -56,11 +59,12 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		},
 	}
 	cmd.Flags().BoolVarP(&runRemoteCMD, "remote", "r", true, "run remote commands")
+	cmd.Flags().StringVarP(&directory, "dir", "d", "", "override directory to launch shell")
 
 	return cmd
 }
 
-func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string) error {
+func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string) error {
 	res := refresh.RunRefreshAsync(sstore)
 
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
@@ -96,7 +100,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using the shell
 	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
-	err = runSSH(workspace, sshName)
+	err = runSSH(workspace, sshName, directory)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -123,10 +127,11 @@ func waitForSSHToBeAvailable(sshAlias string) error {
 	}
 }
 
-func runSSH(workspace *entity.Workspace, sshAlias string) error {
+func runSSH(workspace *entity.Workspace, sshAlias, directory string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
+	path := mo.Some(directory).OrElse(workspace.GetProjectFolderPath())
 	if workspace.GetProjectFolderPath() != "" {
-		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", workspace.GetProjectFolderPath(), ";", "$SHELL") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
+		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", path, ";", "$SHELL") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
 	}
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
