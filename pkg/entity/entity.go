@@ -310,7 +310,7 @@ type Workspace struct {
 	// CreatedAt         string `json:"createdAt,omitempty"`
 	// UpdatedAt         string `json:"updatedAt,omitempty"`
 	HealthStatus  string        `json:"healthStatus"`
-	IsStoppable   bool          `json:"isStoppable"`
+	IsStoppable   bool          `json:"isStoppable"` // used for autopstop only
 	StatusMessage string        `json:"statusMessage"`
 	StopTimeout   time.Duration `json:"stopTimeout"`
 }
