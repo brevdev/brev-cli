@@ -7,7 +7,7 @@ import (
 type EnvVarName string // should be caps with underscore
 
 const (
-	brevAPIURL               EnvVarName = "http://localhost:8080 "
+	brevAPIURL               EnvVarName = "BREV_API_URL"
 	coordURL                 EnvVarName = "BREV_COORD_URL"
 	version                  EnvVarName = "VERSION"
 	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
@@ -23,7 +23,7 @@ func NewConstants() *ConstantsConfig {
 }
 
 func (c ConstantsConfig) GetBrevAPIURl() string {
-	return getEnvOrDefault(brevAPIURL, "http://localhost:8080")
+	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
 }
 
 func (c ConstantsConfig) GetServiceMeshCoordServerURL() string {
