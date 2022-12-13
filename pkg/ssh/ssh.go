@@ -552,21 +552,22 @@ func WaitForSSHToBeAvailable(sshAlias string) error {
 	for {
 		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
 		out, err := cmd.CombinedOutput()
-		// fmt.Println("golang err is: ", err)
-
-		outputStr := string(out)
-		// stringsOfInterest := [2]string{"Operation timed out", "Connection refused"}
-		stdErr := strings.Split(outputStr, "\n")[1]
-		// fmt.Println("stdErr is: ", stdErr)
 		if err == nil {
 			return nil
 		}
+
+		outputStr := string(out)
+		stdErr := strings.Split(outputStr, "\n")[1]
+		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out")
+	
+		if counter == 60  || !satisfactoryStdErrMessage {
+			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
+		}
+
 		if counter == 10 {
 			fmt.Println("\nPerforming final checks...")
 		}
-		if counter == 60 {
-			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
-		}
+
 		counter++
 		time.Sleep(1 * time.Second)
 	}
