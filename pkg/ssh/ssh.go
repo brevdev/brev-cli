@@ -16,13 +16,10 @@ package ssh
 import (
 	"bytes"
 	"encoding/xml"
-	"errors"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -544,31 +541,4 @@ func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspaceIdentifi
 		}
 	}
 	return "", nil
-}
-
-
-func WaitForSSHToBeAvailable(sshAlias string) error {
-	counter := 0
-	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			return nil
-		}
-
-		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
-		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out")
-	
-		if counter == 60  || !satisfactoryStdErrMessage {
-			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
-		}
-
-		if counter == 10 {
-			fmt.Println("\nPerforming final checks...")
-		}
-
-		counter++
-		time.Sleep(1 * time.Second)
-	}
 }

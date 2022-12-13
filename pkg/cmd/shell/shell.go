@@ -1,8 +1,11 @@
 package shell
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
@@ -12,10 +15,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
+	"github.com/briandowns/spinner"
 	"github.com/samber/mo"
 
 	"github.com/spf13/cobra"
@@ -65,14 +68,14 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string) error {
 	res := refresh.RunRefreshAsync(sstore)
-
+	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	if workspace.Status == "STOPPED" { // we start the env for the user
-		err = startWorkspaceIfStopped(t, sstore, workspaceNameOrID, workspace)
+		err = startWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -91,7 +94,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = ssh.WaitForSSHToBeAvailable(sshName)
+	err = waitForSSHToBeAvailable(sshName, s)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -107,6 +110,31 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	return nil
 }
 
+func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
+	counter := 0
+	s.Suffix = " waiting for SSH connection to be available"
+	s.Start()
+	for {
+		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			s.Stop()
+			return nil
+		}
+
+		outputStr := string(out)
+		stdErr := strings.Split(outputStr, "\n")[1]
+		fmt.Println("stdErr: " + stdErr)
+		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out")
+
+		if counter == 60 || !satisfactoryStdErrMessage {
+			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
+		}
+
+		counter++
+		time.Sleep(1 * time.Second)
+	}
+}
 
 func runSSH(workspace *entity.Workspace, sshAlias, directory string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
@@ -130,7 +158,7 @@ func runSSH(workspace *entity.Workspace, sshAlias, directory string) error {
 	return nil
 }
 
-func startWorkspaceIfStopped(t *terminal.Terminal, tstore ShellStore, wsIDOrName string, workspace *entity.Workspace) error {
+func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore ShellStore, wsIDOrName string, workspace *entity.Workspace) error {
 	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -144,7 +172,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore ShellStore, wsIDOrName
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
-	err = pollUntil(t, workspace.ID, entity.Running, tstore)
+	err = pollUntil(s, workspace.ID, entity.Running, tstore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -155,8 +183,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore ShellStore, wsIDOrName
 	return nil
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, shellStore ShellStore) error {
-	s := t.NewSpinner()
+func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellStore) error {
 	isReady := false
 	s.Suffix = " hang tight 🤙"
 	s.Start()
@@ -168,8 +195,6 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, shellStore Shell
 		}
 		s.Suffix = " hang tight 🤙"
 		if ws.Status == state {
-			s.Suffix = "Workspace is ready!"
-			s.Stop()
 			isReady = true
 		}
 	}

@@ -268,16 +268,22 @@ func openVsCodeWithSSH(
 func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) error {
 	counter := 0
 	for {
-		cmd := exec.Command("ssh", "-o", "RemoteCommand=none", "-o", "ConnectTimeout=1", sshAlias, "echo", "hello")
-		_, err := cmd.CombinedOutput()
+		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
+		out, err := cmd.CombinedOutput()
 		if err == nil {
 			return nil
 		}
-		if counter == 10 {
-			s.Suffix = t.Green(" waiting for connection to be ready 🤙")
+
+		outputStr := string(out)
+		stdErr := strings.Split(outputStr, "\n")[1]
+		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out")
+
+		if counter == 60 || !satisfactoryStdErrMessage {
+			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
 		}
-		if counter == 60 {
-			return breverrors.WrapAndTrace(errors.New("\nIt looks like we can't ssh into the environment. Please try restarting it"))
+
+		if counter == 10 {
+			s.Suffix = t.Green(" waiting for SSH connection to be available 🤙")
 		}
 
 		counter++
