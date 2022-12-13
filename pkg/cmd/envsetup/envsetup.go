@@ -253,9 +253,9 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	out, err := setupworkspace.RunCMDWithOutput("apt-get", "-y", "remove", "unattended-upgrades")
+	_, err = setupworkspace.RunCMDWithOutput("apt-get", "-y", "remove", "unattended-upgrades")
 	if err != nil {
-		return breverrors.WrapAndTrace(err, out)
+		fmt.Println(err)
 	}
 
 	cmd := setupworkspace.CmdStringBuilder("echo user: $(whoami) && echo pwd: $(pwd)")
