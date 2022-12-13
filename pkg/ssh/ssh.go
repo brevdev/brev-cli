@@ -16,10 +16,13 @@ package ssh
 import (
 	"bytes"
 	"encoding/xml"
+	"errors"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -541,4 +544,30 @@ func (jbgc *JetBrainsGatewayConfig) GetConfiguredWorkspacePort(workspaceIdentifi
 		}
 	}
 	return "", nil
+}
+
+
+func WaitForSSHToBeAvailable(sshAlias string) error {
+	counter := 0
+	for {
+		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
+		out, err := cmd.CombinedOutput()
+		// fmt.Println("golang err is: ", err)
+
+		outputStr := string(out)
+		// stringsOfInterest := [2]string{"Operation timed out", "Connection refused"}
+		stdErr := strings.Split(outputStr, "\n")[1]
+		// fmt.Println("stdErr is: ", stdErr)
+		if err == nil {
+			return nil
+		}
+		if counter == 10 {
+			fmt.Println("\nPerforming final checks...")
+		}
+		if counter == 60 {
+			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
+		}
+		counter++
+		time.Sleep(1 * time.Second)
+	}
 }
