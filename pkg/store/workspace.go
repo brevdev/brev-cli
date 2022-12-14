@@ -195,25 +195,19 @@ func FilterForUserWorkspaces(workspaces []entity.Workspace, userID string) []ent
 }
 
 func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
-	workspace, err := s.GetWorkspace(nameOrID)
-	if err != nil {
-		if !IsNetwork404Or403Error(err) {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-	if workspace != nil {
-		return []entity.Workspace{*workspace}, nil
-	}
-	workspaces, err := s.GetWorkspaces(orgID, &GetWorkspacesOptions{Name: nameOrID})
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	// pretty srue we always want to do this
+	// pretty srue we always want to filter for workspaces owned by the user
 	user, err := s.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	workspaces = FilterForUserWorkspaces(workspaces, user.ID)
+	workspaces, err := s.GetWorkspaces(orgID, &GetWorkspacesOptions{
+		Name:   nameOrID,
+		UserID: user.ID,
+	})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
 	return workspaces, nil
 }
 

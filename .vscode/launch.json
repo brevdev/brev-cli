@@ -261,5 +261,18 @@
         "brev-cli",
       ],
     },
+    {
+      "name": "open",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/main.go",
+      //   "envFile": "${workspaceFolder}/prod_lite.env",
+      // "envFile": "${workspaceFolder}/local.env",
+      "args": [
+        "open",
+        "brevmon",
+      ],
+    },
   ]
 }
