@@ -244,24 +244,27 @@ func (e *envInitier) SetupSpeedTest() error {
 }
 
 func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
+	var setupErr error
+
 	err := appendLogToFile("setup started", "/var/log/brev-setup-steps.log")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 
 	err = setupworkspace.BuildAndRunCmd("systemctl", "stop", "unattended-upgrades")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
-	_, err = setupworkspace.RunCMDWithOutput("apt-get", "-y", "remove", "unattended-upgrades")
+	out, err := setupworkspace.RunCMDWithOutput("apt-get", "-y", "remove", "unattended-upgrades")
 	if err != nil {
-		fmt.Println(err)
+		setupErr = multierror.Append(setupErr,
+			breverrors.WrapAndTrace(err, "apt-get -y remove unattended-upgrades", out))
 	}
 
 	cmd := setupworkspace.CmdStringBuilder("echo user: $(whoami) && echo pwd: $(pwd)")
 	err = cmd.Run()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 
 	postPrepare := util.RunEAsync(
@@ -275,14 +278,12 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		e.SetupGit,
 	).Await()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
-
-	var setupErr error
 
 	err = appendLogToFile("starting repo setup", "/var/log/brev-steps.log")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 	err = e.SetupRepos()
 	if err != nil {
@@ -291,12 +292,12 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	fmt.Println("------ Git repo cloned ------")
 	err = appendLogToFile("repo setup done", "/var/log/brev-steps.log")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 
 	err = appendLogToFile("starting to run execs", "/var/log/brev-steps.log")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 	err = e.RunExecs()
 	if err != nil {
@@ -305,39 +306,38 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 
 	err = e.SetupEnvVars()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
 	fmt.Println("------ Done running execs ------")
 	err = appendLogToFile("done running execs", "/var/log/brev-steps.log")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	if setupErr != nil {
-		return breverrors.WrapAndTrace(setupErr)
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
 
 	err = e.brevMonConfigurer.Install()
 	if err != nil {
-		// todo dont fail but alert sentry
-		log.Println(err) // if this fails we don't want to stop the setup
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
 
 	if e.datadogAPIKey != "" {
 		err = e.SetupDatadog()
 		if err != nil {
-			log.Println(err) // if this fails we don't want to stop the setup
+			setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 		}
 	}
 
 	err = postPrepare.Await()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
 
 	err = appendLogToFile("setup done", "/var/log/brev-steps.log")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
+	}
+
+	if setupErr != nil {
+		return breverrors.WrapAndTrace(setupErr)
 	}
 
 	return nil

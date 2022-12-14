@@ -660,7 +660,7 @@ func BuildAndRunCmd(name string, args ...string) error {
 }
 
 func RunCMDWithOutput(name string, args ...string) (string, error) {
-	cmd := CmdBuilder(name, args...)
+	cmd := exec.Command(name, args...)
 	cmd.Env = append(cmd.Env, os.Environ()...)
 	out, err := cmd.Output()
 	if err != nil {
