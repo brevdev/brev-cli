@@ -97,7 +97,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WrapAndTrace(err)
 	}
 
-
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 
 	if err != nil {
