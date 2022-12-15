@@ -2,7 +2,6 @@ package shell
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -124,7 +123,6 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 
 		outputStr := string(out)
 		stdErr := strings.Split(outputStr, "\n")[1]
-		fmt.Println("stdErr: " + stdErr)
 		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out")
 
 		if counter == 60 || !satisfactoryStdErrMessage {
