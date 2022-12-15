@@ -271,7 +271,7 @@
       // "envFile": "${workspaceFolder}/local.env",
       "args": [
         "open",
-        "brevmon",
+        "brev-deploy",
       ],
     },
   ]

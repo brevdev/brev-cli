@@ -92,12 +92,11 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			return breverrors.WrapAndTrace(err)
 		}
 	}
-	if workspace.Status == "STARTING" || workspace.Status == "DEPLOYING" {
-		err = pollUntil(t, workspace.ID, "RUNNING", tstore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	err = pollUntil(t, workspace.ID, "RUNNING", tstore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+
 
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 
@@ -173,23 +172,11 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, openStore OpenSt
 }
 
 func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, workspace *entity.Workspace) error {
-	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	startedWorkspace, err := tstore.StartWorkspace(workspaces[0].ID)
+	startedWorkspace, err := tstore.StartWorkspace(workspace.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
-	err = pollUntil(t, workspace.ID, entity.Running, tstore)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
