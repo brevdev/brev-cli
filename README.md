@@ -31,3 +31,9 @@ https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-
 ## Contributing
 
 We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
+
+## Trying
+
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/createdevenv2.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/createdevenv3.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
