@@ -12,6 +12,7 @@ type LinuxSystemdConfigurer struct {
 	ValueConfigFile string
 	ServiceName     string
 	ServiceType     string
+	TargetBin       string
 }
 
 const (
@@ -33,7 +34,7 @@ func (lsc LinuxSystemdConfigurer) UnInstall() error {
 			return breverrors.WrapAndTrace(errother)
 		}
 	}
-	err = execCommands([][]string{
+	err = ExecCommands([][]string{
 		{"systemctl", "disable", lsc.ServiceName},
 		{"systemctl", "stop", lsc.ServiceName},
 	})
@@ -45,7 +46,7 @@ func (lsc LinuxSystemdConfigurer) UnInstall() error {
 
 func (lsc LinuxSystemdConfigurer) Install() error {
 	_ = lsc.UnInstall() // best effort
-	err := lsc.Store.CopyBin(targetBin)
+	err := lsc.Store.CopyBin(lsc.TargetBin)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -60,7 +61,7 @@ func (lsc LinuxSystemdConfigurer) Install() error {
 			return breverrors.WrapAndTrace(errother)
 		}
 	} else {
-		errother := execCommands([][]string{
+		errother := ExecCommands([][]string{
 			{"systemctl", "enable", lsc.ServiceName},
 			{"systemctl", "start", lsc.ServiceName},
 			{"systemctl", "daemon-reload"},

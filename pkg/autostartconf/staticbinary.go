@@ -35,7 +35,7 @@ func (sbc StaticBinaryConfigurer) Install() error {
 			return breverrors.WrapAndTrace(errother)
 		}
 	} else {
-		errother := execCommands([][]string{
+		errother := ExecCommands([][]string{
 			{"systemctl", "enable", sbc.ServiceName},
 			{"systemctl", "start", sbc.ServiceName},
 			{"systemctl", "daemon-reload"},

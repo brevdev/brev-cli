@@ -75,7 +75,7 @@ func (dpc DarwinPlistConfigurer) Install() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = execCommands(commands)
+	err = ExecCommands(commands)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -27,7 +27,7 @@ type DaemonConfigurer interface {
 	UnInstall() error
 }
 
-func execCommands(commands [][]string) error {
+func ExecCommands(commands [][]string) error {
 	for _, command := range commands {
 		first, rest := firstAndRest(command)
 		out, err := exec.Command(first, rest...).CombinedOutput() // #nosec G204
@@ -64,6 +64,7 @@ Restart=always
 `,
 			ServiceName: "brevvpnd.service",
 			ServiceType: "system",
+			TargetBin:   targetBin,
 		}
 	case osDarwin:
 		return DarwinPlistConfigurer{
@@ -194,6 +195,7 @@ User=` + store.GetOSUser() + `
 `,
 			ServiceName: "brevsshcd.service",
 			ServiceType: "user",
+			TargetBin:   targetBin,
 		}
 	case osDarwin:
 		return DarwinPlistConfigurer{

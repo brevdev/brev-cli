@@ -17,7 +17,7 @@ func (abc AptBinaryConfigurer) Install() error {
 	_ = abc.UnInstall() // best effort
 
 	// install apt dependencies
-	err := execCommands([][]string{
+	err := ExecCommands([][]string{
 		{"apt-get", "update"},
 		append([]string{"apt-get", "install", "-y"}, abc.aptDependencies...),
 	})
@@ -44,7 +44,7 @@ func (abc AptBinaryConfigurer) Install() error {
 			return breverrors.WrapAndTrace(errother)
 		}
 	} else {
-		errother := execCommands([][]string{
+		errother := ExecCommands([][]string{
 			{"systemctl", "enable", abc.ServiceName},
 			{"systemctl", "start", abc.ServiceName},
 			{"systemctl", "daemon-reload"},

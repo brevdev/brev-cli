@@ -2,12 +2,14 @@ package updatemodel
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -25,10 +27,12 @@ type updatemodelStore interface {
 	ModifyWorkspace(workspaceID string, options *store.ModifyWorkspaceRequest) (*entity.Workspace, error)
 	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	WriteString(path, data string) error
 }
 
 func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Command {
 	var directory string
+	var configure bool
 	cmd := &cobra.Command{
 		Use:                   "updatemodel",
 		DisableFlagsInUseLine: true,
@@ -41,9 +45,11 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 			directory: directory,
 			clone:     git.PlainClone,
 			open:      func(path string) (repo, error) { return git.PlainOpen(path) },
+			configure: configure,
 		}.RunE,
 	}
 	cmd.Flags().StringVarP(&directory, "directory", "d", ".", "Directory to run command in")
+	cmd.Flags().BoolVarP(&configure, "configure", "c", false, "configure daemon")
 	return cmd
 }
 
@@ -57,9 +63,13 @@ type updateModel struct {
 	directory string
 	clone     func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error)
 	open      func(path string) (repo, error)
+	configure bool
 }
 
 func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
+	if u.configure {
+		return u.ConfigureDaemon()
+	}
 	// this could be done in one go but this way is easier to reason about
 	err := u.updateBE()
 	if err != nil {
@@ -71,6 +81,63 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	return nil
+}
+
+func (u updateModel) ConfigureDaemon() error {
+	// create systemd service file to run
+	// brev updatemodel -d /home/ubuntu
+	configFile := filepath.Join("/etc/systemd/system", "brev-updatemodel.service")
+	err := u.store.WriteString(
+		configFile,
+		`[Unit]
+Description=Brev Update Model
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+ExecStart=/usr/bin/brev updatemodel -d /home/ubuntu
+`)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if autostartconf.ShouldSymlink() {
+		symlinkTarget := path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName)
+		err := os.Symlink(configFile, symlinkTarget)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+	// create systemd timer to run every 5 seconds
+	err = u.store.WriteString(
+		"/etc/systemd/system/brev-updatemodel.timer",
+		`[Unit]
+Description=Brev Update Model Timer
+
+[Timer]
+OnBootSec=5
+OnUnitActiveSec=5
+
+[Install]
+WantedBy=timers.target
+`)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// enable timer
+	err = autostartconf.ExecCommands(
+		[][]string{
+			{"systemctl", "enable", "brev-updatemodel.timer"},
+			{"systemctl", "start", "brev-updatemodel.timer"},
+			{"systemctl", "daemon-reload"},
+		},
+	)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 
@@ -219,11 +286,11 @@ func (r *repoMerger) ReposToClone() []*entity.RepoV1 {
 	// repos present in the BE but not in the ENV
 	return lo.Filter(
 		r.accValues(),
-		func(repo *entity.RepoV1, _ int) bool {
+		func(accrepo *entity.RepoV1, _ int) bool {
 			_, valueInENV := lo.Find(
 				r.reposValues(),
 				func(repo *entity.RepoV1) bool {
-					return repo.GitRepo.Repository == repo.GitRepo.Repository
+					return accrepo.GitRepo.Repository == repo.GitRepo.Repository
 				},
 			)
 			return !valueInENV
