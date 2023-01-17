@@ -215,3 +215,59 @@ func Test_repoMerger_MergeBE(t *testing.T) {
 		})
 	}
 }
+
+func Test_repoMerger_ReposToClone(t *testing.T) {
+	type fields struct {
+		acc   *entity.ReposV1
+		repos []*entity.ReposV1
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   []*entity.RepoV1
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test",
+			fields: fields{
+				acc: &entity.ReposV1{
+					entity.RepoName("brev-cli"): {
+						Type: entity.GitRepoType,
+						GitRepo: entity.GitRepo{
+							Repository: "git@github.com/brevdev/brev-cli.git",
+						},
+					},
+				},
+				repos: []*entity.ReposV1{
+					{
+						entity.RepoName("brev-deploy"): {
+							Type: entity.GitRepoType,
+							GitRepo: entity.GitRepo{
+								Repository: "github.com/brevdev/brev-deploy.git",
+							},
+						},
+					},
+				},
+			},
+			want: []*entity.RepoV1{
+				{
+					Type: entity.GitRepoType,
+					GitRepo: entity.GitRepo{
+						Repository: "git@github.com/brevdev/brev-cli.git",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &repoMerger{
+				acc:   tt.fields.acc,
+				repos: tt.fields.repos,
+			}
+			if diff := cmp.Diff(r.ReposToClone(), tt.want); diff != "" {
+				t.Errorf("repoMerger.ReposToClone() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
