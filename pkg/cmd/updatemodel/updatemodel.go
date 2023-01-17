@@ -39,9 +39,9 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 		Short:                 short,
 		Long:                  long,
 		Example:               example,
-		RunE: updateModel{
+		RunE: UpdateModel{
 			t:         t,
-			store:     store,
+			Store:     store,
 			directory: directory,
 			clone:     git.PlainClone,
 			open:      func(path string) (repo, error) { return git.PlainOpen(path) },
@@ -57,18 +57,22 @@ type repo interface {
 	Remotes() ([]*git.Remote, error)
 }
 
-type updateModel struct {
+type UpdateModel struct {
 	t         *terminal.Terminal
-	store     updatemodelStore
+	Store     updatemodelStore
 	directory string
 	clone     func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error)
 	open      func(path string) (repo, error)
 	configure bool
 }
 
-func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
+func (u UpdateModel) RunE(_ *cobra.Command, _ []string) error {
 	if u.configure {
-		return u.ConfigureDaemon()
+		return breverrors.WrapAndTrace(
+			DaemonConfigurer{
+				Store: u.Store,
+			}.Configure(),
+		)
 	}
 	// this could be done in one go but this way is easier to reason about
 	err := u.updateBE()
@@ -84,11 +88,19 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (u updateModel) ConfigureDaemon() error {
+type stringWriter interface {
+	WriteString(path, data string) error
+}
+
+type DaemonConfigurer struct {
+	Store stringWriter
+}
+
+func (dc DaemonConfigurer) Configure() error {
 	// create systemd service file to run
 	// brev updatemodel -d /home/ubuntu
 	configFile := filepath.Join("/etc/systemd/system", "brev-updatemodel.service")
-	err := u.store.WriteString(
+	err := dc.Store.WriteString(
 		configFile,
 		`[Unit]
 Description=Brev Update Model
@@ -111,7 +123,7 @@ ExecStart=/usr/bin/brev updatemodel -d /home/ubuntu
 		}
 	}
 	// create systemd timer to run every 5 seconds
-	err = u.store.WriteString(
+	err = dc.Store.WriteString(
 		"/etc/systemd/system/brev-updatemodel.timer",
 		`[Unit]
 Description=Brev Update Model Timer
@@ -141,17 +153,17 @@ WantedBy=timers.target
 	return nil
 }
 
-func (u updateModel) updateENV() error {
+func (u UpdateModel) updateENV() error {
 	remotes, err := u.remotes()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	workspaceID, err := u.store.GetCurrentWorkspaceID()
+	workspaceID, err := u.Store.GetCurrentWorkspaceID()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err := u.store.GetWorkspace(workspaceID)
+	workspace, err := u.Store.GetWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -206,17 +218,17 @@ func (u updateModel) updateENV() error {
 	)
 }
 
-func (u updateModel) updateBE() error {
+func (u UpdateModel) updateBE() error {
 	remotes, err := u.remotes()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	workspaceID, err := u.store.GetCurrentWorkspaceID()
+	workspaceID, err := u.Store.GetCurrentWorkspaceID()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err := u.store.GetWorkspace(workspaceID)
+	workspace, err := u.Store.GetWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -244,7 +256,7 @@ func (u updateModel) updateBE() error {
 		repos: []*entity.ReposV1{reposv1FromENV},
 	}
 
-	_, err = u.store.ModifyWorkspace(
+	_, err = u.Store.ModifyWorkspace(
 		workspaceID,
 		&store.ModifyWorkspaceRequest{
 			ReposV1: beLocalRepoMerger.MergeBE(),
@@ -316,7 +328,7 @@ func (r repoMerger) accValues() []*entity.RepoV1 {
 	return values
 }
 
-func (u updateModel) remotes() ([]*git.Remote, error) {
+func (u UpdateModel) remotes() ([]*git.Remote, error) {
 	remotes := []*git.Remote{}
 	err := filepath.Walk(u.directory, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {

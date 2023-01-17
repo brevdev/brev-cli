@@ -80,9 +80,9 @@ func Test_updateModel_updateENV(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := updateModel{
+			u := UpdateModel{
 				t:         tt.fields.t,
-				store:     tt.fields.store,
+				Store:     tt.fields.store,
 				directory: tt.fields.directory,
 				clone:     tt.fields.clone,
 				open:      tt.fields.open,
@@ -128,9 +128,9 @@ func Test_updateModel_RunE(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := updateModel{
+			u := UpdateModel{
 				t:         tt.fields.t,
-				store:     tt.fields.store,
+				Store:     tt.fields.store,
 				directory: tt.fields.directory,
 				clone:     tt.fields.clone,
 				open:      tt.fields.open,

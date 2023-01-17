@@ -20,6 +20,7 @@ import (
 	_ "embed"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
+	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -243,6 +244,17 @@ func (e *envInitier) SetupSpeedTest() error {
 	return nil
 }
 
+func (e *envInitier) SetupUpdateModel() error {
+	dc := updatemodel.DaemonConfigurer{
+		Store: e.store,
+	}
+	err := dc.Configure()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	var setupErr error
 
@@ -271,6 +283,7 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		e.SetupVsCodeExtensions,
 		e.SetupSpeedTest,
 		e.SetupMOTD,
+		e.SetupUpdateModel,
 	)
 
 	err = util.RunEAsync(
