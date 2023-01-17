@@ -75,17 +75,59 @@ func (u UpdateModel) RunE(_ *cobra.Command, _ []string) error {
 		)
 	}
 	// this could be done in one go but this way is easier to reason about
-	err := u.updateBE()
+
+	remotes, err := u.remotes()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	workspaceID, err := u.Store.GetCurrentWorkspaceID()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = u.updateENV()
+	workspace, err := u.Store.GetWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return nil
+	reposv1FromBE := workspace.ReposV1
+	reposv1FromENV := makeReposFromRemotes(remotes)
+
+	rm := &repoMerger{
+		acc:   reposv1FromBE,
+		repos: []*entity.ReposV1{reposv1FromENV},
+	}
+	_, err = u.Store.ModifyWorkspace(
+		workspaceID,
+		&store.ModifyWorkspaceRequest{
+			ReposV1: rm.MergeBE(),
+		},
+	)
+
+	errors := lo.Map(
+		rm.ReposToClone(),
+		func(repo *entity.RepoV1, _ int) error {
+			_, err := u.clone(u.directory, false, &git.CloneOptions{
+				URL: repo.GitRepo.Repository,
+			})
+			return err
+		},
+	)
+	return breverrors.WrapAndTrace(
+		lo.Reduce(
+			errors,
+			func(acc error, err error, _ int) error {
+				if acc != nil && err != nil {
+					return multierror.Append(acc, err)
+				}
+				if acc == nil && err != nil {
+					return err
+				}
+				return acc
+			},
+			nil,
+		),
+	)
 }
 
 type stringWriter interface {
@@ -170,91 +212,6 @@ func makeReposFromRemotes(remotes []*git.Remote) *entity.ReposV1 {
 		},
 		&entity.ReposV1{},
 	)
-}
-
-func (u UpdateModel) updateENV() error {
-	remotes, err := u.remotes()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaceID, err := u.Store.GetCurrentWorkspaceID()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	workspace, err := u.Store.GetWorkspace(workspaceID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	reposv1FromBE := workspace.ReposV1
-	reposv1FromENV := makeReposFromRemotes(remotes)
-
-	envLocalRepoMerger := &repoMerger{
-		acc:   reposv1FromENV,
-		repos: []*entity.ReposV1{reposv1FromBE},
-	}
-
-	errors := lo.Map(
-		envLocalRepoMerger.ReposToClone(),
-		func(repo *entity.RepoV1, _ int) error {
-			_, err := u.clone(u.directory, false, &git.CloneOptions{
-				URL: repo.GitRepo.Repository,
-			})
-			return err
-		},
-	)
-
-	return breverrors.WrapAndTrace(
-		lo.Reduce(
-			errors,
-			func(acc error, err error, _ int) error {
-				if acc != nil && err != nil {
-					return multierror.Append(acc, err)
-				}
-				if acc == nil && err != nil {
-					return err
-				}
-				return acc
-			},
-			nil,
-		),
-	)
-}
-
-func (u UpdateModel) updateBE() error {
-	remotes, err := u.remotes()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaceID, err := u.Store.GetCurrentWorkspaceID()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	workspace, err := u.Store.GetWorkspace(workspaceID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	reposv1FromBE := workspace.ReposV1
-	reposv1FromENV := makeReposFromRemotes(remotes)
-
-	beLocalRepoMerger := &repoMerger{
-		acc:   reposv1FromBE,
-		repos: []*entity.ReposV1{reposv1FromENV},
-	}
-
-	_, err = u.Store.ModifyWorkspace(
-		workspaceID,
-		&store.ModifyWorkspaceRequest{
-			ReposV1: beLocalRepoMerger.MergeBE(),
-		},
-	)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
 }
 
 type repoMerger struct {
