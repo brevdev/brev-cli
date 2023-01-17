@@ -14,6 +14,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/parse/pkg/parse"
 	"github.com/go-git/go-git/v5"
 )
 
@@ -90,8 +91,15 @@ func (u UpdateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	urls := lo.Map(
+		remotes,
+		func(remote *git.Remote, _ int) string {
+			return remote.Config().URLs[0]
+		},
+	)
+
 	reposv1FromBE := workspace.ReposV1
-	reposv1FromENV := makeReposFromRemotes(remotes)
+	reposv1FromENV := makeReposFromRemotes(urls)
 
 	rm := &repoMerger{
 		acc:   reposv1FromBE,
@@ -195,12 +203,12 @@ WantedBy=timers.target
 	return nil
 }
 
-func makeReposFromRemotes(remotes []*git.Remote) *entity.ReposV1 {
+func makeReposFromRemotes(remotes []string) *entity.ReposV1 {
 	return lo.Reduce(
 		remotes,
-		func(acc *entity.ReposV1, remote *git.Remote, _ int) *entity.ReposV1 {
-			name := remote.Config().Name
-			url := remote.Config().URLs[0]
+		func(acc *entity.ReposV1, remote string, _ int) *entity.ReposV1 {
+			name := parse.GetRepoNameFromOrigin(remote)
+			url := parse.GetSSHURLFromOrigin(remote)
 			a := *acc
 			a[entity.RepoName(name)] = entity.RepoV1{
 				Type: entity.GitRepoType,

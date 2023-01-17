@@ -7,6 +7,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/go-git/go-git/v5"
+	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/cobra"
 )
 
@@ -97,6 +98,48 @@ func TestUpdateModel_RunE(t *testing.T) {
 			}
 			if err := u.RunE(tt.args.in0, tt.args.in1); (err != nil) != tt.wantErr {
 				t.Errorf("UpdateModel.RunE() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func Test_makeReposFromRemotes(t *testing.T) {
+	type args struct {
+		remotes []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want *entity.ReposV1
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test",
+			args: args{
+				remotes: []string{"git@github.com:brevdev/brev-cli.git", "git@github.com:brevdev/brev-deploy.git"},
+			},
+			want: &entity.ReposV1{
+				entity.RepoName("brev-cli"): {
+					Type: entity.GitRepoType,
+					GitRepo: entity.GitRepo{
+						Repository: "git@github.com:brevdev/brev-cli.git",
+					},
+				},
+				entity.RepoName("brev-deploy"): {
+					Type: entity.GitRepoType,
+					GitRepo: entity.GitRepo{
+						Repository: "git@github.com:brevdev/brev-deploy.git",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := makeReposFromRemotes(tt.args.remotes)
+			// cmp.Diff is used to compare the two structs
+			if diff := cmp.Diff(got, tt.want); diff != "" {
+				t.Errorf("makeReposFromRemotes() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
