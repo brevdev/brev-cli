@@ -58,6 +58,11 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	err = u.updateENV()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
 
