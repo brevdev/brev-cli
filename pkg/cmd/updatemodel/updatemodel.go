@@ -40,11 +40,15 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 			store:     store,
 			directory: directory,
 			clone:     git.PlainClone,
-			open:      git.PlainOpen,
+			open:      func(path string) (repo, error) { return git.PlainOpen(path) },
 		}.RunE,
 	}
 	cmd.Flags().StringVarP(&directory, "directory", "d", ".", "Directory to run command in")
 	return cmd
+}
+
+type repo interface {
+	Remotes() ([]*git.Remote, error)
 }
 
 type updateModel struct {
@@ -52,7 +56,7 @@ type updateModel struct {
 	store     updatemodelStore
 	directory string
 	clone     func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error)
-	open      func(path string) (*git.Repository, error)
+	open      func(path string) (repo, error)
 }
 
 func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
