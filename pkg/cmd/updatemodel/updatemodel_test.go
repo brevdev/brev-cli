@@ -144,3 +144,74 @@ func Test_makeReposFromRemotes(t *testing.T) {
 		})
 	}
 }
+
+func Test_repoMerger_MergeBE(t *testing.T) {
+	type fields struct {
+		acc   *entity.ReposV1
+		repos []*entity.ReposV1
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		want   *entity.ReposV1
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test",
+			fields: fields{
+				acc: &entity.ReposV1{
+					entity.RepoName("brev-cli"): {
+						Type: entity.GitRepoType,
+						GitRepo: entity.GitRepo{
+							Repository: "git@github.com/brevdev/brev-cli.git",
+						},
+					},
+				},
+				repos: []*entity.ReposV1{
+					{
+						entity.RepoName("brev-deploy"): {
+							Type: entity.GitRepoType,
+							GitRepo: entity.GitRepo{
+								Repository: "github.com/brevdev/brev-deploy.git",
+							},
+						},
+					},
+					{
+						entity.RepoName("brev-cli"): {
+							Type: entity.GitRepoType,
+							GitRepo: entity.GitRepo{
+								Repository: "github.com/brevdev/brev-cli.git",
+							},
+						},
+					},
+				},
+			},
+			want: &entity.ReposV1{
+				entity.RepoName("brev-cli"): {
+					Type: entity.GitRepoType,
+					GitRepo: entity.GitRepo{
+						Repository: "git@github.com/brevdev/brev-cli.git",
+					},
+				},
+				entity.RepoName("brev-deploy"): {
+					Type: entity.GitRepoType,
+					GitRepo: entity.GitRepo{
+						Repository: "github.com/brevdev/brev-deploy.git",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := &repoMerger{
+				acc:   tt.fields.acc,
+				repos: tt.fields.repos,
+			}
+			// using cmp
+			if diff := cmp.Diff(r.MergeBE(), tt.want); diff != "" {
+				t.Errorf("repoMerger.MergeBE() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
