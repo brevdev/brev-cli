@@ -34,6 +34,10 @@ func (u updatemodelStoreMock) GetWorkspace(workspaceID string) (*entity.Workspac
 	}, nil
 }
 
+func (u updatemodelStoreMock) WriteString(path, data string) error {
+	return nil
+}
+
 func mockPlainClone(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
 	return nil, nil
 }

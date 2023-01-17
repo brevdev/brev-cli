@@ -104,7 +104,7 @@ ExecStart=/usr/bin/brev updatemodel -d /home/ubuntu
 	}
 
 	if autostartconf.ShouldSymlink() {
-		symlinkTarget := path.Join("/etc/systemd/system/default.target.wants/", lsc.ServiceName)
+		symlinkTarget := path.Join("/etc/systemd/system/default.target.wants/", "brev-updatemodel.service")
 		err := os.Symlink(configFile, symlinkTarget)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
