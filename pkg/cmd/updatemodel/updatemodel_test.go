@@ -13,7 +13,7 @@ import (
 
 type updatemodelStoreMock struct{}
 
-func (u updatemodelStoreMock) ModifyWorkspace(workspaceID string, options *store.ModifyWorkspaceRequest) (*entity.Workspace, error) {
+func (u updatemodelStoreMock) ModifyWorkspace(_ string, _ *store.ModifyWorkspaceRequest) (*entity.Workspace, error) {
 	return nil, nil
 }
 
@@ -21,7 +21,7 @@ func (u updatemodelStoreMock) GetCurrentWorkspaceID() (string, error) {
 	return "test", nil
 }
 
-func (u updatemodelStoreMock) GetWorkspace(workspaceID string) (*entity.Workspace, error) {
+func (u updatemodelStoreMock) GetWorkspace(_ string) (*entity.Workspace, error) {
 	reposv1 := entity.ReposV1{
 		entity.RepoName("test"): {
 			Type: entity.GitRepoType,
@@ -35,11 +35,11 @@ func (u updatemodelStoreMock) GetWorkspace(workspaceID string) (*entity.Workspac
 	}, nil
 }
 
-func (u updatemodelStoreMock) WriteString(path, data string) error {
+func (u updatemodelStoreMock) WriteString(_, _ string) error {
 	return nil
 }
 
-func mockPlainClone(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+func mockPlainClone(_ string, _ bool, _ *git.CloneOptions) (*git.Repository, error) {
 	return nil, nil
 }
 
@@ -49,7 +49,7 @@ func (r remotes) Remotes() ([]*git.Remote, error) {
 	return nil, nil
 }
 
-func mockPlainOpen(path string) (repo, error) {
+func mockPlainOpen(_ string) (repo, error) {
 	return remotes{}, nil
 }
 

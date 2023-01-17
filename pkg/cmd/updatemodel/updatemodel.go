@@ -45,7 +45,10 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 			Store:     store,
 			directory: directory,
 			clone:     git.PlainClone,
-			open:      func(path string) (repo, error) { return git.PlainOpen(path) },
+			open: func(path string) (repo, error) {
+				r, err := git.PlainOpen(path)
+				return r, breverrors.WrapAndTrace(err)
+			},
 			configure: configure,
 		}.RunE,
 	}
@@ -112,6 +115,10 @@ func (u UpdateModel) RunE(_ *cobra.Command, _ []string) error {
 		},
 	)
 
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	errors := lo.Map(
 		rm.ReposToClone(),
 		func(repo *entity.RepoV1, _ int) error {
@@ -167,9 +174,9 @@ ExecStart=/usr/bin/brev updatemodel -d /home/ubuntu
 
 	if autostartconf.ShouldSymlink() {
 		symlinkTarget := path.Join("/etc/systemd/system/default.target.wants/", "brev-updatemodel.service")
-		err := os.Symlink(configFile, symlinkTarget)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		err2 := os.Symlink(configFile, symlinkTarget)
+		if err2 != nil {
+			return breverrors.WrapAndTrace(err2)
 		}
 	}
 	// create systemd timer to run every 5 seconds
@@ -268,6 +275,8 @@ func (r repoMerger) reposValues() []*entity.RepoV1 {
 	values := []*entity.RepoV1{}
 	for _, repo := range r.repos {
 		for _, v := range *repo {
+			// explicit memory aliasing in for loop.
+			v := v
 			values = append(values, &v)
 		}
 	}
@@ -290,11 +299,11 @@ func (u UpdateModel) remotes() ([]*git.Remote, error) {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			remotes, err := r.Remotes()
+			remotesToAppend, err := r.Remotes()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			remotes = append(remotes, remotes...)
+			remotes = append(remotes, remotesToAppend...)
 		}
 		return nil
 	})
