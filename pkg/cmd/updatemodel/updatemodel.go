@@ -153,6 +153,25 @@ WantedBy=timers.target
 	return nil
 }
 
+func makeReposFromRemotes(remotes []*git.Remote) *entity.ReposV1 {
+	return lo.Reduce(
+		remotes,
+		func(acc *entity.ReposV1, remote *git.Remote, _ int) *entity.ReposV1 {
+			name := remote.Config().Name
+			url := remote.Config().URLs[0]
+			a := *acc
+			a[entity.RepoName(name)] = entity.RepoV1{
+				Type: entity.GitRepoType,
+				GitRepo: entity.GitRepo{
+					Repository: url,
+				},
+			}
+			return &a
+		},
+		&entity.ReposV1{},
+	)
+}
+
 func (u UpdateModel) updateENV() error {
 	remotes, err := u.remotes()
 	if err != nil {
@@ -169,22 +188,7 @@ func (u UpdateModel) updateENV() error {
 	}
 
 	reposv1FromBE := workspace.ReposV1
-	reposv1FromENV := lo.Reduce(
-		remotes,
-		func(acc *entity.ReposV1, remote *git.Remote, _ int) *entity.ReposV1 {
-			name := remote.Config().Name
-			url := remote.Config().URLs[0]
-			a := *acc
-			a[entity.RepoName(name)] = entity.RepoV1{
-				Type: entity.GitRepoType,
-				GitRepo: entity.GitRepo{
-					Repository: url,
-				},
-			}
-			return &a
-		},
-		&entity.ReposV1{},
-	)
+	reposv1FromENV := makeReposFromRemotes(remotes)
 
 	envLocalRepoMerger := &repoMerger{
 		acc:   reposv1FromENV,
@@ -234,22 +238,7 @@ func (u UpdateModel) updateBE() error {
 	}
 
 	reposv1FromBE := workspace.ReposV1
-	reposv1FromENV := lo.Reduce(
-		remotes,
-		func(acc *entity.ReposV1, remote *git.Remote, _ int) *entity.ReposV1 {
-			name := remote.Config().Name
-			url := remote.Config().URLs[0]
-			a := *acc
-			a[entity.RepoName(name)] = entity.RepoV1{
-				Type: entity.GitRepoType,
-				GitRepo: entity.GitRepo{
-					Repository: url,
-				},
-			}
-			return &a
-		},
-		&entity.ReposV1{},
-	)
+	reposv1FromENV := makeReposFromRemotes(remotes)
 
 	beLocalRepoMerger := &repoMerger{
 		acc:   reposv1FromBE,
