@@ -39,6 +39,8 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 			t:         t,
 			store:     store,
 			directory: directory,
+			clone:     git.PlainClone,
+			open:      git.PlainOpen,
 		}.RunE,
 	}
 	cmd.Flags().StringVarP(&directory, "directory", "d", ".", "Directory to run command in")
@@ -49,6 +51,8 @@ type updateModel struct {
 	t         *terminal.Terminal
 	store     updatemodelStore
 	directory string
+	clone     func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error)
+	open      func(path string) (*git.Repository, error)
 }
 
 func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
@@ -107,7 +111,10 @@ func (u updateModel) updateENV() error {
 	errors := lo.Map(
 		envLocalRepoMerger.ReposToClone(),
 		func(repo *entity.RepoV1, _ int) error {
-			return nil
+			_, err := u.clone(u.directory, false, &git.CloneOptions{
+				URL: repo.GitRepo.Repository,
+			})
+			return err
 		},
 	)
 
@@ -242,7 +249,7 @@ func (u updateModel) remotes() ([]*git.Remote, error) {
 	remotes := []*git.Remote{}
 	err := filepath.Walk(u.directory, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
-			r, err := git.PlainOpen(path)
+			r, err := u.open(path)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
