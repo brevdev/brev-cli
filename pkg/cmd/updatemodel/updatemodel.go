@@ -1,6 +1,7 @@
 package updatemodel
 
 import (
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -29,10 +30,10 @@ type updatemodelStore interface {
 	GetCurrentWorkspaceID() (string, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	WriteString(path, data string) error
+	UserHomeDir() (string, error)
 }
 
 func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Command {
-	var directory string
 	var configure bool
 	cmd := &cobra.Command{
 		Use:                   "updatemodel",
@@ -40,11 +41,10 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 		Short:                 short,
 		Long:                  long,
 		Example:               example,
-		RunE: UpdateModel{
-			t:         t,
-			Store:     store,
-			directory: directory,
-			clone:     git.PlainClone,
+		RunE: updateModel{
+			t:     t,
+			Store: store,
+			clone: git.PlainClone,
 			open: func(path string) (repo, error) {
 				r, err := git.PlainOpen(path)
 				return r, breverrors.WrapAndTrace(err)
@@ -52,7 +52,7 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 			configure: configure,
 		}.RunE,
 	}
-	cmd.Flags().StringVarP(&directory, "directory", "d", ".", "Directory to run command in")
+
 	cmd.Flags().BoolVarP(&configure, "configure", "c", false, "configure daemon")
 	return cmd
 }
@@ -61,16 +61,15 @@ type repo interface {
 	Remotes() ([]*git.Remote, error)
 }
 
-type UpdateModel struct {
+type updateModel struct {
 	t         *terminal.Terminal
 	Store     updatemodelStore
-	directory string
 	clone     func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error)
 	open      func(path string) (repo, error)
 	configure bool
 }
 
-func (u UpdateModel) RunE(_ *cobra.Command, _ []string) error {
+func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 	if u.configure {
 		return breverrors.WrapAndTrace(
 			DaemonConfigurer{
@@ -119,10 +118,15 @@ func (u UpdateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	dir, err := u.Store.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	errors := lo.Map(
 		rm.ReposToClone(),
 		func(repo *entity.RepoV1, _ int) error {
-			_, err := u.clone(u.directory, false, &git.CloneOptions{
+			_, err := u.clone(dir, false, &git.CloneOptions{
 				URL: repo.GitRepo.Repository,
 			})
 			return err
@@ -284,6 +288,9 @@ func (r repoMerger) reposValues() []*entity.RepoV1 {
 }
 
 func (r repoMerger) accValues() []*entity.RepoV1 {
+	if r.acc == nil {
+		return []*entity.RepoV1{}
+	}
 	values := []*entity.RepoV1{}
 	for _, v := range *r.acc {
 		values = append(values, &v)
@@ -291,22 +298,32 @@ func (r repoMerger) accValues() []*entity.RepoV1 {
 	return values
 }
 
-func (u UpdateModel) remotes() ([]*git.Remote, error) {
+func (u updateModel) remotes() ([]*git.Remote, error) {
 	remotes := []*git.Remote{}
-	err := filepath.Walk(u.directory, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			r, err := u.open(path)
+	dir, err := u.Store.UserHomeDir()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	err = filepath.WalkDir(dir,
+		func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			remotesToAppend, err := r.Remotes()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			if !d.IsDir() {
+				return nil
 			}
-			remotes = append(remotes, remotesToAppend...)
-		}
-		return nil
-	})
+			repo, err := git.PlainOpen(path)
+			if err != nil {
+				return nil
+			}
+			remotes, err := repo.Remotes()
+			if err != nil {
+				return nil
+			}
+			remotes = append(remotes, remotes...)
+			return nil
+		},
+	)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

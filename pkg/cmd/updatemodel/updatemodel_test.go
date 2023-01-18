@@ -39,6 +39,10 @@ func (u updatemodelStoreMock) WriteString(_, _ string) error {
 	return nil
 }
 
+func (u updatemodelStoreMock) UserHomeDir() (string, error) {
+	return "", nil
+}
+
 func mockPlainClone(_ string, _ bool, _ *git.CloneOptions) (*git.Repository, error) {
 	return nil, nil
 }
@@ -77,21 +81,19 @@ func TestUpdateModel_RunE(t *testing.T) {
 		{
 			name: "test",
 			fields: fields{
-				t:         nil,
-				Store:     updatemodelStoreMock{},
-				directory: ".",
-				clone:     mockPlainClone,
-				open:      mockPlainOpen,
+				t:     nil,
+				Store: updatemodelStoreMock{},
+				clone: mockPlainClone,
+				open:  mockPlainOpen,
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u := UpdateModel{
+			u := updateModel{
 				t:         tt.fields.t,
 				Store:     tt.fields.Store,
-				directory: tt.fields.directory,
 				clone:     tt.fields.clone,
 				open:      tt.fields.open,
 				configure: tt.fields.configure,
