@@ -77,7 +77,6 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 			}.Configure(),
 		)
 	}
-	// this could be done in one go but this way is easier to reason about
 
 	remotes, err := u.remotes()
 	if err != nil {
@@ -129,7 +128,7 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 			_, err := u.clone(dir, false, &git.CloneOptions{
 				URL: repo.GitRepo.Repository,
 			})
-			return err
+			return breverrors.WrapAndTrace(err)
 		},
 	)
 	return breverrors.WrapAndTrace(
@@ -140,7 +139,7 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 					return multierror.Append(acc, err)
 				}
 				if acc == nil && err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 				return acc
 			},
@@ -314,11 +313,11 @@ func (u updateModel) remotes() ([]*git.Remote, error) {
 			}
 			repo, err := git.PlainOpen(path)
 			if err != nil {
-				return nil
+				return breverrors.WrapAndTrace(err)
 			}
 			remotes, err := repo.Remotes()
 			if err != nil {
-				return nil
+				return breverrors.WrapAndTrace(err)
 			}
 			remotes = append(remotes, remotes...)
 			return nil
