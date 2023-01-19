@@ -39,6 +39,6 @@ type $1 struct {
 }
 
 func ($1 $1) RunE(cmd *cobra.Command, args []string) error {
-    return nil
+    return breverrors.New("TODO")
 }
 EOF
