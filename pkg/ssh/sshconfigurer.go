@@ -235,6 +235,7 @@ const SSHConfigEntryTemplateV3 = `Host {{ .Alias }}
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port {{ .Port }}
 {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
 {{ end }}
@@ -248,6 +249,7 @@ type SSHConfigEntryV2 struct {
 	Dir          string
 	RunRemoteCMD bool
 	HostName     string
+	Port         int
 }
 
 func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
@@ -280,12 +282,17 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 		if hostname == "" {
 			hostname = "-"
 		}
+		port := 22
+		if workspace.SSHPort != 0 {
+			port = workspace.SSHPort
+		}
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         "ubuntu", // todo param-user
 			Dir:          workspace.GetProjectFolderPath(),
 			HostName:     hostname,
+			Port:         port,
 		}
 		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)
 		if err != nil {

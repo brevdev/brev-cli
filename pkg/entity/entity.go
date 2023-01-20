@@ -304,7 +304,7 @@ type Workspace struct {
 	ReposV1           *ReposV1  `json:"reposV1"`
 	ExecsV1           *ExecsV1  `json:"execsV1"`
 	IDEConfig         IDEConfig `json:"ideConfig"`
-
+	SSHPort           int       `json:"sshPort"`
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
 	// CreatedAt         string `json:"createdAt,omitempty"`
