@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.13.18
 	github.com/brevdev/parse v0.0.10
 	github.com/briandowns/spinner v1.16.0
+	github.com/docker/docker v20.10.23+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/getsentry/sentry-go v0.14.0
 	github.com/gin-gonic/gin v1.8.1
@@ -75,7 +76,6 @@ require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v20.10.23+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/go-restful v2.9.5+incompatible // indirect
@@ -95,6 +95,8 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/leodido/go-urn v1.2.1 // indirect
 	github.com/magiconair/properties v1.8.6 // indirect
+	github.com/moby/term v0.0.0-20221205130635-1aeaba878587 // indirect
+	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
@@ -114,6 +116,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.10.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gotest.tools/v3 v3.4.0 // indirect
 	sigs.k8s.io/json v0.0.0-20211208200746-9f7c6b3444d2 // indirect
 )
 
