@@ -1,7 +1,6 @@
 package updatemodel
 
 import (
-	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,6 +30,8 @@ type updatemodelStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	WriteString(path, data string) error
 	UserHomeDir() (string, error)
+	ListDirs(path string) ([]string, error)
+	FileExists(filepath string) (bool, error)
 }
 
 func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Command {
@@ -303,28 +304,39 @@ func (u updateModel) remotes() ([]*git.Remote, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	err = filepath.WalkDir(dir,
-		func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			if !d.IsDir() {
-				return nil
-			}
-			repo, err := git.PlainOpen(path)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			remotes, err := repo.Remotes()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			remotes = append(remotes, remotes...)
-			return nil
-		},
-	)
+	dirs, err := u.Store.ListDirs(dir)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	dirsWithGit := []string{}
+	for _, dir := range dirs {
+		gitDir := path.Join(dir, ".git")
+		exists, err := u.Store.FileExists(gitDir)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if exists {
+			dirsWithGit = append(dirsWithGit, dir)
+		}
+	}
+
+	repos := []*git.Repository{}
+	for _, dir := range dirsWithGit {
+		repo, err := git.PlainOpen(dir)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		repos = append(repos, repo)
+	}
+
+	remotes = []*git.Remote{}
+	for _, repo := range repos {
+		repoRemotes, err := repo.Remotes()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		remotes = append(remotes, repoRemotes...)
 	}
 	return remotes, nil
 }

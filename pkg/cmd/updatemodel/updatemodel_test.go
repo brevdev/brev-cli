@@ -43,6 +43,14 @@ func (u updatemodelStoreMock) UserHomeDir() (string, error) {
 	return "", nil
 }
 
+func (u updatemodelStoreMock) ListDirs(_ string) ([]string, error) {
+	return nil, nil
+}
+
+func (u updatemodelStoreMock) FileExists(_ string) (bool, error) {
+	return false, nil
+}
+
 func mockPlainClone(_ string, _ bool, _ *git.CloneOptions) (*git.Repository, error) {
 	return nil, nil
 }

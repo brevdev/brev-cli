@@ -664,3 +664,26 @@ func (f FileStore) WriteConnectionEvent() error {
 // func (f FileStore) ChownFileToUser(file afero.File) error {
 // 	return nil
 // }
+
+// list dirs
+
+func (f FileStore) ListDirs(path string) ([]string, error) {
+	var dirs []string
+	err := afero.Walk(
+		f.fs,
+		path,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				dirs = append(dirs, path)
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return dirs, nil
+}
