@@ -144,6 +144,7 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
 
 Host %s
   Hostname test2-dns-org.brev.sh
@@ -154,6 +155,7 @@ Host %s
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(),
 		somePlainWorkspaces[1].GetLocalIdentifier())
@@ -262,6 +264,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
 
 `,
 		},
@@ -292,6 +295,39 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
+
+`,
+		},
+		{
+			name: "test SSH port is 2022",
+			args: args{
+				workspace: entity.Workspace{
+					ID:               "test-id-2",
+					Name:             "testName2",
+					WorkspaceGroupID: "test-id-2",
+					OrganizationID:   "oi",
+					WorkspaceClassID: "wci",
+					CreatedByUserID:  "cui",
+					DNS:              "test2-dns-org.brev.sh",
+					Status:           entity.Running,
+					Password:         "sdfal",
+					GitRepo:          "gitrepo",
+					SSHPort:          2022,
+				},
+				privateKeyPath: "/my/priv/key.pem",
+				runRemoteCMD:   true,
+			},
+			want: `Host testName2
+  Hostname test2-dns-org.brev.sh
+  IdentityFile /my/priv/key.pem
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 2022
 
 `,
 		},
@@ -464,6 +500,7 @@ Host testName1
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
 
 `,
 
@@ -505,6 +542,7 @@ Host testName1
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
 
 `,
 			windowsSSHConfig: "Include C:\\Users\\15854\\.brev\\ssh_config\n",
@@ -518,6 +556,7 @@ Host testName1
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  Port 22
 
 `,
 			windowsSSHConfigExists: true,
