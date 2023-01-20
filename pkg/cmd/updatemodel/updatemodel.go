@@ -93,10 +93,12 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	urls := lo.Map(
+	// there should only be one but sometimes there are more and thats not 
+	// handled right now
+	urls := lo.FlatMap(
 		remotes,
-		func(remote *git.Remote, _ int) string {
-			return remote.Config().URLs[0]
+		func(remote *git.Remote, _ int) []string {
+			return remote.Config().URLs
 		},
 	)
 
