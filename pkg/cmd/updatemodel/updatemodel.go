@@ -1,9 +1,11 @@
 package updatemodel
 
 import (
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/lo"
@@ -16,6 +18,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/parse/pkg/parse"
 	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 )
 
 var (
@@ -32,6 +35,7 @@ type updatemodelStore interface {
 	UserHomeDir() (string, error)
 	ListDirs(path string) ([]string, error)
 	FileExists(filepath string) (bool, error)
+	GetEnvSetupParams(wsid string) (*store.SetupParamsV0, error)
 }
 
 func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Command {
@@ -45,7 +49,28 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 		RunE: updateModel{
 			t:     t,
 			Store: store,
-			clone: git.PlainClone,
+			clone: func(path string, isBare bool, o *git.CloneOptions) (*git.Repository, error) {
+				workspaceID, err := store.GetCurrentWorkspaceID()
+				if err != nil {
+					return nil, breverrors.WrapAndTrace(err)
+				}
+				params, err := store.GetEnvSetupParams(workspaceID)
+				if err != nil {
+					return nil, breverrors.WrapAndTrace(err)
+				}
+
+				if params != nil && params.WorkspaceKeyPair != nil {
+					keys := params.WorkspaceKeyPair
+					pubkeys, err := ssh.NewPublicKeys("ubuntu", []byte(keys.PrivateKeyData), "")
+					if err != nil {
+						return nil, breverrors.WrapAndTrace(err)
+					}
+					o.Auth = pubkeys
+				}
+
+				r, err := git.PlainClone(path, isBare, o)
+				return r, breverrors.WrapAndTrace(err)
+			},
 			open: func(path string) (repo, error) {
 				r, err := git.PlainOpen(path)
 				return r, breverrors.WrapAndTrace(err)
@@ -102,11 +127,36 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		},
 	)
 
-	reposv1FromBE := workspace.ReposV1
 	reposv1FromENV := makeReposFromRemotes(urls)
 
+	// merge reposv0 and gitrepo field into reposv1fromBE
+
+	reposv1FromBE := make(entity.ReposV1)
+	reposv1FromBE[entity.RepoName(parse.GetRepoNameFromOrigin(workspace.GitRepo))] = entity.RepoV1{
+		GitRepo: entity.GitRepo{
+			Repository: workspace.GitRepo,
+		},
+		Type: entity.GitRepoType,
+	}
+
+	for key, val := range workspace.ReposV0 {
+		reposv1FromBE[key] = entity.RepoV1{
+			GitRepo: entity.GitRepo{
+				Repository: val.Repository,
+			},
+			Type: entity.GitRepoType,
+		}
+	}
+	if workspace.ReposV1 != nil {
+		for key, val := range *workspace.ReposV1 {
+			key := key
+			val := val
+			reposv1FromBE[key] = val
+		}
+	}
+
 	rm := &repoMerger{
-		acc:   reposv1FromBE,
+		acc:   &reposv1FromBE,
 		repos: []*entity.ReposV1{reposv1FromENV},
 	}
 	_, err = u.Store.ModifyWorkspace(
@@ -125,7 +175,7 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	errors := lo.Map(
+	cloneErrors := lo.Map(
 		rm.ReposToClone(),
 		func(repo *entity.RepoV1, _ int) error {
 			_, err := u.clone(dir, false, &git.CloneOptions{
@@ -136,9 +186,16 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 	)
 	return breverrors.WrapAndTrace(
 		lo.Reduce(
-			errors,
+			cloneErrors,
 			func(acc error, err error, _ int) error {
-				if acc != nil && err != nil {
+				if err != nil {
+					txt := fmt.Sprintf("%s", err)
+					if strings.Contains(txt, "already exists") {
+						return acc
+					}
+					if acc == nil {
+						return breverrors.WrapAndTrace(err)
+					}
 					return multierror.Append(acc, err)
 				}
 				if acc == nil && err != nil {
