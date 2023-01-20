@@ -93,7 +93,7 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// there should only be one but sometimes there are more and thats not 
+	// there should only be one but sometimes there are more and thats not
 	// handled right now
 	urls := lo.FlatMap(
 		remotes,
@@ -295,13 +295,13 @@ func (r repoMerger) accValues() []*entity.RepoV1 {
 	}
 	values := []*entity.RepoV1{}
 	for _, v := range *r.acc {
-		values = append(values, &v)
+		newV := v
+		values = append(values, &newV)
 	}
 	return values
 }
 
 func (u updateModel) remotes() ([]*git.Remote, error) {
-	remotes := []*git.Remote{}
 	dir, err := u.Store.UserHomeDir()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -332,7 +332,7 @@ func (u updateModel) remotes() ([]*git.Remote, error) {
 		repos = append(repos, repo)
 	}
 
-	remotes = []*git.Remote{}
+	remotes := []*git.Remote{}
 	for _, repo := range repos {
 		repoRemotes, err := repo.Remotes()
 		if err != nil {
