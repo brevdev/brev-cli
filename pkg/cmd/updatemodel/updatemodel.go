@@ -36,6 +36,7 @@ type updatemodelStore interface {
 	ListDirs(path string) ([]string, error)
 	FileExists(filepath string) (bool, error)
 	GetEnvSetupParams(wsid string) (*store.SetupParamsV0, error)
+	GetCurrentUser() (*entity.User, error)
 }
 
 func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Command {
@@ -124,6 +125,19 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
 		remotes,
 		func(remote *git.Remote, _ int) []string {
 			return remote.Config().URLs
+		},
+	)
+
+	// filter user dotbrev remote url
+	user, err := u.Store.GetCurrentUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	dotbrev := user.BaseWorkspaceRepo
+	urls = lo.Filter(
+		urls,
+		func(url string, _ int) bool {
+			return !parse.CMP(url, dotbrev)
 		},
 	)
 
@@ -367,6 +381,14 @@ func (u updateModel) remotes() ([]*git.Remote, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+
+	// filter dirs that start with .
+	dirs = lo.Filter(
+		dirs,
+		func(dir string, _ int) bool {
+			return !strings.HasPrefix(dir, ".")
+		},
+	)
 
 	dirsWithGit := []string{}
 	for _, dir := range dirs {

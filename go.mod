@@ -13,7 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/iam v1.18.20
 	github.com/aws/aws-sdk-go-v2/service/pricing v1.17.1
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.13.18
-	github.com/brevdev/parse v0.0.10
+	github.com/brevdev/parse v0.0.11
 	github.com/briandowns/spinner v1.16.0
 	github.com/docker/docker v20.10.23+incompatible
 	github.com/fatih/color v1.13.0
