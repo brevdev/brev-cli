@@ -51,6 +51,14 @@ func (u updatemodelStoreMock) FileExists(_ string) (bool, error) {
 	return false, nil
 }
 
+func (u updatemodelStoreMock) GetEnvSetupParams(wsid string) (*store.SetupParamsV0, error) {
+	return nil, nil
+}
+
+func (u updatemodelStoreMock) GetCurrentUser() (*entity.User, error) {
+	return nil, nil
+}
+
 func mockPlainClone(_ string, _ bool, _ *git.CloneOptions) (*git.Repository, error) {
 	return nil, nil
 }
