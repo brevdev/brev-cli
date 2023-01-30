@@ -51,7 +51,7 @@ func (u updatemodelStoreMock) FileExists(_ string) (bool, error) {
 	return false, nil
 }
 
-func (u updatemodelStoreMock) GetEnvSetupParams(wsid string) (*store.SetupParamsV0, error) {
+func (u updatemodelStoreMock) GetEnvSetupParams(_ string) (*store.SetupParamsV0, error) {
 	return nil, nil
 }
 

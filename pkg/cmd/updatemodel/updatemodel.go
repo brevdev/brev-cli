@@ -62,7 +62,7 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 
 				if params != nil && params.WorkspaceKeyPair != nil {
 					keys := params.WorkspaceKeyPair
-					pubkeys, err := ssh.NewPublicKeys("ubuntu", []byte(keys.PrivateKeyData), "")
+					pubkeys, err := ssh.NewPublicKeys("ubuntu", []byte(keys.PrivateKeyData), "") //nolint:govet //abc
 					if err != nil {
 						return nil, breverrors.WrapAndTrace(err)
 					}
@@ -96,7 +96,7 @@ type updateModel struct {
 	configure bool
 }
 
-func (u updateModel) RunE(_ *cobra.Command, _ []string) error {
+func (u updateModel) RunE(_ *cobra.Command, _ []string) error { //nolint:funlen //abc
 	if u.configure {
 		return breverrors.WrapAndTrace(
 			DaemonConfigurer{
