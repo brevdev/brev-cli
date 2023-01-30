@@ -83,9 +83,8 @@ func RunImportIDEConfig(_ *terminal.Terminal, store ImportIDEConfigStore) error 
 		}
 		extensions = append(extensions, exts...)
 	}
-
 	if me.ErrorOrNil() != nil && len(extensions) == 0 {
-		return breverrors.WrapAndTrace(importIDEConfigError(err))
+		return breverrors.WrapAndTrace(importIDEConfigError(errors.New("no vscode extensions found")))
 	}
 
 	// todo print me (multierror) if not nil

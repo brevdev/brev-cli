@@ -199,9 +199,11 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 	// if user chooses vscode as editor preference, import ide config
 	if ob.Editor == "VSCode" {
 		err = importideconfig.RunImportIDEConfig(t, o.LoginStore)
-	}
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if err != nil {
+			if !strings.Contains(err.Error(), "no vscode extensions found") {
+				return breverrors.WrapAndTrace(err)
+			}
+		}
 	}
 
 	return nil
