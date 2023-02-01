@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -19,7 +20,7 @@ const (
 
 func getJebrainsConfigDir(home string) (string, error) {
 	var infix string
-	infixSuffix := filepath.Join("JetBrains", "JetBrainsGateway2021.3", "options")
+	infixSuffix := "Jetbrains"
 	switch runtime.GOOS {
 	case "windows":
 		return "", errors.New("windows not supported at this time")
@@ -30,7 +31,38 @@ func getJebrainsConfigDir(home string) (string, error) {
 	default:
 		return "", fmt.Errorf("invalid goos")
 	}
-	return filepath.Join(home, infix), nil
+
+	path := filepath.Join(home, infix)
+	filePaths, err := getFilesWithPrefix(path, "JetBrainsGateway")
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if len(filePaths) == 0 {
+		return "", errors.New("could not find jetbrains gateway path")
+	}
+	jbgwPath := filePaths[len(filePaths)-1]
+
+	return filepath.Join(jbgwPath, "options"), nil
+}
+
+func getFilesWithPrefix(dir string, prefix string) ([]string, error) {
+	var files []string
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() && strings.HasPrefix(info.Name(), prefix) {
+			files = append(files, path)
+		}
+
+		return nil
+	})
+
+	sort.Strings(files)
+
+	return files, err
 }
 
 func (f FileStore) GetJetBrainsConfigPath() (string, error) {
@@ -68,13 +100,11 @@ func (f FileStore) DoesJetbrainsFilePathExist() (bool, error) {
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	path, err := getJebrainsConfigDir(home)
-	path = filepath.Join(path, "..")
-	if err != nil {
-		return false, breverrors.WrapAndTrace(err)
+	_, err = getJebrainsConfigDir(home)
+	if err != nil && strings.Contains(err.Error(), "could not find jetbrains gateway path") {
+		return false, nil
 	}
-	_, err = os.Stat(path)
-	return !os.IsNotExist(err), nil
+	return true, nil
 }
 
 func (f FileStore) WriteJetBrainsConfig(config string) error {
