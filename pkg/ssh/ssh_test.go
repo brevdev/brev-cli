@@ -13,6 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func init() {
+	path := os.Getenv("HOME") + "/.config/Jetbrains/JetBrainsGateway2022.3"
+	err := os.MkdirAll(path, os.ModePerm)
+	if err != nil {
+		println(err)
+	}
+}
+
 var someWorkspaces = []entity.WorkspaceWithMeta{
 	{
 		WorkspaceMetaData: entity.WorkspaceMetaData{},

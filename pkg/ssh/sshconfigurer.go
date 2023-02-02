@@ -262,9 +262,8 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 	var tmpl *template.Template
 	var err error
 
-	if MapContainsKey(entity.LegacyWorkspaceGroups, workspace.WorkspaceGroupID) {
+	if workspace.IsLegacy() {
 		proxyCommand := makeProxyCommand(workspace.ID)
-
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
@@ -277,14 +276,8 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 			return "", breverrors.WrapAndTrace(err)
 		}
 	} else {
-		hostname := workspace.DNS
-		if hostname == "" {
-			hostname = "-"
-		}
-		port := 22
-		if workspace.SSHPort != 0 {
-			port = workspace.SSHPort
-		}
+		hostname := workspace.GetHostname()
+		port := workspace.GetPort()
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
@@ -547,12 +540,11 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 		},
 	}
 	for _, w := range workspaces {
-		pk, errother := s.store.GetPrivateKeyPath()
-		if errother != nil {
-			return "", breverrors.WrapAndTrace(errother)
+		pk, err := s.store.GetPrivateKeyPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
 		}
-		nodeID := w.GetNodeIdentifierForVPN()
-		entry := makeJetbrainsConfigEntry(nodeID, pk)
+		entry := makeJetbrainsConfigEntry(w, pk)
 		config.Component.Configs.SSHConfigs = append(config.Component.Configs.SSHConfigs, entry)
 	}
 	output, err := xml.MarshalIndent(config, "", "  ")
@@ -580,19 +572,24 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 //	  </component>
 //
 // </application>
-func makeJetbrainsConfigEntry(host, keypath string) JetbrainsGatewayConfigXMLSSHConfig {
+func makeJetbrainsConfigEntry(workspace entity.Workspace, privateKeyPath string) JetbrainsGatewayConfigXMLSSHConfig {
+	hostname := workspace.GetHostname()
+	port := workspace.GetPort()
+	// name := workspace.GetLocalIdentifier()
 	return JetbrainsGatewayConfigXMLSSHConfig{
-		Host:       host,
-		Port:       "22",
-		KeyPath:    keypath,
-		Username:   "brev",
-		CustomName: entity.WorkspaceLocalID(host),
-		NameFormat: "CUSTOM",
-		Options: []JetbrainsGatewayConfigXMLSSHOption{
-			{
-				Name:  "CustomName",
-				Value: host,
-			},
-		},
+		Host:     hostname,
+		Port:     fmt.Sprint(port),
+		KeyPath:  privateKeyPath,
+		Username: workspace.GetUsername(),
+		// CustomName:       name,
+		NameFormat:       "DESCRIPTIVE",
+		ConnectionConfig: `{"hostKeyVerifier":{"stringHostKeyChecking":"NO"},"serverAliveInterval":30}`,
+		UseOpenSSHConfig: "false",
+		// Options: []JetbrainsGatewayConfigXMLSSHOption{
+		// 	{
+		// 		Name:  "CustomName",
+		// 		Value: string(name),
+		// 	},
+		// },
 	}
 }

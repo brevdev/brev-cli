@@ -323,6 +323,33 @@ func (w Workspace) GetIsStoppable() bool {
 	return w.IsStoppable
 }
 
+func (w Workspace) GetHostname() string {
+	hostname := w.DNS
+	if hostname == "" {
+		hostname = "-"
+	}
+	return hostname
+}
+
+func (w Workspace) GetPort() int {
+	port := 22
+	if w.SSHPort != 0 {
+		port = w.SSHPort
+	}
+	return port
+}
+
+func (w Workspace) IsLegacy() bool {
+	return MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID)
+}
+
+func (w Workspace) GetUsername() string {
+	if w.IsLegacy() {
+		return "brev"
+	}
+	return "ubuntu"
+}
+
 type WorkspaceTemplate struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"`

@@ -105,6 +105,7 @@ type (
 		Port             string                               `xml:"port,attr,omitempty"`
 		KeyPath          string                               `xml:"keyPath,attr,omitempty"`
 		Username         string                               `xml:"username,attr,omitempty"`
+		ConnectionConfig string                               `xml:"connectionConfig,attr,omitempty"`
 		Options          []JetbrainsGatewayConfigXMLSSHOption `xml:"option,omitempty"`
 	}
 	JetbrainsGatewayConfigXMLConfigs struct {

@@ -33,7 +33,7 @@ func getJebrainsConfigDir(home string) (string, error) {
 	}
 
 	path := filepath.Join(home, infix)
-	filePaths, err := getFilesWithPrefix(path, "JetBrainsGateway")
+	filePaths, err := getDirsWithPrefix(path, "JetBrainsGateway")
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -45,24 +45,27 @@ func getJebrainsConfigDir(home string) (string, error) {
 	return filepath.Join(jbgwPath, "options"), nil
 }
 
-func getFilesWithPrefix(dir string, prefix string) ([]string, error) {
+func getDirsWithPrefix(parentPath string, prefix string) ([]string, error) {
 	var files []string
 
-	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(parentPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			return breverrors.WrapAndTrace(err)
 		}
 
-		if !info.IsDir() && strings.HasPrefix(info.Name(), prefix) {
+		if info.IsDir() && strings.HasPrefix(info.Name(), prefix) {
 			files = append(files, path)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 
 	sort.Strings(files)
 
-	return files, err
+	return files, nil
 }
 
 func (f FileStore) GetJetBrainsConfigPath() (string, error) {
