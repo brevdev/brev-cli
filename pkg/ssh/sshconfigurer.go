@@ -514,7 +514,6 @@ func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if !doesJbPathExist {
-		fmt.Println("jetbrains path dne")
 		return nil
 	}
 

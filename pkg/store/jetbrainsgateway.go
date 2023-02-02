@@ -34,7 +34,9 @@ func getJebrainsConfigDir(home string) (string, error) {
 
 	path := filepath.Join(home, infix)
 	filePaths, err := getDirsWithPrefix(path, "JetBrainsGateway")
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "no such file or directory") {
+		return "", errors.New("could not find jetbrains gateway path")
+	} else if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	if len(filePaths) == 0 {
