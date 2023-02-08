@@ -41,6 +41,7 @@ func Runbmon(_ *terminal.Terminal, _ []string, store bmonStore) error {
 		store,
 		false,
 		"10m",
+		"22",
 	)
 	err := bmonConfig.Install()
 	if err != nil {

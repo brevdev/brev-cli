@@ -101,6 +101,7 @@ func Runpostinstall(
 		store,
 		false,
 		"10m", // todo pass brevmon args instead of individual args
+		"22",
 	)
 
 	err = brevmonConfigurer.Install()

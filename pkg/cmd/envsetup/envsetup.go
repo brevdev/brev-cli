@@ -75,6 +75,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 
 	var reportInterval string
 
+	var autostopPort string
 	cmd := &cobra.Command{
 		Use:                   name,
 		DisableFlagsInUseLine: true,
@@ -96,6 +97,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 					datadogAPIKey,
 					disableAutostop,
 					reportInterval,
+					autostopPort,
 				)
 				if err != nil {
 					errors = multierror.Append(err)
@@ -114,6 +116,7 @@ func NewCmdEnvSetup(store envsetupStore, noLoginStore nologinEnvStore) *cobra.Co
 	cmd.PersistentFlags().StringVar(&datadogAPIKey, "datadog-api-key", "", "datadog API key to use for logging")
 	cmd.PersistentFlags().BoolVar(&disableAutostop, "disable-autostop", false, "disable autostop")
 	cmd.PersistentFlags().StringVar(&reportInterval, "report-interval", "10m", "report interval")
+	cmd.PersistentFlags().StringVar(&autostopPort, "autostop-port", "22", "autostop port")
 
 	return cmd
 }
@@ -127,6 +130,7 @@ func RunEnvSetup(
 	datadogAPIKey string,
 	disableAutostop bool,
 	reportInterval string,
+	portToCheckAutostopTrafficOn string,
 ) error {
 	if token != "" {
 		err := noLoginStore.LoginWithToken(token)
@@ -174,6 +178,7 @@ func RunEnvSetup(
 		datadogAPIKey,
 		disableAutostop,
 		reportInterval,
+		portToCheckAutostopTrafficOn,
 	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -600,9 +605,9 @@ func newEnvIniter(
 	datadogAPIKey string,
 	disableAbleAUtosop bool,
 	reportInterval string,
+	portToCheckTrafficOn string,
 ) *envInitier {
 	workspaceIniter := setupworkspace.NewWorkspaceIniter(user.HomeDir, user, params)
-
 	return &envInitier{
 		*workspaceIniter,
 		configureSystemSSHConfig,
@@ -610,6 +615,7 @@ func newEnvIniter(
 			store,
 			disableAbleAUtosop,
 			reportInterval,
+			portToCheckTrafficOn,
 		),
 		datadogAPIKey,
 		store,
@@ -623,6 +629,7 @@ func setupEnv(
 	datadogAPIKey string,
 	disableAutoStop bool,
 	reportInterval string,
+	portToCheckAutostopTrafficOn string,
 ) error {
 	err := store.BuildBrevHome()
 	if err != nil {
@@ -640,6 +647,7 @@ func setupEnv(
 		datadogAPIKey,
 		disableAutoStop,
 		reportInterval,
+		portToCheckAutostopTrafficOn,
 	)
 	// set logfile path to ~/.brev/envsetup.log
 	logFilePath := filepath.Join(user.HomeDir, ".brev", "envsetup.log")

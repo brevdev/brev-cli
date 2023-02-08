@@ -241,36 +241,37 @@ func NewBrevMonConfigure(
 	store AutoStartStore,
 	disableAutostop bool,
 	reportInterval string,
+	portToCheckTrafficOn string,
 ) DaemonConfigurer {
-	configFile := `[Unit]
-Description=brevmon
-After=network.target
-
-[Service]
-User=root
-Type=exec
-ExecStart=/usr/local/bin/brevmon
-ExecReload=/usr/local/bin/brevmon
-Restart=always
-
-[Install]
-WantedBy=default.target
-`
+	configFile := fmt.Sprintf(`[Unit]
+	Description=brevmon
+	After=network.target
+	
+	[Service]
+	User=root
+	Type=exec
+	ExecStart=/usr/local/bin/brevmon %s
+	ExecReload=/usr/local/bin/brevmon %s
+	Restart=always
+	
+	[Install]
+	WantedBy=default.target
+	`, portToCheckTrafficOn, portToCheckTrafficOn)
 	if disableAutostop {
-		configFile = `[Unit]
+		configFile = fmt.Sprintf(`[Unit]
 Description=brevmon
 After=network.target
 
 [Service]
 User=root
 Type=exec
-ExecStart=/usr/local/bin/brevmon --disable-autostop --report-interval ` + reportInterval + `
-ExecReload=/usr/local/bin/brevmon --disable-autostop --report-interval ` + reportInterval + `
+ExecStart=/usr/local/bin/brevmon %s --disable-autostop --report-interval `+reportInterval+`
+ExecReload=/usr/local/bin/brevmon %s --disable-autostop --report-interval `+reportInterval+`
 Restart=always
 
 [Install]
 WantedBy=default.target
-`
+`, portToCheckTrafficOn, portToCheckTrafficOn)
 	}
 	return AptBinaryConfigurer{
 		LinuxSystemdConfigurer: LinuxSystemdConfigurer{
