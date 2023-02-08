@@ -20,7 +20,7 @@ jobs:
       - name: Release
         run: make ci smoke-test release
         env:
-          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
       # disable until this until figure out tags
       # - name: Repository Dispatch
       #   uses: peter-evans/repository-dispatch@v2
