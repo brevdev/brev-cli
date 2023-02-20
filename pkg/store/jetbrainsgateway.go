@@ -117,6 +117,14 @@ func (f FileStore) WriteJetBrainsConfig(config string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	basePath := filepath.Dir(path)
+	dir := afero.NewBasePathFs(f.fs, basePath)
+	err = dir.MkdirAll("", 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	err = afero.WriteFile(f.fs, path, []byte(config), 0o644)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

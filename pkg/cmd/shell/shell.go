@@ -79,6 +79,11 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 			return breverrors.WrapAndTrace(err)
 		}
 	}
+	err = pollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	res = refresh.RunRefreshAsync(sstore)
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
@@ -123,9 +128,9 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 
 		outputStr := string(out)
 		stdErr := strings.Split(outputStr, "\n")[1]
-		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out")
+		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out") || strings.Contains(stdErr, "Warning:")
 
-		if counter == 60 || !satisfactoryStdErrMessage {
+		if counter == 120 || !satisfactoryStdErrMessage {
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
 		}
 
@@ -170,7 +175,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Sh
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
-	err = pollUntil(s, workspace.ID, entity.Running, tstore)
+	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight 🤙")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -181,9 +186,9 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Sh
 	return nil
 }
 
-func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellStore) error {
+func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellStore, waitMsg string) error {
 	isReady := false
-	s.Suffix = " hang tight 🤙"
+	s.Suffix = waitMsg
 	s.Start()
 	for !isReady {
 		time.Sleep(5 * time.Second)
@@ -191,7 +196,7 @@ func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellSt
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		s.Suffix = " hang tight 🤙"
+		s.Suffix = waitMsg
 		if ws.Status == state {
 			isReady = true
 		}
