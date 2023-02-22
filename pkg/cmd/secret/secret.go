@@ -33,9 +33,9 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		Short:       "Add a secret/environment variable",
 		Long:        "Add a secret/environment variable to your dev environment, all dev environment in an org, or all of your dev environment",
 		Example: `
-  brev secret --name naaamme --value vaaalluueee --type [file, variable] --file-path --scope personal
-  brev secret --name SERVER_URL --value https://brev.sh --type variable --scope personal
-  brev secret --name AWS_KEY --value ... --type file --file-path --scope personal
+  brev secret --name my_value --value my_value --type [file, variable] --file-path --scope [org, user]
+  brev secret --name SERVER_URL --value https://brev.sh --type variable --scope [org, user]
+  brev secret --name AWS_KEY --value ... --type file --file-path --scope [org, user]
 		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
