@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+	utilities "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/entity/virtualproject"
@@ -432,7 +433,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
-		instanceString := getInstanceString(w)
+		instanceString := utilities.GetInstanceString(w)
 		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.ID, instanceString}}
 		if enableSSHCol {
 			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.GetLocalIdentifier(), w.ID, instanceString}}
@@ -440,37 +441,6 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
-}
-
-func getClassIDString(classID string) string {
-	// switch statement on class ID
-	switch classID {
-	case "2x2":
-		return "2 cpu | 2 gb ram"
-	case "2x4":
-		return "2 cpu | 4 gb ram"
-	case "2x8":
-		return "2 cpu | 8 gb ram"
-	case "4x16":
-		return "4 cpu | 16 gb ram"
-	case "8x32":
-		return "8 cpu | 32 gb ram"
-	case "16x32":
-		return "16 cpu | 32 gb ram"
-	default:
-		return classID
-
-	}
-}
-
-func getInstanceString(w entity.Workspace) string {
-	var instanceString string
-	if w.WorkspaceClassID != "" {
-		instanceString = getClassIDString(w.WorkspaceClassID)
-	} else {
-		instanceString = w.InstanceType + " (gpu)"
-	}
-	return instanceString
 }
 
 func getWorkspaceDisplayStatus(w entity.Workspace) string {

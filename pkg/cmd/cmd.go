@@ -41,6 +41,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/shell"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshkeys"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
+	"github.com/brevdev/brev-cli/pkg/cmd/status"
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
@@ -257,6 +258,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(optimizeinstances.NewCmdOptimizeInstances(t, loginCmdStore))
 	cmd.AddCommand(optimizeinstances.NewCmdOptimize(t, loginCmdStore))
 
+	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))

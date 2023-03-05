@@ -73,3 +73,34 @@ func MakeWorkspaceWithMeta(store MakeWorkspaceWithMetaStore, workspace *entity.W
 		Workspace:         *workspace,
 	}, nil
 }
+
+func GetClassIDString(classID string) string {
+	// switch statement on class ID
+	switch classID {
+	case "2x2":
+		return "2 cpu | 2 gb ram"
+	case "2x4":
+		return "2 cpu | 4 gb ram"
+	case "2x8":
+		return "2 cpu | 8 gb ram"
+	case "4x16":
+		return "4 cpu | 16 gb ram"
+	case "8x32":
+		return "8 cpu | 32 gb ram"
+	case "16x32":
+		return "16 cpu | 32 gb ram"
+	default:
+		return classID
+
+	}
+}
+
+func GetInstanceString(w entity.Workspace) string {
+	var instanceString string
+	if w.WorkspaceClassID != "" {
+		instanceString = GetClassIDString(w.WorkspaceClassID)
+	} else {
+		instanceString = w.InstanceType + " (gpu)"
+	}
+	return instanceString
+}
