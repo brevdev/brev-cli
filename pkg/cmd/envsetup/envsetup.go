@@ -442,8 +442,10 @@ logs:
 		return breverrors.WrapAndTrace(err)
 	}
 
+	hostname, _ := os.Hostname()
+	stringToAppend := fmt.Sprintf("\nlogs_enabled: true\nhostname: %s\n", hostname)
 	// add logs_enabled: true to /etc/datadog-agent/datadog.yaml
-	err = e.store.AppendString("/etc/datadog-agent/datadog.yaml", "\nlogs_enabled: true\n")
+	err = e.store.AppendString("/etc/datadog-agent/datadog.yaml", stringToAppend)
 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
