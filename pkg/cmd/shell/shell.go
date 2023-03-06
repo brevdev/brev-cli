@@ -130,7 +130,7 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 		stdErr := strings.Split(outputStr, "\n")[1]
 		satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out") || strings.Contains(stdErr, "Warning:")
 
-		if counter == 120 || !satisfactoryStdErrMessage {
+		if counter == 160 || !satisfactoryStdErrMessage {
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
 		}
 
