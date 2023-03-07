@@ -27,6 +27,7 @@ type StopStore interface {
 	GetCurrentUser() (*entity.User, error)
 	IsWorkspace() (bool, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetCurrentWorkspaceID() (string, error)
 }
 
 func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
@@ -100,29 +101,46 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
-	if err != nil {
-		if !strings.Contains(err.Error(), "not found") {
-			return breverrors.WrapAndTrace(err)
-		} else {
-			if user.GlobalUserType == entity.Admin {
-				fmt.Println("admin trying to stop any dev environment")
-				workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
-				if err != nil {
+	var workspaceID string
+
+	if workspaceName == "self" {
+		wsID, err2 := stopStore.GetCurrentWorkspaceID()
+		if err2 != nil {
+			t.Vprintf("\n Error: %s", t.Red(err2.Error()))
+			return breverrors.WrapAndTrace(err2)
+		}
+		workspaceID = wsID
+	} else {
+		workspace, err3 := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
+		if err3 != nil {
+			if !strings.Contains(err3.Error(), "not found") {
+				return breverrors.WrapAndTrace(err3)
+			} else {
+				if user.GlobalUserType == entity.Admin {
+					fmt.Println("admin trying to stop any dev environment")
+					workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
+					if err != nil {
+						return breverrors.WrapAndTrace(err)
+					}
+				} else {
 					return breverrors.WrapAndTrace(err)
 				}
-			} else {
-				return breverrors.WrapAndTrace(err)
 			}
 		}
+		workspaceID = workspace.ID
 	}
 
-	_, err = stopStore.StopWorkspace(workspace.ID)
+	_, err = stopStore.StopWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	} else {
-		t.Vprintf(t.Green("Dev environment "+workspace.Name+" is stopping.\n") +
-			"Note: this can take a few seconds. Run 'brev ls' to check status\n")
+		if workspaceName == "self" {
+			t.Vprintf(t.Green("Stopping this dev environment\n") +
+				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
+		} else {
+			t.Vprintf(t.Green("Stopping dev environment "+workspaceName+".\n") +
+				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
+		}
 	}
 
 	return nil
