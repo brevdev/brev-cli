@@ -33,13 +33,19 @@ type BackgroundStore interface {
 func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "background [command]",
+		Use:                   "background [flags] [command]",
 		Aliases:               []string{"bg"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Run a command in the background",
+		Short:                 "Run a command in the background with optional 'brev stop self' at the end",
 		Long:                  "This command will run a specified command in the background using nohup and write logs to $HOME/brev-background-logs.",
-		Example:               "background ./myscript.sh",
+		Example:               "background ./myscript.sh --stop",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Parse the flags
+			stopFlag, err := cmd.Flags().GetBool("stop")
+			if err != nil {
+				log.Fatal(err)
+			}
+
 			// Join the args into a command string
 			command := ""
 			if len(args) > 0 {
@@ -51,13 +57,13 @@ func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *co
 
 			// Create logs directory if it doesn't exist
 			logsDir := os.Getenv("HOME") + "/brev-background-logs"
-			err := os.MkdirAll(logsDir, os.ModePerm)
+			err = os.MkdirAll(logsDir, os.ModePerm)
 			if err != nil {
 				log.Fatal(err)
 			}
 
 			// Run the command in the background using nohup
-			c := exec.Command("nohup", command)
+			c := exec.Command("nohup", "bash", "-c", command+">"+logsDir+"/log.txt 2>&1 &")
 			err = c.Start()
 			if err != nil {
 				log.Fatal(err)
@@ -71,9 +77,21 @@ func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *co
 			defer logFile.Close()
 			logFile.WriteString(time.Now().Format("2006-01-02 15:04:05") + ": Command \"" + command + "\" was run in the background.\n")
 
+			if stopFlag {
+				// If --stop flag is set, run "brev stop self" at the end
+				defer func() {
+					stopCmd := exec.Command("brev", "stop", "self")
+					err = stopCmd.Run()
+					if err != nil {
+						log.Fatal(err)
+					}
+				}()
+			}
+
 			t.Vprintf("Command \"%s\" has been run in the background. Check %s for logs.\n", command, logsDir)
 			return nil
 		},
 	}
+	cmd.Flags().Bool("stop", false, "Stop the workspace after the command is finished")
 	return cmd
 }
