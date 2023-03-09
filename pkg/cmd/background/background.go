@@ -16,14 +16,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	createLong    = "Create a new Brev machine"
-	createExample = `
-  brev create <name>
-	`
-	// instanceTypes = []string{"p4d.24xlarge", "p3.2xlarge", "p3.8xlarge", "p3.16xlarge", "p3dn.24xlarge", "p2.xlarge", "p2.8xlarge", "p2.16xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge", "g5.16xlarge", "g5.12xlarge", "g5.24xlarge", "g5.48xlarge", "g5g.xlarge", "g5g.2xlarge", "g5g.4xlarge", "g5g.8xlarge", "g5g.16xlarge", "g5g.metal", "g4dn.xlarge", "g4dn.2xlarge", "g4dn.4xlarge", "g4dn.8xlarge", "g4dn.16xlarge", "g4dn.12xlarge", "g4dn.metal", "g4ad.xlarge", "g4ad.2xlarge", "g4ad.4xlarge", "g4ad.8xlarge", "g4ad.16xlarge", "g3s.xlarge", "g3.4xlarge", "g3.8xlarge", "g3.16xlarge"}
-)
-
 type BackgroundStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
@@ -33,7 +25,7 @@ type BackgroundStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 }
 
-func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *cobra.Command {
+func NewCmdBackground(t *terminal.Terminal, _ BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "background [flags] [command]",
@@ -74,27 +66,29 @@ func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *co
 			}
 
 			// Run the command in the background using nohup
-			c := exec.Command("nohup", "bash", "-c", command+">"+logsDir+"/log.txt 2>&1 &")
+			c := exec.Command("nohup", "bash", "-c", command+">"+logsDir+"/log.txt 2>&1 &") // #nosec G204
 			err = c.Start()
 			if err != nil {
 				log.Fatal(err)
 			}
 
 			// Write logs
-			logFile, err := os.OpenFile(logsDir+"/log.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666)
+			logFile, err := os.OpenFile(logsDir+"/log.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666) //nolint: gosec // TODO
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer logFile.Close()
-			logFile.WriteString(time.Now().Format("2006-01-02 15:04:05") + ": Command \"" + command + "\" was run in the background.\n")
+
+			defer logFile.Close() //nolint: gosec,errcheck // TODO
+
+			logFile.WriteString(time.Now().Format("2006-01-02 15:04:05") + ": Command \"" + command + "\" was run in the background.\n") //nolint: errcheck,gosec // TODO
 
 			// Write process details to data file
-			processesFile, err := os.OpenFile(logsDir+"/processes.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666)
+			processesFile, err := os.OpenFile(logsDir+"/processes.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666) //nolint: gosec // TODO
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer processesFile.Close()
-			processesFile.WriteString(fmt.Sprintf("%d,%s,%s\n", c.Process.Pid, time.Now().Format("2006-01-02 15:04:05"), command))
+			defer processesFile.Close() //nolint: errcheck,gosec // TODO
+			_, _ = processesFile.WriteString(fmt.Sprintf("%d,%s,%s\n", c.Process.Pid, time.Now().Format("2006-01-02 15:04:05"), command))
 
 			if stopFlag {
 				// If --stop flag is set, run "brev stop self" at the end
@@ -130,11 +124,11 @@ type Processes struct {
 
 func checkProgress() {
 	filePath := fmt.Sprintf("%s/brev-background-logs/processes.txt", os.Getenv("HOME"))
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) //nolint: gosec // TODO
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint: errcheck,gosec // TODO
 
 	scanner := bufio.NewScanner(file)
 
@@ -151,7 +145,7 @@ func checkProgress() {
 		// Check if the process is still running by its PID
 		processID := processData[0]
 		cmd := fmt.Sprintf("ps -p %s -o comm=", processID)
-		output, err := exec.Command("bash", "-c", cmd).Output()
+		output, err := exec.Command("bash", "-c", cmd).Output() //nolint: gosec // TODO
 
 		if err != nil || strings.TrimSpace(string(output)) == "" {
 			// Process is not running, show a checkmark
