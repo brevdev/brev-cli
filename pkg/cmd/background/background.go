@@ -1,9 +1,12 @@
 package background
 
 import (
+	"bufio"
+	"fmt"
 	"log"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
@@ -45,6 +48,14 @@ func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *co
 			if err != nil {
 				log.Fatal(err)
 			}
+			progressFlag, err := cmd.Flags().GetBool("progress")
+			if err != nil {
+				log.Fatal(err)
+			}
+			if progressFlag {
+				checkProgress()
+				return nil
+			}
 
 			// Join the args into a command string
 			command := ""
@@ -77,6 +88,14 @@ func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *co
 			defer logFile.Close()
 			logFile.WriteString(time.Now().Format("2006-01-02 15:04:05") + ": Command \"" + command + "\" was run in the background.\n")
 
+			// Write process details to data file
+			processesFile, err := os.OpenFile(logsDir+"/processes.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer processesFile.Close()
+			processesFile.WriteString(fmt.Sprintf("%d,%s,%s\n", c.Process.Pid, time.Now().Format("2006-01-02 15:04:05"), command))
+
 			if stopFlag {
 				// If --stop flag is set, run "brev stop self" at the end
 				defer func() {
@@ -93,5 +112,61 @@ func NewCmdBackground(t *terminal.Terminal, backgroundStore BackgroundStore) *co
 		},
 	}
 	cmd.Flags().Bool("stop", false, "Stop the workspace after the command is finished")
+	cmd.Flags().Bool("progress", false, "Show progress of the background commands")
+
 	return cmd
+}
+
+type Process struct {
+	ID        int    `json:"id"`
+	Command   string `json:"command"`
+	LogsDir   string `json:"logsDir"`
+	StartTime string `json:"startTime"`
+}
+
+type Processes struct {
+	Processes []Process `json:"processes"`
+}
+
+func checkProgress() {
+	filePath := fmt.Sprintf("%s/brev-background-logs/processes.txt", os.Getenv("HOME"))
+	file, err := os.Open(filePath)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	fmt.Println("Running processes:")
+	for scanner.Scan() {
+		processLine := scanner.Text()
+		processData := strings.Split(processLine, ",")
+
+		startTime, err := time.Parse("2006-01-02 15:04:05", processData[1])
+		if err != nil {
+			panic(err)
+		}
+
+		// Check if the process is still running by its PID
+		processID := processData[0]
+		cmd := fmt.Sprintf("ps -p %s -o comm=", processID)
+		output, err := exec.Command("bash", "-c", cmd).Output()
+
+		if err != nil || strings.TrimSpace(string(output)) == "" {
+			// Process is not running, show a checkmark
+			fmt.Printf("ID: %s \u2713\n", processID)
+		} else {
+			// Process is still running, display its info
+			fmt.Printf("ID: %s\n", processID)
+			fmt.Printf("Command: %s\n", processData[2])
+			fmt.Printf("Start time: %s\n", startTime.Format("2006-01-02 15:04:05"))
+		}
+
+		fmt.Println()
+	}
+
+	if err := scanner.Err(); err != nil {
+		panic(err)
+	}
 }
