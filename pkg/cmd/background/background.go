@@ -11,6 +11,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -20,12 +21,37 @@ type BackgroundStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
+	ModifyWorkspace(workspaceID string, options *store.ModifyWorkspaceRequest) (*entity.Workspace, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentWorkspaceID() (string, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 }
 
-func NewCmdBackground(t *terminal.Terminal, _ BackgroundStore) *cobra.Command {
+func DisableAutoStop(s BackgroundStore, workspaceID string) error {
+	isStoppable := false
+	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
+		WorkspaceClassID: workspaceID,
+		IsStoppable:      &isStoppable,
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func EnableAutoStop(s BackgroundStore, workspaceID string) error {
+	isStoppable := true
+	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
+		WorkspaceClassID: workspaceID,
+		IsStoppable:      &isStoppable,
+	})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "background [flags] [command]",
@@ -63,6 +89,15 @@ func NewCmdBackground(t *terminal.Terminal, _ BackgroundStore) *cobra.Command {
 			err = os.MkdirAll(logsDir, os.ModePerm)
 			if err != nil {
 				log.Fatal(err)
+			}
+
+			wsID, err := s.GetCurrentWorkspaceID()
+			if err == nil {
+				// Disable auto stop
+				err = DisableAutoStop(s, wsID)
+				if err != nil {
+					log.Fatal(err)
+				}
 			}
 
 			// Run the command in the background using nohup

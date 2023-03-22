@@ -21,7 +21,7 @@ var (
 
 type ModifyWorkspaceRequest struct {
 	WorkspaceClassID  string            `json:"workspaceClassId,omitempty"`
-	IsStoppable       bool              `json:"isStoppable,omitempty"`
+	IsStoppable       *bool             `json:"isStoppable,omitempty"`
 	StartupScriptPath string            `json:"startupScriptPath,omitempty"`
 	Name              string            `json:"name,omitempty"`
 	IDEConfig         *entity.IDEConfig `json:"ideConfig,omitempty"`
