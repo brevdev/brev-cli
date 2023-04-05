@@ -66,7 +66,6 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 }
 
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string) error {
-	res := refresh.RunRefreshAsync(sstore)
 	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
@@ -83,8 +82,8 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	refreshRes := refresh.RunRefreshAsync(sstore)
 
-	res = refresh.RunRefreshAsync(sstore)
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -94,7 +93,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	}
 	sshName := string(workspace.GetLocalIdentifier())
 
-	err = res.Await()
+	err = refreshRes.Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

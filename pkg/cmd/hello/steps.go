@@ -220,8 +220,11 @@ func doVsCodeOnboarding(
 	bold func(a ...interface{}) string,
 ) error {
 	// TODO: check if ext is installed
-	isInstalled, err2 := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
-	if !isInstalled || err2 != nil {
+	isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !isInstalled {
 		printAskInstallVsCode(t)
 		return nil
 	}
@@ -234,9 +237,9 @@ func doVsCodeOnboarding(
 	spinner.Start()
 	for sum < 1 {
 		sum += sum
-		res, err2 := GetOnboardingObject()
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
+		res, err1 := GetOnboardingObject()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
 		}
 		if res.HasRunBrevOpen {
 			spinner.Suffix = "🎉 you did it!"
@@ -248,7 +251,7 @@ func doVsCodeOnboarding(
 
 	}
 
-	err := CompletedOnboardingOpen(user, store)
+	err = CompletedOnboardingOpen(user, store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
