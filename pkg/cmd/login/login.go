@@ -294,7 +294,7 @@ func RunTasksForUser(t *terminal.Terminal) error {
 func CreateNewUser(loginStore LoginStore, idToken string) (bool, error) {
 	_, err := loginStore.CreateUser(idToken)
 	if err != nil {
-		if !strings.Contains(err.Error(), "duplicate username") {
+		if !(strings.Contains(err.Error(), "duplicate username") || strings.Contains(err.Error(), "duplicate external auth id")) {
 			// This is a real error
 			return false, breverrors.WrapAndTrace(err)
 		}
