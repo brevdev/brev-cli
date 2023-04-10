@@ -217,6 +217,7 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   ProxyCommand {{ .ProxyCommand }}
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -231,6 +232,7 @@ const SSHConfigEntryTemplateV3 = `Host {{ .Alias }}
   User {{ .User }}
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes

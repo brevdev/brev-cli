@@ -29,6 +29,7 @@ import (
 const workspaceSSHConfigTemplate = `Host {{ .Host }}
   Hostname {{ .Hostname }}
   IdentityFile {{ .IdentityFile }}
+  IdentitiesOnly yes
   User brev
   Port {{ .Port }}
   UserKnownHostsFile /dev/null
