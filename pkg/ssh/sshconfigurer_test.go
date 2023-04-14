@@ -141,6 +141,7 @@ Host %s
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -152,6 +153,7 @@ Host %s
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -261,6 +263,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -292,6 +295,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -324,6 +328,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -355,6 +360,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   ProxyCommand brev proxy test-id-2
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -385,6 +391,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   ProxyCommand brev proxy test-id-2
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -497,6 +504,7 @@ Host testName1
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -539,6 +547,7 @@ Host testName1
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
@@ -553,6 +562,7 @@ Host testName1
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
