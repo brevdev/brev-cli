@@ -107,3 +107,4 @@ experimental-features = nix-command flakes
 trusted-users = root ubuntu
 build-users-group = nixbld
 ' > /etc/nix/nix.conf"
+rm nix-install
