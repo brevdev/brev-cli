@@ -263,7 +263,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 	var entry SSHConfigEntryV2
 	var tmpl *template.Template
 	var err error
-
+	privateKeyPath = "\"" + privateKeyPath + "\""
 	if workspace.IsLegacy() {
 		proxyCommand := makeProxyCommand(workspace.ID)
 		entry = SSHConfigEntryV2{
@@ -371,7 +371,7 @@ func WSLAddIncludeToUserConfig(conf string, brevConfigPath string) string {
 }
 
 func makeIncludeBrevStr(brevSSHConfigPath string) string {
-	return fmt.Sprintf("Include %s\n", brevSSHConfigPath)
+	return fmt.Sprintf("Include \"%s\"\n", brevSSHConfigPath)
 }
 
 func doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
