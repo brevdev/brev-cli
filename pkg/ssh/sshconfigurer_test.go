@@ -128,6 +128,7 @@ func (d DummySSHConfigurerV2Store) WriteWSLUserSSHConfig(_ string) error {
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
+
 	assert.Nil(t, err)
 	// sometimes vs code is not happy with the formatting
 	// so if the formatting is not correct then the test will fail
@@ -137,7 +138,7 @@ func TestCreateNewSSHConfig(t *testing.T) {
 	correct := fmt.Sprintf(`# included in /my/user/config
 Host %s
   Hostname test1-dns-org.brev.sh
-  IdentityFile /my/priv/key.pem
+  IdentityFile "/my/priv/key.pem"
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -149,7 +150,7 @@ Host %s
 
 Host %s
   Hostname test2-dns-org.brev.sh
-  IdentityFile /my/priv/key.pem
+  IdentityFile "/my/priv/key.pem"
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -188,12 +189,12 @@ func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
 	userConf := ``
 	assert.False(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 
-	userConf = `Include /my/brev/config
+	userConf = `Include "/my/brev/config"
 `
 	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 
 	userConf = `# blahdlkfadlfa
-Include /my/brev/config
+Include "/my/brev/config"
 # baldfhaldjf`
 	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
 }
@@ -210,7 +211,7 @@ func TestAddIncludeToUserConfig(t *testing.T) {
 	if !assert.Nil(t, err) {
 		return
 	}
-	correct := `Include /my/brev/config
+	correct := `Include "/my/brev/config"
 `
 	assert.Equal(t, correct, newConf)
 
@@ -221,7 +222,7 @@ blaksdf;asdf;
 	if !assert.Nil(t, err) {
 		return
 	}
-	correct = `Include /my/brev/config
+	correct = `Include "/my/brev/config"
 ` + userConf
 	assert.Equal(t, correct, newConf)
 }
@@ -496,11 +497,11 @@ func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
 				},
 			},
 			wantErr:        false,
-			linuxSSHConfig: "Include /home/test/.brev/ssh_config\n",
+			linuxSSHConfig: "Include \"/home/test/.brev/ssh_config\"\n",
 			linuxBrevSSHConfig: `# included in /home/test/.ssh/config
 Host testName1
   Hostname test1-dns-org.brev.sh
-  IdentityFile /home/test/.brev/brev.pem
+  IdentityFile "/home/test/.brev/brev.pem"
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -539,11 +540,11 @@ Host testName1
 				},
 			},
 			wantErr:        false,
-			linuxSSHConfig: "Include /home/test/.brev/ssh_config\n",
+			linuxSSHConfig: "Include \"/home/test/.brev/ssh_config\"\n",
 			linuxBrevSSHConfig: `# included in /home/test/.ssh/config
 Host testName1
   Hostname test1-dns-org.brev.sh
-  IdentityFile /home/test/.brev/brev.pem
+  IdentityFile "/home/test/.brev/brev.pem"
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -554,11 +555,11 @@ Host testName1
   Port 22
 
 `,
-			windowsSSHConfig: "Include C:\\Users\\15854\\.brev\\ssh_config\n",
+			windowsSSHConfig: "Include \"C:\\Users\\15854\\.brev\\ssh_config\"\n",
 			windowsBrevSSHConfig: `# included in C:\Users\15854\.brev\ssh_config
 Host testName1
   Hostname test1-dns-org.brev.sh
-  IdentityFile C:\Users\15854\.brev\brev.pem
+  IdentityFile "C:\Users\15854\.brev\brev.pem"
   User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
@@ -599,6 +600,7 @@ Host testName1
 			}
 			diff = cmp.Diff(tt.linuxBrevSSHConfig, linuxBrevSSHConfig)
 			if diff != "" {
+				fmt.Println("THIS DIFF IS DIFFERENT")
 				t.Fatalf(diff)
 			}
 
