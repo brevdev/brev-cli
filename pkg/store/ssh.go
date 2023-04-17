@@ -253,3 +253,8 @@ func VerifyPrivateKey(key []byte) error {
 	}
 	return nil
 }
+
+// Decide whether VM is still booting or something quite wrong is happening...
+func SatisfactorySSHErrMessage(stdErr string) bool {
+	return strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out") || strings.Contains(stdErr, "Warning:") || strings.Contains(stdErr, "Connection timed out")
+}
