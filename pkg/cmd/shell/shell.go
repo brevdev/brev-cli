@@ -127,7 +127,6 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 
 		outputStr := string(out)
 		stdErr := strings.Split(outputStr, "\n")[1]
-		// satisfactoryStdErrMessage := strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out") || strings.Contains(stdErr, "Warning:") || strings.Contains(stdErr, "Connection timed out")
 
 		if counter == 120 || !store.SatisfactorySSHErrMessage(stdErr) {
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
@@ -137,8 +136,6 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 		time.Sleep(1 * time.Second)
 	}
 }
-
-
 
 func runSSH(workspace *entity.Workspace, sshAlias, directory string) error {
 	sshCmd := exec.Command("ssh", sshAlias)
