@@ -54,12 +54,12 @@ func EnableAutoStop(s BackgroundStore, workspaceID string) error {
 func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "brev background [flags] [command]",
+		Use:                   "background [flags] [command]",
 		Aliases:               []string{"bg"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Run a command in the background with optional 'brev stop self' at the end",
 		Long:                  "This command will run a specified command in the background using nohup and write logs to $HOME/brev-background-logs.",
-		Example:               "background ./myscript.sh --stop",
+		Example:               "brev background ./myscript.sh --stop",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Parse the flags
 			stopFlag, err := cmd.Flags().GetBool("stop")
