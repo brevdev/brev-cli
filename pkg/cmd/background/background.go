@@ -54,7 +54,7 @@ func EnableAutoStop(s BackgroundStore, workspaceID string) error {
 func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "background [flags] [command]",
+		Use:                   "brev background [flags] [command]",
 		Aliases:               []string{"bg"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Run a command in the background with optional 'brev stop self' at the end",
