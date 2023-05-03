@@ -592,6 +592,7 @@ typeset -ag chpwd_functions;
 if [[ -z "${chpwd_functions[(r)_brev_hook]+1}" ]]; then
   chpwd_functions=( _brev_hook ${chpwd_functions[@]} )
 fi
+export PATH="/opt/conda/bin:$PATH"
 `)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
