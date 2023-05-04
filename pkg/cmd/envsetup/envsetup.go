@@ -313,6 +313,10 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 
+	err = e.SetupEnvVars()
+	if err != nil {
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
+	}
 	err = appendLogToFile("starting to run execs", "/var/log/brev-steps.log")
 	if err != nil {
 		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
@@ -322,10 +326,6 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
 
-	err = e.SetupEnvVars()
-	if err != nil {
-		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
-	}
 	fmt.Println("------ Done running execs ------")
 	err = appendLogToFile("done running execs", "/var/log/brev-steps.log")
 	if err != nil {
