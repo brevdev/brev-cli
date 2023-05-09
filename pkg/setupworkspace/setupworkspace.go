@@ -1258,7 +1258,7 @@ func RunSetupScript(logsPath string, workingDir string, setupExecPath string, us
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		cmd := CmdStringBuilder(fmt.Sprintf("echo user: $(whoami) && echo pwd: $(pwd) && %s", setupExecPath))
+		cmd := CmdStringBuilder(fmt.Sprintf("echo user: $(whoami) && echo pwd: $(pwd) && export PATH=\"/opt/conda/bin:$PATH\" && %s", setupExecPath))
 		cmd.Dir = workingDir
 		err = CmdAsUser(cmd, user)
 		if err != nil {
