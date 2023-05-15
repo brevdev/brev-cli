@@ -2,6 +2,7 @@ package autostartconf
 
 import (
 	"path/filepath"
+	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -22,7 +23,14 @@ func (abc AptBinaryConfigurer) Install() error {
 		append([]string{"apt-get", "install", "-y"}, abc.aptDependencies...),
 	})
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if strings.Contains(err.Error(), "dpkg --configure -a") {
+			err = ExecCommands([][]string{{"sudo dpkg --configure -a"}})
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		} else {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 	// download binary
 	err = abc.Store.DownloadBinary(
