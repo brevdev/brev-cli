@@ -578,6 +578,17 @@ fi
 		return breverrors.WrapAndTrace(err)
 	}
 
+	fileExists, err := e.store.FileExists("/etc/zsh/zshrc")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !fileExists {
+		err = e.store.WriteString("/etc/zsh/zshrc", "")
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
 	err = e.store.AppendString("/etc/zsh/zshrc", `
 _brev_hook() {
   trap -- '' SIGINT;

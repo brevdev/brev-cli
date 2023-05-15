@@ -366,11 +366,6 @@ func (w WorkspaceIniter) Setup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = w.RunApplicationScripts(w.Params.WorkspaceApplicationStartScripts)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	var setupErr error
 
 	err = w.SetupRepos()
