@@ -39,7 +39,7 @@ func PromptSelectInput(pc PromptSelectContent) string {
 	return result
 }
 
-func DisplayBrevLogo(t *Terminal) {
+func DisplayBrevLogo(t *Terminal) { //nolint:funlen // logo
 	t.Vprint("Welcome to brev.dev")
 	t.Vprint("")
 	t.Vprint("    ##@@@#.")
