@@ -17,11 +17,17 @@ type AptBinaryConfigurer struct {
 func (abc AptBinaryConfigurer) Install() error {
 	_ = abc.UnInstall() // best effort
 
-	// install apt dependencies
-	err := ExecCommands([][]string{
-		{"apt-get", "update"},
-		append([]string{"apt-get", "install", "-y"}, abc.aptDependencies...),
-	})
+	var err error
+	for i := 0; i < 3; i++ {
+		err = ExecCommands([][]string{
+			{"apt-get", "update"},
+			append([]string{"apt-get", "install", "-y"}, abc.aptDependencies...),
+		})
+		if err == nil {
+			break
+		}
+	}
+
 	if err != nil {
 		if strings.Contains(err.Error(), "dpkg --configure -a") {
 			err = ExecCommands([][]string{{"sudo dpkg --configure -a"}})
