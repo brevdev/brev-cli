@@ -39,7 +39,6 @@ func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 	default:
 		s += t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 	}
 	return s
@@ -61,7 +60,6 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	if noneFound {
 		s := t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
 		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
