@@ -39,7 +39,6 @@ func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 	default:
 		s += t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 	}
 	return s
@@ -61,7 +60,6 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	if noneFound {
 		s := t.Red("Please create a running dev environment for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\t\t-- Or --\n\tRun this in your terminal 👉 " + t.Yellow("brev start https://github.com/brevdev/hello-react --name %s", DefaultDevEnvName)
 		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
 		TypeItToMe(s)
 		return nil
@@ -74,9 +72,14 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 }
 
 func printLsIntroText(t *terminal.Terminal, firstWorkspace entity.Workspace) {
-	s := "\n\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
+	s := "\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
 	s += "\nIf the dev environment is " + t.Green("RUNNING") + ", you can open it."
-	s += "\n\nIn a new terminal, try running " + t.Green("brev shell %s", firstWorkspace.Name) + " to get a terminal in your dev environment\n"
+	TypeItToMe(s)
+}
+
+func printBrevShellOnboarding(t *terminal.Terminal, firstWorkspace *entity.Workspace) {
+	s := "\n\nTry opening a terminal SSHed in your dev environment"
+	s += "\nIn a new terminal, run " + t.Green("brev shell %s", firstWorkspace.Name) + "\n"
 	TypeItToMe(s)
 }
 
@@ -90,16 +93,16 @@ func printAskInstallVsCode(t *terminal.Terminal) {
 }
 
 func printBrevOpen(t *terminal.Terminal, firstWorkspace entity.Workspace) {
-	s := "\n\nAwesome! Now try opening VS Code in that environment"
-	s += "\nIn a new terminal, try running " + t.Green("brev open %s", firstWorkspace.Name) + " to open VS Code in the dev environment\n"
+	s := "\n\nTry opening VS Code in your dev environment"
+	s += "\nIn a new terminal, run " + t.Green("brev open %s", firstWorkspace.Name) + "\n"
 	TypeItToMe(s)
 }
 
 func printCompletedOnboarding(t *terminal.Terminal) {
 	s := "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
-	s += "\n\nUse the console " + t.Green("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
+	s += "\n\nUse the console " + t.Yellow("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
 	s += "\nand use this CLI to code the way you would normally 🤙"
-	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev/docs") + " and let us know if we can help!\n"
+	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev") + " and let us know if we can help!\n"
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
 	TypeItToMe(s)
 }
@@ -138,34 +141,16 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	spinner := t.NewSpinner()
+	bold := color.New(color.Bold).SprintFunc()
 
 	firstWorkspace := GetDevEnvOrStall(t, workspaces)
 	if firstWorkspace == nil {
 		return nil
 	}
 	printLsIntroText(t, *firstWorkspace)
-	spinner := t.NewSpinner()
-	err = waitSpinner(spinner)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 
-	err = CompletedOnboardingShell(user, store)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
-	fmt.Println()
-	bold := color.New(color.Bold).SprintFunc()
-	_ = terminal.PromptGetInput(terminal.PromptContent{
-		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
-		Label:      "   " + bold("▸"),
-		ErrorMsg:   "error",
-		AllowEmpty: true,
-	})
-
-	// TODO: check if VS Code is preferred editor
+	// Check if VS Code is preferred editor
 	currentOnboardingStatus, err := user.GetOnboardingData()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -175,7 +160,31 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	} else {
+		err = doBrevShellOnboarding(t, firstWorkspace, user, store, spinner, bold)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
+
+	// err = waitSpinner(spinner)
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+
+	// err = CompletedOnboardingShell(user, store)
+	// if err != nil {
+	// 	return breverrors.WrapAndTrace(err)
+	// }
+
+	// TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
+	// fmt.Println()
+	// _ = terminal.PromptGetInput(terminal.PromptContent{
+	// 	// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+	// 	Label:      "   " + bold("▸"),
+	// 	ErrorMsg:   "error",
+	// 	AllowEmpty: true,
+	// })
 
 	// Commenting out the below since public urls is gone
 	// handleLocalhostURLIfDefaultProject(*firstWorkspace, t)
@@ -207,9 +216,55 @@ func Step1(t *terminal.Terminal, workspaces []entity.Workspace, user *entity.Use
 // 			AllowEmpty: true,
 // 		})
 
-// 		fmt.Print("\n")
-// 	}
-// }
+//			fmt.Print("\n")
+//		}
+//	}
+func doBrevShellOnboarding(
+	t *terminal.Terminal,
+	firstWorkspace *entity.Workspace,
+	user *entity.User,
+	store HelloStore,
+	spinner *spinner.Spinner,
+	bold func(a ...interface{}) string,
+) error {
+	printBrevShellOnboarding(t, firstWorkspace)
+
+	// a while loop in golang
+	sum := 0
+	spinner.Suffix = "☝️ try that, I'll wait"
+	spinner.Start()
+	for sum < 1 {
+		sum += sum
+		res, err1 := GetOnboardingObject()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		if res.HasRunBrevOpen {
+			spinner.Suffix = "🎉 you did it!"
+			time.Sleep(250 * time.Millisecond)
+			spinner.Stop()
+			break
+		}
+		time.Sleep(1 * time.Second)
+
+	}
+
+	err := CompletedOnboardingShell(user, store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	TypeItToMe("\nHit " + t.Yellow("enter") + " to continue")
+	fmt.Println()
+
+	_ = terminal.PromptGetInput(terminal.PromptContent{
+		// Label:      "   " + bold("▸") + "    Press " + bold("Enter") + " to continue",
+		Label:      "   " + bold("▸"),
+		ErrorMsg:   "error",
+		AllowEmpty: true,
+	})
+	return nil
+}
 
 func doVsCodeOnboarding(
 	t *terminal.Terminal,
