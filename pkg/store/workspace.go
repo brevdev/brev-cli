@@ -49,9 +49,10 @@ type CreateWorkspacesOptions struct {
 	StartupScriptPath string `json:"startupScriptPath"`
 	DotBrevPath       string `json:"dotBrevPath"`
 
-	IDEConfig *entity.IDEConfig `json:"ideConfig"`
-	Repos     entity.ReposV0    `json:"repos"`
-	Execs     entity.ExecsV0    `json:"execs"`
+	IDEConfig   *entity.IDEConfig `json:"ideConfig"`
+	Repos       entity.ReposV0    `json:"repos"`
+	Execs       entity.ExecsV0    `json:"execs"`
+	DiskStorage string            `json:"diskStorage"`
 }
 
 var (
@@ -62,6 +63,7 @@ var (
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
 	UserWorkspaceTemplateID    = "4nbb4lg2s"
 	DevWorkspaceTemplateID     = "v7nd45zsc"
+	DefaultDiskStorage         = "120Gi"
 )
 
 var (
@@ -86,6 +88,7 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PrimaryApplicationID: DefaultApplicationID,
 		Applications:         DefaultApplicationList,
 		StartupScript:        setupscript.DefaultSetupScript,
+		DiskStorage:          DefaultDiskStorage,
 	}
 }
 
