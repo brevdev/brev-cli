@@ -35,7 +35,7 @@ func (c ConstantsConfig) GetVersion() string {
 }
 
 func (c ConstantsConfig) GetDefaultClusterID() string {
-	return getEnvOrDefault(clusterID, "")
+	return getEnvOrDefault(clusterID, "devplane-brev-1")
 }
 
 func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
