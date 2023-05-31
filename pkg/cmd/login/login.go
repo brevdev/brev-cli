@@ -231,14 +231,8 @@ func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) 
 		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "What is your preferred IDE?",
 			ErrorMsg: "Error: must choose a preferred IDE",
-			Items:    []string{"VSCode", "JetBrains IDEs", "Vim", "Emacs", "Atom", "Other"},
+			Items:    []string{"VSCode", "Vim", "Emacs"},
 		})
-		if ide == "Other" {
-			ide = terminal.PromptGetInput(terminal.PromptContent{
-				Label:    "Please enter your preferred IDE:",
-				ErrorMsg: "Error: must enter a value",
-			})
-		}
 		newOnboardingStatus["editor"] = ide
 	} else {
 		ide = currentOnboardingStatus.Editor
@@ -383,12 +377,10 @@ func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore, ide str
 				})
 			}
 		}
+	} else {
+		t.Print("To use " + ide + " for your environment. Use the following command to remote into your machine")
+		t.Print(t.Green("Brev Shell"))
 	}
-
-	if ide == "JetBrains IDEs" {
-		return ide, CheckAndInstallGateway(t, loginStore)
-	}
-
 	return ide, nil
 }
 

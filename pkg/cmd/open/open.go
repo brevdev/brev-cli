@@ -246,7 +246,7 @@ func openVsCodeWithSSH(
 			if strings.Contains(err.Error(), "you are in a remote brev environment;") {
 				return breverrors.WrapAndTrace(err)
 			}
-			return breverrors.WrapAndTrace(fmt.Errorf("couldn't open VSCode, try adding it to PATH\n"))
+			return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open VSCode, try adding it to PATH\n")))
 		}
 	}
 	t.Vprint("\n")
