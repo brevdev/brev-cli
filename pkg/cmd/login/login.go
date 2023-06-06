@@ -343,7 +343,7 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 	return nil
 }
 
-func OnboardUserWithEditors(t *terminal.Terminal, loginStore LoginStore, ide string) (string, error) {
+func OnboardUserWithEditors(t *terminal.Terminal, _ LoginStore, ide string) (string, error) {
 	if ide == "VSCode" {
 		// Check if user uses VSCode and intall extension for user
 		isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")

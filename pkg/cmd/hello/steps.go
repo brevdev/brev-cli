@@ -14,6 +14,8 @@ import (
 
 const DefaultDevEnvName = "first-workspace-react"
 
+const spinnerSuffix = "🎉 you did it!"
+
 func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 	s := ""
 	switch status {
@@ -71,7 +73,7 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	return &runningDevEnvs[0]
 }
 
-func printLsIntroText(t *terminal.Terminal, firstWorkspace entity.Workspace) {
+func printLsIntroText(t *terminal.Terminal, _ entity.Workspace) {
 	s := "\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
 	s += "\nIf the dev environment is " + t.Green("RUNNING") + ", you can open it."
 	TypeItToMe(s)
@@ -120,7 +122,7 @@ func waitSpinner(spinner *spinner.Spinner) error {
 			return breverrors.WrapAndTrace(err2)
 		}
 		if res.HasRunBrevShell {
-			spinner.Suffix = "🎉 you did it!"
+			spinner.Suffix = spinnerSuffix
 			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
 			break
@@ -240,7 +242,7 @@ func doBrevShellOnboarding(
 			return breverrors.WrapAndTrace(err1)
 		}
 		if res.HasRunBrevOpen {
-			spinner.Suffix = "🎉 you did it!"
+			spinner.Suffix = spinnerSuffix
 			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
 			break
@@ -297,7 +299,7 @@ func doVsCodeOnboarding(
 			return breverrors.WrapAndTrace(err1)
 		}
 		if res.HasRunBrevOpen {
-			spinner.Suffix = "🎉 you did it!"
+			spinner.Suffix = spinnerSuffix
 			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
 			break
