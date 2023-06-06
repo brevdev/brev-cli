@@ -109,29 +109,29 @@ func printCompletedOnboarding(t *terminal.Terminal) {
 	TypeItToMe(s)
 }
 
-func waitSpinner(spinner *spinner.Spinner) error {
-	// a while loop in golang
-	sum := 0
-	spinner.Suffix = "👆 try that, I'll wait"
-	spinner.Start()
-	for sum > -1 {
-		sum++
+// func waitSpinner(spinner *spinner.Spinner) error {
+// 	// a while loop in golang
+// 	sum := 0
+// 	spinner.Suffix = "👆 try that, I'll wait"
+// 	spinner.Start()
+// 	for sum > -1 {
+// 		sum++
 
-		res, err2 := GetOnboardingObject()
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
-		}
-		if res.HasRunBrevShell {
-			spinner.Suffix = spinnerSuffix
-			time.Sleep(250 * time.Millisecond)
-			spinner.Stop()
-			break
-		}
-		time.Sleep(1 * time.Second)
+// 		res, err2 := GetOnboardingObject()
+// 		if err2 != nil {
+// 			return breverrors.WrapAndTrace(err2)
+// 		}
+// 		if res.HasRunBrevShell {
+// 			spinner.Suffix = spinnerSuffix
+// 			time.Sleep(250 * time.Millisecond)
+// 			spinner.Stop()
+// 			break
+// 		}
+// 		time.Sleep(1 * time.Second)
 
-	}
-	return nil
-}
+// 	}
+// 	return nil
+// }
 
 /*
 Step 1:
