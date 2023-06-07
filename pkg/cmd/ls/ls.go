@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -95,6 +96,19 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+			// Call analytics for ls
+			userID := ""
+			user, err := loginLsStore.GetCurrentUser()
+			if err != nil {
+				userID = ""
+			} else {
+				userID = user.ID
+			}
+			data := analytics.EventData{
+				EventName: "Brev ls",
+				UserID:    userID,
+			}
+			_ = analytics.TrackEvent(data)
 			return nil
 		},
 	}

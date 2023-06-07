@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -135,6 +136,20 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 					}
 				}()
 			}
+
+			// Call analytics for open
+			userID := ""
+			user, err := s.GetCurrentUser()
+			if err != nil {
+				userID = ""
+			} else {
+				userID = user.ID
+			}
+			data := analytics.EventData{
+				EventName: "Brev background",
+				UserID:    userID,
+			}
+			_ = analytics.TrackEvent(data)
 
 			t.Vprintf("Command \"%s\" has been run in the background. Check %s for logs.\n", command, logsDir)
 			return nil

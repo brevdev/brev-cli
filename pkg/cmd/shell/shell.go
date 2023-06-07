@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -109,6 +110,22 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	// Call analytics for shell
+	userID := ""
+	user, err := sstore.GetCurrentUser()
+	if err != nil {
+		userID = workspace.CreatedByUserID
+	} else {
+		userID = user.ID
+	}
+	data := analytics.EventData{
+		EventName: "Brev Open",
+		UserID:    userID,
+		Properties: map[string]string{
+			"environmentId": workspace.ID,
+		},
+	}
+	_ = analytics.TrackEvent(data)
 
 	return nil
 }

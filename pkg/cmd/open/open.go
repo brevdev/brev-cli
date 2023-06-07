@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alessio/shellescape"
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -145,6 +146,22 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		}
 		return breverrors.WrapAndTrace(err)
 	}
+	// Call analytics for open
+	userID := ""
+	user, err := tstore.GetCurrentUser()
+	if err != nil {
+		userID = workspace.CreatedByUserID
+	} else {
+		userID = user.ID
+	}
+	data := analytics.EventData{
+		EventName: "Brev Open",
+		UserID:    userID,
+		Properties: map[string]string{
+			"environmentId": workspace.ID,
+		},
+	}
+	_ = analytics.TrackEvent(data)
 
 	return nil
 }
