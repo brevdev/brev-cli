@@ -37,6 +37,8 @@ func TrackEvent(data EventData) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	//nolint:errcheck
 	defer resp.Body.Close()
 
 	return nil
