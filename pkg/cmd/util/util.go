@@ -34,7 +34,13 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 		return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s not found", workspaceNameOrID))
 	}
 	if len(workspaces) > 1 {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", workspaceNameOrID))
+		workspaces = store.FilterNonFailedWorkspaces(workspaces)
+		if len(workspaces) == 0 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s is a failed workspace", workspaceNameOrID))
+		}
+		if len(workspaces) > 1 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", workspaceNameOrID))
+		}
 	}
 	return &workspaces[0], nil
 }
@@ -53,7 +59,13 @@ func GetAnyWorkspaceByIDOrNameInActiveOrgErr(storeQ GetWorkspaceByNameOrIDErrSto
 		return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s not found", workspaceNameOrID))
 	}
 	if len(workspaces) > 1 {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", workspaceNameOrID))
+		workspaces = store.FilterNonFailedWorkspaces(workspaces)
+		if len(workspaces) == 0 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s is a failed workspace", workspaceNameOrID))
+		}
+		if len(workspaces) > 1 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", workspaceNameOrID))
+		}
 	}
 	return &workspaces[0], nil
 }

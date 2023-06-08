@@ -197,6 +197,16 @@ func FilterForUserWorkspaces(workspaces []entity.Workspace, userID string) []ent
 	return filteredWorkspaces
 }
 
+func FilterNonFailedWorkspaces(workspaces []entity.Workspace) []entity.Workspace {
+	filteredWorkspaces := []entity.Workspace{}
+	for _, w := range workspaces {
+		if w.Status != entity.Failure {
+			filteredWorkspaces = append(filteredWorkspaces, w)
+		}
+	}
+	return filteredWorkspaces
+}
+
 func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
 	// pretty srue we always want to filter for workspaces owned by the user
 	user, err := s.GetCurrentUser()

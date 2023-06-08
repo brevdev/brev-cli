@@ -205,7 +205,13 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options St
 	userWorkspaces := store.FilterForUserWorkspaces(workspaces, user.ID)
 	if len(userWorkspaces) > 0 {
 		if len(userWorkspaces) > 1 {
-			breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", options.RepoOrPathOrNameOrID))
+			userWorkspaces = store.FilterNonFailedWorkspaces(userWorkspaces)
+			if len(userWorkspaces) > 1 {
+				breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", options.RepoOrPathOrNameOrID))
+			}
+			if len(userWorkspaces) == 0 {
+				breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s is a failed workspace", options.RepoOrPathOrNameOrID))
+			}
 		}
 		if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
 			t.Print(t.Yellow(fmt.Sprintf("Warning: local path found and dev environment name/id found %s. Using dev environment name/id. If you meant to specify a local path change directory and try again.", options.RepoOrPathOrNameOrID)))
