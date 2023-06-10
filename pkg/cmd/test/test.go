@@ -2,15 +2,15 @@ package test
 
 import (
 	"fmt"
-	"time"
+	"os/exec"
+	"runtime"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/util"
 
 	"github.com/spf13/cobra"
 )
@@ -49,32 +49,66 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			t := terminal.New()
-			s := t.NewSpinner()
+			fmt.Println("Operating System: " + getOperatingSystem())
+			fmt.Println(getPythonVersion())
+			fmt.Println(getPython3Version())
+			fmt.Println(getEnvironmentDetails())
 
-			hello.TypeItToMe("PyEnvGPT is starting 🤙\n")
-			fmt.Println("")
-			hello.TypeItToMe("Detecting Operating System")
-			s.Start()
-			s.Suffix = " Detecting Operating System"
-			time.Sleep(1 * time.Second)
-			s.Stop()
-			// fmt.Printf("\332K\r")
-			// fmt.Printf("bye world")
-			// fmt.Printf("bye world")
+			// t := terminal.New()
+			// s := t.NewSpinner()
 
-			// s := t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
-			// s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
-			// // s += "Here's a video of me installing the VS Code extension 👉 " + ""
-			// hello.TypeItToMe(s)
+			// hello.TypeItToMe("PyEnvGPT is starting 🤙\n")
+			// fmt.Println("")
+			// hello.TypeItToMe("Detecting Operating System")
+			// s.Start()
+			// s.Suffix = " Detecting Operating System"
+			// time.Sleep(1 * time.Second)
+			// s.Stop()
 
-			res := util.DoesPathExist("/Users/naderkhalil/brev-cli")
-			// res := util.DoesPathExist("/home/brev/workspace")
-			fmt.Println(res)
+			// res := util.DoesPathExist("/Users/naderkhalil/brev-cli")
+			// fmt.Println(res)
 
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func getOperatingSystem() string {
+	return runtime.GOOS
+}
+
+func getPythonVersion() string {
+	cmd := exec.Command("python", "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "Python: Not detected"
+	}
+	return "Python: " + strings.TrimSpace(string(output))
+}
+
+func getPython3Version() string {
+	cmd := exec.Command("python3", "--version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "Python3: Not detected"
+	}
+	return "Python3: " + strings.TrimSpace(string(output))
+}
+
+func getEnvironmentDetails() string {
+	condaCmd := exec.Command("bash", "-c", "source activate; conda env list")
+	condaOutput, err := condaCmd.CombinedOutput()
+	if err == nil && strings.Contains(string(condaOutput), "*") {
+		return "Virtual Environment: Conda is being used"
+	}
+
+	venv := exec.Command("bash", "-c", "if [ -z \"$VIRTUAL_ENV\" ]; then echo 'No'; else echo 'Yes'; fi")
+	venvOutput, err := venv.CombinedOutput()
+	if err == nil && strings.Contains(string(venvOutput), "Yes") {
+		return "Virtual Environment: venv is being used"
+	}
+
+	return "Virtual Environment: None detected"
 }
