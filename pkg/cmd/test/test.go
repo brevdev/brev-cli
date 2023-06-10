@@ -124,39 +124,39 @@ func runCommandWithOutput(cmd *exec.Cmd) error {
 }
 
 func installPythonWithVenv(version string) error {
-	fmt.Printf("Installing Python %s with virtualenv...\n", version)
-
-	// install virtualenv if it's not installed
-	cmd := exec.Command("pip", "install", "virtualenv")
-	err := runCommandWithOutput(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to install virtualenv: %w", err)
-	}
+	t := terminal.New()
 
 	version = strings.Replace(version, "Python ", "", -1) // Replace "Python " with ""
 
-	// Get the path of the Python interpreter
-	pythonInterpreterPathCmd := exec.Command("which", "python"+version)
-	pythonInterpreterPath, err := pythonInterpreterPathCmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to get the python interpreter path: %w", err)
+	fmt.Printf("Checking for Python %s...\n", version)
+	checkCmd := exec.Command("python"+version, "--version")
+
+	// Try running python with the desired version
+	if err := checkCmd.Run(); err != nil {
+		fmt.Println(t.Red("Python %s is not installed.\n", version))
+		fmt.Println(t.Red("Please install the desired version of Python and try again.\n"))
+		return err
 	}
 
-	// create a new virtualenv
-	cmd = exec.Command("virtualenv", "-p", strings.TrimSpace(string(pythonInterpreterPath)), "myenv")
-	err = runCommandWithOutput(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to create a virtualenv: %w", err)
+	t.Printf("Python %s is installed. Creating a new virtual environment...\n", version)
+
+	// Create a new virtual environment using Python's built-in venv module
+	venvCmd := exec.Command("python"+version, "-m", "venv", "myenv")
+	if err := runCommandWithOutput(venvCmd); err != nil {
+		t.Printf(t.Red("Failed to create a new virtual environment: %s\n", err))
+		return err
 	}
 
-	// activate the virtualenv and install python
-	cmd = exec.Command("bash", "-c", "source myenv/bin/activate; python --version")
-	err = runCommandWithOutput(cmd)
-	if err != nil {
-		return fmt.Errorf("failed to activate the virtualenv and install python: %w", err)
-	}
+	t.Printf("Created a new virtual environment at myenv.\n")
+	t.Printf("You can activate it using the following command:\n")
 
-	fmt.Println("Python installed successfully in a new virtualenv!")
+	// Provide instructions for activating the virtual environment, which depends on the user's shell
+	switch shell := runtime.GOOS; shell {
+	case "windows":
+		t.Printf("myenv\\Scripts\\activate\n")
+	default:
+		t.Printf("source myenv/bin/activate\n")
+	}
 
 	return nil
 }
