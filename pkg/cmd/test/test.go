@@ -2,9 +2,11 @@ package test
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -47,14 +49,16 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// fmt.Printf("NAME   ID     URL      SOMETHING ELSE")
-			// hello.TypeItToMe("\n\n\n")
-			// hello.TypeItToMe("👆 this is the name of your environment (which you can use to open the environment)")
-			// time.Sleep(1 * time.Second)
-			// fmt.Printf("\332K\r")
-			// fmt.Println("                                                                                     ")
-			// hello.TypeItToMe("              👆 you can expose your localhost to this public URL")
-			// time.Sleep(1 * time.Second)
+			t := terminal.New()
+			s := t.NewSpinner()
+
+			hello.TypeItToMe("PyEnvGPT is starting 🤙\n")
+			fmt.Println("")
+			hello.TypeItToMe("Detecting Operating System")
+			s.Start()
+			s.Suffix = " Detecting Operating System"
+			time.Sleep(1 * time.Second)
+			s.Stop()
 			// fmt.Printf("\332K\r")
 			// fmt.Printf("bye world")
 			// fmt.Printf("bye world")
