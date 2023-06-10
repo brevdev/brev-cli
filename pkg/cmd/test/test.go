@@ -8,6 +8,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -49,24 +50,34 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Example:               startExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("Operating System: " + getOperatingSystem())
-			fmt.Println(getPythonVersion())
-			fmt.Println(getPython3Version())
-			fmt.Println(getEnvironmentDetails())
-
-			// t := terminal.New()
+			t := terminal.New()
 			// s := t.NewSpinner()
 
 			// hello.TypeItToMe("PyEnvGPT is starting 🤙\n")
-			// fmt.Println("")
-			// hello.TypeItToMe("Detecting Operating System")
+			hello.TypeItToMe("\nPyEnvGPT is starting 🤙\n")
+			fmt.Println("")
+
+			// %%%%%%%%% Detect Operating System %%%%%%%%%
+			str := t.Yellow("Detecting Operating System... ") + t.Green(getOperatingSystem()) + "\n"
+			hello.TypeItToMe(str)
+			fmt.Println("")
+
+			// %%%%%%%%% Detect Python Versions -- both of them %%%%%%%%%
+			str = t.Yellow("Detecting Python2 Version... ") + t.Green(getPythonVersion()) + "\n"
+			hello.TypeItToMe(str)
+			str = t.Yellow("Detecting Python3 Version... ") + t.Green(getPython3Version()) + "\n"
+			hello.TypeItToMe(str)
+			fmt.Println("")
+
+			// %%%%%%%%% Detect Virtual Environment %%%%%%%%%
+			str = t.Yellow("Detecting Virtual Environment... ") + t.Green(getEnvironmentDetails()) + "\n"
+			hello.TypeItToMe(str)
+			fmt.Println("")
+
 			// s.Start()
 			// s.Suffix = " Detecting Operating System"
 			// time.Sleep(1 * time.Second)
 			// s.Stop()
-
-			// res := util.DoesPathExist("/Users/naderkhalil/brev-cli")
-			// fmt.Println(res)
 
 			return nil
 		},
@@ -83,32 +94,32 @@ func getPythonVersion() string {
 	cmd := exec.Command("python", "--version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "Python: Not detected"
+		return "Not detected"
 	}
-	return "Python: " + strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(output))
 }
 
 func getPython3Version() string {
 	cmd := exec.Command("python3", "--version")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "Python3: Not detected"
+		return "Not detected"
 	}
-	return "Python3: " + strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(output))
 }
 
 func getEnvironmentDetails() string {
 	condaCmd := exec.Command("bash", "-c", "source activate; conda env list")
 	condaOutput, err := condaCmd.CombinedOutput()
 	if err == nil && strings.Contains(string(condaOutput), "*") {
-		return "Virtual Environment: Conda is being used"
+		return "Conda is being used"
 	}
 
 	venv := exec.Command("bash", "-c", "if [ -z \"$VIRTUAL_ENV\" ]; then echo 'No'; else echo 'Yes'; fi")
 	venvOutput, err := venv.CombinedOutput()
 	if err == nil && strings.Contains(string(venvOutput), "Yes") {
-		return "Virtual Environment: venv is being used"
+		return "venv is being used"
 	}
 
-	return "Virtual Environment: None detected"
+	return "None detected"
 }
