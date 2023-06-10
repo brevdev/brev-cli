@@ -2,6 +2,7 @@ package test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -88,7 +89,7 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 			var pythonVersion string
 			prompt := &survey.Select{
 				Message: "Which Python version would you like to install?:",
-				Options: []string{"Python 2.7", "Python 3.6", "Python 3.7", "Python 3.8", "Python 3.9"},
+				Options: []string{"Python 2.7", "Python 3.6", "Python 3.7", "Python 3.8", "Python 3.9", "Python 3.10"},
 			}
 			survey.AskOne(prompt, &pythonVersion)
 
@@ -102,11 +103,62 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 			fmt.Printf("You chose to install %s using %s.\n", pythonVersion, installationMethod)
 			// Based on the responses, you can now run the appropriate installation functions.
 
+			if installationMethod == "virtualenv" {
+				err := installPythonWithVenv(pythonVersion)
+				if err != nil {
+					return err
+				}
+			}
+
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+func runCommandWithOutput(cmd *exec.Cmd) error {
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func installPythonWithVenv(version string) error {
+	fmt.Printf("Installing Python %s with virtualenv...\n", version)
+
+	// install virtualenv if it's not installed
+	cmd := exec.Command("pip", "install", "virtualenv")
+	err := runCommandWithOutput(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to install virtualenv: %w", err)
+	}
+
+	version = strings.Replace(version, "Python ", "", -1) // Replace "Python " with ""
+
+	// Get the path of the Python interpreter
+	pythonInterpreterPathCmd := exec.Command("which", "python"+version)
+	pythonInterpreterPath, err := pythonInterpreterPathCmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get the python interpreter path: %w", err)
+	}
+
+	// create a new virtualenv
+	cmd = exec.Command("virtualenv", "-p", strings.TrimSpace(string(pythonInterpreterPath)), "myenv")
+	err = runCommandWithOutput(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to create a virtualenv: %w", err)
+	}
+
+	// activate the virtualenv and install python
+	cmd = exec.Command("bash", "-c", "source myenv/bin/activate; python --version")
+	err = runCommandWithOutput(cmd)
+	if err != nil {
+		return fmt.Errorf("failed to activate the virtualenv and install python: %w", err)
+	}
+
+	fmt.Println("Python installed successfully in a new virtualenv!")
+
+	return nil
 }
 
 func getOperatingSystem() string {
@@ -116,19 +168,21 @@ func getOperatingSystem() string {
 func getPythonVersion() string {
 	cmd := exec.Command("python", "--version")
 	output, err := cmd.CombinedOutput()
+	pythonPath, _ := exec.LookPath("python")
 	if err != nil {
-		return "Not detected"
+		return "Python 2 not detected"
 	}
-	return strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(output)) + "\n\tPath: " + pythonPath
 }
 
 func getPython3Version() string {
 	cmd := exec.Command("python3", "--version")
 	output, err := cmd.CombinedOutput()
+	pythonPath, _ := exec.LookPath("python3")
 	if err != nil {
-		return "Not detected"
+		return "Python 3 not detected"
 	}
-	return strings.TrimSpace(string(output))
+	return strings.TrimSpace(string(output)) + "\n\tPath: " + pythonPath
 }
 
 func getEnvironmentDetails() string {
