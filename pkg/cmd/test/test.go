@@ -109,6 +109,12 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 					return err
 				}
 			}
+			if installationMethod == "source" {
+				err := installPythonFromSource(pythonVersion)
+				if err != nil {
+					return err
+				}
+			}
 
 			return nil
 		},
@@ -199,4 +205,47 @@ func getEnvironmentDetails() string {
 	}
 
 	return "None detected"
+}
+
+func installPythonFromSource(version string) error {
+	t := terminal.New()
+	t.Printf("Installing Python %s from source...\n", version)
+
+	pythonURL := fmt.Sprintf("https://www.python.org/ftp/python/%s/Python-%s.tgz", version, version)
+	downloadCmd := exec.Command("curl", "-O", pythonURL)
+	if err := runCommandWithOutput(downloadCmd); err != nil {
+		t.Printf(t.Red("Failed to download Python source code: %s\n", err))
+		return err
+	}
+
+	extractCmd := exec.Command("tar", "-xvzf", fmt.Sprintf("Python-%s.tgz", version))
+	if err := runCommandWithOutput(extractCmd); err != nil {
+		t.Printf(t.Red("Failed to extract Python source code: %s\n", err))
+		return err
+	}
+
+	configureCmd := exec.Command("./configure", "--enable-optimizations", "--with-ensurepip=install")
+	configureCmd.Dir = fmt.Sprintf("Python-%s", version)
+	if err := runCommandWithOutput(configureCmd); err != nil {
+		t.Printf(t.Red("Failed to configure Python: %s\n", err))
+		return err
+	}
+
+	buildCmd := exec.Command("make", "-j8")
+	buildCmd.Dir = fmt.Sprintf("Python-%s", version)
+	if err := runCommandWithOutput(buildCmd); err != nil {
+		t.Printf(t.Red("Failed to build Python: %s\n", err))
+		return err
+	}
+
+	installCmd := exec.Command("sudo", "make", "altinstall")
+	installCmd.Dir = fmt.Sprintf("Python-%s", version)
+	if err := runCommandWithOutput(installCmd); err != nil {
+		t.Printf(t.Red("Failed to install Python: %s\n", err))
+		return err
+	}
+
+	t.Printf("Python %s has been successfully installed.\n", version)
+
+	return nil
 }
