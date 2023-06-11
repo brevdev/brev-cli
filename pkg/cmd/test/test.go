@@ -63,25 +63,20 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t := terminal.New()
-			// s := t.NewSpinner()
 
-			// TypeItToMe("PyEnvGPT is starting 🤙\n")
 			TypeItToMe("\nPyEnvGPT is starting 🤙\n")
 			fmt.Println("")
 
-			// %%%%%%%%% Detect Operating System %%%%%%%%%
 			str := t.Yellow("Detecting Operating System... ") + t.Green(getOperatingSystem()) + "\n"
 			TypeItToMe(str)
 			fmt.Println("")
 
-			// %%%%%%%%% Detect Python Versions -- both of them %%%%%%%%%
 			str = t.Yellow("Detecting Python2 Version... ") + t.Green(getPythonVersion()) + "\n"
 			TypeItToMe(str)
 			str = t.Yellow("Detecting Python3 Version... ") + t.Green(getPython3Version()) + "\n"
 			TypeItToMe(str)
 			fmt.Println("")
 
-			// %%%%%%%%% Detect Virtual Environment %%%%%%%%%
 			str = t.Yellow("Detecting Virtual Environment... ") + t.Green(getEnvironmentDetails()) + "\n"
 			TypeItToMe(str)
 			fmt.Println("")
@@ -93,27 +88,12 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 			}
 			survey.AskOne(prompt, &pythonVersion)
 
-			var installationMethod string
-			prompt = &survey.Select{
-				Message: "How would you like to install Python?:",
-				Options: []string{"OS install", "virtualenv", "conda"},
-			}
-			survey.AskOne(prompt, &installationMethod)
-
-			fmt.Printf("You chose to install %s using %s.\n", pythonVersion, installationMethod)
+			fmt.Printf("You chose to install %s using OS package manager.\n", pythonVersion)
 			// Based on the responses, you can now run the appropriate installation functions.
 
-			if installationMethod == "virtualenv" {
-				err := installPythonWithVenv(pythonVersion)
-				if err != nil {
-					return err
-				}
-			}
-			if installationMethod == "source" {
-				err := installPythonFromSource(pythonVersion)
-				if err != nil {
-					return err
-				}
+			err := installPythonWithPackageManager(pythonVersion)
+			if err != nil {
+				return err
 			}
 
 			return nil
@@ -207,45 +187,49 @@ func getEnvironmentDetails() string {
 	return "None detected"
 }
 
-func installPythonFromSource(version string) error {
+func installPythonWithPackageManager(version string) error {
 	t := terminal.New()
-	t.Printf("Installing Python %s from source...\n", version)
 
-	pythonURL := fmt.Sprintf("https://www.python.org/ftp/python/%s/Python-%s.tgz", version, version)
-	downloadCmd := exec.Command("curl", "-O", pythonURL)
-	if err := runCommandWithOutput(downloadCmd); err != nil {
-		t.Printf(t.Red("Failed to download Python source code: %s\n", err))
-		return err
+	version = strings.Replace(version, "Python ", "", -1) // Replace "Python " with ""
+
+	fmt.Printf("Checking for Python %s...\n", version)
+	checkCmd := exec.Command("python"+version, "--version")
+
+	// Try running python with the desired version
+	if err := checkCmd.Run(); err == nil {
+		fmt.Println(t.Green("Python %s is already installed.\n", version))
+		return nil
 	}
 
-	extractCmd := exec.Command("tar", "-xvzf", fmt.Sprintf("Python-%s.tgz", version))
-	if err := runCommandWithOutput(extractCmd); err != nil {
-		t.Printf(t.Red("Failed to extract Python source code: %s\n", err))
-		return err
+	t.Printf("Python %s is not installed. Attempting to install...\n", version)
+
+	// Install Python with the appropriate command for the user's operating system
+	switch os := runtime.GOOS; os {
+	case "windows":
+		// On Windows, Python should be installed via the official installer or Microsoft Store
+		fmt.Println(t.Red("Cannot automatically install Python on Windows. Please install it manually."))
+		return fmt.Errorf("Cannot automatically install Python on Windows")
+	case "darwin":
+		// On macOS, Python can be installed via Homebrew
+		installCmd := exec.Command("/bin/bash", "-c", "brew install python@"+version)
+		if err := runCommandWithOutput(installCmd); err != nil {
+			t.Printf(t.Red("Failed to install Python %s: %s\n", version, err))
+			return err
+		}
+	case "linux":
+		// On Linux, Python can be installed via apt (this may vary between distributions)
+		installCmd := exec.Command("/bin/bash", "-c", "sudo apt-get install python"+version)
+		if err := runCommandWithOutput(installCmd); err != nil {
+			t.Printf(t.Red("Failed to install Python %s: %s\n", version, err))
+			return err
+		}
+	default:
+		// Unknown operating system
+		fmt.Println(t.Red("Unsupported operating system for Python installation: %s", os))
+		return fmt.Errorf("Unsupported operating system for Python installation: %s", os)
 	}
 
-	configureCmd := exec.Command("./configure", "--enable-optimizations", "--with-ensurepip=install")
-	configureCmd.Dir = fmt.Sprintf("Python-%s", version)
-	if err := runCommandWithOutput(configureCmd); err != nil {
-		t.Printf(t.Red("Failed to configure Python: %s\n", err))
-		return err
-	}
-
-	buildCmd := exec.Command("make", "-j8")
-	buildCmd.Dir = fmt.Sprintf("Python-%s", version)
-	if err := runCommandWithOutput(buildCmd); err != nil {
-		t.Printf(t.Red("Failed to build Python: %s\n", err))
-		return err
-	}
-
-	installCmd := exec.Command("sudo", "make", "altinstall")
-	installCmd.Dir = fmt.Sprintf("Python-%s", version)
-	if err := runCommandWithOutput(installCmd); err != nil {
-		t.Printf(t.Red("Failed to install Python: %s\n", err))
-		return err
-	}
-
-	t.Printf("Python %s has been successfully installed.\n", version)
+	t.Printf("Python %s installation was successful.\n", version)
 
 	return nil
 }
