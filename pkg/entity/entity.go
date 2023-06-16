@@ -150,6 +150,7 @@ type UpdateUser struct {
 	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
 	OnboardingData    map[string]interface{} `json:"onboardingData,omitempty"`
 	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
+	GlobalUserType    GlobalUserType         `json:"globalUserType,omitempty"`
 }
 
 type GlobalUserType string

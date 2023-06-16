@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/cmd/addmin"
 	"github.com/brevdev/brev-cli/pkg/cmd/approve"
 	"github.com/brevdev/brev-cli/pkg/cmd/autostop"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
@@ -226,6 +227,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) {
+	cmd.AddCommand(addmin.NewCmdAddmin(t, noLoginCmdStore))
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
