@@ -147,6 +147,11 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WrapAndTrace(err)
 	}
 	// Call analytics for open
+	_ = pushOpenAnalytics(tstore, workspace)
+	return nil
+}
+
+func pushOpenAnalytics(tstore OpenStore, workspace *entity.Workspace) error {
 	userID := ""
 	user, err := tstore.GetCurrentUser()
 	if err != nil {
@@ -161,9 +166,8 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			"environmentId": workspace.ID,
 		},
 	}
-	_ = analytics.TrackEvent(data)
-
-	return nil
+	err = analytics.TrackEvent(data)
+	return breverrors.WrapAndTrace(err)
 }
 
 func pollUntil(t *terminal.Terminal, wsid string, state string, openStore OpenStore) error {
