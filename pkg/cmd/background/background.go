@@ -31,7 +31,6 @@ type BackgroundStore interface {
 func DisableAutoStop(s BackgroundStore, workspaceID string) error {
 	isStoppable := false
 	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
-		WorkspaceClassID: workspaceID,
 		IsStoppable:      &isStoppable,
 	})
 	if err != nil {
@@ -43,7 +42,6 @@ func DisableAutoStop(s BackgroundStore, workspaceID string) error {
 func EnableAutoStop(s BackgroundStore, workspaceID string) error {
 	isStoppable := true
 	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
-		WorkspaceClassID: workspaceID,
 		IsStoppable:      &isStoppable,
 	})
 	if err != nil {
@@ -93,7 +91,7 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 			}
 
 			wsID, err := s.GetCurrentWorkspaceID()
-			if err == nil {
+			if err == nil && wsID != "" {
 				// Disable auto stop
 				err = DisableAutoStop(s, wsID)
 				if err != nil {
