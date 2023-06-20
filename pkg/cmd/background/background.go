@@ -31,7 +31,7 @@ type BackgroundStore interface {
 func DisableAutoStop(s BackgroundStore, workspaceID string) error {
 	isStoppable := false
 	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
-		IsStoppable:      &isStoppable,
+		IsStoppable: &isStoppable,
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -42,7 +42,7 @@ func DisableAutoStop(s BackgroundStore, workspaceID string) error {
 func EnableAutoStop(s BackgroundStore, workspaceID string) error {
 	isStoppable := true
 	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
-		IsStoppable:      &isStoppable,
+		IsStoppable: &isStoppable,
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -73,7 +73,6 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 				checkProgress()
 				return nil
 			}
-
 			// Join the args into a command string
 			command := ""
 			if len(args) > 0 {
@@ -82,7 +81,6 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 			for i := 1; i < len(args); i++ {
 				command += " " + args[i]
 			}
-
 			// Create logs directory if it doesn't exist
 			logsDir := os.Getenv("HOME") + "/brev-background-logs"
 			err = os.MkdirAll(logsDir, os.ModePerm)
@@ -90,30 +88,19 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 				log.Fatal(err)
 			}
 
-			wsID, err := s.GetCurrentWorkspaceID()
-			if err == nil && wsID != "" {
-				// Disable auto stop
-				err = DisableAutoStop(s, wsID)
-				if err != nil {
-					log.Fatal(err)
-				}
-			}
-
+			checkAutoStop(s)
 			// Run the command in the background using nohup
 			c := exec.Command("nohup", "bash", "-c", command+">"+logsDir+"/log.txt 2>&1 &") // #nosec G204
 			err = c.Start()
 			if err != nil {
 				log.Fatal(err)
 			}
-
 			// Write logs
 			logFile, err := os.OpenFile(logsDir+"/log.txt", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666) //nolint: gosec // TODO
 			if err != nil {
 				log.Fatal(err)
 			}
-
-			defer logFile.Close() //nolint: gosec,errcheck // TODO
-
+			defer logFile.Close()                                                                                                        //nolint: gosec,errcheck // TODO
 			logFile.WriteString(time.Now().Format("2006-01-02 15:04:05") + ": Command \"" + command + "\" was run in the background.\n") //nolint: errcheck,gosec // TODO
 
 			// Write process details to data file
@@ -134,20 +121,8 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 					}
 				}()
 			}
-
 			// Call analytics for open
-			userID := ""
-			user, err := s.GetCurrentUser()
-			if err != nil {
-				userID = ""
-			} else {
-				userID = user.ID
-			}
-			data := analytics.EventData{
-				EventName: "Brev background",
-				UserID:    userID,
-			}
-			_ = analytics.TrackEvent(data)
+			_ = pushBackgroundAnalytics(s)
 
 			t.Vprintf("Command \"%s\" has been run in the background. Check %s for logs.\n", command, logsDir)
 			return nil
@@ -155,8 +130,35 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	}
 	cmd.Flags().Bool("stop", false, "Stop the workspace after the command is finished")
 	cmd.Flags().Bool("progress", false, "Show progress of the background commands")
-
 	return cmd
+}
+
+func checkAutoStop(s BackgroundStore) {
+	wsID, err := s.GetCurrentWorkspaceID()
+	if err == nil && wsID != "" {
+		// Disable auto stop
+		err = DisableAutoStop(s, wsID)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func pushBackgroundAnalytics(s BackgroundStore) error {
+	// Call analytics for open
+	userID := ""
+	user, err := s.GetCurrentUser()
+	if err != nil {
+		userID = ""
+	} else {
+		userID = user.ID
+	}
+	data := analytics.EventData{
+		EventName: "Brev background",
+		UserID:    userID,
+	}
+	err = analytics.TrackEvent(data)
+	return breverrors.WrapAndTrace(err)
 }
 
 type Process struct {
