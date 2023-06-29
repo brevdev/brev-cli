@@ -55,6 +55,10 @@ func Run(t *terminal.Terminal, userID string, store Store) error {
 	}
 
 	_, err = store.UpdateUser(userID, updatedUser)
+	if err != nil {
+		t.Vprint(t.Red(err.Error()))
+		return breverrors.WrapAndTrace(err)
+	}
 
 	t.Vprint(t.Green("User updated to admin 🤙"))
 	return nil
