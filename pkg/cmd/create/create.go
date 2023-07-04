@@ -57,7 +57,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 				InstanceType:   gpu,
 			}, createStore)
 			if err != nil {
-				if strings.Contains(err.Error(), "duplicate environment with name") {
+				if strings.Contains(err.Error(), "duplicate instance with name") {
 					t.Vprint(t.Yellow("try running:"))
 					t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
 					t.Vprint(t.Yellow("\tbrev delete [name]"))
@@ -122,7 +122,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 		cwOptions.WithInstanceType(options.InstanceType)
 	}
 
-	t.Vprintf("Creating environment %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
+	t.Vprintf("Creating instane %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
 	t.Vprintf("\tname %s\n", t.Green(cwOptions.Name))
 	if options.InstanceType != "" {
 		t.Vprintf("\tGPU instance %s\n", t.Green(options.InstanceType))
@@ -149,7 +149,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 		}
 
 		fmt.Print("\n")
-		t.Vprint(t.Green("Your dev environment is ready!\n"))
+		t.Vprint(t.Green("Your instance is ready!\n"))
 		displayConnectBreadCrumb(t, w)
 
 		return nil
@@ -175,9 +175,9 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the dev environment:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open dev environment in VS Code\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into dev environment (shortcut)\n", workspace.Name)))
+	t.Vprintf(t.Green("Connect to the instance:\n"))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open instance in VS Code\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into instance (shortcut)\n", workspace.Name)))
 	// t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to dev environment\n", workspace.GetLocalIdentifier())))
 }
 
@@ -195,9 +195,9 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, createStore Crea
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		s.Suffix = "  environment is " + strings.ToLower(ws.Status)
+		s.Suffix = "  instance is " + strings.ToLower(ws.Status)
 		if ws.Status == state {
-			s.Suffix = "Environment is ready!"
+			s.Suffix = "Instance is ready!"
 			s.Stop()
 			isReady = true
 		}

@@ -39,7 +39,7 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
-	cmd.Flags().BoolVarP(&runRemoteCMD, "run-remote-cmd", "r", true, "run the command on the environment to cd into ws default dir")
+	cmd.Flags().BoolVarP(&runRemoteCMD, "run-remote-cmd", "r", true, "run the command on the instance to cd into ws default dir")
 	return cmd
 }
 

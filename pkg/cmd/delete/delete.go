@@ -32,7 +32,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "delete",
 		DisableFlagsInUseLine: true,
-		Short:                 "Delete a Brev dev environment",
+		Short:                 "Delete a Brev instance",
 		Long:                  stripmd.Strip(deleteLong),
 		Example:               deleteExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),
@@ -75,7 +75,7 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Deleting dev environment %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
+	t.Vprintf("Deleting instance %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
 
 	return nil
 }

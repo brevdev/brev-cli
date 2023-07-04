@@ -21,27 +21,27 @@ func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 	switch status {
 	case "RUNNING":
 	case "DEPLOYING":
-		s += t.Yellow("Your dev environment is deploying.")
-		s += "\nPlease wait for it to finish deploying then run " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		s += t.Yellow("Your instance is deploying.")
+		s += "\nPlease wait for it to finish deploying then run " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 	case "UNHEALTHY":
-		s += t.Red("Your dev environment seems stuck. Can you reach out to support?")
+		s += t.Red("Your instance seems stuck. Can you reach out to support?")
 		s += "\nMessage us "
 		s += "\n\t in discord 👉 " + t.Yellow("https://discord.gg/RpszWaJFRA")
 		s += "\n\t via text or call 👉 " + t.Yellow("(415) 237-2247\n")
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 	case "STOPPED":
-		s += t.Yellow("Your dev environment is stopped.")
+		s += t.Yellow("Your instance is stopped.")
 		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 
 	case "STOPPING":
-		s += t.Yellow("Your dev environment is stopped.")
+		s += t.Yellow("Your instance is stopped.")
 		s += "\nRun this in your terminal to start it 👉 " + t.Yellow("brev start %s", DefaultDevEnvName)
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 	default:
-		s += t.Red("Please create a running dev environment for this walk through. ")
+		s += t.Red("Please create a running instance for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 	}
 	return s
 }
@@ -60,9 +60,9 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 	}
 
 	if noneFound {
-		s := t.Red("Please create a running dev environment for this walk through. ")
+		s := t.Red("Please create a running instance for this walk through. ")
 		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
-		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your dev env is ready\n"
+		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 		TypeItToMe(s)
 		return nil
 	}
@@ -74,13 +74,13 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 }
 
 func printLsIntroText(t *terminal.Terminal, _ entity.Workspace) {
-	s := "\nThe command " + t.Yellow("brev ls") + " shows your dev environments"
-	s += "\nIf the dev environment is " + t.Green("RUNNING") + ", you can open it."
+	s := "\nThe command " + t.Yellow("brev ls") + " shows your instances"
+	s += "\nIf the instance is " + t.Green("RUNNING") + ", you can open it."
 	TypeItToMe(s)
 }
 
 func printBrevShellOnboarding(t *terminal.Terminal, firstWorkspace *entity.Workspace) {
-	s := "\n\nTry opening a terminal SSHed in your dev environment"
+	s := "\n\nTry opening a terminal SSHed in your instance"
 	s += "\nIn a new terminal, run " + t.Green("brev shell %s", firstWorkspace.Name) + "\n"
 	TypeItToMe(s)
 }
@@ -95,14 +95,14 @@ func printAskInstallVsCode(t *terminal.Terminal) {
 }
 
 func printBrevOpen(t *terminal.Terminal, firstWorkspace entity.Workspace) {
-	s := "\n\nTry opening VS Code in your dev environment"
+	s := "\n\nTry opening VS Code in your instance"
 	s += "\nIn a new terminal, run " + t.Green("brev open %s", firstWorkspace.Name) + "\n"
 	TypeItToMe(s)
 }
 
 func printCompletedOnboarding(t *terminal.Terminal) {
-	s := "\n\nI think I'm done here. Now you know how to open a dev environment and start coding."
-	s += "\n\nUse the console " + t.Yellow("(https://console.brev.dev)") + " to create a new dev environment or share it with people"
+	s := "\n\nI think I'm done here. Now you know how to open an instance and start coding."
+	s += "\n\nUse the console " + t.Yellow("(https://console.brev.dev)") + " to create a new instance or share it with people"
 	s += "\nand use this CLI to code the way you would normally 🤙"
 	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev") + " and let us know if we can help!\n"
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"

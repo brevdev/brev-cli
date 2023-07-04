@@ -31,7 +31,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 		Annotations: map[string]string{"housekeeping": ""},
 		Use:         "secret",
 		Short:       "Add a secret/environment variable",
-		Long:        "Add a secret/environment variable to your dev environment, all dev environment in an org, or all of your dev environment",
+		Long:        "Add a secret/environment variable to your instance, all instances in an org, or all of your instances",
 		Example: `
   brev secret --name my_value --value my_value --type [file, variable] --file-path --scope [org, user]
   brev secret --name SERVER_URL --value https://brev.sh --type variable --scope [org, user]

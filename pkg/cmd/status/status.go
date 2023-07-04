@@ -55,7 +55,7 @@ func runShowStatus(t *terminal.Terminal, statusStore StatusStore) {
 		return
 	}
 
-	t.Vprintf("\nYou're on environment %s", t.Yellow(ws.Name))
+	t.Vprintf("\nYou're on instance %s", t.Yellow(ws.Name))
 	t.Vprintf("\n\tID: %s", t.Yellow(ws.ID))
 	t.Vprintf("\n\tMachine: %s", t.Yellow(util.GetInstanceString(*ws)))
 }
