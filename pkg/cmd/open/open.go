@@ -81,7 +81,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string) error {
 	// todo check if workspace is stopped and start if it if it is stopped
-	fmt.Println("finding your dev environment...")
+	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
@@ -163,7 +163,7 @@ func pushOpenAnalytics(tstore OpenStore, workspace *entity.Workspace) error {
 		EventName: "Brev Open",
 		UserID:    userID,
 		Properties: map[string]string{
-			"environmentId": workspace.ID,
+			"instanceId": workspace.ID,
 		},
 	}
 	err = analytics.TrackEvent(data)
@@ -196,7 +196,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -221,7 +221,7 @@ func openVsCodeWithSSH(
 	}
 	s := t.NewSpinner()
 	s.Start()
-	s.Suffix = "  checking if your environment is ready..."
+	s.Suffix = "  checking if your instance is ready..."
 	err = waitForSSHToBeAvailable(t, s, sshAlias)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -241,7 +241,7 @@ func openVsCodeWithSSH(
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		s.Suffix = " Environment is ready. Opening VS Code 🤙"
+		s.Suffix = " Instance is ready. Opening VS Code 🤙"
 		time.Sleep(1 * time.Second)
 		err = openVsCode(sshAlias, path, tstore)
 
@@ -256,7 +256,7 @@ func openVsCodeWithSSH(
 				func(value bool) (bool, error) {
 					if value {
 						// todo log original error to sentry
-						return true, errors.New("you are in a remote brev environment; brev open is not supported. Please run brev open locally instead")
+						return true, errors.New("you are in a remote brev instance; brev open is not supported. Please run brev open locally instead")
 					}
 					return false, breverrors.WrapAndTrace(err)
 				},
@@ -264,7 +264,7 @@ func openVsCodeWithSSH(
 					return false, multierror.Append(err, err2)
 				},
 			).Error()
-			if strings.Contains(err.Error(), "you are in a remote brev environment;") {
+			if strings.Contains(err.Error(), "you are in a remote brev instance;") {
 				return breverrors.WrapAndTrace(err)
 			}
 			return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open VSCode, try adding it to PATH (you can do this in VSCode by running CMD-SHIFT-P and typing 'install code in path')\n")))

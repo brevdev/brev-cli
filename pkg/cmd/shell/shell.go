@@ -47,7 +47,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open a shell in your dev environment",
+		Short:                 "[beta] open a shell in your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
@@ -122,7 +122,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 		EventName: "Brev Open",
 		UserID:    userID,
 		Properties: map[string]string{
-			"environmentId": workspace.ID,
+			"instanceId": workspace.ID,
 		},
 	}
 	_ = analytics.TrackEvent(data)
@@ -189,7 +189,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Sh
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(t.Yellow("Dev environment %s is starting. \n\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
 	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight 🤙")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

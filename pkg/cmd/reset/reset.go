@@ -42,7 +42,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "reset",
 		DisableFlagsInUseLine: true,
-		Short:                 "Reset a dev environment if it's in a weird state.",
+		Short:                 "Reset an instance if it's in a weird state.",
 		Long:                  stripmd.Strip(long),
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
@@ -81,7 +81,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Yellow("Deleting dev environment - %s.", deletedWorkspace.Name))
+	t.Vprint(t.Yellow("Deleting instance - %s.", deletedWorkspace.Name))
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
@@ -102,7 +102,7 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
 func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("Dev environment is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
+	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
 	var orgID string
 	activeorg, err := resetStore.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -137,18 +137,18 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green("\nYour dev environment is ready!"))
+	t.Vprint(t.Green("\nYour instance is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 	return nil
 }
 
 // hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
 func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
-	t.Vprint(t.Green("Dev environment is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
+	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name
 	if len(workspace.Name) == 0 {
-		return breverrors.NewValidationError("name field is required for empty dev environments")
+		return breverrors.NewValidationError("name field is required for empty instances")
 	}
 
 	// ensure org
@@ -186,7 +186,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green("\nYour dev environment is ready!"))
+	t.Vprint(t.Green("\nYour instance is ready!"))
 	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 	return nil
@@ -245,7 +245,7 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("Dev environment %s is resetting.\n", startedWorkspace.Name))
+	t.Vprintf(t.Yellow("Instance %s is resetting.\n", startedWorkspace.Name))
 	t.Vprintf("Note: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil

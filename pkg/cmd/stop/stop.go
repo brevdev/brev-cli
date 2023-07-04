@@ -37,7 +37,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "stop",
 		DisableFlagsInUseLine: true,
-		Short:                 "Stop a dev environment if it's running",
+		Short:                 "Stop an instance if it's running",
 		Long:                  stopLong,
 		Example:               stopExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs()),
@@ -81,7 +81,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("Turning off all of your dev environments")
+	t.Vprintf("Turning off all of your instances")
 	for _, v := range workspaces {
 		if v.Status == entity.Running {
 			_, err = stopStore.StopWorkspace(v.ID)
@@ -117,7 +117,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 				return breverrors.WrapAndTrace(err3)
 			} else {
 				if user.GlobalUserType == entity.Admin {
-					fmt.Println("admin trying to stop any dev environment")
+					fmt.Println("admin trying to stop any instance")
 					workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
@@ -135,10 +135,10 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	} else {
 		if workspaceName == "self" {
-			t.Vprintf(t.Green("Stopping this dev environment\n") +
+			t.Vprintf(t.Green("Stopping this instance\n") +
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 		} else {
-			t.Vprintf(t.Green("Stopping dev environment "+workspaceName+".\n") +
+			t.Vprintf(t.Green("Stopping instance "+workspaceName+".\n") +
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 		}
 	}

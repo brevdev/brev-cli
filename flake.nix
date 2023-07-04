@@ -1,5 +1,5 @@
 {
-  description = "golang development environment ";
+  description = "golang instance ";
   
 inputs = {
     flake-utils.url = "github:numtide/flake-utils";

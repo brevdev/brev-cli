@@ -119,8 +119,8 @@ func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) er
 	s += "\nbtw, text me or call me if you need anything"
 	s += ". My cell is " + t.Yellow("(415) 237-2247")
 
-	s += "\n\nBrev is a dev tool for creating and sharing dev environments"
-	s += "\nRun " + t.Green("brev ls") + " to see your dev environments 👇\n"
+	s += "\n\nBrev is a dev tool for creating and sharing instances"
+	s += "\nRun " + t.Green("brev ls") + " to see your instances 👇\n"
 
 	wg.Add(2)
 	go finishOutput(t, s)

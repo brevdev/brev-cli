@@ -31,15 +31,15 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 	workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
 
 	if len(workspaces) == 0 {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s not found", workspaceNameOrID))
+		return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
 	}
 	if len(workspaces) > 1 {
 		workspaces = store.FilterNonFailedWorkspaces(workspaces)
 		if len(workspaces) == 0 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s is a failed workspace", workspaceNameOrID))
+			return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s is a failed workspace", workspaceNameOrID))
 		}
 		if len(workspaces) > 1 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", workspaceNameOrID))
+			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", workspaceNameOrID))
 		}
 	}
 	return &workspaces[0], nil
@@ -56,15 +56,15 @@ func GetAnyWorkspaceByIDOrNameInActiveOrgErr(storeQ GetWorkspaceByNameOrIDErrSto
 	}
 
 	if len(workspaces) == 0 {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s not found", workspaceNameOrID))
+		return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
 	}
 	if len(workspaces) > 1 {
 		workspaces = store.FilterNonFailedWorkspaces(workspaces)
 		if len(workspaces) == 0 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("dev environment with id/name %s is a failed workspace", workspaceNameOrID))
+			return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s is a failed workspace", workspaceNameOrID))
 		}
 		if len(workspaces) > 1 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple dev environments found with id/name %s", workspaceNameOrID))
+			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", workspaceNameOrID))
 		}
 	}
 	return &workspaces[0], nil

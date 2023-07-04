@@ -108,8 +108,8 @@ func (o LoginOptions) checkIfInWorkspace() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
-		fmt.Println("can not login to dev environment")
-		return breverrors.NewValidationError("can not login to dev environment")
+		fmt.Println("can not login to instance")
+		return breverrors.NewValidationError("can not login to instance")
 	}
 
 	return nil
@@ -378,7 +378,7 @@ func OnboardUserWithEditors(t *terminal.Terminal, _ LoginStore, ide string) (str
 			}
 		}
 	} else {
-		t.Print("To use " + ide + " for your environment. Use the following command to remote into your machine")
+		t.Print("To use " + ide + " for your instance. Use the following command to remote into your machine")
 		t.Print(t.Green("Brev Shell"))
 	}
 	return ide, nil
@@ -410,18 +410,18 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 	}
 
 	if len(allWorkspaces) == 0 {
-		t.Vprintf(t.Green("create a dev environment:\n"))
+		t.Vprintf(t.Green("create an instance:\n"))
 		t.Vprintf(t.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
 	}
 	if len(userWorkspaces) == 0 && len(allWorkspaces) > 1 {
-		t.Vprintf(t.Green("list teammates dev environments:\n"))
+		t.Vprintf(t.Green("list teammates instances:\n"))
 		t.Vprintf(t.Yellow("\tbrev ls --all\n"))
 
-		t.Vprintf(t.Green("clone a teammate's dev environment:\n"))
+		t.Vprintf(t.Green("clone a teammate's instance:\n"))
 		t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev start %s\n", allWorkspaces[0].Name)))
 	}
 	if len(userWorkspaces) > 0 {
-		t.Vprintf(t.Green("list your dev environments:\n"))
+		t.Vprintf(t.Green("list your instances:\n"))
 		t.Vprintf(t.Yellow("\tbrev ls\n"))
 	}
 

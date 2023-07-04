@@ -177,7 +177,7 @@ start a workspace using this repo as a base
 brev start https://github.com/brevdev/brev-cli -n bcli-runner-0
 ```
 
-open a shell in your environment
+open a shell in your instance
 
 ```sh
 brev shell bcli-runner-0
