@@ -191,7 +191,9 @@ func defaultAuthFunc(url, code string) {
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
-	fmt.Println("\n" + "Browser link: " + url + "\n")
+	fmt.Println("\n" + "Browser link: " + url)
+	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): https://console.brev.dev/profile?login=cli")
+	fmt.Print("\n")
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "   " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
 		ErrorMsg:   "error",
@@ -210,7 +212,8 @@ func defaultAuthFunc(url, code string) {
 func skipBrowserAuthFunc(url, _ string) {
 	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()
 	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
-	fmt.Println("Waiting for login to complete in browser... ")
+	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): https://console.brev.dev/profile?login=cli")
+	fmt.Println("Waiting for login to complete in browser... Ctrl+C to use CLI command instead.")
 }
 
 func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
