@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -148,16 +150,13 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 }
 
 func shouldLogin() (bool, error) {
-	// Temporarily commenting out for now until we fix
-	// reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
-	// fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
-	// text, err := reader.ReadString('\n')
-	// if err != nil {
-	// return false, breverrors.WrapAndTrace(err)
-	// }
-	// return strings.ToLower(strings.TrimSpace(text)) == "y", nil
-	fmt.Print(`You are currently logged out, find the login command here ("Login via CLI"): https://console.brev.dev/profile?login=cli`)
-	return false, nil // should we have an informative error here? this is only temporary
+	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
+	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+	text, err := reader.ReadString('\n')
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return strings.ToLower(strings.TrimSpace(text)) == "y", nil
 }
 
 func (t Auth) LoginWithToken(token string) error {
