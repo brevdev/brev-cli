@@ -491,6 +491,39 @@ func (w WorkspaceIniter) runExecV1(name entity.ExecName, exec entity.ExecV1) err
 	return nil
 }
 
+func (w WorkspaceIniter) CreateVerbYamlFile() error {
+	dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
+	err := w.setupDotBrev(dotBrev)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	setupExecPath := filepath.Join(dotBrev, string("verb.yaml"))
+
+	f, err := os.OpenFile(setupExecPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o700) //nolint:gosec // overwrite
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = ChownFileToUser(f, w.User)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Printf("Adding Verb Yaml: %s\n", w.Params.VerbYaml)
+	out := util.DecodeBase64OrReturnSelf(w.Params.VerbYaml)
+	_, err = f.Write(out)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = f.Close()
+
+	if err != nil {
+		fmt.Printf("Adding Verb Yaml failed: %s\n", err)
+		return breverrors.WrapAndTrace(err)
+	} else {
+		fmt.Printf("Adding Verb Yaml succeeded!\n")
+		return nil
+	}
+}
+
 func (w WorkspaceIniter) CreateTempStrExecFile(execPath string, execStr string) error {
 	f, err := os.OpenFile(execPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o700) //nolint:gosec // overwrite
 	if err != nil {
