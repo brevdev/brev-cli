@@ -313,7 +313,7 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
 
-	err = e.SetupEnvVars()
+	err = e.SetupEnvVars() // here
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
@@ -321,7 +321,12 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	if err != nil {
 		setupErr = multierror.Append(setupErr, breverrors.WrapAndTrace(err))
 	}
-	err = e.RunExecs()
+	err = e.RunExecs() // here
+	if err != nil {
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
+	}
+
+	err = e.CreateVerbYamlFile() // create
 	if err != nil {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
