@@ -495,8 +495,6 @@ type SetupParamsV0 struct {
 
 	IDEConfigs IDEConfigs `json:"ideConfig"`
 
-	VerbYaml string `json:"verbYaml"`
-
 	DisableSetup bool `json:"disableSetup"`
 }
 
