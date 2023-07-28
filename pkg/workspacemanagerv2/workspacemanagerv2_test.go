@@ -42,6 +42,7 @@ func (t TestStore) GetWorkspaceSetupParams(_ string) (*store.SetupParamsV0, erro
 		ProjectSetupScript: new(string),
 		ProjectFolderName:  "",
 		ProjectBrevPath:    "",
+		VerbYaml:           "",
 		DisableSetup:       false,
 	}, nil
 }
