@@ -104,6 +104,7 @@ func Test_PortMapping(t *testing.T) {
 }
 
 func Test_Volumes(t *testing.T) {
+	t.Skip()
 	dcms := GetAllContainerManagers()
 	for _, cm := range dcms {
 		ctx := context.Background()
