@@ -318,6 +318,17 @@ func (w TestWorkspace) Done() error {
 }
 
 func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
+	verbYaml := `
+	build:
+	gpu: true
+	system_packages:
+	  - libgl1-mesa-glx
+	  - libglib2.0-0
+	python_version: '3.11'
+	cuda: '11.1'
+	python_packages:
+	  - torch==1.8.1
+	`
 	return &store.SetupParamsV0{
 		WorkspaceHost:                    "name-rand-org.x.y",
 		WorkspacePort:                    22778,
@@ -329,6 +340,7 @@ func NewTestSetupParams(keyPair *store.KeyPair) *store.SetupParamsV0 {
 		WorkspacePassword:                "12345",
 		WorkspaceKeyPair:                 keyPair,
 		ProjectSetupScript:               nil,
+		VerbYaml:                         verbYaml,
 		DisableSetup:                     true,
 	}
 }
@@ -361,6 +373,7 @@ func AssertWorkspaceSetup(t *testing.T, w Workspace, password string, host strin
 	AssertInternalCurlOuputContains(t, w, "localhost:22779/proxy", "Bad Request", 100)
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", password)
 	AssertFileContainsString(t, w, "/home/brev/.config/code-server/config.yaml", host)
+	AssertPathExists(t, w, "/home/brev/workspace/.brev/verb.yaml")
 	AssertInternalSSHServerRunning(t, w, "/home/brev/.ssh/id_rsa", "brev", "ls")
 	AssertDockerRunning(t, w)
 }

@@ -378,6 +378,11 @@ func (w WorkspaceIniter) Setup() error {
 		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
 	}
 
+	err = w.CreateVerbYamlFile()
+	if err != nil {
+		setupErr = multierror.Append(breverrors.WrapAndTrace(err))
+	}
+
 	if setupErr != nil {
 		return breverrors.WrapAndTrace(setupErr)
 	}
@@ -492,12 +497,14 @@ func (w WorkspaceIniter) runExecV1(name entity.ExecName, exec entity.ExecV1) err
 }
 
 func (w WorkspaceIniter) CreateVerbYamlFile() error {
+	fmt.Printf("Starting to add Verb Yaml: %s\n", w.Params.VerbYaml)
 	dotBrev := filepath.Join(w.BuildWorkspacePath(), ".brev")
 	err := w.setupDotBrev(dotBrev)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	setupExecPath := filepath.Join(dotBrev, string("verb.yaml"))
+	fmt.Printf("verb yaml exec path: %s\n", setupExecPath)
 
 	f, err := os.OpenFile(setupExecPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o700) //nolint:gosec // overwrite
 	if err != nil {
