@@ -279,11 +279,17 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 		}
 	} else {
 		hostname := workspace.GetHostname()
+		var userName string
+		if workspace.VerbYaml != "" {
+			userName = "root"
+		} else {
+			userName = "ubuntu"
+		}
 		port := workspace.GetPort()
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
-			User:         "ubuntu", // todo param-user
+			User:         userName, // todo param-user
 			Dir:          workspace.GetProjectFolderPath(),
 			HostName:     hostname,
 			Port:         port,
