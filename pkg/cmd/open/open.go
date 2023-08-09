@@ -1,10 +1,8 @@
 package open
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -211,7 +209,7 @@ func openVsCodeWithSSH(
 	sshAlias string,
 	path string,
 	tstore OpenStore,
-	setupDoneString string,
+	_ string,
 ) error {
 	// infinite for loop:
 	res := refresh.RunRefreshAsync(tstore)
@@ -386,15 +384,15 @@ func openVsCodeViaExecutable(sshAlias, path string, vscodepath mo.Result[string]
 	return nil
 }
 
-func showLogsToUserIfTheyPressEnter(sshAlias string, showLogsToUser *bool, s *spinner.Spinner) {
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		*showLogsToUser = true
-		out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput()
-		fmt.Print(string(out))
-		if err != nil {
-			fmt.Println(err)
-		}
-		s.Suffix = ""
-	}
-}
+// func showLogsToUserIfTheyPressEnter(sshAlias string, showLogsToUser *bool, s *spinner.Spinner) {
+// 	scanner := bufio.NewScanner(os.Stdin)
+// 	for scanner.Scan() {
+// 		*showLogsToUser = true
+// 		out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput()
+// 		fmt.Print(string(out))
+// 		if err != nil {
+// 			fmt.Println(err)
+// 		}
+// 		s.Suffix = ""
+// 	}
+// }
