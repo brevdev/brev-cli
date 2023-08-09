@@ -227,51 +227,39 @@ func openVsCodeWithSSH(
 		return breverrors.WrapAndTrace(err)
 	}
 
-	waitForLoggerFileToBeAvailable(t, s, sshAlias)
+	// todo: add it here
+	s.Suffix = " Instance is ready. Opening VS Code 🤙"
+	time.Sleep(400 * time.Millisecond)
+	s.Stop()
+	t.Vprintf("\n")
+	err = openVsCode(sshAlias, path, tstore)
+
+	// check if we are in a brev environment, if so transform the error message
+	// to indicate that the user should run brev open locally instead of in
+	// the cloud and that we intend on supporting this in the future
+	// if there is an error getting the workspace, append that error with
+	// multierror,
+	// otherwise, just return the error
+	err = mo.TupleToResult(tstore.IsWorkspace()).Match(
+		func(value bool) (bool, error) {
+			if value {
+				// todo log original error to sentry
+				return true, errors.New("you are in a remote brev instance; brev open is not supported. Please run brev open locally instead")
+			}
+			return false, breverrors.WrapAndTrace(err)
+		},
+		func(err2 error) (bool, error) {
+			return false, multierror.Append(err, err2)
+		},
+	).Error()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	setupFinished, err := checkSetupFinished(sshAlias, setupDoneString)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if !setupFinished {
-		err = streamOutput(t, s, sshAlias, path, setupDoneString, tstore)
-		if err != nil {
+		if strings.Contains(err.Error(), "you are in a remote brev instance;") {
 			return breverrors.WrapAndTrace(err)
 		}
+		return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open VSCode, try adding it to PATH (you can do this in VSCode by running CMD-SHIFT-P and typing 'install code in path')\n")))
 	} else {
-		s.Suffix = " Instance is ready. Opening VS Code 🤙"
-		time.Sleep(1 * time.Second)
-		err = openVsCode(sshAlias, path, tstore)
-
-		if err != nil {
-			// check if we are in a brev environment, if so transform the error message
-			// to indicate that the user should run brev open locally instead of in
-			// the cloud and that we intend on supporting this in the future
-			// if there is an error getting the workspace, append that error with
-			// multierror,
-			// otherwise, just return the error
-			err = mo.TupleToResult(tstore.IsWorkspace()).Match(
-				func(value bool) (bool, error) {
-					if value {
-						// todo log original error to sentry
-						return true, errors.New("you are in a remote brev instance; brev open is not supported. Please run brev open locally instead")
-					}
-					return false, breverrors.WrapAndTrace(err)
-				},
-				func(err2 error) (bool, error) {
-					return false, multierror.Append(err, err2)
-				},
-			).Error()
-			if strings.Contains(err.Error(), "you are in a remote brev instance;") {
-				return breverrors.WrapAndTrace(err)
-			}
-			return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open VSCode, try adding it to PATH (you can do this in VSCode by running CMD-SHIFT-P and typing 'install code in path')\n")))
-		}
+		return nil
 	}
-	t.Vprint("\n")
-	return nil
 }
 
 func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) error {
