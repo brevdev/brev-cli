@@ -367,6 +367,12 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 }
 
 func (w Workspace) GetProjectFolderPath() string {
+	// Handle the Verb use case without breaking defaultworkingdir
+	// Verb container's path is /root not /home/ubuntu
+	if w.VerbYaml != "" {
+		return "/root"
+	}
+
 	var prefix string
 
 	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
