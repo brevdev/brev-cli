@@ -36,10 +36,10 @@ We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
 
 [![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/createdevenv2.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
 
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/smalltext-noshaka.png)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/smalltext-noshaka.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
 
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/smalltext-shaka.png)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/smalltext-shaka.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
 
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/largetext-noshaka.png)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/largetext-noshaka.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
 
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/largetext-shaka.png)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/largetext-shaka.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
