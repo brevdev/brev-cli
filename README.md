@@ -34,12 +34,6 @@ We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
 
 ## Trying other badge styles
 
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/createdevenv2.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/brevdeployblack.svg?t=2023-08-15T14%3A21%3A03.847Z)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
 
-[![](<https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/smalltext-noshaka%20(1).svg>)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
-
-[![](<https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/smalltext-shaka%20(1).svg>)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
-
-[![](<https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/largetext-noshaka%20(1).svg>)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
-
-[![](<https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/largetext-shaka%20(1).svg>)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/brevdeploynavy.svg?t=2023-08-15T14%3A21%3A03.847Z)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
