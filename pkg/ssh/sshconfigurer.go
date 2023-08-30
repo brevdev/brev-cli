@@ -280,12 +280,12 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 	} else {
 		hostname := workspace.GetHostname()
 		var userName string
-		if workspace.VerbYaml != "" {
-			userName = "root"
-		} else {
-			userName = "ubuntu"
-		}
 		port := workspace.GetPort()
+		if port == 22 {
+			userName = "ubuntu"
+		} else {
+			userName = "root"
+		}
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
