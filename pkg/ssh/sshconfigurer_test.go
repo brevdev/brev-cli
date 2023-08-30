@@ -326,7 +326,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 			want: `Host testName2
   Hostname test2-dns-org.brev.sh
   IdentityFile "/my/priv/key.pem"
-  User ubuntu
+  User root
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
   IdentitiesOnly yes
