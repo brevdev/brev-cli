@@ -1,5 +1,12 @@
 #!/bin/bash
 
+append_if_not_exist() {
+  line="$1"
+  file="$2"
+
+  grep -qxF "$line" "$file" || echo "$line" >> "$file"
+}
+
 ### docker ###
 # https://docs.docker.com/engine/install/ubuntu/
 sudo apt-get install -y \
@@ -59,20 +66,24 @@ EOF
 node npm-no-sudo
 npm install -g gatsby-cli
 
+# asdf
+git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.12.0 || true
+
+append_if_not_exist ". \$HOME/.asdf/asdf.sh" ~/.bashrc
+append_if_not_exist ". \$HOME/.asdf/completions/asdf.bash" ~/.bashrc
+append_if_not_exist ". \$HOME/.asdf/asdf.sh" ~/.zshrc
+exec $SHELL
+
 # golang
-# installing Golang v1.18
-(echo ""; echo "##### Golang v18x #####"; echo "";)
-wget https://golang.org/dl/go1.19.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
-echo "" | sudo tee -a ~/.bashrc
-echo "export PATH=\$PATH:/usr/local/go/bin" | sudo tee -a ~/.bashrc
-echo "" | sudo tee -a ~/.zshrc
-echo "export PATH=\$PATH:/usr/local/go/bin" | sudo tee -a ~/.zshrc
-echo "" | sudo tee -a ~/.bashrc
-echo "export PATH=\$PATH:\$HOME/go/bin" | sudo tee -a ~/.bashrc
-echo "" | sudo tee -a ~/.zshrc
-echo "export PATH=\$PATH:\$HOME/go/bin" | sudo tee -a ~/.zshrc
-rm go1.19.linux-amd64.tar.gz
+asdf plugin add golang https://github.com/asdf-community/asdf-golang.git
+asdf install golang 1.20
+asdf global golang 1.20
+asdf install
+
+append_if_not_exist "export PATH=\$PATH:/usr/local/go/bin" ~/.bashrc
+append_if_not_exist "export PATH=\$PATH:/usr/local/go/bin" ~/.zshrc
+append_if_not_exist "export PATH=\$PATH:\$HOME/go/bin" ~/.bashrc
+append_if_not_exist "export PATH=\$PATH:\$HOME/go/bin" ~/.zshrc
 export PATH=$PATH:/usr/local/go/bin
 
 # install golang extension tools
@@ -90,10 +101,8 @@ go install -v github.com/ramya-rao-a/go-outline@latest
 sudo apt update
 sudo apt install -y python3-pip
 pip install --upgrade bump2version
-echo "" | sudo tee -a ~/.bashrc
-echo "export PATH=\$PATH:\$HOME/.local/bin" | sudo tee -a ~/.bashrc
-echo "" | sudo tee -a ~/.zshrc
-echo "export PATH=\$PATH:\$HOME/.local/bin" | sudo tee -a ~/.zshrc
+append_if_not_exist "export PATH=\$PATH:\$HOME/.local/bin" ~/.bashrc
+append_if_not_exist "export PATH=\$PATH:\$HOME/.local/bin"  ~/.zshrc
 
 newgrp docker 
 
