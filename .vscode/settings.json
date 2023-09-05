@@ -1,27 +1,25 @@
 {
-    // gopls with gofumpt and import ordering
-    "go.useLanguageServer": true,
-    "gopls": {
-        "formatting.gofumpt": true,
-    },
-    "[go]": {
-        "editor.formatOnSave": true,
-        "editor.codeActionsOnSave": {
-            "source.organizeImports": true,
-        },
-    },
-    "[go.mod]": {
-        "editor.formatOnSave": true,
-        "editor.codeActionsOnSave": {
-            "source.organizeImports": true,
-        },
-    },
-
-    // golangci-lint  
-    "go.lintTool": "golangci-lint",
-    "go.lintFlags": [
-        "--fast"
-    ],
-    "go.lintOnSave": "workspace",
-    "go.testTimeout": "240s"
+  "go.useLanguageServer": true,
+  "gopls": {
+    "formatting.gofumpt": true
+  },
+  "[go]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
+  "[go.mod]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
+  "go.lintTool": "golangci-lint",
+  "go.lintFlags": [
+    "--fast"
+  ],
+  "go.lintOnSave": "workspace",
+  "go.testTimeout": "240s",
+  "go.goroot": "/home/ubuntu/.asdf/installs/golang/1.19/go"
 }
