@@ -68,23 +68,22 @@ npm install -g gatsby-cli
 
 # asdf
 git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v0.12.0 || true
-
 append_if_not_exist ". \$HOME/.asdf/asdf.sh" ~/.bashrc
 append_if_not_exist ". \$HOME/.asdf/completions/asdf.bash" ~/.bashrc
 append_if_not_exist ". \$HOME/.asdf/asdf.sh" ~/.zshrc
-exec $SHELL
 
 # golang
 asdf plugin add golang https://github.com/asdf-community/asdf-golang.git
 asdf install golang 1.20
 asdf global golang 1.20
 asdf install
-
-append_if_not_exist "export PATH=\$PATH:/usr/local/go/bin" ~/.bashrc
-append_if_not_exist "export PATH=\$PATH:/usr/local/go/bin" ~/.zshrc
-append_if_not_exist "export PATH=\$PATH:\$HOME/go/bin" ~/.bashrc
-append_if_not_exist "export PATH=\$PATH:\$HOME/go/bin" ~/.zshrc
-export PATH=$PATH:/usr/local/go/bin
+GO_VERSION=$(asdf list golang | tail -1 | tr -d '*' | awk '{$1=$1};1')
+GO_ROOT=$HOME/.asdf/installs/golang/$GO_VERSION/go
+append_if_not_exist "export GOROOT=$GOROOT" ~/.zshrc
+append_if_not_exist "export GOROOT=$GOROOT" ~/.bashrc
+key="go.goroot"
+value="$GO_ROOT"
+jq --arg key "$key" --arg value "$value" '. + {($key): $value}' .vscode/settings.json > tmp.json && mv tmp.json .vscode/settings.json || true
 
 # install golang extension tools
 export GOPATH=$HOME/go
