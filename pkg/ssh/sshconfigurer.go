@@ -330,7 +330,6 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 		}
 
 		val := fmt.Sprintf("%s%s", sshVal, hostSSHVal)
-		fmt.Printf("'%s'", val)
 		return val, nil
 	}
 }

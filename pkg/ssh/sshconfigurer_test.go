@@ -148,6 +148,18 @@ Host %s
   RequestTTY yes
   Port 22
 
+Host %s-host
+  Hostname test1-dns-org.brev.sh
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
+
 Host %s
   Hostname test2-dns-org.brev.sh
   IdentityFile "/my/priv/key.pem"
@@ -160,8 +172,21 @@ Host %s
   RequestTTY yes
   Port 22
 
-`, somePlainWorkspaces[0].GetLocalIdentifier(),
-		somePlainWorkspaces[1].GetLocalIdentifier())
+Host %s-host
+  Hostname test2-dns-org.brev.sh
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
+
+`, somePlainWorkspaces[0].GetLocalIdentifier(), somePlainWorkspaces[0].GetLocalIdentifier(),
+		somePlainWorkspaces[1].GetLocalIdentifier(), somePlainWorkspaces[1].GetLocalIdentifier(),
+	)
 	assert.Equal(t, correct, cStr)
 
 	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})
@@ -551,6 +576,18 @@ Host testName1
   RequestTTY yes
   Port 22
 
+Host testName1-host
+  Hostname test1-dns-org.brev.sh
+  IdentityFile "/home/test/.brev/brev.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
+
 `,
 
 			windowsSSHConfig:       ``,
@@ -594,10 +631,34 @@ Host testName1
   RequestTTY yes
   Port 22
 
+Host testName1-host
+  Hostname test1-dns-org.brev.sh
+  IdentityFile "/home/test/.brev/brev.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
+
 `,
 			windowsSSHConfig: "Include \"C:\\Users\\15854\\.brev\\ssh_config\"\n",
 			windowsBrevSSHConfig: `# included in C:\Users\15854\.brev\ssh_config
 Host testName1
+  Hostname test1-dns-org.brev.sh
+  IdentityFile "C:\Users\15854\.brev\brev.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
+
+Host testName1-host
   Hostname test1-dns-org.brev.sh
   IdentityFile "C:\Users\15854\.brev\brev.pem"
   User ubuntu
@@ -640,7 +701,6 @@ Host testName1
 			}
 			diff = cmp.Diff(tt.linuxBrevSSHConfig, linuxBrevSSHConfig)
 			if diff != "" {
-				fmt.Println("THIS DIFF IS DIFFERENT")
 				t.Fatalf(diff)
 			}
 
