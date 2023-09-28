@@ -343,8 +343,10 @@ func (w Workspace) GetSSHPort() int {
 	return port
 }
 
+const DefaultUser = "ubuntu"
+
 func (w Workspace) GetSSHUser() string {
-	user := "ubuntu"
+	user := DefaultUser
 	if w.SSHUser != "" {
 		user = w.SSHUser
 	}
@@ -352,7 +354,7 @@ func (w Workspace) GetSSHUser() string {
 }
 
 func (w Workspace) GetHostSSHUser() string {
-	user := "ubuntu"
+	user := DefaultUser
 	if w.HostSSHUser != "" {
 		user = w.HostSSHUser
 	}
@@ -375,7 +377,7 @@ func (w Workspace) GetUsername() string {
 	if w.IsLegacy() {
 		return "brev"
 	}
-	return "ubuntu"
+	return DefaultUser
 }
 
 type WorkspaceTemplate struct {

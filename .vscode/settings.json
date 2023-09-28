@@ -20,5 +20,6 @@
     "--fast"
   ],
   "go.lintOnSave": "workspace",
-  "go.testTimeout": "240s"
+  "go.testTimeout": "240s",
+  "go.goroot": "/home/ubuntu/.asdf/installs/golang//go"
 }
