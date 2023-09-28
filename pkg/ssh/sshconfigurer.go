@@ -258,38 +258,64 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 	return ok
 }
 
+func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error) {
+	buf := &bytes.Buffer{}
+	err := tmpl.Execute(buf, val)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return buf.String(), nil
+}
+
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
 	alias := string(workspace.GetLocalIdentifier())
-	var entry SSHConfigEntryV2
-	var tmpl *template.Template
-	var err error
 	privateKeyPath = "\"" + privateKeyPath + "\""
 	if workspace.IsLegacy() {
 		proxyCommand := makeProxyCommand(workspace.ID)
-		entry = SSHConfigEntryV2{
+		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
-			User:         "brev", // todo param-user
+			User:         "brev",
 			ProxyCommand: proxyCommand,
 			Dir:          workspace.GetProjectFolderPath(),
 		}
-		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV2)
+		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
+		val, err := tmplAndValToString(tmpl, entry)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		return val, nil
 	} else {
 		hostname := workspace.GetHostname()
-		var userName string
-		port := workspace.GetPort()
-		if port == 22 {
-			userName = "ubuntu"
-		} else {
-			userName = "root"
+		port := workspace.GetSSHPort()
+		user := workspace.GetSSHUser()
+		entry := SSHConfigEntryV2{
+			Alias:        alias,
+			IdentityFile: privateKeyPath,
+			User:         user,
+			Dir:          workspace.GetProjectFolderPath(),
+			HostName:     hostname,
+			Port:         port,
 		}
+		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		sshVal, err := tmplAndValToString(tmpl, entry)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+
+		port = workspace.GetHostSSHPort()
+		user = workspace.GetHostSSHUser()
+		alias = fmt.Sprintf("%s-host", alias)
 		entry = SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
-			User:         userName, // todo param-user
+			User:         user,
 			Dir:          workspace.GetProjectFolderPath(),
 			HostName:     hostname,
 			Port:         port,
@@ -298,16 +324,71 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-	}
+		hostSSHVal, err := tmplAndValToString(tmpl, entry)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 
-	buf := &bytes.Buffer{}
-	err = tmpl.Execute(buf, entry)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
+		val := fmt.Sprintf("%s%s", sshVal, hostSSHVal)
+		fmt.Printf("'%s'", val)
+		return val, nil
 	}
-
-	return buf.String(), nil
 }
+
+// func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
+// 	alias := string(workspace.GetLocalIdentifier())
+// 	privateKeyPath = "\"" + privateKeyPath + "\""
+// 	if workspace.IsLegacy() {
+// 		proxyCommand := makeProxyCommand(workspace.ID)
+// 		entry := SSHConfigEntryV2{
+// 			Alias:        alias,
+// 			IdentityFile: privateKeyPath,
+// 			User:         "brev", // todo param-user
+// 			ProxyCommand: proxyCommand,
+// 			Dir:          workspace.GetProjectFolderPath(),
+// 		}
+// 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
+// 		if err != nil {
+// 			return "", breverrors.WrapAndTrace(err)
+// 		}
+
+// 		buf := &bytes.Buffer{}
+// 		err = tmpl.Execute(buf, entry)
+// 		if err != nil {
+// 			return "", breverrors.WrapAndTrace(err)
+// 		}
+
+// 		return buf.String(), nil
+// 	} else {
+// 		hostname := workspace.GetHostname()
+// 		var userName string
+// 		port := workspace.GetSSHPort()
+// 		if port == 22 {
+// 			userName = "ubuntu"
+// 		} else {
+// 			userName = "root"
+// 		}
+// 		entry := SSHConfigEntryV2{
+// 			Alias:        alias,
+// 			IdentityFile: privateKeyPath,
+// 			User:         userName, // todo param-user
+// 			Dir:          workspace.GetProjectFolderPath(),
+// 			HostName:     hostname,
+// 			Port:         port,
+// 		}
+// 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
+// 		if err != nil {
+// 			return "", breverrors.WrapAndTrace(err)
+// 		}
+// 		buf := &bytes.Buffer{}
+// 		err = tmpl.Execute(buf, entry)
+// 		if err != nil {
+// 			return "", breverrors.WrapAndTrace(err)
+// 		}
+
+// 		return buf.String(), nil
+// 	}
+// }
 
 func makeProxyCommand(workspaceID string) string {
 	huproxyExec := "brev proxy"
@@ -581,7 +662,7 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 // </application>
 func makeJetbrainsConfigEntry(workspace entity.Workspace, privateKeyPath string) JetbrainsGatewayConfigXMLSSHConfig {
 	hostname := workspace.GetHostname()
-	port := workspace.GetPort()
+	port := workspace.GetSSHPort()
 	// name := workspace.GetLocalIdentifier()
 	return JetbrainsGatewayConfigXMLSSHConfig{
 		Host:     hostname,

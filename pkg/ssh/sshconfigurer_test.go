@@ -254,6 +254,10 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 					Status:           entity.Running,
 					Password:         "sdfal",
 					GitRepo:          "gitrepo",
+					SSHPort:          20,
+					SSHUser:          "ubuntu-wk",
+					HostSSHPort:      2022,
+					HostSSHUser:      "ubuntu-host",
 				},
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
@@ -261,14 +265,26 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 			want: `Host testName2
   Hostname test2-dns-org.brev.sh
   IdentityFile "/my/priv/key.pem"
-  User ubuntu
+  User ubuntu-wk
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
-  Port 22
+  Port 20
+
+Host testName2-host
+  Hostname test2-dns-org.brev.sh
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu-host
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 2022
 
 `,
 		},
@@ -291,6 +307,18 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				runRemoteCMD:   true,
 			},
 			want: `Host testName2
+  Hostname test2-dns-org.brev.sh
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
+
+Host testName2-host
   Hostname test2-dns-org.brev.sh
   IdentityFile "/my/priv/key.pem"
   User ubuntu
@@ -326,7 +354,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 			want: `Host testName2
   Hostname test2-dns-org.brev.sh
   IdentityFile "/my/priv/key.pem"
-  User root
+  User ubuntu
   ServerAliveInterval 30
   UserKnownHostsFile /dev/null
   IdentitiesOnly yes
@@ -334,6 +362,18 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   PasswordAuthentication no
   RequestTTY yes
   Port 2022
+
+Host testName2-host
+  Hostname test2-dns-org.brev.sh
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  RequestTTY yes
+  Port 22
 
 `,
 		},

@@ -305,6 +305,9 @@ type Workspace struct {
 	ExecsV1           *ExecsV1  `json:"execsV1"`
 	IDEConfig         IDEConfig `json:"ideConfig"`
 	SSHPort           int       `json:"sshPort"`
+	SSHUser           string    `json:"sshUser"`
+	HostSSHPort       int       `json:"hostSshPort"`
+	HostSSHUser       string    `json:"hostSshUser"`
 	VerbYaml          string    `json:"verbYaml"`
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
@@ -332,10 +335,34 @@ func (w Workspace) GetHostname() string {
 	return hostname
 }
 
-func (w Workspace) GetPort() int {
+func (w Workspace) GetSSHPort() int {
 	port := 22
 	if w.SSHPort != 0 {
 		port = w.SSHPort
+	}
+	return port
+}
+
+func (w Workspace) GetSSHUser() string {
+	user := "ubuntu"
+	if w.SSHUser != "" {
+		user = w.SSHUser
+	}
+	return user
+}
+
+func (w Workspace) GetHostSSHUser() string {
+	user := "ubuntu"
+	if w.HostSSHUser != "" {
+		user = w.HostSSHUser
+	}
+	return user
+}
+
+func (w Workspace) GetHostSSHPort() int {
+	port := 22
+	if w.HostSSHPort != 0 {
+		port = w.HostSSHPort
 	}
 	return port
 }
@@ -367,14 +394,7 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 }
 
 func (w Workspace) GetProjectFolderPath() string {
-	// Handle the Verb use case without breaking defaultworkingdir
-	// Verb container's path is /root not /home/ubuntu
-	if w.VerbYaml != "" {
-		return "/root"
-	}
-
 	var prefix string
-
 	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
 		prefix = "/home/brev/workspace"
 	} else {
