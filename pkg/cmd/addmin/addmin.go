@@ -1,6 +1,8 @@
 package addmin
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -54,11 +56,14 @@ func Run(t *terminal.Terminal, userID string, store Store) error {
 		GlobalUserType: "Admin",
 	}
 
-	_, err = store.UpdateUser(userID, updatedUser)
+	res, err := store.UpdateUser(userID, updatedUser)
 	if err != nil {
 		t.Vprint(t.Red(err.Error()))
 		return breverrors.WrapAndTrace(err)
 	}
+
+	// Print the entire User entity
+	fmt.Printf("Updated User: %+v\n", res)
 
 	t.Vprint(t.Green("User updated to admin 🤙"))
 	return nil
