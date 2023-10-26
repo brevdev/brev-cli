@@ -2,8 +2,7 @@
 package notebook
 
 import (
-	"fmt"
-
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -29,19 +28,27 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 		Example: notebookExample,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Type out the checking message
+			hello.TypeItToMeUnskippable("Checking to make sure the workspace is running...")
+
 			// Validate if the workspace exists
-			_, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
+			workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
+			}
+
+			// Check if the workspace is running
+			if workspace.Status != "RUNNING" {
+				hello.TypeItToMeUnskippable("The workspace is not running. Please ensure it's in the running state before proceeding.")
+				return breverrors.WorkspaceNotRunning{Status: workspace.Status}
 			}
 
 			urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 			warningType := color.New(color.FgBlack, color.Bold, color.BgCyan).SprintFunc()
 
-			fmt.Print("\n")
-			fmt.Println(warningType("  Please keep this terminal open 🤙  "))
+			hello.TypeItToMeUnskippable("\n" + warningType("  Please keep this terminal open 🤙  "))
 
-			fmt.Print("\nClick here to go to your Jupyter notebook:\n\t 👉", urlType("http://localhost:8888"), "👈\n\n\n")
+			hello.TypeItToMeUnskippable("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 
 			// Port forward on 8888
 			err2 := portforward.RunPortforward(store, args[0], "8888:8888")
@@ -50,7 +57,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			}
 
 			// Print out a link for the user
-			fmt.Println("Your notebook is accessible at: http://localhost:8888")
+			hello.TypeItToMeUnskippable("Your notebook is accessible at: http://localhost:8888")
 
 			return nil
 		},
