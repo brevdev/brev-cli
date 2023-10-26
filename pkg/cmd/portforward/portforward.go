@@ -44,7 +44,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if port == "" {
 				port = startInput(t)
 			}
-			err := runPortforward(pfStore, args[0], port)
+			err := RunPortforward(pfStore, args[0], port)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -63,7 +63,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	return cmd
 }
 
-func runPortforward(pfStore PortforwardStore, nameOrID string, portString string) error {
+func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string) error {
 	var portSplit []string
 	if strings.Contains(portString, ":") {
 		portSplit = strings.Split(portString, ":")
