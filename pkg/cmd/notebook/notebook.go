@@ -32,7 +32,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			// Validate if the workspace exists
 			_, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
@@ -46,7 +46,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			// Port forward on 8888
 			err2 := portforward.RunPortforward(store, args[0], "8888:8888")
 			if err2 != nil {
-				return breverrors.WrapAndTrace(err)
+				return breverrors.WrapAndTrace(err2)
 			}
 
 			// Print out a link for the user
