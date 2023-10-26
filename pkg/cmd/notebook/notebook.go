@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -19,7 +20,7 @@ type NotebookStore interface {
 	portforward.PortforwardStore
 }
 
-func NewCmdNotebook(store NotebookStore, t *terminal.Terminal) *cobra.Command {
+func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "notebook",
 		Short:   "Open a notebook on your Brev machine",
@@ -33,12 +34,12 @@ func NewCmdNotebook(store NotebookStore, t *terminal.Terminal) *cobra.Command {
 			fmt.Print("\n")
 			fmt.Println(warningType("  Please keep this terminal open 🤙  "))
 
-			fmt.Println("\nClick here to go to your Jupyter notebook:\n\t 👉", urlType("http://localhost:8888"), "👈\n\n")
+			fmt.Print("\nClick here to go to your Jupyter notebook:\n\t 👉", urlType("http://localhost:8888"), "👈\n\n\n")
 
 			// Port forward on 8888
 			err := portforward.RunPortforward(store, args[0], "8888:8888")
 			if err != nil {
-				return err
+				return breverrors.WrapAndTrace(err)
 			}
 
 			// Print out a link for the user
