@@ -227,7 +227,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) {
-	cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
@@ -242,6 +241,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
+		cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
 		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
