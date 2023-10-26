@@ -5,6 +5,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
@@ -20,6 +21,11 @@ type NotebookStore interface {
 	portforward.PortforwardStore
 }
 
+type WorkspaceResult struct {
+	Workspace *entity.Workspace // Replace with the actual type of workspace returned by GetUserWorkspaceByNameOrIDErr
+	Err       error
+}
+
 func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "notebook",
@@ -28,27 +34,37 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 		Example: notebookExample,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Type out the checking message
-			hello.TypeItToMeUnskippable("Checking to make sure the workspace is running...")
+			// Channel to get the result of the network call
+			resultCh := make(chan *WorkspaceResult)
 
-			// Validate if the workspace exists
-			workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			// Start the network call in a goroutine
+			go func() {
+				workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
+				resultCh <- &WorkspaceResult{Workspace: workspace, Err: err}
+			}()
+
+			// Type out the checking message
+			hello.TypeItToMeUnskippable27("Checking to make sure the workspace is running...")
+
+			// Wait for the network call to finish
+			result := <-resultCh
+
+			if result.Err != nil {
+				return breverrors.WrapAndTrace(result.Err)
 			}
 
 			// Check if the workspace is running
-			if workspace.Status != "RUNNING" {
-				hello.TypeItToMeUnskippable("The workspace is not running. Please ensure it's in the running state before proceeding.")
-				return breverrors.WorkspaceNotRunning{Status: workspace.Status}
+			if result.Workspace.Status != "RUNNING" {
+				hello.TypeItToMeUnskippable27("The workspace is not running. Please ensure it's in the running state before proceeding.")
+				return breverrors.WorkspaceNotRunning{Status: result.Workspace.Status}
 			}
 
 			urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 			warningType := color.New(color.FgBlack, color.Bold, color.BgCyan).SprintFunc()
 
-			hello.TypeItToMeUnskippable("\n" + warningType("  Please keep this terminal open 🤙  "))
+			hello.TypeItToMeUnskippable27("\n" + warningType("  Please keep this terminal open 🤙  "))
 
-			hello.TypeItToMeUnskippable("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
+			hello.TypeItToMeUnskippable27("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 
 			// Port forward on 8888
 			err2 := portforward.RunPortforward(store, args[0], "8888:8888")
@@ -57,7 +73,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			}
 
 			// Print out a link for the user
-			hello.TypeItToMeUnskippable("Your notebook is accessible at: http://localhost:8888")
+			hello.TypeItToMeUnskippable27("Your notebook is accessible at: http://localhost:8888")
 
 			return nil
 		},

@@ -101,6 +101,15 @@ func TypeItToMeUnskippable(s string) {
 	}
 }
 
+func TypeItToMeUnskippable27(s string) {
+	sRunes := []rune(s)
+	for i := 0; i < len(sRunes); i++ {
+		time.Sleep(27 * time.Millisecond)
+
+		fmt.Printf("%c", sRunes[i])
+	}
+}
+
 var wg sync.WaitGroup
 
 func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) error {
