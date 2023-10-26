@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
@@ -28,6 +29,12 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 		Example: notebookExample,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Validate if the workspace exists
+			_, err := util.GetUserWorkspaceByNameOrIDErr(store, args[0])
+			if err != nil {
+				return err
+			}
+
 			urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 			warningType := color.New(color.FgBlack, color.Bold, color.BgCyan).SprintFunc()
 
@@ -37,8 +44,8 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			fmt.Print("\nClick here to go to your Jupyter notebook:\n\t 👉", urlType("http://localhost:8888"), "👈\n\n\n")
 
 			// Port forward on 8888
-			err := portforward.RunPortforward(store, args[0], "8888:8888")
-			if err != nil {
+			err2 := portforward.RunPortforward(store, args[0], "8888:8888")
+			if err2 != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
