@@ -1,4 +1,3 @@
-// notebook/notebook.go
 package notebook
 
 import (

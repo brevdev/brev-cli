@@ -330,6 +330,7 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 
 func OnboardUserWithEditors(t *terminal.Terminal, _ LoginStore, ide string) (string, error) {
 	if ide == "VSCode" {
+		_ = 0
 	} else {
 		t.Print("To use " + ide + " for your instance. Use the following command to remote into your machine")
 		t.Print(t.Green("Brev Shell"))
