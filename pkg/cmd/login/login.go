@@ -330,37 +330,6 @@ func OnboardUserWithSSHKeys(t *terminal.Terminal, user *entity.User, _ LoginStor
 
 func OnboardUserWithEditors(t *terminal.Terminal, _ LoginStore, ide string) (string, error) {
 	if ide == "VSCode" {
-		// Check if user uses VSCode and intall extension for user
-		isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
-		if err != nil {
-			t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
-			t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
-			_ = terminal.PromptGetInput(terminal.PromptContent{
-				Label:      "Hit enter when finished:",
-				ErrorMsg:   "error",
-				AllowEmpty: true,
-			})
-		}
-
-		// If we couldn't check for the extension being installed, they likely don't have code in path and this step should be skipped
-		if !isInstalled && err == nil {
-			// attempt to install the extension
-			_ = util.InstallVscodeExtension("ms-vscode-remote.remote-ssh")
-
-			// verify installation
-			isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
-
-			// tell the user to install manually if still not installed
-			if !isInstalled || err != nil {
-				t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
-				t.Print("\tPlease install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
-				_ = terminal.PromptGetInput(terminal.PromptContent{
-					Label:      "Hit enter when finished:",
-					ErrorMsg:   "error",
-					AllowEmpty: true,
-				})
-			}
-		}
 	} else {
 		t.Print("To use " + ide + " for your instance. Use the following command to remote into your machine")
 		t.Print(t.Green("Brev Shell"))

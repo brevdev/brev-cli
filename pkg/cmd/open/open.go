@@ -231,14 +231,33 @@ func openVsCodeWithSSH(
 	s.Stop()
 	t.Vprintf("\n")
 
-	isRemoteInstalled, err := uutil.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+	// Check if user uses VSCode and intall extension for user
+	isInstalled, err := uutil.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
+		t.Print("\tPlease install VSCode and the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
+		_ = terminal.PromptGetInput(terminal.PromptContent{
+			Label:      "Hit enter when finished:",
+			ErrorMsg:   "error",
+			AllowEmpty: true,
+		})
 	}
-	if !isRemoteInstalled {
-		err = uutil.InstallVscodeExtension("ms-vscode-remote.remote-ssh")
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+	// If we couldn't check for the extension being installed, they likely don't have code in path and this step should be skipped
+	if !isInstalled && err == nil {
+		// attempt to install the extension
+		_ = uutil.InstallVscodeExtension("ms-vscode-remote.remote-ssh")
+
+		// verify installation
+		isInstalled, err = uutil.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+		// tell the user to install manually if still not installed
+		if !isInstalled || err != nil {
+			t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
+			t.Print("\tPlease install VSCode and the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
+			_ = terminal.PromptGetInput(terminal.PromptContent{
+				Label:      "Hit enter when finished:",
+				ErrorMsg:   "error",
+				AllowEmpty: true,
+			})
 		}
 	}
 
