@@ -288,7 +288,6 @@ func doVsCodeOnboarding(
 
 	printBrevOpen(t, *firstWorkspace)
 
-	// a while loop in golang
 	sum := 0
 	spinner.Suffix = "☝️ try that, I'll wait"
 	spinner.Start()

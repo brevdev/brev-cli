@@ -191,21 +191,6 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 		return breverrors.WrapAndTrace(err)
 	}
 
-	ob, err := user.GetOnboardingData()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// if user chooses vscode as editor preference, import ide config
-	if ob.Editor == "VSCode" {
-		err = importideconfig.RunImportIDEConfig(t, o.LoginStore)
-		if err != nil {
-			if !strings.Contains(err.Error(), "no vscode extensions found") {
-				return breverrors.WrapAndTrace(err)
-			}
-		}
-	}
-
 	return nil
 }
 
@@ -360,8 +345,7 @@ func OnboardUserWithEditors(t *terminal.Terminal, _ LoginStore, ide string) (str
 		// If we couldn't check for the extension being installed, they likely don't have code in path and this step should be skipped
 		if !isInstalled && err == nil {
 			// attempt to install the extension
-			cmd := exec.Command("code", "--install-extension", "ms-vscode-remote.remote-ssh", "--force") // #nosec G204
-			_ = cmd.Run()
+			_ = util.InstallVscodeExtension("ms-vscode-remote.remote-ssh")
 
 			// verify installation
 			isInstalled, err := util.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")

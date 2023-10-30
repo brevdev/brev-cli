@@ -18,10 +18,10 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	uutil "github.com/brevdev/brev-cli/pkg/util"
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
-	"github.com/samber/lo"
 	"github.com/samber/mo"
 
 	"github.com/spf13/cobra"
@@ -227,9 +227,21 @@ func openVsCodeWithSSH(
 
 	// todo: add it here
 	s.Suffix = " Instance is ready. Opening VS Code 🤙"
-	time.Sleep(400 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	s.Stop()
 	t.Vprintf("\n")
+
+	isRemoteInstalled, err := uutil.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if !isRemoteInstalled {
+		err = uutil.InstallVscodeExtension("ms-vscode-remote.remote-ssh")
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
 	err = openVsCode(sshAlias, path, tstore)
 
 	// check if we are in a brev environment, if so transform the error message
@@ -289,110 +301,20 @@ type vscodePathStore interface {
 	GetWindowsDir() (string, error)
 }
 
-var commonVSCodePaths = lo.Map([]string{
-	"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
-	"/usr/bin/code",
-	"/usr/local/bin/code",
-	"/snap/bin/code",
-	"/usr/local/share/code/bin/code",
-	"/usr/share/code/bin/code",
-	"/usr/share/code-insiders/bin/code-insiders",
-	"/usr/share/code-oss/bin/code-oss",
-	"/usr/share/code/bin/code",
-},
-	func(path string, _ int) mo.Result[string] {
-		return mo.Ok(path)
-	})
-
-func getCommonVsCodePaths(store vscodePathStore) []mo.Result[string] {
-	paths := commonVSCodePaths
-	paths = append(paths, []mo.Result[string]{
-		// not dry but it's a one off
-		mo.TupleToResult(store.GetWindowsDir()).Match(
-			func(dir string) (string, error) {
-				return fmt.Sprintf(
-					"%s/AppData/Local/Programs/Microsoft VS Code/Code.exe",
-					dir,
-				), nil
-			},
-			func(err error) (string, error) {
-				return "", breverrors.WrapAndTrace(err) // no windows dir
-			},
-		),
-		mo.TupleToResult(store.GetWindowsDir()).Match(
-			func(dir string) (string, error) {
-				return fmt.Sprintf(
-					"%s/AppData/Local/Programs/Microsoft VS Code/bin/code",
-					dir,
-				), nil
-			},
-			func(err error) (string, error) {
-				return "", breverrors.WrapAndTrace(err) // no windows dir
-			},
-		),
-	}...)
+func getWindowsVsCodePaths(store vscodePathStore) []string {
+	wd, _ := store.GetWindowsDir()
+	paths := append([]string{}, fmt.Sprintf("%s/AppData/Local/Programs/Microsoft VS Code/Code.exe", wd), fmt.Sprintf("%s/AppData/Local/Programs/Microsoft VS Code/bin/code", wd))
 	return paths
-}
-
-func tryToOpenVsCodeViaExecutable(sshAlias, path string, vscodepaths []mo.Result[string]) error {
-	errs := multierror.Append(nil)
-	for _, vscodepath := range vscodepaths {
-		err := openVsCodeViaExecutable(sshAlias, path, vscodepath)
-		if err != nil {
-			errs = multierror.Append(errs, err)
-		} else {
-			return breverrors.WrapAndTrace(errs.ErrorOrNil())
-		}
-	}
-	return breverrors.WrapAndTrace(errs.ErrorOrNil())
 }
 
 func openVsCode(sshAlias string, path string, store OpenStore) error {
 	vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
 	vscodeString = shellescape.QuoteCommand([]string{vscodeString})
-	cmd := exec.Command("code", "--folder-uri", vscodeString) // #nosec G204
-	err := cmd.Run()
-	if err != nil {
-		vscodepaths := getCommonVsCodePaths(store)
-		err := tryToOpenVsCodeViaExecutable(sshAlias, path, vscodepaths)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
 
-func openVsCodeViaExecutable(sshAlias, path string, vscodepath mo.Result[string]) error {
-	err := vscodepath.Match(
-		func(vscodepath string) (string, error) {
-			vscodeString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
-			vscodeString = shellescape.QuoteCommand([]string{vscodeString})
-			cmd := exec.Command(vscodepath, "--folder-uri", vscodeString) // #nosec G204
-			err := cmd.Run()
-			if err != nil {
-				return "", breverrors.WrapAndTrace(err)
-			}
-			return "", nil
-		},
-		func(err error) (string, error) {
-			return "", breverrors.WrapAndTrace(err)
-		},
-	).Error()
+	windowsPaths := getWindowsVsCodePaths(store)
+	_, err := uutil.TryRunVsCodeCommand([]string{"--folder-uri", vscodeString}, windowsPaths...)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
-
-// func showLogsToUserIfTheyPressEnter(sshAlias string, showLogsToUser *bool, s *spinner.Spinner) {
-// 	scanner := bufio.NewScanner(os.Stdin)
-// 	for scanner.Scan() {
-// 		*showLogsToUser = true
-// 		out, err := exec.Command("ssh", "-o", "RemoteCommand=none", sshAlias, "cat", "/var/log/brev-workspace.log").CombinedOutput()
-// 		fmt.Print(string(out))
-// 		if err != nil {
-// 			fmt.Println(err)
-// 		}
-// 		s.Suffix = ""
-// 	}
-// }

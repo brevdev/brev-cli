@@ -11,7 +11,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
-	"golang.org/x/text/encoding/charmap"
 )
 
 // This package should only be used as a holding pattern to be later moved into more specific packages
@@ -92,17 +91,62 @@ func DoesPathExist(path string) bool {
 	return false
 }
 
-func IsVSCodeExtensionInstalled(extensionID string) (bool, error) {
-	cmdddd := exec.Command("code", "--list-extensions") // #nosec G204
-	in, err := cmdddd.Output()
+func InstallVscodeExtension(extensionID string) error {
+	_, err := TryRunVsCodeCommand([]string{"--install-extension", extensionID, "--force"})
 	if err != nil {
-		return false, breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
 
-	d := charmap.CodePage850.NewDecoder()
-	out, err := d.Bytes(in)
+func IsVSCodeExtensionInstalled(extensionID string) (bool, error) {
+	out, err := TryRunVsCodeCommand([]string{"--list-extensions"})
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
 	return strings.Contains(string(out), extensionID), nil
+}
+
+func TryRunVsCodeCommand(args []string, extraPaths ...string) ([]byte, error) {
+	extraPaths = append(commonVSCodePaths, extraPaths...)
+	out, err := runManyVsCodeCommand(extraPaths, args)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return out, nil
+}
+
+func runManyVsCodeCommand(vscodepaths []string, args []string) ([]byte, error) {
+	errs := multierror.Append(nil)
+	for _, vscodepath := range vscodepaths {
+		out, err := runVsCodeCommand(vscodepath, args)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		} else {
+			return out, nil
+		}
+	}
+	return nil, breverrors.WrapAndTrace(errs.ErrorOrNil())
+}
+
+func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
+	cmd := exec.Command(vscodepath, args...) // #nosec G204
+	res, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return res, nil
+}
+
+var commonVSCodePaths = []string{
+	"code",
+	"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+	"/usr/bin/code",
+	"/usr/local/bin/code",
+	"/snap/bin/code",
+	"/usr/local/share/code/bin/code",
+	"/usr/share/code/bin/code",
+	"/usr/share/code-insiders/bin/code-insiders",
+	"/usr/share/code-oss/bin/code-oss",
+	"/usr/share/code/bin/code",
 }
