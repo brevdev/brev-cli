@@ -203,6 +203,30 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 	return nil
 }
 
+func tryToInstallExtensions(
+	t *terminal.Terminal,
+	extIDs []string,
+) error {
+	for _, extID := range extIDs {
+		extInstalled, err0 := uutil.IsVSCodeExtensionInstalled(extID)
+		if !extInstalled {
+			err1 := uutil.InstallVscodeExtension(extID)
+			isRemoteInstalled, err2 := uutil.IsVSCodeExtensionInstalled(extID)
+			if !isRemoteInstalled {
+				err := multierror.Append(err0, err1, err2)
+				t.Print(t.Red("Couldn't install the necessary VSCode extension automatically.\nError: " + err.Error()))
+				t.Print("\tPlease install VSCode and the following VSCode extension: " + t.Yellow(extID) + ".\n")
+				_ = terminal.PromptGetInput(terminal.PromptContent{
+					Label:      "Hit enter when finished:",
+					ErrorMsg:   "error",
+					AllowEmpty: true,
+				})
+			}
+		}
+	}
+	return nil
+}
+
 // Opens code editor. Attempts to install code in path if not installed already
 func openVsCodeWithSSH(
 	t *terminal.Terminal,
@@ -231,37 +255,15 @@ func openVsCodeWithSSH(
 	s.Stop()
 	t.Vprintf("\n")
 
-	// Check if user uses VSCode and intall extension for user
-	isInstalled, err := uutil.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
+	err = tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
 	if err != nil {
-		t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
-		t.Print("\tPlease install VSCode and the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
-		_ = terminal.PromptGetInput(terminal.PromptContent{
-			Label:      "Hit enter when finished:",
-			ErrorMsg:   "error",
-			AllowEmpty: true,
-		})
-	}
-	// If we couldn't check for the extension being installed, they likely don't have code in path and this step should be skipped
-	if !isInstalled && err == nil {
-		// attempt to install the extension
-		_ = uutil.InstallVscodeExtension("ms-vscode-remote.remote-ssh")
-
-		// verify installation
-		isInstalled, err = uutil.IsVSCodeExtensionInstalled("ms-vscode-remote.remote-ssh")
-		// tell the user to install manually if still not installed
-		if !isInstalled || err != nil {
-			t.Print(t.Red("Couldn't install the necessary VSCode extension automatically."))
-			t.Print("\tPlease install VSCode and the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".\n")
-			_ = terminal.PromptGetInput(terminal.PromptContent{
-				Label:      "Hit enter when finished:",
-				ErrorMsg:   "error",
-				AllowEmpty: true,
-			})
-		}
+		return breverrors.WrapAndTrace(err)
 	}
 
 	err = openVsCode(sshAlias, path, tstore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	// check if we are in a brev environment, if so transform the error message
 	// to indicate that the user should run brev open locally instead of in
