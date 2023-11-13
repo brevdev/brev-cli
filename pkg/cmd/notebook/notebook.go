@@ -61,7 +61,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 			warningType := color.New(color.FgBlack, color.Bold, color.BgCyan).SprintFunc()
 
-			hello.TypeItToMeUnskippable27("\n" + warningType("  Please keep this terminal open 🤙  "))
+			hello.TypeItToMeUnskippable("\n" + warningType("  Please keep this terminal open 🤙  "))
 
 			hello.TypeItToMeUnskippable27("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 

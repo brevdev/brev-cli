@@ -238,10 +238,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
 	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))
 	cmd.AddCommand(hello.NewCmdHello(t, noLoginCmdStore))
+	cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
-		cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
 		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
 		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
