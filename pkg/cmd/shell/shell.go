@@ -46,6 +46,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
+		Aliases:               []string{"ssh"},
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] open a shell in your instance",
 		Long:                  openLong,
