@@ -16,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/envsetup"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
+	"github.com/brevdev/brev-cli/pkg/cmd/fu"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
@@ -249,6 +250,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
 		cmd.AddCommand(envvars.NewCmdEnvVars(t, loginCmdStore))
 		cmd.AddCommand(connect.NewCmdConnect(t, noLoginCmdStore))
+		cmd.AddCommand(fu.NewCmdFu(t, loginCmdStore, noLoginCmdStore))
 	} else {
 		_ = 0 // noop
 	}
