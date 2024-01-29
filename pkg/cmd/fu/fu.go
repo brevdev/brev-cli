@@ -101,7 +101,8 @@ func fuUser(userID string, t *terminal.Terminal, fuStore FuStore) error {
 		t.Vprintf(t.Red("Failed to ban user with ID: %s\n", userID))
 		t.Vprintf(t.Red("Error: %s\n", err.Error()))
 	}
-	t.Vprintf("✅ Banned user %s\n", userID)
+	t.Vprint("\n")
+	t.Vprintf("🖕 Banned user %s\n", userID)
 
 	return nil
 }
