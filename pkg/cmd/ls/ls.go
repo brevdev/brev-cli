@@ -281,7 +281,7 @@ func (ls Ls) RunUser(_ bool) error {
 
 func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, user.ID)
 
 	projects := virtualproject.NewVirtualProjects(allWorkspaces)
 
@@ -299,10 +299,10 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Orga
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, user.ID)
 }
 
-func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
+func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, userID string) {
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
 		if len(allWorkspaces) > 0 {
@@ -319,7 +319,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		}
 	} else {
 		ls.terminal.Vprintf("You have %d instances in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
-		displayWorkspacesTable(ls.terminal, userWorkspaces)
+		displayWorkspacesTable(ls.terminal, userWorkspaces, userID)
 
 		fmt.Print("\n")
 
@@ -437,7 +437,7 @@ func getBrevTableOptions() table.Options {
 	return options
 }
 
-func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace) {
+func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace, userID string) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
@@ -447,9 +447,13 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
+		isShared := ""
+		if w.CreatedByUserID != userID {
+			isShared = "(shared)"
+		}
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := utilities.GetInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), w.ID, instanceString}}
+		workspaceRow := []table.Row{{fmt.Sprintf("%s %s",w.Name, isShared), getStatusColoredText(t, status), w.ID, instanceString}}
 		if enableSSHCol {
 			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.GetLocalIdentifier(), w.ID, instanceString}}
 		}
