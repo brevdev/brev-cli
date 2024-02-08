@@ -448,7 +448,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace,
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		isShared := ""
-		if w.CreatedByUserID != userID {
+		if w.IsShared(userID) {
 			isShared = "(shared)"
 		}
 		status := getWorkspaceDisplayStatus(w)
