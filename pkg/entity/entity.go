@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/brevdev/brev-cli/pkg/collections"
 )
 
 const WorkspaceGroupDevPlane = "devplane-brev-1"
@@ -326,6 +328,14 @@ func (w Workspace) GetStopTimeout() time.Duration {
 
 func (w Workspace) GetIsStoppable() bool {
 	return w.IsStoppable
+}
+
+func (w Workspace) CanShow(userID string) bool {
+	return  w.CreatedByUserID == userID || (w.AdditionalUsers != nil && collections.ListContains(w.AdditionalUsers, userID)) 
+}
+
+func (w Workspace) IsShared(userID string) bool {
+	return w.CreatedByUserID != userID && (w.AdditionalUsers != nil && collections.ListContains(w.AdditionalUsers, userID))
 }
 
 func (w Workspace) GetHostname() string {
