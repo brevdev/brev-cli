@@ -317,6 +317,7 @@ type Workspace struct {
 	IsStoppable   bool          `json:"isStoppable"` // used for autopstop only
 	StatusMessage string        `json:"statusMessage"`
 	StopTimeout   time.Duration `json:"stopTimeout"`
+	AdditionalUsers []string 	`json:"additionalUsers"`
 }
 
 func (w Workspace) GetStopTimeout() time.Duration {

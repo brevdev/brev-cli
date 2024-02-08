@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -169,6 +170,12 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 		for _, w := range workspaces {
 			if w.CreatedByUserID == options.UserID {
 				userWorkspaces = append(userWorkspaces, w)
+			} else {
+				if w.AdditionalUsers != nil {
+					 if collections.ListContains(w.AdditionalUsers, options.UserID) {
+						userWorkspaces = append(userWorkspaces, w)
+					 }
+				}
 			}
 		}
 		workspaces = userWorkspaces
@@ -192,7 +199,14 @@ func FilterForUserWorkspaces(workspaces []entity.Workspace, userID string) []ent
 	for _, w := range workspaces {
 		if w.CreatedByUserID == userID {
 			filteredWorkspaces = append(filteredWorkspaces, w)
+		} else {
+			if w.AdditionalUsers != nil {
+				if collections.ListContains(w.AdditionalUsers, userID) {
+					filteredWorkspaces = append(filteredWorkspaces, w)
+				}
+			}
 		}
+
 	}
 	return filteredWorkspaces
 }
