@@ -83,8 +83,8 @@ func TestUpdateModel_RunE(t *testing.T) {
 		configure bool
 	}
 	type args struct {
-		in0 *cobra.Command //nolint:unused //abc
-		in1 []string       //nolint:unused //abc
+		in0 *cobra.Command
+		in1 []string
 	}
 	tests := []struct {
 		name    string

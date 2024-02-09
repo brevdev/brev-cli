@@ -1,9 +1,10 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
-	"net/http"
 
+	"github.com/brevdev/brev-cli/pkg/collections"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -34,7 +35,7 @@ const instanceIdentityURL = "http://169.254.169.254/latest/dynamic/instance-iden
 
 func (n *NoAuthHTTPStore) GetInstanceType() (string, error) {
 	var iid InstanceIdentityDocument
-	resp, err := http.Get(instanceIdentityURL)
+	resp, err := collections.GetRequestWithContext(context.TODO(), instanceIdentityURL)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -49,7 +50,7 @@ func (n *NoAuthHTTPStore) GetInstanceType() (string, error) {
 
 func (n *NoAuthHTTPStore) GetInstanceIdentity() (*InstanceIdentityDocument, error) {
 	var iid InstanceIdentityDocument
-	resp, err := http.Get(instanceIdentityURL)
+	resp, err := collections.GetRequestWithContext(context.TODO(), instanceIdentityURL)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

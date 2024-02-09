@@ -1,5 +1,3 @@
-//go:build !codeanalysis
-
 package mergeshells
 
 import (
@@ -14,7 +12,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
+	"github.com/brevdev/brev-cli/pkg/collections"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -71,10 +69,7 @@ func GetDependencies(path string) []string {
 
 	for dep, fs := range supportedDependencyMap {
 		versions := collections.Filter(func(x *string) bool {
-			if x == nil {
-				return false
-			}
-			return true
+			return x != nil
 		}, collections.Fanout(fs, path))
 		if len(versions) > 0 {
 			version := versions[0]
@@ -122,8 +117,8 @@ func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
 	} else {
 		gitpath = filepath.Join(path, ".git", "config")
 	}
-	file, error := store.GetFileAsString(gitpath)
-	if error != nil {
+	file, err := store.GetFileAsString(gitpath)
+	if err != nil {
 		fmt.Println(strings.Join([]string{"Could not read .git/config at", path}, " "))
 		return
 	}
@@ -139,7 +134,7 @@ func ImportPath(t *terminal.Terminal, path string, store MergeShellStore) {
 		return
 	}
 	if !dirExists(filepath.Join(path, ".brev", "setup.sh")) {
-		WriteBrevFile(t, GetDependencies(path), gitURL, path)
+		_ = WriteBrevFile(t, GetDependencies(path), gitURL, path)
 	} else {
 		fmt.Println(".brev/setup.sh already exists - will not overwrite.")
 	}
@@ -214,7 +209,7 @@ func transformVersion(version string) string {
 	return version
 }
 
-func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path string) *error {
+func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path string) error {
 	fmt.Println("\n\nGitUrl: ", gitURL)
 	fmt.Println("** Found Dependencies **")
 	t.Vprint(t.Yellow(strings.Join(deps, " \n")))
@@ -226,16 +221,22 @@ func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path stri
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
 
 		// place within .brev and write setup.sh with the result of this
-		f, err := os.Create(filepath.Join(path, ".brev", "setup.sh"))
+		f, err := os.Create(filepath.Join(path, ".brev", "setup.sh")) //nolint:gosec // todo
 		if err != nil {
-			return &err
+			return breverrors.WrapAndTrace(err)
 		}
 
-		defer f.Close()
-		f.WriteString(shellString)
-		f.Sync()
+		defer f.Close() //nolint:errcheck // todo
+		_, err = f.WriteString(shellString)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		err = f.Sync()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	} else {
-		return &mderr
+		return breverrors.WrapAndTrace(mderr)
 	}
 	return nil
 }
@@ -257,7 +258,7 @@ func parseCommentLine(line string) ShellFragment {
 		return ShellFragment{Dependencies: temp}
 	}
 
-	if len(parts) == 2 {
+	if len(parts) == 2 { //nolint:gocritic // todo
 		return ShellFragment{Name: &parts[0], Tag: &parts[1]}
 	} else if len(parts) == 1 {
 		return ShellFragment{Name: &parts[0]}
@@ -267,7 +268,7 @@ func parseCommentLine(line string) ShellFragment {
 }
 
 func toDefsDict(shFragment []ShellFragment) map[string]ShellFragment {
-	return collections.Foldl(func(acc map[string]ShellFragment, frag ShellFragment) map[string]ShellFragment { //nolint:typecheck
+	return collections.Foldl(func(acc map[string]ShellFragment, frag ShellFragment) map[string]ShellFragment {
 		if frag.Name != nil {
 			acc[*frag.Name] = frag
 		}
@@ -285,7 +286,7 @@ func fromSh(shScript string) []ShellFragment {
 	lines := strings.Split(shScript, "\n")
 	base := scriptAccumulator{}
 	// collections.Foldl lines pulling out parsable information and occasionally pushing onto script so far and generating a new fragment, if need be
-	acc := collections.Foldl(func(acc scriptAccumulator, line string) scriptAccumulator { //nolint:typecheck
+	acc := collections.Foldl(func(acc scriptAccumulator, line string) scriptAccumulator {
 		if strings.HasPrefix(line, "#") { // then it is a comment string, which may or may not have parsable information
 			if len(acc.CurrentFragment.Script) > 0 {
 				acc.ScriptSoFar = append(acc.ScriptSoFar, acc.CurrentFragment)
@@ -323,14 +324,14 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 		noversion = true
 		subPaths = collections.Duplicate(subPaths[0])
 	}
-	path := filepath.Join(collections.Concat([]string{"templates"}, subPaths)...) //nolint:typecheck
+	path := filepath.Join(collections.Concat([]string{"templates"}, subPaths)...)
 	script, err := templateFs.Open(path)
 	if err != nil && !noversion {
 		if subPaths[0] != subPaths[1] {
-			path = filepath.Join(collections.Concat([]string{"templates"}, collections.Duplicate(subPaths[0]))...) //nolint:typecheck
+			path = filepath.Join(collections.Concat([]string{"templates"}, collections.Duplicate(subPaths[0]))...)
 			script, err = templateFs.Open(path)
 			if err != nil {
-				return []ShellFragment{}, err
+				return []ShellFragment{}, breverrors.WrapAndTrace(err)
 			}
 		} else {
 			return []ShellFragment{}, errors.New(strings.Join([]string{"Path does not exist:", path}, " "))
@@ -343,14 +344,14 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 	}
 	// fmt.Println(stringScript)
 	if err != nil {
-		return []ShellFragment{}, err
+		return []ShellFragment{}, breverrors.WrapAndTrace(err)
 	}
 	return fromSh(stringScript), nil
 }
 
 func toSh(script []ShellFragment) string {
 	// collections.Flatmap across generating the script from all of the component shell bits
-	return strings.Join(collections.Flatmap(func(frag ShellFragment) []string { //nolint:typecheck
+	return strings.Join(collections.Flatmap(func(frag ShellFragment) []string {
 		name, tag, comment := frag.Name, frag.Tag, frag.Comment
 		innerScript, dependencies := frag.Script, frag.Dependencies
 		returnval := []string{}
@@ -382,13 +383,13 @@ func findDependencies(shName string, baselineDependencies map[string]ShellFragme
 	}
 
 	dependencies := definition.Dependencies
-	return collections.Flatmap(func(dep_name string) []string { //nolint:typecheck
+	return collections.Flatmap(func(dep_name string) []string {
 		return append(findDependencies(dep_name, baselineDependencies, globalDependencies), dep_name)
 	}, dependencies)
 }
 
 func splitIntoLibraryAndSeq(shFragments []ShellFragment) ([]string, map[string]ShellFragment, []string) {
-	return collections.Fmap(func(some ShellFragment) string { //nolint:typecheck
+	return collections.Fmap(func(some ShellFragment) string {
 		if some.Name != nil {
 			return *some.Name
 		} else {
@@ -398,33 +399,33 @@ func splitIntoLibraryAndSeq(shFragments []ShellFragment) ([]string, map[string]S
 }
 
 func prependDependencies(shName string, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) OrderDefsFailures {
-	dependencies := collections.Uniq(findDependencies(shName, baselineDependencies, globalDependencies)) //nolint:typecheck
+	dependencies := collections.Uniq(findDependencies(shName, baselineDependencies, globalDependencies))
 	// baseline_deps := collections.Filter(func (dep string) bool {
 	// 	if _, ok := baselineDependencies[dep]; ok {
 	// 		return true
 	// 	}
 	// 	return false
 	// }, dependencies)
-	nonBaselineDependencies := collections.Filter(func(dep string) bool { //nolint:typecheck
+	nonBaselineDependencies := collections.Filter(func(dep string) bool {
 		if _, ok := baselineDependencies[dep]; ok {
 			return false
 		}
 		return true
 	}, dependencies)
-	canBeFixedDependencies := collections.Filter(func(dep string) bool { //nolint:typecheck
+	canBeFixedDependencies := collections.Filter(func(dep string) bool {
 		if _, ok := globalDependencies[dep]; ok {
 			return true
 		}
 		return false
 	}, nonBaselineDependencies)
-	cantBeFixedDependencies := collections.Difference(nonBaselineDependencies, canBeFixedDependencies) //nolint:typecheck
+	cantBeFixedDependencies := collections.Difference(nonBaselineDependencies, canBeFixedDependencies)
 
-	addedBaselineDependencies := collections.Foldl( //nolint:typecheck
+	addedBaselineDependencies := collections.Foldl(
 		func(deps map[string]ShellFragment, dep string) map[string]ShellFragment {
 			deps[dep] = globalDependencies[dep]
 			return deps
 		}, map[string]ShellFragment{}, canBeFixedDependencies)
-	return OrderDefsFailures{Order: append(dependencies, shName), Defs: collections.DictMerge(addedBaselineDependencies, baselineDependencies), Failures: cantBeFixedDependencies} //nolint:typecheck
+	return OrderDefsFailures{Order: append(dependencies, shName), Defs: collections.DictMerge(addedBaselineDependencies, baselineDependencies), Failures: cantBeFixedDependencies}
 }
 
 type OrderDefsFailures struct {
@@ -433,28 +434,28 @@ type OrderDefsFailures struct {
 	Failures []string
 }
 
-func addDependencies(shFragments []ShellFragment, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) OrderDefsFailures {
+func addDependencies(shFragments []ShellFragment, _ map[string]ShellFragment, globalDependencies map[string]ShellFragment) OrderDefsFailures {
 	//     ## it's a left fold across the importFile statements
 	//     ## at any point, if the dependencies aren't already in the loaded dictionary
 	//     ## we add them before we add the current item, and we add them and the current item into the loaded dictionary
 	order, shellDefs, failures := splitIntoLibraryAndSeq(shFragments)
-	newestOrderDefsFailures := collections.Foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures { //nolint:typecheck
+	newestOrderDefsFailures := collections.Foldl(func(acc OrderDefsFailures, shName string) OrderDefsFailures {
 		newOrderDefsFailures := prependDependencies(shName, acc.Defs, globalDependencies)
-		return OrderDefsFailures{Order: append(collections.Concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: collections.Concat(acc.Failures, newOrderDefsFailures.Failures), Defs: collections.DictMerge(acc.Defs, newOrderDefsFailures.Defs)} //nolint:typecheck
+		return OrderDefsFailures{Order: append(collections.Concat(acc.Order, newOrderDefsFailures.Order), shName), Failures: collections.Concat(acc.Failures, newOrderDefsFailures.Failures), Defs: collections.DictMerge(acc.Defs, newOrderDefsFailures.Defs)}
 	}, OrderDefsFailures{Order: []string{}, Failures: []string{}, Defs: shellDefs}, order)
-	return OrderDefsFailures{Order: collections.Uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: collections.Uniq(collections.Concat(failures, newestOrderDefsFailures.Failures))} //nolint:typecheck
+	return OrderDefsFailures{Order: collections.Uniq(newestOrderDefsFailures.Order), Defs: newestOrderDefsFailures.Defs, Failures: collections.Uniq(collections.Concat(failures, newestOrderDefsFailures.Failures))}
 }
 
 func process(shFragments []ShellFragment, baselineDependencies map[string]ShellFragment, globalDependencies map[string]ShellFragment) []ShellFragment {
 	resultOrderDefsFailures := addDependencies(shFragments, baselineDependencies, globalDependencies)
 	// TODO print or return the failed installation instructions "FAILED TO FIND INSTALLATION INSTRUCTIONS FOR: #{failures}" if failures.length > 0
-	return collections.Fmap(func(x string) ShellFragment { //nolint:typecheck
+	return collections.Fmap(func(x string) ShellFragment {
 		return resultOrderDefsFailures.Defs[x]
 	}, resultOrderDefsFailures.Order)
 }
 
 func MergeShells(deps ...string) string {
-	importedDependencies := collections.Flatmap(func(dep string) []ShellFragment { //nolint:typecheck
+	importedDependencies := collections.Flatmap(func(dep string) []ShellFragment {
 		frags, err := importFile(dep)
 		if err != nil {
 			return []ShellFragment{}
@@ -487,13 +488,8 @@ func nodeVersion(path string) *string {
 		i := len(paths) - 1
 
 		keypath := "engines.node"
-		jsonstring, err := files.CatFile(paths[i])
-		value := gjson.Get(jsonstring, "name")
-		value = gjson.Get(jsonstring, keypath)
-
-		if err != nil {
-			//
-		}
+		jsonstring, _ := files.CatFile(paths[i])
+		value := gjson.Get(jsonstring, keypath)
 		if retval == "" {
 			retval = value.String()
 		}
@@ -550,22 +546,16 @@ func goVersion(path string) *string {
 	return nil
 }
 
-func isRuby(path string) bool {
+func IsRuby(path string) bool {
 	paths := recursivelyFindFile([]string{"Gemfile.lock", "Gemfile"}, path)
 
-	if len(paths) > 0 {
-		return true
-	}
-	return false
+	return len(paths) > 0
 }
 
-func isPython(path string) bool {
+func IsPython(path string) bool {
 	paths := recursivelyFindFile([]string{"Gemfile.lock", "Gemfile"}, path)
 
-	if len(paths) > 0 {
-		return true
-	}
-	return false
+	return len(paths) > 0
 }
 
 func appendPath(a string, b string) string {
@@ -641,7 +631,7 @@ func CatFile(filePath string) (string, error) {
 func readGoMod(filePath string) (string, error) {
 	contents, err := files.CatFile(filePath)
 	if err != nil {
-		return "", err
+		return "", breverrors.WrapAndTrace(err)
 	}
 
 	lines := strings.Split(contents, "\n")

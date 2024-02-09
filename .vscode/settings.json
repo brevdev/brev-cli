@@ -21,5 +21,10 @@
   ],
   "go.lintOnSave": "workspace",
   "go.testTimeout": "240s",
-  "go.goroot": "/home/ubuntu/.asdf/installs/golang//go"
+  "go.goroot": "/home/ubuntu/.asdf/installs/golang//go",
+  "[go][go.mod]": {
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  }
 }

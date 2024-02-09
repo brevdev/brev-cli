@@ -100,7 +100,7 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer logFile.Close()                                                                                                        //nolint: gosec,errcheck // TODO
+			defer logFile.Close()                                                                                                        //nolint: errcheck // TODO
 			logFile.WriteString(time.Now().Format("2006-01-02 15:04:05") + ": Command \"" + command + "\" was run in the background.\n") //nolint: errcheck,gosec // TODO
 
 			// Write process details to data file
@@ -108,7 +108,7 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 			if err != nil {
 				log.Fatal(err)
 			}
-			defer processesFile.Close() //nolint: errcheck,gosec // TODO
+			defer processesFile.Close() //nolint: errcheck // TODO
 			_, _ = processesFile.WriteString(fmt.Sprintf("%d,%s,%s\n", c.Process.Pid, time.Now().Format("2006-01-02 15:04:05"), command))
 
 			if stopFlag {
@@ -178,7 +178,7 @@ func checkProgress() {
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close() //nolint: errcheck,gosec // TODO
+	defer file.Close() //nolint: errcheck // TODO
 
 	scanner := bufio.NewScanner(file)
 

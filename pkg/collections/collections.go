@@ -1,11 +1,10 @@
-//go:build !codeanalysis
-
 package collections
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sort"
 	"time"
@@ -95,16 +94,16 @@ func C5[T any, S any, R any, U any, V any, W any](fn02 func(some V) W, fn01 func
 	}
 }
 
-func Id[T any](x T) T {
+func ID[T any](x T) T {
 	return x
 }
 
 func C[T any](fns ...func(some T) T) func(some T) T {
-	return Foldr(Compose[T, T, T], Id[T], fns)
+	return Foldr(Compose[T, T, T], ID[T], fns)
 }
 
 func S[T any](fns ...func(some T) T) func(some T) T {
-	return Foldl(Compose[T, T, T], Id[T], fns)
+	return Foldl(Compose[T, T, T], ID[T], fns)
 }
 
 func P2[X any, Y any, Z any](fn func(X, Y) Z, x X) func(Y) Z {
@@ -576,4 +575,18 @@ func Find[T any](list []*T, f func(*T) bool) *T {
 		}
 	}
 	return nil
+}
+
+// getWithContext creates and sends an HTTP GET request with the provided context
+func GetRequestWithContext(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, errors.WrapAndTrace(err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, errors.WrapAndTrace(err)
+	}
+	return resp, nil
 }

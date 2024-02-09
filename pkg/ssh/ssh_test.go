@@ -43,6 +43,7 @@ const (
 	userConfigStr = `Host user-host
   Hostname 172.0.0.0
 `
+	//nolint:gosec // this is a test key
 	WorkingRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
 vOGim0HAehX8Baz0hdS4/knbq6bRiQdn2UTsva7oOSIHogWcuk+1TWyIdAQsaQDQ
@@ -82,6 +83,7 @@ avoJXjhV2MjygKvyzjQZuSaEbCoUCVpplJYvsWIWerGqG99ik9wsIQJvDD/9wizb
 bSxJbPINZ64y3aAeK50EEuzdDiG4pUkkDFfcwD/8/USW+kiAac5PKLF3DaDkzfgi
 bsVMEVXkW9a34JZKUtAacBGtC25BNkxeaw24Y6lV5y0Jzz4Kuza4og==
 -----END RSA PRIVATE KEY-----`
+	//nolint:gosec // this is a test key
 	CorruptRSAPrivateKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIG5AIBAAKCAYEA0zT58SkrBVaBLK7b+VzHHmS7p7gkb+CDoaeXJ+SZ2eNZpHzS
 vOGim0HAehX8Baz0hdS4/knbq6bRiQdn2UTsva7oOSIHogWcuk+1TWyIdAQsaQDQ

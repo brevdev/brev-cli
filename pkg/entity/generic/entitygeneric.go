@@ -1,5 +1,3 @@
-//go:build !codeanalysis
-
 package generic
 
 import (

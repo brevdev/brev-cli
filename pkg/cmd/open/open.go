@@ -206,7 +206,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 func tryToInstallExtensions(
 	t *terminal.Terminal,
 	extIDs []string,
-) error {
+) {
 	for _, extID := range extIDs {
 		extInstalled, err0 := uutil.IsVSCodeExtensionInstalled(extID)
 		if !extInstalled {
@@ -224,7 +224,6 @@ func tryToInstallExtensions(
 			}
 		}
 	}
-	return nil
 }
 
 // Opens code editor. Attempts to install code in path if not installed already
@@ -255,10 +254,7 @@ func openVsCodeWithSSH(
 	s.Stop()
 	t.Vprintf("\n")
 
-	err = tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
 
 	err = openVsCode(sshAlias, path, tstore)
 	if err != nil {

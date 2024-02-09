@@ -1,12 +1,12 @@
 package envsetup
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -22,6 +22,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
 	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -370,7 +371,7 @@ func (e envInitier) SetupDatadog() error {
 	installScriptURL := "https://s3.amazonaws.com/dd-agent/scripts/install_script.sh"
 	var installScript string
 
-	resp, err := http.Get(installScriptURL)
+	resp, err := collections.GetRequestWithContext(context.TODO(), installScriptURL)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

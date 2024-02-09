@@ -2,7 +2,7 @@ package virtualproject
 
 import (
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/entity/generic" //nolint:typecheck // contains generic code
+	"github.com/brevdev/brev-cli/pkg/entity/generic"
 )
 
 type VirtualProject struct {
@@ -17,7 +17,7 @@ func NewVirtualProjects(workspaces []entity.Workspace) []VirtualProject {
 		if _, ok := gitRepoWorkspaceMap.Get(w.GitRepo); !ok {
 			gitRepoWorkspaceMap.Set(w.GitRepo, make(map[string][]entity.Workspace))
 		}
-		m, ok := gitRepoWorkspaceMap.Get(w.GitRepo) //[w.GitRepo][w.CreatedByUserID] =
+		m, ok := gitRepoWorkspaceMap.Get(w.GitRepo) // [w.GitRepo][w.CreatedByUserID] =
 		if !ok {
 			panic("no")
 		}

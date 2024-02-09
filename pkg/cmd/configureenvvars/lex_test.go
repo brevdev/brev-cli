@@ -6,7 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test_lex(t *testing.T) {
+func Test_lex(t *testing.T) { //nolint:funlen // this is a test
 	type args struct {
 		input string
 	}

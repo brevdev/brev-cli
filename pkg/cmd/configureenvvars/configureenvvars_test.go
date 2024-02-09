@@ -7,7 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test_generateExportString(t *testing.T) {
+func Test_generateExportString(t *testing.T) { //nolint:funlen // this is a test
 	type args struct {
 		brevEnvsString  string
 		envFileContents string
@@ -44,7 +44,7 @@ unset baz`,
 				envFileContents: "foo=bar",
 			},
 			want: `export foo=bar
-export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
+export ` + BrevManagedEnvVarsKey + `=foo`,
 		},
 		{
 			name: "sets env var with export prefix",
@@ -53,7 +53,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
 				envFileContents: "export foo=bar",
 			},
 			want: `export foo=bar
-export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
+export ` + BrevManagedEnvVarsKey + `=foo`,
 		},
 		{
 			name: "is idempotent",
@@ -62,7 +62,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + `=foo`,
 				envFileContents: "foo=bar",
 			},
 			want: `export foo=bar
-export ` + BREV_MANGED_ENV_VARS_KEY + "=foo",
+export ` + BrevManagedEnvVarsKey + "=foo",
 		},
 		{
 			name: "multiple operations(journal) case",
@@ -74,7 +74,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=foo",
 unset key2
 unset key3
 export key4=val
-export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
+export ` + BrevManagedEnvVarsKey + "=key4",
 		},
 		{
 			name: "using env format found on workspace",
@@ -84,7 +84,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=key4",
 			},
 			want: `export alice='bob'
 export foo='bar'
-export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
+export ` + BrevManagedEnvVarsKey + "=alice,foo",
 		},
 		{
 			name: "multi line file",
@@ -95,7 +95,7 @@ export alice='bob'`,
 			},
 			want: `export alice='bob'
 export foo='bar'
-export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
+export ` + BrevManagedEnvVarsKey + "=alice,foo",
 		},
 		{
 			name: "semicolon -> newline  file ",
@@ -107,7 +107,7 @@ export alice='bob'`,
 			},
 			want: `export alice='bob'
 export foo='bar'
-export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
+export ` + BrevManagedEnvVarsKey + "=alice,foo",
 		},
 		{
 			name: "hyphen in env var shouldn't be included since that's not allowed in most shells",
@@ -140,7 +140,7 @@ export ` + BREV_MANGED_ENV_VARS_KEY + "=alice,foo",
 				envFileContents: `export foo='90ie&$>'`,
 			},
 			want: `export foo='90ie&$>'
-export ` + BREV_MANGED_ENV_VARS_KEY + "=foo",
+export ` + BrevManagedEnvVarsKey + "=foo",
 		},
 	}
 	for _, tt := range tests {
@@ -240,7 +240,7 @@ func Test_addUnsetEntriesToOutput(t *testing.T) {
 	}
 }
 
-func Test_parse(t *testing.T) {
+func Test_parse(t *testing.T) { //nolint:funlen // this is a test
 	type args struct {
 		content string
 	}

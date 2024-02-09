@@ -20,7 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/pricing"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 
-	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck
+	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ids"
 	"github.com/brevdev/brev-cli/pkg/terminal"

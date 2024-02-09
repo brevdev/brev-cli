@@ -13,7 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
-	"github.com/brevdev/brev-cli/pkg/mergeshells" //nolint:typecheck // uses generic code
+	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	allutil "github.com/brevdev/brev-cli/pkg/util"
@@ -207,18 +207,18 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options St
 		if len(userWorkspaces) > 1 {
 			userWorkspaces = store.FilterNonFailedWorkspaces(userWorkspaces)
 			if len(userWorkspaces) > 1 {
-				breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", options.RepoOrPathOrNameOrID))
+				return false, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", options.RepoOrPathOrNameOrID))
 			}
 			if len(userWorkspaces) == 0 {
-				breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s is a failed workspace", options.RepoOrPathOrNameOrID))
+				return false, breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s is a failed workspace", options.RepoOrPathOrNameOrID))
 			}
 		}
 		if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
 			t.Print(t.Yellow(fmt.Sprintf("Warning: local path found and instance name/id found %s. Using instance name/id. If you meant to specify a local path change directory and try again.", options.RepoOrPathOrNameOrID)))
 		}
-		err := startStopppedWorkspace(&userWorkspaces[0], startStore, t, options)
-		if err != nil {
-			return false, breverrors.WrapAndTrace(err)
+		errr := startStopppedWorkspace(&userWorkspaces[0], startStore, t, options)
+		if errr != nil {
+			return false, breverrors.WrapAndTrace(errr)
 		}
 		return true, nil
 	}
@@ -304,7 +304,7 @@ func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options Sta
 	return err
 }
 
-func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
+func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error { //nolint:funlen,gocyclo // TODO refactor
 	// ensure name
 	if len(options.Name) == 0 {
 		return breverrors.NewValidationError("name field is required for empty workspaces")
@@ -497,7 +497,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 	return nil
 }
 
-func IsUrl(str string) bool {
+func IsURL(str string) bool {
 	u, err := url.Parse(str)
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
@@ -512,7 +512,7 @@ func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScr
 	if len(startOptions.RepoOrPathOrNameOrID) > 0 && len(startOptions.SetupPath) > 0 {
 		// STUFF HERE
 	} else if len(setupScriptURLOrPath) > 0 {
-		if IsUrl(setupScriptURLOrPath) {
+		if IsURL(setupScriptURLOrPath) {
 			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptURLOrPath)
 			if err1 != nil {
 				t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath) + t.Yellow("Continuing with default setup script 👍"))
@@ -528,6 +528,7 @@ func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScr
 			}
 		}
 	}
+	_ = setupScriptContents
 
 	newWorkspace := MakeNewWorkspaceFromURL(startOptions.RepoOrPathOrNameOrID)
 
@@ -673,7 +674,7 @@ func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace)
 	// t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to instance\n", workspace.GetLocalIdentifier())))
 }
 
-func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error {
+func pollUntil(t *terminal.Terminal, wsid string, state string, startStore StartStore, canSafelyExit bool) error { //nolint:unparam // TODO refactor
 	s := t.NewSpinner()
 	isReady := false
 	if canSafelyExit {

@@ -6,8 +6,9 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/collections" //nolint:typecheck // uses generic code
+	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 )
 
@@ -101,7 +102,7 @@ type DockerContainer struct {
 }
 
 type LocalWorkspace struct {
-	name string
+	Name string
 }
 
 func workspacePriorityFunc(left LocalWorkspace, right LocalWorkspace) bool {
@@ -233,7 +234,7 @@ func dockerExecute(workspaceID string, container DockerContainer) error {
 	fmt.Println("final command is ")
 	fmt.Println(command)
 	parts := strings.Split(command, " ")
-	_, err := exec.Command(parts[0], parts[1:]...).Output()
-	return err
+	_, err := exec.Command(parts[0], parts[1:]...).Output() //nolint:gosec // fine
+	return breverrors.WrapAndTrace(err)
 	// return errors.New("Docker Execute Not Yet Implemented")
 }

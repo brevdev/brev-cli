@@ -1,7 +1,6 @@
 package fu
 
 import (
-	_ "embed"
 	"fmt"
 	"time"
 
@@ -64,9 +63,9 @@ func fuUser(userID string, t *terminal.Terminal, fuStore FuStore) error {
 
 	var allWorkspaces []entity.Workspace
 	for _, org := range orgs {
-		workspaces, err := fuStore.GetWorkspaces(org.ID, nil)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+		workspaces, errr := fuStore.GetWorkspaces(org.ID, nil)
+		if errr != nil {
+			return breverrors.WrapAndTrace(errr)
 		}
 		allWorkspaces = append(allWorkspaces, workspaces...)
 	}

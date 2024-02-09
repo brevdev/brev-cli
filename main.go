@@ -16,6 +16,6 @@ func main() {
 	if err := command.Execute(); err != nil {
 		cmderrors.DisplayAndHandleError(err)
 		done()
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // manually call done
 	}
 }

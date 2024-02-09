@@ -59,12 +59,12 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 				allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
 				if err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 
 				user, err := loginLsStore.GetCurrentUser()
 				if err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 
 				var myWorkspaces []entity.Workspace
@@ -76,7 +76,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 				err = hello.Step1(t, myWorkspaces, user, loginLsStore)
 				if err != nil {
-					return err
+					return breverrors.WrapAndTrace(err)
 				}
 
 			}
@@ -337,7 +337,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 	}
 }
 
-func displayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
+func DisplayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
 	foundRunning := false
 	for _, w := range workspaces {
 		if w.Status == entity.Running {
@@ -370,7 +370,7 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 		}
 	}
 	if foundAResettableWorkspace {
-		t.Vprintf(t.Yellow(fmt.Sprintf("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n")))
+		t.Vprintf(t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
 	}
 }
 
@@ -453,7 +453,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace,
 		}
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := utilities.GetInstanceString(w)
-		workspaceRow := []table.Row{{fmt.Sprintf("%s %s",w.Name, isShared), getStatusColoredText(t, status), w.ID, instanceString}}
+		workspaceRow := []table.Row{{fmt.Sprintf("%s %s", w.Name, isShared), getStatusColoredText(t, status), w.ID, instanceString}}
 		if enableSSHCol {
 			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.GetLocalIdentifier(), w.ID, instanceString}}
 		}

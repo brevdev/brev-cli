@@ -1,6 +1,7 @@
 package clipboard
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -33,7 +34,7 @@ func CreateListener(config *Config) *Server {
 // tcp req
 func SendRequest(address string, message string) error {
 	reader := strings.NewReader(message)
-	request, err := http.NewRequest("GET", "http://"+address+"/", reader)
+	request, err := http.NewRequestWithContext(context.TODO(), "GET", "http://"+address+"/", reader)
 	if err != nil {
 		fmt.Println(err)
 		return breverrors.WrapAndTrace(err)

@@ -51,7 +51,7 @@ func (s StaticFiles) Setup(_ context.Context) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		defer f.Close() //nolint:errcheck,gosec // defer
+		defer f.Close() //nolint:errcheck // defer
 
 		_, err = io.Copy(f, v)
 		if err != nil {

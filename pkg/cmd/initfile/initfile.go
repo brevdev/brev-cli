@@ -1,7 +1,7 @@
 package initfile
 
 import (
-	"github.com/brevdev/brev-cli/pkg/mergeshells" //nolint:typecheck // uses generic code
+	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )

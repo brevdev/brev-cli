@@ -122,6 +122,22 @@ func (a *Authenticator) Start(ctx context.Context) (State, error) {
 	return s, nil
 }
 
+// postFormWithContext wraps the process of creating a POST request with form data and a context
+func postFormWithContext(ctx context.Context, url string, data url.Values) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp, nil
+}
+
 // Wait waits until the user is logged in on the browser.
 func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 	t := time.NewTicker(state.IntervalDuration())
@@ -135,7 +151,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 				"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
 				"device_code": {state.DeviceCode},
 			}
-			r, err := http.PostForm(a.OauthTokenEndpoint, data)
+			r, err := postFormWithContext(ctx, a.OauthTokenEndpoint, data)
 			if err != nil {
 				return Result{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 			}
@@ -187,13 +203,13 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 	}
 }
 
-func (a *Authenticator) getDeviceCode(_ context.Context) (State, error) {
+func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
 	data := url.Values{
 		"client_id": {a.ClientID},
 		"scope":     {strings.Join(requiredScopes, " ")},
 		"audience":  {a.Audience},
 	}
-	r, err := http.PostForm(a.DeviceCodeEndpoint, data)
+	r, err := postFormWithContext(ctx, a.DeviceCodeEndpoint, data)
 	if err != nil {
 		return State{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}
@@ -256,7 +272,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 		"refresh_token": {refreshToken},
 	}
 
-	r, err := http.PostForm(a.OauthTokenEndpoint, payload)
+	r, err := postFormWithContext(context.TODO(), a.OauthTokenEndpoint, payload)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
 	}

@@ -81,7 +81,7 @@ const eof = -1
 
 // next returns the next rune in the input.
 func (l *lexer) next() rune {
-	if int(l.pos) >= len(l.input) {
+	if l.pos >= len(l.input) {
 		l.width = 0
 		return eof
 	}
@@ -145,8 +145,6 @@ func lexText(l *lexer) stateFn {
 	return nil
 }
 
-const hyphen = "-"
-
 func lexKey(l *lexer) stateFn {
 	s := l.input[l.start:l.pos]
 	// determine if s alphanumeric or an underscore
@@ -193,7 +191,7 @@ func lexNewline(l *lexer) stateFn {
 
 func lexSpace(l *lexer) stateFn {
 	if strings.HasPrefix(l.input[l.start:l.pos], "export") {
-		l.start = l.start + len("export")
+		l.start += len("export")
 	}
 	l.next()
 	if l.input[l.start:l.pos] != space {

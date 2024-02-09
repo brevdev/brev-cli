@@ -3,12 +3,12 @@ package store
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/collections"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/afero"
@@ -480,7 +481,7 @@ func (f FileStore) GetOrCreateSetupLogFile(path string) (afero.File, error) {
 // download a file from a url to a target path
 func (f FileStore) DownloadBinary(url string, target string) error {
 	// Get the data
-	resp, err := http.Get(url) //nolint:gosec // the urls are hardcoded and trusted
+	resp, err := collections.GetRequestWithContext(context.TODO(), url)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -536,7 +537,7 @@ func trytoUnTarGZ(in io.Reader) io.Reader {
 // download a file from a url to a target path
 func (f FileStore) DownloadBrevBinary(url string, target string) error {
 	// Get the data
-	resp, err := http.Get(url) //nolint:gosec // the urls are hardcoded and trusted
+	resp, err := collections.GetRequestWithContext(context.TODO(), url)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

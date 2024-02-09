@@ -69,19 +69,19 @@ linters:
     - unused
     - varcheck
     - bodyclose
-    - depguard
+    # - depguard
     - dupl
     - exportloopref
     - forcetypeassert
     - funlen
     # - gci
     - gocognit
-    - goconst
+    # - goconst
     - gocritic
     - gocyclo
     # - godot
     - gofumpt
-    - revive
+    # - revive
     # - gomnd
     - goprintffuncname
     - gosec

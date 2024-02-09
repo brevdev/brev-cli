@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -25,7 +26,7 @@ func TrackEvent(data EventData) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(context.TODO(), "POST", url, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

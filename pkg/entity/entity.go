@@ -315,11 +315,11 @@ type Workspace struct {
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
 	// CreatedAt         string `json:"createdAt,omitempty"`
 	// UpdatedAt         string `json:"updatedAt,omitempty"`
-	HealthStatus  string        `json:"healthStatus"`
-	IsStoppable   bool          `json:"isStoppable"` // used for autopstop only
-	StatusMessage string        `json:"statusMessage"`
-	StopTimeout   time.Duration `json:"stopTimeout"`
-	AdditionalUsers []string 	`json:"additionalUsers"`
+	HealthStatus    string        `json:"healthStatus"`
+	IsStoppable     bool          `json:"isStoppable"` // used for autopstop only
+	StatusMessage   string        `json:"statusMessage"`
+	StopTimeout     time.Duration `json:"stopTimeout"`
+	AdditionalUsers []string      `json:"additionalUsers"`
 }
 
 func (w Workspace) GetStopTimeout() time.Duration {
@@ -331,7 +331,7 @@ func (w Workspace) GetIsStoppable() bool {
 }
 
 func (w Workspace) CanShow(userID string) bool {
-	return  w.CreatedByUserID == userID || (w.AdditionalUsers != nil && collections.ListContains(w.AdditionalUsers, userID)) 
+	return w.CreatedByUserID == userID || (w.AdditionalUsers != nil && collections.ListContains(w.AdditionalUsers, userID))
 }
 
 func (w Workspace) IsShared(userID string) bool {

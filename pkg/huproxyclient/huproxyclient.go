@@ -71,7 +71,8 @@ func Run(url string, store HubProxyStore) error {
 	if err != nil {
 		dialError(url, resp, err)
 	}
-	defer conn.Close() //nolint:errcheck // lazy to refactor
+	defer resp.Body.Close() //nolint:errcheck // lazy to refactor
+	defer conn.Close()      //nolint:errcheck // lazy to refactor
 
 	RunProxy(ctx, conn, cancel)
 

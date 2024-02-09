@@ -11,18 +11,18 @@ func Test_NewWorkspaceManager(t *testing.T) {
 
 func Test_StartWorkspaceManager(t *testing.T) {
 	wm := NewWorkspaceManager()
-	wm.Start("")
+	_ = wm.Start("")
 	// assert.Nil(t, _)
 }
 
 func Test_StopWorkspaceManager(t *testing.T) {
 	wm := NewWorkspaceManager()
-	wm.Stop("")
+	_ = wm.Stop("")
 	// assert.Nil(t, _)
 }
 
 func Test_ResetWorkspaceManager(t *testing.T) {
 	wm := NewWorkspaceManager()
-	wm.Reset("")
+	_ = wm.Reset("")
 	// assert.Nil(t, _)
 }

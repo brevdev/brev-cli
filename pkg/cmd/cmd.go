@@ -72,7 +72,7 @@ func NewDefaultBrevCommand() *cobra.Command {
 	return cmd
 }
 
-func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
+func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // define brev command
 	// in io.Reader, out io.Writer, err io.Writer
 	t := terminal.New()
 	var printVersion bool
@@ -140,7 +140,10 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 				if err != nil {
 					return
 				}
-				hello.CanWeOnboard(t, user, loginCmdStore)
+				err = hello.CanWeOnboard(t, user, loginCmdStore)
+				if err != nil {
+					return
+				}
 			}
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -227,7 +230,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen // define brev command
 	return cmds
 }
 
-func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) {
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) { //nolint:funlen // define brev command
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
