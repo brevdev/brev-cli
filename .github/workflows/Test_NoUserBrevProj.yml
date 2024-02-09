@@ -16,9 +16,9 @@ jobs:
     if: "contains(github.event.head_commit.message, 'e2etest')"
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v5
         with:
-          go-version: 1.20
+          go-version: '1.20'
           cache: true      
       - name: expire test cache
         run: go clean -testcache
