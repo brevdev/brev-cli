@@ -58,16 +58,13 @@ linters:
   # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
   disable-all: true
   enable:
-    - deadcode
     - errcheck
     - gosimple
     - govet
     - ineffassign
     # - staticcheck
-    - structcheck
     - typecheck
     - unused
-    - varcheck
     - bodyclose
     # - depguard
     - dupl

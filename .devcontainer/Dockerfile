@@ -1,4 +1,4 @@
-FROM golang:1.18
+FROM golang:1.20
 
 # [Option] Install zsh
 ARG INSTALL_ZSH="true"
