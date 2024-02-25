@@ -97,7 +97,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 
 	localIdentifier := workspace.GetLocalIdentifier()
 	if host {
-		localIdentifier += "-host"
+		localIdentifier = workspace.GetHostIdentifier()
 	}
 
 	sshName := string(localIdentifier)

@@ -115,7 +115,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 
 	localIdentifier := workspace.GetLocalIdentifier()
 	if host {
-		localIdentifier += "-host"
+		localIdentifier = workspace.GetHostIdentifier()
 	}
 
 	err = res.Await()

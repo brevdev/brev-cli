@@ -450,6 +450,10 @@ func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
 	return w.createSimpleName()
 }
 
+func (w Workspace) GetHostIdentifier() WorkspaceLocalID {
+	return w.createSimpleName() + "-host"
+}
+
 func MakeIDSuffix(id string) string {
 	return id[len(id)-4:]
 }
