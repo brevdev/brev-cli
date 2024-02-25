@@ -48,6 +48,7 @@ type OpenStore interface {
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
 	var waitForSetupToFinish bool
 	var directory string
+	var host bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -63,13 +64,14 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if waitForSetupToFinish {
 				setupDoneString = "------ Done running execs ------"
 			}
-			err := runOpenCommand(t, store, args[0], setupDoneString, directory)
+			err := runOpenCommand(t, store, args[0], setupDoneString, directory, host)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
 
@@ -77,7 +79,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool) error {
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
@@ -112,6 +114,9 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	}
 
 	localIdentifier := workspace.GetLocalIdentifier()
+	if host {
+		localIdentifier += "-host"
+	}
 
 	err = res.Await()
 	if err != nil {

@@ -42,7 +42,7 @@ type ShellStore interface {
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
 	var runRemoteCMD bool
 	var directory string
-
+	var host bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "shell",
@@ -54,20 +54,21 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runShellCommand(t, store, args[0], directory)
+			err := runShellCommand(t, store, args[0], directory, host)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&runRemoteCMD, "remote", "r", true, "run remote commands")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "override directory to launch shell")
 
 	return cmd
 }
 
-func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string) error {
+func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string, host bool) error {
 	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
@@ -93,7 +94,13 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	if workspace.Status != "RUNNING" {
 		return breverrors.New("Workspace is not running")
 	}
-	sshName := string(workspace.GetLocalIdentifier())
+
+	localIdentifier := workspace.GetLocalIdentifier()
+	if host {
+		localIdentifier += "-host"
+	}
+
+	sshName := string(localIdentifier)
 
 	err = refreshRes.Await()
 	if err != nil {
