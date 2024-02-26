@@ -19,7 +19,7 @@ brews:
   - name: brev
     folder: Formula
     # GitHub/GitLab repository to push the formula to
-    tap:
+    repository:
       owner: brevdev
       name: homebrew-brev
       # Optionally a token can be provided, if it differs from the token provided to GoReleaser
