@@ -79,7 +79,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool) error {
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool) error { //nolint:funlen // define brev command
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
