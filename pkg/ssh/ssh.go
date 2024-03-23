@@ -36,6 +36,8 @@ const workspaceSSHConfigTemplate = `Host {{ .Host }}
   StrictHostKeyChecking no
   PasswordAuthentication no
   RequestTTY yes
+  ForwardAgent yes
+  AddKeysToAgent yes
   RemoteCommand cd {{ .Dir }}; $SHELL
 
 `

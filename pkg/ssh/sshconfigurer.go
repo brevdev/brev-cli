@@ -129,7 +129,6 @@ func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
 	err = s.store.WriteBrevSSHConfig(
 		newConfig,
 	)
-
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -220,6 +219,8 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
 {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
@@ -235,6 +236,8 @@ const SSHConfigEntryTemplateV3 = `Host {{ .Alias }}
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port {{ .Port }}
 {{ if .RunRemoteCMD }}

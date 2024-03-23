@@ -2,6 +2,7 @@ package shell
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,7 +20,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
-	"github.com/samber/mo"
 
 	"github.com/spf13/cobra"
 )
@@ -162,12 +162,11 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	}
 }
 
-func runSSH(workspace *entity.Workspace, sshAlias, directory string) error {
-	sshCmd := exec.Command("ssh", sshAlias)
-	path := mo.Some(directory).OrElse(workspace.GetProjectFolderPath())
-	if workspace.GetProjectFolderPath() != "" {
-		sshCmd = exec.Command("ssh", "-t", sshAlias, "cd", path, ";", "$SHELL") //nolint:gosec //this is being run on a user's machine so we're not concerned about shell injection
-	}
+func runSSH(_ *entity.Workspace, sshAlias, _ string) error {
+	sshAgentEval := "eval $(ssh-agent -s)"
+	cmd := fmt.Sprintf("ssh %s", sshAlias)
+	cmd = fmt.Sprintf("%s && %s", sshAgentEval, cmd)
+	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
