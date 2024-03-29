@@ -145,6 +145,8 @@ Host %s
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -157,6 +159,8 @@ Host %s-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -169,6 +173,8 @@ Host %s
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -181,6 +187,8 @@ Host %s-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -296,6 +304,8 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 20
 
@@ -308,6 +318,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 2022
 
@@ -340,6 +352,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -352,6 +366,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -385,6 +401,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 2022
 
@@ -397,6 +415,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -429,6 +449,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
 
 `,
@@ -460,6 +482,8 @@ Host testName2-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
 
 `,
@@ -573,6 +597,8 @@ Host testName1
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -585,6 +611,8 @@ Host testName1-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -628,6 +656,8 @@ Host testName1
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -640,6 +670,8 @@ Host testName1-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -655,6 +687,8 @@ Host testName1
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
@@ -667,6 +701,8 @@ Host testName1-host
   IdentitiesOnly yes
   StrictHostKeyChecking no
   PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
   RequestTTY yes
   Port 22
 
