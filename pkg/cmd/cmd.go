@@ -97,7 +97,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	loginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
-		WithAuth(loginAuth)
+		WithAuth(loginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
 		_, err1 := loginAuth.GetAccessToken()

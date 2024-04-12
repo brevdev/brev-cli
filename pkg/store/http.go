@@ -80,13 +80,13 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	return &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
 }
 
-func (n *NoAuthHTTPStore) WithAuth(auth Auth) *AuthHTTPStore {
-	return n.WithAuthHTTPClient(NewAuthHTTPClient(auth, n.noAuthHTTPClient.restyClient.BaseURL))
+func (n *NoAuthHTTPStore) WithAuth(auth Auth, options ...Option) *AuthHTTPStore {
+	return n.WithAuthHTTPClient(NewAuthHTTPClient(auth, n.noAuthHTTPClient.restyClient.BaseURL, options...))
 }
 
 // Used if need new instance to customize settings
-func (s AuthHTTPStore) NewAuthHTTPStore() *AuthHTTPStore {
-	return s.WithAuth(s.authHTTPClient.auth)
+func (s AuthHTTPStore) NewAuthHTTPStore(options ...Option) *AuthHTTPStore {
+	return s.WithAuth(s.authHTTPClient.auth, options...)
 }
 
 func (s *AuthHTTPStore) SetForbiddenStatusRetryHandler(handler func() error) error {
@@ -130,8 +130,25 @@ func (s *AuthHTTPStore) WithStaticHeader(header string, value string) *AuthHTTPS
 	return s
 }
 
-func NewAuthHTTPClient(auth Auth, brevAPIURL string) *AuthHTTPClient {
+type Options struct {
+	Debug bool
+}
+
+type Option func(*Options)
+
+func WithDebug(debug bool) Option {
+	return func(o *Options) {
+		o.Debug = debug
+	}
+}
+
+func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTTPClient {
+	opts := &Options{}
+	for _, o := range options {
+		o(opts)
+	}
 	restyClient := NewRestyClient(brevAPIURL)
+	restyClient.Debug = opts.Debug
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		token, err := auth.GetAccessToken()
 		if err != nil {
