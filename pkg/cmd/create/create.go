@@ -69,7 +69,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
-	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type. See docs.brev.dev/gpu for details")
+	cmd.Flags().StringVarP(&gpu, "gpu", "g", "n1-highmem-4:nvidia-tesla-t4:1", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
 	return cmd
 }
 
