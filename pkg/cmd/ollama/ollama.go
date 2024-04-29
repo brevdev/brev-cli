@@ -101,9 +101,11 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}
 
 	// Placeholder for instance type, to be updated later
-	instanceType := "A100-Placeholder"
+	instanceType := "n1-standard-4:nvidia-tesla-t4:1"
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, model).WithInstanceType(instanceType)
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, model).
+		WithInstanceType(instanceType).
+		WithStartupScript("env > .hello")
 
 	// Type out the creating workspace message
 	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
