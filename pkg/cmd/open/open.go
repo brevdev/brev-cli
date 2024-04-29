@@ -46,6 +46,7 @@ type OpenStore interface {
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
+	var openWithCursor bool
 	var waitForSetupToFinish bool
 	var directory string
 
@@ -53,7 +54,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode to ",
+		Short:                 "[beta] open VSCode or Cursor to ",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
@@ -70,6 +71,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&openWithCursor, "cursor", "c", false, "open with Cursor editor")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
 
