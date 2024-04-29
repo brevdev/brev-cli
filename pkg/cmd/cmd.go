@@ -207,19 +207,17 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		},
 	}
 	cobra.AddTemplateFunc("hasContextCommands", hasContextCommands)
-	cobra.AddTemplateFunc("isContextCommand", isContextCommand)
 	cobra.AddTemplateFunc("contextCommands", contextCommands)
 	cobra.AddTemplateFunc("hasSSHCommands", hasSSHCommands)
-	cobra.AddTemplateFunc("isSSHCommand", isSSHCommand)
 	cobra.AddTemplateFunc("sshCommands", sshCommands)
 	cobra.AddTemplateFunc("hasWorkspaceCommands", hasWorkspaceCommands)
-	cobra.AddTemplateFunc("isWorkspaceCommand", isWorkspaceCommand)
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
 	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
 	cobra.AddTemplateFunc("hasDebugCommands", hasDebugCommands)
 	cobra.AddTemplateFunc("printCautiousMetaCmdMessage", printCautiousMetaCmdMessage)
-	cobra.AddTemplateFunc("isHousekeepingCommand", isHousekeepingCommand)
 	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
+	cobra.AddTemplateFunc("hasQuickstartCommands", hasQuickstartCommands)
+	cobra.AddTemplateFunc("quickstartCommands", quickstartCommands)
 
 	cmds.SetUsageTemplate(usageTemplate)
 
@@ -291,6 +289,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 }
 
+func hasQuickstartCommands(cmd *cobra.Command) bool {
+	return len(quickstartCommands(cmd)) > 0
+}
+
 func hasHousekeepingCommands(cmd *cobra.Command) bool {
 	return len(housekeepingCommands(cmd)) > 0
 }
@@ -314,6 +316,16 @@ func hasWorkspaceCommands(cmd *cobra.Command) bool {
 
 func hasContextCommands(cmd *cobra.Command) bool {
 	return len(contextCommands(cmd)) > 0
+}
+
+func quickstartCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isQuickstartCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
 }
 
 func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
@@ -364,6 +376,14 @@ func contextCommands(cmd *cobra.Command) []*cobra.Command {
 		}
 	}
 	return cmds
+}
+
+func isQuickstartCommand(cmd *cobra.Command) bool {
+	if _, ok := cmd.Annotations["quickstart"]; ok {
+		return true
+	} else {
+		return false
+	}
 }
 
 func isHousekeepingCommand(cmd *cobra.Command) bool {
@@ -434,6 +454,13 @@ Context Commands:
 
 SSH Commands:
 {{- range sshCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- if hasQuickstartCommands . }}
+
+Quickstart Commands:
+{{- range quickstartCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 

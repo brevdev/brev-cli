@@ -47,7 +47,7 @@ func NewCmdOllama(t *terminal.Terminal, store OllamaStore, noLoginStartStore Oll
 	var host bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"quickstart": ""},
 		Use:                   "ollama",
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] ollama",
