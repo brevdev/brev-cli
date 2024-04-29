@@ -1,3 +1,4 @@
+// Package ollama is for starting AI/ML model workspaces
 package ollama
 
 import (
@@ -7,10 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/analytics"
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -19,135 +16,109 @@ import (
 	uutil "github.com/brevdev/brev-cli/pkg/util"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
+	"github.com/spf13/cobra"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	ollamaLong    = "[command in beta] This will "
-	ollamaExample = "brev ollama ..."
+	ollamaLong    = "Start an AI/ML model workspace with specified model types"
+	ollamaExample = `
+  brev ollama --model llama2
+  brev ollama --model mistral7b
+	`
+	modelTypes = []string{"llama2", "llama3", "mistral7b"}
 )
 
 type OllamaStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
-	refresh.RefreshStore
-	UpdateUser(string, *entity.UpdateUser) (*entity.User, error)
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
-	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	StartWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetWindowsDir() (string, error)
-	IsWorkspace() (bool, error)
+	GetCurrentUser() (*entity.User, error)
+	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 }
 
-func NewCmdOllama(t *terminal.Terminal, store OllamaStore, noLoginStartStore OllamaStore) *cobra.Command {
-	var waitForSetupToFinish bool
-	var directory string
-	var host bool
+func validateModelType(modelType string) bool {
+	for _, v := range modelTypes {
+		if modelType == v {
+			return true
+		}
+	}
+	return false
+}
+
+func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
+	var model string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"quickstart": ""},
 		Use:                   "ollama",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] ollama",
+		Short:                 "Start an AI/ML model workspace",
 		Long:                  ollamaLong,
 		Example:               ollamaExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			setupDoneString := "------ Git repo cloned ------"
-			if waitForSetupToFinish {
-				setupDoneString = "------ Done running execs ------"
+			if model == "" {
+				return fmt.Errorf("model type must be specified")
 			}
-			err := runOllamaCommand(t, store, args[0], setupDoneString, directory, host)
+
+			isValid := validateModelType(model)
+			if !isValid {
+				return fmt.Errorf("invalid model type: %s", model)
+			}
+
+			err := runOllamaWorkspace(t, model, ollamaStore)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
-	// cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
-	// cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
-	// cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to ollama")
-
+	cmd.Flags().StringVarP(&model, "model", "m", "", "AI/ML model type (e.g., llama2, llama3, mistral7b)")
 	return cmd
 }
 
-// Fetch workspace info, then ollama code editor
-func runOllamaCommand(t *terminal.Terminal, tstore OllamaStore, wsIDOrName string, setupDoneString string, directory string, host bool) error { //nolint:funlen // define brev command
-	// todo check if workspace is stopped and start if it if it is stopped
-	fmt.Println("finding your instance...")
-	res := refresh.RunRefreshAsync(tstore)
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	_ = res
-	if workspace.Status == "STOPPED" { // we start the env for the user
-		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	err = pollUntil(t, workspace.ID, "RUNNING", tstore)
+func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaStore) error {
+	_, err := ollamaStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
-
+	org, err := ollamaStore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if workspace.Status != "RUNNING" {
-		return breverrors.WorkspaceNotRunning{Status: workspace.Status}
-	}
+	// // Placeholder for instance type, to be updated later
+	instanceType := "A100-Placeholder"
 
-	// Call analytics for ollama
-	_ = pushOllamaAnalytics(tstore, workspace)
-	return nil
-}
+	cwOptions := store.NewCreateWorkspacesOptions("default-cluster", model).WithInstanceType(instanceType)
 
-func pushOllamaAnalytics(tstore OllamaStore, workspace *entity.Workspace) error {
-	userID := ""
-	user, err := tstore.GetCurrentUser()
-	if err != nil {
-		userID = workspace.CreatedByUserID
-	} else {
-		userID = user.ID
-	}
-	data := analytics.EventData{
-		EventName: "Brev Ollama",
-		UserID:    userID,
-		Properties: map[string]string{
-			"instanceId": workspace.ID,
-		},
-	}
-	err = analytics.TrackEvent(data)
-	return breverrors.WrapAndTrace(err)
-}
-
-func pollUntil(t *terminal.Terminal, wsid string, state string, ollamaStore OllamaStore) error {
+	t.Vprintf("Creating AI/ML workspace %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID))
 	s := t.NewSpinner()
-	isReady := false
-	s.Suffix = " hang tight 🤙"
+	s.Suffix = " Creating your workspace. Hang tight 🤙"
 	s.Start()
-	for !isReady {
-		time.Sleep(5 * time.Second)
-		ws, err := ollamaStore.GetWorkspace(wsid)
+	dev := true
+	var w *entity.Workspace
+	if dev {
+		time.Sleep(3 * time.Second)
+	} else {
+		w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		s.Suffix = "  workspace is currently " + strings.ToLower(ws.Status)
-		if ws.Status == state {
-			s.Suffix = "Workspace is ready!"
-			s.Stop()
-			isReady = true
-		}
 	}
+	s.Stop()
+
+	fmt.Print("\n")
+	t.Vprint(t.Green("Your AI/ML workspace is ready!\n"))
+	displayConnectBreadCrumb(t, w)
+
 	return nil
+}
+
+func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
+	t.Vprintf(t.Green("Connect to the workspace:\n"))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
 }
 
 func startWorkspaceIfStopped(t *terminal.Terminal, tstore OllamaStore, wsIDOrName string, workspace *entity.Workspace) error {
