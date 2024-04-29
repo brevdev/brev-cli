@@ -7,6 +7,10 @@ fast-build: ## go build -o brev
 	echo ${VERSION}
 	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
+.PHONY: install-dev
+install-dev: fast-build ## go install
+	cp brev $(shell go env GOPATH)/bin/
+
 .PHONY: version
 version:
 	echo ${VERSION}
