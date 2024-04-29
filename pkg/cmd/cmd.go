@@ -214,6 +214,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
 	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
 	cobra.AddTemplateFunc("hasDebugCommands", hasDebugCommands)
+	cobra.AddTemplateFunc("debugCommands", debugCommands)
 	cobra.AddTemplateFunc("printCautiousMetaCmdMessage", printCautiousMetaCmdMessage)
 	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
 	cobra.AddTemplateFunc("hasQuickstartCommands", hasQuickstartCommands)
@@ -261,14 +262,13 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
 	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
 	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
 	cmd.AddCommand(create.NewCmdCreate(t, loginCmdStore))
 	cmd.AddCommand(stop.NewCmdStop(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore, noLoginCmdStore))
@@ -300,7 +300,7 @@ func hasHousekeepingCommands(cmd *cobra.Command) bool {
 }
 
 func hasDebugCommands(cmd *cobra.Command) bool {
-	return len(debugsCommands(cmd)) > 0
+	return len(debugCommands(cmd)) > 0
 }
 
 func printCautiousMetaCmdMessage() string {
@@ -340,7 +340,7 @@ func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
 	return cmds
 }
 
-func debugsCommands(cmd *cobra.Command) []*cobra.Command {
+func debugCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
 		if isDebugCommand(sub) {
@@ -457,8 +457,8 @@ Housekeeping Commands:
 
 {{- if hasDebugCommands . }}
 
-Housekeeping Commands:
-{{- range housekeepingCommands . }}
+Debug Commands:
+{{- range debugCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
