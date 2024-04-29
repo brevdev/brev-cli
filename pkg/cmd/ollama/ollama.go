@@ -2,10 +2,7 @@
 package ollama
 
 import (
-	"errors"
 	"fmt"
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
@@ -13,12 +10,10 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	uutil "github.com/brevdev/brev-cli/pkg/util"
-	"github.com/briandowns/spinner"
-	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 
-	"github.com/spf13/cobra"
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 var (
@@ -65,10 +60,26 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				return fmt.Errorf("invalid model type: %s", model)
 			}
 
-			err := runOllamaWorkspace(t, model, ollamaStore)
+			// Channel to get the result of the network call
+			resultCh := make(chan error)
+
+			// Start the network call in a goroutine
+			go func() {
+				err := runOllamaWorkspace(t, model, ollamaStore)
+				resultCh <- err
+			}()
+
+			// Type out the creating workspace message
+			hello.TypeItToMeUnskippable27("🤙🦙🤙🦙🤙🦙🤙")
+			t.Vprint(t.Green("\n\n\n"))
+			// hello.TypeItToMeUnskippable27("Creating your AI/ML workspace...")
+
+			// Wait for the network call to finish
+			err := <-resultCh
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+
 			return nil
 		},
 	}
@@ -87,108 +98,62 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// // Placeholder for instance type, to be updated later
+	// Placeholder for instance type, to be updated later
 	instanceType := "A100-Placeholder"
 
 	cwOptions := store.NewCreateWorkspacesOptions("default-cluster", model).WithInstanceType(instanceType)
 
-	t.Vprintf("Creating AI/ML workspace %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID))
+	// Type out the creating workspace message
+	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
+
+	// Channel to get the result of the network call
+	resultCh := make(chan error)
+
+	dev := false
+
+	// Start the network call in a goroutine
+	go func() {
+		var err error
+		if !dev {
+			_, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+		}
+		resultCh <- err
+	}()
+
 	s := t.NewSpinner()
 	s.Suffix = " Creating your workspace. Hang tight 🤙"
-	s.Start()
-	dev := true
-	var w *entity.Workspace
-	if dev {
-		time.Sleep(3 * time.Second)
-	} else {
-		w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+
+	// Wait for the network call to finish or timeout for spinner start
+	select {
+	case err := <-resultCh:
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	case <-time.After(2 * time.Second):
+		s.Start()
 	}
+
+	// Wait for the network call to finish if not already done
+	if !dev {
+		err := <-resultCh
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		time.Sleep(3 * time.Second) // Simulate delay in development mode
+	}
+
 	s.Stop()
 
 	fmt.Print("\n")
 	t.Vprint(t.Green("Your AI/ML workspace is ready!\n"))
-	displayConnectBreadCrumb(t, w)
+	// displayConnectBreadCrumb(t, w)
 
 	return nil
 }
 
-func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the workspace:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
-}
-
-func startWorkspaceIfStopped(t *terminal.Terminal, tstore OllamaStore, wsIDOrName string, workspace *entity.Workspace) error {
-	startedWorkspace, err := tstore.StartWorkspace(workspace.ID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	t.Vprintf(t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
-}
-
-func tryToInstallExtensions(
-	t *terminal.Terminal,
-	extIDs []string,
-) {
-	for _, extID := range extIDs {
-		extInstalled, err0 := uutil.IsVSCodeExtensionInstalled(extID)
-		if !extInstalled {
-			err1 := uutil.InstallVscodeExtension(extID)
-			isRemoteInstalled, err2 := uutil.IsVSCodeExtensionInstalled(extID)
-			if !isRemoteInstalled {
-				err := multierror.Append(err0, err1, err2)
-				t.Print(t.Red("Couldn't install the necessary VSCode extension automatically.\nError: " + err.Error()))
-				t.Print("\tPlease install VSCode and the following VSCode extension: " + t.Yellow(extID) + ".\n")
-				_ = terminal.PromptGetInput(terminal.PromptContent{
-					Label:      "Hit enter when finished:",
-					ErrorMsg:   "error",
-					AllowEmpty: true,
-				})
-			}
-		}
-	}
-}
-
-func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) error {
-	counter := 0
-	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			return nil
-		}
-
-		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
-
-		if counter == 160 || !store.SatisfactorySSHErrMessage(stdErr) {
-			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
-		}
-
-		if counter == 10 {
-			s.Suffix = t.Green(" waiting for SSH connection to be available 🤙")
-		}
-
-		counter++
-		time.Sleep(1 * time.Second)
-	}
-}
-
-type vscodePathStore interface {
-	GetWindowsDir() (string, error)
-}
-
-func getWindowsVsCodePaths(store vscodePathStore) []string {
-	wd, _ := store.GetWindowsDir()
-	paths := append([]string{}, fmt.Sprintf("%s/AppData/Local/Programs/Microsoft VS Code/Code.exe", wd), fmt.Sprintf("%s/AppData/Local/Programs/Microsoft VS Code/bin/code", wd))
-	return paths
-}
+// func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
+// 	t.Vprintf(t.Green("Connect to the workspace:\n"))
+// 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
+// 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
+// }
