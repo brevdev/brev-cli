@@ -7,7 +7,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -50,6 +49,9 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 		Short:                 "Start an AI/ML model workspace",
 		Long:                  ollamaLong,
 		Example:               ollamaExample,
+		Annotations: map[string]string{
+			"quickstart": "",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if model == "" {
 				return fmt.Errorf("model type must be specified")
