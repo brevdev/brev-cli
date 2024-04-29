@@ -26,8 +26,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/notebook"
+	"github.com/brevdev/brev-cli/pkg/cmd/ollama"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
-	"github.com/brevdev/brev-cli/pkg/cmd/optimizeinstances"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/postinstall"
@@ -263,9 +263,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(optimizeinstances.NewCmdOptimizeInstances(t, loginCmdStore))
-	cmd.AddCommand(optimizeinstances.NewCmdOptimize(t, loginCmdStore))
-
+	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
 	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
