@@ -72,6 +72,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			return nil
 		},
 	}
+	cmd.Flags().BoolVarP(&openWithCursor, "cursor", "c", false, "open cursor instead of VS Code")
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
