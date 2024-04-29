@@ -379,51 +379,33 @@ func contextCommands(cmd *cobra.Command) []*cobra.Command {
 }
 
 func isQuickstartCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["quickstart"]; ok {
-		return true
-	} else {
-		return false
-	}
+	_, ok := cmd.Annotations["quickstart"]
+	return ok
 }
 
 func isHousekeepingCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["housekeeping"]; ok {
-		return true
-	} else {
-		return false
-	}
+	_, ok := cmd.Annotations["housekeeping"]
+	return ok
 }
 
 func isDebugCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["debug"]; ok {
-		return true
-	} else {
-		return false
-	}
+	_, ok := cmd.Annotations["debug"]
+	return ok
 }
 
 func isSSHCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["ssh"]; ok {
-		return true
-	} else {
-		return false
-	}
+	_, ok := cmd.Annotations["ssh"]
+	return ok
 }
 
 func isWorkspaceCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["workspace"]; ok {
-		return true
-	} else {
-		return false
-	}
+	_, ok := cmd.Annotations["workspace"]
+	return ok
 }
 
 func isContextCommand(cmd *cobra.Command) bool {
-	if _, ok := cmd.Annotations["context"]; ok {
-		return true
-	} else {
-		return false
-	}
+	_, ok := cmd.Annotations["context"]
+	return ok
 }
 
 var usageTemplate = `Usage:{{if .Runnable}}
