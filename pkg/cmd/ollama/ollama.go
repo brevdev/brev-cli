@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -101,8 +102,8 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 
 	// Placeholder for instance type, to be updated later
 	instanceType := "A100-Placeholder"
-
-	cwOptions := store.NewCreateWorkspacesOptions("default-cluster", model).WithInstanceType(instanceType)
+	clusterID := config.GlobalConfig.GetDefaultClusterID()
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, model).WithInstanceType(instanceType)
 
 	// Type out the creating workspace message
 	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
