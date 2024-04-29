@@ -11,6 +11,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -58,10 +59,26 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				return fmt.Errorf("invalid model type: %s", model)
 			}
 
-			err := runOllamaWorkspace(t, model, ollamaStore)
+			// Channel to get the result of the network call
+			resultCh := make(chan error)
+
+			// Start the network call in a goroutine
+			go func() {
+				err := runOllamaWorkspace(t, model, ollamaStore)
+				resultCh <- err
+			}()
+
+			// Type out the creating workspace message
+			hello.TypeItToMeUnskippable27("🤙🦙🤙🦙🤙🦙🤙")
+			t.Vprint(t.Green("\n\n\n"))
+			// hello.TypeItToMeUnskippable27("Creating your AI/ML workspace...")
+
+			// Wait for the network call to finish
+			err := <-resultCh
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
+
 			return nil
 		},
 	}
@@ -80,36 +97,62 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// // Placeholder for instance type, to be updated later
+	// Placeholder for instance type, to be updated later
 	instanceType := "A100-Placeholder"
 
 	cwOptions := store.NewCreateWorkspacesOptions("default-cluster", model).WithInstanceType(instanceType)
 
-	t.Vprintf("Creating AI/ML workspace %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID))
+	// Type out the creating workspace message
+	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
+
+	// Channel to get the result of the network call
+	resultCh := make(chan error)
+
+	dev := false
+
+	// Start the network call in a goroutine
+	go func() {
+		var err error
+		if !dev {
+			_, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+		}
+		resultCh <- err
+	}()
+
 	s := t.NewSpinner()
 	s.Suffix = " Creating your workspace. Hang tight 🤙"
-	s.Start()
-	dev := true
-	var w *entity.Workspace
-	if dev {
-		time.Sleep(3 * time.Second)
-	} else {
-		w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+
+	// Wait for the network call to finish or timeout for spinner start
+	select {
+	case err := <-resultCh:
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	case <-time.After(2 * time.Second):
+		s.Start()
 	}
+
+	// Wait for the network call to finish if not already done
+	if !dev {
+		err := <-resultCh
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		time.Sleep(3 * time.Second) // Simulate delay in development mode
+	}
+
 	s.Stop()
 
 	fmt.Print("\n")
 	t.Vprint(t.Green("Your AI/ML workspace is ready!\n"))
-	displayConnectBreadCrumb(t, w)
+	// displayConnectBreadCrumb(t, w)
 
 	return nil
 }
 
-func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the workspace:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
-}
+// func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
+// 	t.Vprintf(t.Green("Connect to the workspace:\n"))
+// 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
+// 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
+// }
