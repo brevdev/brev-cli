@@ -46,6 +46,7 @@ type OpenStore interface {
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
+	var openWithCursor bool
 	var waitForSetupToFinish bool
 	var directory string
 	var host bool
@@ -54,7 +55,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode connected to your workspace",
+		Short:                 "[beta] open VSCode or Cursor to your workspace",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
