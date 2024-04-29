@@ -13,7 +13,7 @@ version:
 
 .PHONY: dev
 dev: ## dev build
-dev: clean install generate vet fmt lint test mod-tidy
+dev: clean install-tools generate vet fmt lint test mod-tidy
 
 .PHONY: ci
 ci: ## CI build
@@ -25,8 +25,8 @@ clean: ## remove files created during build pipeline
 	rm -rf dist
 	rm -f coverage.*
 
-.PHONY: install
-install: ## go install tools
+.PHONY: install-tools
+install-tools: ## go install tools
 	$(call print-target)
 	cd tools && go install $(shell cd tools && go list -f '{{ join .Imports " " }}' -tags=tools)
 
@@ -80,13 +80,13 @@ diff: ## git diff
 
 .PHONY: build
 build: ## goreleaser --snapshot --skip-publish --rm-dist
-build: install
+build: install-tools
 	$(call print-target)
 	goreleaser --snapshot --skip-publish --rm-dist
 
 .PHONY: release
 release: ## goreleaser --rm-dist
-release: install
+release: install-tools
 	$(call print-target)
 	goreleaser --rm-dist
 
