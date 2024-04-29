@@ -71,7 +71,6 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 			// Type out the creating workspace message
 			hello.TypeItToMeUnskippable27("🤙🦙🤙🦙🤙🦙🤙")
 			t.Vprint(t.Green("\n\n\n"))
-			// hello.TypeItToMeUnskippable27("Creating your AI/ML workspace...")
 
 			// Wait for the network call to finish
 			err := <-resultCh
