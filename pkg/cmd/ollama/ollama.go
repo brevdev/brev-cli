@@ -2,6 +2,7 @@
 package ollama
 
 import (
+	_ "embed"
 	"fmt"
 	"time"
 
@@ -25,11 +26,15 @@ var (
 	modelTypes = []string{"llama2", "llama3", "mistral7b"}
 )
 
+//go:embed verb.yaml
+var verbYaml string
+
 type OllamaStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
+	//BuildVerbContainer(workspaceID string, verbYaml string) error
 }
 
 func validateModelType(modelType string) bool {
