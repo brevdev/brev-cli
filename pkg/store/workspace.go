@@ -179,6 +179,8 @@ func (s AuthHTTPStore) GetWorkspaces(organizationID string, options *GetWorkspac
 		for _, w := range workspaces {
 			if w.Name == options.Name {
 				nameWorkspaces = append(nameWorkspaces, w)
+			} else if w.ID == options.Name {
+				nameWorkspaces = append(nameWorkspaces, w)
 			}
 		}
 		workspaces = nameWorkspaces
