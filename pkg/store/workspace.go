@@ -539,6 +539,9 @@ type (
 	IDEConfigs map[IDEName]IdeConfig
 )
 
+func (s AuthHTTPStore) BuildVerbContainer(workspaceID string, verbYaml string) error {
+}
+
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
 	file, err := f.fs.Open("/etc/meta/setup_v0.json")
 	if err != nil {
