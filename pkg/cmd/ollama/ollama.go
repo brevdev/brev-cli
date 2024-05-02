@@ -34,7 +34,7 @@ type OllamaStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
-	//BuildVerbContainer(workspaceID string, verbYaml string) error
+	BuildVerbContainer(workspaceID string, verbYaml string) error
 }
 
 func validateModelType(modelType string) bool {
@@ -106,11 +106,10 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}
 
 	// Placeholder for instance type, to be updated later
-	instanceType := "n1-standard-4:nvidia-tesla-t4:1"
+	instanceType := "n1-highmem-4:nvidia-tesla-t4:1"
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, model).
-		WithInstanceType(instanceType).
-		WithStartupScript("env > .hello")
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, "ollama").
+		WithInstanceType(instanceType)
 
 	// Type out the creating workspace message
 	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
