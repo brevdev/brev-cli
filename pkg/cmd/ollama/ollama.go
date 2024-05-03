@@ -4,7 +4,8 @@ package ollama
 import (
 	_ "embed"
 	"fmt"
-	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -34,7 +35,7 @@ type OllamaStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
-	BuildVerbContainer(workspaceID string, verbYaml string) error
+	BuildVerbContainer(workspaceID string, verbYaml string) (*store.BuildVerbRes, error)
 }
 
 func validateModelType(modelType string) bool {
@@ -52,7 +53,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 	cmd := &cobra.Command{
 		Use:                   "ollama",
 		DisableFlagsInUseLine: true,
-		Short:                 "Start an AI/ML model workspace",
+		Short:                 "Start an Ollama model server",
 		Long:                  ollamaLong,
 		Example:               ollamaExample,
 		Annotations: map[string]string{
@@ -70,6 +71,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 
 			// Channel to get the result of the network call
 			resultCh := make(chan error)
+			defer close(resultCh) // TODO: im thinking this is needed?
 
 			// Start the network call in a goroutine
 			go func() {
@@ -106,16 +108,18 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}
 
 	// Placeholder for instance type, to be updated later
-	instanceType := "n1-highmem-4:nvidia-tesla-t4:1"
+	instanceType := "g4dn.xlarge"
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, "ollama").
-		WithInstanceType(instanceType)
+	uuid := uuid.New().String()
+	instanceName := fmt.Sprintf("ollama-%s", uuid)
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName).WithInstanceType(instanceType)
 
 	// Type out the creating workspace message
 	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
 
 	// Channel to get the result of the network call
-	resultCh := make(chan error)
+	w := &entity.Workspace{}
+	workspaceCh := make(chan *entity.Workspace)
 
 	dev := false
 
@@ -123,40 +127,55 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	go func() {
 		var err error
 		if !dev {
-			_, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+			w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+			if err != nil {
+				// ideally log something here?
+				workspaceCh <- nil
+				return
+			}
 		}
-		resultCh <- err
+		workspaceCh <- w
 	}()
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your workspace. Hang tight 🤙"
+	s.Start()
 
-	// Wait for the network call to finish or timeout for spinner start
+	w = <-workspaceCh
+	if w == nil {
+		return breverrors.New("workspace creation failed")
+	}
+
+	// TODO: i need to check logic here. Should build verb ONLY happen after the machine is running?
+	lf := &store.BuildVerbRes{}
+	verbCh := make(chan *store.BuildVerbRes)
+	// Start the network call to build the verb container
+	go func() {
+		var err error
+		if !dev {
+			lf, err = ollamaStore.BuildVerbContainer(w.ID, verbYaml)
+			if err != nil {
+				// ideally log something here?
+				verbCh <- nil
+				return
+			}
+		}
+		verbCh <- lf
+	}()
+
 	select {
-	case err := <-resultCh:
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+	case lf = <-verbCh:
+		if lf == nil {
+			return breverrors.New("verb container build failed")
 		}
-	case <-time.After(2 * time.Second):
-		s.Start()
 	}
 
-	// Wait for the network call to finish if not already done
-	if !dev {
-		err := <-resultCh
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
-		time.Sleep(3 * time.Second) // Simulate delay in development mode
-	}
-
+	s.Suffix = " Building your verb container. Hang tight 🤙"
 	s.Stop()
 
 	fmt.Print("\n")
 	t.Vprint(t.Green("Your AI/ML workspace is ready!\n"))
-	// displayConnectBreadCrumb(t, w)
-
+	// displayConnectBreadCrumb(t, workspace)
 	return nil
 }
 
