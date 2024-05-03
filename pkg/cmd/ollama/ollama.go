@@ -4,6 +4,7 @@ package ollama
 import (
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -35,6 +36,7 @@ type OllamaStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
+	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	BuildVerbContainer(workspaceID string, verbYaml string) (*store.BuildVerbRes, error)
 }
 
@@ -184,3 +186,22 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 // 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
 // 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
 // }
+
+func pollInstanceUntilSuccess(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) error {
+	elapsedTime := time.Duration(0)
+
+	for elapsedTime < timeout {
+		w, err := ollamaStore.GetWorkspace(workspace.ID)
+		if err != nil {
+			// log error polling the api
+			// time.Sleep(interval)
+			// elapsedTime += interval
+			// continue
+			return breverrors.WrapAndTrace(err)
+		}
+		}
+		if w.Sta
+
+		
+
+}
