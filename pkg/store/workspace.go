@@ -539,7 +539,41 @@ type (
 	IDEConfigs map[IDEName]IdeConfig
 )
 
-func (s AuthHTTPStore) BuildVerbContainer(workspaceID string, verbYaml string) error {
+type BuildVerbReqBody struct {
+	// TODO (ishan): using the console names for these structs
+	VerbYaml       string `json:"verbYaml"`
+	IdempotencyKey string `json:"idempotencyKey"`
+}
+
+type BuildVerbRes struct {
+	LogFilePath string `json:"logFilePath"`
+}
+
+// workspaces.POST("/:id/buildverb", routes.BuildVerbContainer(service))
+var (
+	buildVerbPathPattern = "api/workspaces/%s/buildverb"
+	buildVerbSetupPath   = fmt.Sprintf(buildVerbPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+)
+
+// Builds verb container afte the workspace is created
+func (s AuthHTTPStore) BuildVerbContainer(workspaceID string, verbYaml string) (*BuildVerbRes, error) {
+	var result BuildVerbRes
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspaceID).
+		SetBody(BuildVerbReqBody{
+			VerbYaml:       verbYaml,
+			IdempotencyKey: "",
+		}).
+		SetResult(&result).
+		Post(buildVerbSetupPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
 }
 
 func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
