@@ -1,19 +1,18 @@
 build:
-  python_version: "3.10"
-  python_packages:
-  - jupyterlab
-  run:
-  - curl -fsSL https://ollama.com/install.sh | sh
+  python_version: '3.10'
   cuda: 12.0.1
-services:
-- name: ollama
-  entrypoint: OLLAMA_HOST=0.0.0.0 ollama serve
-  ports:
-  - 127.0.0.1:11434:11434
-ports:
-- "2222:22"
-- 8000:8000
+  python_packages:
+    - jupyterlab
+  run:
+    - curl -fsSL https://ollama.com/install.sh | sh
 user:
   shell: zsh
   authorized_keys_path: /home/ubuntu/.ssh/authorized_keys
-
+ports:
+  - '2222:22'
+  - '8000:8000'
+services:
+  - name: ollama
+    entrypoint: OLLAMA_HOST=0.0.0.0 ollama serve
+    ports:
+      - 127.0.0.1:11434:11434

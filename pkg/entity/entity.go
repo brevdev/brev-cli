@@ -284,12 +284,11 @@ type WorkspaceGroup struct {
 } // @Name WorkspaceGroup
 
 type Workspace struct {
-	ID               string `json:"id"`
-	Name             string `json:"name"`
-	WorkspaceGroupID string `json:"workspaceGroupId"`
-	OrganizationID   string `json:"organizationId"`
-	// WorkspaceClassID is resources, like "2x8"
-	WorkspaceClassID  string            `json:"workspaceClassId"`
+	ID                string            `json:"id"`
+	Name              string            `json:"name"`
+	WorkspaceGroupID  string            `json:"workspaceGroupId"`
+	OrganizationID    string            `json:"organizationId"`
+	WorkspaceClassID  string            `json:"workspaceClassId"` // WorkspaceClassID is resources, like "2x8"
 	InstanceType      string            `json:"instanceType,omitempty"`
 	CreatedByUserID   string            `json:"createdByUserId"`
 	DNS               string            `json:"dns"`
@@ -299,18 +298,18 @@ type Workspace struct {
 	Version           string            `json:"version"`
 	WorkspaceTemplate WorkspaceTemplate `json:"workspaceTemplate"`
 	NetworkID         string            `json:"networkId"`
-
-	StartupScriptPath string    `json:"startupScriptPath"`
-	ReposV0           ReposV0   `json:"repos"`
-	ExecsV0           ExecsV0   `json:"execs"`
-	ReposV1           *ReposV1  `json:"reposV1"`
-	ExecsV1           *ExecsV1  `json:"execsV1"`
-	IDEConfig         IDEConfig `json:"ideConfig"`
-	SSHPort           int       `json:"sshPort"`
-	SSHUser           string    `json:"sshUser"`
-	HostSSHPort       int       `json:"hostSshPort"`
-	HostSSHUser       string    `json:"hostSshUser"`
-	VerbYaml          string    `json:"verbYaml"`
+	StartupScriptPath string            `json:"startupScriptPath"`
+	ReposV0           ReposV0           `json:"repos"`
+	ExecsV0           ExecsV0           `json:"execs"`
+	ReposV1           *ReposV1          `json:"reposV1"`
+	ExecsV1           *ExecsV1          `json:"execsV1"`
+	IDEConfig         IDEConfig         `json:"ideConfig"`
+	SSHPort           int               `json:"sshPort"`
+	SSHUser           string            `json:"sshUser"`
+	HostSSHPort       int               `json:"hostSshPort"`
+	HostSSHUser       string            `json:"hostSshUser"`
+	VerbBuildStatus   VerbBuildStatus   `json:"verbBuildStatus"`
+	VerbYaml          string            `json:"verbYaml"`
 	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
 	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
 	// CreatedAt         string `json:"createdAt,omitempty"`
@@ -321,6 +320,16 @@ type Workspace struct {
 	StopTimeout     time.Duration `json:"stopTimeout"`
 	AdditionalUsers []string      `json:"additionalUsers"`
 }
+
+type VerbBuildStatus string
+
+const (
+	Unset        VerbBuildStatus = ""
+	CreateFailed VerbBuildStatus = "CREATE_FAILED"
+	Pending      VerbBuildStatus = "PENDING"
+	Building     VerbBuildStatus = "BUILDING"
+	Completed    VerbBuildStatus = "COMPLETED"
+)
 
 func (w Workspace) GetStopTimeout() time.Duration {
 	return w.StopTimeout

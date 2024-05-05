@@ -148,9 +148,23 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.New("workspace creation failed")
 	}
 
-	// TODO: i need to check logic here. Should build verb ONLY happen after the machine is running?
+	var status bool
+	// Poll the instance until it's running
+	status, err = pollInstanceUntilSuccess(w, time.Second, time.Minute*5, ollamaStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if !status {
+		return breverrors.New("instance did not start")
+	}
+
+	// sleep for 10 o solve for possible race condition
+	time.Sleep(time.Second * 10)
+
 	lf := &store.BuildVerbRes{}
 	verbCh := make(chan *store.BuildVerbRes)
+	fmt.Println(w.ID)
 	// Start the network call to build the verb container
 	go func() {
 		var err error
@@ -165,43 +179,81 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		verbCh <- lf
 	}()
 
-	select {
-	case lf = <-verbCh:
-		if lf == nil {
-			return breverrors.New("verb container build failed")
-		}
+	s.Suffix = " Building your verb container. Hang tight 🤙"
+
+	lf = <-verbCh
+	if lf == nil {
+		return breverrors.New("verb container build did not start")
 	}
 
-	s.Suffix = " Building your verb container. Hang tight 🤙"
+	var vstatus bool
+	// Poll instance until Verb container is ready
+
+	vstatus, err = pollInstanceUntilVerbContainerReady(w, time.Second, time.Minute*15, ollamaStore) // 15 cause the image is not cached and takes a while to build
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if !vstatus {
+		return breverrors.New("verb container did not build correctly")
+	}
+
 	s.Stop()
 
 	fmt.Print("\n")
 	t.Vprint(t.Green("Your AI/ML workspace is ready!\n"))
-	// displayConnectBreadCrumb(t, workspace)
+	displayConnectBreadCrumb(t, w)
 	return nil
 }
 
-// func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-// 	t.Vprintf(t.Green("Connect to the workspace:\n"))
-// 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
-// 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
-// }
+func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
+	t.Vprintf(t.Green("Connect to the workspace:\n"))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
+}
 
-func pollInstanceUntilSuccess(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) error {
+func pollInstanceUntilSuccess(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
 	elapsedTime := time.Duration(0)
 
 	for elapsedTime < timeout {
 		w, err := ollamaStore.GetWorkspace(workspace.ID)
+		fmt.Println(workspace.ID)
+		fmt.Println(w.ID)
+		fmt.Println(w.Status)
 		if err != nil {
 			// log error polling the api
 			// time.Sleep(interval)
 			// elapsedTime += interval
 			// continue
-			return breverrors.WrapAndTrace(err)
+			return false, breverrors.WrapAndTrace(err)
+		} else if w.Status == "RUNNING" {
+			return true, nil
 		}
+		time.Sleep(interval)
+		elapsedTime += interval
+	}
+	return false, breverrors.New("timeout waiting for instance to start")
+}
+
+func pollInstanceUntilVerbContainerReady(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
+	elapsedTime := time.Duration(0)
+
+	for elapsedTime < timeout {
+		w, err := ollamaStore.GetWorkspace(workspace.ID)
+		fmt.Println(workspace.ID)
+		fmt.Println(w.ID)
+		fmt.Println(w.VerbBuildStatus)
+		if err != nil {
+			// log error polling the api
+			// time.Sleep(interval)
+			// elapsedTime += interval
+			// continue
+			return false, breverrors.WrapAndTrace(err)
+		} else if w.VerbBuildStatus == entity.Completed {
+			return true, nil
 		}
-		if w.Sta
-
-		
-
+		time.Sleep(interval)
+		elapsedTime += interval
+	}
+	return false, breverrors.New("timeout waiting for instance to start")
 }
