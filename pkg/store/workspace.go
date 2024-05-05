@@ -10,6 +10,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/uri"
+	"github.com/google/uuid"
 	"github.com/spf13/afero"
 )
 
@@ -558,12 +559,15 @@ var (
 // Builds verb container afte the workspace is created
 func (s AuthHTTPStore) BuildVerbContainer(workspaceID string, verbYaml string) (*BuildVerbRes, error) {
 	var result BuildVerbRes
+
+	idempotencyKey := uuid.New().String()
+
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetPathParam(workspaceIDParamName, workspaceID).
 		SetBody(BuildVerbReqBody{
 			VerbYaml:       verbYaml,
-			IdempotencyKey: "",
+			IdempotencyKey: idempotencyKey,
 		}).
 		SetResult(&result).
 		Post(buildVerbSetupPath)
