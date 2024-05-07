@@ -1,18 +1,19 @@
 build:
-  python_version: '3.10'
+  python_version: "3.10"
   cuda: 12.0.1
   python_packages:
     - jupyterlab
   run:
     - curl -fsSL https://ollama.com/install.sh | sh
+    - ollama serve & sleep 10; ollama pull llama3; echo "kill 'ollama serve' process"; ps -ef | grep 'ollama serve' | grep -v grep | awk '{print $2}' | xargs -r kill -9
 user:
   shell: zsh
   authorized_keys_path: /home/ubuntu/.ssh/authorized_keys
 ports:
-  - '2222:22'
-  - '8000:8000'
+  - "2222:22"
+  - "8000:8000"
 services:
-  - name: ollama
+  - name: ollama-server
     entrypoint: OLLAMA_HOST=0.0.0.0 ollama serve
     ports:
       - 127.0.0.1:11434:11434
