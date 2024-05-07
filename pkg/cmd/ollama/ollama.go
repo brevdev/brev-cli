@@ -28,7 +28,7 @@ var (
 	modelTypes = []string{"llama2", "llama3", "mistral7b"}
 )
 
-//go:embed fverb.yaml
+//go:embed ollamaverb.yaml
 var verbYaml string
 
 type OllamaStore interface {
@@ -116,25 +116,17 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	instanceName := fmt.Sprintf("ollama-%s", uuid)
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName).WithInstanceType(instanceType)
 
-	// Type out the creating workspace message
-	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating AI/ML workspace %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
+	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
 
-	// Channel to get the result of the network call
 	w := &entity.Workspace{}
 	workspaceCh := make(chan *entity.Workspace)
 
-	dev := false
-
-	// Start the network call in a goroutine
 	go func() {
-		var err error
-		if !dev {
-			w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
-			if err != nil {
-				// ideally log something here?
-				workspaceCh <- nil
-				return
-			}
+		w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
+		if err != nil {
+			// ideally log something here?
+			workspaceCh <- nil
+			return
 		}
 		workspaceCh <- w
 	}()
@@ -148,33 +140,28 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.New("workspace creation failed")
 	}
 
-	var status bool
-	// Poll the instance until it's running
-	status, err = pollInstanceUntilSuccess(w, time.Second, time.Minute*5, ollamaStore)
+	var vmStatus bool
+	vmStatus, err = pollInstanceUntilVMReady(w, time.Second, time.Minute*5, ollamaStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if !status {
+	if !vmStatus {
 		return breverrors.New("instance did not start")
 	}
 
-	// sleep for 10 o solve for possible race condition
+	// sleep for 10 seconds to solve for possible race condition
+	// TODO: look into timing of verb call
 	time.Sleep(time.Second * 10)
 
 	lf := &store.BuildVerbRes{}
 	verbCh := make(chan *store.BuildVerbRes)
-	fmt.Println(w.ID)
-	// Start the network call to build the verb container
 	go func() {
-		var err error
-		if !dev {
-			lf, err = ollamaStore.BuildVerbContainer(w.ID, verbYaml)
-			if err != nil {
-				// ideally log something here?
-				verbCh <- nil
-				return
-			}
+		lf, err = ollamaStore.BuildVerbContainer(w.ID, verbYaml)
+		if err != nil {
+			// ideally log something here?
+			verbCh <- nil
+			return
 		}
 		verbCh <- lf
 	}()
@@ -187,9 +174,8 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}
 
 	var vstatus bool
-	// Poll instance until Verb container is ready
-
-	vstatus, err = pollInstanceUntilVerbContainerReady(w, time.Second, time.Minute*20, ollamaStore) // 15 cause the image is not cached and takes a while to build
+	// TODO: 15 min for now because the image is not cached and takes a while to build. Remove this when the image is cached
+	vstatus, err = pollInstanceUntilVerbContainerReady(w, time.Second, time.Minute*20, ollamaStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -207,12 +193,12 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 }
 
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the workspace:\n"))
+	t.Vprintf(t.Green("Connect to the Ollama server:\n"))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open workspace in VS Code\n", workspace.Name)))
 	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into workspace (shortcut)\n", workspace.Name)))
 }
 
-func pollInstanceUntilSuccess(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
+func pollInstanceUntilVMReady(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
 	elapsedTime := time.Duration(0)
 
 	for elapsedTime < timeout {
@@ -221,10 +207,6 @@ func pollInstanceUntilSuccess(workspace *entity.Workspace, interval time.Duratio
 		fmt.Println(w.ID)
 		fmt.Println(w.Status)
 		if err != nil {
-			// log error polling the api
-			// time.Sleep(interval)
-			// elapsedTime += interval
-			// continue
 			return false, breverrors.WrapAndTrace(err)
 		} else if w.Status == "RUNNING" {
 			// adding a slight delay to make sure the instance is ready
@@ -246,10 +228,6 @@ func pollInstanceUntilVerbContainerReady(workspace *entity.Workspace, interval t
 		fmt.Println(w.ID)
 		fmt.Println(w.VerbBuildStatus)
 		if err != nil {
-			// log error polling the api
-			// time.Sleep(interval)
-			// elapsedTime += interval
-			// continue
 			return false, breverrors.WrapAndTrace(err)
 		} else if w.VerbBuildStatus == entity.Completed {
 			return true, nil
