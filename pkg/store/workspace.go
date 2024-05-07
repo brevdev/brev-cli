@@ -541,7 +541,6 @@ type (
 )
 
 type BuildVerbReqBody struct {
-	// TODO (ishan): using the console names for these structs
 	VerbYaml       string `json:"verbYaml"`
 	IdempotencyKey string `json:"idempotencyKey"`
 }
@@ -550,13 +549,12 @@ type BuildVerbRes struct {
 	LogFilePath string `json:"logFilePath"`
 }
 
-// workspaces.POST("/:id/buildverb", routes.BuildVerbContainer(service))
 var (
 	buildVerbPathPattern = "api/workspaces/%s/buildverb"
 	buildVerbSetupPath   = fmt.Sprintf(buildVerbPathPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
 )
 
-// Builds verb container afte the workspace is created
+// Builds verb container after the workspace is created
 func (s AuthHTTPStore) BuildVerbContainer(workspaceID string, verbYaml string) (*BuildVerbRes, error) {
 	var result BuildVerbRes
 
@@ -616,4 +614,43 @@ func (f FileStore) WriteSetupScript(script string) error {
 
 func (f FileStore) GetSetupScriptPath() string {
 	return setupScriptPath
+}
+
+// modifyPublicity: (wsId: string, args: ModifyApplicationPublicityRequest) =>
+// api.post(
+//   `/api/applications/modifypublicity/${wsId}`,
+//   args
+// ) as Promise<ApplicationRes>,
+
+var (
+	modifyCloudflareAccessPattern = "api/applications/modifypublicity/%s"
+	modifyCloudflareAccessPath    = fmt.Sprint(modifyCloudflareAccessPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+)
+
+type ModifyApplicationPublicityRequest struct {
+	ApplicationName string `json:"applicationName"`
+	Public          bool   `json:"public"`
+}
+
+// Modify publicity of tunnel after creation
+// Change workspaceID to workspace to grab Id and add the publicity request fields
+func (s AuthHTTPStore) ModifyPublicity(workspace *entity.Workspace, publicity bool) (*entity.Tunnel, error) {
+	var result entity.Tunnel
+
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(workspaceIDParamName, workspace.ID).
+		SetBody(ModifyApplicationPublicityRequest{
+			ApplicationName: workspace.Name,
+			Public:          publicity,
+		}).
+		SetResult(&result).
+		Post(modifyCloudflareAccessPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
 }
