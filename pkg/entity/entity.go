@@ -319,8 +319,41 @@ type Workspace struct {
 	StatusMessage   string        `json:"statusMessage"`
 	StopTimeout     time.Duration `json:"stopTimeout"`
 	AdditionalUsers []string      `json:"additionalUsers"`
+	Tunnel          Tunnel        `json:"tunnel"`
 }
 
+type APIKey struct {
+	Enabled      bool   `json:"enabled"`
+	ID           string `json:"id"`
+	ClientID     string `json:"clientID"`
+	ClientSecret string `json:"clientSecret"`
+}
+
+type Policy struct {
+	AllowedUserAuthIDs []string `json:"allowedUserAuthIDs"`
+	AllowEveryone      bool     `json:"allowEveryone"`
+	APIKey             APIKey   `json:"apiKey"`
+}
+
+type Tunnel struct {
+	TunnelID        string        `json:"tunnelID"`
+	Applications    []Application `json:"applications"`
+	TunnelSetupBash string        `json:"tunnelSetupBash"`
+	TunnelStatus    string        `json:"tunnelStatus"`
+}
+
+// TODO Change this to Application. Theres an older application struct that should be removed
+type CFApplication struct {
+	CloudflareApplicationID  string `json:"cloudflareApplicationID"`
+	CloudflareDNSRecordID    string `json:"cloudflareDnsRecordID"`
+	Hostname                 string `json:"hostname"`
+	Name                     string `json:"name"`
+	ServiceType              string `json:"serviceType"`
+	Port                     int    `json:"port"`
+	UserApplicationSetupBash string `json:"userApplicationSetupBash"`
+	Policy                   Policy `json:"policy"`
+	HealthCheckID            string `json:"healthCheckID"`
+}
 type VerbBuildStatus string
 
 const (

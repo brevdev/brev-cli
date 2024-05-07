@@ -237,3 +237,9 @@ func pollInstanceUntilVerbContainerReady(workspace *entity.Workspace, interval t
 	}
 	return false, breverrors.New("timeout waiting for instance to start")
 }
+
+func generateCloudflareAPIKeys(workspace *entity.Workspace, ollamaStore OllamaStore) (bool, error) {
+}
+
+func makeTunnelPublic(workspace *entity.Workspace, ollamaStore OllamaStore) (bool, error) {
+}
