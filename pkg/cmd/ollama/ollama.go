@@ -28,7 +28,7 @@ var (
 	modelTypes = []string{"llama2", "llama3", "mistral7b"}
 )
 
-//go:embed verb.yaml
+//go:embed fverb.yaml
 var verbYaml string
 
 type OllamaStore interface {
@@ -189,7 +189,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	var vstatus bool
 	// Poll instance until Verb container is ready
 
-	vstatus, err = pollInstanceUntilVerbContainerReady(w, time.Second, time.Minute*15, ollamaStore) // 15 cause the image is not cached and takes a while to build
+	vstatus, err = pollInstanceUntilVerbContainerReady(w, time.Second, time.Minute*20, ollamaStore) // 15 cause the image is not cached and takes a while to build
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -227,6 +227,8 @@ func pollInstanceUntilSuccess(workspace *entity.Workspace, interval time.Duratio
 			// continue
 			return false, breverrors.WrapAndTrace(err)
 		} else if w.Status == "RUNNING" {
+			// adding a slight delay to make sure the instance is ready
+			time.Sleep(time.Minute * 1)
 			return true, nil
 		}
 		time.Sleep(interval)
