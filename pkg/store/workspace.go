@@ -616,15 +616,9 @@ func (f FileStore) GetSetupScriptPath() string {
 	return setupScriptPath
 }
 
-// modifyPublicity: (wsId: string, args: ModifyApplicationPublicityRequest) =>
-// api.post(
-//   `/api/applications/modifypublicity/${wsId}`,
-//   args
-// ) as Promise<ApplicationRes>,
-
 var (
 	modifyCloudflareAccessPattern = "api/applications/modifypublicity/%s"
-	modifyCloudflareAccessPath    = fmt.Sprint(modifyCloudflareAccessPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
+	modifyCloudflareAccessPath    = fmt.Sprintf(modifyCloudflareAccessPattern, fmt.Sprintf("{%s}", workspaceIDParamName))
 )
 
 type ModifyApplicationPublicityRequest struct {

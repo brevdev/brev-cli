@@ -336,10 +336,10 @@ type Policy struct {
 }
 
 type Tunnel struct {
-	TunnelID        string        `json:"tunnelID"`
-	Applications    []Application `json:"applications"`
-	TunnelSetupBash string        `json:"tunnelSetupBash"`
-	TunnelStatus    string        `json:"tunnelStatus"`
+	TunnelID        string          `json:"tunnelID"`
+	Applications    []CFApplication `json:"applications"`
+	TunnelSetupBash string          `json:"tunnelSetupBash"`
+	TunnelStatus    string          `json:"tunnelStatus"`
 }
 
 // TODO Change this to Application. Theres an older application struct that should be removed
