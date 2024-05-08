@@ -168,7 +168,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}()
 
 	s.Start()
-	s.Suffix = " Building your verb container. Hang tight 🤙"
+	s.Suffix = "Starting the Ollama server. Hang tight 🤙"
 
 	lf = <-verbCh
 	if lf == nil {
@@ -199,7 +199,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}
 
 	fmt.Print("\n")
-	t.Vprint(t.Green("Your AI/ML workspace is ready!\n"))
+	t.Vprint(t.Green("Ollama is ready to go!\n"))
 	displayOllamaConnectBreadCrumb(t, link)
 	return nil
 }
