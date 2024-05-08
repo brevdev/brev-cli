@@ -627,7 +627,6 @@ type ModifyApplicationPublicityRequest struct {
 }
 
 // Modify publicity of tunnel after creation
-// Change workspaceID to workspace to grab Id and add the publicity request fields
 func (s AuthHTTPStore) ModifyPublicity(workspace *entity.Workspace, publicity bool) (*entity.Tunnel, error) {
 	var result entity.Tunnel
 
