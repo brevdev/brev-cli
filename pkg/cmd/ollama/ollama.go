@@ -20,12 +20,11 @@ import (
 )
 
 var (
-	ollamaLong    = "Start an AI/ML model workspace with specified model types"
+	ollamaLong    = "Start an Ollama server with specified model types"
 	ollamaExample = `
   brev ollama --model llama3
-  brev ollama --model mistral7b
 	`
-	modelTypes = []string{"llama2", "llama3", "mistral7b"}
+	modelTypes = []string{"llama3"}
 )
 
 //go:embed ollamaverb.yaml
@@ -38,7 +37,7 @@ type OllamaStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	BuildVerbContainer(workspaceID string, verbYaml string) (*store.BuildVerbRes, error)
-	ModifyPublicity(workspace *entity.Workspace, publicity bool) (*entity.Tunnel, error)
+	ModifyPublicity(workspace *entity.Workspace, applicationName string, publicity bool) (*entity.Tunnel, error)
 }
 
 func validateModelType(modelType string) bool {
@@ -188,12 +187,18 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 
 	s.Stop()
 
-	link, err := getOllamaTunnelLink(w, ollamaStore)
+	// Reload workspace to get the latest status
+	w, err = ollamaStore.GetWorkspace(w.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err = makeTunnelPublic(w, ollamaStore)
+	link, name, err := getOllamaTunnelLink(w)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	_, err = makeTunnelPublic(w, name, ollamaStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -224,7 +229,7 @@ func pollInstanceUntilVMReady(workspace *entity.Workspace, interval time.Duratio
 		time.Sleep(interval)
 		elapsedTime += interval
 	}
-	return false, breverrors.New("timeout waiting for instance to start")
+	return false, breverrors.New("Timeout waiting for machine to start")
 }
 
 func pollInstanceUntilVerbContainerReady(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
@@ -240,29 +245,25 @@ func pollInstanceUntilVerbContainerReady(workspace *entity.Workspace, interval t
 		time.Sleep(interval)
 		elapsedTime += interval
 	}
-	return false, breverrors.New("timeout waiting for instance to start")
+	return false, breverrors.New("Timeout waiting for container to build")
 }
 
-func getOllamaTunnelLink(workspace *entity.Workspace, ollamaStore OllamaStore) (string, error) {
-	w, err := ollamaStore.GetWorkspace(workspace.ID)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	for _, v := range w.Tunnel.Applications {
+func getOllamaTunnelLink(workspace *entity.Workspace) (string, string, error) {
+	for _, v := range workspace.Tunnel.Applications {
 		if v.Port == 11434 {
-			return v.Hostname, nil
+			return v.Hostname, v.Name, nil
 		}
 	}
-	return "", breverrors.New("Could not find Ollama tunnel")
+	return "", "", breverrors.New("Could not find Ollama tunnel")
 }
 
-// TODO: stubs for granular permissioning
+// TODO: stub for granular permissioning
 // func generateCloudflareAPIKeys(workspace *entity.Workspace, ollamaStore OllamaStore) (bool, error) {
 // 	return false, nil
 // }
 
-func makeTunnelPublic(workspace *entity.Workspace, ollamaStore OllamaStore) (bool, error) {
-	t, err := ollamaStore.ModifyPublicity(workspace, true)
+func makeTunnelPublic(workspace *entity.Workspace, applicationName string, ollamaStore OllamaStore) (bool, error) {
+	t, err := ollamaStore.ModifyPublicity(workspace, applicationName, true)
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
