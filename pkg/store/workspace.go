@@ -627,14 +627,14 @@ type ModifyApplicationPublicityRequest struct {
 }
 
 // Modify publicity of tunnel after creation
-func (s AuthHTTPStore) ModifyPublicity(workspace *entity.Workspace, publicity bool) (*entity.Tunnel, error) {
+func (s AuthHTTPStore) ModifyPublicity(workspace *entity.Workspace, applicationName string, publicity bool) (*entity.Tunnel, error) {
 	var result entity.Tunnel
 
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetPathParam(workspaceIDParamName, workspace.ID).
 		SetBody(ModifyApplicationPublicityRequest{
-			ApplicationName: workspace.Name,
+			ApplicationName: applicationName,
 			Public:          publicity,
 		}).
 		SetResult(&result).
