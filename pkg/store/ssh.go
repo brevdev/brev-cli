@@ -180,9 +180,6 @@ func (f FileStore) CreateNewSSHConfigBackup() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	backupFilePath := files.GetNewBackupSSHConfigFilePath(home)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 
 	csp, err := files.GetUserSSHConfigPath(home)
 	if err != nil {
