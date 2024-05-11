@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -71,22 +72,20 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				return fmt.Errorf("invalid model type: %s", model)
 			}
 
-			// Channel to get the result of the network call
-			resultCh := make(chan error)
-			defer close(resultCh) // TODO: im thinking this is needed?
-
 			// Start the network call in a goroutine
-			go func() {
+			res := collections.Async(func() (any, error) {
 				err := runOllamaWorkspace(t, model, ollamaStore)
-				resultCh <- err
-			}()
+				if err != nil {
+					return nil, breverrors.WrapAndTrace(err)
+				}
+				return nil, nil
+			})
 
 			// Type out the creating workspace message
 			hello.TypeItToMeUnskippable27("🤙🦙🤙🦙🤙🦙🤙")
 			t.Vprint(t.Green("\n\n\n"))
 
-			// Wait for the network call to finish
-			err := <-resultCh
+			_, err := res.Await()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -98,7 +97,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 	return cmd
 }
 
-func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaStore) error {
+func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaStore) error { //nolint:funlen // todo
 	_, err := ollamaStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -118,26 +117,22 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 
 	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
 
-	w := &entity.Workspace{}
-	workspaceCh := make(chan *entity.Workspace)
 	s := t.NewSpinner()
 
-	go func() {
-		w, err = ollamaStore.CreateWorkspace(org.ID, cwOptions)
-		if err != nil {
-			// ideally log something here?
-			workspaceCh <- nil
-			return
+	createWorkspaceRes := collections.Async(func() (*entity.Workspace, error) {
+		w, errr := ollamaStore.CreateWorkspace(org.ID, cwOptions)
+		if errr != nil {
+			return nil, breverrors.WrapAndTrace(errr)
 		}
-		workspaceCh <- w
-	}()
+		return w, nil
+	})
 
 	s.Suffix = " Creating your workspace. Hang tight 🤙"
 	s.Start()
 
-	w = <-workspaceCh
-	if w == nil {
-		return breverrors.New("workspace creation failed")
+	w, err := createWorkspaceRes.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	var vmStatus bool
@@ -154,24 +149,20 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	// TODO: look into timing of verb call
 	time.Sleep(time.Second * 10)
 
-	lf := &store.BuildVerbRes{}
-	verbCh := make(chan *store.BuildVerbRes)
-	go func() {
-		lf, err = ollamaStore.BuildVerbContainer(w.ID, verbYaml)
-		if err != nil {
-			// ideally log something here?
-			verbCh <- nil
-			return
+	verbBuildRes := collections.Async(func() (*store.BuildVerbRes, error) {
+		lf, errr := ollamaStore.BuildVerbContainer(w.ID, verbYaml)
+		if errr != nil {
+			return nil, breverrors.WrapAndTrace(errr)
 		}
-		verbCh <- lf
-	}()
+		return lf, nil
+	})
 
 	s.Start()
 	s.Suffix = "Starting the Ollama server. Hang tight 🤙"
 
-	lf = <-verbCh
-	if lf == nil {
-		return breverrors.New("verb container build did not start")
+	_, err = verbBuildRes.Await()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	var vstatus bool

@@ -590,3 +590,27 @@ func GetRequestWithContext(ctx context.Context, url string) (*http.Response, err
 	}
 	return resp, nil
 }
+
+type AsyncResult[T any] struct {
+	result chan result[T]
+}
+
+type result[T any] struct {
+	value T
+	err   error
+}
+
+func Async[T any](f func() (T, error)) *AsyncResult[T] {
+	r := &AsyncResult[T]{result: make(chan result[T], 1)} // Buffered channel
+	go func() {
+		value, err := f()
+		r.result <- result[T]{value: value, err: err}
+	}()
+	return r
+}
+
+// Await blocks until the asynchronous operation completes, returning the result and error.
+func (ar *AsyncResult[T]) Await() (T, error) {
+	r := <-ar.result // This will block until the result is available
+	return r.value, r.err
+}

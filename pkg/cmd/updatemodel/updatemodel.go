@@ -179,7 +179,6 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error { //nolint:funlen 
 			ReposV1: rm.MergeBE(),
 		},
 	)
-
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -212,7 +211,7 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error { //nolint:funlen 
 					}
 					return multierror.Append(acc, err)
 				}
-				if acc == nil && err != nil {
+				if acc == nil {
 					return breverrors.WrapAndTrace(err)
 				}
 				return acc

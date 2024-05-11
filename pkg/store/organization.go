@@ -30,9 +30,6 @@ func (f FileStore) ClearDefaultOrganization() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	path := files.GetActiveOrgsPath(home)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	err = files.DeleteFile(f.fs, path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
