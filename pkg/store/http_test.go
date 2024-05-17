@@ -11,7 +11,7 @@ import (
 
 func MakeMockNoHTTPStore() *NoAuthHTTPStore {
 	fs := MakeMockFileStore()
-	nh := fs.WithNoAuthHTTPClient(NewNoAuthHTTPClient(""))
+	nh := fs.WithNoAuthHTTPClient(NewNoAuthHTTPClient(""), NewOllamaHTTPClient(""))
 	return nh
 }
 

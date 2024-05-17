@@ -693,16 +693,18 @@ var (
 	ollamaModelPath        = fmt.Sprintf(ollamaModelPathPattern, fmt.Sprintf("{%s}", modelNameParamName), fmt.Sprintf("{%s}", tagNameParamName))
 )
 
-func (o OllamaHTTPStore) ValidateOllamaModel(req OllamaModelRequest) (bool, error) {
-	res, err := o.ollamaHTTPClient.restyClient.R().
+func (s *AuthHTTPStore) ValidateOllamaModel(model string, tag string) (bool, error) {
+	// TODO: building a resty client here because we use this endpoint once. Should there be an OllamaHTTPClient as a part of the AuthHTTPStore or NoAuthHTTPStore?
+	// create a resty client
+	res, err := s.ollamaHTTPClient.restyClient.R().
 		SetHeader("Accept", "application/vnd.docker.distribution.manifest.v2+json").
-		SetPathParam(modelNameParamName, req.Model).
-		SetPathParam(tagNameParamName, req.Tag).
+		SetPathParam(modelNameParamName, model).
+		SetPathParam(tagNameParamName, tag).
 		Get(ollamaModelPath)
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	if res.StatusCode() == 200 {
+	if res.StatusCode() == 200 { //nolint:gocritic // 200 is a valid status code
 		if err := json.Unmarshal(res.Body(), &OllamaRegistrySuccessResponse{}); err != nil {
 			return false, breverrors.WrapAndTrace(err)
 		}

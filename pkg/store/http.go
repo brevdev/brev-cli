@@ -17,19 +17,32 @@ type NoAuthHTTPStore struct {
 	FileStore
 	noAuthHTTPClient *NoAuthHTTPClient
 	BasicStore
+	ollamaHTTPClient *OllamaHTTPClient
 }
 
-func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
-	return &NoAuthHTTPStore{*f, c, f.b}
+func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient, o *OllamaHTTPClient) *NoAuthHTTPStore {
+	return &NoAuthHTTPStore{*f, c, f.b, o}
 }
 
 // Used if need new instance to customize settings
 func (n NoAuthHTTPStore) NewNoAuthHTTPStore() *NoAuthHTTPStore {
-	return n.WithNoAuthHTTPClient(NewNoAuthHTTPClient(n.noAuthHTTPClient.restyClient.BaseURL))
+	return n.WithNoAuthHTTPClient(NewNoAuthHTTPClient(n.noAuthHTTPClient.restyClient.BaseURL), NewOllamaHTTPClient(n.ollamaHTTPClient.restyClient.BaseURL))
 }
 
 type NoAuthHTTPClient struct {
 	restyClient *resty.Client
+}
+
+type OllamaHTTPClient struct {
+	restyClient *resty.Client
+}
+
+func NewOllamaHTTPClient(ollamaAPIURL string) *OllamaHTTPClient {
+	restyClient := resty.New().SetBaseURL(ollamaAPIURL)
+
+	return &OllamaHTTPClient{
+		restyClient: restyClient,
+	}
 }
 
 func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
@@ -67,7 +80,7 @@ func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	if id == "" {
 		c.restyClient.SetQueryParam("local", "true")
 	}
-	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
+	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL), NewOllamaHTTPClient(c.restyClient.BaseURL))
 	return &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
 }
 
@@ -215,27 +228,5 @@ func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
 		return false
 	default:
 		return false
-	}
-}
-
-type OllamaHTTPClient struct {
-	restyClient *resty.Client
-}
-
-type OllamaHTTPStore struct {
-	ollamaHTTPClient *OllamaHTTPClient
-}
-
-func NewOllamaHTTPClient(ollamaAPIURL string) *OllamaHTTPClient {
-	restyClient := resty.New().SetBaseURL(ollamaAPIURL)
-
-	return &OllamaHTTPClient{
-		restyClient: restyClient,
-	}
-}
-
-func WithOllamaHTTPClient(ollamaHTTPClient *OllamaHTTPClient) *OllamaHTTPStore {
-	return &OllamaHTTPStore{
-		ollamaHTTPClient: ollamaHTTPClient,
 	}
 }

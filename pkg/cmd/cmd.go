@@ -96,6 +96,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	loginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+		store.NewOllamaHTTPClient(conf.GetOllamaAPIURL()),
 	).
 		WithAuth(loginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
@@ -111,6 +112,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	}
 	noAuthCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+		store.NewOllamaHTTPClient(conf.GetOllamaAPIURL()),
 	)
 	noLoginCmdStore := noAuthCmdStore.WithAuth(noLoginAuth)
 

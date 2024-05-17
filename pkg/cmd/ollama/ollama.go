@@ -47,16 +47,16 @@ func validateModelType(input string, ollamaStore OllamaStore) (bool, error) {
 	var tag string
 
 	split := strings.Split(input, ":")
-	if len(split) > 2 {
-		return false, fmt.Errorf("invalid model type: %s", input)
-	} else if len(split) == 2 {
-		model = strings.Split(input, ":")[0]
-		tag = strings.Split(input, ":")[1]
-	} else {
+	switch len(split) {
+	case 2:
+		model = split[0]
+		tag = split[1]
+	case 1:
 		model = input
 		tag = "latest"
+	default:
+		return false, fmt.Errorf("invalid model type: %s", input)
 	}
-	// use the validateollamamodel function to check if the model is valid
 	valid, err := ollamaStore.ValidateOllamaModel(model, tag)
 	if err != nil {
 		return false, fmt.Errorf("error validating model: %s", err)
@@ -64,7 +64,7 @@ func validateModelType(input string, ollamaStore OllamaStore) (bool, error) {
 	return valid, nil
 }
 
-func oNewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
+func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
 	var model string
 
 	cmd := &cobra.Command{
