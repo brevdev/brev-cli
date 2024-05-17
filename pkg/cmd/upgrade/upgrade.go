@@ -103,7 +103,6 @@ var upgradeFuncs = map[string]uFunc{
 			url,
 			"/usr/local/bin/brev",
 		)
-
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
