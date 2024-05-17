@@ -4,10 +4,14 @@ package ollama
 import (
 	_ "embed"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -25,13 +29,13 @@ var (
 	ollamaExample = `
   brev ollama --model llama3
 	`
-	modelTypes = []string{"llama3"}
 )
 
 //go:embed ollamaverb.yaml
 var verbYaml string
 
 type OllamaStore interface {
+	refresh.RefreshStore
 	util.GetWorkspaceByNameOrIDErrStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
@@ -41,13 +45,26 @@ type OllamaStore interface {
 	ModifyPublicity(workspace *entity.Workspace, applicationName string, publicity bool) (*entity.Tunnel, error)
 }
 
-func validateModelType(modelType string) bool {
-	for _, v := range modelTypes {
-		if modelType == v {
-			return true
-		}
+func validateModelType(input string) (bool, error) {
+	var model string
+	var tag string
+
+	split := strings.Split(input, ":")
+	switch len(split) {
+	case 2:
+		model = split[0]
+		tag = split[1]
+	case 1:
+		model = input
+		tag = "latest"
+	default:
+		return false, fmt.Errorf("invalid model type: %s", input)
 	}
-	return false
+	valid, err := store.ValidateOllamaModel(model, tag)
+	if err != nil {
+		return false, fmt.Errorf("error validating model: %s", err)
+	}
+	return valid, nil
 }
 
 func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
@@ -67,7 +84,10 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				return fmt.Errorf("model type must be specified")
 			}
 
-			isValid := validateModelType(model)
+			isValid, valErr := validateModelType(model)
+			if valErr != nil {
+				return valErr
+			}
 			if !isValid {
 				return fmt.Errorf("invalid model type: %s", model)
 			}
@@ -115,7 +135,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	instanceName := fmt.Sprintf("ollama-%s", uuid)
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName).WithInstanceType(instanceType)
 
-	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
+	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
 
 	s := t.NewSpinner()
 
@@ -140,14 +160,15 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
 	if !vmStatus {
 		return breverrors.New("instance did not start")
 	}
+	s.Stop()
+	hello.TypeItToMeUnskippable27(fmt.Sprintf("VM is ready!\n"))
+	s.Start()
 
-	// sleep for 10 seconds to solve for possible race condition
 	// TODO: look into timing of verb call
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 5)
 
 	verbBuildRes := collections.Async(func() (*store.BuildVerbRes, error) {
 		lf, errr := ollamaStore.BuildVerbContainer(w.ID, verbYaml)
@@ -157,8 +178,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return lf, nil
 	})
 
-	s.Start()
-	s.Suffix = "Starting the Ollama server. Hang tight 🤙"
+	s.Suffix = " Building the Ollama container. Hang tight 🤙"
 
 	_, err = verbBuildRes.Await()
 	if err != nil {
@@ -175,9 +195,15 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	if !vstatus {
 		return breverrors.New("verb container did not build correctly")
 	}
-
 	s.Stop()
 
+	s = t.NewSpinner()
+	s.Suffix = "(connectivity) Pulling the %s model, just a bit more! 🏄"
+
+	// shell in and run ollama pull:
+	if err := refresh.RunRefresh(ollamaStore); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	// Reload workspace to get the latest status
 	w, err = ollamaStore.GetWorkspace(w.ID)
 	if err != nil {
@@ -194,15 +220,26 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.WrapAndTrace(err)
 	}
 
+	s.Suffix = "Pulling the %s model, just a bit more! 🏄"
+
+	// shell in and run ollama pull:
+	if err := runSSHExec(instanceName, []string{"ollama", "pull", model}, false); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err := runSSHExec(instanceName, []string{"ollama", "run", model, "hello world"}, true); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	s.Stop()
+
 	fmt.Print("\n")
 	t.Vprint(t.Green("Ollama is ready to go!\n"))
-	displayOllamaConnectBreadCrumb(t, link)
+	displayOllamaConnectBreadCrumb(t, link, model)
 	return nil
 }
 
-func displayOllamaConnectBreadCrumb(t *terminal.Terminal, link string) {
+func displayOllamaConnectBreadCrumb(t *terminal.Terminal, link string, model string) {
 	t.Vprintf(t.Green("Query the Ollama API with the following command:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("curl %s/api/chat -d '{\n  \"model\": \"llama3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"why is the sky blue?\"\n    }\n  ]\n}'", link)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("curl %s/api/chat -d '{\n  \"model\": \"%s\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"why is the sky blue?\"\n    }\n  ]\n}'\n", link, model)))
 }
 
 func pollInstanceUntilVMReady(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
@@ -266,4 +303,19 @@ func makeTunnelPublic(workspace *entity.Workspace, applicationName string, ollam
 		}
 	}
 	return false, breverrors.New("Could not find Ollama tunnel")
+}
+
+func runSSHExec(sshAlias string, args []string, fireAndForget bool) error {
+	sshAgentEval := "eval $(ssh-agent -s)"
+	cmd := fmt.Sprintf("ssh %s -- %s", sshAlias, strings.Join(args, " "))
+	cmd = fmt.Sprintf("%s && %s", sshAgentEval, cmd)
+	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
+
+	if fireAndForget {
+		return sshCmd.Start()
+	}
+	sshCmd.Stderr = os.Stderr
+	sshCmd.Stdout = os.Stdout
+	sshCmd.Stdin = os.Stdin
+	return sshCmd.Run()
 }

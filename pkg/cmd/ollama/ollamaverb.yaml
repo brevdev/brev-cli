@@ -5,7 +5,6 @@ build:
     - jupyterlab
   run:
     - curl -fsSL https://ollama.com/install.sh | sh
-    - ollama serve & sleep 10; ollama pull llama3; echo "kill 'ollama serve' process"; ps -ef | grep 'ollama serve' | grep -v grep | awk '{print $2}' | xargs -r kill -9
 user:
   shell: zsh
   authorized_keys_path: /home/ubuntu/.ssh/authorized_keys

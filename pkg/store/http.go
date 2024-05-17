@@ -32,6 +32,18 @@ type NoAuthHTTPClient struct {
 	restyClient *resty.Client
 }
 
+type OllamaHTTPClient struct {
+	restyClient *resty.Client
+}
+
+func NewOllamaHTTPClient(ollamaAPIURL string) *OllamaHTTPClient {
+	restyClient := resty.New().SetBaseURL(ollamaAPIURL)
+
+	return &OllamaHTTPClient{
+		restyClient: restyClient,
+	}
+}
+
 func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
 	restyClient := NewRestyClient(brevAPIURL)
 	return &NoAuthHTTPClient{restyClient}
