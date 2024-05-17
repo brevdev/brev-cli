@@ -233,13 +233,13 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 
 	fmt.Print("\n")
 	t.Vprint(t.Green("Ollama is ready to go!\n"))
-	displayOllamaConnectBreadCrumb(t, link)
+	displayOllamaConnectBreadCrumb(t, link, model)
 	return nil
 }
 
-func displayOllamaConnectBreadCrumb(t *terminal.Terminal, link string) {
+func displayOllamaConnectBreadCrumb(t *terminal.Terminal, link string, model string) {
 	t.Vprintf(t.Green("Query the Ollama API with the following command:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("curl %s/api/chat -d '{\n  \"model\": \"llama3\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"why is the sky blue?\"\n    }\n  ]\n}'", link)))
+	t.Vprintf(t.Yellow(fmt.Sprintf("curl %s/api/chat -d '{\n  \"model\": \"%s\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"why is the sky blue?\"\n    }\n  ]\n}'", link, model)))
 }
 
 func pollInstanceUntilVMReady(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
