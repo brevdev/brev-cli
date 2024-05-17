@@ -17,16 +17,15 @@ type NoAuthHTTPStore struct {
 	FileStore
 	noAuthHTTPClient *NoAuthHTTPClient
 	BasicStore
-	ollamaHTTPClient *OllamaHTTPClient
 }
 
-func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient, o *OllamaHTTPClient) *NoAuthHTTPStore {
-	return &NoAuthHTTPStore{*f, c, f.b, o}
+func (f *FileStore) WithNoAuthHTTPClient(c *NoAuthHTTPClient) *NoAuthHTTPStore {
+	return &NoAuthHTTPStore{*f, c, f.b}
 }
 
 // Used if need new instance to customize settings
 func (n NoAuthHTTPStore) NewNoAuthHTTPStore() *NoAuthHTTPStore {
-	return n.WithNoAuthHTTPClient(NewNoAuthHTTPClient(n.noAuthHTTPClient.restyClient.BaseURL), NewOllamaHTTPClient(n.ollamaHTTPClient.restyClient.BaseURL))
+	return n.WithNoAuthHTTPClient(NewNoAuthHTTPClient(n.noAuthHTTPClient.restyClient.BaseURL))
 }
 
 type NoAuthHTTPClient struct {
@@ -80,7 +79,7 @@ func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	if id == "" {
 		c.restyClient.SetQueryParam("local", "true")
 	}
-	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL), NewOllamaHTTPClient(c.restyClient.BaseURL))
+	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
 	return &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
 }
 

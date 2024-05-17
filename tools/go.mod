@@ -1,11 +1,6 @@
 module github.com/brevdev/brev-cli/tools
 
 go 1.21
-<<<<<<< HEAD
-
-toolchain go1.22.2
-=======
->>>>>>> main
 
 require (
 	github.com/golangci/golangci-lint v1.57.2
@@ -97,10 +92,6 @@ require (
 	github.com/bkielbasa/cyclop v1.2.1 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blizzy78/varnamelen v0.8.0 // indirect
-<<<<<<< HEAD
-	github.com/bombsimon/wsl/v3 v3.4.0 // indirect
-=======
->>>>>>> main
 	github.com/bombsimon/wsl/v4 v4.2.1 // indirect
 	github.com/breml/bidichk v0.2.7 // indirect
 	github.com/breml/errchkjson v0.3.6 // indirect
@@ -147,10 +138,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elliotchance/orderedmap/v2 v2.2.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-<<<<<<< HEAD
-	github.com/esimonov/ifshort v1.0.4 // indirect
-=======
->>>>>>> main
 	github.com/ettle/strcase v0.2.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.16.0 // indirect
@@ -239,10 +226,6 @@ require (
 	github.com/karamaru-alpha/copyloopvar v1.0.10 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
 	github.com/kisielk/errcheck v1.7.0 // indirect
-<<<<<<< HEAD
-	github.com/kisielk/gotool v1.0.0 // indirect
-=======
->>>>>>> main
 	github.com/kkHAIKE/contextcheck v1.1.5 // indirect
 	github.com/klauspost/compress v1.17.0 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
@@ -267,10 +250,6 @@ require (
 	github.com/mattn/go-mastodon v0.0.6 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
-<<<<<<< HEAD
-	github.com/mbilski/exhaustivestruct v1.2.0 // indirect
-=======
->>>>>>> main
 	github.com/mgechev/revive v1.3.7 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
@@ -403,11 +382,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.4.7 // indirect
-<<<<<<< HEAD
-	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
-	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
-=======
->>>>>>> main
 	mvdan.cc/unparam v0.0.0-20240104100049-c549a3470d14 // indirect
 	sigs.k8s.io/kind v0.20.0 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect

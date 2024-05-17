@@ -10,6 +10,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/uri"
+	resty "github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 )
@@ -693,14 +694,17 @@ var (
 	ollamaModelPath        = fmt.Sprintf(ollamaModelPathPattern, fmt.Sprintf("{%s}", modelNameParamName), fmt.Sprintf("{%s}", tagNameParamName))
 )
 
-func (s *AuthHTTPStore) ValidateOllamaModel(model string, tag string) (bool, error) {
-	// TODO: building a resty client here because we use this endpoint once. Should there be an OllamaHTTPClient as a part of the AuthHTTPStore or NoAuthHTTPStore?
-	// create a resty client
-	res, err := s.ollamaHTTPClient.restyClient.R().
+func ValidateOllamaModel(model string, tag string) (bool, error) {
+	restyClient := resty.New().SetBaseURL(config.NewConstants().GetOllamaAPIURL())
+	if tag == "" {
+		tag = "latest"
+	}
+	res, err := restyClient.R().
 		SetHeader("Accept", "application/vnd.docker.distribution.manifest.v2+json").
 		SetPathParam(modelNameParamName, model).
 		SetPathParam(tagNameParamName, tag).
 		Get(ollamaModelPath)
+
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}

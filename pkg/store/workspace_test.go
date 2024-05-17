@@ -422,3 +422,32 @@ func TestDeleteWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dup
 		return
 	}
 }
+
+func TestValidateOllamaModel(t *testing.T) {
+	type args struct {
+		model string
+		tag   string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    bool
+		wantErr bool
+	}{
+		{"empty", args{"", ""}, false, false},
+		{"llama3", args{"llama3", ""}, true, false},
+		{"llama3:80b", args{"llama3", "80b"}, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ValidateOllamaModel(tt.args.model, tt.args.tag)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateOllamaModel() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("ValidateOllamaModel() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

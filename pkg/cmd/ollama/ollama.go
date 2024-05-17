@@ -39,10 +39,9 @@ type OllamaStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	BuildVerbContainer(workspaceID string, verbYaml string) (*store.BuildVerbRes, error)
 	ModifyPublicity(workspace *entity.Workspace, applicationName string, publicity bool) (*entity.Tunnel, error)
-	ValidateOllamaModel(model string, tag string) (bool, error)
 }
 
-func validateModelType(input string, ollamaStore OllamaStore) (bool, error) {
+func validateModelType(input string) (bool, error) {
 	var model string
 	var tag string
 
@@ -57,7 +56,7 @@ func validateModelType(input string, ollamaStore OllamaStore) (bool, error) {
 	default:
 		return false, fmt.Errorf("invalid model type: %s", input)
 	}
-	valid, err := ollamaStore.ValidateOllamaModel(model, tag)
+	valid, err := store.ValidateOllamaModel(model, tag)
 	if err != nil {
 		return false, fmt.Errorf("error validating model: %s", err)
 	}
@@ -81,7 +80,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				return fmt.Errorf("model type must be specified")
 			}
 
-			isValid, valErr := validateModelType(model, ollamaStore)
+			isValid, valErr := validateModelType(model)
 			if valErr != nil {
 				return valErr
 			}
