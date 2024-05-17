@@ -342,11 +342,7 @@ type Tunnel struct {
 	TunnelStatus    string          `json:"tunnelStatus"`
 }
 
-<<<<<<< HEAD
-// TODO Change this to Application. Theres an older application struct that should be removed
-=======
 // CFApplication TODO Change this to Application. Theres an older application struct that should be removed
->>>>>>> main
 type CFApplication struct {
 	CloudflareApplicationID  string `json:"cloudflareApplicationID"`
 	CloudflareDNSRecordID    string `json:"cloudflareDnsRecordID"`

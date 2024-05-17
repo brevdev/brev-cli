@@ -4,6 +4,7 @@ package ollama
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,7 +26,6 @@ var (
 	ollamaExample = `
   brev ollama --model llama3
 	`
-	modelTypes = []string{"llama3"}
 )
 
 //go:embed ollamaverb.yaml
@@ -39,18 +39,32 @@ type OllamaStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	BuildVerbContainer(workspaceID string, verbYaml string) (*store.BuildVerbRes, error)
 	ModifyPublicity(workspace *entity.Workspace, applicationName string, publicity bool) (*entity.Tunnel, error)
+	ValidateOllamaModel(model string, tag string) (bool, error)
 }
 
-func validateModelType(modelType string) bool {
-	for _, v := range modelTypes {
-		if modelType == v {
-			return true
-		}
+func validateModelType(input string, ollamaStore OllamaStore) (bool, error) {
+	var model string
+	var tag string
+
+	split := strings.Split(input, ":")
+	if len(split) > 2 {
+		return false, fmt.Errorf("invalid model type: %s", input)
+	} else if len(split) == 2 {
+		model = strings.Split(input, ":")[0]
+		tag = strings.Split(input, ":")[1]
+	} else {
+		model = input
+		tag = "latest"
 	}
-	return false
+	// use the validateollamamodel function to check if the model is valid
+	valid, err := ollamaStore.ValidateOllamaModel(model, tag)
+	if err != nil {
+		return false, fmt.Errorf("error validating model: %s", err)
+	}
+	return valid, nil
 }
 
-func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
+func oNewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
 	var model string
 
 	cmd := &cobra.Command{
@@ -67,7 +81,10 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				return fmt.Errorf("model type must be specified")
 			}
 
-			isValid := validateModelType(model)
+			isValid, valErr := validateModelType(model, ollamaStore)
+			if valErr != nil {
+				return valErr
+			}
 			if !isValid {
 				return fmt.Errorf("invalid model type: %s", model)
 			}
