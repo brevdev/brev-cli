@@ -217,3 +217,25 @@ func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
 		return false
 	}
 }
+
+type OllamaHTTPClient struct {
+	restyClient *resty.Client
+}
+
+type OllamaHTTPStore struct {
+	ollamaHTTPClient *OllamaHTTPClient
+}
+
+func NewOllamaHTTPClient(ollamaAPIURL string) *OllamaHTTPClient {
+	restyClient := resty.New().SetBaseURL(ollamaAPIURL)
+
+	return &OllamaHTTPClient{
+		restyClient: restyClient,
+	}
+}
+
+func WithOllamaHTTPClient(ollamaHTTPClient *OllamaHTTPClient) *OllamaHTTPStore {
+	return &OllamaHTTPStore{
+		ollamaHTTPClient: ollamaHTTPClient,
+	}
+}

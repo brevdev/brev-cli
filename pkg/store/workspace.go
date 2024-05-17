@@ -647,3 +647,72 @@ func (s AuthHTTPStore) ModifyPublicity(workspace *entity.Workspace, applicationN
 	}
 	return &result, nil
 }
+
+type OllamaRegistrySuccessResponse struct {
+	SchemaVersion int           `json:"schemaVersion"`
+	MediaType     string        `json:"mediaType"`
+	Config        OllamaConfig  `json:"config"`
+	Layers        []OllamaLayer `json:"layers"`
+}
+
+type OllamaConfig struct {
+	MediaType string `json:"mediaType"`
+	Size      int    `json:"size"`
+	Digest    string `json:"digest"`
+}
+
+type OllamaLayer struct {
+	MediaType string `json:"mediaType"`
+	Size      int    `json:"size"`
+	Digest    string `json:"digest"`
+}
+
+type OllamaRegistryFailureResponse struct {
+	Errors []OllamaRegistryError `json:"errors"`
+}
+
+type OllamaRegistryError struct {
+	Code    string                    `json:"code"`
+	Message string                    `json:"message"`
+	Detail  OllamaRegistryErrorDetail `json:"detail"`
+}
+
+type OllamaRegistryErrorDetail struct {
+	Tag string `json:"Tag"`
+}
+
+type OllamaModelRequest struct {
+	Model string
+	Tag   string
+}
+
+var (
+	modelNameParamName     = "modelName"
+	tagNameParamName       = "tagName"
+	ollamaModelPathPattern = "v2/library/%s/manifests/%s"
+	ollamaModelPath        = fmt.Sprintf(ollamaModelPathPattern, fmt.Sprintf("{%s}", modelNameParamName), fmt.Sprintf("{%s}", tagNameParamName))
+)
+
+func (o OllamaHTTPStore) ValidateOllamaModel(req OllamaModelRequest) (bool, error) {
+	res, err := o.ollamaHTTPClient.restyClient.R().
+		SetHeader("Accept", "application/vnd.docker.distribution.manifest.v2+json").
+		SetPathParam(modelNameParamName, req.Model).
+		SetPathParam(tagNameParamName, req.Tag).
+		Get(ollamaModelPath)
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	if res.StatusCode() == 200 {
+		if err := json.Unmarshal(res.Body(), &OllamaRegistrySuccessResponse{}); err != nil {
+			return false, breverrors.WrapAndTrace(err)
+		}
+		return true, nil
+	} else if res.StatusCode() == 404 {
+		if err := json.Unmarshal(res.Body(), &OllamaRegistryFailureResponse{}); err != nil {
+			return false, breverrors.WrapAndTrace(err)
+		}
+		return false, nil
+	} else {
+		return false, breverrors.New("invalid response from ollama registry")
+	}
+}
