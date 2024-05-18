@@ -117,7 +117,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 	return cmd
 }
 
-func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaStore) error { //nolint:funlen // todo
+func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaStore) error { //nolint:funlen, gocyclo // todo
 	_, err := ollamaStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -164,7 +164,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.New("instance did not start")
 	}
 	s.Stop()
-	hello.TypeItToMeUnskippable27(fmt.Sprintf("VM is ready!\n"))
+	hello.TypeItToMeUnskippable27("VM is ready!\n")
 	s.Start()
 
 	// TODO: look into timing of verb call
@@ -201,8 +201,8 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	s.Suffix = "(connectivity) Pulling the %s model, just a bit more! 🏄"
 
 	// shell in and run ollama pull:
-	if err := refresh.RunRefresh(ollamaStore); err != nil {
-		return breverrors.WrapAndTrace(err)
+	if refreshErr := refresh.RunRefresh(ollamaStore); refreshErr != nil {
+		return breverrors.WrapAndTrace(refreshErr)
 	}
 	// Reload workspace to get the latest status
 	w, err = ollamaStore.GetWorkspace(w.ID)
@@ -312,10 +312,16 @@ func runSSHExec(sshAlias string, args []string, fireAndForget bool) error {
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 
 	if fireAndForget {
-		return sshCmd.Start()
+		if err := sshCmd.Start(); err != nil {
+			return fmt.Errorf("error starting SSH command: %w", err)
+		}
+		return nil
 	}
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
-	return sshCmd.Run()
+	if err := sshCmd.Run(); err != nil {
+		return fmt.Errorf("error running SSH command: %w", err)
+	}
+	return nil
 }
