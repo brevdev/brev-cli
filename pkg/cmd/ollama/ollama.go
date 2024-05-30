@@ -16,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/instancetypes"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -23,8 +24,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
-
-const defaultAcceleratorInstanceType = "l40s-48gb.1x"
 
 var (
 	ollamaLong    = "Start an Ollama server with specified model types"
@@ -71,6 +70,7 @@ func validateModelType(input string) (bool, error) {
 
 func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
 	var model string
+	var gpu string
 
 	cmd := &cobra.Command{
 		Use:                   "ollama",
@@ -93,10 +93,20 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 			if !isValid {
 				return fmt.Errorf("invalid model type: %s", model)
 			}
+			if gpu != "" {
+				isValid := instancetypes.ValidateInstanceType(gpu)
+				if !isValid {
+					err := fmt.Errorf("invalid GPU instance type: %s, see https://brev.dev/docs/reference/gpu for a list of valid GPU instance types", gpu)
+					return breverrors.WrapAndTrace(err)
+				}
+			}
 
 			// Start the network call in a goroutine
 			res := collections.Async(func() (any, error) {
-				err := runOllamaWorkspace(t, model, ollamaStore)
+				err := runOllamaWorkspace(t, RunOptions{
+					Model:   model,
+					GPUType: gpu,
+				}, ollamaStore)
 				if err != nil {
 					return nil, breverrors.WrapAndTrace(err)
 				}
@@ -116,10 +126,16 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 		},
 	}
 	cmd.Flags().StringVarP(&model, "model", "m", "", "AI/ML model type (e.g., llama2, llama3, mistral7b)")
+	cmd.Flags().StringVarP(&gpu, "gpu", "g", "g5.xlarge", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
 	return cmd
 }
 
-func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaStore) error { //nolint:funlen, gocyclo // todo
+type RunOptions struct {
+	Model   string
+	GPUType string
+}
+
+func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore OllamaStore) error { //nolint:funlen, gocyclo // todo
 	_, err := ollamaStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -130,14 +146,13 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Placeholder for instance type, to be updated later
-	instanceType := defaultAcceleratorInstanceType
+	instanceType := opts.GPUType
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	uuid := uuid.New().String()
 	instanceName := fmt.Sprintf("ollama-%s", uuid)
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName).WithInstanceType(instanceType)
 
-	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(model), t.Green(org.ID)))
+	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(opts.Model), t.Green(org.ID)))
 
 	s := t.NewSpinner()
 
@@ -225,17 +240,17 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	s.Suffix = "Pulling the %s model, just a bit more! 🏄"
 
 	// shell in and run ollama pull:
-	if err := runSSHExec(instanceName, []string{"ollama", "pull", model}, false); err != nil {
+	if err := runSSHExec(instanceName, []string{"ollama", "pull", opts.Model}, false); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if err := runSSHExec(instanceName, []string{"ollama", "run", model, "hello world"}, true); err != nil {
+	if err := runSSHExec(instanceName, []string{"ollama", "run", opts.Model, "hello world"}, true); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	s.Stop()
 
 	fmt.Print("\n")
 	t.Vprint(t.Green("Ollama is ready to go!\n"))
-	displayOllamaConnectBreadCrumb(t, link, model)
+	displayOllamaConnectBreadCrumb(t, link, opts.Model)
 	return nil
 }
 
