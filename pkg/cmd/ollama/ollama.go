@@ -24,6 +24,8 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+const defaultAcceleratorInstanceType = "l40s-48gb.1x"
+
 var (
 	ollamaLong    = "Start an Ollama server with specified model types"
 	ollamaExample = `
@@ -129,7 +131,7 @@ func runOllamaWorkspace(t *terminal.Terminal, model string, ollamaStore OllamaSt
 	}
 
 	// Placeholder for instance type, to be updated later
-	instanceType := "g4dn.xlarge"
+	instanceType := defaultAcceleratorInstanceType
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	uuid := uuid.New().String()
 	instanceName := fmt.Sprintf("ollama-%s", uuid)
