@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/instancetypes"
 	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -29,11 +30,6 @@ var (
   brev start <git url>
   brev start <git url> --org myFancyOrg
 	`
-	instanceTypes = []string{
-		"p4d.24xlarge", "p3.2xlarge", "p3.8xlarge", "p3.16xlarge", "p3dn.24xlarge", "p2.xlarge", "p2.8xlarge", "p2.16xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge", "g5.16xlarge", "g5.12xlarge", "g5.24xlarge", "g5.48xlarge", "g5g.xlarge", "g5g.2xlarge", "g5g.4xlarge", "g5g.8xlarge", "g5g.16xlarge", "g5g.metal", "g4dn.xlarge", "g4dn.2xlarge", "g4dn.4xlarge", "g4dn.8xlarge", "g4dn.16xlarge", "g4dn.12xlarge", "g4dn.metal", "g4ad.xlarge", "g4ad.2xlarge", "g4ad.4xlarge", "g4ad.8xlarge", "g4ad.16xlarge", "g3s.xlarge", "g3.4xlarge", "g3.8xlarge", "g3.16xlarge",
-		"g5g.xlarge", "g5g.2xlarge", "g5g.4xlarge", "g5g.8xlarge", "g5g.16xlarge", "g5g.metal", "g4dn.xlarge", "g4dn.2xlarge", "g4dn.4xlarge", "g4dn.8xlarge", "g4dn.16xlarge", "g4dn.12xlarge", "g4dn.metal",
-		"n1-standard-1:nvidia-tesla-t4:1", "n1-highcpu-2:nvidia-tesla-t4:1", "n1-standard-2:nvidia-tesla-t4:1", "n1-highmem-2:nvidia-tesla-t4:1", "n1-highcpu-4:nvidia-tesla-t4:1", "n1-standard-4:nvidia-tesla-t4:1", "n1-highmem-4:nvidia-tesla-t4:1", "n1-highcpu-8:nvidia-tesla-t4:1", "n1-standard-1:nvidia-tesla-t4:2", "n1-highcpu-2:nvidia-tesla-t4:2", "n1-standard-8:nvidia-tesla-t4:1", "n1-standard-2:nvidia-tesla-t4:2", "n1-highmem-2:nvidia-tesla-t4:2", "n1-highcpu-4:nvidia-tesla-t4:2", "n1-highmem-8:nvidia-tesla-t4:1", "n1-standard-4:nvidia-tesla-t4:2", "n1-highmem-4:nvidia-tesla-t4:2", "n1-highcpu-16:nvidia-tesla-t4:1", "n1-highcpu-8:nvidia-tesla-t4:2", "n1-standard-8:nvidia-tesla-t4:2", "n1-standard-16:nvidia-tesla-t4:1", "n1-highmem-8:nvidia-tesla-t4:2", "n1-highcpu-16:nvidia-tesla-t4:2", "n1-standard-1:nvidia-tesla-t4:4", "n1-highcpu-2:nvidia-tesla-t4:4", "n1-highmem-16:nvidia-tesla-t4:1", "n1-standard-2:nvidia-tesla-t4:4", "n1-highmem-2:nvidia-tesla-t4:4", "n1-highcpu-4:nvidia-tesla-t4:4", "n1-standard-16:nvidia-tesla-t4:2", "n1-standard-4:nvidia-tesla-t4:4", "n1-highmem-4:nvidia-tesla-t4:4", "n1-highcpu-32:nvidia-tesla-t4:1", "n1-highcpu-8:nvidia-tesla-t4:4", "n1-highmem-16:nvidia-tesla-t4:2", "n1-standard-8:nvidia-tesla-t4:4", "n1-highmem-8:nvidia-tesla-t4:4", "n1-highcpu-32:nvidia-tesla-t4:2", "n1-highcpu-16:nvidia-tesla-t4:4", "n1-standard-32:nvidia-tesla-t4:1", "n1-standard-16:nvidia-tesla-t4:4", "n1-standard-32:nvidia-tesla-t4:2", "n1-highmem-16:nvidia-tesla-t4:4", "n1-highmem-32:nvidia-tesla-t4:1", "n1-highcpu-32:nvidia-tesla-t4:4", "n1-highmem-32:nvidia-tesla-t4:2", "n1-highcpu-64:nvidia-tesla-t4:1", "n1-standard-32:nvidia-tesla-t4:4", "n1-highcpu-64:nvidia-tesla-t4:2", "n1-highmem-32:nvidia-tesla-t4:4", "n1-standard-64:nvidia-tesla-t4:1", "n1-highcpu-64:nvidia-tesla-t4:4", "n1-standard-64:nvidia-tesla-t4:2", "n1-highcpu-96:nvidia-tesla-t4:1", "n1-highcpu-96:nvidia-tesla-t4:2", "n1-highmem-64:nvidia-tesla-t4:1", "n1-standard-64:nvidia-tesla-t4:4", "n1-highmem-64:nvidia-tesla-t4:2", "n1-highcpu-96:nvidia-tesla-t4:4", "n1-standard-96:nvidia-tesla-t4:1", "n1-highmem-64:nvidia-tesla-t4:4", "n1-standard-96:nvidia-tesla-t4:2", "n1-ultramem-40:nvidia-tesla-t4:1", "n1-standard-96:nvidia-tesla-t4:4", "n1-ultramem-40:nvidia-tesla-t4:2", "n1-highmem-96:nvidia-tesla-t4:1", "n1-highmem-96:nvidia-tesla-t4:2", "n1-ultramem-40:nvidia-tesla-t4:4", "n1-highmem-96:nvidia-tesla-t4:4", "n1-megamem-96:nvidia-tesla-t4:1", "n1-megamem-96:nvidia-tesla-t4:2", "n1-megamem-96:nvidia-tesla-t4:4", "n1-ultramem-80:nvidia-tesla-t4:1", "n1-ultramem-80:nvidia-tesla-t4:2", "n1-ultramem-80:nvidia-tesla-t4:4", "n1-ultramem-160:nvidia-tesla-t4:1", "n1-ultramem-160:nvidia-tesla-t4:2", "n1-ultramem-160:nvidia-tesla-t4:4",
-	}
 )
 
 type StartStore interface {
@@ -47,15 +43,6 @@ type StartStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetSetupScriptContentsByURL(url string) (string, error)
 	GetFileAsString(path string) (string, error)
-}
-
-func validateInstanceType(instanceType string) bool {
-	for _, v := range instanceTypes {
-		if instanceType == v {
-			return true
-		}
-	}
-	return false
 }
 
 func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore StartStore) *cobra.Command {
@@ -84,9 +71,9 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 			}
 
 			if gpu != "" {
-				isValid := validateInstanceType(gpu)
+				isValid := instancetypes.ValidateInstanceType(gpu)
 				if !isValid {
-					err := fmt.Errorf("invalid GPU instance type: %s", gpu)
+					err := fmt.Errorf("invalid GPU instance type: %s, see https://brev.dev/docs/reference/gpu for a list of valid GPU instance types", gpu)
 					return breverrors.WrapAndTrace(err)
 				}
 			}
