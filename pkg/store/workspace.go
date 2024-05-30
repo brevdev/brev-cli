@@ -704,7 +704,6 @@ func ValidateOllamaModel(model string, tag string) (bool, error) {
 		SetPathParam(modelNameParamName, model).
 		SetPathParam(tagNameParamName, tag).
 		Get(ollamaModelPath)
-
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
