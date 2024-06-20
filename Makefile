@@ -23,6 +23,21 @@ dev: clean install-tools generate vet fmt lint test mod-tidy
 ci: ## CI build
 ci: dev diff
 
+.PHONY: install
+install: dep-tools dep-python-tools ## go install tools
+
+
+.PHONY: dep-tools
+dep-tools: ## go install tools
+	$(call print-target)
+	cd tools && go install $(shell cd tools && go list -e -f '{{ join .Imports " " }}' -tags=tools) && cd -
+
+.PHONY: dep-python-tools
+dep-python-tools: ## install python tools
+	pip install --upgrade Pygments
+	pip install jupyter==1.0.0
+
+
 .PHONY: clean
 clean: ## remove files created during build pipeline
 	$(call print-target)
