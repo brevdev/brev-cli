@@ -707,17 +707,26 @@ func ValidateOllamaModel(model string, tag string) (bool, error) {
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	if res.StatusCode() == 200 { //nolint:gocritic // 200 is a valid status code
-		if err := json.Unmarshal(res.Body(), &OllamaRegistrySuccessResponse{}); err != nil {
-			return false, breverrors.WrapAndTrace(err)
+
+	if len(res.Body()) > 0 && res.Body()[0] == '{' {
+		if res.StatusCode() == 200 {
+			var successResponse OllamaRegistrySuccessResponse
+			if err := json.Unmarshal(res.Body(), &successResponse); err != nil {
+				return false, fmt.Errorf("error parsing success response: %w", err)
+			}
+			return true, nil
+		} else {
+			var failureResponse OllamaRegistryFailureResponse
+			if err := json.Unmarshal(res.Body(), &failureResponse); err != nil {
+				return false, fmt.Errorf("error parsing failure response: %w", err)
+			}
+			return false, nil
 		}
-		return true, nil
-	} else if res.StatusCode() == 404 {
-		if err := json.Unmarshal(res.Body(), &OllamaRegistryFailureResponse{}); err != nil {
-			return false, breverrors.WrapAndTrace(err)
-		}
-		return false, nil
-	} else {
-		return false, breverrors.New("invalid response from ollama registry")
 	}
+
+	// check if json or plain text
+	if res.StatusCode() == 404 {
+		return false, nil
+	}
+	return false, breverrors.New("invalid response from ollama registry")
 }
