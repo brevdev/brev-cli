@@ -72,7 +72,9 @@ fmtcheck: ## go fmt --check
 .PHONY: lint
 lint: ## golangci-lint
 	$(call print-target)
-	golangci-lint run --timeout 5m
+	golangci-lint run --timeout 10m0s
+	workflowcheck -show-pos ./...
+	buf lint
 
 .PHONY: test
 test: ## go test with race detector and code covarage
