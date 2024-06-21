@@ -12,7 +12,7 @@ import (
 func runCMDonEnv(privateKey, host, cmd string) error {
 	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "unable to parse private key")
+		return breverrors.Wrap(err, "unable to parse private key")
 	}
 	config := &ssh.ClientConfig{
 		User: "ubuntu",
@@ -30,16 +30,16 @@ func runCMDonEnv(privateKey, host, cmd string) error {
 	// Connect to the remote server and perform the SSH handshake.
 	client, err := ssh.Dial("tcp", host+":22", config)
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "unable to connect")
+		return breverrors.Wrap(err, "unable to connect")
 	}
 	session, err := client.NewSession()
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "unable to create session: %v")
+		return breverrors.Wrap(err, "unable to create session: %v")
 	}
 	defer session.Close() //nolint:errcheck // defer
 	out, err := session.CombinedOutput(cmd)
 	if err != nil {
-		return breverrors.WrapAndTrace(err, "unable to run: %v \n %v", cmd, string(out))
+		return breverrors.Wrap(err, "unable to run: %v \n %v"+cmd+string(out))
 	}
 	err = client.Close()
 	if err != nil {

@@ -45,7 +45,7 @@ func NewCmdSetupWorkspace(store SetupWorkspaceStore) *cobra.Command {
 				if err != nil {
 					fmt.Println(err)
 					if !params.DisableSetup {
-						breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err, "setup continued"))
+						breverrors.GetDefaultErrorReporter().ReportError(breverrors.Wrap(err, "setup continued"))
 					}
 				}
 			}

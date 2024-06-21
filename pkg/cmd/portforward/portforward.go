@@ -114,7 +114,7 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 	fmt.Printf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
 	out, err := cmdSHH.CombinedOutput()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, string(out))
+		return nil, breverrors.Wrap(err, string(out))
 	}
 
 	return cmdSHH.Process, nil

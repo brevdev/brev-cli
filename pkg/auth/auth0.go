@@ -117,7 +117,7 @@ func (a Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, code s
 func (a *Authenticator) Start(ctx context.Context) (State, error) {
 	s, err := a.getDeviceCode(ctx)
 	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, "cannot get device code")
+		return State{}, breverrors.WrapAndTrace(breverrors.Errorf("cannot get device code %w", err))
 	}
 	return s, nil
 }
@@ -153,7 +153,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			}
 			r, err := postFormWithContext(ctx, a.OauthTokenEndpoint, data)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
+				return Result{}, breverrors.WrapAndTrace(breverrors.Errorf("%w %w", err, breverrors.NetworkErrorMessage))
 			}
 			err = ErrorIfBadHTTP(r, http.StatusForbidden)
 			if err != nil {
@@ -173,7 +173,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 
 			err = json.NewDecoder(r.Body).Decode(&res)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot decode response")
+				return Result{}, breverrors.Wrap(err, "cannot decode response")
 			}
 
 			if res.Error != nil {
@@ -185,7 +185,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 
 			ten, domain, err := parseTenant(res.AccessToken)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
+				return Result{}, breverrors.Wrap(err, "cannot parse tenant from the given access token")
 			}
 
 			if err = r.Body.Close(); err != nil {
@@ -211,7 +211,7 @@ func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
 	}
 	r, err := postFormWithContext(ctx, a.DeviceCodeEndpoint, data)
 	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
+		return State{}, breverrors.Wrap(err, breverrors.NetworkErrorMessage)
 	}
 	err = ErrorIfBadHTTP(r)
 	if err != nil {
@@ -221,7 +221,7 @@ func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
 	var res State
 	err = json.NewDecoder(r.Body).Decode(&res)
 	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err, "cannot decode response")
+		return State{}, breverrors.Wrap(err, "cannot decode response")
 	}
 	// TODO 9 if status code > 399 handle errors
 	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
@@ -274,7 +274,7 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 
 	r, err := postFormWithContext(context.TODO(), a.OauthTokenEndpoint, payload)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, breverrors.NetworkErrorMessage)
+		return nil, breverrors.Wrap(err, breverrors.NetworkErrorMessage)
 	}
 	err = ErrorIfBadHTTP(r, http.StatusForbidden)
 	if err != nil {
@@ -305,12 +305,12 @@ func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity
 
 	err = json.NewDecoder(r.Body).Decode(&authTokens)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, "cannot decode response")
+		return nil, breverrors.Wrap(err, "cannot decode response")
 	}
 
 	_, _, err = parseTenant(authTokens.AccessToken)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, "cannot parse tenant from the given access token")
+		return nil, breverrors.Wrap(err, "cannot parse tenant from the given access token")
 	}
 
 	if err = r.Body.Close(); err != nil {

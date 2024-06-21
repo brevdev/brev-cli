@@ -73,7 +73,7 @@ func runcmd(c string, args ...string) error {
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {
-		return breverrors.WrapAndTrace(err, string(so.savedOutput))
+		return breverrors.Wrap(err, string(so.savedOutput))
 	}
 
 	return nil

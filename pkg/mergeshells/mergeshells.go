@@ -617,12 +617,12 @@ func CatFile(filePath string) (string, error) {
 	gocmd := exec.Command("cat", filePath) // #nosec G204
 	in, err := gocmd.Output()
 	if err != nil {
-		return "", breverrors.WrapAndTrace(err, "error reading file "+filePath)
+		return "", breverrors.Wrap(err, "error reading file "+filePath)
 	} else {
 		d := charmap.CodePage850.NewDecoder()
 		out, err := d.Bytes(in)
 		if err != nil {
-			return "", breverrors.WrapAndTrace(err, "error reading file "+filePath)
+			return "", breverrors.Wrap(err, "error reading file "+filePath)
 		}
 		return string(out), nil
 	}

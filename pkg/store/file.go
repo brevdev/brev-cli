@@ -148,12 +148,12 @@ func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) 
 	gocmd := exec.Command("cat", filePath) // #nosec G204
 	in, err := gocmd.Output()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err, "error reading go.mod")
+		return nil, breverrors.Wrap(err, "error reading go.mod")
 	} else {
 		d := charmap.CodePage850.NewDecoder()
 		out, err := d.Bytes(in)
 		if err != nil {
-			return nil, breverrors.WrapAndTrace(err, "error reading go.mod")
+			return nil, breverrors.Wrap(err, "error reading go.mod")
 		} else if len(string(out)) > 0 {
 			for _, v := range strings.Split(string(out), "\n") {
 				if strings.HasPrefix(v, "go ") {

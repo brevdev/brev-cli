@@ -68,13 +68,13 @@ func (s SSHAll) workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (b
 	}
 	key, err := ioutil.ReadFile(privateKeyPath) //nolint:gosec // not including file via variable
 	if err != nil {
-		return false, breverrors.WrapAndTrace(err, "unable to read private key: %v")
+		return false, breverrors.Wrap(err, "unable to read private key: %v")
 	}
 
 	// Create the Signer for this private key.
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		return false, breverrors.WrapAndTrace(err, "unable to parse private key: %v")
+		return false, breverrors.Wrap(err, "unable to parse private key: %v")
 	}
 
 	config := &ssh.ClientConfig{
@@ -89,7 +89,7 @@ func (s SSHAll) workspaceSSHConnectionHealthCheck(w entity.WorkspaceWithMeta) (b
 	// Connect to the remote server and perform the SSH handshake.
 	client, err := ssh.Dial("tcp", w.DNS, config)
 	if err != nil {
-		return false, breverrors.WrapAndTrace(err, "unable to connect: %v")
+		return false, breverrors.Wrap(err, "unable to connect: %v")
 	}
 	err = client.Close()
 	if err != nil {

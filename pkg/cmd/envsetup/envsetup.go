@@ -162,7 +162,7 @@ func RunEnvSetup(
 		if err != nil {
 			fmt.Println(err)
 			if !params.DisableSetup {
-				breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err, "setup continued"))
+				breverrors.GetDefaultErrorReporter().ReportError(breverrors.Wrap(err, "setup continued"))
 			}
 		}
 	}
@@ -276,7 +276,7 @@ func (e envInitier) Setup() error { //nolint:funlen,gocyclo // TODO
 	out, err := setupworkspace.RunCMDWithOutput("apt-get", "-y", "remove", "unattended-upgrades")
 	if err != nil {
 		setupErr = multierror.Append(setupErr,
-			breverrors.WrapAndTrace(err, "apt-get -y remove unattended-upgrades", out))
+			breverrors.Wrap(err, "apt-get -y remove unattended-upgrades"+out))
 	}
 
 	cmd := setupworkspace.CmdStringBuilder("echo user: $(whoami) && echo pwd: $(pwd)")

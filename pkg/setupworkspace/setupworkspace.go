@@ -402,7 +402,7 @@ func (w WorkspaceIniter) SetupRepos() error {
 		err := w.setupRepoV1(r)
 		if err != nil {
 			fmt.Printf("setup failed %s\n", n)
-			setupErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("setup failed %s", n)))
+			setupErr = multierror.Append(breverrors.Wrap(err, fmt.Sprintf("setup failed %s", n)))
 		} else {
 			fmt.Printf("setup success %s\n", n)
 		}
@@ -412,7 +412,7 @@ func (w WorkspaceIniter) SetupRepos() error {
 		err := w.setupRepoV0(r)
 		if err != nil {
 			fmt.Printf("setup failed %s\n", n)
-			setupErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("setup failed %s", n)))
+			setupErr = multierror.Append(breverrors.Wrap(err, fmt.Sprintf("setup failed %s", n)))
 		} else {
 			fmt.Printf("setup success %s\n", n)
 		}
@@ -434,7 +434,7 @@ func (w WorkspaceIniter) RunExecs() error {
 		err := w.runExecV0(n, e)
 		if err != nil {
 			fmt.Printf("exec failed %s\n", n)
-			execErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("exec failed %s", n)))
+			execErr = multierror.Append(breverrors.Wrap(err, fmt.Sprintf("exec failed %s", n)))
 		} else {
 			fmt.Printf("exec success %s\n", n)
 		}
@@ -444,7 +444,7 @@ func (w WorkspaceIniter) RunExecs() error {
 		err := w.runExecV1(n, e)
 		if err != nil {
 			fmt.Printf("exec failed %s\n", n)
-			execErr = multierror.Append(breverrors.WrapAndTrace(err, fmt.Sprintf("exec failed %s", n)))
+			execErr = multierror.Append(breverrors.Wrap(err, fmt.Sprintf("exec failed %s", n)))
 		} else {
 			fmt.Printf("exec success %s\n", n)
 		}
