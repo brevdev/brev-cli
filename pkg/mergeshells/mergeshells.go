@@ -68,9 +68,9 @@ func GetDependencies(path string) []string {
 	}
 
 	for dep, fs := range supportedDependencyMap {
-		versions := collections.Filter(func(x *string) bool {
+		versions := collections.Filter(collections.Fanout(fs, path), func(x *string) bool {
 			return x != nil
-		}, collections.Fanout(fs, path))
+		})
 		if len(versions) > 0 {
 			version := versions[0]
 			if len(*version) > 0 {
@@ -173,7 +173,7 @@ func transformGoVersion(version string) string {
 		// and fetch the first version that matches the prefix version you are looking for
 		// as it is rendered on the go page in reverse chronological order
 		// of nearest release to farthest for each version
-		matchingVersion := collections.First(collections.Filter(prefixFn, versions))
+		matchingVersion := collections.First(collections.Filter(versions, prefixFn))
 		if matchingVersion == nil {
 			fmt.Println(strings.Join([]string{"No stable version found for", version}, " "))
 			// no stable version found so return the original version
@@ -406,18 +406,18 @@ func prependDependencies(shName string, baselineDependencies map[string]ShellFra
 	// 	}
 	// 	return false
 	// }, dependencies)
-	nonBaselineDependencies := collections.Filter(func(dep string) bool {
+	nonBaselineDependencies := collections.Filter(dependencies, func(dep string) bool {
 		if _, ok := baselineDependencies[dep]; ok {
 			return false
 		}
 		return true
-	}, dependencies)
-	canBeFixedDependencies := collections.Filter(func(dep string) bool {
+	})
+	canBeFixedDependencies := collections.Filter(nonBaselineDependencies, func(dep string) bool {
 		if _, ok := globalDependencies[dep]; ok {
 			return true
 		}
 		return false
-	}, nonBaselineDependencies)
+	})
 	cantBeFixedDependencies := collections.Difference(nonBaselineDependencies, canBeFixedDependencies)
 
 	addedBaselineDependencies := collections.Foldl(

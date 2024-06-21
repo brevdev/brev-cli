@@ -25,7 +25,7 @@ func (w WorkspaceManager) Start(workspaceID string) error {
 	// get a list of workspaces that have been run previously
 	// if the workspaceID matches any of them, then run the (first, last, most recently run?) version
 	previouslyRunWorkspaces := fetchPreviouslyRunWorkspaces()
-	matchingWorkspaces := collections.Filter(collections.P2(nameMatches, workspaceID), previouslyRunWorkspaces)
+	matchingWorkspaces := collections.Filter(previouslyRunWorkspaces, collections.P2(nameMatches, workspaceID))
 	// it should either find a pre-existing container with this name
 	if len(matchingWorkspaces) > 0 {
 		// and start it if it is currently stopped
@@ -74,7 +74,7 @@ func (w WorkspaceManager) Start(workspaceID string) error {
 
 func (w WorkspaceManager) Stop(workspaceID string) error {
 	runningWorkspaces := fetchRunningWorkspaces()
-	matchingWorkspaces := collections.Filter(collections.P2(nameMatches, workspaceID), runningWorkspaces)
+	matchingWorkspaces := collections.Filter(runningWorkspaces, collections.P2(nameMatches, workspaceID))
 	if len(matchingWorkspaces) > 0 {
 		workspaceToStop := collections.First(collections.SortBy(workspacePriorityFunc, matchingWorkspaces))
 		return stopLocalWorkspace(*workspaceToStop)

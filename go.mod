@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.13.18
 	github.com/brevdev/parse v0.0.11
 	github.com/briandowns/spinner v1.16.0
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/docker/docker v20.10.23+incompatible
 	github.com/fatih/color v1.13.0
 	github.com/getsentry/sentry-go v0.14.0
@@ -29,7 +30,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.4.0
 	github.com/jarcoal/httpmock v1.0.8
-	github.com/jinzhu/copier v0.3.5
+	github.com/jinzhu/copier v0.4.0
 	github.com/kevinburke/ssh_config v1.2.0
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/mapstructure v1.5.0
@@ -166,7 +167,7 @@ require (
 	golang.org/x/term v0.2.0 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
