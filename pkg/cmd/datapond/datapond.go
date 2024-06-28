@@ -61,7 +61,7 @@ func setupContinuousSync() error {
 	// check if service is already running
 	if !isServiceRunning() {
 		fmt.Println("Datapond service is not running, starting...")
-		if err := setupService(); err != nil {
+		if err := setupService(datapondConfig); err != nil {
 			return fmt.Errorf("failed to setup service: %w", err)
 		}
 	}
@@ -119,11 +119,11 @@ func syncOnce(targetDir string) error {
 	return nil
 }
 
-func setupService() error {
+func setupService(config *DatapondConfig) error {
 	if isSystemdAvailable() {
-		return setupSystemd()
+		return setupSystemd(config)
 	} else if isSupervisordAvailable() {
-		return setupSupervisord()
+		return setupSupervisord(config)
 	}
 	return fmt.Errorf("neither systemd nor supervisord is available")
 }
@@ -134,7 +134,7 @@ func isSystemdAvailable() bool {
 	return err == nil
 }
 
-func setupSystemd() error {
+func setupSystemd(config *DatapondConfig) error {
 	unitContent := `[Unit]
 Description=datapond continuous-sync
 After=network.target
@@ -146,7 +146,7 @@ User=%s
 [Install]
 WantedBy=multi-user.target
 `
-	unitContent = fmt.Sprintf(unitContent, os.Getenv("DATAPOND_DIR"), os.Getenv("USER"))
+	unitContent = fmt.Sprintf(unitContent, config.DatapondDir, config.DatapondUser)
 
 	if err := os.WriteFile("/etc/systemd/system/datapond.service", []byte(unitContent), 0o600); err != nil {
 		return fmt.Errorf("failed to write systemd unit file: %w", err)
@@ -174,7 +174,7 @@ func isSupervisordAvailable() bool {
 	return err == nil && strings.TrimSpace(string(output)) != ""
 }
 
-func setupSupervisord() error {
+func setupSupervisord(config *DatapondConfig) error {
 	confFile := "/etc/supervisor/conf.d/datapond.conf"
 	confContent := fmt.Sprintf(`[program:datapond]
 command=brev datapond --target_dir %s
@@ -182,7 +182,7 @@ autorestart=true
 user=%s
 redirect_stderr=true
 environment=HOME=%s
-`, os.Getenv("DATAPOND_DIR"), os.Getenv("USER"), os.Getenv("HOME"))
+`, config.DatapondDir, config.DatapondUser, os.Getenv("HOME"))
 
 	if err := os.WriteFile(confFile, []byte(confContent), 0o600); err != nil {
 		return fmt.Errorf("failed to write supervisord config file: %w", err)
