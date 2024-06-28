@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/create"
+	"github.com/brevdev/brev-cli/pkg/cmd/datapond"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/envsetup"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
@@ -289,6 +290,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
 	cmd.AddCommand(autostop.NewCmdautostop(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
+	cmd.AddCommand(datapond.NewCmdDatapond(t))
 }
 
 func hasQuickstartCommands(cmd *cobra.Command) bool {
