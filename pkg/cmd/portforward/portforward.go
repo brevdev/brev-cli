@@ -31,6 +31,7 @@ type PortforwardStore interface {
 
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
 	var port string
+	var useHost bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "port-forward",
@@ -44,7 +45,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if port == "" {
 				port = startInput(t)
 			}
-			err := RunPortforward(pfStore, args[0], port)
+			err := RunPortforward(pfStore, args[0], port. useHost)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -52,6 +53,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 		},
 	}
 	cmd.Flags().StringVarP(&port, "port", "p", "", "port forward flag describe me better")
+	cmd.Flags().BoolVar(&useHost, "host", false, "Use the -host version of the instance")
 	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
@@ -63,7 +65,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	return cmd
 }
 
-func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string) error {
+func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string, useHost bool) error {
 	var portSplit []string
 	if strings.Contains(portString, ":") {
 		portSplit = strings.Split(portString, ":")
@@ -76,7 +78,7 @@ func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string
 
 	res := refresh.RunRefreshAsync(pfStore)
 
-	sshName, err := ConvertNametoSSHName(pfStore, nameOrID)
+	sshName, err := ConvertNametoSSHName(pfStore, nameOrID, useHost)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -93,12 +95,15 @@ func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string
 	return nil
 }
 
-func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string) (string, error) {
+func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string, useHost bool) (string, error) {
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, workspaceNameOrID)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	sshName := string(workspace.GetLocalIdentifier())
+	if useHost {
+		sshName += "-host"
+	}
 	return sshName, nil
 }
 
