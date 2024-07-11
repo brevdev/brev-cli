@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"path/filepath"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
