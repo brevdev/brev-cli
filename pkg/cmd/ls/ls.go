@@ -310,7 +310,6 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
 			ls.terminal.Vprintf(ls.terminal.Green("Start a new instance:\n"))
-			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
 		}
 		if len(otherOrgs) > 1 {
 			ls.terminal.Vprintf(ls.terminal.Green("Switch to another org:\n"))

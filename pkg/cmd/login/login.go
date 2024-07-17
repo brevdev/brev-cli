@@ -365,7 +365,6 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 
 	if len(allWorkspaces) == 0 {
 		t.Vprintf(t.Green("create an instance:\n"))
-		t.Vprintf(t.Yellow("\tbrev start https://github.com/brevdev/hello-react\n"))
 	}
 	if len(userWorkspaces) == 0 && len(allWorkspaces) > 1 {
 		t.Vprintf(t.Green("list teammates instances:\n"))
