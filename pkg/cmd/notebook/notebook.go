@@ -31,7 +31,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 		Short:   "Open a notebook on your Brev machine",
 		Long:    notebookLong,
 		Example: notebookExample,
-		Args:    cobra.ExactArgs(1),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Channel to get the result of the network call
 			resultCh := make(chan *WorkspaceResult)
@@ -66,7 +66,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			hello.TypeItToMeUnskippable27("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 
 			// Port forward on 8888
-			err2 := portforward.RunPortforward(store, args[0], "8888:8888")
+			err2 := portforward.RunPortforward(store, args[0], "8888:8888", false)
 			if err2 != nil {
 				return breverrors.WrapAndTrace(err2)
 			}
