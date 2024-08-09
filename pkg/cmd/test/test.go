@@ -8,7 +8,9 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/util"
+
+	// "github.com/brevdev/brev-cli/pkg/util"
+	"github.com/gdamore/tcell/v2"
 
 	"github.com/spf13/cobra"
 )
@@ -46,31 +48,92 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Long:                  startLong,
 		Example:               startExample,
 		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			// fmt.Printf("NAME   ID     URL      SOMETHING ELSE")
-			// hello.TypeItToMe("\n\n\n")
-			// hello.TypeItToMe("👆 this is the name of your environment (which you can use to open the environment)")
-			// time.Sleep(1 * time.Second)
-			// fmt.Printf("\332K\r")
-			// fmt.Println("                                                                                     ")
-			// hello.TypeItToMe("              👆 you can expose your localhost to this public URL")
-			// time.Sleep(1 * time.Second)
-			// fmt.Printf("\332K\r")
-			// fmt.Printf("bye world")
-			// fmt.Printf("bye world")
-
-			// s := t.Yellow("\n\nCould you please install the following VSCode extension? %s", t.Green("ms-vscode-remote.remote-ssh"))
-			// s += "\nDo that then run " + t.Yellow("brev hello") + " to resume this walk-through\n"
-			// // s += "Here's a video of me installing the VS Code extension 👉 " + ""
-			// hello.TypeItToMe(s)
-
-			res := util.DoesPathExist("/Users/naderkhalil/brev-cli")
-			// res := util.DoesPathExist("/home/brev/workspace")
-			fmt.Println(res)
-
-			return nil
-		},
+		RunE: runChipSelector,
 	}
 
 	return cmd
+}
+
+func runChipSelector(cmd *cobra.Command, args []string) error {
+	screen, err := tcell.NewScreen()
+	if err != nil {
+		return fmt.Errorf("failed to create screen: %v", err)
+	}
+	if err := screen.Init(); err != nil {
+		return fmt.Errorf("failed to initialize screen: %v", err)
+	}
+	defer screen.Fini()
+
+	chips := []string{"A100", "H100", "L40S"}
+	selectedIndex := 0
+
+	drawChips := func() {
+		screen.Clear()
+		for i, chip := range chips {
+			x, y := (i%2)*15, (i/2)*6
+			drawChip(screen, x, y, chip, i == selectedIndex)
+		}
+		screen.Show()
+	}
+
+	for {
+		drawChips()
+
+		switch ev := screen.PollEvent().(type) {
+		case *tcell.EventKey:
+			switch ev.Key() {
+			case tcell.KeyEscape, tcell.KeyCtrlC:
+				return nil
+			case tcell.KeyEnter:
+				return fmt.Errorf("selected: %s", chips[selectedIndex])
+			case tcell.KeyUp:
+				if selectedIndex > 1 {
+					selectedIndex -= 2
+				}
+			case tcell.KeyDown:
+				if selectedIndex < len(chips)-2 {
+					selectedIndex += 2
+				}
+			case tcell.KeyLeft:
+				if selectedIndex%2 == 1 {
+					selectedIndex--
+				}
+			case tcell.KeyRight:
+				if selectedIndex%2 == 0 && selectedIndex < len(chips)-1 {
+					selectedIndex++
+				}
+			}
+		}
+	}
+}
+
+func drawChip(s tcell.Screen, x, y int, name string, selected bool) {
+	width, height := 10, 5
+	style := tcell.StyleDefault
+
+	
+	if selected {
+		style = style.Foreground(tcell.NewRGBColor(0, 255, 255)) // Cyan color in RGB
+	}
+
+
+	// Draw top and bottom borders
+	for i := 0; i < width; i++ {
+		s.SetContent(x+i, y, '-', nil, style)
+		s.SetContent(x+i, y+height-1, '-', nil, style)
+	}
+
+	// Draw side borders and fill
+	for i := 1; i < height-1; i++ {
+		s.SetContent(x, y+i, '|', nil, style)
+		s.SetContent(x+width-1, y+i, '|', nil, style)
+		for j := 1; j < width-1; j++ {
+			s.SetContent(x+j, y+i, ' ', nil, style)
+		}
+	}
+
+	// Draw chip name
+	for i, r := range name {
+		s.SetContent(x+1+(width-2-len(name))/2+i, y+height/2, r, nil, style)
+	}
 }
