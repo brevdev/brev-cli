@@ -9,7 +9,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
-	// "github.com/brevdev/brev-cli/pkg/util"
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/spf13/cobra"
@@ -47,8 +46,7 @@ func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
 		Short:                 "[internal] Test random stuff.",
 		Long:                  startLong,
 		Example:               startExample,
-		// Args:                  cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
-		RunE: runChipSelector,
+		RunE:                  runChipSelector,
 	}
 
 	return cmd
@@ -70,7 +68,8 @@ func runChipSelector(cmd *cobra.Command, args []string) error {
 	drawChips := func() {
 		screen.Clear()
 		for i, chip := range chips {
-			x, y := (i%2)*15, (i/2)*6
+			x := i * 16 // Increased spacing between chips
+			y := 3      // Fixed y position for single row
 			drawChip(screen, x, y, chip, i == selectedIndex)
 		}
 		screen.Show()
@@ -86,20 +85,12 @@ func runChipSelector(cmd *cobra.Command, args []string) error {
 				return nil
 			case tcell.KeyEnter:
 				return fmt.Errorf("selected: %s", chips[selectedIndex])
-			case tcell.KeyUp:
-				if selectedIndex > 1 {
-					selectedIndex -= 2
-				}
-			case tcell.KeyDown:
-				if selectedIndex < len(chips)-2 {
-					selectedIndex += 2
-				}
 			case tcell.KeyLeft:
-				if selectedIndex%2 == 1 {
+				if selectedIndex > 0 {
 					selectedIndex--
 				}
 			case tcell.KeyRight:
-				if selectedIndex%2 == 0 && selectedIndex < len(chips)-1 {
+				if selectedIndex < len(chips)-1 {
 					selectedIndex++
 				}
 			}
@@ -108,32 +99,36 @@ func runChipSelector(cmd *cobra.Command, args []string) error {
 }
 
 func drawChip(s tcell.Screen, x, y int, name string, selected bool) {
-	width, height := 10, 5
+	width, height := 11, 5 // Increased width by 1 to accommodate the space
 	style := tcell.StyleDefault
-
 	
 	if selected {
-		style = style.Foreground(tcell.NewRGBColor(0, 255, 255)) // Cyan color in RGB
+		style = style.Foreground(tcell.NewRGBColor(0, 255, 255)) // Brighter cyan color
+		// Draw ASCII arrow to the left of the selected chip
+		arrowStyle := tcell.StyleDefault.Foreground(tcell.NewRGBColor(255, 255, 0)) // Yellow arrow
+		s.SetContent(x, y+height/2, '>', nil, arrowStyle)
 	}
 
+	// Draw space before the chip
+	s.SetContent(x+1, y+height/2, ' ', nil, style)
 
 	// Draw top and bottom borders
-	for i := 0; i < width; i++ {
+	for i := 2; i < width; i++ {
 		s.SetContent(x+i, y, '-', nil, style)
 		s.SetContent(x+i, y+height-1, '-', nil, style)
 	}
 
 	// Draw side borders and fill
 	for i := 1; i < height-1; i++ {
-		s.SetContent(x, y+i, '|', nil, style)
+		s.SetContent(x+2, y+i, '|', nil, style)
 		s.SetContent(x+width-1, y+i, '|', nil, style)
-		for j := 1; j < width-1; j++ {
+		for j := 3; j < width-1; j++ {
 			s.SetContent(x+j, y+i, ' ', nil, style)
 		}
 	}
 
 	// Draw chip name
 	for i, r := range name {
-		s.SetContent(x+1+(width-2-len(name))/2+i, y+height/2, r, nil, style)
+		s.SetContent(x+3+(width-4-len(name))/2+i, y+height/2, r, nil, style)
 	}
 }
