@@ -3,7 +3,6 @@ package ls
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
@@ -39,7 +38,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
-		Use:         "ls",
+		Use:         "ls [orgs|organizations|workspaces|users|hosts]",
 		Aliases:     []string{"list"},
 		Short:       "List instances within active org",
 		Long:        "List instances within your active org. List all instances if no active org is set.",
@@ -90,8 +89,8 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 			return nil
 		},
-		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
-		ValidArgs: []string{"orgs", "workspaces"},
+		Args:      cmderrors.TransformToValidationError(cobra.OnlyValidArgs),
+		ValidArgs: []string{"org", "orgs", "organization", "organizations", "workspace", "workspaces", "user", "users", "host", "hosts"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunLs(t, loginLsStore, args, org, showAll)
 			if err != nil {
@@ -162,26 +161,23 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	org, err := getOrgForRunLs(lsStore, orgflag)
+	orgEntity, err := getOrgForRunLs(lsStore, orgflag)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if len(args) > 1 {
-		return breverrors.NewValidationError("too many args provided")
-	}
 
-	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, args[0], user, org, showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(org, user, showAll)
+	if len(args) == 0 {
+		// No argument provided, list workspaces by default
+		err = ls.RunWorkspaces(orgEntity, user, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		return fmt.Errorf("unhandle ls arguments")
+		// Handle the provided argument
+		err = handleLsArg(ls, args[0], user, orgEntity, showAll)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	return nil
@@ -189,33 +185,43 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 
 func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
 	// todo refactor this to cmd.register
-	//nolint:gocritic // idk how to write this as a switch
-	if util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization") { // handle org, orgs, and organization(s)
-		err := ls.RunOrgs()
-		if err != nil {
+	switch {
+	case util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "orgisation"):
+		// Handle organizations
+		if err := ls.RunOrgs(); err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		return nil
-	} else if util.IsSingularOrPlural(arg, "workspace") {
-		err := ls.RunWorkspaces(org, user, showAll)
-		if err != nil {
+	case util.IsSingularOrPlural(arg, "workspace"):
+		// Handle workspaces
+		if err := ls.RunWorkspaces(org, user, showAll); err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	} else if util.IsSingularOrPlural(arg, "user") && featureflag.IsAdmin(user.GlobalUserType) {
-		err := ls.RunUser(showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+	case util.IsSingularOrPlural(arg, "user"):
+		// Handle users, only if the user is an admin
+		if featureflag.IsAdmin(user.GlobalUserType) {
+			if err := ls.RunUser(showAll); err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		} else {
+			return breverrors.NewValidationError("user management is only available for admins")
 		}
-		return nil
-	} else if util.IsSingularOrPlural(arg, "host") && featureflag.IsAdmin(user.GlobalUserType) {
-		err := ls.RunHosts(org)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+	case util.IsSingularOrPlural(arg, "host"):
+		// Handle hosts, only if the user is an admin
+		if featureflag.IsAdmin(user.GlobalUserType) {
+			if err := ls.RunHosts(org); err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+		} else {
+			return breverrors.NewValidationError("host management is only available for admins")
 		}
-		return nil
+	default:
+		// If the argument is not recognized, return a validation error
+		return breverrors.NewValidationError("unrecognized argument")
 	}
+
 	return nil
 }
+
 
 type Ls struct {
 	lsStore  LsStore
@@ -412,7 +418,7 @@ func displayProjects(t *terminal.Terminal, orgName string, projects []virtualpro
 	if len(projects) > 0 {
 		fmt.Print("\n")
 		t.Vprintf("%d other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
-		displayProjectsTable(projects)
+		displayProjectsTable(t, projects)
 
 		fmt.Print("\n")
 		t.Vprintf(t.Green("Join a project:\n") +
@@ -438,7 +444,7 @@ func getBrevTableOptions() table.Options {
 
 func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace, userID string) {
 	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
+	ta.SetOutputMirror(t.Out())
 	ta.Style().Options = getBrevTableOptions()
 	header := table.Row{"Name", "Status", "ID", "Machine"}
 	if enableSSHCol {
@@ -471,7 +477,7 @@ func getWorkspaceDisplayStatus(w entity.Workspace) string {
 
 func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOrg *entity.Organization) {
 	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
+	ta.SetOutputMirror(t.Out())
 	ta.Style().Options = getBrevTableOptions()
 	header := table.Row{"NAME", "ID"}
 	ta.AppendHeader(header)
@@ -485,9 +491,9 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 	ta.Render()
 }
 
-func displayProjectsTable(projects []virtualproject.VirtualProject) {
+func displayProjectsTable(t *terminal.Terminal, projects []virtualproject.VirtualProject) {
 	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
+	ta.SetOutputMirror(t.Out())
 	ta.Style().Options = getBrevTableOptions()
 	header := table.Row{"NAME", "MEMBERS"}
 	ta.AppendHeader(header)

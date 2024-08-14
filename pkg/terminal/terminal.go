@@ -2,6 +2,7 @@
 package terminal
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -50,12 +51,26 @@ func New() (t *Terminal) {
 	}
 }
 
-func (t *Terminal) SetVerbose(verbose bool) {
-	if verbose {
-		t.out = os.Stdout
-	} else {
-		t.out = silentWriter{}
-	}
+// NewTestTerminal creates a new Terminal instance with buffers for testing
+func NewTestTerminal() (*Terminal, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
+	outBuffer := &bytes.Buffer{}
+	verboseBuffer := &bytes.Buffer{}
+	errBuffer := &bytes.Buffer{}
+
+	return &Terminal{
+		out:     outBuffer,
+		verbose: verboseBuffer,
+		err:     errBuffer,
+		Green:   color.New(color.FgGreen).SprintfFunc(),
+		Yellow:  color.New(color.FgYellow).SprintfFunc(),
+		Red:     color.New(color.FgRed).SprintfFunc(),
+		Blue:    color.New(color.FgBlue).SprintfFunc(),
+		White:   color.New(color.FgWhite, color.Bold).SprintfFunc(),
+	}, outBuffer, verboseBuffer, errBuffer
+}
+
+func (t *Terminal) Out() io.Writer {
+	return t.out
 }
 
 func (t *Terminal) Print(a string) {
