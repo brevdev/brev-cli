@@ -186,7 +186,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
 	// todo refactor this to cmd.register
 	switch {
-	case util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "orgisation"):
+	case util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization"):
 		// Handle organizations
 		if err := ls.RunOrgs(); err != nil {
 			return breverrors.WrapAndTrace(err)
