@@ -89,7 +89,13 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 			return nil
 		},
-		Args:      cmderrors.TransformToValidationError(cobra.OnlyValidArgs),
+		Args: cmderrors.TransformToValidationError(func(cmd *cobra.Command, args []string) error {
+			// Allow 0 or 1 argument, and only valid ones
+			if len(args) > 1 {
+				return fmt.Errorf("this command accepts only zero or one argument")
+			}
+			return cobra.OnlyValidArgs(cmd, args)
+		}),
 		ValidArgs: []string{"org", "orgs", "organization", "organizations", "workspace", "workspaces", "user", "users", "host", "hosts"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunLs(t, loginLsStore, args, org, showAll)
