@@ -35,14 +35,6 @@ jobs:
         run: """
         + f"go test -timeout 240s -run ^{test_name}$ github.com/brevdev/brev-cli/e2etest/setup\n"
         + """
-      - name: Report Status
-        if: always()
-        uses: ravsamhq/notify-slack-action@v1
-        with:
-          status: ${{ job.status }}
-          notify_when: 'failure'
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
 """
     )
 
