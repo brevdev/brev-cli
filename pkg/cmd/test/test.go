@@ -2,6 +2,8 @@ package test
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
@@ -84,6 +86,9 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
 	currentStep := 0
 	// Enable mouse tracking
 	screen.EnableMouse()
+	urlInput := ""
+	exposedPort := ""
+	exposePort := false
 
 	steps := []step{
         {
@@ -138,6 +143,68 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
             },
         },
 		{
+			name: "Enter URL",
+			draw: func(s *tcell.Screen, t int) {
+				(*s).Clear()
+				drawTitle(*s)
+				drawStepIndicator(*s, currentStep)
+				drawChipSelectionSummary(*s, chips[selectedChipIndex])
+				drawContainerSelectionSummary(*s, containers[selectedContainerIndex])
+				drawURLInput(*s, urlInput)
+			},
+			handleKey: func(ev *tcell.EventKey) bool {
+				switch ev.Key() {
+				case tcell.KeyEnter:
+					if isValidURL(urlInput) {
+						currentStep++
+						return true
+					}
+				case tcell.KeyRune:
+					urlInput += string(ev.Rune())
+				case tcell.KeyBackspace, tcell.KeyBackspace2:
+					if len(urlInput) > 0 {
+						urlInput = urlInput[:len(urlInput)-1]
+					}
+				}
+				return false
+			},
+		},
+		{
+			name: "Expose Port",
+			draw: func(s *tcell.Screen, t int) {
+				(*s).Clear()
+				drawTitle(*s)
+				drawStepIndicator(*s, currentStep)
+				drawChipSelectionSummary(*s, chips[selectedChipIndex])
+				drawContainerSelectionSummary(*s, containers[selectedContainerIndex])
+				drawURLSummary(*s, urlInput)
+				drawExposePortOption(*s, exposePort, exposedPort)
+			},
+			handleKey: func(ev *tcell.EventKey) bool {
+				switch ev.Key() {
+				case tcell.KeyEnter:
+					if !exposePort || (exposePort && exposedPort != "") {
+						currentStep++
+						return true
+					}
+				case tcell.KeyRune:
+					if ev.Rune() == 'y' || ev.Rune() == 'Y' {
+						exposePort = true
+					} else if ev.Rune() == 'n' || ev.Rune() == 'N' {
+						exposePort = false
+						exposedPort = ""
+					} else if exposePort {
+						exposedPort += string(ev.Rune())
+					}
+				case tcell.KeyBackspace, tcell.KeyBackspace2:
+					if exposePort && len(exposedPort) > 0 {
+						exposedPort = exposedPort[:len(exposedPort)-1]
+					}
+				}
+				return false
+			},
+		},
+		{
             name: "Review Selections",
             draw: func(s *tcell.Screen, t int) {
                 (*s).Clear()
@@ -156,8 +223,7 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
                 return false
             },
         },
-		{name: "Step 3", draw: func(s *tcell.Screen, t int) {}, handleKey: func(ev *tcell.EventKey) bool { return true }},
-		{name: "Step 4", draw: func(s *tcell.Screen, t int) {}, handleKey: func(ev *tcell.EventKey) bool { return true }},
+		
 	}
 
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -187,6 +253,68 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
     }
 }
 
+func drawURLInput(s tcell.Screen, urlInput string) {
+	prompt := "Enter URL (.ipynb or git repo): "
+	style := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	for i, r := range prompt {
+		s.SetContent(1+i, 10, r, nil, style)
+	}
+	for i, r := range urlInput {
+		s.SetContent(1+len(prompt)+i, 10, r, nil, style)
+	}
+	s.SetContent(1+len(prompt)+len(urlInput), 10, '_', nil, style)
+}
+
+func drawURLSummary(s tcell.Screen, url string) {
+	summary := fmt.Sprintf("🔗 URL: %s", url)
+	style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
+	for i, r := range summary {
+		s.SetContent(1+i, 9, r, nil, style)
+	}
+}
+
+
+func drawExposePortOption(s tcell.Screen, exposePort bool, exposedPort string) {
+	prompt := "Do you want to expose a port? (y/n): "
+	style := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+	for i, r := range prompt {
+		s.SetContent(1+i, 11, r, nil, style)
+	}
+	if exposePort {
+		s.SetContent(1+len(prompt), 11, 'Y', nil, style)
+		portPrompt := "Enter port number: "
+		for i, r := range portPrompt {
+			s.SetContent(1+i, 12, r, nil, style)
+		}
+		for i, r := range exposedPort {
+			s.SetContent(1+len(portPrompt)+i, 12, r, nil, style)
+		}
+		s.SetContent(1+len(portPrompt)+len(exposedPort), 12, '_', nil, style)
+	} else {
+		s.SetContent(1+len(prompt), 11, 'N', nil, style)
+	}
+}
+
+func isValidURL(urlStr string) bool {
+	u, err := url.Parse(urlStr)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return false
+	}
+	
+	// Check if it's a .ipynb file
+	if strings.HasSuffix(urlStr, ".ipynb") {
+		return true
+	}
+	
+	// Check if it's a git repo (this is a simple check, you might want to expand it)
+	if strings.Contains(urlStr, "github.com") || strings.Contains(urlStr, "gitlab.com") || strings.Contains(urlStr, "bitbucket.org") {
+		return true
+	}
+	
+	return false
+}
+
+
 func drawCurrentStep(screen tcell.Screen, steps []step, currentStep, selectedChipIndex, selectedContainerIndex int) {
     t := int(time.Now().UnixNano() / 1e7 % 20)
     steps[currentStep].draw(&screen, t)
@@ -202,7 +330,7 @@ func drawTitle(s tcell.Screen) {
 }
 
 func drawStepIndicator(s tcell.Screen, currentStep int) {
-	steps := []string{"Select Chip", "Select Container", "Step 3", "Step 4"}
+	steps := []string{"Select Chip", "Select Container", "Enter URL", "Expose Port"}
 	for i, step := range steps {
 		style := tcell.StyleDefault.Foreground(tcell.ColorGray)
 		if i == currentStep {
