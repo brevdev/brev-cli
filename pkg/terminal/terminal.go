@@ -124,7 +124,7 @@ func (w silentWriter) Write(_ []byte) (n int, err error) {
 }
 
 func (t *Terminal) NewSpinner() *spinner.Spinner {
-	spinner := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
+	spinner := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(t.err))
 	err := spinner.Color("cyan", "bold")
 	if err != nil {
 		t.Errprint(err, "")

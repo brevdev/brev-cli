@@ -228,7 +228,6 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 	return nil
 }
 
-
 type Ls struct {
 	lsStore  LsStore
 	terminal *terminal.Terminal

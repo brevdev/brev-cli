@@ -75,10 +75,10 @@ func TestLsCommand_RunLs_NoArgs(t *testing.T) {
 	}
 	testWorkspaces := []entity.Workspace{
 		{
-			ID:             "workspace-1",
-			Name:           "Workspace 1",
+			ID:              "workspace-1",
+			Name:            "Workspace 1",
 			CreatedByUserID: "test-user-id",
-			Status:         entity.Running,
+			Status:          entity.Running,
 		},
 	}
 
@@ -88,7 +88,6 @@ func TestLsCommand_RunLs_NoArgs(t *testing.T) {
 	mockLsStore.On("GetOrganizations", (*store.GetOrganizationsOptions)(nil)).Return([]entity.Organization{*testOrg}, nil)
 	mockLsStore.On("UpdateUser", testUser.ID, mock.AnythingOfType("*entity.UpdateUser")).Return(testUser, nil)
 	mockLsStore.On("GetCurrentWorkspaceID").Return("workspace-1", nil)
-
 
 	cmd := NewCmdLs(mockTerminal, mockLsStore, mockLsStore)
 
@@ -207,10 +206,10 @@ func TestLsCommand_RunLs_WithOrgFlag(t *testing.T) {
 	}
 	testWorkspaces := []entity.Workspace{
 		{
-			ID:             "workspace-1",
-			Name:           "Workspace 1",
+			ID:              "workspace-1",
+			Name:            "Workspace 1",
 			CreatedByUserID: "test-user-id",
-			Status:         entity.Running,
+			Status:          entity.Running,
 		},
 	}
 
@@ -248,16 +247,16 @@ func TestLsCommand_RunLs_AllFlag(t *testing.T) {
 	}
 	allWorkspaces := []entity.Workspace{
 		{
-			ID:             "workspace-1",
-			Name:           "Workspace 1",
+			ID:              "workspace-1",
+			Name:            "Workspace 1",
 			CreatedByUserID: "test-user-id",
-			Status:         entity.Running,
+			Status:          entity.Running,
 		},
 		{
-			ID:             "workspace-2",
-			Name:           "Workspace 2",
+			ID:              "workspace-2",
+			Name:            "Workspace 2",
 			CreatedByUserID: "test-user-id-2",
-			Status:         entity.Stopped,
+			Status:          entity.Stopped,
 		},
 	}
 
@@ -278,6 +277,4 @@ func TestLsCommand_RunLs_AllFlag(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, verboseBuffer.String(), "You have 1 instances in Org test-org\nno other projects in Org test-org\n%!(EXTRA int=0)Invite a teamate:\n\tbrev invite")
 	assert.Contains(t, outBuffer.String(), " NAME          STATUS   ID           MACHINE \n Workspace 1   RUNNING  workspace-1   (gpu)  \n")
-
 }
-
