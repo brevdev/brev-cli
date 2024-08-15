@@ -74,8 +74,8 @@ append_if_not_exist ". \$HOME/.asdf/asdf.sh" ~/.zshrc
 
 # golang
 asdf plugin add golang https://github.com/asdf-community/asdf-golang.git
-asdf install golang 1.21.8
-asdf global golang 1.21.8
+asdf install golang 1.22.6
+asdf global golang 1.22.6
 asdf install
 GO_VERSION=$(asdf current golang | awk '{print $2}')
 GO_ROOT=$HOME/.asdf/installs/golang/$GO_VERSION/go

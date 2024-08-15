@@ -1,6 +1,6 @@
 module github.com/brevdev/brev-cli/tools
 
-go 1.21
+go 1.22.6
 
 require (
 	github.com/golangci/golangci-lint v1.57.2

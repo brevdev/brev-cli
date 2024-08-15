@@ -1,8 +1,6 @@
 module github.com/brevdev/brev-cli
 
-go 1.22.0
-
-toolchain go1.22.6
+go 1.22.6
 
 require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
