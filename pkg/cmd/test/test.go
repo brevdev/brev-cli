@@ -204,7 +204,7 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
 				return false
 			},
 		},
-		{
+        {
             name: "Review Selections",
             draw: func(s *tcell.Screen, t int) {
                 (*s).Clear()
@@ -212,7 +212,10 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
                 drawStepIndicator(*s, currentStep)
                 drawChipSelectionSummary(*s, chips[selectedChipIndex])
                 drawContainerSelectionSummary(*s, containers[selectedContainerIndex])
-                // You can add more UI elements for the next steps here
+                drawURLSummary(*s, urlInput)
+                drawPortSummary(*s, exposePort, exposedPort)
+                drawSeparatorLine(*s)
+                drawConfirmationPrompt(*s)
             },
             handleKey: func(ev *tcell.EventKey) bool {
                 switch ev.Key() {
@@ -264,15 +267,6 @@ func drawURLInput(s tcell.Screen, urlInput string) {
 	}
 	s.SetContent(1+len(prompt)+len(urlInput), 10, '_', nil, style)
 }
-
-func drawURLSummary(s tcell.Screen, url string) {
-	summary := fmt.Sprintf("🔗 URL: %s", url)
-	style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
-	for i, r := range summary {
-		s.SetContent(1+i, 9, r, nil, style)
-	}
-}
-
 
 func drawExposePortOption(s tcell.Screen, exposePort bool, exposedPort string) {
 	prompt := "Do you want to expose a port? (y/n): "
@@ -397,11 +391,36 @@ func drawContainerSelectionSummary(s tcell.Screen, containerName string) {
     for i, r := range summary {
         s.SetContent(1+i, 7, r, nil, style)
     }
-    // Add a separator line
-    for i := 0; i < 70; i++ {
-        s.SetContent(1+i, 8, '-', nil, style)
+}
+
+func drawURLSummary(s tcell.Screen, url string) {
+    summary := fmt.Sprintf("🔗 URL: %s", url)
+    style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
+    for i, r := range summary {
+        s.SetContent(1+i, 9, r, nil, style)
     }
 }
+
+func drawPortSummary(s tcell.Screen, exposePort bool, exposedPort string) {
+    var summary string
+    if exposePort {
+        summary = fmt.Sprintf("🔌 Exposed Port: %s", exposedPort)
+    } else {
+        summary = "🔌 No Port Exposed"
+    }
+    style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
+    for i, r := range summary {
+        s.SetContent(1+i, 11, r, nil, style)
+    }
+}
+
+func drawSeparatorLine(s tcell.Screen) {
+    style := tcell.StyleDefault.Foreground(colorCyanBase)
+    for i := 0; i < 70; i++ {
+        s.SetContent(1+i, 13, '-', nil, style)
+    }
+}
+
 
 func drawContainers(s tcell.Screen, containers []string, selectedIndex int) {
     for i, container := range containers {
@@ -434,5 +453,15 @@ func drawContainer(s tcell.Screen, x, y int, name string, selected bool) {
     // Draw container name
     for i, r := range name {
         s.SetContent(x+1+(width-2-len(name))/2+i, y+height/2, r, nil, style)
+    }
+}
+
+
+
+func drawConfirmationPrompt(s tcell.Screen) {
+    prompt := "Press Enter to confirm and create the launchable"
+    style := tcell.StyleDefault.Foreground(tcell.ColorWhite)
+    for i, r := range prompt {
+        s.SetContent(1+i, 15, r, nil, style)
     }
 }
