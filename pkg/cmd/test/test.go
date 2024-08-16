@@ -21,6 +21,7 @@ var (
     colorWhite    = tcell.NewRGBColor(255, 255, 255)
     colorGray     = tcell.NewRGBColor(128, 128, 128)
     colorYellow   = tcell.NewRGBColor(255, 255, 0)
+    colorCyan = tcell.NewRGBColor(0, 255, 255)
     colorCyanBase = tcell.NewRGBColor(0, 255, 255)
 )
 
@@ -28,6 +29,285 @@ var (
 	startLong    = "[internal] test"
 	startExample = "[internal] test"
 )
+
+// UI package
+type Element struct {
+	Content string
+	Style   tcell.Style
+	X, Y    int
+}
+
+type Layout struct {
+	Elements []Element
+	Screen   tcell.Screen
+}
+
+func NewLayout(s tcell.Screen) *Layout {
+	return &Layout{Screen: s}
+}
+
+func (l *Layout) AddElement(content string, style tcell.Style, x, y int) {
+    l.Elements = append(l.Elements, Element{
+        Content: content,
+        Style:   style,
+        X:       x,
+        Y:       y,
+    })
+}
+func (l *Layout) Render() {
+	l.Screen.Clear()
+	for _, elem := range l.Elements {
+		for i, r := range elem.Content {
+			l.Screen.SetContent(elem.X+i, elem.Y, r, nil, elem.Style)
+		}
+	}
+	l.Screen.Show()
+}
+
+// LaunchableCreator struct to hold state
+type LaunchableCreator struct {
+	Screen               tcell.Screen
+	Chips                []string
+	Containers           []string
+	SelectedChipIndex    int
+	SelectedContainerIndex int
+	CurrentStep          int
+	URLInput             string
+	ExposedPort          string
+	ExposePort           bool
+}
+
+func NewLaunchableCreator(screen tcell.Screen) *LaunchableCreator {
+	return &LaunchableCreator{
+		Screen:     screen,
+		Chips:      []string{"A100", "H100", "L40S"},
+		Containers: []string{"Container 1", "Container 2", "Container 3", "Container 4"},
+	}
+}
+
+func (lc *LaunchableCreator) Render() {
+	layout := NewLayout(lc.Screen)
+
+	// Add title
+	layout.AddElement("Create Launchable", tcell.StyleDefault.Foreground(tcell.ColorWhite).Bold(true), 1, 1)
+
+	// Add step indicators
+	steps := []string{"Select Chip", "Select Container", "Enter URL", "Expose Port", "Review"}
+	for i, step := range steps {
+		style := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		if i == lc.CurrentStep {
+			style = style.Foreground(tcell.ColorWhite).Bold(true)
+		}
+		layout.AddElement(step, style, i*20+1, 2)
+	}
+
+	// Render step-specific content
+	switch lc.CurrentStep {
+	case 0:
+		lc.renderChipSelection(layout)
+	case 1:
+		lc.renderContainerSelection(layout)
+	case 2:
+		lc.renderURLInput(layout)
+	case 3:
+		lc.renderPortInput(layout)
+	case 4:
+		lc.renderReview(layout)
+	}
+
+	layout.Render()
+}
+
+func (lc *LaunchableCreator) renderChipSelection(layout *Layout) {
+	for i, chip := range lc.Chips {
+		style := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		selected := i == lc.SelectedChipIndex
+		if selected {
+			style = style.Foreground(colorCyanBase).Bold(true)
+		}
+		drawBox(layout, i*16+1, 5, 11, 5, chip, style, selected)
+	}
+}
+
+func (lc *LaunchableCreator) renderContainerSelection(layout *Layout) {
+	for i, container := range lc.Containers {
+		style := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		selected := i == lc.SelectedContainerIndex
+		if selected {
+			style = style.Foreground(colorCyanBase).Bold(true)
+		}
+		drawBox(layout, (i%2)*35+1, (i/2)*4+5, 25, 3, container, style, selected)
+	}
+}
+
+
+func (lc *LaunchableCreator) renderURLInput(layout *Layout) {
+	prompt := "Enter URL (.ipynb or git repo): "
+	layout.AddElement(prompt+lc.URLInput+"_", tcell.StyleDefault.Foreground(tcell.ColorWhite), 1, 5)
+}
+
+func (lc *LaunchableCreator) renderPortInput(layout *Layout) {
+	prompt := "Do you want to expose a port? (y/n): "
+	layout.AddElement(prompt, tcell.StyleDefault.Foreground(tcell.ColorWhite), 1, 5)
+	if lc.ExposePort {
+		layout.AddElement("Y", tcell.StyleDefault.Foreground(colorCyanBase), len(prompt)+1, 5)
+		portPrompt := "Enter port number: "
+		layout.AddElement(portPrompt+lc.ExposedPort+"_", tcell.StyleDefault.Foreground(tcell.ColorWhite), 1, 7)
+	} else {
+		layout.AddElement("N", tcell.StyleDefault.Foreground(colorCyanBase), len(prompt)+1, 5)
+	}
+}
+
+func (lc *LaunchableCreator) renderReview(layout *Layout) {
+	layout.AddElement("🤙 Chip: "+lc.Chips[lc.SelectedChipIndex], tcell.StyleDefault.Foreground(colorCyanBase).Bold(true), 1, 5)
+	layout.AddElement("📦 Container: "+lc.Containers[lc.SelectedContainerIndex], tcell.StyleDefault.Foreground(colorCyanBase).Bold(true), 1, 7)
+	layout.AddElement("🔗 URL: "+lc.URLInput, tcell.StyleDefault.Foreground(colorCyanBase).Bold(true), 1, 9)
+	if lc.ExposePort {
+		layout.AddElement("🔌 Exposed Port: "+lc.ExposedPort, tcell.StyleDefault.Foreground(colorCyanBase).Bold(true), 1, 11)
+	} else {
+		layout.AddElement("🔌 No Port Exposed", tcell.StyleDefault.Foreground(colorCyanBase).Bold(true), 1, 11)
+	}
+	layout.AddElement("----------------------------------------", tcell.StyleDefault.Foreground(colorCyanBase), 1, 13)
+	layout.AddElement("Press Enter to confirm and create the launchable", tcell.StyleDefault.Foreground(tcell.ColorWhite), 1, 15)
+}
+
+func drawBox(layout *Layout, x, y, width, height int, content string, style tcell.Style, selected bool) {
+	// Draw top and bottom borders
+	for i := 0; i < width; i++ {
+		layout.AddElement("-", style, x+i, y)
+		layout.AddElement("-", style, x+i, y+height-1)
+	}
+	// Draw side borders
+	for i := 1; i < height-1; i++ {
+		layout.AddElement("|", style, x, y+i)
+		layout.AddElement("|", style, x+width-1, y+i)
+	}
+	// Draw content
+	layout.AddElement(content, style, x+1+(width-2-len(content))/2, y+height/2)
+	
+	// Draw caret if selected
+	if selected {
+		caretStyle := tcell.StyleDefault.Foreground(colorYellow)
+		layout.AddElement(">", caretStyle, x-1, y+height/2)
+	}
+}
+
+func (lc *LaunchableCreator) HandleInput(ev *tcell.EventKey) bool {
+	switch lc.CurrentStep {
+	case 0:
+		return lc.handleChipSelection(ev)
+	case 1:
+		return lc.handleContainerSelection(ev)
+	case 2:
+		return lc.handleURLInput(ev)
+	case 3:
+		return lc.handlePortInput(ev)
+	case 4:
+		return lc.handleReview(ev)
+	}
+	return false
+}
+
+func (lc *LaunchableCreator) handleChipSelection(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyLeft:
+		if lc.SelectedChipIndex > 0 {
+			lc.SelectedChipIndex--
+		}
+	case tcell.KeyRight:
+		if lc.SelectedChipIndex < len(lc.Chips)-1 {
+			lc.SelectedChipIndex++
+		}
+	case tcell.KeyEnter:
+		lc.CurrentStep++
+		return true
+	}
+	return false
+}
+
+func (lc *LaunchableCreator) handleContainerSelection(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyLeft:
+		if lc.SelectedContainerIndex > 0 {
+			lc.SelectedContainerIndex--
+		}
+	case tcell.KeyRight:
+		if lc.SelectedContainerIndex < len(lc.Containers)-1 {
+			lc.SelectedContainerIndex++
+		}
+	case tcell.KeyEnter:
+		lc.CurrentStep++
+		return true
+	}
+	return false
+}
+
+func (lc *LaunchableCreator) handleURLInput(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyEnter:
+		if isValidURL(lc.URLInput) {
+			lc.CurrentStep++
+			return true
+		}
+	case tcell.KeyRune:
+		lc.URLInput += string(ev.Rune())
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
+		if len(lc.URLInput) > 0 {
+			lc.URLInput = lc.URLInput[:len(lc.URLInput)-1]
+		}
+	}
+	return false
+}
+
+func (lc *LaunchableCreator) handlePortInput(ev *tcell.EventKey) bool {
+	switch ev.Key() {
+	case tcell.KeyEnter:
+		if !lc.ExposePort || (lc.ExposePort && lc.ExposedPort != "") {
+			lc.CurrentStep++
+			return true
+		}
+	case tcell.KeyRune:
+		if ev.Rune() == 'y' || ev.Rune() == 'Y' {
+			lc.ExposePort = true
+		} else if ev.Rune() == 'n' || ev.Rune() == 'N' {
+			lc.ExposePort = false
+			lc.ExposedPort = ""
+		} else if lc.ExposePort {
+			lc.ExposedPort += string(ev.Rune())
+		}
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
+		if lc.ExposePort && len(lc.ExposedPort) > 0 {
+			lc.ExposedPort = lc.ExposedPort[:len(lc.ExposedPort)-1]
+		}
+	}
+	return false
+}
+
+func (lc *LaunchableCreator) handleReview(ev *tcell.EventKey) bool {
+	if ev.Key() == tcell.KeyEnter {
+		lc.CurrentStep++
+		return true
+	}
+	return false
+}
+
+func isValidURL(urlStr string) bool {
+	u, err := url.Parse(urlStr)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return false
+	}
+	
+	if strings.HasSuffix(urlStr, ".ipynb") {
+		return true
+	}
+	
+	if strings.Contains(urlStr, "github.com") || strings.Contains(urlStr, "gitlab.com") || strings.Contains(urlStr, "bitbucket.org") {
+		return true
+	}
+	
+	return false
+}
+
 
 type TestStore interface {
 	completions.CompletionStore
@@ -79,389 +359,30 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
 	}
 	defer screen.Fini()
 
-	chips := []string{"A100", "H100", "L40S"}
-	containers := []string{"Container 1", "Container 2", "Container 3", "Container 4"}
-	selectedChipIndex := 0
-	selectedContainerIndex := 0
-	currentStep := 0
-	// Enable mouse tracking
-	screen.EnableMouse()
-	urlInput := ""
-	exposedPort := ""
-	exposePort := false
+	creator := NewLaunchableCreator(screen)
 
-	steps := []step{
-        {
-            name: "Select Chip",
-            draw: func(s *tcell.Screen, t int) {
-                (*s).Clear()
-                drawTitle(*s)
-                drawStepIndicator(*s, currentStep)
-                drawChips(*s, chips, selectedChipIndex, t)
-            },
-            handleKey: func(ev *tcell.EventKey) bool {
-                switch ev.Key() {
-                case tcell.KeyLeft:
-                    if selectedChipIndex > 0 {
-                        selectedChipIndex--
-                    }
-                case tcell.KeyRight:
-                    if selectedChipIndex < len(chips)-1 {
-                        selectedChipIndex++
-                    }
-                case tcell.KeyEnter:
-                    currentStep++
-                    return true
-                }
-                return false
-            },
-        },
-        {
-            name: "Select Container",
-            draw: func(s *tcell.Screen, t int) {
-                (*s).Clear()
-                drawTitle(*s)
-                drawStepIndicator(*s, currentStep)
-                drawChipSelectionSummary(*s, chips[selectedChipIndex])
-                drawContainers(*s, containers, selectedContainerIndex)
-            },
-            handleKey: func(ev *tcell.EventKey) bool {
-                switch ev.Key() {
-                case tcell.KeyLeft:
-                    if selectedContainerIndex > 0 {
-                        selectedContainerIndex--
-                    }
-                case tcell.KeyRight:
-                    if selectedContainerIndex < len(containers)-1 {
-                        selectedContainerIndex++
-                    }
-                case tcell.KeyEnter:
-                    currentStep++
-                    return true
-                }
-                return false
-            },
-        },
-		{
-			name: "Enter URL",
-			draw: func(s *tcell.Screen, t int) {
-				(*s).Clear()
-				drawTitle(*s)
-				drawStepIndicator(*s, currentStep)
-				drawChipSelectionSummary(*s, chips[selectedChipIndex])
-				drawContainerSelectionSummary(*s, containers[selectedContainerIndex])
-				drawURLInput(*s, urlInput)
-			},
-			handleKey: func(ev *tcell.EventKey) bool {
-				switch ev.Key() {
-				case tcell.KeyEnter:
-					if isValidURL(urlInput) {
-						currentStep++
-						return true
-					}
-				case tcell.KeyRune:
-					urlInput += string(ev.Rune())
-				case tcell.KeyBackspace, tcell.KeyBackspace2:
-					if len(urlInput) > 0 {
-						urlInput = urlInput[:len(urlInput)-1]
-					}
+	for {
+		creator.Render()
+
+		ev := screen.PollEvent()
+		switch ev := ev.(type) {
+		case *tcell.EventResize:
+			screen.Sync()
+		case *tcell.EventKey:
+			if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+				return nil
+			}
+			if creator.HandleInput(ev) {
+				if creator.CurrentStep >= 5 {
+					// Display the final message and exit
+					layout := NewLayout(screen)
+					layout.AddElement("🤙 https://brev.dev", tcell.StyleDefault.Foreground(colorCyanBase).Bold(true), 1, 1)
+					layout.Render()
+					time.Sleep(2 * time.Second) // Display for 2 seconds before exiting
+					return nil
 				}
-				return false
-			},
-		},
-		{
-			name: "Expose Port",
-			draw: func(s *tcell.Screen, t int) {
-				(*s).Clear()
-				drawTitle(*s)
-				drawStepIndicator(*s, currentStep)
-				drawChipSelectionSummary(*s, chips[selectedChipIndex])
-				drawContainerSelectionSummary(*s, containers[selectedContainerIndex])
-				drawURLSummary(*s, urlInput)
-				drawExposePortOption(*s, exposePort, exposedPort)
-			},
-			handleKey: func(ev *tcell.EventKey) bool {
-				switch ev.Key() {
-				case tcell.KeyEnter:
-					if !exposePort || (exposePort && exposedPort != "") {
-						currentStep++
-						return true
-					}
-				case tcell.KeyRune:
-					if ev.Rune() == 'y' || ev.Rune() == 'Y' {
-						exposePort = true
-					} else if ev.Rune() == 'n' || ev.Rune() == 'N' {
-						exposePort = false
-						exposedPort = ""
-					} else if exposePort {
-						exposedPort += string(ev.Rune())
-					}
-				case tcell.KeyBackspace, tcell.KeyBackspace2:
-					if exposePort && len(exposedPort) > 0 {
-						exposedPort = exposedPort[:len(exposedPort)-1]
-					}
-				}
-				return false
-			},
-		},
-        {
-            name: "Review Selections",
-            draw: func(s *tcell.Screen, t int) {
-                (*s).Clear()
-                drawTitle(*s)
-                drawStepIndicator(*s, currentStep)
-                drawChipSelectionSummary(*s, chips[selectedChipIndex])
-                drawContainerSelectionSummary(*s, containers[selectedContainerIndex])
-                drawURLSummary(*s, urlInput)
-                drawPortSummary(*s, exposePort, exposedPort)
-                drawSeparatorLine(*s)
-                drawConfirmationPrompt(*s)
-            },
-            handleKey: func(ev *tcell.EventKey) bool {
-                switch ev.Key() {
-                case tcell.KeyEnter:
-                    currentStep++
-                    return true
-                }
-                return false
-            },
-        },
-		
-	}
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-    
-	// Initial draw
-    drawCurrentStep(screen, steps, currentStep, selectedChipIndex, selectedContainerIndex)
-
-    for {
-        ev := screen.PollEvent()
-        switch ev := ev.(type) {
-        case *tcell.EventResize:
-            screen.Sync()
-        case *tcell.EventKey:
-            if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
-                return nil
-            }
-            if steps[currentStep].handleKey(ev) {
-                if currentStep >= len(steps) {
-                    return fmt.Errorf("launchable created")
-                }
-            }
-        }
-
-        // Redraw after each event
-        drawCurrentStep(screen, steps, currentStep, selectedChipIndex, selectedContainerIndex)
-    }
-}
-
-func drawURLInput(s tcell.Screen, urlInput string) {
-	prompt := "Enter URL (.ipynb or git repo): "
-	style := tcell.StyleDefault.Foreground(tcell.ColorWhite)
-	for i, r := range prompt {
-		s.SetContent(1+i, 10, r, nil, style)
-	}
-	for i, r := range urlInput {
-		s.SetContent(1+len(prompt)+i, 10, r, nil, style)
-	}
-	s.SetContent(1+len(prompt)+len(urlInput), 10, '_', nil, style)
-}
-
-func drawExposePortOption(s tcell.Screen, exposePort bool, exposedPort string) {
-	prompt := "Do you want to expose a port? (y/n): "
-	style := tcell.StyleDefault.Foreground(tcell.ColorWhite)
-	for i, r := range prompt {
-		s.SetContent(1+i, 11, r, nil, style)
-	}
-	if exposePort {
-		s.SetContent(1+len(prompt), 11, 'Y', nil, style)
-		portPrompt := "Enter port number: "
-		for i, r := range portPrompt {
-			s.SetContent(1+i, 12, r, nil, style)
-		}
-		for i, r := range exposedPort {
-			s.SetContent(1+len(portPrompt)+i, 12, r, nil, style)
-		}
-		s.SetContent(1+len(portPrompt)+len(exposedPort), 12, '_', nil, style)
-	} else {
-		s.SetContent(1+len(prompt), 11, 'N', nil, style)
-	}
-}
-
-func isValidURL(urlStr string) bool {
-	u, err := url.Parse(urlStr)
-	if err != nil || u.Scheme == "" || u.Host == "" {
-		return false
-	}
-	
-	// Check if it's a .ipynb file
-	if strings.HasSuffix(urlStr, ".ipynb") {
-		return true
-	}
-	
-	// Check if it's a git repo (this is a simple check, you might want to expand it)
-	if strings.Contains(urlStr, "github.com") || strings.Contains(urlStr, "gitlab.com") || strings.Contains(urlStr, "bitbucket.org") {
-		return true
-	}
-	
-	return false
-}
-
-
-func drawCurrentStep(screen tcell.Screen, steps []step, currentStep, selectedChipIndex, selectedContainerIndex int) {
-    t := int(time.Now().UnixNano() / 1e7 % 20)
-    steps[currentStep].draw(&screen, t)
-    screen.Show()
-}
-
-func drawTitle(s tcell.Screen) {
-	title := "Create Launchable"
-	style := tcell.StyleDefault.Foreground(tcell.ColorWhite).Bold(true)
-	for i, r := range title {
-		s.SetContent(i+1, 1, r, nil, style)
-	}
-}
-
-func drawStepIndicator(s tcell.Screen, currentStep int) {
-	steps := []string{"Select Chip", "Select Container", "Enter URL", "Expose Port"}
-	for i, step := range steps {
-		style := tcell.StyleDefault.Foreground(tcell.ColorGray)
-		if i == currentStep {
-			style = style.Foreground(tcell.ColorWhite).Bold(true)
-		}
-		for j, r := range step {
-			s.SetContent(i*20+j+1, 2, r, nil, style)
+			}
 		}
 	}
 }
 
-func drawChips(s tcell.Screen, chips []string, selectedIndex, t int) {
-	for i, chip := range chips {
-		x := i*16 + 1
-		y := 5
-		drawChip(s, x, y, chip, i == selectedIndex, t)
-	}
-}
-
-func drawChip(s tcell.Screen, x, y int, name string, selected bool, t int) {
-	width, height := 11, 5
-	style := tcell.StyleDefault
-
-	if selected {
-		// Pulsating effect
-		// colorValue := 128 + int32(127*float64(t)/20.0)
-		// style = style.Foreground(tcell.NewRGBColor(0, colorValue, colorValue))
-
-		pulseFactor := float64(t) / 20.0
-		r := uint8(0)
-		g := uint8(128 + int(127*pulseFactor))
-		b := uint8(128 + int(127*pulseFactor))
-		style = style.Foreground(tcell.NewRGBColor(int32(r), int32(g), int32(b)))
-
-		arrowStyle := tcell.StyleDefault.Foreground(tcell.NewRGBColor(255, 255, 0))
-		s.SetContent(x-1, y+height/2, '>', nil, arrowStyle)
-	}
-
-	// Draw chip outline and content
-	for i := 0; i < width; i++ {
-		s.SetContent(x+i, y, '-', nil, style)
-		s.SetContent(x+i, y+height-1, '-', nil, style)
-	}
-	for i := 1; i < height-1; i++ {
-		s.SetContent(x, y+i, '|', nil, style)
-		s.SetContent(x+width-1, y+i, '|', nil, style)
-	}
-	for i, r := range name {
-		s.SetContent(x+1+(width-2-len(name))/2+i, y+height/2, r, nil, style)
-	}
-}
-
-func drawChipSelectionSummary(s tcell.Screen, chipName string) {
-    summary := fmt.Sprintf("🤙 Chip: %s", chipName)
-    style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
-    for i, r := range summary {
-        s.SetContent(1+i, 5, r, nil, style)
-    }
-}
-
-func drawContainerSelectionSummary(s tcell.Screen, containerName string) {
-    summary := fmt.Sprintf("📦 Container: %s", containerName)
-    style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
-    for i, r := range summary {
-        s.SetContent(1+i, 7, r, nil, style)
-    }
-}
-
-func drawURLSummary(s tcell.Screen, url string) {
-    summary := fmt.Sprintf("🔗 URL: %s", url)
-    style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
-    for i, r := range summary {
-        s.SetContent(1+i, 9, r, nil, style)
-    }
-}
-
-func drawPortSummary(s tcell.Screen, exposePort bool, exposedPort string) {
-    var summary string
-    if exposePort {
-        summary = fmt.Sprintf("🔌 Exposed Port: %s", exposedPort)
-    } else {
-        summary = "🔌 No Port Exposed"
-    }
-    style := tcell.StyleDefault.Foreground(colorCyanBase).Bold(true)
-    for i, r := range summary {
-        s.SetContent(1+i, 11, r, nil, style)
-    }
-}
-
-func drawSeparatorLine(s tcell.Screen) {
-    style := tcell.StyleDefault.Foreground(colorCyanBase)
-    for i := 0; i < 70; i++ {
-        s.SetContent(1+i, 13, '-', nil, style)
-    }
-}
-
-
-func drawContainers(s tcell.Screen, containers []string, selectedIndex int) {
-    for i, container := range containers {
-        x := (i%2)*35 + 1
-        y := (i/2)*4 + 8  // Adjusted vertical spacing
-        drawContainer(s, x, y, container, i == selectedIndex)
-    }
-}
-
-
-func drawContainer(s tcell.Screen, x, y int, name string, selected bool) {
-    width, height := 25, 3  // Adjusted size
-    style := tcell.StyleDefault
-    if selected {
-        style = style.Foreground(colorCyanBase)
-        arrowStyle := tcell.StyleDefault.Foreground(colorYellow)
-        s.SetContent(x-1, y+height/2, '>', nil, arrowStyle)
-    }
-
-    // Draw outline
-    for i := 0; i < width; i++ {
-        s.SetContent(x+i, y, '-', nil, style)
-        s.SetContent(x+i, y+height-1, '-', nil, style)
-    }
-    for i := 1; i < height-1; i++ {
-        s.SetContent(x, y+i, '|', nil, style)
-        s.SetContent(x+width-1, y+i, '|', nil, style)
-    }
-
-    // Draw container name
-    for i, r := range name {
-        s.SetContent(x+1+(width-2-len(name))/2+i, y+height/2, r, nil, style)
-    }
-}
-
-
-
-func drawConfirmationPrompt(s tcell.Screen) {
-    prompt := "Press Enter to confirm and create the launchable"
-    style := tcell.StyleDefault.Foreground(tcell.ColorWhite)
-    for i, r := range prompt {
-        s.SetContent(1+i, 15, r, nil, style)
-    }
-}
