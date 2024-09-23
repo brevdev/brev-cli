@@ -8,7 +8,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/setupscript"
 	"github.com/brevdev/brev-cli/pkg/uri"
 	resty "github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
@@ -38,23 +37,30 @@ type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
-	InstanceType         string               `json:"instanceType"`
-	IsStoppable          *bool                `json:"isStoppable,omitempty"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
+	Description          string               `json:"description"`
+	IsStoppable          *bool                `json:"isStoppable,omitempty"`
 	PrimaryApplicationID string               `json:"primaryApplicationId"`
 	Applications         []entity.Application `json:"applications"`
-
-	StartupScript string `json:"startupScript"`
-
-	GitRepo           string `json:"gitRepo"`
-	InitBranch        string `json:"initBranch"`
-	StartupScriptPath string `json:"startupScriptPath"`
-	DotBrevPath       string `json:"dotBrevPath"`
-
-	IDEConfig   *entity.IDEConfig `json:"ideConfig"`
-	Repos       entity.ReposV0    `json:"repos"`
-	Execs       entity.ExecsV0    `json:"execs"`
-	DiskStorage string            `json:"diskStorage"`
+	StartupScript        string               `json:"startupScript"`
+	GitRepo              string               `json:"gitRepo"`
+	InitBranch           string               `json:"initBranch"`
+	StartupScriptPath    string               `json:"startupScriptPath"`
+	DotBrevPath          string               `json:"dotBrevPath"`
+	IDEConfig            *entity.IDEConfig    `json:"ideConfig"`
+	Repos                entity.ReposV0       `json:"repos"`
+	Execs                entity.ExecsV0       `json:"execs"`
+	ReposV1              *entity.ReposV1      `json:"reposV1"`
+	ExecsV1              *entity.ExecsV1      `json:"execsV1"`
+	InstanceType         string               `json:"instanceType"`
+	DiskStorage          string               `json:"diskStorage"`
+	BaseImage            string               `json:"baseImage"`
+	VMOnlyMode           bool                 `json:"vmOnlyMode"`
+	PortMappings         map[string]string    `json:"portMappings"`
+	Files                interface{}          `json:"files"`
+	Labels               interface{}          `json:"labels"`
+	WorkspaceVersion     string               `json:"workspaceVersion"`
+	LaunchJupyterOnStart bool                 `json:"launchJupyterOnStart"`
 }
 
 var (
@@ -82,15 +88,22 @@ var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
 	return &CreateWorkspacesOptions{
-		Name:                 name,
-		WorkspaceGroupID:     clusterID,
-		WorkspaceClassID:     DefaultWorkspaceClassID,
-		GitRepo:              "",
-		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
-		PrimaryApplicationID: DefaultApplicationID,
-		Applications:         DefaultApplicationList,
-		StartupScript:        setupscript.DefaultSetupScript,
+		BaseImage:            "",
+		Description:          "",
 		DiskStorage:          DefaultDiskStorage,
+		ExecsV1:              &entity.ExecsV1{},
+		Files:                nil,
+		InstanceType:         "",
+		IsStoppable:          nil,
+		Labels:               nil,
+		LaunchJupyterOnStart: false,
+		Name:                 name,
+		PortMappings:         nil,
+		ReposV1:              nil,
+		VMOnlyMode:           true,
+		WorkspaceGroupID:     "GCP",
+		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
+		WorkspaceVersion:     "v1",
 	}
 }
 
