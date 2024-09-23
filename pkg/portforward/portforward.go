@@ -122,8 +122,9 @@ func (f *DefaultPortForwarder) ForwardPorts(method string, url *url.URL, opts Po
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	var fw *toolsportforward.PortForwarder
 	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: transport}, method, url)
-	fw, err := toolsportforward.NewOnAddresses(dialer, opts.Address, opts.Ports, opts.StopChannel, opts.ReadyChannel, f.Out, f.ErrOut)
+	fw, err = toolsportforward.NewOnAddresses(dialer, opts.Address, opts.Ports, opts.StopChannel, opts.ReadyChannel, f.Out, f.ErrOut)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

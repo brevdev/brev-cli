@@ -5,8 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"path/filepath"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -109,37 +109,37 @@ func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string, useH
 }
 
 func RunSSHPortForward(forwardType string, localPort string, remotePort string, sshName string) (*os.Process, error) {
-    signals := make(chan os.Signal, 1)
-    signal.Notify(signals, os.Interrupt)
-    defer signal.Stop(signals)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt)
+	defer signal.Stop(signals)
 
-    portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
+	portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
 
-    homeDir, err := os.UserHomeDir()
-    if err != nil {
-        return nil, breverrors.Wrap(err, "failed to get user home directory")
-    }
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, breverrors.Wrap(err, "failed to get user home directory")
+	}
 
-    keyPath := filepath.Join(homeDir, ".brev", "brev.pem")
+	keyPath := filepath.Join(homeDir, ".brev", "brev.pem")
 
-    if _, err := os.Stat(keyPath); os.IsNotExist(err) {
-        return nil, breverrors.Wrap(err, fmt.Sprintf("SSH key not found at %s. Please ensure your Brev SSH key is properly set up.", keyPath))
-    }
+	if _, err = os.Stat(keyPath); os.IsNotExist(err) {
+		return nil, breverrors.Wrap(err, fmt.Sprintf("SSH key not found at %s. Please ensure your Brev SSH key is properly set up.", keyPath))
+	}
 
-    cmdSHH := exec.Command("ssh", "-i", keyPath, "-T", forwardType, portMapping, sshName, "-N")
-    cmdSHH.Stdin = os.Stdin
-    cmdSHH.Stdout = os.Stdout
-    cmdSHH.Stderr = os.Stderr
+	cmdSHH := exec.Command("ssh", "-i", keyPath, "-T", forwardType, portMapping, sshName, "-N") //nolint:gosec //ok
+	cmdSHH.Stdin = os.Stdin
+	cmdSHH.Stdout = os.Stdout
+	cmdSHH.Stderr = os.Stderr
 
-    fmt.Println("Port forwarding...")
-    fmt.Printf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
+	fmt.Println("Port forwarding...")
+	fmt.Printf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
 
-    err = cmdSHH.Start()
-    if err != nil {
-        return nil, breverrors.Wrap(err, "Failed to start SSH command")
-    }
+	err = cmdSHH.Start()
+	if err != nil {
+		return nil, breverrors.Wrap(err, "Failed to start SSH command")
+	}
 
-    return cmdSHH.Process, nil
+	return cmdSHH.Process, nil
 }
 
 func startInput(t *terminal.Terminal) string {

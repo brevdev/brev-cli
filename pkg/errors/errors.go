@@ -251,7 +251,7 @@ func CombineByString(err error) error {
 		}
 	}
 	errsOut := make([]error, 0, len(mapE))
-	for _, e := range mapEList {
+	for _, e := range mapEList { //nolint:gosimple //ok
 		errsOut = append(errsOut, e)
 	}
 	return Join(errsOut...)

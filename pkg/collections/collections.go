@@ -254,7 +254,7 @@ func Except[T comparable](items []T, except []T) []T {
 // loops over list and returns when has returns true
 func ListHas[K any](list []K, has func(l K) bool) bool {
 	k := Find(list, has)
-	if k != nil {
+	if k != nil { //nolint:gosimple //ok
 		return true
 	}
 	return false
@@ -1094,7 +1094,7 @@ func CloneMap[T any, K comparable](m map[K]T) map[K]T {
 
 func CloneList[T any](l []T) []T {
 	result := []T{}
-	for _, v := range l {
+	for _, v := range l { //nolint:gosimple //ok
 		result = append(result, v)
 	}
 	return result
@@ -1454,7 +1454,7 @@ func (s *SafeSlice[T]) Slice() []T {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	newSlice := make([]T, len(s.slice))
-	for i, v := range s.slice {
+	for i, v := range s.slice { //nolint:gosimple //ok
 		newSlice[i] = v
 	}
 	return newSlice
