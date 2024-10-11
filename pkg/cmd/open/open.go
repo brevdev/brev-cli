@@ -298,7 +298,7 @@ func openVsCodeWithSSH(
 func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) error {
 	counter := 0
 	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=1", sshAlias, "echo", " ")
+		cmd := exec.Command("ssh", "-o", "ConnectTimeout=3", sshAlias, "echo", " ")
 		out, err := cmd.CombinedOutput()
 		if err == nil {
 			return nil
