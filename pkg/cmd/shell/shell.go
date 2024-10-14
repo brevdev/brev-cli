@@ -40,6 +40,10 @@ type ShellStore interface {
 }
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
+	return newCmdShellWithDeps(t, store, noLoginStartStore, exec.Command)
+}
+
+func newCmdShellWithDeps(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore, executor cmdExecutor) *cobra.Command {
 	var runRemoteCMD bool
 	var directory string
 	var host bool
@@ -54,6 +58,11 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if SSH client is available
+			if err := checkSSHClient(executor); err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
 			err := runShellCommand(t, store, args[0], directory, host)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -138,6 +147,17 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	return nil
 }
 
+type cmdExecutor func(name string, arg ...string) *exec.Cmd
+
+// checkSSHClient checks if the SSH client is available on the system.
+func checkSSHClient(executor cmdExecutor) error {
+	cmd := executor("ssh", "-V")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("SSH client is not installed or not available in PATH. Please install SSH client to use this feature")
+	}
+	return nil
+}
+
 func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	counter := 0
 	s.Suffix = " waiting for SSH connection to be available"
@@ -151,10 +171,16 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 		}
 
 		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
+		stdErr := strings.Split(outputStr, "\n")
+		var stdErrMessage string
+		if len(stdErr) > 1 {
+			stdErrMessage = stdErr[1]
+		} else {
+			stdErrMessage = outputStr // Fallback if splitting fails
+		}
 
-		if counter == 120 || !store.SatisfactorySSHErrMessage(stdErr) {
-			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
+		if counter == 120 || !store.SatisfactorySSHErrMessage(stdErrMessage) {
+			return breverrors.WrapAndTrace(errors.New("\n" + stdErrMessage))
 		}
 
 		counter++
@@ -212,8 +238,8 @@ func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellSt
 	isReady := false
 	s.Suffix = waitMsg
 	s.Start()
+	defer s.Stop()
 	for !isReady {
-		time.Sleep(5 * time.Second)
 		ws, err := shellStore.GetWorkspace(wsid)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -222,6 +248,8 @@ func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellSt
 		if ws.Status == state {
 			isReady = true
 		}
+
+		time.Sleep(5 * time.Second)
 	}
 	return nil
 }
