@@ -57,7 +57,7 @@ func (c Cloudflare) DownloadCloudflaredBinaryIfItDNE() error {
 func getCloudflaredBinaryDownloadURL() (string, error) {
 	switch runtime.GOOS {
 	case "linux":
-		return fmt.Sprintf("https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-fips-linux-amd64", CloudflaredVersion), nil
+		return fmt.Sprintf("https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-linux-amd64", CloudflaredVersion), nil
 	case "windows":
 		return fmt.Sprintf("https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-amd64.exe", CloudflaredVersion), nil
 	case "darwin":
