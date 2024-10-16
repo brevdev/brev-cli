@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makeCloudflare() Cloudflare {
+func makeCloudflare() Cloudflared {
 	conf := config.NewConstants()
 	fs := files.AppFs
 	authenticator := auth.Authenticator{
@@ -30,7 +30,7 @@ func makeCloudflare() Cloudflare {
 		NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(loginAuth, WithDebug(conf.GetDebugHTTP()))
-	return Cloudflare{
+	return Cloudflared{
 		store: loginCmdStore,
 	}
 }

@@ -15,7 +15,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-type CloudflareStore interface {
+type CloudflaredStore interface {
 	GetBrevCloudflaredBinaryPath() (string, error)
 	FileExists(string) (bool, error)
 	DownloadBinary(string, string) error
@@ -24,19 +24,19 @@ type CloudflareStore interface {
 	Create(string) (io.WriteCloser, error)
 }
 
-type Cloudflare struct {
-	store CloudflareStore
+type Cloudflared struct {
+	store CloudflaredStore
 }
 
-func NewCloudflare(store CloudflareStore) Cloudflare {
-	return Cloudflare{
+func NewCloudflare(store CloudflaredStore) Cloudflared {
+	return Cloudflared{
 		store: store,
 	}
 }
 
 var CloudflaredVersion = "2024.10.0"
 
-func (c Cloudflare) DownloadCloudflaredBinaryIfItDNE() error {
+func (c Cloudflared) DownloadCloudflaredBinaryIfItDNE() error {
 	binaryPath, err := c.store.GetBrevCloudflaredBinaryPath()
 	if err != nil {
 		return errors.WrapAndTrace(err)
@@ -63,7 +63,7 @@ func (c Cloudflare) DownloadCloudflaredBinaryIfItDNE() error {
 	return nil
 }
 
-func (c Cloudflare) DownloadBinary(ctx context.Context, binaryPath, binaryURL string) error {
+func (c Cloudflared) DownloadBinary(ctx context.Context, binaryPath, binaryURL string) error {
 	resp, err := collections.GetRequestWithContext(ctx, binaryURL)
 	if err != nil {
 		return errors.WrapAndTrace(err)
@@ -114,6 +114,6 @@ func getCloudflaredBinaryDownloadURL() (string, error) {
 		}
 		return fmt.Sprintf("https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-darwin-amd64.tgz", CloudflaredVersion), nil
 	default:
-		return "", fmt.Errorf("unsupported OS %s for downloading Cloudflare binary", runtime.GOOS)
+		return "", fmt.Errorf("unsupported OS %s for downloading Cloudflared binary", runtime.GOOS)
 	}
 }

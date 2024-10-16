@@ -119,7 +119,7 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 	return cu, nil
 }
 
-func GetCloudflare(refreshStore RefreshStore) store.Cloudflare {
+func GetCloudflare(refreshStore RefreshStore) store.Cloudflared {
 	cl := store.NewCloudflare(refreshStore)
 	return cl
 }
