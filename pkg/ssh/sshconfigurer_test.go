@@ -125,6 +125,10 @@ func (d DummySSHConfigurerV2Store) WriteWSLUserSSHConfig(_ string) error {
 	return nil
 }
 
+func (d DummySSHConfigurerV2Store) GetBrevCloudflaredBinaryPath() (string, error) {
+	return "", nil
+}
+
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
@@ -262,9 +266,10 @@ blaksdf;asdf;
 
 func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 	type args struct {
-		workspace      entity.Workspace
-		privateKeyPath string
-		runRemoteCMD   bool
+		workspace             entity.Workspace
+		privateKeyPath        string
+		cloudflaredBinaryPath string
+		runRemoteCMD          bool
 	}
 	tests := []struct {
 		name    string
@@ -488,10 +493,59 @@ Host testName2-host
 
 `,
 		},
+		{
+			name: "test default ssh proxy",
+			args: args{
+				workspace: entity.Workspace{
+					ID:                   "test-id-2",
+					Name:                 "testName2",
+					WorkspaceGroupID:     "test-id-2",
+					OrganizationID:       "oi",
+					WorkspaceClassID:     "wci",
+					CreatedByUserID:      "cui",
+					DNS:                  "test2-dns-org.brev.sh",
+					Status:               entity.Running,
+					Password:             "sdfal",
+					GitRepo:              "gitrepo",
+					SSHProxyHostname:     "test-verb-proxy.com",
+					HostSSHProxyHostname: "test-host-proxy.com",
+				},
+				privateKeyPath:        "/my/priv/key.pem",
+				cloudflaredBinaryPath: "/Users/tmontfort/.brev/cloudflared",
+				runRemoteCMD:          true,
+			},
+			want: `Host testName2
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu
+  ProxyCommand /Users/tmontfort/.brev/cloudflared access ssh --hostname test-verb-proxy.com
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
+  RequestTTY yes
+
+Host testName2-host
+  IdentityFile "/my/priv/key.pem"
+  User ubuntu
+  ProxyCommand /Users/tmontfort/.brev/cloudflared access ssh --hostname test-host-proxy.com
+  ServerAliveInterval 30
+  UserKnownHostsFile /dev/null
+  IdentitiesOnly yes
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  AddKeysToAgent yes
+  ForwardAgent yes
+  RequestTTY yes
+
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath)
+			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("makeSSHConfigEntryV2() error = %v, wantErr %v", err, tt.wantErr)
 				return

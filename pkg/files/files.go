@@ -114,6 +114,12 @@ func GetBrevSSHConfigPath(home string) string {
 	return brevSSHConfigPath
 }
 
+func GetBrevCloudflaredBinaryPath(home string) string {
+	path := GetBrevHome(home)
+	brevCloudflaredBinaryPath := filepath.Join(path, "cloudflared")
+	return brevCloudflaredBinaryPath
+}
+
 func GetOnboardingStepPath(home string) string {
 	path := GetBrevHome(home)
 	brevOnboardingFilePath := filepath.Join(path, "onboarding_step.json")

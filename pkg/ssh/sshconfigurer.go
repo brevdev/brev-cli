@@ -110,6 +110,7 @@ type SSHConfigurerV2Store interface {
 	GetWSLHostBrevSSHConfigPath() (string, error)
 	GetWSLUserSSHConfig() (string, error)
 	WriteWSLUserSSHConfig(config string) error
+	GetBrevCloudflaredBinaryPath() (string, error)
 }
 
 var _ Config = SSHConfigurerV2{}
@@ -170,7 +171,12 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 
 	pkpath := files.GetSSHPrivateKeyPath(homedir)
 
-	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath))
+	cloudflaredBinaryPath, err := s.store.GetBrevCloudflaredBinaryPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath), toWindowsPath(cloudflaredBinaryPath))
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -188,18 +194,23 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkPath)
+	cloudflaredBinaryPath, err := s.store.GetBrevCloudflaredBinaryPath()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkPath, cloudflaredBinaryPath)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	return sshConfig, nil
 }
 
-func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, pkpath string) (string, error) {
+func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, pkpath string, cloudflaredBinaryPath string) (string, error) {
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 
-		entry, err := makeSSHConfigEntryV2(w, pkpath)
+		entry, err := makeSSHConfigEntryV2(w, pkpath, cloudflaredBinaryPath)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -270,7 +281,7 @@ func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error
 	return buf.String(), nil
 }
 
-func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
+func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string) (string, error) { //nolint:funlen // ok
 	alias := string(workspace.GetLocalIdentifier())
 	privateKeyPath = "\"" + privateKeyPath + "\""
 	if workspace.IsLegacy() {
@@ -291,10 +302,13 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 			return "", breverrors.WrapAndTrace(err)
 		}
 		return val, nil
-	} else {
-		hostname := workspace.GetHostname()
+	}
+
+	var sshVal string
+	user := workspace.GetSSHUser()
+	hostname := workspace.GetHostname()
+	if workspace.SSHProxyHostname == "" {
 		port := workspace.GetSSHPort()
-		user := workspace.GetSSHUser()
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
@@ -307,15 +321,35 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		sshVal, err := tmplAndValToString(tmpl, entry)
+		sshVal, err = tmplAndValToString(tmpl, entry)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
+	} else {
+		proxyCommand := makeCloudflareSSHProxyCommand(cloudflaredBinaryPath, workspace.SSHProxyHostname)
+		entry := SSHConfigEntryV2{
+			Alias:        alias,
+			IdentityFile: privateKeyPath,
+			User:         user,
+			ProxyCommand: proxyCommand,
+			Dir:          workspace.GetProjectFolderPath(),
+		}
+		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		sshVal, err = tmplAndValToString(tmpl, entry)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+	}
 
-		port = workspace.GetHostSSHPort()
+	alias = fmt.Sprintf("%s-host", alias)
+	var hostSSHVal string
+	if workspace.HostSSHProxyHostname == "" {
+		port := workspace.GetHostSSHPort()
 		user = workspace.GetHostSSHUser()
-		alias = fmt.Sprintf("%s-host", alias)
-		entry = SSHConfigEntryV2{
+		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         user,
@@ -323,18 +357,35 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 			HostName:     hostname,
 			Port:         port,
 		}
-		tmpl, err = template.New(alias).Parse(SSHConfigEntryTemplateV3)
+		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-		hostSSHVal, err := tmplAndValToString(tmpl, entry)
+		hostSSHVal, err = tmplAndValToString(tmpl, entry)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
-
-		val := fmt.Sprintf("%s%s", sshVal, hostSSHVal)
-		return val, nil
+	} else {
+		proxyCommand := makeCloudflareSSHProxyCommand(cloudflaredBinaryPath, workspace.HostSSHProxyHostname)
+		entry := SSHConfigEntryV2{
+			Alias:        alias,
+			IdentityFile: privateKeyPath,
+			User:         user,
+			ProxyCommand: proxyCommand,
+			Dir:          workspace.GetProjectFolderPath(),
+		}
+		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		hostSSHVal, err = tmplAndValToString(tmpl, entry)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 	}
+
+	val := fmt.Sprintf("%s%s", sshVal, hostSSHVal)
+	return val, nil
 }
 
 // func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
@@ -391,6 +442,10 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (st
 // 		return buf.String(), nil
 // 	}
 // }
+
+func makeCloudflareSSHProxyCommand(cloudflaredBinaryPath string, hostname string) string {
+	return fmt.Sprintf("%s access ssh --hostname %s", cloudflaredBinaryPath, hostname)
+}
 
 func makeProxyCommand(workspaceID string) string {
 	huproxyExec := "brev proxy"
