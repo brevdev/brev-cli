@@ -360,6 +360,22 @@ func (f FileStore) Chmod(path string, mode os.FileMode) error {
 	return nil
 }
 
+func (f FileStore) Create(target string) (io.WriteCloser, error) {
+	file, err := f.fs.Create(target)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return file, nil
+}
+
+func (f FileStore) MkdirAll(path string, mode os.FileMode) error {
+	err := f.fs.MkdirAll(path, mode)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func getUserHomeDir(f *FileStore) func() (string, error) {
 	return func() (string, error) {
 		if f.User != nil {

@@ -3,6 +3,7 @@ package refresh
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"sync"
 
@@ -22,7 +23,9 @@ type RefreshStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
 	Chmod(string, fs.FileMode) error
+	MkdirAll(string, fs.FileMode) error
 	GetBrevCloudflaredBinaryPath() (string, error)
+	Create(string) (io.WriteCloser, error)
 }
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
