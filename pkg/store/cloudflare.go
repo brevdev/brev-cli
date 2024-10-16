@@ -6,11 +6,13 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/errors"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 type CloudflareStore interface {
@@ -62,39 +64,42 @@ func (c Cloudflare) DownloadCloudflaredBinaryIfItDNE() error {
 }
 
 func (c Cloudflare) DownloadBinary(ctx context.Context, binaryPath, binaryURL string) error {
+	resp, err := collections.GetRequestWithContext(ctx, binaryURL)
+	if err != nil {
+		return errors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // defer
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	err = c.store.MkdirAll(filepath.Dir(binaryPath), 0o755)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	out, err := c.store.Create(binaryPath)
+	if err != nil {
+		return errors.WrapAndTrace(err)
+	}
+	defer out.Close() //nolint:errcheck // defer
+
+	var src io.Reader
 	if strings.HasSuffix(binaryURL, ".tgz") {
-		resp, err := collections.GetRequestWithContext(ctx, binaryURL)
-		if err != nil {
-			return errors.WrapAndTrace(err)
-		}
-		defer resp.Body.Close() //nolint:errcheck // defer
+		src = trytoUnTarGZ(resp.Body)
+	} else {
+		src = resp.Body
+	}
 
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		}
+	_, err = io.Copy(out, src)
+	if err != nil {
+		return fmt.Errorf("error saving downloaded file: %v", err)
+	}
 
-		out, err := c.store.Create(binaryPath)
-		if err != nil {
-			return errors.WrapAndTrace(err)
-		}
-
-		defer out.Close() //nolint:errcheck // defer
-		var src io.Reader
-		if strings.HasSuffix(binaryURL, ".tgz") {
-			src = trytoUnTarGZ(resp.Body)
-		} else {
-			src = resp.Body
-		}
-
-		_, err = io.Copy(out, src)
-		if err != nil {
-			return fmt.Errorf("error saving downloaded file: %v", err)
-		}
-
-		err = c.store.Chmod(binaryPath, 0o755)
-		if err != nil {
-			return errors.WrapAndTrace(err)
-		}
+	err = c.store.Chmod(binaryPath, 0o755)
+	if err != nil {
+		return errors.WrapAndTrace(err)
 	}
 	return nil
 }
