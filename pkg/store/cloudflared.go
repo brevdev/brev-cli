@@ -12,7 +12,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/collections"
 	"github.com/brevdev/brev-cli/pkg/errors"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 type CloudflaredStore interface {
@@ -76,7 +75,7 @@ func (c Cloudflared) DownloadBinary(ctx context.Context, binaryPath, binaryURL s
 
 	err = c.store.MkdirAll(filepath.Dir(binaryPath), 0o755)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return errors.WrapAndTrace(err)
 	}
 
 	out, err := c.store.Create(binaryPath)
