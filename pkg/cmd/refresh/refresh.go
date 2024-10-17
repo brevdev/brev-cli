@@ -3,12 +3,15 @@ package refresh
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"sync"
 
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -19,6 +22,10 @@ type RefreshStore interface {
 	ssh.SSHConfigurerV2Store
 	GetCurrentUser() (*entity.User, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
+	Chmod(string, fs.FileMode) error
+	MkdirAll(string, fs.FileMode) error
+	GetBrevCloudflaredBinaryPath() (string, error)
+	Create(string) (io.WriteCloser, error)
 }
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
@@ -51,6 +58,12 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 }
 
 func RunRefresh(store RefreshStore) error {
+	cl := GetCloudflare(store)
+	err := cl.DownloadCloudflaredBinaryIfItDNE()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	cu, err := GetConfigUpdater(store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -104,4 +117,9 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
 
 	return cu, nil
+}
+
+func GetCloudflare(refreshStore RefreshStore) store.Cloudflared {
+	cl := store.NewCloudflare(refreshStore)
+	return cl
 }

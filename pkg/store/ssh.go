@@ -107,6 +107,15 @@ func (f FileStore) GetWSLHostBrevSSHConfigPath() (string, error) {
 	return path, nil
 }
 
+func (f FileStore) GetBrevCloudflaredBinaryPath() (string, error) {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	path := files.GetBrevCloudflaredBinaryPath(home)
+	return path, nil
+}
+
 func (f FileStore) WriteUserSSHConfig(config string) error {
 	home, err := f.UserHomeDir()
 	if err != nil {
