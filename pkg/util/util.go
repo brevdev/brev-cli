@@ -141,6 +141,7 @@ func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
 var commonVSCodePaths = []string{
 	"code",
 	"/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
+	"/mnt/c/Program Files/Microsoft VS Code/bin/code",
 	"/usr/bin/code",
 	"/usr/local/bin/code",
 	"/snap/bin/code",
