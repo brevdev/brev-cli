@@ -6,15 +6,12 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/approve"
-	"github.com/brevdev/brev-cli/pkg/cmd/autostop"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
-	"github.com/brevdev/brev-cli/pkg/cmd/bmon"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/create"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
-	"github.com/brevdev/brev-cli/pkg/cmd/envsetup"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/fu"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
@@ -30,7 +27,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
-	"github.com/brevdev/brev-cli/pkg/cmd/postinstall"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
 	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
@@ -49,7 +45,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
 	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
-	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -281,13 +276,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
-	cmd.AddCommand(envsetup.NewCmdEnvSetup(loginCmdStore, loginAuth))
-	cmd.AddCommand(postinstall.NewCmdpostinstall(t, loginCmdStore))
-	cmd.AddCommand(postinstall.NewCMDOptimizeThis(t, loginCmdStore))
-	cmd.AddCommand(bmon.NewCmdbmon(t, loginCmdStore))
-	cmd.AddCommand(upgrade.NewCmdUpgrade(t, loginCmdStore))
 	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
-	cmd.AddCommand(autostop.NewCmdautostop(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 }
 
