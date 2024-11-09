@@ -30,23 +30,19 @@ func GetRequestWithContext(ctx context.Context, url string) (*http.Response, err
 	return resp, nil
 }
 
-func Fmap[T any, R any](fn func(some T) R, list []T) []R {
+func Fmap[T, R any](fn func(some T) R, list []T) []R {
 	return Foldl(func(acc []R, next T) []R {
 		return append(acc, fn(next))
 	}, []R{}, list)
 }
 
-// there is no function overloading [and the need to describe dependent relations between the types of the functions rules out variadic arguments]
-// so we will define c2, c3, c4, and c5 which will allow simple composition of up to 5 functions
-// anything more than that should be refactored so that subcomponents of the composition are renamed, anyway (or named itself)
-
-func Compose[T any, S any, R any](fn1 func(some S) R, fn2 func(some T) S) func(some T) R {
+func Compose[T, S, R any](fn1 func(some S) R, fn2 func(some T) S) func(some T) R {
 	return func(some T) R {
 		return fn1(fn2(some))
 	}
 }
 
-func C5[T any, S any, R any, U any, V any, W any](fn02 func(some V) W, fn01 func(some U) V, fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) W {
+func C5[T, S, R, U, V, W any](fn02 func(some V) W, fn01 func(some U) V, fn0 func(some R) U, fn1 func(some S) R, fn2 func(some T) S) func(some T) W {
 	return func(some T) W {
 		return fn02(fn01(fn0(fn1(fn2(some)))))
 	}
@@ -60,13 +56,13 @@ func S[T any](fns ...func(some T) T) func(some T) T {
 	return Foldl(Compose[T, T, T], ID[T], fns)
 }
 
-func P2[X any, Y any, Z any](fn func(X, Y) Z, x X) func(Y) Z {
+func P2[X, Y, Z any](fn func(X, Y) Z, x X) func(Y) Z {
 	return func(y Y) Z {
 		return fn(x, y)
 	}
 }
 
-func Flip[X any, Y any, Z any](fn func(X, Y) Z) func(Y, X) Z {
+func Flip[X, Y, Z any](fn func(X, Y) Z) func(Y, X) Z {
 	return func(y Y, x X) Z {
 		return fn(x, y)
 	}
@@ -79,7 +75,7 @@ func First[X any](list []X) *X {
 	return nil
 }
 
-func Fanout[T any, R any](fs []func(T) R, item T) []R {
+func Fanout[T, R any](fs []func(T) R, item T) []R {
 	return Fmap(func(f func(T) R) R {
 		return f(item)
 	}, fs)
@@ -108,7 +104,7 @@ func ToDict[T comparable](xs []T) map[T]bool {
 	}, map[T]bool{}, xs)
 }
 
-func Difference[T comparable](from []T, remove []T) []T {
+func Difference[T comparable](from, remove []T) []T {
 	returnval := Foldl(func(acc maplist[T], el T) maplist[T] {
 		if _, ok := acc.Map[el]; !ok {
 			acc.Map[el] = true
@@ -119,7 +115,7 @@ func Difference[T comparable](from []T, remove []T) []T {
 	return returnval.List
 }
 
-func DictMerge[K comparable, V any](left map[K]V, right map[K]V) map[K]V {
+func DictMerge[K comparable, V any](left, right map[K]V) map[K]V {
 	newMap := map[K]V{}
 	for key, val := range left {
 		if _, ok := right[key]; ok {
@@ -161,7 +157,12 @@ func Contains[T comparable](s []T, e T) bool {
 	return false
 }
 
-// Await blocks until the asynchronous operation completes, returning the result and error.
+func Foldl[T any, R any](fn func(acc R, next T) R, base R, list []T) R {
+	for _, value := range list {
+		base = fn(base, value)
+	}
+	return base
+}
 
 // loops over list and returns when has returns true
 func ListHas[K any](list []K, has func(l K) bool) bool {
@@ -176,44 +177,18 @@ func ListContains[K comparable](list []K, item K) bool {
 	return ListHas(list, func(l K) bool { return l == item })
 }
 
-// map over a go map
-
-// map over a go map and return a map, merge the maps
-
-func Foldl[T any, R any](fn func(acc R, next T) R, base R, list []T) R {
-	for _, value := range list {
-		base = fn(base, value)
-	}
-	return base
-}
-
-// Take a list of things and a function that returns a list of things then combines list after mapping (return early from error)
-// func T -> [R, R, R ...]
-// [T, T, T ...] -> [R, R, R ...]
-
 // Take a list of things and a function that returns a list of things then combines list after mapping
 // func T -> [R, R, R ...]
 // [T, T, T ...] -> [R, R, R ...]
-func Flatmap[T any, R any](fn func(some T) []R, list []T) []R {
+func Flatmap[T, R any](fn func(some T) []R, list []T) []R {
 	return Foldl(func(acc []R, el T) []R {
 		return Concat(acc, fn(el))
 	}, []R{}, list)
 }
 
-func Concat[T any](left []T, right []T) []T {
+func Concat[T any](left, right []T) []T {
 	return append(left, right...)
 }
-
-// func T -> R
-// [T, T, T ...] -> [R, R, R ...]
-
-// return default if ptr is nil or de-referenced ptr value is empty
-
-// right maps override left if they have the same key
-
-// return value or nil if value is zero
-
-//nolint:wrapcheck // fine
 
 var timeToPBTimeStamp CopyConverter[time.Time, *timestamppb.Timestamp] = func(src time.Time) (*timestamppb.Timestamp, error) {
 	return timestamppb.New(src), nil
@@ -280,14 +255,10 @@ type Result[T any] struct {
 	Err   error
 }
 
-// pass in m a map of string to any
-
 type MapKeyVal[K comparable, V any] struct {
 	Key   K
 	Value V
 }
-
-// sortFn if i < j then ascending (1,2,3), if i > j then descending (3,2,1)
 
 // sortFn if i < j then ascending (1,2,3), if i > j then descending (3,2,1)
 func SortBy[T any](sortFn func(T, T) bool, list []T) []T {
@@ -297,8 +268,6 @@ func SortBy[T any](sortFn func(T, T) bool, list []T) []T {
 	return list
 }
 
-// takes a list of items and checks if items are elements in another list
-
 func Find[T any](list []T, f func(T) bool) *T {
 	for _, item := range list {
 		if f(item) {
@@ -307,8 +276,6 @@ func Find[T any](list []T, f func(T) bool) *T {
 	}
 	return nil
 }
-
-// returns those that are true
 
 // returns those that are true
 func Filter[T any](list []T, f func(T) bool) []T {
@@ -321,69 +288,19 @@ func Filter[T any](list []T, f func(T) bool) []T {
 	return result
 }
 
-// creates a map of the keys in a and not in b
-
-//nolint:gosimple //ok
-
-// Create a buffered channel to act as a semaphore.
-
-// Acquire a token from the semaphore.
-
-// attach call stack to avoid missing in different goroutine
-
-// Release a token back to the semaphore.
-
-//nolint:wrapcheck // fine for internal
-
-// Early returns if one error is found, will return partial work
-
-// Create a buffered channel to act as a semaphore.
-
-// Priority is given to firstErr if it's set
-
-// If firstErr is nil, then we check if the context was canceled
-
-// Assumes that if cont is false res is empty
-
 type Runnable interface {
 	Run(ctx context.Context) error
 	Shutdown(ctx context.Context) error
 }
 
-// RunAllWithShutdown runs Runnabls in parallel and waits for shutdown signal (max n seconds)
-// if one runner errors or panics
-
-// attach call stack to avoid missing in different goroutine
-
-// Received shutdown signal
-
-// One of the Run methods returned an error
-
-// Initiate shutdown of all runners
-
 type ContextKey string
 
 const IdempotencyKeyName ContextKey = "idempotencyKey"
-
-// do not check for error because if fail, then just leave as empty string
-
-// for testing, and printing to screen, ignores error
 
 type SafeCounter struct {
 	mu sync.Mutex
 	c  int
 }
-
-// findStructField looks for a field in the given struct.
-// The field being looked for should be a pointer to the actual struct field.
-// If found, the field info will be returned. Otherwise, nil will be returned.
-
-// do additional type comparison because it's possible that the address of
-// an embedded struct is the same as the first field of the embedded struct
-
-// delve into anonymous struct to look for the field
-
-// returns json string or empty if fails
 
 type AsyncResult[T any] struct {
 	result chan result[T]
@@ -413,34 +330,6 @@ type Rollback struct {
 	undos []func() error
 }
 
-//nolint:wrapcheck // fine for internal
-
-// SleepWithHealthCheck sleeps for the specified duration `d` and periodically calls `heartbeatFn`
-// at every `tickRate` until `d` has elapsed.
-
-// Call the heartbeat function immediately
-// Timer to manage the total sleep duration
-
-// Ticker to manage the heartbeat function calls
-
-// Ensures the ticker is stopped to free resources
-
-// On every tick, call the heartbeat function
-
-// Once the total duration has passed, return
-
-// Wait for the sleep duration to pass before returning
-
-// cancel context to end
-
-// cancel context to end
-
-// end early if err
-
-// Mark this function as a helper
-
-// If we reach here, all retries failed
-
 var (
 	// ErrCanceled is the error returned when the context is canceled.
 	ErrCanceled = context.Canceled
@@ -455,17 +344,3 @@ type TimeoutOptions struct {
 	ParentContext context.Context
 	CatchPanic    bool
 }
-
-// if you loop forever, make sure you have a way to break the loop
-// see Test_DoWithTimeoutTimeoutLoop
-
-// if you loop forever, make sure you have a way to break the loop
-// see Test_DoWithTimeoutTimeoutLoop
-
-// create channel with buffer size 1 to avoid goroutine leak
-
-// attach call stack to avoid missing in different goroutine
-
-//nolint:wrapcheck // no need to wrap
-
-// WithContext customizes a DoWithTimeout call with given ctx.
