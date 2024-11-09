@@ -215,43 +215,6 @@ func Concat[T any](left []T, right []T) []T {
 
 //nolint:wrapcheck // fine
 
-type CopyOption interface {
-	apply(t any, r any, o *CopyOptions)
-}
-
-type CopyMap map[string]string
-
-// For testing different DX
-
-type CopyOptions struct {
-	ShallowCopy           bool
-	OmitDefaultConverters bool
-	Converters            CopierConverters
-	Mappers               CopyMappers // create mappings for any arbitrary type
-}
-
-type CopyMappers []CopyMapper
-
-type CopyMapper interface {
-	ToCopierMapping() copier.FieldNameMapping
-}
-
-type DumbCopyMapper struct {
-	Mapping copier.FieldNameMapping
-}
-
-type CopyMapping[T, R any] map[string]string
-
-func (c CopyMapping[T, R]) ToCopierMapping() copier.FieldNameMapping {
-	var t T
-	var r R
-	return copier.FieldNameMapping{
-		SrcType: t,
-		DstType: r,
-		Mapping: c,
-	}
-}
-
 var timeToPBTimeStamp CopyConverter[time.Time, *timestamppb.Timestamp] = func(src time.Time) (*timestamppb.Timestamp, error) {
 	return timestamppb.New(src), nil
 }
@@ -409,29 +372,6 @@ const IdempotencyKeyName ContextKey = "idempotencyKey"
 type SafeCounter struct {
 	mu sync.Mutex
 	c  int
-}
-
-// SafeValue holds an arbitrary value with read and write protection.
-// T is the type of the value.
-type SafeValue[T any] struct {
-	value T
-	mutex sync.RWMutex
-}
-
-// NewSafeValue creates a new SafeValue.
-
-// Get returns the value safely.
-func (sv *SafeValue[T]) Get() T {
-	sv.mutex.RLock()
-	defer sv.mutex.RUnlock()
-	return sv.value
-}
-
-// Set updates the value safely.
-func (sv *SafeValue[T]) Set(newValue T) {
-	sv.mutex.Lock()
-	defer sv.mutex.Unlock()
-	sv.value = newValue
 }
 
 // findStructField looks for a field in the given struct.
