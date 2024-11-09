@@ -2,16 +2,17 @@
 package refresh
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
 	"sync"
 
+	"github.com/brevdev/brev-cli/pkg/cloudflared"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -58,10 +59,10 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 }
 
 func RunRefresh(store RefreshStore) error {
-	cl := GetCloudflare(store)
-	err := cl.DownloadCloudflaredBinaryIfItDNE()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	// TODO: use context
+	ctx := context.TODO()
+	if err := cloudflared.DownloadCloudflaredBinaryIfItDNE(ctx); err != nil {
+		return fmt.Errorf("error downloading cloudflared binary: %w", err)
 	}
 
 	cu, err := GetConfigUpdater(store)
@@ -117,9 +118,4 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
 
 	return cu, nil
-}
-
-func GetCloudflare(refreshStore RefreshStore) store.Cloudflared {
-	cl := store.NewCloudflare(refreshStore)
-	return cl
 }
