@@ -406,65 +406,6 @@ const IdempotencyKeyName ContextKey = "idempotencyKey"
 
 // for testing, and printing to screen, ignores error
 
-type SafeSlice[T any] struct {
-	slice []T
-	mu    sync.RWMutex
-}
-
-// Append adds a new element to the slice.
-func (s *SafeSlice[T]) Append(value ...T) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.slice = append(s.slice, value...)
-}
-
-// Get retrieves an element at a specific index.
-func (s *SafeSlice[T]) Get(index int) (T, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if index < 0 || index >= len(s.slice) {
-		var zero T // Create a zero value of type T
-		return zero, false
-	}
-	return s.slice[index], true
-}
-
-func (s *SafeSlice[T]) Set(slice []T) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.slice = slice
-}
-
-func (s *SafeSlice[T]) SetAt(index int, value T) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if index < 0 || index >= len(s.slice) {
-		return false
-	}
-	s.slice[index] = value
-	return true
-}
-
-func (s *SafeSlice[T]) Delete(index int) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if index < 0 || index >= len(s.slice) {
-		return false
-	}
-	s.slice = append(s.slice[:index], s.slice[index+1:]...)
-	return true
-}
-
-func (s *SafeSlice[T]) Slice() []T {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	newSlice := make([]T, len(s.slice))
-	for i, v := range s.slice { //nolint:gosimple //ok
-		newSlice[i] = v
-	}
-	return newSlice
-}
-
 type SafeCounter struct {
 	mu sync.Mutex
 	c  int
