@@ -29,8 +29,6 @@ linters-settings:
       - name: redefines-builtin-id
   gocyclo:
     min-complexity: 16
-  govet:
-    check-shadowing: true
   misspell:
     locale: US
   nolintlint:
