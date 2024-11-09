@@ -336,27 +336,6 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 	}
 }
 
-func DisplayLsConnectBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
-	foundRunning := false
-	for _, w := range workspaces {
-		if w.Status == entity.Running {
-			foundRunning = true
-			t.Vprintf(t.Green("Connect to running instance:\n"))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open instance in preferred editor\n", w.Name)))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into instance (shortcut)\n", w.Name)))
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to instance\n", w.GetLocalIdentifier())))
-			if enableSSHCol {
-				t.Vprintf(t.Yellow("\tssh <SSH> ex: ssh %s\n", w.GetLocalIdentifier()))
-			}
-			break
-		}
-	}
-	if !foundRunning && len(workspaces) > 0 {
-		t.Vprintf(t.Green("Start a stopped instance:\n"))
-		t.Vprintf(t.Yellow("\tbrev start %s # brev start <NAME> -> start stopped instance\n", workspaces[0].Name))
-	}
-}
-
 func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
 	foundAResettableWorkspace := false
 	for _, w := range workspaces {

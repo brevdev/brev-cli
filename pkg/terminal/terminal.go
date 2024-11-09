@@ -50,20 +50,8 @@ func New() (t *Terminal) {
 	}
 }
 
-func (t *Terminal) SetVerbose(verbose bool) {
-	if verbose {
-		t.out = os.Stdout
-	} else {
-		t.out = silentWriter{}
-	}
-}
-
 func (t *Terminal) Print(a string) {
 	fmt.Fprintln(t.out, a)
-}
-
-func (t *Terminal) Printf(format string, a ...interface{}) {
-	fmt.Fprintf(t.out, format, a...)
 }
 
 func (t *Terminal) Vprint(a string) {
@@ -92,21 +80,7 @@ func (t *Terminal) Errprint(err error, a string) {
 	}
 }
 
-func (t *Terminal) Errprintf(err error, format string, a ...interface{}) {
-	t.Eprint(t.Red("Error: " + err.Error()))
-	if a != nil {
-		t.Eprint(t.Red(format, a))
-	}
-	if brevErr, ok := err.(breverrors.BrevError); ok {
-		t.Eprint(t.Red(brevErr.Directive()))
-	}
-}
-
 type silentWriter struct{}
-
-func (w silentWriter) Write(_ []byte) (n int, err error) {
-	return 0, nil
-}
 
 func (t *Terminal) NewSpinner() *spinner.Spinner {
 	spinner := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
@@ -117,40 +91,4 @@ func (t *Terminal) NewSpinner() *spinner.Spinner {
 	spinner.Reverse()
 
 	return spinner
-}
-
-func (t *Terminal) NewProgressBar(description string, onComplete func()) *ProgressBar {
-	bar := progressbar.NewOptions(ProgressBarMax,
-		progressbar.OptionOnCompletion(onComplete),
-		progressbar.OptionEnableColorCodes(true),
-		progressbar.OptionShowBytes(false),
-		progressbar.OptionSetWidth(15),
-		progressbar.OptionSetDescription(description),
-		progressbar.OptionSetTheme(progressbar.Theme{
-			Saucer:        "[green]=[reset]",
-			SaucerHead:    "[green]🤙[reset]",
-			SaucerPadding: " ",
-			BarStart:      "[",
-			BarEnd:        "]",
-		}))
-
-	return &ProgressBar{
-		Bar:            bar,
-		CurrPercentage: 0,
-	}
-}
-
-func (bar *ProgressBar) AdvanceTo(percentage int) {
-	for bar.CurrPercentage < percentage && bar.CurrPercentage <= 100 {
-		bar.CurrPercentage++
-		err := bar.Bar.Add(1)
-		if err != nil {
-			panic(err)
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-}
-
-func (bar *ProgressBar) Describe(text string) {
-	bar.Bar.Describe(text)
 }

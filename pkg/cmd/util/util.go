@@ -64,18 +64,6 @@ type MakeWorkspaceWithMetaStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func MakeWorkspaceWithMeta(store MakeWorkspaceWithMetaStore, workspace *entity.Workspace) (entity.WorkspaceWithMeta, error) {
-	workspaceMetaData, err := store.GetWorkspaceMetaData(workspace.ID)
-	if err != nil {
-		return entity.WorkspaceWithMeta{}, breverrors.WrapAndTrace(err)
-	}
-
-	return entity.WorkspaceWithMeta{
-		WorkspaceMetaData: *workspaceMetaData,
-		Workspace:         *workspace,
-	}, nil
-}
-
 func GetClassIDString(classID string) string {
 	// switch statement on class ID
 	switch classID {

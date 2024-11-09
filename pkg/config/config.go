@@ -32,14 +32,6 @@ func (c ConstantsConfig) GetOllamaAPIURL() string {
 	return getEnvOrDefault(ollamaAPIURL, "https://registry.ollama.ai")
 }
 
-func (c ConstantsConfig) GetServiceMeshCoordServerURL() string {
-	return getEnvOrDefault(coordURL, "")
-}
-
-func (c ConstantsConfig) GetVersion() string {
-	return getEnvOrDefault(version, "unknown")
-}
-
 func (c ConstantsConfig) GetDefaultClusterID() string {
 	return getEnvOrDefault(clusterID, "devplane-brev-1")
 }
@@ -51,10 +43,6 @@ func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
 func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {
 	// "test-template-aws"
 	return getEnvOrDefault(defaultWorkspaceTemplate, "")
-}
-
-func (c ConstantsConfig) GetSentryURL() string {
-	return getEnvOrDefault(sentryURL, "https://4f3dca96f17e4c7995588dda4a31b37f@o410659.ingest.sentry.io/6383105")
 }
 
 func (c ConstantsConfig) GetDebugHTTP() bool {
@@ -75,24 +63,12 @@ type EnvVarConfig struct {
 	ConstantsConfig
 }
 
-func (c *ConstantsConfig) WithEnvVars() *EnvVarConfig {
-	return &EnvVarConfig{*c}
-}
-
 type FileConfig struct {
 	EnvVarConfig
 }
 
-func (c *EnvVarConfig) WithFileConfig() *FileConfig {
-	return &FileConfig{*c}
-}
-
 type FlagsConfig struct {
 	FileConfig
-}
-
-func (c *FileConfig) WithFlags() *FlagsConfig {
-	return &FlagsConfig{*c}
 }
 
 type InitConfig interface{}

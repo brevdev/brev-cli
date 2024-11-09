@@ -117,10 +117,6 @@ func NewCmdRun(_ *terminal.Terminal, _ TaskStore, taskMap TaskMap) *cobra.Comman
 	return cmd
 }
 
-func Tasks(_ *terminal.Terminal, _ TaskStore, _ TaskMap) error {
-	return nil
-}
-
 func getTaskMap(store TaskStore) TaskMap {
 	taskmap := make(TaskMap)
 	sshcd := ssh.NewSSHConfigurerTask(store)

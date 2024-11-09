@@ -12,13 +12,6 @@ type (
 	URL  string
 )
 
-func NewHostFromString(host string) (Host, error) {
-	if strings.HasPrefix(host, "http") {
-		return "", fmt.Errorf("host can not start with 'http'")
-	}
-	return Host(host), nil
-}
-
 func (h Host) AddPrefix(prefix string) Host {
 	return Host(fmt.Sprintf("%s%s", prefix, h))
 }

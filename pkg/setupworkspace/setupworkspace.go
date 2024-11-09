@@ -311,14 +311,6 @@ func SendLogToFiles(cmd *exec.Cmd, filePaths ...string) (func(), error) {
 	}, nil
 }
 
-func (w WorkspaceIniter) ChownFileToUser(file *os.File) error {
-	err := ChownFileToUser(file, w.User)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
 func (w WorkspaceIniter) BuildHomePath(suffix ...string) string {
 	return filepath.Join(append([]string{w.User.HomeDir}, suffix...)...)
 }
@@ -1050,14 +1042,6 @@ tar --no-same-owner -xzv --strip-components=1 -C ~/.vscode-server/bin/"${commit_
 	return nil
 }
 
-func (w WorkspaceIniter) RunApplicationScripts(scripts []string) error {
-	for _, s := range scripts {
-		cmd := CmdStringBuilder(s)
-		_ = cmd.Run()
-	}
-	return nil
-}
-
 func allRepoFormats(repo string) []string {
 	repos := []string{
 		repo,
@@ -1332,35 +1316,7 @@ type CommandGroup struct {
 	User *user.User
 }
 
-func NewCommandGroup() *CommandGroup {
-	return &CommandGroup{}
-}
-
-func (c *CommandGroup) WithUser(user *user.User) *CommandGroup {
-	c.User = user
-	return c
-}
-
-func (c *CommandGroup) AddCmd(cmd *exec.Cmd) {
-	c.Cmds = append(c.Cmds, cmd)
-}
-
-func (c *CommandGroup) Run() error {
-	// TODO batch
-	for _, cmd := range c.Cmds {
-		if c.User != nil && (cmd.SysProcAttr == nil || cmd.SysProcAttr.Credential == nil) {
-			err := CmdAsUser(cmd, c.User)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-		}
-		err := cmd.Run()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	return nil
-}
+// TODO batch
 
 func CmdAsUser(cmd *exec.Cmd, user *user.User) error {
 	uid, err := strconv.ParseInt(user.Uid, 10, 32)

@@ -200,31 +200,13 @@ func SetOnboardingObject(oo OnboardingObject) error {
 	return nil
 }
 
-func SetOnboardingStep(step int) error {
-	// get path
-	path, err := GetOnboardingFilePath()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+// get path
 
-	// Ensure file exists
-	err = SetupDefaultOnboardingFile()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+// Ensure file exists
 
-	// write file
-	oo := OnboardingObject{
-		Step: step,
-	}
-	err = files.OverwriteJSON(files.AppFs, path, &oo)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+// write file
 
-	// return data
-	return nil
-}
+// return data
 
 func SetHasRunShell(hasRunShell bool) error {
 	// get path
@@ -286,9 +268,4 @@ func SetHasRunOpen(hasRunOpen bool) error {
 
 	// return data
 	return nil
-}
-
-func Poll() {
-	s := "Got it."
-	TypeItToMe(s)
 }

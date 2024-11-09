@@ -105,38 +105,6 @@ type SymLinkVolume struct {
 
 var _ Volume = SymLinkVolume{}
 
-func NewSymLinkVolume(fromSymLinkPath string, localVolumePath string, mountToPath string) *SymLinkVolume {
-	return &SymLinkVolume{
-		FromSymLinkPath: fromSymLinkPath,
-		LocalVolumePath: localVolumePath,
-		MountToPath:     mountToPath,
-	}
-}
-
-func (s SymLinkVolume) GetIdentifier() string {
-	return s.LocalVolumePath
-}
-
-func (s SymLinkVolume) GetMountToPath() string {
-	return s.MountToPath
-}
-
-func (s SymLinkVolume) Setup(_ context.Context) error {
-	err := os.Symlink(s.FromSymLinkPath, s.LocalVolumePath)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func (s SymLinkVolume) Teardown(_ context.Context) error {
-	err := os.RemoveAll(s.LocalVolumePath)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
 type DynamicVolume struct {
 	FromMountPathPrefix string
 	ToMountPath         string
@@ -146,35 +114,3 @@ type DynamicVolume struct {
 // can be push or polled based?
 
 var _ Volume = DynamicVolume{}
-
-func NewDynamicVolume(path string, fileMap map[string]func(string)) *DynamicVolume {
-	return &DynamicVolume{ToMountPath: path, FileMap: fileMap}
-}
-
-func (s DynamicVolume) WithPathPrefix(prefix string) DynamicVolume {
-	s.FromMountPathPrefix = prefix
-	return s
-}
-
-func (s DynamicVolume) GetIdentifier() string {
-	return ""
-}
-
-func (s DynamicVolume) GetMountToPath() string {
-	return ""
-}
-
-func (s DynamicVolume) GetMountFromPath() string {
-	return s.FromMountPathPrefix
-}
-
-func (s DynamicVolume) Setup(_ context.Context) error {
-	for f, d := range s.FileMap {
-		d(filepath.Join(s.GetMountFromPath(), f))
-	}
-	return nil
-}
-
-func (s DynamicVolume) Teardown(_ context.Context) error {
-	return nil
-}
