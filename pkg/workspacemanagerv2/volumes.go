@@ -103,7 +103,7 @@ type SymLinkVolume struct {
 	MountToPath     string
 }
 
-var _ Volume = SymLinkVolume{}
+// Deprecated: var _ Volume = SymLinkVolume{}
 
 type DynamicVolume struct {
 	FromMountPathPrefix string
@@ -111,6 +111,4 @@ type DynamicVolume struct {
 	FileMap             map[string]func(string)
 }
 
-// can be push or polled based?
-
-var _ Volume = DynamicVolume{}
+// Deprecated: var _ Volume = DynamicVolume{}

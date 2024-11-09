@@ -521,7 +521,7 @@ type SSHConfigurerServiceMesh struct {
 	store SSHConfigurerV2Store
 }
 
-var _ Config = SSHConfigurerServiceMesh{}
+// Deprecated: var _ Config = SSHConfigurerServiceMesh{}
 
 // openssh-7.3
 
