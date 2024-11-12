@@ -11,6 +11,16 @@ import (
 	"github.com/brevdev/brev-cli/pkg/collections"
 )
 
+// CredentialProvider describes which authentication system is resposnible for auth tokens.
+type CredentialProvider string
+
+const (
+	CredientialProviderUnspecified CredentialProvider = ""
+	CredentialProviderAuth0        CredentialProvider = "auth0"
+	CredentialProviderKAS          CredentialProvider = "kas"
+	// CredentialProviderStarfleet    CredentialProvider = "starfleet"
+)
+
 const WorkspaceGroupDevPlane = "devplane-brev-1"
 
 var LegacyWorkspaceGroups = map[string]bool{
@@ -21,6 +31,8 @@ var LegacyWorkspaceGroups = map[string]bool{
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+
+	CredentialProvider CredentialProvider `json:"credential_provider"`
 }
 
 type IDEConfig struct {

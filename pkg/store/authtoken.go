@@ -34,6 +34,20 @@ func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 	return nil
 }
 
+/* tmc rant : this could be way cleaner
+// authtokens/authtokens.go
+func ReadAuthTokensFromDisk() (*entity.AuthTokens, error) {
+	home, _ := os.UserHomeDir()
+	f, err := os.Open(filepath.Join(home, brevDirectory, brevCredentialsFile))
+	if err != nil {
+		return nil, err
+	}
+	var tok entity.AuthTokens
+	return &tok, json.NewDecoder(f).Decode(&tok)
+}
+tokens, err := authtokens.ReadAuthTokensFromDisk()
+*/
+
 func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	serviceToken, err := f.GetCurrentWorkspaceServiceToken()
 	if err == nil && serviceToken != "" {
@@ -62,6 +76,15 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	}
 	return &token, nil
 }
+
+// func (f FileStore) getBrevCredentialsFile() (*string, error) {
+// 	home, err := f.UserHomeDir()
+// 	if err != nil {
+// 		return nil, breverrors.WrapAndTrace(err)
+// 	}
+// 	brevCredentialsFile := path.Join(home, brevDirectory, brevCredentialsFile)
+// 	return &brevCredentialsFile, nil
+// }
 
 func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
 	saTokenFilePath := getServiceTokenFilePath()

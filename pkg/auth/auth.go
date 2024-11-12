@@ -19,6 +19,9 @@ type LoginAuth struct {
 	Auth
 }
 
+// assert that LoginAuth implements store.Auth
+// var _ store.Auth = (*LoginAuth)(nil)
+
 func NewLoginAuth(authStore AuthStore, oauth OAuth) *LoginAuth {
 	return &LoginAuth{
 		Auth: *NewAuth(authStore, oauth),
@@ -257,6 +260,7 @@ type LoginTokens struct {
 
 func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 	tokens, err := t.authStore.GetAuthTokens()
+	fmt.Fprintf(os.Stderr, "AuthTokens: %+v\n", tokens)
 	if err != nil {
 		switch err.(type) { //nolint:gocritic // like the ability to extend
 		case *breverrors.CredentialsFileNotFound:

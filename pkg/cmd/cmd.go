@@ -73,12 +73,16 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	conf := config.NewConstants()
 	fs := files.AppFs
-	authenticator := auth.Authenticator{
+
+	// TODO: this is inappropriately tightly bound to auth0, we should bifurcate our path near here.
+	// auth.Multi.. auth.Dynamic.. ?
+	var authenticator auth.OAuth = auth.Auth0Authenticator{
 		Audience:           "https://brevdev.us.auth0.com/api/v2/",
 		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
 		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
 		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
 	}
+
 	// super annoying. this is needed to make the import stay
 	_ = color.New(color.FgYellow, color.Bold).SprintFunc()
 
