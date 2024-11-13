@@ -28,28 +28,6 @@ type BackgroundStore interface {
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 }
 
-func DisableAutoStop(s BackgroundStore, workspaceID string) error {
-	isStoppable := false
-	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
-		IsStoppable: &isStoppable,
-	})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func EnableAutoStop(s BackgroundStore, workspaceID string) error {
-	isStoppable := true
-	_, err := s.ModifyWorkspace(workspaceID, &store.ModifyWorkspaceRequest{
-		IsStoppable: &isStoppable,
-	})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
 func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -88,7 +66,6 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 				log.Fatal(err)
 			}
 
-			checkAutoStop(s)
 			// Run the command in the background using nohup
 			c := exec.Command("nohup", "bash", "-c", command+">"+logsDir+"/log.txt 2>&1 &") // #nosec G204
 			err = c.Start()
@@ -131,17 +108,6 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	cmd.Flags().Bool("stop", false, "Stop the workspace after the command is finished")
 	cmd.Flags().Bool("progress", false, "Show progress of the background commands")
 	return cmd
-}
-
-func checkAutoStop(s BackgroundStore) {
-	wsID, err := s.GetCurrentWorkspaceID()
-	if err == nil && wsID != "" {
-		// Disable auto stop
-		err = DisableAutoStop(s, wsID)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 }
 
 func pushBackgroundAnalytics(s BackgroundStore) error {
