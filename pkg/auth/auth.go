@@ -15,6 +15,25 @@ import (
 	"github.com/pkg/browser"
 )
 
+type AuthChecker interface {
+	GetCredentialProvider() entity.CredentialProvider
+}
+
+func GetAuthenticator(ac AuthChecker) OAuth {
+	switch ac.GetCredentialProvider() {
+	case entity.CredentialProviderKAS:
+		return KasAuthenticator{}
+	case entity.CredentialProviderAuth0:
+		return Auth0Authenticator{
+			Audience:           "https://brevdev.us.auth0.com/api/v2/",
+			ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+			DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+			OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+		}
+	}
+	return nil
+}
+
 type LoginAuth struct {
 	Auth
 }
