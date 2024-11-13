@@ -267,11 +267,6 @@ type SSHConfigEntryV2 struct {
 	Port         int
 }
 
-func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
-	_, ok := m[key]
-	return ok
-}
-
 func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error) {
 	buf := &bytes.Buffer{}
 	err := tmpl.Execute(buf, val)
@@ -526,82 +521,9 @@ type SSHConfigurerServiceMesh struct {
 	store SSHConfigurerV2Store
 }
 
-var _ Config = SSHConfigurerServiceMesh{}
+// Deprecated: var _ Config = SSHConfigurerServiceMesh{}
 
-func NewSSHConfigurerServiceMesh(store SSHConfigurerV2Store) *SSHConfigurerServiceMesh {
-	return &SSHConfigurerServiceMesh{
-		store: store,
-	}
-}
-
-func (s SSHConfigurerServiceMesh) Update(workspaces []entity.Workspace) error {
-	newConfig, err := s.CreateNewSSHConfig(workspaces)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = s.store.WriteBrevSSHConfig(newConfig)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = s.EnsureConfigHasInclude()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
-}
-
-func (s SSHConfigurerServiceMesh) EnsureConfigHasInclude() error {
-	// openssh-7.3
-
-	brevConfigPath, err := s.store.GetBrevSSHConfigPath()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	conf, err := s.store.GetUserSSHConfig()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if !doesUserSSHConfigIncludeBrevConfig(conf, brevConfigPath) {
-		newConf, err := AddIncludeToUserConfig(conf, brevConfigPath)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		err = s.store.WriteUserSSHConfig(newConf)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-
-	return nil
-}
-
-func (s SSHConfigurerServiceMesh) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
-	log.Print("creating new service mesh ssh config")
-
-	configPath, err := s.store.GetUserSSHConfigPath()
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-
-	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
-	for _, w := range workspaces {
-		pk, err := s.store.GetPrivateKeyPath()
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		entry, err := makeSSHConfigServiceMeshEntry(string(w.GetLocalIdentifier()), w.GetNodeIdentifierForVPN(), pk)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-
-		sshConfig += entry
-	}
-
-	return sshConfig, nil
-}
+// openssh-7.3
 
 const SSHConfigEntryTemplateServiceMesh = `Host {{ .Alias }}
   HostName {{ .Host }}
@@ -618,28 +540,6 @@ type SSHConfigEntryServiceMesh struct {
 	IdentityFile string
 	User         string
 	Port         string
-}
-
-func makeSSHConfigServiceMeshEntry(alias string, host string, privateKeyPath string) (string, error) {
-	entry := SSHConfigEntryServiceMesh{
-		Alias:        alias,
-		Host:         host,
-		IdentityFile: privateKeyPath,
-		User:         "brev",
-		Port:         "22",
-	}
-
-	tmpl, err := template.New(host).Parse(SSHConfigEntryTemplateServiceMesh)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-	buf := &bytes.Buffer{}
-	err = tmpl.Execute(buf, entry)
-	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
-	}
-
-	return buf.String(), nil
 }
 
 type SSHConfigurerJetBrains struct {

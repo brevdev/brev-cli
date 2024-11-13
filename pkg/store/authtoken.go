@@ -18,10 +18,6 @@ const (
 	brevDirectory       = ".brev"
 )
 
-func GetBrevDirectory() string {
-	return brevDirectory
-}
-
 func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
 	if token.AccessToken == "" {
 		return fmt.Errorf("access token is empty")

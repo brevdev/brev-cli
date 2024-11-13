@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	stderrors "errors"
@@ -128,11 +127,6 @@ type DeclineToLoginError struct{}
 
 func (d *DeclineToLoginError) Error() string     { return "declined to login" }
 func (d *DeclineToLoginError) Directive() string { return "log in to run this command" }
-
-func MakeErrorMessage(message string) string {
-	_, fn, line, _ := runtime.Caller(2)
-	return fmt.Sprintf("[error] %s:%d %s\n\t", fn, line, message)
-}
 
 var NetworkErrorMessage = "possible internet connection problem"
 
@@ -268,13 +262,6 @@ func WrapAndTraceInMsg(err error) error {
 	return pkgerrors.Wrap(err, makeErrorMessage("", 0)) // this wrap also adds a stacktrace which can be nice
 }
 
-func WrapAndTrace2[T any](t T, err error) (T, error) {
-	if err == nil {
-		return t, nil
-	}
-	return t, pkgerrors.Wrap(err, makeErrorMessage("", 0))
-}
-
 func makeErrorMessage(message string, skip int) string {
 	skip += 2
 	pc, file, line, _ := runtime.Caller(skip)
@@ -289,37 +276,4 @@ func makeErrorMessage(message string, skip int) string {
 	return fmt.Sprintf("[error] %s\n%s\n%s:%s\n", message, funcName, file, lineNum)
 }
 
-func HandleErrDefer(f func() error) {
-	_ = f()
-	// logger.L().Error("", zap.Error(err))
-}
-
-func ErrorContainsAny(err error, substrs ...string) bool {
-	for _, substr := range substrs {
-		if ErrorContains(err, substr) {
-			return true
-		}
-	}
-	return false
-}
-
-func ErrorContains(err error, substr string) bool {
-	return err != nil && strings.Contains(err.Error(), substr)
-}
-
-func IsErrorExcept(err error, errs ...error) bool {
-	return err != nil && !IsAny(err, errs...)
-}
-
-func IsErrorExceptSubstr(err error, substr ...string) bool {
-	return err != nil && !ErrorContainsAny(err, substr...)
-}
-
-func IsAny(err error, errs ...error) bool {
-	for _, e := range errs {
-		if Is(err, e) {
-			return true
-		}
-	}
-	return false
-}
+// logger.L().Error("", zap.Error(err))

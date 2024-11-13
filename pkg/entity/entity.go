@@ -224,14 +224,6 @@ type WorkspaceWithMeta struct {
 	Workspace
 }
 
-func WorkspacesWithMetaToWorkspaces(wms []WorkspaceWithMeta) []Workspace {
-	ws := []Workspace{}
-	for _, wm := range wms {
-		ws = append(ws, wm.Workspace)
-	}
-	return ws
-}
-
 type Application struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
@@ -498,25 +490,12 @@ func (w Workspace) GetHostIdentifier() WorkspaceLocalID {
 	return w.createSimpleName() + "-host"
 }
 
-func MakeIDSuffix(id string) string {
-	return id[len(id)-4:]
-}
-
 var (
 	whitespaceCharPattern = regexp.MustCompile(`\s+`)
 	invalidCharPattern    = regexp.MustCompile(`[^a-z0-9-]`)
 )
 
 // lowercase, replace whitespace with '-', remove all [^a-z0-9-], trim '-' front and back
-func CleanSubdomain(in string) string {
-	lowered := strings.ToLower(in)
-	whitespaceReplacedWithDash := whitespaceCharPattern.ReplaceAllString(lowered, "-")
-	removedInvalidChars := invalidCharPattern.ReplaceAllString(whitespaceReplacedWithDash, "")
-	removedPrefixSuffixDashses := strings.Trim(removedInvalidChars, "-")
-
-	out := removedPrefixSuffixDashses
-	return out
-}
 
 func (w Workspace) GetID() string {
 	return w.ID

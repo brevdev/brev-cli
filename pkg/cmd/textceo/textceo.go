@@ -4,9 +4,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/brevdev/brev-cli/pkg/terminal"
-
-	"github.com/spf13/cobra"
 )
 
 var (
@@ -25,21 +22,5 @@ type TextCEOStore interface {
 	GetWorkspaceMetaData(workspaceID string) (*entity.WorkspaceMetaData, error)
 }
 
-func NewCmdTextCEO(t *terminal.Terminal, _ TextCEOStore) *cobra.Command {
-	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
-		Use:                   "test",
-		DisableFlagsInUseLine: true,
-		Short:                 "Send a text message to our CEO, Nader",
-		Long:                  startLong,
-		Example:               startExample,
-		Run: func(cmd *cobra.Command, args []string) {
-			t.Vprint("\ntest cmd\n")
-		},
-	}
-
-	// cmd.Flags().StringVarP(&message, "message", "m", "", "message to send Brev's CEO, Nader")
-	// cmd.Flags().StringVarP(&message, "phone", "p", "", "(Optional) leave a number for Nader to follow up")
-
-	return cmd
-}
+// cmd.Flags().StringVarP(&message, "message", "m", "", "message to send Brev's CEO, Nader")
+// cmd.Flags().StringVarP(&message, "phone", "p", "", "(Optional) leave a number for Nader to follow up")

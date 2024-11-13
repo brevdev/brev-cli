@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"golang.org/x/text/encoding/charmap"
@@ -34,36 +33,8 @@ const (
 
 var AppFs = afero.NewOsFs()
 
-func GetBrevDirectory() string {
-	return brevDirectory
-}
-
-func GetActiveOrgFile() string {
-	return activeOrgFile
-}
-
-func GetPersonalSettingsCache() string {
-	return personalSettingsCache
-}
-
-func GetOrgCacheFile() string {
-	return orgCacheFile
-}
-
-func GetWorkspaceCacheFile() string {
-	return workspaceCacheFile
-}
-
-func GetKubeCertFileName() string {
-	return kubeCertFileName
-}
-
 func GetSSHPrivateKeyFileName() string {
 	return sshPrivateKeyFileName
-}
-
-func GetTailScaleOutFileName() string {
-	return tailscaleOutFileName
 }
 
 func GetNewBackupSSHConfigFileName() string {
@@ -90,11 +61,6 @@ func GetBrevHome(userHome string) string {
 
 func GetActiveOrgsPath(home string) string {
 	fpath := makeBrevFilePath(activeOrgFile, home)
-	return fpath
-}
-
-func GetPersonalSettingsCachePath(home string) string {
-	fpath := makeBrevFilePath(personalSettingsCache, home)
 	return fpath
 }
 
@@ -129,11 +95,6 @@ func GetOnboardingStepPath(home string) string {
 func GetNewBackupSSHConfigFilePath(home string) string {
 	fp := makeBrevFilePath(GetNewBackupSSHConfigFileName(), home)
 
-	return fp
-}
-
-func GetTailScaleOutFilePath(home string) string {
-	fp := makeBrevFilePath(GetTailScaleOutFileName(), home)
 	return fp
 }
 
@@ -232,29 +193,10 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 // Usage
 //
 //	OverwriteString("tmp/a/b/c.txt", "hi there")
-func OverwriteString(fs afero.Fs, filepath string, data string) error {
-	f, err := touchFile(fs, filepath)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 
-	// clear
-	err = f.Truncate(0)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+// clear
 
-	// write
-	err = ioutil.WriteFile(filepath, []byte(data), os.ModePerm)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	if err = f.Close(); err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return breverrors.WrapAndTrace(err)
-}
+// write
 
 func WriteSSHPrivateKey(fs afero.Fs, data string, home string) error {
 	pkPath := GetSSHPrivateKeyPath(home)
@@ -306,57 +248,6 @@ func CatFile(filePath string) (string, error) {
 	}
 }
 
-func GetAliasesFromFile(file string) []string {
-	var result []string
+// if this doesn't work, just exit
 
-	dirname, err := os.UserHomeDir()
-	if err != nil {
-		// if this doesn't work, just exit
-		return nil
-	}
-	lines, err := CatFile(dirname + "/" + file)
-	if err != nil {
-		// if this doesn't work, just exit
-		return nil
-	}
-	for _, line := range strings.Split(lines, "\n") {
-		if strings.HasPrefix(line, "alias ") {
-			result = append(result, line)
-		}
-	}
-	return result
-}
-
-func GetAllAliases() []string {
-	var lines []string
-	lines = append(lines, GetAliasesFromFile(".zshrc")...)
-	lines = append(lines, GetAliasesFromFile(".bashrc")...)
-	lines = append(lines, GetAliasesFromFile(".zprofile")...)
-	lines = append(lines, GetAliasesFromFile(".bash_profile")...)
-	lines = append(lines, GetAliasesFromFile(".config/fish/config.fish")...)
-
-	var output []string
-	for _, line := range lines {
-		output = append(output, fmt.Sprintf("echo '%s' >> /home/brev/.zshrc", line))
-		output = append(output, fmt.Sprintf("echo '%s' >> /home/brev/.bashrc", line))
-	}
-
-	return output
-}
-
-func GenerateSetupScript(lines []string) string {
-	introString := `
-#!/bin/bash
-
-set -euo pipefail
-
-##### This is your brev.dev setup script
-##### Commit this file to the repo to make the environment reproducible
-##### https://docs.brev.dev/howto/automatically-set-up
-
-	`
-	output := []string{introString, `##### Adding Aliases From Your Local Machine #####\n`, `(echo ""; echo "##### Adding Aliases From Your Local Machine #####"; echo "";)\n`}
-	output = append(output, lines...)
-
-	return strings.Join(output, "\n")
-}
+// if this doesn't work, just exit

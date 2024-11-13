@@ -320,7 +320,3 @@ func isAccessTokenValid(token string) (bool, error) {
 	}
 	return true, nil
 }
-
-func IsAuthError(err error) bool {
-	return strings.Contains(err.Error(), "403")
-}

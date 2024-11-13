@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/manifoldco/promptui"
@@ -96,43 +95,6 @@ func DisplayBrevLogo(t *Terminal) { //nolint:funlen // logo
 	t.Vprint("                                    #@@@@@.     .@@@@@@@")
 	t.Vprint("                                      #%@@@@@@@@@@@@@@-")
 	t.Vprint("                                          ###@@@@@##")
-}
-
-func DisplayVSCodeInstructions(t *Terminal) {
-	t.Print("Run the following steps")
-	t.Print("")
-	t.Print("\t1) Install the following VSCode extension: " + t.Yellow("ms-vscode-remote.remote-ssh") + ".")
-	t.Print("\t2) In VS Code, open the Command Palette and type in " + t.Yellow("Remote-SSH: Connect to Host...") + "to begin.")
-}
-
-func DisplayGatewayAlreadyInstalledInstructions(t *Terminal) {
-	t.Print(t.Yellow("You already have JetBrains Gateway installed!"))
-	t.Print("Run " + t.Green("brev jetbrains") + " and then open Gateway to begin.")
-}
-
-func DisplayToolboxInstalledInstructions(t *Terminal) {
-	t.Print(t.Yellow("You already have JetBrains Toolbox installed!"))
-	t.Print("")
-	t.Print("\t1) Install JetBrains Gateway from Toolbox.")
-	t.Print("\t2) Run " + t.Green("brev jetbrains") + " and then open Gateway to begin.")
-}
-
-func InstallVSCodeExtension(t *Terminal) {
-	cmdd := exec.Command("which code")
-	output, _ := cmdd.Output()
-	t.Vprintf("%b", output)
-	_, err := cmdd.Output()
-
-	if err != nil {
-		t.Vprintf(t.Yellow("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n"))
-	} else {
-		install := exec.Command("code --install-extension ms-vscode-remote.remote-ssh\n")
-		_, err := install.Output()
-		if err != nil {
-			t.Vprintf("Please install the following VS Code extension: ms-vscode-remote.remote-ssh\n")
-		}
-
-	}
 }
 
 type PromptContent struct {

@@ -13,7 +13,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/hashicorp/go-multierror"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -104,20 +103,6 @@ func NewWorkspaceTestClient(setupParams *store.SetupParamsV0, containerParams []
 		ContainerParams: containerParams,
 		TestWorkspaces:  workspaces,
 	}
-}
-
-func (w WorkspaceTestClient) Done() error {
-	var allError error
-	for _, w := range w.TestWorkspaces {
-		err := w.Done()
-		if err != nil {
-			allError = multierror.Append(allError, err)
-		}
-	}
-	if allError != nil {
-		return breverrors.WrapAndTrace(allError)
-	}
-	return nil
 }
 
 type workspaceTest func(workspace Workspace, err error)
@@ -482,12 +467,6 @@ func AssertPathExists(t *testing.T, workspace Workspace, path string) bool {
 	return assert.Nil(t, err)
 }
 
-func AssertPathNotExist(t *testing.T, workspace Workspace, path string) bool {
-	t.Helper()
-	_, err := workspace.Exec("ls", path)
-	return assert.NotNil(t, err)
-}
-
 func AssertPathDoesNotExist(t *testing.T, workspace Workspace, path string) bool {
 	t.Helper()
 	_, err := workspace.Exec("ls", path)
@@ -518,13 +497,6 @@ func AssertDockerRunning(t *testing.T, w Workspace) bool {
 	out, err := w.Exec("systemctl", "is-active", "docker")
 	assert.Nil(t, err)
 	return strings.Contains(string(out), "active")
-}
-
-func AssertRepoHasNumFiles(t *testing.T, w Workspace, filePath string, num int) {
-	t.Helper()
-	out, err := w.Exec("ls", "-a", filePath)
-	assert.Nil(t, err)
-	assert.Len(t, strings.Fields(string(out)), num)
 }
 
 func UpdateFile(w Workspace, filePath string, content string) error {

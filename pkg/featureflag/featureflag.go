@@ -25,19 +25,9 @@ func IsAdmin(userType entity.GlobalUserType) bool {
 }
 
 // use feature flag if not provided default true for admin but not others
-func ServiceMeshSSH(userType entity.GlobalUserType) bool {
-	if viper.IsSet("feature.service_mesh_ssh") {
-		return viper.GetBool("feature.service_mesh_ssh")
-	}
-	return IsAdmin(userType)
-}
 
 func DisableSSHProxyVersionCheck() bool {
 	return viper.GetBool("feature.disable_ssh_proxy_version_check")
-}
-
-func DisableErrorReporting() bool {
-	return viper.GetBool("feature.disable_error_reporting")
 }
 
 func ShowVersionOnRun() bool {

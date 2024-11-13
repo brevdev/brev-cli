@@ -15,24 +15,8 @@ import (
 )
 
 // determines if should print error stack trace and/or send to crash monitor
-func DisplayAndHandleCmdError(name string, cmdFunc func() error) error {
-	er := breverrors.GetDefaultErrorReporter()
-	er.AddTag("command", name)
-	err := cmdFunc()
-	if err != nil {
-		er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
-			Type:    "err",
-			Message: err.Error(),
-		})
-		er.ReportError(err)
-		if featureflag.Debug() || featureflag.IsDev() {
-			return err
-		} else {
-			return errors.Cause(err) //nolint:wrapcheck //no check
-		}
-	}
-	return nil
-}
+
+//nolint:wrapcheck //no check
 
 func DisplayAndHandleError(err error) {
 	er := breverrors.GetDefaultErrorReporter()

@@ -17,7 +17,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/tidwall/gjson"
-	"golang.org/x/text/encoding/charmap"
 )
 
 //go:embed templates/*
@@ -546,18 +545,6 @@ func goVersion(path string) *string {
 	return nil
 }
 
-func IsRuby(path string) bool {
-	paths := recursivelyFindFile([]string{"Gemfile.lock", "Gemfile"}, path)
-
-	return len(paths) > 0
-}
-
-func IsPython(path string) bool {
-	paths := recursivelyFindFile([]string{"Gemfile.lock", "Gemfile"}, path)
-
-	return len(paths) > 0
-}
-
 func appendPath(a string, b string) string {
 	if a == "." {
 		return b
@@ -613,20 +600,7 @@ func recursivelyFindFile(filenames []string, path string) []string {
 // read from gomod
 // read from json
 
-func CatFile(filePath string) (string, error) {
-	gocmd := exec.Command("cat", filePath) // #nosec G204
-	in, err := gocmd.Output()
-	if err != nil {
-		return "", breverrors.Wrap(err, "error reading file "+filePath)
-	} else {
-		d := charmap.CodePage850.NewDecoder()
-		out, err := d.Bytes(in)
-		if err != nil {
-			return "", breverrors.Wrap(err, "error reading file "+filePath)
-		}
-		return string(out), nil
-	}
-}
+// #nosec G204
 
 func readGoMod(filePath string) (string, error) {
 	contents, err := files.CatFile(filePath)

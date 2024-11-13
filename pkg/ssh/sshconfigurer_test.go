@@ -40,10 +40,6 @@ var somePlainWorkspaces = []entity.Workspace{
 
 type DummyStore struct{}
 
-func (d DummyStore) GetWorkspaces() ([]entity.Workspace, error) {
-	return []entity.Workspace{}, nil
-}
-
 type DummySSHConfigurerV2Store struct{}
 
 func (d DummySSHConfigurerV2Store) GetWSLHostUserSSHConfigPath() (string, error) {

@@ -70,18 +70,8 @@ type State struct {
 }
 
 // RequiredScopes returns the scopes used for login.
-func RequiredScopes() []string { return requiredScopes }
 
 // RequiredScopesMin returns minimum scopes used for login in integration tests.
-func RequiredScopesMin() []string {
-	min := []string{}
-	for _, s := range requiredScopes {
-		if s != "offline_access" && s != "openid" {
-			min = append(min, s)
-		}
-	}
-	return min
-}
 
 func (s *State) IntervalDuration() time.Duration {
 	return time.Duration(s.Interval+waitThresholdInSeconds) * time.Second
