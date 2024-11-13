@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/brevdev/brev-cli/pkg/cmd/approve"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
@@ -241,7 +240,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	if featureflag.IsDev() {
 		_ = 0 // noop
 		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
-		cmd.AddCommand(approve.NewCmdApprove(t, loginCmdStore))
 		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
 		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
 		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
