@@ -94,8 +94,9 @@ func (a Auth0Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, c
 
 	return &LoginTokens{
 		AuthTokens: entity.AuthTokens{
-			AccessToken:  res.AccessToken,
-			RefreshToken: res.RefreshToken,
+			AccessToken:        res.AccessToken,
+			RefreshToken:       res.RefreshToken,
+			CredentialProvider: entity.CredentialProviderAuth0,
 		},
 		IDToken: res.IDToken,
 	}, nil

@@ -47,6 +47,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/remoteversion"
@@ -58,11 +59,17 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-var user string
+var (
+	user         string
+	email        string
+	authProvider string
+)
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&user, "user", "", "non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVar(&email, "email", "", "email address to use for authentication")
+	cmd.PersistentFlags().StringVar(&authProvider, "auth", "", "authentication provider to use (auth0 or kas, defaults to auth0)")
 	return cmd
 }
 
@@ -78,7 +85,26 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		NewBasicStore().
 		WithFileSystem(fs)
 
-	authenticator := auth.GetAuthenticator(nil) // todo
+	tokens, err := fsStore.GetAuthTokens()
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+
+	var authenticator auth.OAuth
+	switch tokens.GetCredentialProvider() {
+	case entity.CredentialProviderKAS:
+		authenticator = auth.KasAuthenticator{
+			BaseURL: "https://api.ngc.nvidia.com",
+			Email:   email,
+		}
+	default:
+		authenticator = auth.Auth0Authenticator{
+			Audience:           "https://brevdev.us.auth0.com/api/v2/",
+			ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+			DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+			OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+		}
+	}
 
 	// super annoying. this is needed to make the import stay
 	_ = color.New(color.FgYellow, color.Bold).SprintFunc()
@@ -91,7 +117,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	).
 		WithAuth(loginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
-	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
+	err = loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
 		_, err1 := loginAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)

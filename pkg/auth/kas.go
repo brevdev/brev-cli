@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -16,13 +16,25 @@ import (
 var _ OAuth = KasAuthenticator{}
 
 type KasAuthenticator struct {
-	BaseURL              string
-	IDTokenExpiryMinutes float64
-	SessionIDExpiryHours float64
+	Email   string
+	BaseURL string
 }
 
 func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
-	return nil, nil
+	splitRefreshToken := strings.Split(refreshToken, ":")
+	if len(splitRefreshToken) != 2 {
+		return nil, fmt.Errorf("invalid refresh token")
+	}
+	sessionKey, deviceID := splitRefreshToken[0], splitRefreshToken[1]
+	token, err := a.retrieveIDToken(sessionKey, deviceID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &entity.AuthTokens{
+		AccessToken:        token,
+		RefreshToken:       refreshToken,
+		CredentialProvider: entity.CredentialProviderKAS,
+	}, nil
 }
 
 type LoginCallResponse struct {
@@ -70,16 +82,21 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 	return response, nil
 }
 
-func (a KasAuthenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, code string)) (*LoginTokens, error) {
+func (a KasAuthenticator) DoDeviceAuthFlow(userLoginFlow func(url string, code string)) (*LoginTokens, error) {
 	id := uuid.New()
-	email := "kpinkerton@nvidia.com" // TODO: ask user for email
+	email := a.Email
+
+	if a.Email == "" {
+		fmt.Print("Enter your email: ")
+		fmt.Scanln(&email)
+	}
 
 	loginResp, err := a.MakeLoginCall(id.String(), email)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	onStateRetrieved(loginResp.LoginUrl, id.String())
+	userLoginFlow(loginResp.LoginUrl, id.String())
 
 	idToken, err := a.retrieveIDToken(loginResp.SessionKey, id.String())
 	if err != nil {
@@ -129,46 +146,4 @@ func (a KasAuthenticator) retrieveIDToken(sessionKey, deviceID string) (string, 
 	}
 
 	return tokenResponse.IDToken, nil
-}
-
-// getIDToken reads the sessionConfig file and retrieves the idToken.
-// If the idToken is expired (15 minutes after creation), a new token is fetched and set in the sessionConfig file.
-func (a KasAuthenticator) getIDToken() (string, error) {
-	session, err := readSessionConfig()
-	if err != nil {
-		fmt.Println(err)
-		return "", err
-	}
-
-	idToken, ok := session["idToken"]
-	if !ok || idToken == "" {
-		return "", fmt.Errorf("idToken not found in session data. Please ensure you are logged in")
-	}
-
-	idTokenCreatedAtStr, ok := session["idTokenCreatedAt"]
-	if !ok || idTokenCreatedAtStr == "" {
-		return "", fmt.Errorf("idTokenCreatedAt not found in session data")
-	}
-
-	idTokenCreatedAt, err := time.Parse(time.RFC3339, idTokenCreatedAtStr)
-	if err != nil {
-		return "", fmt.Errorf("error parsing idTokenCreatedAt timestamp: %v", err)
-	}
-
-	if time.Since(idTokenCreatedAt).Minutes() >= a.IDTokenExpiryMinutes {
-		fmt.Println("ID token is expired. Creating a new ID token using the sessionKey.")
-
-		newIDToken, newIDTokenCreatedAt, err := a.retrieveIDToken()
-		if err != nil {
-			fmt.Println("error retrieving new ID token", err)
-			return "", fmt.Errorf("error retrieving new ID token: %v", err)
-		}
-
-		session["idToken"] = newIDToken
-		session["idTokenCreatedAt"] = newIDTokenCreatedAt
-
-		return newIDToken, updateSessionConfig(session)
-	}
-
-	return idToken, nil
 }

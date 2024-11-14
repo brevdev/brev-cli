@@ -35,6 +35,13 @@ type AuthTokens struct {
 	CredentialProvider CredentialProvider `json:"credential_provider"`
 }
 
+func (a AuthTokens) GetCredentialProvider() CredentialProvider {
+	if a.CredentialProvider == CredientialProviderUnspecified {
+		return CredentialProviderAuth0
+	}
+	return a.CredentialProvider
+}
+
 type IDEConfig struct {
 	DefaultWorkingDir string       `json:"defaultWorkingDir"`
 	VSCode            VSCodeConfig `json:"vscode"`
