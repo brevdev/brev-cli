@@ -7,6 +7,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -54,7 +55,7 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 }
 
 func goToProfileInConsole() {
-	url := "https://console.brev.dev/profile"
+	url := fmt.Sprintf("%s/profile", config.ConsoleBaseURL)
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()

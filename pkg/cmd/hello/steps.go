@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -40,7 +41,7 @@ func GetTextBasedONStatus(status string, t *terminal.Terminal) string {
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 	default:
 		s += t.Red("Please create a running instance for this walk through. ")
-		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
+		s += "\n\tYou can do that here: " + t.Yellow(fmt.Sprintf("%s/environments/new", config.ConsoleBaseURL))
 		s += "\n\nRun " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 	}
 	return s
@@ -61,7 +62,7 @@ func GetDevEnvOrStall(t *terminal.Terminal, workspaces []entity.Workspace) *enti
 
 	if noneFound {
 		s := t.Red("Please create a running instance for this walk through. ")
-		s += "\n\tYou can do that here: " + t.Yellow("https://console.brev.dev/environments/new")
+		s += "\n\tYou can do that here: " + t.Yellow(fmt.Sprintf("%s/environments/new", config.ConsoleBaseURL))
 		s += "\n\nRun: " + t.Yellow("brev hello") + " to resume this walk through when your instance is ready\n"
 		TypeItToMe(s)
 		return nil
@@ -102,7 +103,7 @@ func printBrevOpen(t *terminal.Terminal, firstWorkspace entity.Workspace) {
 
 func printCompletedOnboarding(t *terminal.Terminal) {
 	s := "\n\nI think I'm done here. Now you know how to open an instance and start coding."
-	s += "\n\nUse the console " + t.Yellow("(https://console.brev.dev)") + " to create a new instance or share it with people"
+	s += "\n\nUse the console " + t.Yellow(fmt.Sprintf("(%s)"), config.ConsoleBaseURL) + " to create a new instance or share it with people"
 	s += "\nand use this CLI to code the way you would normally 🤙"
 	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev") + " and let us know if we can help!\n"
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"

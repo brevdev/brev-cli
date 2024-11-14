@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -16,8 +17,17 @@ import (
 var _ OAuth = KasAuthenticator{}
 
 type KasAuthenticator struct {
-	Email   string
-	BaseURL string
+	Email       string
+	BaseURL     string
+	PollTimeout time.Duration
+}
+
+func NewKasAuthenticator(email, baseURL string) KasAuthenticator {
+	return KasAuthenticator{
+		Email:       email,
+		BaseURL:     baseURL,
+		PollTimeout: 5 * time.Minute,
+	}
 }
 
 func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
@@ -38,7 +48,7 @@ func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*ent
 }
 
 type LoginCallResponse struct {
-	LoginUrl   string `json:"loginUrl"`
+	LoginURL   string `json:"loginUrl"`
 	SessionKey string `json:"sessionKey"`
 }
 
@@ -75,6 +85,10 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 		return LoginCallResponse{}, breverrors.WrapAndTrace(err)
 	}
 
+	if resp.StatusCode >= 400 {
+		return LoginCallResponse{}, fmt.Errorf("error making login call, status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
 	var response LoginCallResponse
 	if err := json.Unmarshal(body, &response); err != nil {
 		return LoginCallResponse{}, breverrors.WrapAndTrace(err)
@@ -83,36 +97,60 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 }
 
 func (a KasAuthenticator) DoDeviceAuthFlow(userLoginFlow func(url string, code string)) (*LoginTokens, error) {
-	id := uuid.New()
+	id := uuid.New().String()
 	email := a.Email
 
 	if a.Email == "" {
 		fmt.Print("Enter your email: ")
-		fmt.Scanln(&email)
+		_, err := fmt.Scanln(&email)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 	}
 
-	loginResp, err := a.MakeLoginCall(id.String(), email)
+	loginResp, err := a.MakeLoginCall(id, email)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	userLoginFlow(loginResp.LoginUrl, id.String())
+	userLoginFlow(loginResp.LoginURL, "")
 
-	idToken, err := a.retrieveIDToken(loginResp.SessionKey, id.String())
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	return a.pollForTokens(loginResp.SessionKey, id)
+}
+
+func (a KasAuthenticator) pollForTokens(sessionKey, id string) (*LoginTokens, error) {
+	// Try to retrieve tokens for up to 5 minutes
+	timeout := time.After(a.PollTimeout)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timeout:
+			return nil, breverrors.WrapAndTrace(fmt.Errorf("timed out waiting for login"))
+		case <-ticker.C:
+			idToken, err := a.retrieveIDToken(sessionKey, id)
+			if err == nil {
+				fmt.Println(idToken)
+				return &LoginTokens{
+					AuthTokens: entity.AuthTokens{
+						AccessToken:  idToken,
+						RefreshToken: fmt.Sprintf("%s:%s", sessionKey, id),
+					},
+					IDToken: idToken,
+				}, nil
+			}
+			// Continue polling on error
+		}
 	}
-	return &LoginTokens{
-		AuthTokens: entity.AuthTokens{
-			AccessToken:  idToken,
-			RefreshToken: fmt.Sprintf("%s:%s", loginResp.SessionKey, id.String()),
-		},
-		IDToken: idToken,
-	}, nil
 }
 
 type RetrieveIDTokenResponse struct {
-	IDToken string `json:"token"`
+	IDToken       string `json:"token"`
+	RequestStatus struct {
+		StatusCode        string `json:"statusCode"`
+		StatusDescription string `json:"statusDescription"`
+		RequestID         string `json:"requestId"`
+	} `json:"requestStatus"`
 }
 
 // retrieveIDToken retrieves the ID token from BASE_API_URL + "/token".
@@ -138,6 +176,10 @@ func (a KasAuthenticator) retrieveIDToken(sessionKey, deviceID string) (string, 
 	tokenBody, err := io.ReadAll(tokenResp.Body)
 	if err != nil {
 		return "", fmt.Errorf("error reading token response: %v", err)
+	}
+
+	if tokenResp.StatusCode >= 400 {
+		return "", fmt.Errorf("error retrieving token, status code: %d, body: %s", tokenResp.StatusCode, string(tokenBody))
 	}
 
 	var tokenResponse RetrieveIDTokenResponse

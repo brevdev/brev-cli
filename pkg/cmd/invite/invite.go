@@ -7,6 +7,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -96,9 +97,8 @@ func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string) er
 	}
 
 	t.Vprintf("Share this link to add someone to %s. It will expire in 7 days.", t.Green(org.Name))
-	// t.Vprintf("\n\n\t%s", t.White("https://console.brev.dev/invite?token=%s\n\n", token))
 	t.Vprintf("\n\n  %s", t.Green("▸"))
-	t.Vprintf("    %s", t.White("https://console.brev.dev/invite?token=%s\n\n", token))
+	t.Vprintf("    %s", t.White("%sinvite?token=%s\n\n", config.ConsoleBaseURL, token))
 
 	return nil
 }

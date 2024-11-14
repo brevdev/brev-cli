@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -189,14 +190,16 @@ func (t Auth) LoginWithToken(token string) error {
 
 func defaultAuthFunc(url, code string) {
 	codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
+	if code != "" {
+		fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
+		fmt.Print("\n")
+	}
+	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
+	fmt.Println("Browser link: " + urlType(url) + "\n")
+	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.ConsoleBaseURL)))
 	fmt.Print("\n")
-	fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("\n" + "Browser link: " + urlType(url) + "\n")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType("https://console.brev.dev/profile?login=cli"))
-	fmt.Print("\n")
 	_ = terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "   " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
 		ErrorMsg:   "error",
@@ -215,7 +218,7 @@ func defaultAuthFunc(url, code string) {
 func skipBrowserAuthFunc(url, _ string) {
 	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType("https://console.brev.dev/profile?login=cli"))
+	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.ConsoleBaseURL)))
 	fmt.Println("Waiting for login to complete in browser... Ctrl+C to use CLI command instead.")
 }
 

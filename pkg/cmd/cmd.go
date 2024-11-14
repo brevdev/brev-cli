@@ -2,6 +2,7 @@
 package cmd
 
 import (
+	"flag"
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -65,11 +66,17 @@ var (
 	authProvider string
 )
 
+func init() {
+	flag.StringVar(&email, "email", "", "email to use for authentication")
+	flag.StringVar(&authProvider, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
+	flag.Parse()
+}
+
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&user, "user", "", "non root user to use for per user configuration of commands run as root")
-	cmd.PersistentFlags().StringVar(&email, "email", "", "email address to use for authentication")
-	cmd.PersistentFlags().StringVar(&authProvider, "auth", "", "authentication provider to use (auth0 or kas, defaults to auth0)")
+	cmd.PersistentFlags().StringVar(&email, "email", "", "email to use for authentication")
+	cmd.PersistentFlags().StringVar(&authProvider, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
 	return cmd
 }
 
@@ -90,13 +97,16 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		fmt.Printf("%v\n", err)
 	}
 
+	authP := tokens.GetCredentialProvider()
+	if authProvider != "" {
+		authP = entity.CredentialProvider(authProvider)
+	}
+
 	var authenticator auth.OAuth
-	switch tokens.GetCredentialProvider() {
+	switch authP {
 	case entity.CredentialProviderKAS:
-		authenticator = auth.KasAuthenticator{
-			BaseURL: "https://api.ngc.nvidia.com",
-			Email:   email,
-		}
+		config.ConsoleBaseURL = "https://brev.nvidia.com"
+		authenticator = auth.NewKasAuthenticator(email, "https://api.ngc.nvidia.com")
 	default:
 		authenticator = auth.Auth0Authenticator{
 			Audience:           "https://brevdev.us.auth0.com/api/v2/",
