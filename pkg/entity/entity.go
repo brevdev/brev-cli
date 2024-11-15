@@ -11,6 +11,13 @@ import (
 	"github.com/brevdev/brev-cli/pkg/collections"
 )
 
+// CredentialProvider describes which authentication system is resposnible for auth tokens.
+type CredentialProvider string
+
+const (
+	CredientialProviderUnspecified CredentialProvider = ""
+)
+
 const WorkspaceGroupDevPlane = "devplane-brev-1"
 
 var LegacyWorkspaceGroups = map[string]bool{

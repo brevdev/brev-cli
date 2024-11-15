@@ -13,7 +13,7 @@ import (
 func makeCloudflare() Cloudflared {
 	conf := config.NewConstants()
 	fs := files.AppFs
-	authenticator := auth.Authenticator{
+	authenticator := auth.Auth0Authenticator{
 		Audience:           "https://brevdev.us.auth0.com/api/v2/",
 		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
 		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",

@@ -43,16 +43,23 @@ var requiredScopes = []string{
 	"create:organizations", "delete:organizations", "read:organizations", "update:organizations",
 }
 
-type Authenticator struct {
+const CredentialProviderAuth0 entity.CredentialProvider = "auth0"
+
+type Auth0Authenticator struct {
+	Issuer             string
 	Audience           string
 	ClientID           string
 	DeviceCodeEndpoint string
 	OauthTokenEndpoint string
 }
 
-var _ OAuth = Authenticator{}
+func (a Auth0Authenticator) GetCredentialProvider() entity.CredentialProvider {
+	return CredentialProviderAuth0
+}
 
-type Result struct {
+var _ OAuth = Auth0Authenticator{}
+
+type Auth0Result struct {
 	Tenant       string
 	Domain       string
 	RefreshToken string
@@ -61,7 +68,7 @@ type Result struct {
 	ExpiresIn    int64
 }
 
-type State struct {
+type Auth0State struct {
 	DeviceCode      string `json:"device_code"`
 	UserCode        string `json:"user_code"`
 	VerificationURI string `json:"verification_uri_complete"`
@@ -73,11 +80,11 @@ type State struct {
 
 // RequiredScopesMin returns minimum scopes used for login in integration tests.
 
-func (s *State) IntervalDuration() time.Duration {
+func (s *Auth0State) IntervalDuration() time.Duration {
 	return time.Duration(s.Interval+waitThresholdInSeconds) * time.Second
 }
 
-func (a Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, code string)) (*LoginTokens, error) {
+func (a Auth0Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, code string)) (*LoginTokens, error) {
 	ctx := context.Background()
 
 	state, err := a.Start(ctx)
@@ -101,13 +108,17 @@ func (a Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, code s
 	}, nil
 }
 
+func (a Auth0Authenticator) IsTokenValid(token string) bool {
+	return IssuerCheck(token, a.Issuer)
+}
+
 // Start kicks-off the device authentication flow
 // by requesting a device code from Auth0,
 // The returned state contains the URI for the next step of the flow.
-func (a *Authenticator) Start(ctx context.Context) (State, error) {
+func (a *Auth0Authenticator) Start(ctx context.Context) (Auth0State, error) {
 	s, err := a.getDeviceCode(ctx)
 	if err != nil {
-		return State{}, breverrors.WrapAndTrace(breverrors.Errorf("cannot get device code %w", err))
+		return Auth0State{}, breverrors.WrapAndTrace(breverrors.Errorf("cannot get device code %w", err))
 	}
 	return s, nil
 }
@@ -129,12 +140,12 @@ func postFormWithContext(ctx context.Context, url string, data url.Values) (*htt
 }
 
 // Wait waits until the user is logged in on the browser.
-func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
+func (a *Auth0Authenticator) Wait(ctx context.Context, state Auth0State) (Auth0Result, error) {
 	t := time.NewTicker(state.IntervalDuration())
 	for {
 		select {
 		case <-ctx.Done():
-			return Result{}, breverrors.WrapAndTrace(ctx.Err())
+			return Auth0Result{}, breverrors.WrapAndTrace(ctx.Err())
 		case <-t.C:
 			data := url.Values{
 				"client_id":   {a.ClientID},
@@ -143,11 +154,11 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 			}
 			r, err := postFormWithContext(ctx, a.OauthTokenEndpoint, data)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(breverrors.Errorf("%w %w", err, breverrors.NetworkErrorMessage))
+				return Auth0Result{}, breverrors.WrapAndTrace(breverrors.Errorf("%w %w", err, breverrors.NetworkErrorMessage))
 			}
 			err = ErrorIfBadHTTP(r, http.StatusForbidden)
 			if err != nil {
-				return Result{}, breverrors.WrapAndTrace(err)
+				return Auth0Result{}, breverrors.WrapAndTrace(err)
 			}
 
 			var res struct {
@@ -163,25 +174,25 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 
 			err = json.NewDecoder(r.Body).Decode(&res)
 			if err != nil {
-				return Result{}, breverrors.Wrap(err, "cannot decode response")
+				return Auth0Result{}, breverrors.Wrap(err, "cannot decode response")
 			}
 
 			if res.Error != nil {
 				if *res.Error == "authorization_pending" {
 					continue
 				}
-				return Result{}, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
+				return Auth0Result{}, breverrors.WrapAndTrace(errors.New(res.ErrorDescription))
 			}
 
 			ten, domain, err := parseTenant(res.AccessToken)
 			if err != nil {
-				return Result{}, breverrors.Wrap(err, "cannot parse tenant from the given access token")
+				return Auth0Result{}, breverrors.Wrap(err, "cannot parse tenant from the given access token")
 			}
 
 			if err = r.Body.Close(); err != nil {
-				return Result{}, breverrors.WrapAndTrace(err)
+				return Auth0Result{}, breverrors.WrapAndTrace(err)
 			}
-			return Result{
+			return Auth0Result{
 				RefreshToken: res.RefreshToken,
 				AccessToken:  res.AccessToken,
 				ExpiresIn:    res.ExpiresIn,
@@ -193,7 +204,7 @@ func (a *Authenticator) Wait(ctx context.Context, state State) (Result, error) {
 	}
 }
 
-func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
+func (a *Auth0Authenticator) getDeviceCode(ctx context.Context) (Auth0State, error) {
 	data := url.Values{
 		"client_id": {a.ClientID},
 		"scope":     {strings.Join(requiredScopes, " ")},
@@ -201,23 +212,23 @@ func (a *Authenticator) getDeviceCode(ctx context.Context) (State, error) {
 	}
 	r, err := postFormWithContext(ctx, a.DeviceCodeEndpoint, data)
 	if err != nil {
-		return State{}, breverrors.Wrap(err, breverrors.NetworkErrorMessage)
+		return Auth0State{}, breverrors.Wrap(err, breverrors.NetworkErrorMessage)
 	}
 	err = ErrorIfBadHTTP(r)
 	if err != nil {
-		return State{}, breverrors.WrapAndTrace(err)
+		return Auth0State{}, breverrors.WrapAndTrace(err)
 	}
 
-	var res State
+	var res Auth0State
 	err = json.NewDecoder(r.Body).Decode(&res)
 	if err != nil {
-		return State{}, breverrors.Wrap(err, "cannot decode response")
+		return Auth0State{}, breverrors.Wrap(err, "cannot decode response")
 	}
 	// TODO 9 if status code > 399 handle errors
 	// {"error":"unauthorized_client","error_description":"Grant type 'urn:ietf:params:oauth:grant-type:device_code' not allowed for the client.","error_uri":"https://auth0.com/docs/clients/client-grant-types"}
 
 	if err = r.Body.Close(); err != nil {
-		return State{}, breverrors.WrapAndTrace(err)
+		return Auth0State{}, breverrors.WrapAndTrace(err)
 	}
 	return res, nil
 }
@@ -255,7 +266,7 @@ type AuthError struct {
 }
 
 // https://auth0.com/docs/get-started/authentication-and-authorization-flow/call-your-api-using-the-authorization-code-flow#example-post-to-token-url
-func (a Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
+func (a Auth0Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
 	payload := url.Values{
 		"grant_type":    {"refresh_token"},
 		"client_id":     {a.ClientID},

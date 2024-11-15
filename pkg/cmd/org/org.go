@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -74,7 +75,7 @@ func RunOrgs(t *terminal.Terminal, store OrgCmdStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
-		t.Vprint(t.Yellow("You don't have any orgs. Create one! https://console.brev.dev"))
+		t.Vprint(t.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.ConsoleBaseURL)))
 		return nil
 	}
 

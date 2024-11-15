@@ -57,6 +57,24 @@ func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 	return cmd
 }
 
+func RunRefreshBetter(store RefreshStore) error {
+	if err := GetCloudflare(store).DownloadCloudflaredBinaryIfItDNE(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	cu, err := GetConfigUpdater(store)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = cu.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return nil
+}
+
 func RunRefresh(store RefreshStore) error {
 	cl := GetCloudflare(store)
 	err := cl.DownloadCloudflaredBinaryIfItDNE()

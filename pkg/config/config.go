@@ -18,6 +18,8 @@ const (
 	ollamaAPIURL             EnvVarName = "OLLAMA_API_URL"
 )
 
+var ConsoleBaseURL = "https://console.brev.dev"
+
 type ConstantsConfig struct{}
 
 func NewConstants() *ConstantsConfig {
