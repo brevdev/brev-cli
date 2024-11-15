@@ -157,11 +157,11 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 		return breverrors.NewValidationError("auth provider must be nvidia or legacy")
 	}
 
-	if emailFlag != "" && authProviderFlag != "nvidia" {
+	authenticator := auth.StandardLogin(authProviderFlag, emailFlag, tokens)
+
+	if emailFlag != "" && authenticator.GetCredentialProvider() != auth.CredentialProviderKAS {
 		return breverrors.NewValidationError("email flag can only be used with nvidia auth provider")
 	}
-
-	authenticator := auth.StandardLogin(authProviderFlag, emailFlag, tokens)
 
 	o.Auth = auth.NewAuth(o.LoginStore, authenticator)
 
