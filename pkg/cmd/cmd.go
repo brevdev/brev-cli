@@ -2,7 +2,6 @@
 package cmd
 
 import (
-	"flag"
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -48,7 +47,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/remoteversion"
@@ -61,29 +59,20 @@ import (
 )
 
 var (
-	userFlag         string
-	emailFlag        string
-	authProviderFlag string
+	userFlag     string
+	printVersion bool
 )
-
-func init() {
-	flag.StringVar(&emailFlag, "email", "", "email to use for authentication")
-	flag.StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is legacy)")
-	flag.Parse()
-}
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "non root user to use for per user configuration of commands run as root")
-	cmd.PersistentFlags().StringVar(&emailFlag, "email", "", "email to use for authentication")
-	cmd.PersistentFlags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is legacy)")
+	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	return cmd
 }
 
 func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // define brev command
 	// in io.Reader, out io.Writer, err io.Writer
 	t := terminal.New()
-	var printVersion bool
 
 	conf := config.NewConstants()
 	fs := files.AppFs
@@ -92,64 +81,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		NewBasicStore().
 		WithFileSystem(fs)
 
-	tokens, err := fsStore.GetAuthTokens()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
+	tokens, _ := fsStore.GetAuthTokens()
 
-	// the default authenticator
-	var authenticator auth.OAuth = auth.Auth0Authenticator{
-		Issuer:             "https://brevdev.us.auth0.com/",
-		Audience:           "https://brevdev.us.auth0.com/api/v2/",
-		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
-		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
-		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
-	}
-
-	var email string
-	shouldPromptEmail := false
-	if tokens != nil && tokens.AccessToken != "" {
-		email = auth.GetEmailFromToken(tokens.AccessToken)
-		shouldPromptEmail = true
-	}
-	if emailFlag != "" {
-		email = emailFlag
-		shouldPromptEmail = false
-	}
-
-	authRetriever := auth.NewOAuthRetriever([]auth.OAuth{
-		authenticator,
-		auth.NewKasAuthenticator(
-			email,
-			"https://api.ngc.nvidia.com",
-			"https://login.nvidia.com",
-			shouldPromptEmail,
-			"https://brev.nvidia.com",
-		),
-	})
-
-	if tokens != nil && tokens.AccessToken != "" {
-		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
-		if errr != nil {
-			fmt.Printf("%v\n", errr)
-		} else {
-			authenticator = authenticatorFromToken
-		}
-	}
-
-	if authProviderFlag != "" {
-		provider := authProviderFlagToCredentialProvider(authProviderFlag)
-		authenticatorByProviderFlag, errr := authRetriever.GetByProvider(provider)
-		if errr != nil {
-			fmt.Printf("%v\n", errr)
-		} else {
-			authenticator = authenticatorByProviderFlag
-		}
-	}
-
-	if authenticator.GetCredentialProvider() == auth.CredentialProviderKAS {
-		config.ConsoleBaseURL = "https://brev.nvidia.com"
-	}
+	authenticator := auth.StandardLogin("", "", tokens)
 
 	// super annoying. this is needed to make the import stay
 	_ = color.New(color.FgYellow, color.Bold).SprintFunc()
@@ -162,7 +96,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	).
 		WithAuth(loginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
-	err = loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
+	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
 		_, err1 := loginAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
@@ -284,8 +218,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cobra.AddTemplateFunc("quickstartCommands", quickstartCommands)
 
 	cmds.SetUsageTemplate(usageTemplate)
-
-	cmds.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 
 	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth)
 
@@ -537,13 +469,3 @@ var (
 	_ store.Auth     = auth.NoLoginAuth{}
 	_ auth.AuthStore = store.FileStore{}
 )
-
-func authProviderFlagToCredentialProvider(authProviderFlag string) entity.CredentialProvider {
-	if authProviderFlag == "" {
-		return ""
-	}
-	if authProviderFlag == "nvidia" {
-		return auth.CredentialProviderKAS
-	}
-	return auth.CredentialProviderAuth0
-}
