@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -31,7 +32,7 @@ func (f FileStore) ClearDefaultOrganization() error {
 	}
 	path := files.GetActiveOrgsPath(home)
 	err = files.DeleteFile(f.fs, path)
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "no such file or directory") {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil

@@ -77,15 +77,6 @@ func (f FileStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	return &token, nil
 }
 
-// func (f FileStore) getBrevCredentialsFile() (*string, error) {
-// 	home, err := f.UserHomeDir()
-// 	if err != nil {
-// 		return nil, breverrors.WrapAndTrace(err)
-// 	}
-// 	brevCredentialsFile := path.Join(home, brevDirectory, brevCredentialsFile)
-// 	return &brevCredentialsFile, nil
-// }
-
 func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
 	saTokenFilePath := getServiceTokenFilePath()
 	// safely check if file exists

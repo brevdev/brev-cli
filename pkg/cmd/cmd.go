@@ -106,8 +106,12 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
 	}
 
-	email := auth.GetEmailFromToken(tokens.AccessToken)
-	shouldPromptEmail := true
+	var email string
+	shouldPromptEmail := false
+	if tokens != nil && tokens.AccessToken != "" {
+		email = auth.GetEmailFromToken(tokens.AccessToken)
+		shouldPromptEmail = true
+	}
 	if emailFlag != "" {
 		email = emailFlag
 		shouldPromptEmail = false

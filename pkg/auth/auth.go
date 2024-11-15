@@ -20,9 +20,6 @@ type LoginAuth struct {
 	Auth
 }
 
-// assert that LoginAuth implements store.Auth
-// var _ store.Auth = (*LoginAuth)(nil)
-
 func NewLoginAuth(authStore AuthStore, oauth OAuth) *LoginAuth {
 	return &LoginAuth{
 		Auth: *NewAuth(authStore, oauth),
