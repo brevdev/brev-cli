@@ -68,7 +68,7 @@ var (
 
 func init() {
 	flag.StringVar(&emailFlag, "email", "", "email to use for authentication")
-	flag.StringVar(&authProviderFlag, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
+	flag.StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is legacy)")
 	flag.Parse()
 }
 
@@ -76,7 +76,7 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "non root user to use for per user configuration of commands run as root")
 	cmd.PersistentFlags().StringVar(&emailFlag, "email", "", "email to use for authentication")
-	cmd.PersistentFlags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
+	cmd.PersistentFlags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is legacy)")
 	return cmd
 }
 
@@ -138,7 +138,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	}
 
 	if authProviderFlag != "" {
-		authenticatorByProviderFlag, errr := authRetriever.GetByProvider(entity.CredentialProvider(authProviderFlag))
+		provider := authProviderFlagToCredentialProvider(authProviderFlag)
+		authenticatorByProviderFlag, errr := authRetriever.GetByProvider(provider)
 		if errr != nil {
 			fmt.Printf("%v\n", errr)
 		} else {
@@ -536,3 +537,13 @@ var (
 	_ store.Auth     = auth.NoLoginAuth{}
 	_ auth.AuthStore = store.FileStore{}
 )
+
+func authProviderFlagToCredentialProvider(authProviderFlag string) entity.CredentialProvider {
+	if authProviderFlag == "" {
+		return ""
+	}
+	if authProviderFlag == "nvidia" {
+		return auth.CredentialProviderKAS
+	}
+	return auth.CredentialProviderAuth0
+}
