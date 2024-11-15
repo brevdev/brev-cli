@@ -63,9 +63,6 @@ var (
 	printVersion bool
 )
 
-// We define the global flags twice because the first call to flag.Parse which we use for
-// will eat up the flags and we need to define them again here.
-
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "non root user to use for per user configuration of commands run as root")
