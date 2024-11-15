@@ -93,7 +93,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 				if err2 != nil {
 					err = multierror.Append(err, err2)
 				}
-				return err //nolint:nilerr // we want to return the error from the login
+				return err //nolint:wrapcheck // we want to return the error from the login
 			}
 			return nil
 		},
