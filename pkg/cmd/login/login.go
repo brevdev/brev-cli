@@ -28,6 +28,7 @@ type LoginOptions struct {
 }
 
 type LoginStore interface {
+	auth.AuthStore
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
@@ -55,6 +56,8 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 
 	var loginToken string
 	var skipBrowser bool
+	var emailFlag string
+	var authProviderFlag string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"housekeeping": ""},
@@ -79,38 +82,27 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		},
 		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := opts.RunLogin(t, loginToken, skipBrowser)
+			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
 				// if err is ImportIDEConfigError, log err with sentry but continue
 				if _, ok := err.(*importideconfig.ImportIDEConfigError); !ok {
-					return breverrors.WrapAndTrace(err)
+					return err
 				}
 				// todo alert sentry
 				err2 := RunTasksForUser(t)
 				if err2 != nil {
 					err = multierror.Append(err, err2)
 				}
-				return breverrors.WrapAndTrace(err)
+				return err
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
 	cmd.Flags().BoolVar(&skipBrowser, "skip-browser", false, "print url instead of auto opening browser")
+	cmd.Flags().StringVar(&emailFlag, "email", "", "email to use for authentication")
+	cmd.Flags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is legacy)")
 	return cmd
-}
-
-func (o LoginOptions) checkIfInWorkspace() error {
-	workspaceID, err := o.LoginStore.GetCurrentWorkspaceID()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if workspaceID != "" {
-		fmt.Println("can not login to instance")
-		return breverrors.NewValidationError("can not login to instance")
-	}
-
-	return nil
 }
 
 func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, skipBrowser bool) (*entity.User, error) {
@@ -158,11 +150,20 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 	return org, nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrowser bool) error {
-	err := o.checkIfInWorkspace()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
+	tokens, _ := o.LoginStore.GetAuthTokens()
+
+	if authProviderFlag != "" && authProviderFlag != "nvidia" && authProviderFlag != "legacy" {
+		return breverrors.NewValidationError("auth provider must be nvidia or legacy")
 	}
+
+	if emailFlag != "" && authProviderFlag != "nvidia" {
+		return breverrors.NewValidationError("email flag can only be used with nvidia auth provider")
+	}
+
+	authenticator := auth.StandardLogin(authProviderFlag, emailFlag, tokens)
+
+	o.Auth = auth.NewAuth(o.LoginStore, authenticator)
 
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	fmt.Print("\n")

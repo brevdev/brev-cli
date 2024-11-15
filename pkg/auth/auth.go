@@ -381,3 +381,66 @@ func GetEmailFromToken(token string) string {
 	}
 	return email
 }
+
+func AuthProviderFlagToCredentialProvider(authProviderFlag string) entity.CredentialProvider {
+	if authProviderFlag == "" {
+		return ""
+	}
+	if authProviderFlag == "nvidia" {
+		return CredentialProviderKAS
+	}
+	return CredentialProviderAuth0
+}
+
+func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens) OAuth {
+	// the default authenticator
+	var authenticator OAuth = Auth0Authenticator{
+		Issuer:             "https://brevdev.us.auth0.com/",
+		Audience:           "https://brevdev.us.auth0.com/api/v2/",
+		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+	}
+
+	shouldPromptEmail := false
+	if email == "" && tokens != nil && tokens.AccessToken != "" {
+		email = GetEmailFromToken(tokens.AccessToken)
+		shouldPromptEmail = true
+	}
+
+	authRetriever := NewOAuthRetriever([]OAuth{
+		authenticator,
+		NewKasAuthenticator(
+			email,
+			"https://api.ngc.nvidia.com",
+			"https://login.nvidia.com",
+			shouldPromptEmail,
+			"https://brev.nvidia.com",
+		),
+	})
+
+	if tokens != nil && tokens.AccessToken != "" {
+		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
+		if errr != nil {
+			fmt.Printf("%v\n", errr)
+		} else {
+			authenticator = authenticatorFromToken
+		}
+	}
+
+	if authProvider != "" {
+		provider := AuthProviderFlagToCredentialProvider(authProvider)
+		oauth, errr := authRetriever.GetByProvider(provider)
+		if errr != nil {
+			fmt.Printf("%v\n", errr)
+		} else {
+			authenticator = oauth
+		}
+	}
+
+	if authenticator.GetCredentialProvider() == CredentialProviderKAS {
+		config.ConsoleBaseURL = "https://brev.nvidia.com"
+	}
+
+	return authenticator
+}
