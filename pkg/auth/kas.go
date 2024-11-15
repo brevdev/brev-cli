@@ -16,17 +16,31 @@ import (
 
 var _ OAuth = KasAuthenticator{}
 
+const CredentialProviderKAS entity.CredentialProvider = "kas"
+
 type KasAuthenticator struct {
-	Email       string
-	BaseURL     string
-	PollTimeout time.Duration
+	Email             string
+	ShouldPromptEmail bool
+	BaseURL           string
+	PollTimeout       time.Duration
+	Issuer            string
 }
 
-func NewKasAuthenticator(email, baseURL string) KasAuthenticator {
+func (a KasAuthenticator) GetCredentialProvider() entity.CredentialProvider {
+	return CredentialProviderKAS
+}
+
+func (a KasAuthenticator) IsTokenValid(token string) bool {
+	return IssuerCheck(token, a.Issuer)
+}
+
+func NewKasAuthenticator(email, baseURL, issuer string, shouldPromptEmail bool) KasAuthenticator {
 	return KasAuthenticator{
-		Email:       email,
-		BaseURL:     baseURL,
-		PollTimeout: 5 * time.Minute,
+		Email:             email,
+		ShouldPromptEmail: shouldPromptEmail,
+		Issuer:            issuer,
+		BaseURL:           baseURL,
+		PollTimeout:       5 * time.Minute,
 	}
 }
 
@@ -41,9 +55,8 @@ func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*ent
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &entity.AuthTokens{
-		AccessToken:        token,
-		RefreshToken:       refreshToken,
-		CredentialProvider: entity.CredentialProviderKAS,
+		AccessToken:  token,
+		RefreshToken: refreshToken,
 	}, nil
 }
 
@@ -98,14 +111,10 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 
 func (a KasAuthenticator) DoDeviceAuthFlow(userLoginFlow func(url string, code string)) (*LoginTokens, error) {
 	id := uuid.New().String()
-	email := a.Email
 
-	if a.Email == "" {
-		fmt.Print("Enter your email: ")
-		_, err := fmt.Scanln(&email)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
+	email, err := a.maybePromptForEmail()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	loginResp, err := a.MakeLoginCall(id, email)
@@ -116,6 +125,32 @@ func (a KasAuthenticator) DoDeviceAuthFlow(userLoginFlow func(url string, code s
 	userLoginFlow(loginResp.LoginURL, "")
 
 	return a.pollForTokens(loginResp.SessionKey, id)
+}
+
+func (a KasAuthenticator) maybePromptForEmail() (string, error) {
+	var email string
+	if a.Email != "" && a.ShouldPromptEmail { //nolint:gocritic // fine
+		fmt.Printf("Logging in with email %s\nPress enter to continue or type a different email: ", a.Email)
+		var response string
+		_, err := fmt.Scanln(&response)
+		if err != nil && err.Error() != "unexpected newline" {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		if response == "" {
+			email = a.Email
+		} else {
+			email = response
+		}
+	} else if a.Email != "" {
+		return a.Email, nil
+	} else {
+		fmt.Print("Enter your email: ")
+		_, err := fmt.Scanln(&email)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+	}
+	return email, nil
 }
 
 func (a KasAuthenticator) pollForTokens(sessionKey, id string) (*LoginTokens, error) {
@@ -130,7 +165,6 @@ func (a KasAuthenticator) pollForTokens(sessionKey, id string) (*LoginTokens, er
 		case <-ticker.C:
 			idToken, err := a.retrieveIDToken(sessionKey, id)
 			if err == nil {
-				fmt.Println(idToken)
 				return &LoginTokens{
 					AuthTokens: entity.AuthTokens{
 						AccessToken:  idToken,

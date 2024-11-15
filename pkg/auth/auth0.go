@@ -43,11 +43,18 @@ var requiredScopes = []string{
 	"create:organizations", "delete:organizations", "read:organizations", "update:organizations",
 }
 
+const CredentialProviderAuth0 entity.CredentialProvider = "auth0"
+
 type Auth0Authenticator struct {
+	Issuer             string
 	Audience           string
 	ClientID           string
 	DeviceCodeEndpoint string
 	OauthTokenEndpoint string
+}
+
+func (a Auth0Authenticator) GetCredentialProvider() entity.CredentialProvider {
+	return CredentialProviderAuth0
 }
 
 var _ OAuth = Auth0Authenticator{}
@@ -94,12 +101,15 @@ func (a Auth0Authenticator) DoDeviceAuthFlow(onStateRetrieved func(url string, c
 
 	return &LoginTokens{
 		AuthTokens: entity.AuthTokens{
-			AccessToken:        res.AccessToken,
-			RefreshToken:       res.RefreshToken,
-			CredentialProvider: entity.CredentialProviderAuth0,
+			AccessToken:  res.AccessToken,
+			RefreshToken: res.RefreshToken,
 		},
 		IDToken: res.IDToken,
 	}, nil
+}
+
+func (a Auth0Authenticator) IsTokenValid(token string) bool {
+	return IssuerCheck(token, a.Issuer)
 }
 
 // Start kicks-off the device authentication flow

@@ -16,9 +16,6 @@ type CredentialProvider string
 
 const (
 	CredientialProviderUnspecified CredentialProvider = ""
-	CredentialProviderAuth0        CredentialProvider = "auth0"
-	CredentialProviderKAS          CredentialProvider = "kas"
-	// CredentialProviderStarfleet    CredentialProvider = "starfleet"
 )
 
 const WorkspaceGroupDevPlane = "devplane-brev-1"
@@ -31,15 +28,6 @@ var LegacyWorkspaceGroups = map[string]bool{
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-
-	CredentialProvider CredentialProvider `json:"credential_provider"`
-}
-
-func (a AuthTokens) GetCredentialProvider() CredentialProvider {
-	if a.CredentialProvider == CredientialProviderUnspecified {
-		return CredentialProviderAuth0
-	}
-	return a.CredentialProvider
 }
 
 type IDEConfig struct {

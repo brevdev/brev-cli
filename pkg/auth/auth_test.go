@@ -60,6 +60,14 @@ type MockOauth struct {
 	flowDone    bool
 }
 
+func (m *MockOauth) GetCredentialProvider() entity.CredentialProvider {
+	return "mock"
+}
+
+func (m *MockOauth) IsTokenValid(token string) bool {
+	return true
+}
+
 func (m *MockOauth) DoDeviceAuthFlow(_ func(string, string)) (*LoginTokens, error) {
 	m.flowDone = true
 	return m.loginTokens, nil

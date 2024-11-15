@@ -61,22 +61,22 @@ import (
 )
 
 var (
-	user         string
-	email        string
-	authProvider string
+	userFlag         string
+	emailFlag        string
+	authProviderFlag string
 )
 
 func init() {
-	flag.StringVar(&email, "email", "", "email to use for authentication")
-	flag.StringVar(&authProvider, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
+	flag.StringVar(&emailFlag, "email", "", "email to use for authentication")
+	flag.StringVar(&authProviderFlag, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
 	flag.Parse()
 }
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
-	cmd.PersistentFlags().StringVar(&user, "user", "", "non root user to use for per user configuration of commands run as root")
-	cmd.PersistentFlags().StringVar(&email, "email", "", "email to use for authentication")
-	cmd.PersistentFlags().StringVar(&authProvider, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
+	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVar(&emailFlag, "email", "", "email to use for authentication")
+	cmd.PersistentFlags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (auth0 or kas, default is auth0)")
 	return cmd
 }
 
@@ -97,23 +97,52 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		fmt.Printf("%v\n", err)
 	}
 
-	authP := tokens.GetCredentialProvider()
-	if authProvider != "" {
-		authP = entity.CredentialProvider(authProvider)
+	// the default authenticator
+	var authenticator auth.OAuth = auth.Auth0Authenticator{
+		Issuer:             "https://brevdev.us.auth0.com/",
+		Audience:           "https://brevdev.us.auth0.com/api/v2/",
+		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
+		DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
+		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
 	}
 
-	var authenticator auth.OAuth
-	switch authP {
-	case entity.CredentialProviderKAS:
-		config.ConsoleBaseURL = "https://brev.nvidia.com"
-		authenticator = auth.NewKasAuthenticator(email, "https://api.ngc.nvidia.com")
-	default:
-		authenticator = auth.Auth0Authenticator{
-			Audience:           "https://brevdev.us.auth0.com/api/v2/",
-			ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
-			DeviceCodeEndpoint: "https://brevdev.us.auth0.com/oauth/device/code",
-			OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
+	email := auth.GetEmailFromToken(tokens.AccessToken)
+	shouldPromptEmail := true
+	if emailFlag != "" {
+		email = emailFlag
+		shouldPromptEmail = false
+	}
+
+	authRetriever := auth.NewOAuthRetriever([]auth.OAuth{
+		authenticator,
+		auth.NewKasAuthenticator(
+			email,
+			"https://api.ngc.nvidia.com",
+			"https://login.nvidia.com",
+			shouldPromptEmail,
+		),
+	})
+
+	if tokens != nil && tokens.AccessToken != "" {
+		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
+		if errr != nil {
+			fmt.Printf("%v\n", errr)
+		} else {
+			authenticator = authenticatorFromToken
 		}
+	}
+
+	if authProviderFlag != "" {
+		authenticatorByProviderFlag, errr := authRetriever.GetByProvider(entity.CredentialProvider(authProviderFlag))
+		if errr != nil {
+			fmt.Printf("%v\n", errr)
+		} else {
+			authenticator = authenticatorByProviderFlag
+		}
+	}
+
+	if authenticator.GetCredentialProvider() == auth.CredentialProviderKAS {
+		config.ConsoleBaseURL = "https://brev.nvidia.com"
 	}
 
 	// super annoying. this is needed to make the import stay
@@ -189,16 +218,16 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 					fmt.Println(v)
 				}
 			}
-			if user != "" {
-				_, err := noLoginCmdStore.WithUserID(user)
+			if userFlag != "" {
+				_, err := noLoginCmdStore.WithUserID(userFlag)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
-				_, err = loginCmdStore.WithUserID(user)
+				_, err = loginCmdStore.WithUserID(userFlag)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
-				_, err = fsStore.WithUserID(user)
+				_, err = fsStore.WithUserID(userFlag)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}

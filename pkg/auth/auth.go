@@ -64,6 +64,36 @@ type AuthStore interface {
 type OAuth interface {
 	DoDeviceAuthFlow(onStateRetrieved func(url string, code string)) (*LoginTokens, error)
 	GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error)
+	GetCredentialProvider() entity.CredentialProvider
+	IsTokenValid(token string) bool
+}
+
+type OAuthRetriever struct {
+	oauths []OAuth
+}
+
+func NewOAuthRetriever(oauths []OAuth) *OAuthRetriever {
+	return &OAuthRetriever{
+		oauths: oauths,
+	}
+}
+
+func (o *OAuthRetriever) GetByProvider(provider entity.CredentialProvider) (OAuth, error) {
+	for _, oauth := range o.oauths {
+		if oauth.GetCredentialProvider() == provider {
+			return oauth, nil
+		}
+	}
+	return nil, fmt.Errorf("no oauth found for provider %s", provider)
+}
+
+func (o *OAuthRetriever) GetByToken(token string) (OAuth, error) {
+	for _, oauth := range o.oauths {
+		if oauth.IsTokenValid(token) {
+			return oauth, nil
+		}
+	}
+	return nil, fmt.Errorf("no oauth found for token")
 }
 
 type Auth struct {
@@ -263,7 +293,6 @@ type LoginTokens struct {
 
 func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 	tokens, err := t.authStore.GetAuthTokens()
-	fmt.Fprintf(os.Stderr, "AuthTokens: %+v\n", tokens)
 	if err != nil {
 		switch err.(type) { //nolint:gocritic // like the ability to extend
 		case *breverrors.CredentialsFileNotFound:
@@ -326,4 +355,32 @@ func isAccessTokenValid(token string) (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+func IssuerCheck(token string, issuer string) bool {
+	parser := jwt.Parser{}
+	claims := jwt.MapClaims{}
+	_, _, err := parser.ParseUnverified(token, &claims)
+	if err != nil {
+		return false
+	}
+	iss, ok := claims["iss"].(string)
+	if !ok {
+		return false
+	}
+	return iss == issuer
+}
+
+func GetEmailFromToken(token string) string {
+	parser := jwt.Parser{}
+	claims := jwt.MapClaims{}
+	_, _, err := parser.ParseUnverified(token, &claims)
+	if err != nil {
+		return ""
+	}
+	email, ok := claims["email"].(string)
+	if !ok {
+		return ""
+	}
+	return email
 }
