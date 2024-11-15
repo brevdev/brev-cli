@@ -24,6 +24,7 @@ type KasAuthenticator struct {
 	BaseURL           string
 	PollTimeout       time.Duration
 	Issuer            string
+	RedirectURI       string
 }
 
 func (a KasAuthenticator) GetCredentialProvider() entity.CredentialProvider {
@@ -34,13 +35,14 @@ func (a KasAuthenticator) IsTokenValid(token string) bool {
 	return IssuerCheck(token, a.Issuer)
 }
 
-func NewKasAuthenticator(email, baseURL, issuer string, shouldPromptEmail bool) KasAuthenticator {
+func NewKasAuthenticator(email, baseURL, issuer string, shouldPromptEmail bool, redirectURI string) KasAuthenticator {
 	return KasAuthenticator{
 		Email:             email,
 		ShouldPromptEmail: shouldPromptEmail,
 		Issuer:            issuer,
 		BaseURL:           baseURL,
 		PollTimeout:       5 * time.Minute,
+		RedirectURI:       redirectURI,
 	}
 }
 
@@ -68,8 +70,9 @@ type LoginCallResponse struct {
 func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, error) {
 	url := fmt.Sprintf("%s/device/login", a.BaseURL)
 	payload := map[string]string{
-		"email":    email,
-		"deviceId": id,
+		"email":       email,
+		"deviceId":    id,
+		"redirectUri": a.RedirectURI,
 	}
 	// Marshal the payload into JSON
 	jsonData, err := json.Marshal(payload)

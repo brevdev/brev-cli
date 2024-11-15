@@ -120,6 +120,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			"https://api.ngc.nvidia.com",
 			"https://login.nvidia.com",
 			shouldPromptEmail,
+			"https://brev.nvidia.com",
 		),
 	})
 
