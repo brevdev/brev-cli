@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/errors"
@@ -297,11 +296,6 @@ type ContextKey string
 
 const IdempotencyKeyName ContextKey = "idempotencyKey"
 
-type SafeCounter struct {
-	mu sync.Mutex
-	c  int
-}
-
 type AsyncResult[T any] struct {
 	result chan result[T]
 }
@@ -324,10 +318,6 @@ func Async[T any](f func() (T, error)) *AsyncResult[T] {
 func (ar *AsyncResult[T]) Await() (T, error) {
 	r := <-ar.result // This will block until the result is available
 	return r.value, r.err
-}
-
-type Rollback struct {
-	undos []func() error
 }
 
 var (

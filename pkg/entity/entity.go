@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -182,29 +181,12 @@ type User struct {
 }
 
 type UserKeys struct {
-	PrivateKey      string               `json:"privateKey"`
-	PublicKey       string               `json:"publicKey"`
-	WorkspaceGroups []WorkspaceGroupKeys `json:"workspaceGroups"`
-}
-
-type WorkspaceGroupKeys struct {
-	GroupID string `json:"groupId"`
-	Cert    string `json:"cert"`
-	CA      string `json:"ca"`
-	APIURL  string `json:"apiUrl"`
+	PrivateKey string `json:"privateKey"`
+	PublicKey  string `json:"publicKey"`
 }
 
 func (v VscodeExtensionMetadata) GetID() string {
 	return fmt.Sprintf("%s.%s", v.Publisher, v.Name)
-}
-
-func (u UserKeys) GetWorkspaceGroupKeysByGroupID(groupID string) (*WorkspaceGroupKeys, error) {
-	for _, wgk := range u.WorkspaceGroups {
-		if wgk.GroupID == groupID {
-			return &wgk, nil
-		}
-	}
-	return nil, fmt.Errorf("group id %s not found", groupID)
 }
 
 type Organization struct {
@@ -496,11 +478,6 @@ func (w Workspace) GetLocalIdentifier() WorkspaceLocalID {
 func (w Workspace) GetHostIdentifier() WorkspaceLocalID {
 	return w.createSimpleName() + "-host"
 }
-
-var (
-	whitespaceCharPattern = regexp.MustCompile(`\s+`)
-	invalidCharPattern    = regexp.MustCompile(`[^a-z0-9-]`)
-)
 
 // lowercase, replace whitespace with '-', remove all [^a-z0-9-], trim '-' front and back
 

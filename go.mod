@@ -42,7 +42,6 @@ require (
 	golang.org/x/crypto v0.24.0
 	golang.org/x/text v0.16.0
 	k8s.io/cli-runtime v0.31.1
-	k8s.io/client-go v0.31.1
 )
 
 require (
@@ -110,6 +109,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
 	k8s.io/apimachinery v0.31.1 // indirect
+	k8s.io/client-go v0.31.1 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 )
 

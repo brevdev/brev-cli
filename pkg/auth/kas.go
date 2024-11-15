@@ -81,7 +81,7 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 	}
 
 	// Create a new POST request with JSON payload
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData)) //nolint:noctx // fine
 	if err != nil {
 		return LoginCallResponse{}, breverrors.WrapAndTrace(err)
 	}
@@ -93,7 +93,7 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 	if err != nil {
 		return LoginCallResponse{}, breverrors.WrapAndTrace(err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // fine
 
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)
@@ -196,7 +196,7 @@ type RetrieveIDTokenResponse struct {
 func (a KasAuthenticator) retrieveIDToken(sessionKey, deviceID string) (string, error) {
 	tokenURL := fmt.Sprintf("%s/token", a.BaseURL)
 	client := &http.Client{}
-	tokenReq, err := http.NewRequest("GET", tokenURL, nil)
+	tokenReq, err := http.NewRequest("GET", tokenURL, nil) //nolint:noctx // fine
 	if err != nil {
 		return "", fmt.Errorf("error creating token request: %v", err)
 	}
@@ -208,7 +208,7 @@ func (a KasAuthenticator) retrieveIDToken(sessionKey, deviceID string) (string, 
 	if err != nil {
 		return "", fmt.Errorf("error sending token request: %v", err)
 	}
-	defer tokenResp.Body.Close()
+	defer tokenResp.Body.Close() //nolint:errcheck // fine
 
 	tokenBody, err := io.ReadAll(tokenResp.Body)
 	if err != nil {

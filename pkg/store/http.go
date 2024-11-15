@@ -32,10 +32,6 @@ type NoAuthHTTPClient struct {
 	restyClient *resty.Client
 }
 
-type OllamaHTTPClient struct {
-	restyClient *resty.Client
-}
-
 func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
 	restyClient := NewRestyClient(brevAPIURL)
 	return &NoAuthHTTPClient{restyClient}

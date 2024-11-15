@@ -517,10 +517,6 @@ func doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool
 	return strings.Contains(conf, makeIncludeBrevStr(brevConfigPath))
 }
 
-type SSHConfigurerServiceMesh struct {
-	store SSHConfigurerV2Store
-}
-
 // Deprecated: var _ Config = SSHConfigurerServiceMesh{}
 
 // openssh-7.3

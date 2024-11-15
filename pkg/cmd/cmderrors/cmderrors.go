@@ -16,8 +16,6 @@ import (
 
 // determines if should print error stack trace and/or send to crash monitor
 
-//nolint:wrapcheck //no check
-
 func DisplayAndHandleError(err error) {
 	er := breverrors.GetDefaultErrorReporter()
 	er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{

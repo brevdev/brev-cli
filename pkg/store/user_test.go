@@ -43,14 +43,6 @@ func TestGetCurrentUserKeys(t *testing.T) {
 	expected := &entity.UserKeys{
 		PrivateKey: "priv",
 		PublicKey:  "pub",
-		WorkspaceGroups: []entity.WorkspaceGroupKeys{
-			{
-				GroupID: "gi",
-				Cert:    "cert",
-				CA:      "ca",
-				APIURL:  "url",
-			},
-		},
 	}
 	res, err := httpmock.NewJsonResponder(200, expected)
 	if !assert.Nil(t, err) {

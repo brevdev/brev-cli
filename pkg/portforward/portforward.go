@@ -3,19 +3,11 @@ package portforward
 import (
 	"net/url"
 
-	"github.com/brevdev/brev-cli/pkg/k8s"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
 type PortForwardOptions struct {
-	PortForwarder              PortForwarder
-	WorkspaceGroupClientMapper k8s.WorkspaceGroupClientMapper
-
-	K8sClient k8s.K8sClient
-	K8sAPIURL string
-
-	Namespace string
-	PodName   string
+	PortForwarder PortForwarder
 
 	Address      []string
 	Ports        []string

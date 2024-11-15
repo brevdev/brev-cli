@@ -80,8 +80,6 @@ func (t *Terminal) Errprint(err error, a string) {
 	}
 }
 
-type silentWriter struct{}
-
 func (t *Terminal) NewSpinner() *spinner.Spinner {
 	spinner := spinner.New(spinner.CharSets[11], 100*time.Millisecond, spinner.WithWriter(os.Stderr))
 	err := spinner.Color("cyan", "bold")
