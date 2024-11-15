@@ -103,7 +103,7 @@ func printBrevOpen(t *terminal.Terminal, firstWorkspace entity.Workspace) {
 
 func printCompletedOnboarding(t *terminal.Terminal) {
 	s := "\n\nI think I'm done here. Now you know how to open an instance and start coding."
-	s += "\n\nUse the console " + t.Yellow(fmt.Sprintf("(%s)"), config.ConsoleBaseURL) + " to create a new instance or share it with people"
+	s += "\n\nUse the console " + t.Yellow(fmt.Sprintf("(%s)", config.ConsoleBaseURL)) + " to create a new instance or share it with people"
 	s += "\nand use this CLI to code the way you would normally 🤙"
 	s += "\n\nCheck out the docs at " + t.Yellow("https://brev.dev") + " and let us know if we can help!\n"
 	s += "\n\nIn case you missed it, my cell is " + t.Yellow("(415) 237-2247") + "\n\t-Nader\n"
