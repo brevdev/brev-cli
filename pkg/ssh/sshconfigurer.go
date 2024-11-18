@@ -341,16 +341,16 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 
 	alias = fmt.Sprintf("%s-host", alias)
 	var hostSSHVal string
+	hostport := workspace.GetHostSSHPort()
+	hostuser := workspace.GetHostSSHUser()
 	if workspace.HostSSHProxyHostname == "" {
-		port := workspace.GetHostSSHPort()
-		user = workspace.GetHostSSHUser()
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
-			User:         user,
+			User:         hostuser,
 			Dir:          workspace.GetProjectFolderPath(),
 			HostName:     hostname,
-			Port:         port,
+			Port:         hostport,
 		}
 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
 		if err != nil {
@@ -365,7 +365,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
-			User:         user,
+			User:         hostuser,
 			ProxyCommand: proxyCommand,
 			Dir:          workspace.GetProjectFolderPath(),
 		}
