@@ -9,7 +9,7 @@ TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "${TMP_DIR}"' EXIT
 
 # Download the latest release
-wget --directory-prefix="${TMP_DIR}" "${DOWNLOAD_URL}"
+curl -L "${DOWNLOAD_URL}" -o "${TMP_DIR}/$(basename "${DOWNLOAD_URL}")"
 
 # Find and extract the archive
 ARCHIVE_FILE="$(find "${TMP_DIR}" -name "brev*.tar.gz" -type f)"
@@ -19,5 +19,3 @@ tar -xzf "${ARCHIVE_FILE}" -C "${TMP_DIR}"
 sudo mv "${TMP_DIR}/brev" /usr/local/bin/brev
 sudo chmod +x /usr/local/bin/brev
 
-# Run post-installation setup
-sudo brev postinstall
