@@ -272,7 +272,7 @@ func RunTasksForUser(t *terminal.Terminal) error {
 func CreateNewUser(loginStore LoginStore, idToken string) (bool, error) {
 	_, err := loginStore.CreateUser(idToken)
 	if err != nil {
-		if !(strings.Contains(err.Error(), "duplicate username") || strings.Contains(err.Error(), "duplicate external auth id")) {
+		if !(strings.Contains(err.Error(), "duplicate username") || strings.Contains(err.Error(), "duplicate external auth id") || strings.Contains(err.Error(), "identity already exists")) {
 			// This is a real error
 			return false, breverrors.WrapAndTrace(err)
 		}
