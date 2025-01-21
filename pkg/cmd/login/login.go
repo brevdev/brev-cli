@@ -106,6 +106,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 }
 
 func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, skipBrowser bool) (*entity.User, error) {
+	// Handle authentication
 	if loginToken != "" {
 		err := o.Auth.LoginWithToken(loginToken)
 		if err != nil {
@@ -117,12 +118,21 @@ func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, skipBrowser boo
 			return nil, breverrors.WrapAndTrace(err)
 		}
 
-		_, err = CreateNewUser(o.LoginStore, tokens.IDToken)
+		// First try to get the current user
+		user, err := o.LoginStore.GetCurrentUser()
 		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
+			// Only create new user if we couldn't find an existing one
+			_, err = CreateNewUser(o.LoginStore, tokens.IDToken)
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+		} else {
+			// We found an existing user, return it
+			return user, nil
 		}
 	}
 
+	// Get and return the user after either login path
 	user, err := o.LoginStore.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
