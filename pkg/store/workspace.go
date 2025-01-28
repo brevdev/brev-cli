@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -691,6 +692,21 @@ var (
 )
 
 func ValidateOllamaModel(model string, tag string) (bool, error) {
+	// Special case for deepseek models
+	if strings.HasPrefix(model, "deepseek-r1") {
+		validTags := map[string]bool{
+			"14b":    true,
+			"32b":    true,
+			"70b":    true,
+			"671b":   true,
+			"latest": true,
+		}
+		if tag == "" {
+			tag = "latest"
+		}
+		return validTags[tag], nil
+	}
+
 	restyClient := resty.New().SetBaseURL(config.NewConstants().GetOllamaAPIURL())
 	if tag == "" {
 		tag = "latest"
