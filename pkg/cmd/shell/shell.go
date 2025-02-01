@@ -69,6 +69,11 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 }
 
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string, host bool) error {
+
+	if !host {
+		t.Vprintf(t.Yellow("\nIf you need to ssh into the host machine, use the --host flag\n\n"))
+	}
+
 	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
