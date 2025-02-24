@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -19,6 +20,11 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if res.IsError() {
+		// Check for NVIDIA migration error in response body
+		body := string(res.Body())
+		if strings.Contains(body, "this user has been migrated to brev.nvidia.com") {
+			return nil, breverrors.NewNvidiaMigrationError("Your account has been migrated to NVIDIA Brev")
+		}
 		return nil, NewHTTPResponseError(res)
 	}
 

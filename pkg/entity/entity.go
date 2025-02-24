@@ -167,17 +167,24 @@ const (
 	Standard GlobalUserType = "Standard"
 )
 
+type ExternalIdentity struct {
+	IdentityID string `json:"identity_id,omitempty"`
+	Provider   string `json:"provider,omitempty"`
+	ExternalID string `json:"external_id,omitempty"`
+}
+
 type User struct {
-	ID                string                 `json:"id"`
-	PublicKey         string                 `json:"publicKey,omitempty"`
-	Username          string                 `json:"username"`
-	Name              string                 `json:"name"`
-	Email             string                 `json:"email"`
-	WorkspacePassword string                 `json:"workspacePassword"`
-	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo"`
-	GlobalUserType    GlobalUserType         `json:"globalUserType"`
-	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
-	OnboardingData    map[string]interface{} `json:"onboardingData"`
+	ID                 string                 `json:"id"`
+	PublicKey          string                 `json:"publicKey,omitempty"`
+	Username           string                 `json:"username"`
+	Name               string                 `json:"name"`
+	Email              string                 `json:"email"`
+	WorkspacePassword  string                 `json:"workspacePassword"`
+	BaseWorkspaceRepo  string                 `json:"baseWorkspaceRepo"`
+	GlobalUserType     GlobalUserType         `json:"globalUserType"`
+	IdeConfig          IDEConfig              `json:"ideConfig,omitempty"`
+	OnboardingData     map[string]interface{} `json:"onboardingData"`
+	ExternalIdentities []*ExternalIdentity    `json:"externalIdentities,omitempty"`
 }
 
 type UserKeys struct {
