@@ -2,8 +2,8 @@ package store
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -20,12 +20,23 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if res.IsError() {
-		// Check for NVIDIA migration error in response body
-		body := string(res.Body())
-		if strings.Contains(body, "this user has been migrated to brev.nvidia.com") {
-			return nil, breverrors.NewNvidiaMigrationError("Your account has been migrated to NVIDIA Brev")
-		}
 		return nil, NewHTTPResponseError(res)
+	}
+
+	// Get the current token to check if it's from Auth0
+	currentToken, err := s.authHTTPClient.auth.GetAccessToken()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	// Check if user has multiple identities
+	if len(result.ExternalIdentities) > 1 {
+		// Check if the current token is from Auth0
+		isAuth0Token := auth.IssuerCheck(currentToken, "https://brevdev.us.auth0.com/")
+		if isAuth0Token {
+			// User has multiple identities and is using Auth0, suggest NVIDIA login
+			return nil, breverrors.NewNvidiaMigrationError("This account has an NVIDIA login available")
+		}
 	}
 
 	breverrors.GetDefaultErrorReporter().SetUser(breverrors.ErrorUser{
