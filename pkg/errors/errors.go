@@ -277,3 +277,19 @@ func makeErrorMessage(message string, skip int) string {
 }
 
 // logger.L().Error("", zap.Error(err))
+
+type NvidiaMigrationError struct {
+	Message string
+}
+
+func (e NvidiaMigrationError) Error() string {
+	return e.Message
+}
+
+func (e NvidiaMigrationError) Directive() string {
+	return "Please run 'brev login --auth nvidia' to log in with your NVIDIA account"
+}
+
+func NewNvidiaMigrationError(msg string) *NvidiaMigrationError {
+	return &NvidiaMigrationError{Message: msg}
+}

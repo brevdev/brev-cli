@@ -2,6 +2,8 @@ package cmderrors
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 
 	"github.com/getsentry/sentry-go"
@@ -34,6 +36,26 @@ func DisplayAndHandleError(err error) {
 		case breverrors.WorkspaceNotRunning: // report error to track when this occurs, but don't print stacktrace to user unless in dev mode
 			er.ReportError(err)
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
+		case *breverrors.NvidiaMigrationError:
+			// Handle nvidia migration error
+			if nvErr, ok := errors.Cause(err).(*breverrors.NvidiaMigrationError); ok {
+				prettyErr = t.Yellow(nvErr.Error() + "\n" + nvErr.Directive())
+
+				// Attempt automatic KAS login
+				fmt.Println("\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
+				brevBin, err1 := os.Executable()
+				if err1 == nil {
+					cmd := exec.Command(brevBin, "login", "--auth", "nvidia") // #nosec G204
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = os.Stderr
+					cmd.Stdin = os.Stdin
+					_ = cmd.Run() // Ignore error as it will be handled by the login command
+				}
+			} else {
+				// Fallback in case type assertion fails (shouldn't happen but better safe than sorry)
+				prettyErr = t.Red(errors.Cause(err).Error())
+				er.ReportError(err)
+			}
 		default:
 			if isSneakyValidationErr(err) {
 				prettyErr = (t.Yellow(errors.Cause(err).Error()))

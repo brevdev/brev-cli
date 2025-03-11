@@ -3,6 +3,7 @@ package store
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -20,6 +21,22 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 	}
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
+	}
+
+	// Check if user has multiple identities and is using Auth0
+	if len(result.ExternalIdentities) > 1 {
+		// Get the current token to check if it's from Auth0
+		currentToken, err := s.authHTTPClient.auth.GetAccessToken()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+
+		// Check if the current token is from Auth0
+		isAuth0Token := auth.IssuerCheck(currentToken, "https://brevdev.us.auth0.com/")
+		if isAuth0Token {
+			// User has multiple identities and is using Auth0, suggest NVIDIA login
+			return nil, breverrors.NewNvidiaMigrationError("This account has an NVIDIA login available")
+		}
 	}
 
 	breverrors.GetDefaultErrorReporter().SetUser(breverrors.ErrorUser{
