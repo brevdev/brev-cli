@@ -42,7 +42,7 @@ func DisplayAndHandleError(err error) {
 				prettyErr = t.Yellow(nvErr.Error() + "\n" + nvErr.Directive())
 
 				// Attempt automatic KAS login
-				fmt.Println("\nAttempting to log in with NVIDIA account...")
+				fmt.Println("\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
 				brevBin, err1 := os.Executable()
 				if err1 == nil {
 					cmd := exec.Command(brevBin, "login", "--auth", "nvidia") // #nosec G204
