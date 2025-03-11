@@ -11,6 +11,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/google/uuid"
 )
 
@@ -147,7 +148,8 @@ func (a KasAuthenticator) maybePromptForEmail() (string, error) {
 	} else if a.Email != "" {
 		return a.Email, nil
 	} else {
-		fmt.Print("Enter your email: ")
+		t := terminal.New()
+		fmt.Print(t.Green("Enter your email: "))
 		_, err := fmt.Scanln(&email)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
