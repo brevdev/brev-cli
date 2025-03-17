@@ -39,9 +39,6 @@ func DisplayAndHandleError(err error) {
 		case *breverrors.NvidiaMigrationError:
 			// Handle nvidia migration error
 			if nvErr, ok := errors.Cause(err).(*breverrors.NvidiaMigrationError); ok {
-				prettyErr = t.Yellow(nvErr.Error() + "\n" + nvErr.Directive())
-
-				// Attempt automatic KAS login
 				fmt.Println("\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
 				brevBin, err1 := os.Executable()
 				if err1 == nil {
@@ -49,8 +46,14 @@ func DisplayAndHandleError(err error) {
 					cmd.Stdout = os.Stdout
 					cmd.Stderr = os.Stderr
 					cmd.Stdin = os.Stdin
-					_ = cmd.Run() // Ignore error as it will be handled by the login command
+					loginErr := cmd.Run() // If automatic login succeeds, we'll exit without showing the original error
+					if loginErr == nil {
+						// Login successful, don't show the original error
+						return
+					}
 				}
+				// Only show the error if automatic login failed or couldn't be attempted
+				prettyErr = t.Yellow(nvErr.Error() + "\n" + nvErr.Directive())
 			} else {
 				// Fallback in case type assertion fails (shouldn't happen but better safe than sorry)
 				prettyErr = t.Red(errors.Cause(err).Error())

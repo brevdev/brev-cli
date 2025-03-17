@@ -393,8 +393,23 @@ func AuthProviderFlagToCredentialProvider(authProviderFlag string) entity.Creden
 }
 
 func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens) OAuth {
-	// the default authenticator
-	var authenticator OAuth = Auth0Authenticator{
+	// Set KAS as the default authenticator
+	shouldPromptEmail := false
+	if email == "" && tokens != nil && tokens.AccessToken != "" {
+		email = GetEmailFromToken(tokens.AccessToken)
+		shouldPromptEmail = true
+	}
+
+	kasAuthenticator := NewKasAuthenticator(
+		email,
+		"https://api.ngc.nvidia.com",
+		"https://login.nvidia.com",
+		shouldPromptEmail,
+		"https://brev.nvidia.com",
+	)
+
+	// Create the auth0 authenticator as an alternative
+	auth0Authenticator := Auth0Authenticator{
 		Issuer:             "https://brevdev.us.auth0.com/",
 		Audience:           "https://brevdev.us.auth0.com/api/v2/",
 		ClientID:           "JaqJRLEsdat5w7Tb0WqmTxzIeqwqepmk",
@@ -402,21 +417,12 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 		OauthTokenEndpoint: "https://brevdev.us.auth0.com/oauth/token",
 	}
 
-	shouldPromptEmail := false
-	if email == "" && tokens != nil && tokens.AccessToken != "" {
-		email = GetEmailFromToken(tokens.AccessToken)
-		shouldPromptEmail = true
-	}
+	// Default to KAS authenticator
+	var authenticator OAuth = kasAuthenticator
 
 	authRetriever := NewOAuthRetriever([]OAuth{
-		authenticator,
-		NewKasAuthenticator(
-			email,
-			"https://api.ngc.nvidia.com",
-			"https://login.nvidia.com",
-			shouldPromptEmail,
-			"https://brev.nvidia.com",
-		),
+		auth0Authenticator,
+		kasAuthenticator,
 	})
 
 	if tokens != nil && tokens.AccessToken != "" {
@@ -430,11 +436,13 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 
 	if authProvider != "" {
 		provider := AuthProviderFlagToCredentialProvider(authProvider)
-		oauth, errr := authRetriever.GetByProvider(provider)
-		if errr != nil {
-			fmt.Printf("%v\n", errr)
-		} else {
-			authenticator = oauth
+		if provider == CredentialProviderAuth0 || provider == CredentialProviderKAS {
+			oauth, errr := authRetriever.GetByProvider(provider)
+			if errr != nil {
+				fmt.Printf("%v\n", errr)
+			} else {
+				authenticator = oauth
+			}
 		}
 	}
 
