@@ -259,6 +259,12 @@ const (
 	Unavailable = "UNAVAILABLE"
 )
 
+// SSH Status
+const (
+	NotReady = "NOT READY"
+	Ready    = "READY"
+)
+
 type WorkspaceGroup struct {
 	ID             string `json:"id"`
 	Name           string `json:"name"`
