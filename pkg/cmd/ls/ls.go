@@ -418,13 +418,13 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace,
 		}
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := utilities.GetInstanceString(w)
-		workspaceRow := []table.Row{{fmt.Sprintf("%s %s", w.Name, isShared), getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getSSHDisplayStatus(w)), w.ID, instanceString}}
+		workspaceRow := []table.Row{{fmt.Sprintf("%s %s", w.Name, isShared), getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
 }
 
-func getSSHDisplayStatus(w entity.Workspace) string {
+func getShellDisplayStatus(w entity.Workspace) string {
 	status := entity.NotReady
 	if w.Status == entity.Running && w.VerbBuildStatus == entity.Completed {
 		status = entity.Ready

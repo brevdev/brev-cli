@@ -259,7 +259,7 @@ const (
 	Unavailable = "UNAVAILABLE"
 )
 
-// SSH Status
+// Shell Status
 const (
 	NotReady = "NOT READY"
 	Ready    = "READY"
