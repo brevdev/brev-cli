@@ -47,7 +47,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Example: `
   brev ls
   brev ls orgs
-  brev ls --org <orgid>
+  brev ls --org <name>
 		`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 			if hello.ShouldWeRunOnboardingLSStep(noLoginLsStore) && hello.ShouldWeRunOnboarding(noLoginLsStore) {
