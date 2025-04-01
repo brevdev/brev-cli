@@ -325,15 +325,6 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 
 		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
 		// displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
-
-		// if !enableSSHCol {
-		// 	ls.terminal.Vprintf(ls.terminal.Green("Or ssh:\n"))
-		// 	for _, v := range userWorkspaces {
-		// 		if v.Status == entity.Running {
-		// 			ls.terminal.Vprintf(ls.terminal.Yellow("\tssh %s\n", v.GetLocalIdentifier()))
-		// 		}
-		// 	}
-		// }
 	}
 }
 
@@ -405,8 +396,6 @@ func displayProjects(t *terminal.Terminal, orgName string, projects []virtualpro
 	}
 }
 
-const enableSSHCol = false
-
 func getBrevTableOptions() table.Options {
 	options := table.OptionsDefault
 	options.DrawBorder = false
@@ -420,10 +409,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace,
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"Name", "Status", "ID", "Machine"}
-	if enableSSHCol {
-		header = table.Row{"Name", "Status", "SSH", "ID", "Machine"}
-	}
+	header := table.Row{"Name", "Status", "Build", "Shell", "ID", "Machine"}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		isShared := ""
@@ -432,13 +418,18 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace,
 		}
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := utilities.GetInstanceString(w)
-		workspaceRow := []table.Row{{fmt.Sprintf("%s %s", w.Name, isShared), getStatusColoredText(t, status), w.ID, instanceString}}
-		if enableSSHCol {
-			workspaceRow = []table.Row{{w.Name, getStatusColoredText(t, status), w.GetLocalIdentifier(), w.ID, instanceString}}
-		}
+		workspaceRow := []table.Row{{fmt.Sprintf("%s %s", w.Name, isShared), getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
+}
+
+func getShellDisplayStatus(w entity.Workspace) string {
+	status := entity.NotReady
+	if w.Status == entity.Running && w.VerbBuildStatus == entity.Completed {
+		status = entity.Ready
+	}
+	return status
 }
 
 func getWorkspaceDisplayStatus(w entity.Workspace) string {
@@ -480,11 +471,11 @@ func displayProjectsTable(projects []virtualproject.VirtualProject) {
 
 func getStatusColoredText(t *terminal.Terminal, status string) string {
 	switch status {
-	case entity.Running:
+	case entity.Running, entity.Ready, string(entity.Completed):
 		return t.Green(status)
-	case entity.Starting, entity.Deploying, entity.Stopping:
+	case entity.Starting, entity.Deploying, entity.Stopping, string(entity.Building), string(entity.Pending):
 		return t.Yellow(status)
-	case entity.Failure, entity.Deleting, entity.Unhealthy:
+	case entity.Failure, entity.Deleting, entity.Unhealthy, string(entity.CreateFailed):
 		return t.Red(status)
 	default:
 		return status

@@ -27,7 +27,7 @@ jobs:
 
 
       - name: install
-        run: make install
+        run: make install-tools
       - name: check fmt
         run: make fmtcheck
       # - name: Report Status
