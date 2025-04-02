@@ -143,7 +143,7 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	s.Suffix = " waiting for SSH connection to be available"
 	s.Start()
 	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=3", sshAlias, "echo", " ")
+		cmd := exec.Command("ssh", "-o", "ConnectTimeout=10", sshAlias, "echo", " ")
 		out, err := cmd.CombinedOutput()
 		if err == nil {
 			s.Stop()
@@ -153,7 +153,7 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 		outputStr := string(out)
 		stdErr := strings.Split(outputStr, "\n")[1]
 
-		if counter == 120 || !store.SatisfactorySSHErrMessage(stdErr) {
+		if counter == 40 || !store.SatisfactorySSHErrMessage(stdErr) {
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
 		}
 
