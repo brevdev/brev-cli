@@ -18,7 +18,8 @@ const nvidiaGreen = "#76B900"
 var (
 	titleStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(nvidiaGreen))
+		Foreground(lipgloss.Color(nvidiaGreen)).
+		MarginBottom(1)
 
 	chipStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -26,7 +27,8 @@ var (
 		Width(20).
 		Height(3).
 		Align(lipgloss.Center).
-		Bold(true)
+		Bold(true).
+		MarginRight(2)
 
 	selectedChipStyle = chipStyle.Copy().
 		BorderForeground(lipgloss.Color(nvidiaGreen)).
@@ -35,23 +37,24 @@ var (
 
 	metadataStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("white")).
-		MarginLeft(2)
+		Width(20).
+		Align(lipgloss.Center)
 
-	selectedMetadataStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(nvidiaGreen)).
-		MarginLeft(2)
+	selectedMetadataStyle = metadataStyle.Copy().
+		Foreground(lipgloss.Color(nvidiaGreen))
 
 	gpuStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(nvidiaGreen)).
-		Padding(0).
+		Padding(1).
 		MarginTop(1).
-		Height(20).
-		Width(70)
+		Height(12).
+		Width(80)
 
 	infoStyle = lipgloss.NewStyle().
 		Italic(true).
-		Foreground(lipgloss.Color("#666666"))
+		Foreground(lipgloss.Color("#666666")).
+		MarginTop(1)
 )
 
 type GPU struct {
@@ -66,7 +69,7 @@ func (g GPU) Description() string { return fmt.Sprintf("Memory: %s | Performance
 func (g GPU) FilterValue() string { return g.name }
 
 type model struct {
-	gpus       list.Model
+	gpus       []GPU
 	selected   *GPU
 	quitting   bool
 	spring     *harmonica.Spring
@@ -74,6 +77,7 @@ type model struct {
 	xVelocity  float64
 	spinner    spinner.Model
 	err        error
+	cursor     int
 }
 
 // Custom delegate for GPU items
@@ -107,19 +111,11 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 }
 
 func initialModel() model {
-	gpus := []list.Item{
-		GPU{name: "NVIDIA A100", memory: "80GB", performance: "High", price: "$4.50/hr"},
-		GPU{name: "NVIDIA H100", memory: "80GB", performance: "Ultra", price: "$5.50/hr"},
-		GPU{name: "NVIDIA L40S", memory: "48GB", performance: "Medium", price: "$2.50/hr"},
+	gpus := []GPU{
+		{name: "NVIDIA A100", memory: "80GB", performance: "High", price: "$4.50/hr"},
+		{name: "NVIDIA H100", memory: "80GB", performance: "Ultra", price: "$5.50/hr"},
+		{name: "NVIDIA L40S", memory: "48GB", performance: "Medium", price: "$2.50/hr"},
 	}
-
-	l := list.New(gpus, itemDelegate{}, 0, 0)
-	l.Title = "Select GPU"
-	l.SetShowStatusBar(false)
-	l.SetFilteringEnabled(false)
-	l.Styles.Title = titleStyle
-	l.SetShowHelp(false)
-	l.SetHeight(20)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -128,9 +124,10 @@ func initialModel() model {
 	spring := harmonica.NewSpring(harmonica.FPS(60), 8.0, 0.2)
 
 	return model{
-		gpus:    l,
+		gpus:    gpus,
 		spinner: s,
 		spring:  &spring,
+		cursor:  0,
 	}
 }
 
@@ -157,31 +154,29 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == "ctrl+c" || msg.String() == "q" {
+		switch msg.String() {
+		case "ctrl+c", "q":
 			m.quitting = true
 			return m, tea.Quit
-		}
-
-		if msg.String() == "enter" {
-			i, ok := m.gpus.SelectedItem().(GPU)
-			if ok {
-				m.selected = &i
-				return m, tea.Quit
+		case "right", "l":
+			if m.cursor < len(m.gpus)-1 {
+				m.cursor++
 			}
+		case "left", "h":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "enter":
+			m.selected = &m.gpus[m.cursor]
+			return m, tea.Quit
 		}
-
-	case tea.WindowSizeMsg:
-		h, _ := gpuStyle.GetFrameSize()
-		m.gpus.SetSize(msg.Width-h, 20) // Fix height to prevent excess space
 
 	case frameMsg:
 		m.x, m.xVelocity = m.spring.Update(m.x, m.xVelocity, 2.0)
 		return m, animate()
 	}
 
-	var cmd tea.Cmd
-	m.gpus, cmd = m.gpus.Update(msg)
-	return m, cmd
+	return m, nil
 }
 
 func (m model) View() string {
@@ -195,12 +190,34 @@ func (m model) View() string {
 	// Create horizontal padding based on spring animation
 	padding := strings.Repeat(" ", int(m.x))
 
+	// Render GPUs horizontally
+	var gpuBoxes []string
+	var metadataBoxes []string
+
+	for i, gpu := range m.gpus {
+		name := strings.TrimPrefix(gpu.name, "NVIDIA ")
+		metadata := fmt.Sprintf("Memory: %s\nPerformance: %s\nPrice: %s",
+			gpu.memory, gpu.performance, gpu.price)
+
+		if i == m.cursor {
+			gpuBoxes = append(gpuBoxes, selectedChipStyle.Render(name))
+			metadataBoxes = append(metadataBoxes, selectedMetadataStyle.Render(metadata))
+		} else {
+			gpuBoxes = append(gpuBoxes, chipStyle.Render(name))
+			metadataBoxes = append(metadataBoxes, metadataStyle.Render(metadata))
+		}
+	}
+
+	gpuRow := lipgloss.JoinHorizontal(lipgloss.Top, gpuBoxes...)
+	metadataRow := lipgloss.JoinHorizontal(lipgloss.Top, metadataBoxes...)
+
 	return gpuStyle.Render(
 		lipgloss.JoinVertical(
 			lipgloss.Left,
 			padding+titleStyle.Render("🚀 GPU Instance Picker"),
-			m.gpus.View(),
-			infoStyle.Render("Press 'q' to quit, 'enter' to select"),
+			gpuRow,
+			metadataRow,
+			infoStyle.Render("Press ←/→ to move, 'enter' to select, 'q' to quit"),
 		),
 	)
 }
