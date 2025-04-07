@@ -26,8 +26,8 @@ var (
 )
 
 var (
-	startLong    = "[internal] test"
-	startExample = "[internal] test"
+	startLong    = "[internal] GPU Instance Picker"
+	startExample = "[internal] GPU Instance Picker"
 )
 
 // UI package
@@ -335,15 +335,29 @@ type step struct {
 	handleKey func(*tcell.EventKey) bool
 }
 
-func NewCmdTest(_ *terminal.Terminal, _ TestStore) *cobra.Command {
+func NewCmdTest(t *terminal.Terminal, testStore TestStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"devonly": ""},
 		Use:                   "test",
 		DisableFlagsInUseLine: true,
-		Short:                 "[internal] Test random stuff.",
+		Short:                 "[internal] GPU Instance Picker",
 		Long:                  startLong,
 		Example:               startExample,
-		RunE:                  runCreateLaunchable,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			gpu, err := RunGPUPicker()
+			if err != nil {
+				return fmt.Errorf("failed to run GPU picker: %v", err)
+			}
+
+			if gpu != nil {
+				t.Vprintf("🎉 Selected GPU: %s\n", t.Green(gpu.name))
+				t.Vprintf("Memory: %s\n", gpu.memory)
+				t.Vprintf("Performance: %s\n", gpu.performance)
+				t.Vprintf("Price: %s\n", gpu.price)
+			}
+
+			return nil
+		},
 	}
 
 	return cmd
