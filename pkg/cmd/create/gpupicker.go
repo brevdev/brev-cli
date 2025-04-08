@@ -200,7 +200,7 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		if !m.ready {
 			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - 4 // Leave room for title and help
+			m.viewport.Height = msg.Height - 6 // More room for title and help
 			m.ready = true
 		}
 
@@ -212,15 +212,51 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				// Scroll up if needed
+				if m.showingConfigs {
+					lineHeight := 2 // Account for headers and spacing
+					cursorPos := m.cursor * lineHeight
+					if cursorPos < m.viewport.YOffset {
+						m.viewport.LineUp(lineHeight)
+					}
+				}
 			}
 		case "down", "j":
+			var maxCursor int
 			if m.showingConfigs {
-				if m.cursor < len(m.configs)-1 {
-					m.cursor++
-				}
+				maxCursor = len(m.configs) - 1
 			} else {
-				if m.cursor < len(m.gpuTypes)-1 {
-					m.cursor++
+				maxCursor = len(m.gpuTypes) - 1
+			}
+
+			if m.cursor < maxCursor {
+				m.cursor++
+				// Scroll down if needed
+				if m.showingConfigs {
+					lineHeight := 2 // Account for headers and spacing
+					cursorPos := m.cursor * lineHeight
+					viewportBottom := m.viewport.YOffset + m.viewport.Height - 2
+					if cursorPos >= viewportBottom {
+						m.viewport.LineDown(lineHeight)
+					}
+				}
+			}
+		case "pageup":
+			if m.showingConfigs {
+				m.viewport.HalfViewUp()
+				// Adjust cursor to match viewport position
+				newCursor := m.viewport.YOffset / 2 // Account for line height
+				if newCursor >= 0 {
+					m.cursor = newCursor
+				}
+			}
+		case "pagedown":
+			if m.showingConfigs {
+				m.viewport.HalfViewDown()
+				// Adjust cursor to match viewport position
+				newCursor := (m.viewport.YOffset + m.viewport.Height - 2) / 2 // Account for line height
+				if newCursor < len(m.configs) {
+					m.cursor = newCursor
 				}
 			}
 		case "esc":
@@ -228,6 +264,7 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showingConfigs = false
 				m.cursor = 0
 				m.selectedType = nil
+				m.viewport.GotoTop()
 			}
 		case "enter":
 			if !m.showingConfigs {
@@ -235,10 +272,27 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.configs = getConfigsForType(m.selectedType)
 				m.showingConfigs = true
 				m.cursor = 0
+				m.viewport.GotoTop()
 			} else {
 				m.selectedConfig = &m.configs[m.cursor]
 				return m, tea.Quit
 			}
+		}
+	}
+
+	// Ensure selected item is visible
+	if m.showingConfigs {
+		lineHeight := 2
+		cursorPos := m.cursor * lineHeight
+		viewportBottom := m.viewport.YOffset + m.viewport.Height - 2
+		
+		// If selected item is above viewport
+		if cursorPos < m.viewport.YOffset {
+			m.viewport.SetYOffset(cursorPos)
+		}
+		// If selected item is below viewport
+		if cursorPos >= viewportBottom {
+			m.viewport.SetYOffset(cursorPos - m.viewport.Height + 2)
 		}
 	}
 
@@ -299,7 +353,7 @@ func (m gpuModel) View() string {
 		for _, count := range counts {
 			if configs, exists := configsByCount[count]; exists {
 				if currentIndex > 0 {
-					sections = append(sections, "") // Add minimal spacing between sections
+					sections = append(sections, "") // Add spacing between sections
 				}
 				header := configHeaderStyle.Render(fmt.Sprintf("%dx GPUs:", count))
 				sections = append(sections, header)
@@ -328,7 +382,7 @@ func (m gpuModel) View() string {
 
 	m.viewport.SetContent(content)
 	
-	help := "\n↑/↓: Navigate • Enter: Select • ESC: Back • q: Quit"
+	help := "\n↑/↓: Navigate • Enter: Select • ESC: Back • PgUp/PgDn: Scroll • q: Quit"
 	
 	return lipgloss.JoinVertical(lipgloss.Left,
 		title,
