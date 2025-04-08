@@ -13,7 +13,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const nvidiaGreen = "#76B900"
+const (
+	nvidiaGreen = "#76B900"
+	NVIDIA_LOGO_2 = `
+███╗   ██╗██╗   ██╗██╗██████╗ ██╗ █████╗ 
+████╗  ██║██║   ██║██║██╔══██╗██║██╔══██╗
+██╔██╗ ██║██║   ██║██║██║  ██║██║███████║
+██║╚██╗██║╚██╗ ██╔╝██║██║  ██║██║██╔══██║
+██║ ╚████║ ╚████╔╝ ██║██████╔╝██║██║  ██║
+╚═╝  ╚═══╝  ╚═══╝  ╚═╝╚═════╝ ╚═╝╚═╝  ╚═╝`
+)
 
 var (
 	gpuTitleStyle = lipgloss.NewStyle().
@@ -340,7 +349,9 @@ func (m gpuModel) View() string {
 
 	var title string
 	if !m.showingConfigs {
-		title = gpuTitleStyle.Render("Select GPU Type:")
+		title = lipgloss.JoinVertical(lipgloss.Left,
+			lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen)).Render(NVIDIA_LOGO_2),
+			gpuTitleStyle.Render("Select GPU Type:"))
 	} else {
 		title = gpuTitleStyle.Render(fmt.Sprintf("Select %s Configuration:", m.selectedType.Name))
 	}
