@@ -104,7 +104,10 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 	}
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name, &store.GPUConfig{
+		Type:     "t4",
+		Provider: "nvidia",
+	}).WithGitRepo(workspace.GitRepo)
 
 	user, err := recreateStore.GetCurrentUser()
 	if err != nil {
@@ -153,7 +156,10 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 	}
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name)
+	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name, &store.GPUConfig{
+		Type:     "t4",
+		Provider: "nvidia",
+	})
 
 	user, err := recreateStore.GetCurrentUser()
 	if err != nil {

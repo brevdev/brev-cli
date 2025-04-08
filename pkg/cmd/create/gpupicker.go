@@ -62,34 +62,11 @@ var (
 					Foreground(lipgloss.Color(nvidiaGreen))
 )
 
-// GPUType represents a unique GPU model (e.g., T4, A100)
-type GPUType struct {
-	Name         string
-	Manufacturer string
-	Configs      []store.GPUInstanceType
-}
-
-func (g GPUType) Title() string       { return g.Name }
-func (g GPUType) Description() string { return g.Manufacturer }
-func (g GPUType) FilterValue() string { return g.Name }
-
-// GPUConfig represents a specific configuration for a GPU type
-type GPUConfig struct {
-	Type     string
-	Count    int
-	Provider string
-	Price    store.Price
-}
-
-func (g GPUConfig) Title() string       { return fmt.Sprintf("%s (%dx)", g.Type, g.Count) }
-func (g GPUConfig) Description() string { return fmt.Sprintf("%d GPU(s)", g.Count) }
-func (g GPUConfig) FilterValue() string { return g.Type }
-
 type gpuModel struct {
-	gpuTypes       []GPUType
-	configs        []GPUConfig
-	selectedType   *GPUType
-	selectedConfig *GPUConfig
+	gpuTypes       []store.GPUType
+	configs        []store.GPUConfig
+	selectedType   *store.GPUType
+	selectedConfig *store.GPUConfig
 	showingConfigs bool
 	quitting       bool
 	cursor         int
@@ -107,7 +84,7 @@ func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	var chipBox, metadata string
 
-	if gpu, ok := listItem.(GPUType); ok {
+	if gpu, ok := listItem.(store.GPUType); ok {
 		if index == m.Index() {
 			chipBox = gpuSelectedChipStyle.Render(gpu.Name)
 			metadata = gpuSelectedMetadataStyle.Render(gpu.Manufacturer)
@@ -115,7 +92,7 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 			chipBox = gpuChipStyle.Render(gpu.Name)
 			metadata = gpuMetadataStyle.Render(gpu.Manufacturer)
 		}
-	} else if config, ok := listItem.(GPUConfig); ok {
+	} else if config, ok := listItem.(store.GPUConfig); ok {
 		if index == m.Index() {
 			chipBox = gpuSelectedChipStyle.Render(fmt.Sprintf("%dx GPU", config.Count))
 			metadata = gpuSelectedMetadataStyle.Render(config.Type)
@@ -128,8 +105,8 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	fmt.Fprint(w, lipgloss.JoinVertical(lipgloss.Left, chipBox, metadata))
 }
 
-func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
-	gpuMap := make(map[string]*GPUType)
+func organizeGPUTypes(types *store.InstanceTypeResponse) []store.GPUType {
+	gpuMap := make(map[string]*store.GPUType)
 
 	for _, instance := range types.AllInstanceTypes {
 		if len(instance.SupportedGPUs) > 0 {
@@ -140,7 +117,7 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 			}
 			key := gpu.Name
 			if _, exists := gpuMap[key]; !exists {
-				gpuMap[key] = &GPUType{
+				gpuMap[key] = &store.GPUType{
 					Name:         gpu.Name,
 					Manufacturer: gpu.Manufacturer,
 				}
@@ -151,7 +128,7 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 
 	// Create ordered result with priority GPUs first
 	priorityGPUs := []string{"H100", "A100", "L40S"}
-	var result []GPUType
+	var result []store.GPUType
 
 	// Add priority GPUs first in specified order
 	for _, name := range priorityGPUs {
@@ -169,16 +146,17 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 	return result
 }
 
-func getConfigsForType(instanceTypes []store.GPUInstanceType, gpuType string) []GPUConfig {
-	var configs []GPUConfig
+func getConfigsForType(instanceTypes []store.GPUInstanceType, gpuType string) []store.GPUConfig {
+	var configs []store.GPUConfig
 	for _, config := range instanceTypes {
 		for _, gpu := range config.SupportedGPUs {
 			if gpu.Name == gpuType {
-				configs = append(configs, GPUConfig{
-					Type:     config.Type,
-					Count:    gpu.Count,
-					Provider: config.Provider,
-					Price:    config.BasePrice,
+				configs = append(configs, store.GPUConfig{
+					Type:            config.Type,
+					Count:           gpu.Count,
+					Provider:        config.Provider,
+					Price:           config.BasePrice,
+					WorkspaceGroups: config.WorkspaceGroups,
 				})
 			}
 		}
@@ -186,7 +164,7 @@ func getConfigsForType(instanceTypes []store.GPUInstanceType, gpuType string) []
 
 	validCounts := []int{1, 2, 4, 8}
 
-	configsByCount := make(map[int][]GPUConfig)
+	configsByCount := make(map[int][]store.GPUConfig)
 	for _, config := range configs {
 		// skip if count is invalid
 		if !slices.Contains(validCounts, config.Count) {
@@ -196,7 +174,7 @@ func getConfigsForType(instanceTypes []store.GPUInstanceType, gpuType string) []
 	}
 
 	// order by count
-	orderedConfigs := []GPUConfig{}
+	orderedConfigs := []store.GPUConfig{}
 	for _, count := range validCounts {
 		orderedConfigs = append(orderedConfigs, configsByCount[count]...)
 	}
@@ -386,7 +364,7 @@ func (m gpuModel) View() string {
 		}
 		content = lipgloss.JoinVertical(lipgloss.Left, rows...)
 	} else {
-		configsByCount := make(map[int][]GPUConfig)
+		configsByCount := make(map[int][]store.GPUConfig)
 		for _, config := range m.configs {
 			configsByCount[config.Count] = append(configsByCount[config.Count], config)
 		}
@@ -431,16 +409,16 @@ func (m gpuModel) View() string {
 	)
 }
 
-func RunGPUPicker(types *store.InstanceTypeResponse) (string, error) {
+func RunGPUPicker(types *store.InstanceTypeResponse) (*store.GPUConfig, error) {
 	m := initialGPUModel(types)
 	p := tea.NewProgram(&m)
 	model, err := p.Run()
 	if err != nil {
-		return "", fmt.Errorf("error running GPU picker: %v", err)
+		return nil, fmt.Errorf("error running GPU picker: %v", err)
 	}
 
 	if m, ok := model.(gpuModel); ok && m.selectedConfig != nil {
-		return m.selectedConfig.Type, nil
+		return m.selectedConfig, nil
 	}
-	return "", fmt.Errorf("cancelled")
+	return nil, fmt.Errorf("cancelled")
 }

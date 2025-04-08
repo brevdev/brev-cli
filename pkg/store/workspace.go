@@ -87,14 +87,14 @@ var (
 )
 var DefaultApplicationList = []entity.Application{DefaultApplication}
 
-func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
+func NewCreateWorkspacesOptions(clusterID, name string, config *GPUConfig) *CreateWorkspacesOptions {
 	return &CreateWorkspacesOptions{
 		BaseImage:            "",
 		Description:          "",
 		DiskStorage:          DefaultDiskStorage,
 		ExecsV1:              &entity.ExecsV1{},
 		Files:                nil,
-		InstanceType:         "",
+		InstanceType:         config.Type,
 		IsStoppable:          nil,
 		Labels:               nil,
 		LaunchJupyterOnStart: false,
@@ -102,7 +102,7 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PortMappings:         nil,
 		ReposV1:              nil,
 		VMOnlyMode:           true,
-		WorkspaceGroupID:     "GCP",
+		WorkspaceGroupID:     config.WorkspaceGroups[0].ID, // hack! which one should we use?
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		WorkspaceVersion:     "v1",
 	}
@@ -737,6 +737,29 @@ func ValidateOllamaModel(model string, tag string) (bool, error) {
 type InstanceTypeResponse struct {
 	AllInstanceTypes []GPUInstanceType `json:"allInstanceTypes"`
 }
+
+type GPUType struct {
+	Name         string
+	Manufacturer string
+	Configs      []GPUInstanceType
+}
+
+func (g GPUType) Title() string       { return g.Name }
+func (g GPUType) Description() string { return g.Manufacturer }
+func (g GPUType) FilterValue() string { return g.Name }
+
+// GPUConfig represents a specific configuration for a GPU type
+type GPUConfig struct {
+	Type            string
+	Count           int
+	Provider        string
+	Price           Price
+	WorkspaceGroups []WorkspaceGroup
+}
+
+func (g GPUConfig) Title() string       { return fmt.Sprintf("%s (%dx)", g.Type, g.Count) }
+func (g GPUConfig) Description() string { return fmt.Sprintf("%d GPU(s)", g.Count) }
+func (g GPUConfig) FilterValue() string { return g.Type }
 
 type GPUInstanceType struct {
 	Type             string           `json:"type"`

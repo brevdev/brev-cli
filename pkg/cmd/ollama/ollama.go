@@ -150,7 +150,10 @@ func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore Ollam
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	uuid := uuid.New().String()
 	instanceName := fmt.Sprintf("ollama-%s", uuid)
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName).WithInstanceType(instanceType)
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName, &store.GPUConfig{
+		Type:     "t4",
+		Provider: "nvidia",
+	}).WithInstanceType(instanceType)
 
 	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(opts.Model), t.Green(org.ID)))
 

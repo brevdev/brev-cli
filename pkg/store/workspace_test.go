@@ -84,7 +84,15 @@ func TestCreateWorkspace(t *testing.T) {
 	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(workspaceOrgPathPattern, orgID))
 	httpmock.RegisterResponder("POST", url, res)
 
-	u, err := s.CreateWorkspace(orgID, NewCreateWorkspacesOptions("wgi", "name"))
+	u, err := s.CreateWorkspace(orgID, NewCreateWorkspacesOptions("wgi", "name", &GPUConfig{
+		Type:     "t4",
+		Count:    1,
+		Provider: "nvidia",
+		Price: Price{
+			Currency: "USD",
+			Amount:   "100",
+		},
+	}))
 	if !assert.Nil(t, err) {
 		return
 	}

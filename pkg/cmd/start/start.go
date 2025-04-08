@@ -338,7 +338,10 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 	}
 
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, options.Name)
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, options.Name, &store.GPUConfig{
+		Type:     "t4",
+		Provider: "nvidia",
+	})
 
 	if options.WorkspaceClass != "" {
 		cwOptions.WithClassID(options.WorkspaceClass)
@@ -451,7 +454,10 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 		startOptions.WorkspaceClass = templateWorkspace.WorkspaceClassID
 	}
 
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(startOptions.WorkspaceClass)
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, templateWorkspace.Name, &store.GPUConfig{
+		Type:     "t4",
+		Provider: "nvidia",
+	}).WithGitRepo(templateWorkspace.GitRepo).WithWorkspaceClassID(startOptions.WorkspaceClass)
 	if startOptions.Name != "" {
 		cwOptions.Name = startOptions.Name
 	} else {
@@ -606,7 +612,10 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
-	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name, &store.GPUConfig{
+		Type:     "t4",
+		Provider: "nvidia",
+	}).WithGitRepo(workspace.GitRepo)
 
 	if startOptions.WorkspaceClass != "" {
 		options = options.WithWorkspaceClassID(startOptions.WorkspaceClass)

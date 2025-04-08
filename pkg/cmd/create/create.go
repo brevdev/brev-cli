@@ -36,7 +36,7 @@ type CreateStore interface {
 
 func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command {
 	var detached bool
-	var gpu string
+	var gpu *store.GPUConfig
 	var cpu string
 	var listTypes bool
 	var interactive bool
@@ -78,7 +78,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 				gpu = selectedGPU
 			} else {
 				// Validate flags if explicitly set
-				if cmd.Flags().Changed("gpu") && gpu == "" {
+				if cmd.Flags().Changed("gpu") && gpu == nil {
 					return breverrors.NewValidationError("GPU instance type cannot be empty when --gpu flag is used")
 				}
 				if cmd.Flags().Changed("cpu") && cpu == "" {
@@ -87,7 +87,11 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 
 				// Set default T4 instance if no flags are provided
 				if !cmd.Flags().Changed("gpu") && !cmd.Flags().Changed("cpu") {
-					gpu = "n1-highmem-4:nvidia-tesla-t4:1"
+					gpu = &store.GPUConfig{
+						Type:     "n1-highmem-4",
+						Provider: "nvidia",
+						Count:    1,
+					}
 				}
 			}
 
@@ -95,7 +99,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 				Name:           name,
 				WorkspaceClass: cpu,
 				Detached:       detached,
-				InstanceType:   gpu,
+				Config:         gpu,
 			}, createStore)
 			if err != nil {
 				if strings.Contains(err.Error(), "duplicate instance with name") {
@@ -110,7 +114,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
-	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
+	// cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
 	cmd.Flags().BoolVarP(&listTypes, "list-types", "l", false, "List available instance types")
 	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Use interactive mode to select GPU type")
 	return cmd
@@ -120,7 +124,7 @@ type CreateOptions struct {
 	Name           string
 	WorkspaceClass string
 	Detached       bool
-	InstanceType   string
+	Config         *store.GPUConfig
 }
 
 func runCreateWorkspace(t *terminal.Terminal, options CreateOptions, createStore CreateStore) error {
@@ -153,7 +157,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 	orgID = activeorg.ID
 
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
-	cwOptions := store.NewCreateWorkspacesOptions(clusterID, options.Name)
+	cwOptions := store.NewCreateWorkspacesOptions(clusterID, options.Name, options.Config)
 
 	if options.WorkspaceClass != "" {
 		cwOptions.WithClassID(options.WorkspaceClass)
@@ -161,14 +165,14 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
 
-	if options.InstanceType != "" {
-		cwOptions.WithInstanceType(options.InstanceType)
+	if options.Config != nil {
+		cwOptions.WithInstanceType(options.Config.Type)
 	}
 
 	t.Vprintf("Creating instane %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
 	t.Vprintf("\tname %s\n", t.Green(cwOptions.Name))
-	if options.InstanceType != "" {
-		t.Vprintf("\tGPU instance %s\n", t.Green(options.InstanceType))
+	if options.Config != nil {
+		t.Vprintf("\tGPU instance %s\n", t.Green(options.Config.Type))
 	} else {
 		t.Vprintf("\tCPU instance %s\n", t.Green(cwOptions.WorkspaceClassID))
 	}
