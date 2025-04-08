@@ -75,11 +75,13 @@ func (g GPUType) FilterValue() string { return g.Name }
 // GPUConfig represents a specific configuration for a GPU type
 type GPUConfig struct {
 	Type     string
-	GPUCount int
+	Count    int
+	Provider string
+	Price    store.Price
 }
 
-func (g GPUConfig) Title() string       { return fmt.Sprintf("%s (%dx)", g.Type, g.GPUCount) }
-func (g GPUConfig) Description() string { return fmt.Sprintf("%d GPU(s)", g.GPUCount) }
+func (g GPUConfig) Title() string       { return fmt.Sprintf("%s (%dx)", g.Type, g.Count) }
+func (g GPUConfig) Description() string { return fmt.Sprintf("%d GPU(s)", g.Count) }
 func (g GPUConfig) FilterValue() string { return g.Type }
 
 type gpuModel struct {
@@ -114,10 +116,10 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 		}
 	} else if config, ok := listItem.(GPUConfig); ok {
 		if index == m.Index() {
-			chipBox = gpuSelectedChipStyle.Render(fmt.Sprintf("%dx GPU", config.GPUCount))
+			chipBox = gpuSelectedChipStyle.Render(fmt.Sprintf("%dx GPU", config.Count))
 			metadata = gpuSelectedMetadataStyle.Render(config.Type)
 		} else {
-			chipBox = gpuChipStyle.Render(fmt.Sprintf("%dx GPU", config.GPUCount))
+			chipBox = gpuChipStyle.Render(fmt.Sprintf("%dx GPU", config.Count))
 			metadata = gpuMetadataStyle.Render(config.Type)
 		}
 	}
@@ -166,13 +168,19 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 	return result
 }
 
-func getConfigsForType(gpuType *GPUType) []GPUConfig {
+func getConfigsForType(instanceTypes []store.GPUInstanceType, gpuType string) []GPUConfig {
 	var configs []GPUConfig
-	for _, config := range gpuType.Configs {
-		configs = append(configs, GPUConfig{
-			Type:     config.Type,
-			GPUCount: config.SupportedGPUs[0].Count,
-		})
+	for _, config := range instanceTypes {
+		for _, gpu := range config.SupportedGPUs {
+			if gpu.Name == gpuType {
+				configs = append(configs, GPUConfig{
+					Type:     config.Type,
+					Count:    gpu.Count,
+					Provider: config.Provider,
+					Price:    config.BasePrice,
+				})
+			}
+		}
 	}
 	return configs
 }
@@ -269,7 +277,7 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if !m.showingConfigs {
 				m.selectedType = &m.gpuTypes[m.cursor]
-				m.configs = getConfigsForType(m.selectedType)
+				m.configs = getConfigsForType(m.selectedType.Configs, m.selectedType.Name)
 				m.showingConfigs = true
 				m.cursor = 0
 				m.viewport.GotoTop()
@@ -300,6 +308,25 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func formatPrice(price store.Price) string {
+	// Convert price amount to float for proper decimal formatting
+	var amount float64
+	_, err := fmt.Sscanf(price.Amount, "%f", &amount)
+	if err != nil {
+		// If parsing fails, return the original amount
+		return fmt.Sprintf("%s %s/hr", price.Currency, price.Amount)
+	}
+
+	// Format based on currency
+	switch price.Currency {
+	case "USD":
+		return fmt.Sprintf("$%.2f/hr", amount)
+	default:
+		// For other currencies, keep a space between currency and amount
+		return fmt.Sprintf("%s %.2f/hr", price.Currency, amount)
+	}
 }
 
 func (m gpuModel) View() string {
@@ -343,7 +370,7 @@ func (m gpuModel) View() string {
 	} else {
 		configsByCount := make(map[int][]GPUConfig)
 		for _, config := range m.configs {
-			configsByCount[config.GPUCount] = append(configsByCount[config.GPUCount], config)
+			configsByCount[config.Count] = append(configsByCount[config.Count], config)
 		}
 
 		var sections []string
@@ -366,13 +393,8 @@ func (m gpuModel) View() string {
 						style = configBoxStyle
 					}
 
-					parts := strings.Split(config.Type, ":")
-					instanceType := parts[0]
-					provider := "AWS"
-					price := "$X.XX/hr"
-
-					displayText := fmt.Sprintf("%-30s  %-10s  %s", instanceType, provider, price)
-					sections = append(sections, style.Render(displayText))
+					configStr := fmt.Sprintf("%s (%s) - %s", config.Type, config.Provider, formatPrice(config.Price))
+					sections = append(sections, style.Render(configStr))
 					currentIndex++
 				}
 			}
