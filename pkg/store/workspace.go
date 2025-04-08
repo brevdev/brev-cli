@@ -733,3 +733,35 @@ func ValidateOllamaModel(model string, tag string) (bool, error) {
 		return false, breverrors.New("invalid response from ollama registry")
 	}
 }
+
+type InstanceTypeResponse struct {
+	AllInstanceTypes []GPUInstanceType `json:"allInstanceTypes"`
+}
+
+type GPUInstanceType struct {
+	Name          string         `json:"name"`
+	SupportedGPUs []SupportedGPU `json:"supported_gpus,omitempty"`
+}
+
+type SupportedGPU struct {
+	Manufacturer string `json:"manufacturer"`
+	Model        string `json:"model"`
+	Count        int    `json:"count"`
+}
+
+var instanceTypesPath = "api/public-instances"
+
+func (s AuthHTTPStore) GetInstanceTypes() (*InstanceTypeResponse, error) {
+	var result InstanceTypeResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(instanceTypesPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}

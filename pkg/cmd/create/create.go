@@ -30,12 +30,14 @@ type CreateStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
+	GetInstanceTypes() (*store.InstanceTypeResponse, error)
 }
 
 func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command {
 	var detached bool
 	var gpu string
 	var cpu string
+	var listTypes bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -45,6 +47,10 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 		Long:                  createLong,
 		Example:               createExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if listTypes {
+				return displayInstanceTypes(t, createStore)
+			}
+
 			name := ""
 			if len(args) > 0 {
 				name = args[0]
@@ -69,8 +75,36 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
-	cmd.Flags().StringVarP(&gpu, "gpu", "g", "n1-highmem-4:nvidia-tesla-t4:1", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
+	cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
+	cmd.Flags().BoolVarP(&listTypes, "list-types", "l", false, "List available instance types")
 	return cmd
+}
+
+func displayInstanceTypes(t *terminal.Terminal, createStore CreateStore) error {
+	t.Vprint("Fetching available instance types...")
+	types, err := createStore.GetInstanceTypes()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	t.Vprint("\nAvailable CPU instance types:")
+	t.Vprint("  2x8  - 2 CPU cores, 8GB RAM")
+	t.Vprint("  4x16 - 4 CPU cores, 16GB RAM")
+	t.Vprint("  8x32 - 8 CPU cores, 32GB RAM")
+	t.Vprint("  16x32 - 16 CPU cores, 32GB RAM")
+
+	t.Vprint("\nAvailable GPU instance types:")
+	for _, instanceType := range types.AllInstanceTypes {
+		if len(instanceType.SupportedGPUs) > 0 {
+			gpuInfo := instanceType.SupportedGPUs[0]
+			t.Vprintf("  %s - %s %s (x%d)\n", 
+				instanceType.Name,
+				gpuInfo.Manufacturer,
+				gpuInfo.Model,
+				gpuInfo.Count)
+		}
+	}
+	return nil
 }
 
 type CreateOptions struct {
@@ -85,6 +119,40 @@ func runCreateWorkspace(t *terminal.Terminal, options CreateOptions, createStore
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	if options.WorkspaceClass != "" {
+		validCPUTypes := map[string]bool{
+			"2x8":   true,
+			"4x16":  true,
+			"8x32":  true,
+			"16x32": true,
+		}
+
+		if !validCPUTypes[options.WorkspaceClass] {
+			return breverrors.NewValidationError(fmt.Sprintf("invalid CPU instance type: %s, use 'brev create --list-types' to see available types", options.WorkspaceClass))
+		}
+	}
+
+	if options.InstanceType != "" {
+		// Validate GPU instance type
+		types, err := createStore.GetInstanceTypes()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		isValid := false
+		for _, instanceType := range types.AllInstanceTypes {
+			if instanceType.Name == options.InstanceType {
+				isValid = true
+				break
+			}
+		}
+
+		if !isValid {
+			return breverrors.NewValidationError(fmt.Sprintf("invalid GPU instance type: %s, use 'brev create --list-types' to see available types", options.InstanceType))
+		}
+	}
+
 	err = createEmptyWorkspace(user, t, options, createStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
