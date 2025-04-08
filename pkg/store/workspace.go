@@ -739,24 +739,95 @@ type InstanceTypeResponse struct {
 }
 
 type GPUInstanceType struct {
-	Name          string         `json:"name"`
-	SupportedGPUs []SupportedGPU `json:"supported_gpus,omitempty"`
+	Type               string         `json:"type"`
+	SupportedGPUs     []SupportedGPU `json:"supported_gpus,omitempty"`
+	SupportedStorage  []Storage      `json:"supported_storage"`
+	Memory            string         `json:"memory"`
+	VCPU              int            `json:"vcpu"`
+	ClockSpeedInGHz   string         `json:"clock_speed_in_ghz"`
+	Quota             QuotaInfo      `json:"quota"`
+	Location          string         `json:"location"`
+	IsAvailable       bool           `json:"is_available"`
+	BasePrice         Price          `json:"base_price"`
+	Provider          string         `json:"provider"`
+	CloudCredID       string         `json:"cloud_cred_id"`
+	WorkspaceGroups   []WorkspaceGroup `json:"workspace_groups"`
 }
 
 type SupportedGPU struct {
-	Manufacturer string `json:"manufacturer"`
-	Model        string `json:"model"`
-	Count        int    `json:"count"`
+	Count         int    `json:"count"`
+	Memory        string `json:"memory"`
+	Manufacturer  string `json:"manufacturer"`
+	Name          string `json:"name"`
+	MemoryDetails string `json:"memory_details,omitempty"`
 }
 
-var instanceTypesPath = "api/public-instances"
+type Storage struct {
+	Count        int     `json:"count,omitempty"`
+	Size         string  `json:"size"`
+	Type         string  `json:"type"`
+	MinSize      string  `json:"min_size,omitempty"`
+	MaxSize      string  `json:"max_size,omitempty"`
+	PricePerGBHr *Price  `json:"price_per_gb_hr,omitempty"`
+}
+
+type Price struct {
+	Currency string `json:"currency"`
+	Amount   string `json:"amount"`
+}
+
+type QuotaInfo struct {
+	OnDemand  *QuotaDetails `json:"on_demand,omitempty"`
+	Spot      *QuotaDetails `json:"spot,omitempty"`
+	Reserved  *QuotaDetails `json:"reserved,omitempty"`
+}
+
+type QuotaDetails struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Maximum int    `json:"maximum"`
+	Current int    `json:"current,omitempty"`
+	Unit    string `json:"unit"`
+}
+
+type WorkspaceGroup struct {
+	ID             string            `json:"id"`
+	CreatedAt      string            `json:"created_at"`
+	UpdatedAt      string            `json:"updated_at"`
+	DeletedAt      *string           `json:"deleted_at"`
+	Name           string            `json:"name"`
+	Host           string            `json:"host"`
+	Platform       string            `json:"platform"`
+	PlatformID     string            `json:"platformId"`
+	PlatformRegion string            `json:"platformRegion"`
+	PlatformType   string            `json:"platformType"`
+	Status         string            `json:"status"`
+	TenantType     string            `json:"tenantType"`
+	Version        string            `json:"version"`
+	Tags           map[string][]string `json:"tags"`
+	Locations      []Location        `json:"locations"`
+}
+
+type Location struct {
+	Name string `json:"name"`
+}
+
+var instanceTypesPath = "api/instances/alltypesavailable/%s"
 
 func (s AuthHTTPStore) GetInstanceTypes() (*InstanceTypeResponse, error) {
+	org, err := s.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return nil, breverrors.NewValidationError("no active organization set - please run 'brev set <org name>' first")
+	}
+
 	var result InstanceTypeResponse
 	res, err := s.authHTTPClient.restyClient.R().
 		SetHeader("Content-Type", "application/json").
 		SetResult(&result).
-		Get(instanceTypesPath)
+		Get(fmt.Sprintf(instanceTypesPath, org.ID))
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
