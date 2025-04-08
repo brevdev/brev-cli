@@ -23,9 +23,10 @@ var (
 	gpuChipStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("white")).
-			Width(20).
-			Height(3).
+			Width(25).
+			Height(5).
 			Align(lipgloss.Center).
+			AlignVertical(lipgloss.Center).
 			Bold(true).
 			MarginRight(2)
 
