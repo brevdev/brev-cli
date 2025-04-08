@@ -4,13 +4,11 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/harmonica"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -19,8 +17,7 @@ const nvidiaGreen = "#76B900"
 var (
 	gpuTitleStyle = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color(nvidiaGreen)).
-		MarginBottom(1)
+		Foreground(lipgloss.Color(nvidiaGreen))
 
 	gpuChipStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -35,6 +32,25 @@ var (
 		BorderForeground(lipgloss.Color(nvidiaGreen)).
 		BorderStyle(lipgloss.DoubleBorder()).
 		Foreground(lipgloss.Color(nvidiaGreen))
+
+	configBoxStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("white")).
+		Width(70).
+		Align(lipgloss.Left).
+		PaddingLeft(1).
+		MarginBottom(0)
+
+	configSelectedBoxStyle = configBoxStyle.Copy().
+		BorderForeground(lipgloss.Color(nvidiaGreen)).
+		BorderStyle(lipgloss.DoubleBorder()).
+		Foreground(lipgloss.Color(nvidiaGreen))
+
+	configHeaderStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(nvidiaGreen)).
+		Bold(true).
+		MarginTop(0).
+		MarginBottom(0)
 
 	gpuMetadataStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("white")).
@@ -67,18 +83,15 @@ func (g GPUConfig) Description() string { return fmt.Sprintf("%d GPU(s)", g.GPUC
 func (g GPUConfig) FilterValue() string { return g.Type }
 
 type gpuModel struct {
-	gpuTypes     []GPUType
-	configs      []GPUConfig
-	selectedType *GPUType
+	gpuTypes       []GPUType
+	configs        []GPUConfig
+	selectedType   *GPUType
 	selectedConfig *GPUConfig
 	showingConfigs bool
-	quitting      bool
-	spring        *harmonica.Spring
-	x             float64
-	xVelocity     float64
-	spinner       spinner.Model
-	err           error
-	cursor        int
+	quitting       bool
+	cursor         int
+	viewport       viewport.Model
+	ready          bool
 }
 
 // Custom delegate for GPU items
@@ -118,6 +131,10 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 	for _, instance := range types.AllInstanceTypes {
 		if len(instance.SupportedGPUs) > 0 {
 			gpu := instance.SupportedGPUs[0]
+			// Only include NVIDIA GPUs
+			if strings.ToUpper(gpu.Manufacturer) != "NVIDIA" {
+				continue
+			}
 			key := gpu.Name
 			if _, exists := gpuMap[key]; !exists {
 				gpuMap[key] = &GPUType{
@@ -129,10 +146,23 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 		}
 	}
 
+	// Create ordered result with priority GPUs first
+	priorityGPUs := []string{"H100", "A100", "L40S"}
 	var result []GPUType
+	
+	// Add priority GPUs first in specified order
+	for _, name := range priorityGPUs {
+		if gpu, exists := gpuMap[name]; exists {
+			result = append(result, *gpu)
+			delete(gpuMap, name)
+		}
+	}
+	
+	// Add remaining GPUs
 	for _, gpuType := range gpuMap {
 		result = append(result, *gpuType)
 	}
+	
 	return result
 }
 
@@ -149,60 +179,49 @@ func getConfigsForType(gpuType *GPUType) []GPUConfig {
 
 func initialGPUModel(types *store.InstanceTypeResponse) gpuModel {
 	gpuTypes := organizeGPUTypes(types)
-
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen))
-
-	spring := harmonica.NewSpring(harmonica.FPS(60), 8.0, 0.2)
-
 	return gpuModel{
 		gpuTypes: gpuTypes,
-		spinner:  s,
-		spring:   &spring,
 		cursor:   0,
+		viewport: viewport.New(70, 20), // Initialize with reasonable defaults
 	}
 }
 
-type frameMsg struct{}
-
-func frame() tea.Msg {
-	return frameMsg{}
-}
-
-func animate() tea.Cmd {
-	return tea.Tick(time.Second/60, func(time.Time) tea.Msg {
-		return frameMsg{}
-	})
-}
-
 func (m gpuModel) Init() tea.Cmd {
-	return tea.Batch(
-		m.spinner.Tick,
-		animate(),
-	)
+	return nil
 }
 
 func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
+
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		if !m.ready {
+			m.viewport.Width = msg.Width
+			m.viewport.Height = msg.Height - 4 // Leave room for title and help
+			m.ready = true
+		}
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			m.quitting = true
 			return m, tea.Quit
-		case "right", "l":
-			if !m.showingConfigs {
-				if m.cursor < len(m.gpuTypes)-1 {
-					m.cursor++
-				}
-			} else {
+		case "up", "k":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "down", "j":
+			if m.showingConfigs {
 				if m.cursor < len(m.configs)-1 {
 					m.cursor++
 				}
-			}
-		case "left", "h":
-			if m.cursor > 0 {
-				m.cursor--
+			} else {
+				if m.cursor < len(m.gpuTypes)-1 {
+					m.cursor++
+				}
 			}
 		case "esc":
 			if m.showingConfigs {
@@ -221,16 +240,19 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 		}
-
-	case frameMsg:
-		m.x, m.xVelocity = m.spring.Update(m.x, m.xVelocity, 2.0)
-		return m, animate()
 	}
 
-	return m, nil
+	m.viewport, cmd = m.viewport.Update(msg)
+	cmds = append(cmds, cmd)
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m gpuModel) View() string {
+	if !m.ready {
+		return "Initializing..."
+	}
+
 	if m.quitting {
 		return "GPU selection cancelled\n"
 	}
@@ -238,7 +260,6 @@ func (m gpuModel) View() string {
 		return fmt.Sprintf("Selected GPU configuration: %s\n", m.selectedConfig.Type)
 	}
 
-	padding := strings.Repeat(" ", int(m.x))
 	var title string
 	if !m.showingConfigs {
 		title = gpuTitleStyle.Render("Select GPU Type:")
@@ -246,8 +267,10 @@ func (m gpuModel) View() string {
 		title = gpuTitleStyle.Render(fmt.Sprintf("Select %s Configuration:", m.selectedType.Name))
 	}
 
-	var items []string
+	var content string
 	if !m.showingConfigs {
+		var rows []string
+		var currentRow []string
 		for i, gpu := range m.gpuTypes {
 			var style lipgloss.Style
 			if i == m.cursor {
@@ -255,26 +278,61 @@ func (m gpuModel) View() string {
 			} else {
 				style = gpuChipStyle
 			}
-			items = append(items, style.Render(gpu.Name))
-		}
-	} else {
-		for i, config := range m.configs {
-			var style lipgloss.Style
-			if i == m.cursor {
-				style = gpuSelectedChipStyle
-			} else {
-				style = gpuChipStyle
+			currentRow = append(currentRow, style.Render(gpu.Name))
+			
+			if len(currentRow) == 3 || i == len(m.gpuTypes)-1 {
+				rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, currentRow...))
+				currentRow = nil
 			}
-			items = append(items, style.Render(fmt.Sprintf("%dx %s", config.GPUCount, strings.Split(config.Type, ":")[0])))
 		}
+		content = lipgloss.JoinVertical(lipgloss.Left, rows...)
+	} else {
+		configsByCount := make(map[int][]GPUConfig)
+		for _, config := range m.configs {
+			configsByCount[config.GPUCount] = append(configsByCount[config.GPUCount], config)
+		}
+
+		var sections []string
+		counts := []int{1, 2, 4, 8}
+		currentIndex := 0
+
+		for _, count := range counts {
+			if configs, exists := configsByCount[count]; exists {
+				if currentIndex > 0 {
+					sections = append(sections, "") // Add minimal spacing between sections
+				}
+				header := configHeaderStyle.Render(fmt.Sprintf("%dx GPUs:", count))
+				sections = append(sections, header)
+
+				for _, config := range configs {
+					var style lipgloss.Style
+					if currentIndex == m.cursor {
+						style = configSelectedBoxStyle
+					} else {
+						style = configBoxStyle
+					}
+
+					parts := strings.Split(config.Type, ":")
+					instanceType := parts[0]
+					provider := "AWS"
+					price := "$X.XX/hr"
+
+					displayText := fmt.Sprintf("%-30s  %-10s  %s", instanceType, provider, price)
+					sections = append(sections, style.Render(displayText))
+					currentIndex++
+				}
+			}
+		}
+		content = lipgloss.JoinVertical(lipgloss.Left, sections...)
 	}
 
-	content := lipgloss.JoinHorizontal(lipgloss.Top, items...)
+	m.viewport.SetContent(content)
+	
 	help := "\n↑/↓: Navigate • Enter: Select • ESC: Back • q: Quit"
-
-	return padding + lipgloss.JoinVertical(lipgloss.Left,
+	
+	return lipgloss.JoinVertical(lipgloss.Left,
 		title,
-		content,
+		m.viewport.View(),
 		help,
 	)
 }
