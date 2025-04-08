@@ -3,6 +3,7 @@ package create
 import (
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -16,49 +17,49 @@ const nvidiaGreen = "#76B900"
 
 var (
 	gpuTitleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(nvidiaGreen))
+			Bold(true).
+			Foreground(lipgloss.Color(nvidiaGreen))
 
 	gpuChipStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
-		Width(20).
-		Height(3).
-		Align(lipgloss.Center).
-		Bold(true).
-		MarginRight(2)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("white")).
+			Width(20).
+			Height(3).
+			Align(lipgloss.Center).
+			Bold(true).
+			MarginRight(2)
 
 	gpuSelectedChipStyle = gpuChipStyle.Copy().
-		BorderForeground(lipgloss.Color(nvidiaGreen)).
-		BorderStyle(lipgloss.DoubleBorder()).
-		Foreground(lipgloss.Color(nvidiaGreen))
+				BorderForeground(lipgloss.Color(nvidiaGreen)).
+				BorderStyle(lipgloss.DoubleBorder()).
+				Foreground(lipgloss.Color(nvidiaGreen))
 
 	configBoxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
-		Width(70).
-		Align(lipgloss.Left).
-		PaddingLeft(1).
-		MarginBottom(0)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("white")).
+			Width(70).
+			Align(lipgloss.Left).
+			PaddingLeft(1).
+			MarginBottom(0)
 
 	configSelectedBoxStyle = configBoxStyle.Copy().
-		BorderForeground(lipgloss.Color(nvidiaGreen)).
-		BorderStyle(lipgloss.DoubleBorder()).
-		Foreground(lipgloss.Color(nvidiaGreen))
+				BorderForeground(lipgloss.Color(nvidiaGreen)).
+				BorderStyle(lipgloss.DoubleBorder()).
+				Foreground(lipgloss.Color(nvidiaGreen))
 
 	configHeaderStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(nvidiaGreen)).
-		Bold(true).
-		MarginTop(0).
-		MarginBottom(0)
+				Foreground(lipgloss.Color(nvidiaGreen)).
+				Bold(true).
+				MarginTop(0).
+				MarginBottom(0)
 
 	gpuMetadataStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("white")).
-		Width(20).
-		Align(lipgloss.Center)
+				Foreground(lipgloss.Color("white")).
+				Width(20).
+				Align(lipgloss.Center)
 
 	gpuSelectedMetadataStyle = gpuMetadataStyle.Copy().
-		Foreground(lipgloss.Color(nvidiaGreen))
+					Foreground(lipgloss.Color(nvidiaGreen))
 )
 
 // GPUType represents a unique GPU model (e.g., T4, A100)
@@ -100,12 +101,12 @@ type gpuModel struct {
 type itemDelegate struct{}
 
 func (d itemDelegate) Height() int                             { return 5 }
-func (d itemDelegate) Spacing() int                           { return 1 }
+func (d itemDelegate) Spacing() int                            { return 1 }
 func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
 	var chipBox, metadata string
-	
+
 	if gpu, ok := listItem.(GPUType); ok {
 		if index == m.Index() {
 			chipBox = gpuSelectedChipStyle.Render(gpu.Name)
@@ -151,7 +152,7 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 	// Create ordered result with priority GPUs first
 	priorityGPUs := []string{"H100", "A100", "L40S"}
 	var result []GPUType
-	
+
 	// Add priority GPUs first in specified order
 	for _, name := range priorityGPUs {
 		if gpu, exists := gpuMap[name]; exists {
@@ -159,12 +160,12 @@ func organizeGPUTypes(types *store.InstanceTypeResponse) []GPUType {
 			delete(gpuMap, name)
 		}
 	}
-	
+
 	// Add remaining GPUs
 	for _, gpuType := range gpuMap {
 		result = append(result, *gpuType)
 	}
-	
+
 	return result
 }
 
@@ -182,7 +183,24 @@ func getConfigsForType(instanceTypes []store.GPUInstanceType, gpuType string) []
 			}
 		}
 	}
-	return configs
+
+	validCounts := []int{1, 2, 4, 8}
+
+	configsByCount := make(map[int][]GPUConfig)
+	for _, config := range configs {
+		// skip if count is invalid
+		if !slices.Contains(validCounts, config.Count) {
+			continue
+		}
+		configsByCount[config.Count] = append(configsByCount[config.Count], config)
+	}
+
+	// order by count
+	orderedConfigs := []GPUConfig{}
+	for _, count := range validCounts {
+		orderedConfigs = append(orderedConfigs, configsByCount[count]...)
+	}
+	return orderedConfigs
 }
 
 func initialGPUModel(types *store.InstanceTypeResponse) gpuModel {
@@ -293,7 +311,7 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		lineHeight := 2
 		cursorPos := m.cursor * lineHeight
 		viewportBottom := m.viewport.YOffset + m.viewport.Height - 2
-		
+
 		// If selected item is above viewport
 		if cursorPos < m.viewport.YOffset {
 			m.viewport.SetYOffset(cursorPos)
@@ -360,7 +378,7 @@ func (m gpuModel) View() string {
 				style = gpuChipStyle
 			}
 			currentRow = append(currentRow, style.Render(gpu.Name))
-			
+
 			if len(currentRow) == 3 || i == len(m.gpuTypes)-1 {
 				rows = append(rows, lipgloss.JoinHorizontal(lipgloss.Top, currentRow...))
 				currentRow = nil
@@ -403,9 +421,9 @@ func (m gpuModel) View() string {
 	}
 
 	m.viewport.SetContent(content)
-	
+
 	help := "\n↑/↓: Navigate • Enter: Select • ESC: Back • PgUp/PgDn: Scroll • q: Quit"
-	
+
 	return lipgloss.JoinVertical(lipgloss.Left,
 		title,
 		m.viewport.View(),
@@ -425,4 +443,4 @@ func RunGPUPicker(types *store.InstanceTypeResponse) (string, error) {
 		return m.selectedConfig.Type, nil
 	}
 	return "", fmt.Errorf("cancelled")
-} 
+}

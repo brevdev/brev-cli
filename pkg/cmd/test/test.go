@@ -18,11 +18,11 @@ import (
 )
 
 var (
-    colorWhite    = tcell.NewRGBColor(255, 255, 255)
-    colorGray     = tcell.NewRGBColor(128, 128, 128)
-    colorYellow   = tcell.NewRGBColor(255, 255, 0)
-    colorCyan = tcell.NewRGBColor(0, 255, 255)
-    colorCyanBase = tcell.NewRGBColor(0, 255, 255)
+	colorWhite    = tcell.NewRGBColor(255, 255, 255)
+	colorGray     = tcell.NewRGBColor(128, 128, 128)
+	colorYellow   = tcell.NewRGBColor(255, 255, 0)
+	colorCyan     = tcell.NewRGBColor(0, 255, 255)
+	colorCyanBase = tcell.NewRGBColor(0, 255, 255)
 )
 
 var (
@@ -47,12 +47,12 @@ func NewLayout(s tcell.Screen) *Layout {
 }
 
 func (l *Layout) AddElement(content string, style tcell.Style, x, y int) {
-    l.Elements = append(l.Elements, Element{
-        Content: content,
-        Style:   style,
-        X:       x,
-        Y:       y,
-    })
+	l.Elements = append(l.Elements, Element{
+		Content: content,
+		Style:   style,
+		X:       x,
+		Y:       y,
+	})
 }
 func (l *Layout) Render() {
 	l.Screen.Clear()
@@ -66,15 +66,15 @@ func (l *Layout) Render() {
 
 // LaunchableCreator struct to hold state
 type LaunchableCreator struct {
-	Screen               tcell.Screen
-	Chips                []string
-	Containers           []string
-	SelectedChipIndex    int
+	Screen                 tcell.Screen
+	Chips                  []string
+	Containers             []string
+	SelectedChipIndex      int
 	SelectedContainerIndex int
-	CurrentStep          int
-	URLInput             string
-	ExposedPort          string
-	ExposePort           bool
+	CurrentStep            int
+	URLInput               string
+	ExposedPort            string
+	ExposePort             bool
 }
 
 func NewLaunchableCreator(screen tcell.Screen) *LaunchableCreator {
@@ -140,7 +140,6 @@ func (lc *LaunchableCreator) renderContainerSelection(layout *Layout) {
 	}
 }
 
-
 func (lc *LaunchableCreator) renderURLInput(layout *Layout) {
 	prompt := "Enter URL (.ipynb or git repo): "
 	layout.AddElement(prompt+lc.URLInput+"_", tcell.StyleDefault.Foreground(tcell.ColorWhite), 1, 5)
@@ -184,7 +183,7 @@ func drawBox(layout *Layout, x, y, width, height int, content string, style tcel
 	}
 	// Draw content
 	layout.AddElement(content, style, x+1+(width-2-len(content))/2, y+height/2)
-	
+
 	// Draw caret if selected
 	if selected {
 		caretStyle := tcell.StyleDefault.Foreground(colorYellow)
@@ -296,18 +295,17 @@ func isValidURL(urlStr string) bool {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return false
 	}
-	
+
 	if strings.HasSuffix(urlStr, ".ipynb") {
 		return true
 	}
-	
+
 	if strings.Contains(urlStr, "github.com") || strings.Contains(urlStr, "gitlab.com") || strings.Contains(urlStr, "bitbucket.org") {
 		return true
 	}
-	
+
 	return false
 }
-
 
 type TestStore interface {
 	completions.CompletionStore
@@ -328,10 +326,9 @@ type ServiceMeshStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
-
 type step struct {
-	name     string
-	draw     func(*tcell.Screen, int)
+	name      string
+	draw      func(*tcell.Screen, int)
 	handleKey func(*tcell.EventKey) bool
 }
 
@@ -399,4 +396,3 @@ func runCreateLaunchable(cmd *cobra.Command, args []string) error {
 		}
 	}
 }
-

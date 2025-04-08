@@ -17,44 +17,44 @@ const nvidiaGreen = "#76B900"
 
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(nvidiaGreen)).
-		MarginBottom(1)
+			Bold(true).
+			Foreground(lipgloss.Color(nvidiaGreen)).
+			MarginBottom(1)
 
 	chipStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
-		Width(20).
-		Height(3).
-		Align(lipgloss.Center).
-		Bold(true).
-		MarginRight(2)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("white")).
+			Width(20).
+			Height(3).
+			Align(lipgloss.Center).
+			Bold(true).
+			MarginRight(2)
 
 	selectedChipStyle = chipStyle.Copy().
-		BorderForeground(lipgloss.Color(nvidiaGreen)).
-		BorderStyle(lipgloss.DoubleBorder()).
-		Foreground(lipgloss.Color(nvidiaGreen))
+				BorderForeground(lipgloss.Color(nvidiaGreen)).
+				BorderStyle(lipgloss.DoubleBorder()).
+				Foreground(lipgloss.Color(nvidiaGreen))
 
 	metadataStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("white")).
-		Width(20).
-		Align(lipgloss.Center)
+			Foreground(lipgloss.Color("white")).
+			Width(20).
+			Align(lipgloss.Center)
 
 	selectedMetadataStyle = metadataStyle.Copy().
-		Foreground(lipgloss.Color(nvidiaGreen))
+				Foreground(lipgloss.Color(nvidiaGreen))
 
 	gpuStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(nvidiaGreen)).
-		Padding(1).
-		MarginTop(1).
-		Height(12).
-		Width(80)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(nvidiaGreen)).
+			Padding(1).
+			MarginTop(1).
+			Height(12).
+			Width(80)
 
 	infoStyle = lipgloss.NewStyle().
-		Italic(true).
-		Foreground(lipgloss.Color("#666666")).
-		MarginTop(1)
+			Italic(true).
+			Foreground(lipgloss.Color("#666666")).
+			MarginTop(1)
 )
 
 type GPU struct {
@@ -64,27 +64,29 @@ type GPU struct {
 	price       string
 }
 
-func (g GPU) Title() string       { return g.name }
-func (g GPU) Description() string { return fmt.Sprintf("Memory: %s | Performance: %s | Price: %s", g.memory, g.performance, g.price) }
+func (g GPU) Title() string { return g.name }
+func (g GPU) Description() string {
+	return fmt.Sprintf("Memory: %s | Performance: %s | Price: %s", g.memory, g.performance, g.price)
+}
 func (g GPU) FilterValue() string { return g.name }
 
 type model struct {
-	gpus       []GPU
-	selected   *GPU
-	quitting   bool
-	spring     *harmonica.Spring
-	x          float64
-	xVelocity  float64
-	spinner    spinner.Model
-	err        error
-	cursor     int
+	gpus      []GPU
+	selected  *GPU
+	quitting  bool
+	spring    *harmonica.Spring
+	x         float64
+	xVelocity float64
+	spinner   spinner.Model
+	err       error
+	cursor    int
 }
 
 // Custom delegate for GPU items
 type itemDelegate struct{}
 
 func (d itemDelegate) Height() int                             { return 5 }
-func (d itemDelegate) Spacing() int                           { return 1 }
+func (d itemDelegate) Spacing() int                            { return 1 }
 func (d itemDelegate) Update(_ tea.Msg, _ *list.Model) tea.Cmd { return nil }
 
 func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
@@ -97,12 +99,12 @@ func (d itemDelegate) Render(w io.Writer, m list.Model, index int, listItem list
 	if index == m.Index() {
 		// Selected item
 		chipBox = selectedChipStyle.Render(strings.TrimPrefix(gpu.name, "NVIDIA "))
-		metadata = selectedMetadataStyle.Render(fmt.Sprintf("Memory: %s\nPerformance: %s\nPrice: %s", 
+		metadata = selectedMetadataStyle.Render(fmt.Sprintf("Memory: %s\nPerformance: %s\nPrice: %s",
 			gpu.memory, gpu.performance, gpu.price))
 	} else {
 		// Unselected item
 		chipBox = chipStyle.Render(strings.TrimPrefix(gpu.name, "NVIDIA "))
-		metadata = metadataStyle.Render(fmt.Sprintf("Memory: %s\nPerformance: %s\nPrice: %s", 
+		metadata = metadataStyle.Render(fmt.Sprintf("Memory: %s\nPerformance: %s\nPrice: %s",
 			gpu.memory, gpu.performance, gpu.price))
 	}
 
@@ -233,4 +235,4 @@ func RunGPUPicker() (*GPU, error) {
 		return m.(model).selected, nil
 	}
 	return nil, nil
-} 
+}

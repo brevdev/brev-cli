@@ -11,19 +11,19 @@ import (
 
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#76B900")).
-		MarginBottom(1)
+			Bold(true).
+			Foreground(lipgloss.Color("#76B900")).
+			MarginBottom(1)
 
 	inputStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
-		Padding(1).
-		Width(50)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("white")).
+			Padding(1).
+			Width(50)
 
 	selectedInputStyle = inputStyle.Copy().
-		BorderForeground(lipgloss.Color("#76B900")).
-		BorderStyle(lipgloss.DoubleBorder())
+				BorderForeground(lipgloss.Color("#76B900")).
+				BorderStyle(lipgloss.DoubleBorder())
 )
 
 type nameModel struct {
@@ -95,4 +95,4 @@ func RunNamePicker() (string, error) {
 		return strings.TrimSpace(m.textInput.Value()), nil
 	}
 	return "", fmt.Errorf("cancelled")
-} 
+}

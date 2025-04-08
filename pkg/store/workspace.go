@@ -739,19 +739,19 @@ type InstanceTypeResponse struct {
 }
 
 type GPUInstanceType struct {
-	Type               string         `json:"type"`
-	SupportedGPUs     []SupportedGPU `json:"supported_gpus,omitempty"`
-	SupportedStorage  []Storage      `json:"supported_storage"`
-	Memory            string         `json:"memory"`
-	VCPU              int            `json:"vcpu"`
-	ClockSpeedInGHz   string         `json:"clock_speed_in_ghz"`
-	Quota             QuotaInfo      `json:"quota"`
-	Location          string         `json:"location"`
-	IsAvailable       bool           `json:"is_available"`
-	BasePrice         Price          `json:"base_price"`
-	Provider          string         `json:"provider"`
-	CloudCredID       string         `json:"cloud_cred_id"`
-	WorkspaceGroups   []WorkspaceGroup `json:"workspace_groups"`
+	Type             string           `json:"type"`
+	SupportedGPUs    []SupportedGPU   `json:"supported_gpus,omitempty"`
+	SupportedStorage []Storage        `json:"supported_storage"`
+	Memory           string           `json:"memory"`
+	VCPU             int              `json:"vcpu"`
+	ClockSpeedInGHz  string           `json:"clock_speed_in_ghz"`
+	Quota            QuotaInfo        `json:"quota"`
+	Location         string           `json:"location"`
+	IsAvailable      bool             `json:"is_available"`
+	BasePrice        Price            `json:"base_price"`
+	Provider         string           `json:"provider"`
+	CloudCredID      string           `json:"cloud_cred_id"`
+	WorkspaceGroups  []WorkspaceGroup `json:"workspace_groups"`
 }
 
 type SupportedGPU struct {
@@ -763,12 +763,12 @@ type SupportedGPU struct {
 }
 
 type Storage struct {
-	Count        int     `json:"count,omitempty"`
-	Size         string  `json:"size"`
-	Type         string  `json:"type"`
-	MinSize      string  `json:"min_size,omitempty"`
-	MaxSize      string  `json:"max_size,omitempty"`
-	PricePerGBHr *Price  `json:"price_per_gb_hr,omitempty"`
+	Count        int    `json:"count,omitempty"`
+	Size         string `json:"size"`
+	Type         string `json:"type"`
+	MinSize      string `json:"min_size,omitempty"`
+	MaxSize      string `json:"max_size,omitempty"`
+	PricePerGBHr *Price `json:"price_per_gb_hr,omitempty"`
 }
 
 type Price struct {
@@ -777,9 +777,9 @@ type Price struct {
 }
 
 type QuotaInfo struct {
-	OnDemand  *QuotaDetails `json:"on_demand,omitempty"`
-	Spot      *QuotaDetails `json:"spot,omitempty"`
-	Reserved  *QuotaDetails `json:"reserved,omitempty"`
+	OnDemand *QuotaDetails `json:"on_demand,omitempty"`
+	Spot     *QuotaDetails `json:"spot,omitempty"`
+	Reserved *QuotaDetails `json:"reserved,omitempty"`
 }
 
 type QuotaDetails struct {
@@ -791,21 +791,21 @@ type QuotaDetails struct {
 }
 
 type WorkspaceGroup struct {
-	ID             string            `json:"id"`
-	CreatedAt      string            `json:"created_at"`
-	UpdatedAt      string            `json:"updated_at"`
-	DeletedAt      *string           `json:"deleted_at"`
-	Name           string            `json:"name"`
-	Host           string            `json:"host"`
-	Platform       string            `json:"platform"`
-	PlatformID     string            `json:"platformId"`
-	PlatformRegion string            `json:"platformRegion"`
-	PlatformType   string            `json:"platformType"`
-	Status         string            `json:"status"`
-	TenantType     string            `json:"tenantType"`
-	Version        string            `json:"version"`
+	ID             string              `json:"id"`
+	CreatedAt      string              `json:"created_at"`
+	UpdatedAt      string              `json:"updated_at"`
+	DeletedAt      *string             `json:"deleted_at"`
+	Name           string              `json:"name"`
+	Host           string              `json:"host"`
+	Platform       string              `json:"platform"`
+	PlatformID     string              `json:"platformId"`
+	PlatformRegion string              `json:"platformRegion"`
+	PlatformType   string              `json:"platformType"`
+	Status         string              `json:"status"`
+	TenantType     string              `json:"tenantType"`
+	Version        string              `json:"version"`
 	Tags           map[string][]string `json:"tags"`
-	Locations      []Location        `json:"locations"`
+	Locations      []Location          `json:"locations"`
 }
 
 type Location struct {
