@@ -54,6 +54,25 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 			name := ""
 			if len(args) > 0 {
 				name = args[0]
+			} else {
+				var err error
+				name, err = RunNamePicker()
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+			}
+
+			// Validate flags if explicitly set
+			if cmd.Flags().Changed("gpu") && gpu == "" {
+				return breverrors.NewValidationError("GPU instance type cannot be empty when --gpu flag is used")
+			}
+			if cmd.Flags().Changed("cpu") && cpu == "" {
+				return breverrors.NewValidationError("CPU instance type cannot be empty when --cpu flag is used")
+			}
+
+			// Set default T4 instance if no flags are provided
+			if !cmd.Flags().Changed("gpu") && !cmd.Flags().Changed("cpu") {
+				gpu = "n1-highmem-4:nvidia-tesla-t4:1"
 			}
 
 			err := runCreateWorkspace(t, CreateOptions{
@@ -80,33 +99,6 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 	return cmd
 }
 
-func displayInstanceTypes(t *terminal.Terminal, createStore CreateStore) error {
-	t.Vprint("Fetching available instance types...")
-	types, err := createStore.GetInstanceTypes()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	t.Vprint("\nAvailable CPU instance types:")
-	t.Vprint("  2x8  - 2 CPU cores, 8GB RAM")
-	t.Vprint("  4x16 - 4 CPU cores, 16GB RAM")
-	t.Vprint("  8x32 - 8 CPU cores, 32GB RAM")
-	t.Vprint("  16x32 - 16 CPU cores, 32GB RAM")
-
-	t.Vprint("\nAvailable GPU instance types:")
-	for _, instanceType := range types.AllInstanceTypes {
-		if len(instanceType.SupportedGPUs) > 0 {
-			gpuInfo := instanceType.SupportedGPUs[0]
-			t.Vprintf("  %s - %s %s (x%d)\n", 
-				instanceType.Name,
-				gpuInfo.Manufacturer,
-				gpuInfo.Model,
-				gpuInfo.Count)
-		}
-	}
-	return nil
-}
-
 type CreateOptions struct {
 	Name           string
 	WorkspaceClass string
@@ -119,40 +111,6 @@ func runCreateWorkspace(t *terminal.Terminal, options CreateOptions, createStore
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	if options.WorkspaceClass != "" {
-		validCPUTypes := map[string]bool{
-			"2x8":   true,
-			"4x16":  true,
-			"8x32":  true,
-			"16x32": true,
-		}
-
-		if !validCPUTypes[options.WorkspaceClass] {
-			return breverrors.NewValidationError(fmt.Sprintf("invalid CPU instance type: %s, use 'brev create --list-types' to see available types", options.WorkspaceClass))
-		}
-	}
-
-	if options.InstanceType != "" {
-		// Validate GPU instance type
-		types, err := createStore.GetInstanceTypes()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		isValid := false
-		for _, instanceType := range types.AllInstanceTypes {
-			if instanceType.Name == options.InstanceType {
-				isValid = true
-				break
-			}
-		}
-
-		if !isValid {
-			return breverrors.NewValidationError(fmt.Sprintf("invalid GPU instance type: %s, use 'brev create --list-types' to see available types", options.InstanceType))
-		}
-	}
-
 	err = createEmptyWorkspace(user, t, options, createStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -270,5 +228,17 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, createStore Crea
 			isReady = true
 		}
 	}
+	return nil
+}
+
+func displayInstanceTypes(t *terminal.Terminal, createStore CreateStore) error {
+	t.Vprint("\nAvailable CPU instance types:")
+	t.Vprint("  2x8  - 2 CPU cores, 8GB RAM")
+	t.Vprint("  4x16 - 4 CPU cores, 16GB RAM")
+	t.Vprint("  8x32 - 8 CPU cores, 32GB RAM")
+	t.Vprint("  16x32 - 16 CPU cores, 32GB RAM")
+
+	t.Vprint("\nAvailable GPU instance types:")
+	t.Vprint("  n1-highmem-4:nvidia-tesla-t4:1 - NVIDIA T4 (x1)")
 	return nil
 }
