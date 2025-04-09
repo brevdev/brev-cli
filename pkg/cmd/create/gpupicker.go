@@ -73,6 +73,14 @@ var (
 
 	gpuSelectedMetadataStyle = gpuMetadataStyle.Copy().
 					Foreground(lipgloss.Color(nvidiaGreen))
+
+	leftSpecStyle = lipgloss.NewStyle().
+			Align(lipgloss.Left).
+			Bold(true)
+
+	rightSpecStyle = lipgloss.NewStyle().
+			Align(lipgloss.Right).
+			Bold(true)
 )
 
 type gpuModel struct {
@@ -219,7 +227,7 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.ready {
 			m.width = msg.Width
 			m.height = msg.Height
-			headerHeight := 10 // Increased from 10 to 12 for more top space
+			headerHeight := 12 // Increased from 10 to 12 for more top space
 			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight)
 			m.viewport.YPosition = headerHeight
 			m.ready = true
@@ -344,6 +352,30 @@ func formatPrice(price store.Price) string {
 	}
 }
 
+func formatInstanceSpecs(config store.GPUConfig, instanceType store.GPUInstanceType, gpu store.SupportedGPU) string {
+	// Left side: VRAM • RAM x CPU
+	leftContent := fmt.Sprintf("%s • %s x %d CPUs", 
+		gpu.Memory,
+		instanceType.Memory,
+		instanceType.VCPU,
+	)
+
+	// Right side: CLOUD • Price
+	rightContent := fmt.Sprintf("%s • %s", 
+		strings.ToUpper(config.Provider),
+		formatPrice(config.Price),
+	)
+
+	// Calculate padding needed between left and right content
+	padding := configBoxStyle.GetWidth() - lipgloss.Width(leftContent) - lipgloss.Width(rightContent) - 2 // -2 for border padding
+
+	return fmt.Sprintf("%s%s%s",
+		leftContent,
+		strings.Repeat(" ", padding),
+		rightContent,
+	)
+}
+
 func (m gpuModel) View() string {
 	if !m.ready {
 		return "Initializing..."
@@ -415,8 +447,21 @@ func (m gpuModel) View() string {
 						style = configBoxStyle
 					}
 
-					configStr := fmt.Sprintf("%s (%s) - %s", config.Type, config.Provider, formatPrice(config.Price))
-					sections = append(sections, style.Render(configStr))
+					// Find the matching instance type and GPU info
+					var instanceType store.GPUInstanceType
+					var gpu store.SupportedGPU
+					for _, it := range m.selectedType.Configs {
+						if it.Type == config.Type {
+							instanceType = it
+							if len(it.SupportedGPUs) > 0 {
+								gpu = it.SupportedGPUs[0]
+							}
+							break
+						}
+					}
+
+					content := formatInstanceSpecs(config, instanceType, gpu)
+					sections = append(sections, style.Render(content))
 					currentIndex++
 				}
 			}
