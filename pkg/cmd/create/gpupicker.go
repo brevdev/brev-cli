@@ -354,7 +354,7 @@ func formatPrice(price store.Price) string {
 
 func formatInstanceSpecs(config store.GPUConfig, instanceType store.GPUInstanceType, gpu store.SupportedGPU) string {
 	// Left side: VRAM • RAM x CPU
-	leftContent := fmt.Sprintf("%s • %s x %d CPUs", 
+	leftContent := fmt.Sprintf("%s VRAM • %s RAM x %d CPUs", 
 		gpu.Memory,
 		instanceType.Memory,
 		instanceType.VCPU,
