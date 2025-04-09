@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var (
@@ -182,14 +183,53 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 		cwOptions.WithInstanceType(options.Config.Type)
 	}
 
-	t.Vprintf("Creating instane %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
-	t.Vprintf("\tname %s\n", t.Green(cwOptions.Name))
+	// Format the instance specs in a box
+	var specBox string
+	var gpu store.SupportedGPU
 	if options.Config != nil {
-		t.Vprintf("\tGPU instance %s\n", t.Green(options.Config.Type))
-	} else {
-		t.Vprintf("\tCPU instance %s\n", t.Green(cwOptions.WorkspaceClassID))
+		// Get instance type info
+		instanceTypes, err := createStore.GetInstanceTypes()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+
+		// Find the matching instance type
+		var instanceType store.GPUInstanceType
+		for _, it := range instanceTypes.AllInstanceTypes {
+			if it.Type == options.Config.Type {
+				instanceType = it
+				if len(it.SupportedGPUs) > 0 {
+					gpu = it.SupportedGPUs[0]
+				}
+				break
+			}
+		}
+
+		leftContent := fmt.Sprintf("%dx %s • %s VRAM • %s RAM x %d CPUs",
+			options.Config.Count,
+			gpu.Name,
+			gpu.Memory,
+			instanceType.Memory,
+			instanceType.VCPU,
+		)
+		rightContent := fmt.Sprintf("%s • %s",
+			strings.ToUpper(options.Config.Provider),
+			formatPrice(options.Config.Price),
+		)
+		padding := 70 - lipgloss.Width(leftContent) - lipgloss.Width(rightContent) - 2
+		content := fmt.Sprintf("%s%s%s",
+			leftContent,
+			strings.Repeat(" ", padding),
+			rightContent,
+		)
+		specBox = configBoxStyle.Render(content)
 	}
-	t.Vprintf("\tCloud %s\n\n", t.Green(cwOptions.WorkspaceGroupID))
+
+	t.Vprintf("Creating instance %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
+	if specBox != "" {
+		t.Vprint(specBox)
+		t.Vprint("")
+	}
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"

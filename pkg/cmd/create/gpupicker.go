@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	nvidiaGreen = "#76B900"
 	NVIDIA_LOGO_2 = `███╗   ██╗██╗   ██╗██╗██████╗ ██╗ █████╗ 
 ████╗  ██║██║   ██║██║██╔══██╗██║██╔══██╗
 ██╔██╗ ██║██║   ██║██║██║  ██║██║███████║
@@ -26,10 +25,10 @@ const (
 var (
 	gpuTitleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color(nvidiaGreen))
+			Foreground(lipgloss.Color("#76B900"))
 
 	logoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(nvidiaGreen)).
+			Foreground(lipgloss.Color("#76B900")).
 			Align(lipgloss.Left)
 
 	gpuChipStyle = lipgloss.NewStyle().
@@ -43,25 +42,12 @@ var (
 			MarginRight(2)
 
 	gpuSelectedChipStyle = gpuChipStyle.Copy().
-				BorderForeground(lipgloss.Color(nvidiaGreen)).
+				BorderForeground(lipgloss.Color("#76B900")).
 				BorderStyle(lipgloss.DoubleBorder()).
-				Foreground(lipgloss.Color(nvidiaGreen))
-
-	configBoxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("white")).
-			Width(70).
-			Align(lipgloss.Left).
-			PaddingLeft(1).
-			MarginBottom(0)
-
-	configSelectedBoxStyle = configBoxStyle.Copy().
-				BorderForeground(lipgloss.Color(nvidiaGreen)).
-				BorderStyle(lipgloss.DoubleBorder()).
-				Foreground(lipgloss.Color(nvidiaGreen))
+				Foreground(lipgloss.Color("#76B900"))
 
 	configHeaderStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(nvidiaGreen)).
+				Foreground(lipgloss.Color("#76B900")).
 				Bold(true).
 				MarginTop(0).
 				MarginBottom(0)
@@ -72,7 +58,7 @@ var (
 				Align(lipgloss.Center)
 
 	gpuSelectedMetadataStyle = gpuMetadataStyle.Copy().
-					Foreground(lipgloss.Color(nvidiaGreen))
+					Foreground(lipgloss.Color("#76B900"))
 
 	leftSpecStyle = lipgloss.NewStyle().
 			Align(lipgloss.Left).
@@ -385,7 +371,25 @@ func (m gpuModel) View() string {
 		return "GPU selection cancelled\n"
 	}
 	if m.selectedConfig != nil {
-		return fmt.Sprintf("Selected GPU configuration: %s\n", m.selectedConfig.Type)
+		// Find the matching instance type and GPU info for the selected config
+		var instanceType store.GPUInstanceType
+		var gpu store.SupportedGPU
+		for _, it := range m.selectedType.Configs {
+			if it.Type == m.selectedConfig.Type {
+				instanceType = it
+				if len(it.SupportedGPUs) > 0 {
+					gpu = it.SupportedGPUs[0]
+				}
+				break
+			}
+		}
+
+		content := formatInstanceSpecs(*m.selectedConfig, instanceType, gpu)
+		return lipgloss.JoinVertical(lipgloss.Left,
+			gpuTitleStyle.Render("Selected Configuration:"),
+			"",
+			configSelectedBoxStyle.Render(content),
+		)
 	}
 
 	var header string
