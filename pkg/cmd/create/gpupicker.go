@@ -15,8 +15,7 @@ import (
 
 const (
 	nvidiaGreen = "#76B900"
-	NVIDIA_LOGO_2 = `
-███╗   ██╗██╗   ██╗██╗██████╗ ██╗ █████╗ 
+	NVIDIA_LOGO_2 = `███╗   ██╗██╗   ██╗██╗██████╗ ██╗ █████╗ 
 ████╗  ██║██║   ██║██║██╔══██╗██║██╔══██╗
 ██╔██╗ ██║██║   ██║██║██║  ██║██║███████║
 ██║╚██╗██║╚██╗ ██╔╝██║██║  ██║██║██╔══██║
@@ -28,6 +27,10 @@ var (
 	gpuTitleStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color(nvidiaGreen))
+
+	logoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(nvidiaGreen)).
+			Align(lipgloss.Left)
 
 	gpuChipStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -82,6 +85,8 @@ type gpuModel struct {
 	cursor         int
 	viewport       viewport.Model
 	ready          bool
+	width          int    // Track terminal width
+	height         int    // Track terminal height
 }
 
 // Custom delegate for GPU items
@@ -196,12 +201,11 @@ func initialGPUModel(types *store.InstanceTypeResponse) gpuModel {
 	return gpuModel{
 		gpuTypes: gpuTypes,
 		cursor:   0,
-		viewport: viewport.New(70, 20), // Initialize with reasonable defaults
 	}
 }
 
 func (m gpuModel) Init() tea.Cmd {
-	return nil
+	return tea.EnterAltScreen
 }
 
 func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -213,8 +217,11 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if !m.ready {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - 6 // More room for title and help
+			m.width = msg.Width
+			m.height = msg.Height
+			headerHeight := 10 // Increased from 10 to 12 for more top space
+			m.viewport = viewport.New(msg.Width, msg.Height-headerHeight)
+			m.viewport.YPosition = headerHeight
 			m.ready = true
 		}
 
@@ -287,6 +294,8 @@ func (m gpuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showingConfigs = true
 				m.cursor = 0
 				m.viewport.GotoTop()
+				// Clear screen when switching to configs
+				fmt.Print("\x1b[2J\x1b[H")
 			} else {
 				m.selectedConfig = &m.configs[m.cursor]
 				return m, tea.Quit
@@ -347,13 +356,18 @@ func (m gpuModel) View() string {
 		return fmt.Sprintf("Selected GPU configuration: %s\n", m.selectedConfig.Type)
 	}
 
-	var title string
+	var header string
 	if !m.showingConfigs {
-		title = lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen)).Render(NVIDIA_LOGO_2),
-			gpuTitleStyle.Render("Select GPU Type:"))
+		// Create header with logo and title, added extra empty lines for top padding
+		header = lipgloss.JoinVertical(lipgloss.Left,
+			"", // Extra line for top padding
+			"", // Extra line for top padding
+			logoStyle.Render(NVIDIA_LOGO_2),
+			"",  // Empty line for spacing
+			gpuTitleStyle.Render("Select GPU Type:"),
+		)
 	} else {
-		title = gpuTitleStyle.Render(fmt.Sprintf("Select %s Configuration:", m.selectedType.Name))
+		header = gpuTitleStyle.Render(fmt.Sprintf("Select %s Configuration:", m.selectedType.Name))
 	}
 
 	var content string
@@ -414,16 +428,20 @@ func (m gpuModel) View() string {
 
 	help := "\n↑/↓: Navigate • Enter: Select • ESC: Back • PgUp/PgDn: Scroll • q: Quit"
 
+	// Join all sections vertically
 	return lipgloss.JoinVertical(lipgloss.Left,
-		title,
+		header,
 		m.viewport.View(),
 		help,
 	)
 }
 
 func RunGPUPicker(types *store.InstanceTypeResponse) (*store.GPUConfig, error) {
+	// Clear screen and move cursor to top before starting
+	fmt.Print("\x1b[2J\x1b[H")
+	
 	m := initialGPUModel(types)
-	p := tea.NewProgram(&m)
+	p := tea.NewProgram(&m, tea.WithAltScreen())
 	model, err := p.Run()
 	if err != nil {
 		return nil, fmt.Errorf("error running GPU picker: %v", err)

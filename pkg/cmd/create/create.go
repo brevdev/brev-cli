@@ -62,12 +62,6 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 		Long:                  createLong,
 		Example:               createExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			t.Vprintf("\n")
-			t.Vprint(NVIDIA_LOGO_1)
-			
-			t.Vprintf("\n")
-
 			if listTypes {
 				return displayInstanceTypes(t, createStore)
 			}
