@@ -75,7 +75,8 @@ func (m nameModel) View() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(titleStyle.Render("Enter a name for your workspace:"))
+	b.WriteString("\n")  // Add some spacing
+	b.WriteString(titleStyle.Render("Enter a name for your instance:"))
 	b.WriteString("\n")
 	b.WriteString(selectedInputStyle.Render(m.textInput.View()))
 	b.WriteString("\n\n")

@@ -21,7 +21,7 @@ import (
 var (
 	createLong    = "Create a new Brev machine"
 	createExample = `
-  brev create <name>
+  brev create --name myinstance
 	`
 	// instanceTypes = []string{"p4d.24xlarge", "p3.2xlarge", "p3.8xlarge", "p3.16xlarge", "p3dn.24xlarge", "p2.xlarge", "p2.8xlarge", "p2.16xlarge", "g5.xlarge", "g5.2xlarge", "g5.4xlarge", "g5.8xlarge", "g5.16xlarge", "g5.12xlarge", "g5.24xlarge", "g5.48xlarge", "g5g.xlarge", "g5g.2xlarge", "g5g.4xlarge", "g5g.8xlarge", "g5g.16xlarge", "g5g.metal", "g4dn.xlarge", "g4dn.2xlarge", "g4dn.4xlarge", "g4dn.8xlarge", "g4dn.16xlarge", "g4dn.12xlarge", "g4dn.metal", "g4ad.xlarge", "g4ad.2xlarge", "g4ad.4xlarge", "g4ad.8xlarge", "g4ad.16xlarge", "g3s.xlarge", "g3.4xlarge", "g3.8xlarge", "g3.16xlarge"}
 )
@@ -59,12 +59,51 @@ func buildGPUConfigFromInstanceType(instanceType *store.GPUInstanceType) *store.
 	}
 }
 
+// Helper function to generate the spec box
+func generateSpecBox(config *store.GPUConfig, instanceTypes []store.GPUInstanceType) (string, error) {
+	if config == nil {
+		return "", nil
+	}
+
+	var gpuInfo store.SupportedGPU
+	var instanceTypeInfo store.GPUInstanceType
+	for _, it := range instanceTypes {
+		if it.Type == config.Type {
+			instanceTypeInfo = it
+			if len(it.SupportedGPUs) > 0 {
+				gpuInfo = it.SupportedGPUs[0]
+			}
+			break
+		}
+	}
+
+	leftContent := fmt.Sprintf("%dx %s • %s VRAM • %s RAM x %d CPUs",
+		config.Count,
+		gpuInfo.Name,
+		gpuInfo.Memory,
+		instanceTypeInfo.Memory,
+		instanceTypeInfo.VCPU,
+	)
+	rightContent := fmt.Sprintf("%s • %s",
+		strings.ToUpper(config.Provider),
+		formatPrice(config.Price),
+	)
+	padding := 70 - lipgloss.Width(leftContent) - lipgloss.Width(rightContent) - 2
+	content := fmt.Sprintf("%s%s%s",
+		leftContent,
+		strings.Repeat(" ", padding),
+		rightContent,
+	)
+	return configBoxStyle.Render(content), nil
+}
+
 func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command {
 	var detached bool
 	var gpu *store.GPUConfig
 	var cpu string
 	var listTypes bool
 	var instanceType string
+	var name string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -76,17 +115,6 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if listTypes {
 				return displayInstanceTypes(t, createStore)
-			}
-
-			name := ""
-			if len(args) > 0 {
-				name = args[0]
-			} else {
-				var err error
-				name, err = RunNamePicker()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
 			}
 
 			// Get instance types first - we need this for both interactive and non-interactive modes
@@ -125,6 +153,25 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 				return breverrors.NewValidationError("CPU instance type cannot be empty when --cpu flag is used")
 			}
 
+			// Generate the spec box for the name picker
+			specBox, err := generateSpecBox(gpu, types.AllInstanceTypes)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			// Now ask for name if not provided
+			if name == "" {
+				t.Vprint("\nSelected Instance Configuration:")
+				t.Vprint(specBox)
+				var err error
+				name, err = RunNamePicker()
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				// Clear the screen after name picker is done
+				fmt.Print("\033[H\033[2J")
+			}
+
 			err = runCreateWorkspace(t, CreateOptions{
 				Name:           name,
 				WorkspaceClass: cpu,
@@ -146,6 +193,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
 	cmd.Flags().StringVarP(&instanceType, "instance-type", "t", "", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
 	cmd.Flags().BoolVarP(&listTypes, "list-types", "l", false, "List available instance types")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "name your instance when creating a new one")
 	return cmd
 }
 
@@ -198,49 +246,16 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 		cwOptions.WithInstanceType(options.Config.Type)
 	}
 
-	// Format the instance specs in a box
-	var specBox string
-	var gpu store.SupportedGPU
-	if options.Config != nil {
-		// Get instance type info
-		instanceTypes, err := createStore.GetInstanceTypes()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	// Get instance types for spec box
+	instanceTypes, err := createStore.GetInstanceTypes()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
-		// Find the matching instance type
-		var instanceType store.GPUInstanceType
-		for _, it := range instanceTypes.AllInstanceTypes {
-			if it.Type == options.Config.Type {
-				instanceType = it
-				if len(it.SupportedGPUs) > 0 {
-					gpu = it.SupportedGPUs[0]
-				}
-				break
-			}
-		}
-
-		leftContent := fmt.Sprintf("%dx %s • %s VRAM • %s RAM x %d CPUs",
-			options.Config.Count,
-			gpu.Name,
-			gpu.Memory,
-			instanceType.Memory,
-			instanceType.VCPU,
-		)
-		rightContent := fmt.Sprintf("%s • %s",
-			strings.ToUpper(options.Config.Provider),
-			formatPrice(options.Config.Price),
-		)
-		padding := 70 - lipgloss.Width(leftContent) - lipgloss.Width(rightContent) - 2
-		content := fmt.Sprintf("%s%s%s",
-			leftContent,
-			strings.Repeat(" ", padding),
-			rightContent,
-		)
-		specBox = configBoxStyle.Render(content)
-		
-		// Set the instance type here after we've found it
-		cwOptions.WithInstanceType(instanceType.Type)
+	// Generate spec box
+	specBox, err := generateSpecBox(options.Config, instanceTypes.AllInstanceTypes)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprintf("Creating instance %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
