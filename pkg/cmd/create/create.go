@@ -48,12 +48,23 @@ type CreateStore interface {
 	GetInstanceTypes() (*store.InstanceTypeResponse, error)
 }
 
+// buildGPUConfigFromInstanceType creates a GPU config from a full instance type
+func buildGPUConfigFromInstanceType(instanceType *store.GPUInstanceType) *store.GPUConfig {
+	return &store.GPUConfig{
+		Type:            instanceType.Type,
+		Provider:        instanceType.Provider,
+		Count:          1,
+		Price:          instanceType.BasePrice,
+		WorkspaceGroups: instanceType.WorkspaceGroups,
+	}
+}
+
 func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command {
 	var detached bool
 	var gpu *store.GPUConfig
 	var cpu string
 	var listTypes bool
-	var interactive bool
+	var instanceType string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -78,38 +89,43 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 				}
 			}
 
-			// If interactive mode is enabled, use GPU picker
-			if interactive {
-				types, err := createStore.GetInstanceTypes()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
+			// Get instance types first - we need this for both interactive and non-interactive modes
+			types, err := createStore.GetInstanceTypes()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 
+			// If instance type is specified, find it in the available types
+			if instanceType != "" {
+				var selectedInstanceType *store.GPUInstanceType
+				// Find the exact instance type
+				for _, it := range types.AllInstanceTypes {
+					if it.Type == instanceType {
+						selectedInstanceType = &it
+						break
+					}
+				}
+				if selectedInstanceType == nil {
+					return breverrors.NewValidationError(fmt.Sprintf("Invalid instance type: %s. Use --list-types to see available options", instanceType))
+				}
+				
+				// Build the GPU config the same way the picker would
+				gpu = buildGPUConfigFromInstanceType(selectedInstanceType)
+			} else if !cmd.Flags().Changed("cpu") {
+				// Default to interactive GPU picker if no instance type or CPU specified
 				selectedGPU, err := RunGPUPicker(types)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
 				gpu = selectedGPU
-			} else {
-				// Validate flags if explicitly set
-				if cmd.Flags().Changed("gpu") && gpu == nil {
-					return breverrors.NewValidationError("GPU instance type cannot be empty when --gpu flag is used")
-				}
-				if cmd.Flags().Changed("cpu") && cpu == "" {
-					return breverrors.NewValidationError("CPU instance type cannot be empty when --cpu flag is used")
-				}
-
-				// Set default T4 instance if no flags are provided
-				if !cmd.Flags().Changed("gpu") && !cmd.Flags().Changed("cpu") {
-					gpu = &store.GPUConfig{
-						Type:     "n1-highmem-4",
-						Provider: "nvidia",
-						Count:    1,
-					}
-				}
 			}
 
-			err := runCreateWorkspace(t, CreateOptions{
+			// Validate flags if explicitly set
+			if cmd.Flags().Changed("cpu") && cpu == "" {
+				return breverrors.NewValidationError("CPU instance type cannot be empty when --cpu flag is used")
+			}
+
+			err = runCreateWorkspace(t, CreateOptions{
 				Name:           name,
 				WorkspaceClass: cpu,
 				Detached:       detached,
@@ -128,9 +144,8 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
-	// cmd.Flags().StringVarP(&gpu, "gpu", "g", "", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
+	cmd.Flags().StringVarP(&instanceType, "instance-type", "t", "", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
 	cmd.Flags().BoolVarP(&listTypes, "list-types", "l", false, "List available instance types")
-	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Use interactive mode to select GPU type")
 	return cmd
 }
 
