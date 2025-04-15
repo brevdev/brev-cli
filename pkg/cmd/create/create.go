@@ -223,11 +223,18 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 			rightContent,
 		)
 		specBox = configBoxStyle.Render(content)
+		
+		// Set the instance type here after we've found it
+		cwOptions.WithInstanceType(instanceType.Type)
 	}
 
 	t.Vprintf("Creating instance %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
 	if specBox != "" {
 		t.Vprint(specBox)
+		t.Vprintf("Instance: %s\n", t.Green(options.Config.Type))
+		t.Vprint("")
+	} else if cwOptions.InstanceType != "" {
+		t.Vprintf("Instance type: %s\n", t.Green(cwOptions.InstanceType))
 		t.Vprint("")
 	}
 
