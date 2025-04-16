@@ -37,6 +37,7 @@ type LsStore interface {
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
 	var org string
+	var nonInteractive bool
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"context": ""},
@@ -48,6 +49,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
   brev ls
   brev ls orgs
   brev ls --org <orgid>
+  brev ls --ni  # non-interactive mode
 		`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 			if hello.ShouldWeRunOnboardingLSStep(noLoginLsStore) && hello.ShouldWeRunOnboarding(noLoginLsStore) {
@@ -94,7 +96,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org, showAll)
+			err := RunLs(t, loginLsStore, args, org, showAll, nonInteractive)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -123,6 +125,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 	}
 
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
+	cmd.Flags().BoolVarP(&nonInteractive, "ni", "", false, "non-interactive mode (scriptable output)")
 
 	return cmd
 }
@@ -156,7 +159,7 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
+func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, nonInteractive bool) error {
 	ls := NewLs(lsStore, t)
 	user, err := lsStore.GetCurrentUser()
 	if err != nil {
@@ -171,13 +174,13 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 		return breverrors.NewValidationError("too many args provided")
 	}
 
-	if len(args) == 1 { //nolint:gocritic // don't want to switch
+	if len(args) == 1 {
 		err = handleLsArg(ls, args[0], user, org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(org, user, showAll)
+		err = ls.RunWorkspaces(org, user, showAll, nonInteractive)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -198,7 +201,7 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 		}
 		return nil
 	} else if util.IsSingularOrPlural(arg, "workspace") {
-		err := ls.RunWorkspaces(org, user, showAll)
+		err := ls.RunWorkspaces(org, user, showAll, false)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -280,30 +283,7 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
-	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, user.ID)
-
-	projects := virtualproject.NewVirtualProjects(allWorkspaces)
-
-	var unjoinedProjects []virtualproject.VirtualProject
-	for _, p := range projects {
-		wks := p.GetUserWorkspaces(user.ID)
-		if len(wks) == 0 {
-			unjoinedProjects = append(unjoinedProjects, p)
-		}
-	}
-
-	displayProjects(ls.terminal, org.Name, unjoinedProjects)
-}
-
-func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
-	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, user.ID)
-}
-
-func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, userID string) {
+func (ls Ls) ShowWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
 		if len(allWorkspaces) > 0 {
@@ -319,32 +299,15 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		}
 	} else {
 		ls.terminal.Vprintf("You have %d instances in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
-		displayWorkspacesTable(ls.terminal, userWorkspaces, userID)
+		displayWorkspacesTable(ls.terminal, userWorkspaces, user.ID)
 
 		fmt.Print("\n")
 
 		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
-		// displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 	}
 }
 
-func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
-	foundAResettableWorkspace := false
-	for _, w := range workspaces {
-		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
-			if !foundAResettableWorkspace {
-				t.Vprintf(t.Red("Reset unhealthy or failed instance:\n"))
-			}
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
-			foundAResettableWorkspace = true
-		}
-	}
-	if foundAResettableWorkspace {
-		t.Vprintf(t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
-	}
-}
-
-func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
+func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool, nonInteractive bool) error {
 	allWorkspaces, err := ls.lsStore.GetWorkspaces(org.ID, nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -354,11 +317,23 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	var workspaces []entity.Workspace
 	if showAll {
-		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces)
+		workspaces = allWorkspaces
 	} else {
-		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces)
+		workspaces = store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 	}
+
+	if nonInteractive {
+		ls.ShowWorkspaces(org, orgs, user, workspaces, allWorkspaces)
+	} else {
+		err = RunInteractiveLs(ls.terminal, workspaces, user.ID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
 	return nil
 }
 
@@ -479,5 +454,21 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 		return t.Red(status)
 	default:
 		return status
+	}
+}
+
+func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
+	foundAResettableWorkspace := false
+	for _, w := range workspaces {
+		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
+			if !foundAResettableWorkspace {
+				t.Vprintf(t.Red("Reset unhealthy or failed instance:\n"))
+			}
+			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
+			foundAResettableWorkspace = true
+		}
+	}
+	if foundAResettableWorkspace {
+		t.Vprintf(t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
 	}
 }
