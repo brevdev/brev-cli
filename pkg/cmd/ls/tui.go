@@ -30,7 +30,6 @@ var (
 		Foreground(lipgloss.Color("#FFF7DB")).
 		Background(lipgloss.Color("#888B7E")).
 		Padding(0, 3).
-		MarginTop(1).
 		MarginRight(2)
 
 	activeButtonStyle = buttonStyle.Copy().
@@ -39,21 +38,9 @@ var (
 		MarginRight(2).
 		Bold(true)
 
-	dialogBoxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#76B900")).
-		Padding(1, 0).
-		BorderTop(true).
-		BorderLeft(true).
-		BorderRight(true).
-		BorderBottom(true)
-
-	buttonContainerStyle = lipgloss.NewStyle().
-		MarginTop(1).
-		MarginBottom(1)
-
-	buttonRowStyle = lipgloss.NewStyle().
-		Height(3)
+	helpStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		MarginTop(1)
 )
 
 type model struct {
@@ -127,42 +114,40 @@ func (m model) View() string {
 	s.WriteString(titleStyle.Render("Workspaces"))
 	s.WriteString("\n")
 
+	// Process table lines and insert buttons after selected row
+	lines := strings.Split(m.table.View(), "\n")
+	for i, line := range lines {
+		if i == m.selectedIndex+2 { // +2 to account for header and 0-based index
+			// Add the selected row with caret
+			s.WriteString(caretStyle.String() + line + "\n")
+			
+			// If in action mode, insert buttons right after the selected row
+			if m.showActions {
+				// Create buttons with proper styling
+				var buttons []string
+				for i, action := range m.actions {
+					style := buttonStyle
+					if i == m.selectedAction {
+						style = activeButtonStyle
+					}
+					buttons = append(buttons, style.Render(action))
+				}
+				
+				// Add padding to align with content and join buttons
+				s.WriteString("  ")
+				row := lipgloss.JoinHorizontal(lipgloss.Center, buttons...)
+				s.WriteString(row + "\n")
+			}
+		} else {
+			s.WriteString("  " + line + "\n") // Add padding to align non-selected rows
+		}
+	}
+
+	// Add help text at the bottom
 	if m.showActions {
-		// Show actions for the selected workspace
-		workspace := m.workspaces[m.selectedIndex]
-		s.WriteString(fmt.Sprintf("Actions for workspace: %s\n\n", workspace.Name))
-		
-		// Create buttons with proper styling
-		var buttons []string
-		for i, action := range m.actions {
-			style := buttonStyle
-			if i == m.selectedAction {
-				style = activeButtonStyle
-			}
-			buttons = append(buttons, style.Render(action))
-		}
-		
-		// Join buttons horizontally with proper spacing
-		row := lipgloss.JoinHorizontal(lipgloss.Center, buttons...)
-		s.WriteString(dialogBoxStyle.Render(
-			lipgloss.JoinVertical(lipgloss.Center,
-				row,
-				"\nPress ESC to go back • Enter to select action",
-			),
-		))
+		s.WriteString(helpStyle.Render("  Press ESC to go back • Enter to select action"))
 	} else {
-		// Add caret to the selected row
-		lines := strings.Split(m.table.View(), "\n")
-		for i, line := range lines {
-			if i == m.selectedIndex+2 { // +2 to account for header and 0-based index
-				lines[i] = caretStyle.String() + line
-			} else {
-				lines[i] = "  " + line // Add padding to align non-selected rows
-			}
-		}
-		s.WriteString(strings.Join(lines, "\n"))
-		s.WriteString("\n")
-		s.WriteString("Press Enter for actions • q to quit")
+		s.WriteString(helpStyle.Render("  Press Enter for actions • q to quit"))
 	}
 
 	return baseStyle.Render(s.String())
