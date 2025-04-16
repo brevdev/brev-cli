@@ -26,16 +26,34 @@ var (
 		Foreground(lipgloss.Color("#76B900")).
 		SetString("❯ ")
 
-	actionButtonStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			Padding(0, 1).
-			MarginRight(2)
+	buttonStyle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFF7DB")).
+		Background(lipgloss.Color("#888B7E")).
+		Padding(0, 3).
+		MarginTop(1).
+		MarginRight(2)
 
-	selectedActionButtonStyle = actionButtonStyle.Copy().
-				BorderForeground(lipgloss.Color("#76B900")).
-				BorderStyle(lipgloss.DoubleBorder()).
-				Foreground(lipgloss.Color("#76B900"))
+	activeButtonStyle = buttonStyle.Copy().
+		Foreground(lipgloss.Color("#FFF7DB")).
+		Background(lipgloss.Color("#76B900")).
+		MarginRight(2).
+		Bold(true)
+
+	dialogBoxStyle = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#76B900")).
+		Padding(1, 0).
+		BorderTop(true).
+		BorderLeft(true).
+		BorderRight(true).
+		BorderBottom(true)
+
+	buttonContainerStyle = lipgloss.NewStyle().
+		MarginTop(1).
+		MarginBottom(1)
+
+	buttonRowStyle = lipgloss.NewStyle().
+		Height(3)
 )
 
 type model struct {
@@ -114,15 +132,24 @@ func (m model) View() string {
 		workspace := m.workspaces[m.selectedIndex]
 		s.WriteString(fmt.Sprintf("Actions for workspace: %s\n\n", workspace.Name))
 		
+		// Create buttons with proper styling
+		var buttons []string
 		for i, action := range m.actions {
-			style := actionButtonStyle
+			style := buttonStyle
 			if i == m.selectedAction {
-				style = selectedActionButtonStyle
+				style = activeButtonStyle
 			}
-			s.WriteString(style.Render(action))
+			buttons = append(buttons, style.Render(action))
 		}
-		s.WriteString("\n\n")
-		s.WriteString("Press ESC to go back • Enter to select action")
+		
+		// Join buttons horizontally with proper spacing
+		row := lipgloss.JoinHorizontal(lipgloss.Center, buttons...)
+		s.WriteString(dialogBoxStyle.Render(
+			lipgloss.JoinVertical(lipgloss.Center,
+				row,
+				"\nPress ESC to go back • Enter to select action",
+			),
+		))
 	} else {
 		// Add caret to the selected row
 		lines := strings.Split(m.table.View(), "\n")
