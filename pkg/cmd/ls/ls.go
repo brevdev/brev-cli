@@ -32,6 +32,9 @@ type LsStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	hello.HelloStore
+	StartWorkspace(workspaceID string) (*entity.Workspace, error)
+	StopWorkspace(workspaceID string) (*entity.Workspace, error)
+	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
@@ -328,7 +331,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	if nonInteractive {
 		ls.ShowWorkspaces(org, orgs, user, workspaces, allWorkspaces)
 	} else {
-		err = RunInteractiveLs(ls.terminal, workspaces, user.ID)
+		err = RunInteractiveLs(ls.terminal, workspaces, user.ID, ls.lsStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
