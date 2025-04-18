@@ -56,6 +56,7 @@ import (
 	"github.com/spf13/cobra"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/tui"
 )
 
 var (
@@ -194,6 +195,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				}
 				t.Vprint(v)
 				return nil
+			} else if len(args) == 0 {
+				// Launch TUI when no arguments are provided
+				return tui.RunMainTUI(loginCmdStore, t)
 			} else {
 				err := cmd.Usage()
 				if err != nil {
