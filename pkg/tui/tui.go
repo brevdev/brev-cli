@@ -133,13 +133,14 @@ func (m model) Init() tea.Cmd {
 		m.spinner.Tick,
 		tea.EnterAltScreen,
 		startLoading(),
+		fetchWorkspaces(m.store),
 	)
 }
 
 type loadingTickMsg struct{}
 
 func startLoading() tea.Cmd {
-	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+	return tea.Tick(time.Millisecond*250, func(t time.Time) tea.Msg {
 		return loadingTickMsg{}
 	})
 }
@@ -147,6 +148,9 @@ func startLoading() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if !m.ready {
+			return m, nil // Ignore key presses during loading
+		}
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -179,10 +183,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case loadingTickMsg:
 		if m.loading {
 			m.loadingProgress++
-			if m.loadingProgress > 5 {
+			if m.loadingProgress > 3 && m.workspaces != nil {
 				m.loading = false
 				m.ready = true
-				return m, fetchWorkspaces(m.store)
+				return m, nil
 			}
 			return m, startLoading()
 		}
@@ -190,10 +194,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case workspacesLoadedMsg:
 		if msg.err != nil {
 			m.err = msg.err
+			m.loading = false
+			m.ready = true
 			return m, nil
 		}
 		m.workspaces = msg.workspaces
 		m.listModel.updateWorkspaces(msg.workspaces)
+		if !m.ready {
+			return m, startLoading() // Continue loading animation
+		}
 		return m, nil
 
 	case spinner.TickMsg:
@@ -212,9 +221,25 @@ func (m model) View() string {
 		s.WriteString("\n\n")
 		s.WriteString(logoStyle.Render(NVIDIA_LOGO))
 		s.WriteString("\n\n")
-		s.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen)).Render(
-			fmt.Sprintf("%s Loading%s", m.spinner.View(), strings.Repeat(".", m.loadingProgress)),
+
+		loadingStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen))
+		
+		var loadingText string
+		if m.workspaces == nil {
+			loadingText = "Fetching Your Instances"
+		} else {
+			loadingText = "Entering TUI"
+		}
+		
+		s.WriteString(loadingStyle.Render(
+			fmt.Sprintf("%s %s%s", m.spinner.View(), loadingText, strings.Repeat(".", m.loadingProgress)),
 		))
+
+		if m.err != nil {
+			s.WriteString("\n\n")
+			s.WriteString(fmt.Sprintf("Error: %v", m.err))
+		}
+
 		return docStyle.Render(s.String())
 	}
 
