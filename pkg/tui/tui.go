@@ -116,6 +116,9 @@ func initialModel(s *store.AuthHTTPStore, t *terminal.Terminal) model {
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen))
 
+	lm := newListModel()
+	lm.store = s
+
 	return model{
 		tabs:        []string{"List", "Create"},
 		activeTab:   0,
@@ -123,7 +126,7 @@ func initialModel(s *store.AuthHTTPStore, t *terminal.Terminal) model {
 		loading:     true,
 		store:       s,
 		terminal:    t,
-		listModel:   newListModel(),
+		listModel:   lm,
 		createModel: newCreateModel(s),
 	}
 }
@@ -154,16 +157,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "tab", "right", "l":
+		case "tab":
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
 			return m, nil
-		case "shift+tab", "left", "h":
+		case "shift+tab":
 			m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
 			return m, nil
 		}
 
 		// Pass messages to active tab
-		if m.activeTab == 1 {
+		if m.activeTab == 0 {
+			var cmd tea.Cmd
+			newListModel, cmd := m.listModel.Update(msg)
+			m.listModel = newListModel
+			return m, cmd
+		} else if m.activeTab == 1 {
 			var cmd tea.Cmd
 			newCreateModel, cmd := m.createModel.Update(msg)
 			if cm, ok := newCreateModel.(createModel); ok {
