@@ -54,7 +54,9 @@ func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*ent
 	}
 	sessionKey, deviceID := splitRefreshToken[0], splitRefreshToken[1]
 	token, err := a.retrieveIDToken(sessionKey, deviceID)
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "UNAUTHORIZED") {
+		return nil, nil
+	} else if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &entity.AuthTokens{

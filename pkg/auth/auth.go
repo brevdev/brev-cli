@@ -309,7 +309,7 @@ func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTok
 	// TODO 2 handle if 403 invalid grant
 	// https://stackoverflow.com/questions/57383523/how-to-detect-when-an-oauth2-refresh-token-expired
 	if err != nil {
-		if strings.Contains(err.Error(), "not implemented") || strings.Contains(err.Error(), "UNAUTHORIZED") {
+		if strings.Contains(err.Error(), "not implemented") {
 			return nil, nil
 		}
 		return nil, breverrors.WrapAndTrace(err)
