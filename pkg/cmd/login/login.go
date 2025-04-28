@@ -200,15 +200,8 @@ func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) 
 		return breverrors.WrapAndTrace(err)
 	}
 	newOnboardingStatus := make(map[string]interface{})
-	// todo make this one api call
-	// if !currentOnboardingStatus.SSH {
-	// 	err = OnboardUserWithSSHKeys(t, user, o.LoginStore, true)
-	// 	if err != nil {
-	// 		return breverrors.WrapAndTrace(err)
-	// 	}
-	// 	newOnboardingStatus["SSH"] = true
-	// }
 
+	/* Commenting out IDE selection to stop prompting users
 	var ide string
 	if currentOnboardingStatus.Editor == "" {
 		// Check IDE requirements
@@ -225,6 +218,7 @@ func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	*/
 
 	if !currentOnboardingStatus.UsedCLI {
 		// by getting this far, we know they have set up the cli
