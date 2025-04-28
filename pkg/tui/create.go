@@ -4,16 +4,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/create"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/shared/gpupicker"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 var (
 	focusedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(nvidiaGreen)).
+			Foreground(lipgloss.Color("#76B900")).
 			Bold(true)
 
 	blurredStyle = lipgloss.NewStyle().
@@ -25,35 +26,37 @@ var (
 
 	helpStyle = blurredStyle.Copy().
 			Italic(true)
+
+	promptStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#76B900")).
+			Bold(true).
+			MarginBottom(1)
+)
+
+type createState int
+
+const (
+	loadingState createState = iota
+	gpuPickerState
+	namePickerState
+	confirmationState
 )
 
 type createModel struct {
-	nameInput     textinput.Model
-	gpuTypeInput  textinput.Model
-	focusIndex    int
-	err           error
-	store         *store.AuthHTTPStore
-	creating      bool
+	currentState     createState
+	err             error
+	store           *store.AuthHTTPStore
+	creating        bool
 	createdWorkspace *entity.Workspace
+	selectedGPUConfig *store.GPUConfig
+	instanceName     string
+	gpuPicker       gpupicker.Model
 }
 
 func newCreateModel(s *store.AuthHTTPStore) createModel {
-	nameInput := textinput.New()
-	nameInput.Placeholder = "Enter instance name"
-	nameInput.Focus()
-	nameInput.CharLimit = 32
-	nameInput.Width = 40
-
-	gpuTypeInput := textinput.New()
-	gpuTypeInput.Placeholder = "Enter GPU type (e.g. A100, H100, L40S)"
-	gpuTypeInput.CharLimit = 32
-	gpuTypeInput.Width = 40
-
 	return createModel{
-		nameInput:    nameInput,
-		gpuTypeInput: gpuTypeInput,
 		store:        s,
-		focusIndex:   0,
+		currentState: loadingState,
 	}
 }
 
@@ -62,7 +65,19 @@ type workspaceCreatedMsg struct {
 	err       error
 }
 
-func createWorkspace(s *store.AuthHTTPStore, name, gpuType string) tea.Cmd {
+type nameSelectedMsg struct {
+	name string
+	err  error
+}
+
+func runNamePicker() tea.Cmd {
+	return func() tea.Msg {
+		name, err := create.RunNamePicker()
+		return nameSelectedMsg{name: name, err: err}
+	}
+}
+
+func createWorkspace(s *store.AuthHTTPStore, name string, config *store.GPUConfig) tea.Cmd {
 	return func() tea.Msg {
 		org, err := s.GetActiveOrganizationOrDefault()
 		if err != nil {
@@ -72,10 +87,7 @@ func createWorkspace(s *store.AuthHTTPStore, name, gpuType string) tea.Cmd {
 		options := store.NewCreateWorkspacesOptions(
 			"", // clusterID
 			name,
-			&store.GPUConfig{
-				Type:     gpuType,
-				Provider: "nvidia",
-			},
+			config,
 		)
 
 		workspace, err := s.CreateWorkspace(org.ID, options)
@@ -87,50 +99,69 @@ func createWorkspace(s *store.AuthHTTPStore, name, gpuType string) tea.Cmd {
 	}
 }
 
+func (m createModel) SetInstanceTypes(types *store.InstanceTypeResponse) createModel {
+	m.gpuPicker = gpupicker.New(types)
+	m.currentState = gpuPickerState
+	return m
+}
+
 func (m createModel) Init() tea.Cmd {
-	return textinput.Blink
+	return nil
 }
 
 func (m createModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		if m.currentState == gpuPickerState {
+			var cmd tea.Cmd
+			m.gpuPicker, cmd = m.gpuPicker.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "shift+tab", "enter", "up", "down":
-			s := msg.String()
-
-			if s == "enter" && m.focusIndex == len(m.inputs())-1 {
-				if !m.creating {
-					m.creating = true
-					return m, createWorkspace(m.store, m.nameInput.Value(), m.gpuTypeInput.Value())
+		case "esc":
+			if m.currentState > gpuPickerState {
+				m.currentState--
+				if m.currentState == gpuPickerState {
+					return m, nil
+				} else if m.currentState == namePickerState {
+					return m, runNamePicker()
 				}
-				return m, nil
 			}
-
-			if s == "up" || s == "shift+tab" {
-				m.focusIndex--
-			} else {
-				m.focusIndex++
+		case "enter":
+			if m.currentState == confirmationState && !m.creating {
+				m.creating = true
+				return m, createWorkspace(m.store, m.instanceName, m.selectedGPUConfig)
 			}
-
-			if m.focusIndex > len(m.inputs())-1 {
-				m.focusIndex = 0
-			} else if m.focusIndex < 0 {
-				m.focusIndex = len(m.inputs()) - 1
-			}
-
-			cmds := make([]tea.Cmd, len(m.inputs()))
-			for i := 0; i < len(m.inputs()); i++ {
-				if i == m.focusIndex {
-					cmds[i] = m.inputs()[i].Focus()
-					continue
-				}
-				m.inputs()[i].Blur()
-			}
-
-			return m, tea.Batch(cmds...)
 		}
+
+		if m.currentState == gpuPickerState {
+			var cmd tea.Cmd
+			m.gpuPicker, cmd = m.gpuPicker.Update(msg)
+			
+			if m.gpuPicker.SelectedConfig() != nil {
+				m.selectedGPUConfig = m.gpuPicker.SelectedConfig()
+				m.currentState = namePickerState
+				return m, runNamePicker()
+			}
+			
+			if m.gpuPicker.Quitting() {
+				return m, tea.Quit
+			}
+			
+			return m, cmd
+		}
+
+	case nameSelectedMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		m.instanceName = msg.name
+		m.currentState = confirmationState
+		return m, nil
 
 	case workspaceCreatedMsg:
 		m.creating = false
@@ -142,24 +173,7 @@ func (m createModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// Handle character input and blinking
-	cmd = m.updateInputs(msg)
-
-	return m, cmd
-}
-
-func (m *createModel) inputs() []textinput.Model {
-	return []textinput.Model{m.nameInput, m.gpuTypeInput}
-}
-
-func (m *createModel) updateInputs(msg tea.Msg) tea.Cmd {
-	var cmds = make([]tea.Cmd, len(m.inputs()))
-
-	for i := range m.inputs() {
-		m.inputs()[i], cmds[i] = m.inputs()[i].Update(msg)
-	}
-
-	return tea.Batch(cmds...)
+	return m, nil
 }
 
 func (m createModel) View() string {
@@ -167,44 +181,45 @@ func (m createModel) View() string {
 		return fmt.Sprintf("Created instance %s!\n\nPress 'tab' to switch back to list view.", m.createdWorkspace.Name)
 	}
 
-	var b strings.Builder
-
-	b.WriteString("Create a new GPU instance\n\n")
-
-	for i := range m.inputs() {
-		input := m.inputs()[i]
-
-		if i == m.focusIndex {
-			b.WriteString(focusedStyle.Render("> "))
-		} else {
-			b.WriteString("  ")
-		}
-
-		if i == 0 {
-			b.WriteString("Name: ")
-		} else {
-			b.WriteString("GPU Type: ")
-		}
-
-		b.WriteString(input.View())
-		b.WriteString("\n")
-	}
-
 	if m.err != nil {
-		b.WriteString(fmt.Sprintf("\nError: %v\n", m.err))
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color("203")).
+			Render(fmt.Sprintf("Error: %v\n\nPress ESC to go back or Tab to switch views", m.err))
 	}
 
-	if m.creating {
-		b.WriteString("\nCreating instance...")
-	} else {
-		button := "\n[ Create Instance ]"
-		if m.focusIndex == len(m.inputs())-1 {
-			button = focusedStyle.Render(button)
+	switch m.currentState {
+	case loadingState:
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#76B900")).
+			Render("Loading available GPU configurations...\n\nThis may take a few moments. If it takes too long, press ESC to go back.")
+
+	case gpuPickerState:
+		if m.gpuPicker.View() == "" {
+			return "Error: GPU picker view is empty. Press ESC to go back."
 		}
-		b.WriteString(button)
+		return m.gpuPicker.View()
+
+	case namePickerState:
+		return "Entering instance name..."
+
+	case confirmationState:
+		var b strings.Builder
+		b.WriteString(promptStyle.Render("Please confirm your instance details:"))
+		b.WriteString("\n\n")
+		b.WriteString("Name: " + focusedStyle.Render(m.instanceName))
+		b.WriteString("\n")
+		b.WriteString("GPU: " + focusedStyle.Render(fmt.Sprintf("%dx %s", m.selectedGPUConfig.Count, m.selectedGPUConfig.Type)))
+		b.WriteString("\n\n")
+		
+		if m.creating {
+			b.WriteString("Creating instance...")
+		} else {
+			b.WriteString(focusedStyle.Render("[ Create Instance ]"))
+			b.WriteString("\n\n")
+			b.WriteString(helpStyle.Render("Press Enter to create • ESC to go back • Tab to switch views"))
+		}
+		return b.String()
 	}
 
-	b.WriteString(helpStyle.Render("\n\nPress tab to switch fields • Enter to submit"))
-
-	return b.String()
+	return "Unknown state"
 } 

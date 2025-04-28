@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/tui/messages"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -69,20 +70,21 @@ var (
 )
 
 type model struct {
-	tabs            []string
-	activeTab       int
-	spinner         spinner.Model
-	loading         bool
-	loadingProgress int
-	ready          bool
-	width          int
-	height         int
-	store          *store.AuthHTTPStore
-	terminal       *terminal.Terminal
-	listModel      listModel
-	createModel    createModel
-	workspaces     []entity.Workspace
-	err            error
+	tabs             []string
+	activeTab        int
+	spinner          spinner.Model
+	loading          bool
+	loadingProgress  int
+	ready            bool
+	width            int
+	height           int
+	store            *store.AuthHTTPStore
+	terminal         *terminal.Terminal
+	listModel        listModel
+	createModel      createModel
+	workspaces       []entity.Workspace
+	instanceTypes    *store.InstanceTypeResponse
+	err              error
 }
 
 type workspacesLoadedMsg struct {
@@ -113,11 +115,10 @@ func fetchWorkspaces(s *store.AuthHTTPStore) tea.Cmd {
 
 func initialModel(s *store.AuthHTTPStore, t *terminal.Terminal) model {
 	sp := spinner.New()
-	sp.Spinner = spinner.Dot
-	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen))
+	sp.Spinner = spinner.Points
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	lm := newListModel()
-	lm.store = s
 
 	return model{
 		tabs:        []string{"List", "Create"},
@@ -137,6 +138,7 @@ func (m model) Init() tea.Cmd {
 		tea.EnterAltScreen,
 		startLoading(),
 		fetchWorkspaces(m.store),
+		messages.LoadInstanceTypes(m.store),
 	)
 }
 
@@ -149,6 +151,8 @@ func startLoading() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if !m.ready {
@@ -159,6 +163,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "tab":
 			m.activeTab = (m.activeTab + 1) % len(m.tabs)
+			if m.activeTab == 1 && m.instanceTypes != nil { // Create tab
+				m.createModel = m.createModel.SetInstanceTypes(m.instanceTypes)
+			}
 			return m, nil
 		case "shift+tab":
 			m.activeTab = (m.activeTab - 1 + len(m.tabs)) % len(m.tabs)
@@ -213,13 +220,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case messages.InstanceTypesLoadedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.instanceTypes = msg.Types
+		if m.activeTab == 1 { // If we're on the create tab
+			m.createModel = m.createModel.SetInstanceTypes(msg.Types)
+		}
+		return m, nil
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 func (m model) View() string {
