@@ -1,17 +1,29 @@
 package drew
 
 import (
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+var (
+	nvidiaGreenRGB = [3]int{118, 185, 0}
+	lightGrayRGB   = [3]int{204, 204, 204}
 )
 
 // NewOrgSelection creates a new organization pick list model.
 func NewOrgSelection() *OrgSelection {
 	// Create a custom delegate that doesn't quit on escape
-	delegate := list.NewDefaultDelegate()
+	orgSelection := &OrgSelection{}
+
+	delegate := orgListStyleDelegate{getPulseStep: func() int {
+		return orgSelection.orgPulseStep
+	}}
 
 	// Create a new list with no data yet
 	l := list.New([]list.Item{}, delegate, 50, 30)
@@ -25,7 +37,8 @@ func NewOrgSelection() *OrgSelection {
 	l.DisableQuitKeybindings()
 	l.SetSpinner(spinner.Points)
 
-	return &OrgSelection{orgPickListModel: l}
+	orgSelection.orgPickListModel = l
+	return orgSelection
 }
 
 // OrgSelection is a model that represents the organization pick list. Note that this is not a complete
@@ -34,6 +47,7 @@ func NewOrgSelection() *OrgSelection {
 type OrgSelection struct {
 	orgPickListModel list.Model
 	orgSelected      *orgListItem
+	orgPulseStep     int
 }
 
 // Selection returns the currently selected organization.
@@ -59,6 +73,61 @@ func (i orgListItem) Title() string       { return i.title }
 func (i orgListItem) Description() string { return i.desc }
 func (i orgListItem) FilterValue() string { return i.title }
 
+type orgListStyleDelegate struct {
+	getPulseStep func() int
+}
+
+func (d orgListStyleDelegate) Height() int                               { return 1 }
+func (d orgListStyleDelegate) Spacing() int                              { return 1 }
+func (d orgListStyleDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
+
+type tickMsg time.Time
+
+func tick() tea.Cmd {
+	return tea.Tick(time.Millisecond*100, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+func (d orgListStyleDelegate) Render(w io.Writer, m list.Model, index int, listItem list.Item) {
+	item, ok := listItem.(orgListItem)
+	if !ok {
+		return
+	}
+
+	maxStep := 30
+	step := d.getPulseStep() % maxStep
+
+	var t float64
+	if step < maxStep/2 {
+		t = float64(step) / float64(maxStep/2)
+	} else {
+		t = float64(maxStep-step) / float64(maxStep/2)
+	}
+	color := lerpColor(lightGrayRGB, nvidiaGreenRGB, t)
+
+	selectedStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Padding(0, 1).
+		Margin(0, 1).
+		Border(lipgloss.ThickBorder()).
+		BorderForeground(lipgloss.Color(color))
+
+	unselectedStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#AAAAAA")).
+		Padding(0, 1).
+		Margin(0, 1)
+
+	var renderedItem string
+	if index == m.Index() {
+		renderedItem = selectedStyle.Render(item.Title())
+	} else {
+		renderedItem = unselectedStyle.Render(item.Title())
+	}
+
+	fmt.Fprintf(w, "%s", renderedItem) //nolint: errcheck
+}
+
 type (
 	// OrgSelectionErrorMsg is a message that indicates an error occurred while fetching organizations.
 	OrgSelectionErrorMsg struct{ err error }
@@ -78,6 +147,10 @@ func (o *OrgSelection) Update(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case tickMsg:
+		o.orgPulseStep++
+		return tick()
+
 	case spinner.TickMsg:
 		// The org pick list spinner is still running, so we need to update the org pick list model to render the next frame
 		o.orgPickListModel, cmd = o.orgPickListModel.Update(msg)
@@ -129,9 +202,16 @@ func (o *OrgSelection) Update(msg tea.Msg) tea.Cmd {
 // are fetched. The returned command should be used to render the next frame for the spinner, and should
 // also be used to update the org pick list model when the organizations are fetched.
 func (o *OrgSelection) FetchOrgs() tea.Cmd {
+	// Start the spinner
 	startSpinnerCmd := o.orgPickListModel.StartSpinner()
+
+	// Fetch the organizations
 	fetchOrgsCmd := cmdFetchOrgs()
-	return tea.Batch(startSpinnerCmd, fetchOrgsCmd)
+
+	// Tick the pulse step
+	tickCmd := tick()
+
+	return tea.Batch(startSpinnerCmd, fetchOrgsCmd, tickCmd)
 }
 
 type organization struct {
@@ -164,4 +244,20 @@ func cmdFetchOrgs() tea.Cmd {
 			{Name: "Organization 12", Description: "Twelfth organization"},
 		}, err: nil}
 	}
+}
+
+func lerpColor(from, to [3]int, t float64) string {
+	clamp := func(v int) int {
+		if v < 0 {
+			return 0
+		}
+		if v > 255 {
+			return 255
+		}
+		return v
+	}
+	r := clamp(int(float64(from[0])*(1-t) + float64(to[0])*t))
+	g := clamp(int(float64(from[1])*(1-t) + float64(to[1])*t))
+	b := clamp(int(float64(from[2])*(1-t) + float64(to[2])*t))
+	return fmt.Sprintf("#%02X%02X%02X", r, g, b)
 }
