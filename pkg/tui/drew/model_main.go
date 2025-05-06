@@ -15,7 +15,7 @@ var (
 	titleStyle = func() lipgloss.Style {
 		b := lipgloss.RoundedBorder()
 		b.Right = "├"
-		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
+		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1).Foreground(textColorDimmedDescription)
 	}()
 
 	infoStyle = func() lipgloss.Style {
@@ -195,13 +195,9 @@ func (m *MainModel) onWindowSizeChange(msg tea.WindowSizeMsg) {
 	footerHeight := lipgloss.Height(m.footerView())
 	contentHeight := msg.Height - headerHeight - footerHeight
 
-	// Resize the envSelection (background content)
 	m.envSelection.SetWidth(msg.Width)
 	m.envSelection.SetHeight(contentHeight)
 
-	// Resize the orgSelection modal (centered overlay)
-	// You can set a fixed width or clamp it as needed
-
 	m.orgSelection.SetWidth(min(msg.Width, 30))
-	m.orgSelection.SetHeight(min(contentHeight-4, 30))
+	m.orgSelection.SetHeight(min(contentHeight-4, 30)) // keep a small amount of padding for the height
 }
