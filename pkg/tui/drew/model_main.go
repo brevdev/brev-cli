@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
@@ -43,11 +42,12 @@ type MainModel struct {
 	suspending bool
 
 	// General viewport
-	viewport viewport.Model
+	// viewport viewport.Model
 
 	// Org list Modal
 	renderOrgPickList bool
 	orgSelection      *OrgSelection
+	envSelection      *EnvSelection
 }
 
 func (m *MainModel) View() string {
@@ -62,21 +62,24 @@ func (m *MainModel) View() string {
 	if m.renderOrgPickList {
 		// We are rendering the org pick list modal, which should be centered in the viewport
 		// TODO: figure out how to render this "on top" of the viewport, rather than replacing it
-		h := m.orgSelection.Height()
-		w := m.orgSelection.Width()
-		marginTop := (m.viewport.Height / 2) - (h / 2)
-		marginLeft := (m.viewport.Width / 2) - (w / 2)
-		marginBottom := m.viewport.Height - marginTop - h - 2
+		// h := m.orgSelection.Height()
+		// w := m.orgSelection.Width()
+		// marginTop := (m.envSelection.Height() / 2) - (h / 2)
+		// marginLeft := (m.envSelection.Width() / 2) - (w / 2)
+		// marginBottom := m.envSelection.Height() - marginTop - h - 2
 		content = lipgloss.NewStyle().
-			Height(h).
-			Width(w).
-			MarginTop(marginTop).
-			MarginLeft(marginLeft).
-			MarginBottom(marginBottom).
-			Border(lipgloss.RoundedBorder()).
-			Render(m.orgSelection.View())
+			Align(lipgloss.Center).
+			AlignVertical(lipgloss.Center).
+			Height(m.envSelection.Height()). // match background height
+			Width(m.envSelection.Width()).   // match background width
+			Render(
+				lipgloss.NewStyle().
+					Border(lipgloss.RoundedBorder()).
+					Padding(1, 2).
+					Render(m.orgSelection.View()),
+			)
 	} else {
-		content = m.viewport.View()
+		content = m.envSelection.View()
 	}
 
 	/**
@@ -95,20 +98,20 @@ func (m *MainModel) headerView() string {
 		titleStr = titleStr + " | " + m.orgSelection.Selection().Title()
 	}
 	title := titleStyle.Render(titleStr)
-	line := strings.Repeat("─", max(0, m.viewport.Width-lipgloss.Width(title)))
+	line := strings.Repeat("─", max(0, m.envSelection.Width()-lipgloss.Width(title)))
 	return lipgloss.JoinHorizontal(lipgloss.Center, title, line)
 }
 
 func (m *MainModel) footerView() string {
 	help := helpStyle.Render("q/esc: exit • o: select org")
-	return footerStyle.Width(m.viewport.Width).Render(
+	return footerStyle.Width(m.envSelection.Width()).Render(
 		help,
 	)
 }
 
 func (m *MainModel) Init() tea.Cmd {
 	m.orgSelection = NewOrgSelection()
-
+	m.envSelection = NewEnvSelection()
 	return nil
 }
 
@@ -140,53 +143,65 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Update the model's viewport on window size change
 		m.onWindowSizeChange(msg)
+		return m, nil
 	}
-
-	var cmd tea.Cmd
 
 	if m.renderOrgPickList {
 		// We are currently rendering the org pick list modal -- handle messages from and for its model
 		switch msg := msg.(type) {
 		case CloseOrgSelectionMsg:
+
 			// Close the org pick list modal without further processing
 			m.renderOrgPickList = false
+			if m.orgSelection.Selection() != nil {
+				cmd := m.envSelection.FetchEnvs(m.orgSelection.Selection().Organization.ID)
+				return m, cmd
+			}
 			return m, nil
 		case OrgSelectionErrorMsg:
+
 			// If there was an error fetching the orgs, quit the program
 			return m, tea.Quit // TODO: display the error or retry?
 		default:
+
 			// By default, pass the message to the org pick list model
-			cmd = m.orgSelection.Update(msg)
+			cmd := m.orgSelection.Update(msg)
 			return m, cmd
 		}
-	} else {
-		// We are not rendering the org pick list modal -- handle messages from and for the viewport
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc", "q":
-				// Quit the program
-				return m, tea.Quit
-			case "o":
-				// Indicate that we want to render the org pick list modal, and trigger the fetching of orgs
-				m.renderOrgPickList = true
-				cmd = m.orgSelection.FetchOrgs()
-
-				return m, cmd
-			}
-		default:
-			// By default, pass the message to the viewport
-			m.viewport, cmd = m.viewport.Update(msg)
-		}
-		return m, tea.Batch(cmd)
 	}
+
+	// We are not rendering the org pick list modal -- handle messages from and for the viewport
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc", "q":
+			// Quit the program
+			return m, tea.Quit
+		case "o":
+			// Indicate that we want to render the org pick list modal, and trigger the fetching of orgs
+			m.renderOrgPickList = true
+			cmd := m.orgSelection.FetchOrgs()
+			return m, cmd
+		}
+	}
+
+	// By default, pass the message to the env selection model
+	cmd := m.envSelection.Update(msg)
+	return m, cmd
 }
 
 func (m *MainModel) onWindowSizeChange(msg tea.WindowSizeMsg) {
 	headerHeight := lipgloss.Height(m.headerView())
 	footerHeight := lipgloss.Height(m.footerView())
-	verticalMarginHeight := headerHeight + footerHeight
+	contentHeight := msg.Height - headerHeight - footerHeight
 
-	m.viewport.Width = msg.Width
-	m.viewport.Height = msg.Height - verticalMarginHeight
+	// Resize the envSelection (background content)
+	m.envSelection.SetWidth(msg.Width)
+	m.envSelection.SetHeight(contentHeight)
+
+	// Resize the orgSelection modal (centered overlay)
+	// You can set a fixed width or clamp it as needed
+
+	m.orgSelection.SetWidth(min(msg.Width, 30))
+	m.orgSelection.SetHeight(min(contentHeight-4, 30))
 }
