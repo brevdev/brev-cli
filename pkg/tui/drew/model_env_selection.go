@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 )
@@ -14,37 +14,47 @@ import (
 func NewEnvSelection() *EnvSelection {
 	envSelection := &EnvSelection{}
 
-	columns := []table.Column{
-		{Title: "ID", Width: 10},
-		{Title: "Name", Width: 20},
-		{Title: "Description", Width: 30},
-	}
-	rows := []table.Row{}
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.NormalTitle = lipgloss.NewStyle().
+		Foreground(textColorNormalTitle).
+		Padding(0, 0, 0, 2)
 
-	envTable := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-	)
-	envTable.SetStyles(table.Styles{
-		Header: lipgloss.NewStyle().
-			Foreground(textColorNormalTitle).
-			Bold(true).
-			Padding(0, 0, 0, 2),
-		Selected: lipgloss.NewStyle().
-			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(borderColorSelected).
-			Foreground(textColorSelectedTitle).
-			Padding(0, 0, 0, 1),
-		Cell: table.DefaultStyles().Cell,
-	})
+	delegate.Styles.NormalDesc = delegate.Styles.NormalTitle.
+		Foreground(textColorNormalDescription)
+
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(borderColorSelected).
+		Foreground(textColorSelectedTitle).
+		Padding(0, 0, 0, 1)
+
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedTitle.
+		Foreground(textColorSelectedDescription)
+
+	delegate.Styles.DimmedTitle = lipgloss.NewStyle().
+		Foreground(textColorDimmedTitle).
+		Padding(0, 0, 0, 2)
+
+	delegate.Styles.DimmedDesc = delegate.Styles.DimmedTitle.
+		Foreground(textColorDimmedDescription)
+
+	delegate.Styles.FilterMatch = lipgloss.NewStyle().Underline(true)
+
+	list := list.New([]list.Item{}, delegate, 40, 20)
+
+	list.SetShowStatusBar(false)
+	list.SetShowTitle(false)
+	list.SetStatusBarItemName("environment", "environments")
+	list.SetFilteringEnabled(false)
+	list.SetShowHelp(false)
+	list.DisableQuitKeybindings()
 
 	envSpinner := spinner.New()
 	envSpinner.Spinner = spinner.Points
 	envSpinner.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#64748b"))
 
 	envSelection.loadingSpinner = envSpinner
-	envSelection.envTable = envTable
+	envSelection.envList = list
 	return envSelection
 }
 
@@ -52,7 +62,7 @@ func NewEnvSelection() *EnvSelection {
 // charmbracelet/bubbles/list.Model, but rather a wrapper around it that adds some additional functionality
 // while allowing for simplified use of the wrapped list.
 type EnvSelection struct {
-	envTable    table.Model
+	envList     list.Model
 	envSelected *environment
 
 	showLoadingSpinner bool
@@ -66,21 +76,31 @@ func (e *EnvSelection) Selection() *environment {
 
 // Width returns the width of the organization pick list.
 func (e *EnvSelection) Width() int {
-	return e.envTable.Width()
+	return e.envList.Width()
 }
 
 func (e *EnvSelection) SetWidth(width int) {
-	e.envTable.SetWidth(width)
+	e.envList.SetWidth(width)
 }
 
 // Height returns the height of the organization pick list.
 func (e *EnvSelection) Height() int {
-	return e.envTable.Height()
+	return e.envList.Height()
 }
 
 func (e *EnvSelection) SetHeight(height int) {
-	e.envTable.SetHeight(height)
+	e.envList.SetHeight(height)
 }
+
+type envListItem struct {
+	environment environment
+}
+
+func (e envListItem) Title() string { return fmt.Sprintf("%s", e.environment.Name) }
+func (e envListItem) Description() string {
+	return fmt.Sprintf("%s • %s • %s", e.environment.GPU, e.environment.CPU, e.environment.RAM)
+}
+func (e envListItem) FilterValue() string { return e.environment.Name }
 
 type (
 	// EnvSelectionErrorMsg is a message that indicates an error occurred while fetching environments.
@@ -97,8 +117,8 @@ func (e *EnvSelection) View() string {
 
 		// Create a vertically centered spinner box with full height
 		loadingBox := lipgloss.NewStyle().
-			Height(e.envTable.Height()). // Match the table height
-			Width(e.envTable.Width()).   // Match the table width
+			Height(e.envList.Height()). // Match the table height
+			Width(e.envList.Width()).   // Match the table width
 			Align(lipgloss.Center).
 			AlignVertical(lipgloss.Center).
 			Render(spinner)
@@ -106,14 +126,23 @@ func (e *EnvSelection) View() string {
 		return loadingBox
 	}
 
-	selected := e.envTable.SelectedRow()
+	var selected *environment
+	if e.envList.SelectedItem() == nil {
+		selected = nil
+	} else {
+		if selectedItem, ok := e.envList.SelectedItem().(envListItem); ok {
+			selected = &selectedItem.environment
+		} else {
+			selected = nil
+		}
+	}
 
 	left := lipgloss.NewStyle().
-		Width(e.envTable.Width() / 2).
-		Render(e.envTable.View())
+		Width(e.envList.Width() / 2).
+		Render(e.envList.View())
 
 	right := lipgloss.NewStyle().
-		Width(e.envTable.Width()/2).
+		Width(e.envList.Width()/2).
 		Padding(1, 0, 0, 1).
 		Border(lipgloss.RoundedBorder()).
 		Render(renderEnvDetails(selected))
@@ -121,11 +150,23 @@ func (e *EnvSelection) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 }
 
-func renderEnvDetails(selected []string) string {
-	if len(selected) == 0 {
+func renderEnvDetails(environment *environment) string {
+	if environment == nil {
 		return ""
 	}
-	return fmt.Sprintf("ID: %s\nName: %s\nDescription: %s", selected[0], selected[1], selected[2])
+	return lipgloss.NewStyle().
+		// Border(lipgloss.RoundedBorder()).
+		// BorderForeground(lipgloss.Color("#76b900")).
+		Padding(1, 2).
+		Width(60).
+		Render(fmt.Sprintf(`
+ID:     %s
+Name:   %s
+GPU:    %s
+CPU:    %s vCPU
+RAM:    %s
+Status: %s
+`, environment.ID, environment.Name, environment.GPU, environment.CPU, environment.RAM, environment.Status))
 }
 
 func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
@@ -144,19 +185,19 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 		}
 
 		// Insert the orgs into the org pick list model
-		envTableItems := make([]table.Row, len(msg.environments))
+		envListItems := make([]list.Item, len(msg.environments))
 		for i, env := range msg.environments {
-			envTableItems[i] = table.Row{env.ID, env.Name, env.Description}
+			envListItems[i] = envListItem{environment: env}
 		}
 
 		// Update the env pick list model with the new items
-		e.envTable.SetRows(envTableItems)
+		e.envList.SetItems(envListItems)
 
 		return nil
 
 	case tea.KeyMsg:
 		// Pass the key event to the env pick list model
-		e.envTable, cmd = e.envTable.Update(msg)
+		e.envList, cmd = e.envList.Update(msg)
 		return cmd
 
 	default:
@@ -174,7 +215,7 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 // are fetched. The returned command should be used to render the next frame for the spinner, and should
 // also be used to update the env pick list model when the environments are fetched.
 func (e *EnvSelection) FetchEnvs(organizationID string) tea.Cmd {
-	e.envTable.SetRows([]table.Row{})
+	e.envList.SetItems([]list.Item{})
 
 	// Fetch the organizations
 	fetchEnvsCmd := cmdFetchEnvs(organizationID)
@@ -187,9 +228,12 @@ func (e *EnvSelection) FetchEnvs(organizationID string) tea.Cmd {
 }
 
 type environment struct {
-	ID          string
-	Name        string
-	Description string
+	ID   string
+	Name string
+	GPU  string
+	CPU  string
+	RAM  string
+	Status string
 }
 
 type fetchEnvsMsg struct {
@@ -203,18 +247,18 @@ func cmdFetchEnvs(organizationID string) tea.Cmd {
 		time.Sleep(time.Second * 2)
 
 		return fetchEnvsMsg{environments: []environment{
-			{ID: "1", Name: "Environment 1", Description: "First environment"},
-			{ID: "2", Name: "Environment 2", Description: "Second environment"},
-			{ID: "3", Name: "Environment 3", Description: "Third environment"},
-			{ID: "4", Name: "Environment 4", Description: "Fourth environment"},
-			{ID: "5", Name: "Environment 5", Description: "Fifth environment"},
-			{ID: "6", Name: "Environment 6", Description: "Sixth environment"},
-			{ID: "7", Name: "Environment 7", Description: "Seventh environment"},
-			{ID: "8", Name: "Environment 8", Description: "Eighth environment"},
-			{ID: "9", Name: "Environment 9", Description: "Ninth environment"},
-			{ID: "10", Name: "Environment 10", Description: "Tenth environment"},
-			{ID: "11", Name: "Environment 11", Description: "Eleventh environment"},
-			{ID: "12", Name: "Environment 12", Description: "Twelfth environment"},
+			{ID: "1", Name: "Environment 1", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "2", Name: "Environment 2", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "3", Name: "Environment 3", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "4", Name: "Environment 4", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "5", Name: "Environment 5", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "6", Name: "Environment 6", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "7", Name: "Environment 7", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "8", Name: "Environment 8", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "9", Name: "Environment 9", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "10", Name: "Environment 10", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "11", Name: "Environment 11", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
+			{ID: "12", Name: "Environment 12", GPU: "NVIDIA A100", CPU: "Intel(R) Xeon(R) CPU @ 2.20GHz", RAM: "128GB", Status: "Running"},
 		}, err: nil}
 	}
 }
