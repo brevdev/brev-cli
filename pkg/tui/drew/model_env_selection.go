@@ -138,12 +138,11 @@ func (e *EnvSelection) View() string {
 	}
 
 	left := lipgloss.NewStyle().
-		Width(e.envList.Width() / 2).
+		Width(int(float64(e.envList.Width()) * 0.4)).
 		Render(e.envList.View())
 
 	right := lipgloss.NewStyle().
-		Width(e.envList.Width()/2).
-		Padding(1, 0, 0, 1).
+		Width(int(float64(e.envList.Width()) * 0.6)).
 		Border(lipgloss.RoundedBorder()).
 		Render(renderEnvDetails(selected))
 
@@ -155,8 +154,6 @@ func renderEnvDetails(environment *environment) string {
 		return ""
 	}
 	return lipgloss.NewStyle().
-		// Border(lipgloss.RoundedBorder()).
-		// BorderForeground(lipgloss.Color("#76b900")).
 		Padding(1, 2).
 		Width(60).
 		Render(fmt.Sprintf(`
@@ -190,6 +187,9 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 			envListItems[i] = envListItem{environment: env}
 		}
 
+		if len(envListItems) > 0 {
+			e.envList.SetShowStatusBar(true)
+		}
 		// Update the env pick list model with the new items
 		e.envList.SetItems(envListItems)
 
