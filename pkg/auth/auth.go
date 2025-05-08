@@ -187,7 +187,7 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 
 func shouldLogin() (bool, error) {
 	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
-	fmt.Print(color.YellowString("Would you like to log in to Brev? [y/n]: "))
+	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
 	text, err := reader.ReadString('\n')
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
