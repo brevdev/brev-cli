@@ -151,6 +151,11 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if !isAccessTokenValid && tokens.RefreshToken != "" {
 		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
 		if err != nil {
+			if strings.Contains(err.Error(), "UNAUTHORIZED") {
+				// Clear the expired tokens
+				_ = t.authStore.DeleteAuthTokens()
+				return "", &breverrors.SessionExpiredError{HasPreviousSession: true}
+			}
 			return "", breverrors.WrapAndTrace(err)
 		}
 		if tokens == nil {
@@ -182,7 +187,7 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 
 func shouldLogin() (bool, error) {
 	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
-	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+	fmt.Print(color.YellowString("Would you like to log in to Brev? [y/n]: "))
 	text, err := reader.ReadString('\n')
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)

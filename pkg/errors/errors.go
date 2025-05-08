@@ -130,6 +130,24 @@ func (d *DeclineToLoginError) Directive() string { return "log in to run this co
 
 var NetworkErrorMessage = "possible internet connection problem"
 
+type SessionExpiredError struct{
+	HasPreviousSession bool
+}
+
+func (e *SessionExpiredError) Error() string {
+	if e.HasPreviousSession {
+		return "Your session has expired due to inactivity"
+	}
+	return "You are not logged in"
+}
+
+func (e *SessionExpiredError) Directive() string {
+	if e.HasPreviousSession {
+		return "Please log in again to continue using the CLI"
+	}
+	return "Please log in to use the CLI"
+}
+
 type CredentialsFileNotFound struct{}
 
 func (e *CredentialsFileNotFound) Directive() string {
