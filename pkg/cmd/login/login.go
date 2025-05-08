@@ -193,7 +193,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 	return nil
 }
 
-func (o LoginOptions) handleOnboarding(user *entity.User, t *terminal.Terminal) error {
+func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) error {
 	// figure out if we should onboard the user
 	currentOnboardingStatus, err := user.GetOnboardingData()
 	if err != nil {
