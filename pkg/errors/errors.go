@@ -130,7 +130,7 @@ func (d *DeclineToLoginError) Directive() string { return "log in to run this co
 
 var NetworkErrorMessage = "possible internet connection problem"
 
-type SessionExpiredError struct{
+type SessionExpiredError struct {
 	HasPreviousSession bool
 }
 
