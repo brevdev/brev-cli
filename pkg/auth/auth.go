@@ -151,11 +151,6 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if !isAccessTokenValid && tokens.RefreshToken != "" {
 		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
 		if err != nil {
-			if strings.Contains(err.Error(), "UNAUTHORIZED") {
-				// Clear the expired tokens
-				_ = t.authStore.DeleteAuthTokens()
-				return "", &breverrors.SessionExpiredError{HasPreviousSession: true}
-			}
 			return "", breverrors.WrapAndTrace(err)
 		}
 		if tokens == nil {
