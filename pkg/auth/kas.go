@@ -52,9 +52,14 @@ func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*ent
 	splitRefreshToken := strings.Split(refreshToken, ":")
 	if len(splitRefreshToken) != 2 {
 		// Write the invalid refresh token to the specified file
-		_ = os.WriteFile("/.brev/.invalid-refresh-token", []byte(refreshToken), 0o600)
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			filePath := homeDir + "/.brev/.invalid-refresh-token"
+			_ = os.WriteFile(filePath, []byte(refreshToken), 0o600)
+		}
 		return nil, nil
 	}
+
 	sessionKey, deviceID := splitRefreshToken[0], splitRefreshToken[1]
 	token, err := a.retrieveIDToken(sessionKey, deviceID)
 	if err != nil && strings.Contains(err.Error(), "UNAUTHORIZED") {
