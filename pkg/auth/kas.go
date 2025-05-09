@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -50,7 +51,9 @@ func NewKasAuthenticator(email, baseURL, issuer string, shouldPromptEmail bool, 
 func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*entity.AuthTokens, error) {
 	splitRefreshToken := strings.Split(refreshToken, ":")
 	if len(splitRefreshToken) != 2 {
-		return nil, fmt.Errorf("invalid refresh token")
+		// Write the invalid refresh token to the specified file
+		_ = os.WriteFile("/.brev/.invalid-refresh-token", []byte(refreshToken), 0o600)
+		return nil, nil
 	}
 	sessionKey, deviceID := splitRefreshToken[0], splitRefreshToken[1]
 	token, err := a.retrieveIDToken(sessionKey, deviceID)
