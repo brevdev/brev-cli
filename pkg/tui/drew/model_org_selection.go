@@ -1,6 +1,7 @@
 package drew
 
 import (
+	"sort"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -196,22 +197,33 @@ type fetchOrgsMsg struct {
 
 func cmdFetchOrgs() tea.Cmd {
 	return func() tea.Msg {
-		// simulate loading
-		time.Sleep(time.Second * 2)
+		organizations := fetchOrgs()
 
-		return fetchOrgsMsg{organizations: []organization{
-			{ID: "1", Name: "Organization 1", Description: "First organization"},
-			{ID: "2", Name: "Organization 2", Description: "Second organization"},
-			{ID: "3", Name: "Organization 3", Description: "Third organization"},
-			{ID: "4", Name: "Organization 4", Description: "Fourth organization"},
-			{ID: "5", Name: "Organization 5", Description: "Fifth organization"},
-			{ID: "6", Name: "Organization 6", Description: "Sixth organization"},
-			{ID: "7", Name: "Organization 7", Description: "Seventh organization"},
-			{ID: "8", Name: "Organization 8", Description: "Eighth organization"},
-			{ID: "9", Name: "Organization 9", Description: "Ninth organization"},
-			{ID: "10", Name: "Organization 10", Description: "Tenth organization"},
-			{ID: "11", Name: "Organization 11", Description: "Eleventh organization"},
-			{ID: "12", Name: "Organization 12", Description: "Twelfth organization"},
-		}, err: nil}
+		// Sort the organizations by ID
+		sort.Slice(organizations, func(i, j int) bool {
+			return organizations[i].ID < organizations[j].ID
+		})
+
+		return fetchOrgsMsg{organizations: organizations, err: nil}
+	}
+}
+
+func fetchOrgs() []organization {
+	// simulate loading
+	time.Sleep(time.Second * 1)
+
+	return []organization{
+		{ID: "1", Name: "Organization 1", Description: "First organization"},
+		{ID: "2", Name: "Organization 2", Description: "Second organization"},
+		{ID: "3", Name: "Organization 3", Description: "Third organization"},
+		{ID: "4", Name: "Organization 4", Description: "Fourth organization"},
+		{ID: "5", Name: "Organization 5", Description: "Fifth organization"},
+		{ID: "6", Name: "Organization 6", Description: "Sixth organization"},
+		{ID: "7", Name: "Organization 7", Description: "Seventh organization"},
+		{ID: "8", Name: "Organization 8", Description: "Eighth organization"},
+		{ID: "9", Name: "Organization 9", Description: "Ninth organization"},
+		{ID: "10", Name: "Organization 10", Description: "Tenth organization"},
+		{ID: "11", Name: "Organization 11", Description: "Eleventh organization"},
+		{ID: "12", Name: "Organization 12", Description: "Twelfth organization"},
 	}
 }

@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	keywordStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Background(lipgloss.Color("235"))
-	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	keywordStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("204")).Background(lipgloss.Color("235"))
+	helpStyleDark  = lipgloss.NewStyle().Foreground(lipgloss.Color("239"))
+	helpStyleLight = lipgloss.NewStyle().Foreground(lipgloss.Color("243"))
 
 	titleStyle = func() lipgloss.Style {
 		b := lipgloss.RoundedBorder()
@@ -103,16 +104,38 @@ func (m *MainModel) headerView() string {
 }
 
 func (m *MainModel) footerView() string {
-	help := helpStyle.Render("q/esc: exit • o: select org")
-	return footerStyle.Width(m.envSelection.Width()).Render(
-		help,
-	)
+	helpTextEntries := []string{}
+	if m.renderOrgPickList {
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o/q/esc")+" "+helpStyleDark.Render("close window"))
+	} else if m.orgSelection.Selection() != nil {
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↑/k")+" "+helpStyleDark.Render("up"))
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↓/j")+" "+helpStyleDark.Render("down"))
+	} else {
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
+		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
+	}
+
+	// Join the help text entries with a " • " separator
+	helpText := strings.Join(helpTextEntries, helpStyleDark.Render(" • "))
+
+	return footerStyle.Width(m.envSelection.Width()).Render(helpText)
+}
+
+type initMsg struct{}
+
+func (m *MainModel) initCmd() tea.Cmd {
+	return func() tea.Msg { return initMsg{} }
 }
 
 func (m *MainModel) Init() tea.Cmd {
 	m.orgSelection = NewOrgSelection()
 	m.envSelection = NewEnvSelection()
-	return nil
+
+	// TODO: if not default org is found (read from ~/.brev), submit the init command
+	cmd := m.initCmd()
+	return cmd
 }
 
 func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -144,6 +167,13 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update the model's viewport on window size change
 		m.onWindowSizeChange(msg)
 		return m, nil
+
+	case initMsg:
+
+		// If the program is being initialized, render the org pick list modal and fetch the orgs
+		m.renderOrgPickList = true
+		cmd := m.orgSelection.FetchOrgs()
+		return m, cmd
 	}
 
 	if m.renderOrgPickList {
