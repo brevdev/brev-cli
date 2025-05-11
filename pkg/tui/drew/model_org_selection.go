@@ -92,6 +92,12 @@ func (o *OrgSelection) Height() int {
 	return o.orgPickListModel.Height()
 }
 
+func (e *OrgSelection) HelpTextEntries() [][]string {
+	return [][]string{
+		{"o/q/esc", "close window"},
+	}
+}
+
 type orgListItem struct {
 	Organization organization
 }

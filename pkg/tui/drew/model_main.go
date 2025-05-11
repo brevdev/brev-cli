@@ -106,15 +106,13 @@ func (m *MainModel) headerView() string {
 func (m *MainModel) footerView() string {
 	helpTextEntries := []string{}
 	if m.renderOrgPickList {
-		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o/q/esc")+" "+helpStyleDark.Render("close window"))
+		for _, entry := range m.orgSelection.HelpTextEntries() {
+			helpTextEntries = append(helpTextEntries, helpStyleLight.Render(entry[0])+" "+helpStyleDark.Render(entry[1]))
+		}
 	} else if m.orgSelection.Selection() != nil {
 		for _, entry := range m.envSelection.HelpTextEntries() {
 			helpTextEntries = append(helpTextEntries, helpStyleLight.Render(entry[0])+" "+helpStyleDark.Render(entry[1]))
 		}
-		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
-		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
-		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↑/k")+" "+helpStyleDark.Render("up"))
-		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↓/j")+" "+helpStyleDark.Render("down"))
 	} else {
 		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
 		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
