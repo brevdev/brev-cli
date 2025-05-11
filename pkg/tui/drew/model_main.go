@@ -108,10 +108,13 @@ func (m *MainModel) footerView() string {
 	if m.renderOrgPickList {
 		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o/q/esc")+" "+helpStyleDark.Render("close window"))
 	} else if m.orgSelection.Selection() != nil {
-		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
-		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
-		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↑/k")+" "+helpStyleDark.Render("up"))
-		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↓/j")+" "+helpStyleDark.Render("down"))
+		for _, entry := range m.envSelection.HelpTextEntries() {
+			helpTextEntries = append(helpTextEntries, helpStyleLight.Render(entry[0])+" "+helpStyleDark.Render(entry[1]))
+		}
+		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
+		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
+		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↑/k")+" "+helpStyleDark.Render("up"))
+		// helpTextEntries = append(helpTextEntries, helpStyleLight.Render("↓/j")+" "+helpStyleDark.Render("down"))
 	} else {
 		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("q/esc")+" "+helpStyleDark.Render("exit"))
 		helpTextEntries = append(helpTextEntries, helpStyleLight.Render("o")+" "+helpStyleDark.Render("select org"))
@@ -133,7 +136,7 @@ func (m *MainModel) Init() tea.Cmd {
 	m.orgSelection = NewOrgSelection()
 	m.envSelection = NewEnvSelection()
 
-	// TODO: if not default org is found (read from ~/.brev), submit the init command
+	// TODO: if not default org is found (read from ~/.brev), submit the init commandø
 	cmd := m.initCmd()
 	return cmd
 }
@@ -223,11 +226,13 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *MainModel) onWindowSizeChange(msg tea.WindowSizeMsg) {
 	headerHeight := lipgloss.Height(m.headerView())
 	footerHeight := lipgloss.Height(m.footerView())
-	contentHeight := msg.Height - headerHeight - footerHeight
+	contentHeight := msg.Height - headerHeight - footerHeight - 4 // 4 is the padding between the header and footer
 
 	m.envSelection.SetWidth(msg.Width)
 	m.envSelection.SetHeight(contentHeight)
 
+	// Clamp the width and height to 30 to shrink its dimensions. Without this, the org selection model defaults to a very wide area,
+	// then is shrunk to fit the content, which is a jarring experience.
 	m.orgSelection.SetWidth(min(msg.Width, 30))
-	m.orgSelection.SetHeight(min(contentHeight-4, 30)) // keep a small amount of padding for the height
+	m.orgSelection.SetHeight(min(contentHeight, 30))
 }

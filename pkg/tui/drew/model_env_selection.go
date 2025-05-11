@@ -6,8 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zhengkyl/pearls/scrollbar"
+
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 	lipgloss_table "github.com/charmbracelet/lipgloss/table"
@@ -48,7 +52,7 @@ func NewEnvSelection() *EnvSelection {
 
 	delegate.Styles.FilterMatch = lipgloss.NewStyle().Underline(true)
 
-	list := list.New([]list.Item{}, delegate, 40, 20)
+	list := list.New([]list.Item{}, delegate, 0, 0)
 	list.SetShowStatusBar(false)
 	list.SetShowTitle(false)
 	list.SetStatusBarItemName("environment", "environments")
@@ -56,6 +60,23 @@ func NewEnvSelection() *EnvSelection {
 	list.SetShowHelp(false)
 	list.DisableQuitKeybindings()
 	envSelection.envList = list
+
+	envSelectedViewport := viewport.New(100, 50)
+	envSelectedViewport.KeyMap = viewport.KeyMap{
+		Up: key.NewBinding(
+			key.WithKeys("ctrl+k"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("ctrl+j"),
+		),
+		HalfPageUp: key.NewBinding(
+			key.WithKeys("ctrl+u"),
+		),
+		HalfPageDown: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+		),
+	}
+	envSelection.envSelectedViewport = envSelectedViewport
 
 	envStatusSpinner := spinner.New(
 		spinner.WithSpinner(spinner.MiniDot),
@@ -75,8 +96,8 @@ func NewEnvSelection() *EnvSelection {
 // charmbracelet/bubbles/list.Model, but rather a wrapper around it that adds some additional functionality
 // while allowing for simplified use of the wrapped list.
 type EnvSelection struct {
-	envList     list.Model
-	envSelected *Environment
+	envList             list.Model
+	envSelectedViewport viewport.Model
 
 	// A spinner model to use when rendering containers or environments
 	statusSpinner spinner.Model
@@ -86,9 +107,17 @@ type EnvSelection struct {
 	loadingSpinner     spinner.Model
 }
 
-// Selection returns the currently selected environment.
-func (e *EnvSelection) Selection() *Environment {
-	return e.envSelected
+func (e *EnvSelection) HelpTextEntries() [][]string {
+	return [][]string{
+		{"q/esc", "exit"},
+		{"o", "select org"},
+		{"↑/k", "up"},
+		{"↓/j", "down"},
+		{"ctrl+k", "details up"},
+		{"ctrl+j", "details down"},
+		{"ctrl+u", "details page up"},
+		{"ctrl+d", "details page down"},
+	}
 }
 
 // Width returns the width of the organization pick list.
@@ -98,6 +127,7 @@ func (e *EnvSelection) Width() int {
 
 func (e *EnvSelection) SetWidth(width int) {
 	e.envList.SetWidth(width)
+	e.envSelectedViewport.Width = width
 }
 
 // Height returns the height of the organization pick list.
@@ -106,7 +136,8 @@ func (e *EnvSelection) Height() int {
 }
 
 func (e *EnvSelection) SetHeight(height int) {
-	e.envList.SetHeight(height)
+	e.envList.SetHeight(height + 4)
+	e.envSelectedViewport.Height = height
 }
 
 type envListItem struct {
@@ -171,19 +202,42 @@ func (e *EnvSelection) View() string {
 			selected = nil
 		}
 	}
-	envListViewWidth := int(float64(e.envList.Width()) * 0.4)
-	envDetailsViewWidth := int(float64(e.envList.Width()) * 0.59)
 
+	// The list view should represent 40% of the total width.
+	envListViewWidth := int(float64(e.envList.Width()) * 0.4)
+
+	// The details view should represent 60% (59% because of rounding) of the total width. 
+	// Why the "-4"? The scrollbar has limited  capabilities for width rendering, so we
+	// save 4 columns for it... hacky!
+	envDetailsViewWidth := int(float64(e.envList.Width()-4) * 0.59)
+
+	// Fill the details view with the selected environment details
+	e.envSelectedViewport.SetContent(e.renderEnvDetails(selected, envDetailsViewWidth))
+
+	// Render the list view
 	envListView := lipgloss.NewStyle().
 		Width(envListViewWidth).
 		Render(e.envList.View())
 
+	// Render the details view
 	envDetailsView := lipgloss.NewStyle().
 		Width(envDetailsViewWidth).
 		Border(lipgloss.RoundedBorder()).
-		Render(e.renderEnvDetails(selected, envDetailsViewWidth))
+		Render(e.envSelectedViewport.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, envListView, envDetailsView)
+	// Render the scrollbar
+	scrollbar := scrollbar.New()
+	scrollbar.Height = e.envSelectedViewport.Height + 2 // +2 because the scrollbar is dumb and wants to preserve 2 rows for itself. Another hack
+	if e.envSelectedViewport.AtTop() && e.envSelectedViewport.AtBottom() {
+		scrollbar.NumPos = 0
+		scrollbar.Pos = 0
+	} else {
+		scrollbar.NumPos = 30
+		scrollbar.Pos = int(e.envSelectedViewport.ScrollPercent() * 30)
+	}
+
+	// Join the list view, details view, and scrollbar horizontally
+	return lipgloss.JoinHorizontal(lipgloss.Top, envListView, lipgloss.JoinHorizontal(lipgloss.Right, envDetailsView, scrollbar.View()))
 }
 
 func (e *EnvSelection) renderEnvDetails(environment *Environment, width int) string {
@@ -277,33 +331,11 @@ func (e *EnvSelection) renderEnvDetails(environment *Environment, width int) str
 		// Finalize the table and convert to a string
 		tunnelsTable = "\n\n\n" + table.Rows(rows...).Render()
 	}
+
 	return fmt.Sprintf("%s\n\n\n%s%s%s%s", basicInfoTable, instanceConfigurationTable, portsTable, tunnelsTable, containersTable)
 }
 
 func dataTable() *lipgloss_table.Table {
-	return lipgloss_table.New().
-		Border(lipgloss.Border{
-			Top:          "─",
-			Bottom:       "─",
-			Left:         " ",
-			Right:        " ",
-			TopLeft:      " ",
-			TopRight:     " ",
-			BottomLeft:   " ",
-			BottomRight:  " ",
-			MiddleLeft:   " ",
-			MiddleRight:  " ",
-			Middle:       " ",
-			MiddleTop:    " ",
-			MiddleBottom: " ",
-		}).
-		BorderRow(true).
-		BorderColumn(false).
-		BorderTop(false).
-		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("238")))
-}
-
-func table() *lipgloss_table.Table {
 	return lipgloss_table.New().
 		Border(lipgloss.Border{
 			Top:          "─",
@@ -356,9 +388,25 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case tea.KeyMsg:
-		// Pass the key event to the env pick list model
+		// We need to know if the user has changed the selection in the env list. If they have, we then need
+		// to scroll to the top of the viewport, otherwise the viewport will remember the previous scroll position.
+		previousSelection := e.envList.SelectedItem().(envListItem).environment.ID
+
+		// Pass the key event to the env pick list model to allow for environment selection
+		var keyCmds []tea.Cmd
 		e.envList, cmd = e.envList.Update(msg)
-		return cmd
+		keyCmds = append(keyCmds, cmd)
+
+		// If the selection has changed, scroll to the top of the viewport
+		if previousSelection != e.envList.SelectedItem().(envListItem).environment.ID {
+			e.envSelectedViewport.SetYOffset(0)
+		}
+
+		// Pass the key event to the env selection viewport to allow for viewport navigation
+		e.envSelectedViewport, cmd = e.envSelectedViewport.Update(msg)
+		keyCmds = append(keyCmds, cmd)
+
+		return tea.Batch(keyCmds...)
 
 	case spinner.TickMsg:
 		if msg.ID == e.statusSpinner.ID() {
