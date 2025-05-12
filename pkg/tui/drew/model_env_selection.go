@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	overlay "github.com/rmhubbert/bubbletea-overlay"
 	"github.com/zhengkyl/pearls/scrollbar"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -89,22 +90,46 @@ func NewEnvSelection() *EnvSelection {
 	)
 	envSelection.loadingSpinner = envSpinner
 
+	envDetailsModal := overlay.New(
+		nil,
+		nil,
+		overlay.Center,
+		overlay.Center,
+		0,
+		0,
+	)
+	envSelection.modal = envDetailsModal
+
 	return envSelection
 }
+
+type envSelectionState int
+
+const (
+	envLoadingState envSelectionState = iota
+	envListState
+	envModalState
+)
 
 // EnvSelection is a model that represents the environment pick list. Note that this is not a complete
 // charmbracelet/bubbles/list.Model, but rather a wrapper around it that adds some additional functionality
 // while allowing for simplified use of the wrapped list.
 type EnvSelection struct {
+	// The primary "list"
 	envList             list.Model
 	envSelectedViewport viewport.Model
 
 	// A spinner model to use when rendering containers or environments
 	statusSpinner spinner.Model
 
+	// An overlay modal to display the environment details
+	modal *overlay.Model
+
 	// A spinner model to use when fetching environments
-	showLoadingSpinner bool
-	loadingSpinner     spinner.Model
+	loadingSpinner spinner.Model
+
+	// The current state of the environment selection model
+	state envSelectionState
 }
 
 func (e *EnvSelection) HelpTextEntries() [][]string {
@@ -178,20 +203,47 @@ func envSelectionErrorCmd(err error) tea.Cmd {
 }
 
 func (e *EnvSelection) View() string {
-	if e.showLoadingSpinner {
-		spinner := fmt.Sprintf("Loading environments %s", e.loadingSpinner.View())
-
-		// Create a vertically centered spinner box with full height
-		loadingBox := lipgloss.NewStyle().
-			Height(e.envList.Height()). // Match the table height
-			Width(e.envList.Width()).   // Match the table width
-			Align(lipgloss.Center).
-			AlignVertical(lipgloss.Center).
-			Render(spinner)
-
-		return loadingBox
+	if e.state == envLoadingState {
+		return e.loadingView()
+	} else if e.state == envModalState {
+		return e.modalView()
+	} else {
+		return e.listView()
 	}
+}
 
+func (e *EnvSelection) loadingView() string {
+	spinner := fmt.Sprintf("Loading environments %s", e.loadingSpinner.View())
+
+	// Create a vertically centered spinner box with full height
+	loadingBox := lipgloss.NewStyle().
+		Height(e.envList.Height()). // Match the table height
+		Width(e.envList.Width()).   // Match the table width
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(spinner)
+
+	return loadingBox
+}
+
+func (e *EnvSelection) modalView() string {
+	e.modal.Background = StringModel{content: e.listView()}
+
+	foreStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder(), true).
+		BorderForeground(lipgloss.Color("6")).
+		Padding(0, 1)
+
+	boldStyle := lipgloss.NewStyle().Bold(true)
+	title := boldStyle.Render("Bubble Tea Overlay")
+	content := "Hello! I'm in a modal window.\n\nPress <space> to close the window."
+	layout := lipgloss.JoinVertical(lipgloss.Left, title, content)
+
+	e.modal.Foreground = StringModel{content: foreStyle.Render(layout)}
+	return e.modal.View()
+}
+
+func (e *EnvSelection) listView() string {
 	var selected *Environment
 	if e.envList.SelectedItem() == nil {
 		selected = nil
@@ -206,7 +258,7 @@ func (e *EnvSelection) View() string {
 	// The list view should represent 40% of the total width.
 	envListViewWidth := int(float64(e.envList.Width()) * 0.4)
 
-	// The details view should represent 60% (59% because of rounding) of the total width. 
+	// The details view should represent 60% (59% because of rounding) of the total width.
 	// Why the "-4"? The scrollbar has limited  capabilities for width rendering, so we
 	// save 4 columns for it... hacky!
 	envDetailsViewWidth := int(float64(e.envList.Width()-4) * 0.59)
@@ -366,8 +418,8 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 	case fetchEnvsMsg:
 		// The orgs have been fetched, so we need to update the org pick list model
 
-		// Disable the loading spinner
-		e.showLoadingSpinner = false
+		// Display the main list state
+		e.state = envListState
 
 		if msg.err != nil {
 			return envSelectionErrorCmd(msg.err)
@@ -388,36 +440,50 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 		return nil
 
 	case tea.KeyMsg:
-		// We need to know if the user has changed the selection in the env list. If they have, we then need
-		// to scroll to the top of the viewport, otherwise the viewport will remember the previous scroll position.
-		previousSelection := e.envList.SelectedItem().(envListItem).environment.ID
-
-		// Pass the key event to the env pick list model to allow for environment selection
-		var keyCmds []tea.Cmd
-		e.envList, cmd = e.envList.Update(msg)
-		keyCmds = append(keyCmds, cmd)
-
-		// If the selection has changed, scroll to the top of the viewport
-		if previousSelection != e.envList.SelectedItem().(envListItem).environment.ID {
-			e.envSelectedViewport.SetYOffset(0)
+		switch msg.String() {
+		case " ":
+			if e.state == envListState {
+				e.state = envModalState
+			} else if e.state == envModalState {
+				e.state = envListState
+			}
+			return nil
 		}
-
-		// Pass the key event to the env selection viewport to allow for viewport navigation
-		e.envSelectedViewport, cmd = e.envSelectedViewport.Update(msg)
-		keyCmds = append(keyCmds, cmd)
-
-		return tea.Batch(keyCmds...)
-
 	case spinner.TickMsg:
 		if msg.ID == e.statusSpinner.ID() {
 			e.statusSpinner, cmd = e.statusSpinner.Update(msg)
 			return cmd
 		}
-		if msg.ID == e.loadingSpinner.ID() && e.showLoadingSpinner {
+		if msg.ID == e.loadingSpinner.ID() && e.state == envLoadingState {
 			e.loadingSpinner, cmd = e.loadingSpinner.Update(msg)
 			return cmd
 		}
 	}
+
+	if e.state == envModalState {
+		e.modal.Foreground, cmd = e.modal.Foreground.Update(msg)
+		return cmd
+	}
+
+	// We need to know if the user has changed the selection in the env list. If they have, we then need
+	// to scroll to the top of the viewport, otherwise the viewport will remember the previous scroll position.
+	previousSelection := e.envList.SelectedItem().(envListItem).environment.ID
+
+	// Pass the key event to the env pick list model to allow for environment selection
+	var keyCmds []tea.Cmd
+	e.envList, cmd = e.envList.Update(msg)
+	keyCmds = append(keyCmds, cmd)
+
+	// If the selection has changed, scroll to the top of the viewport
+	if previousSelection != e.envList.SelectedItem().(envListItem).environment.ID {
+		e.envSelectedViewport.SetYOffset(0)
+	}
+
+	// Pass the key event to the env selection viewport to allow for viewport navigation
+	e.envSelectedViewport, cmd = e.envSelectedViewport.Update(msg)
+	keyCmds = append(keyCmds, cmd)
+
+	return tea.Batch(keyCmds...)
 
 	return cmd
 }
@@ -433,7 +499,7 @@ func (e *EnvSelection) FetchEnvs(organizationID string) tea.Cmd {
 	fetchEnvsCmd := cmdFetchEnvs(organizationID)
 
 	// Start the spinner
-	e.showLoadingSpinner = true
+	e.state = envLoadingState
 	loadingSpinnerCmd := e.loadingSpinner.Tick
 
 	// Start the env status spinner

@@ -42,9 +42,6 @@ type MainModel struct {
 	quitting   bool
 	suspending bool
 
-	// General viewport
-	// viewport viewport.Model
-
 	// Org list Modal
 	renderOrgPickList bool
 	orgSelection      *OrgSelection
