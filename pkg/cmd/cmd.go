@@ -44,6 +44,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
 	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -59,14 +60,16 @@ import (
 )
 
 var (
-	userFlag     string
-	printVersion bool
+	userFlag      string
+	printVersion  bool
+	noCheckLatest bool
 )
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "non root user to use for per user configuration of commands run as root")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
+	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 	return cmd
 }
 
@@ -187,6 +190,11 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printVersion {
+				if noCheckLatest {
+					// Only print the current version, no network call
+					t.Vprint(fmt.Sprintf("Current Version: %s", version.Version))
+					return nil
+				}
 				v, err := remoteversion.BuildVersionString(t, noAuthCmdStore)
 				if err != nil {
 					t.Errprint(err, "Failed to determine version")
