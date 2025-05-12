@@ -56,6 +56,7 @@ func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*ent
 		if err == nil {
 			filePath := homeDir + "/.brev/.invalid-refresh-token"
 			_ = os.WriteFile(filePath, []byte(refreshToken), 0o600)
+			fmt.Println("WARN: malformed refresh token, logging out")
 		}
 		return nil, nil
 	}
