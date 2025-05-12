@@ -91,8 +91,8 @@ func NewEnvSelection() *EnvSelection {
 	envSelection.loadingSpinner = envSpinner
 
 	envDetailsModal := overlay.New(
-		nil,
-		nil,
+		NewEnvModal(),
+		NewPassthroughModel(),
 		overlay.Center,
 		overlay.Center,
 		0,
@@ -115,7 +115,7 @@ const (
 // charmbracelet/bubbles/list.Model, but rather a wrapper around it that adds some additional functionality
 // while allowing for simplified use of the wrapped list.
 type EnvSelection struct {
-	// The primary "list"
+	// The primary view
 	envList             list.Model
 	envSelectedViewport viewport.Model
 
@@ -153,6 +153,8 @@ func (e *EnvSelection) Width() int {
 func (e *EnvSelection) SetWidth(width int) {
 	e.envList.SetWidth(width)
 	e.envSelectedViewport.Width = width
+	
+	e.modal.Foreground.(*EnvModal).SetWidth(width)
 }
 
 // Height returns the height of the organization pick list.
@@ -163,6 +165,8 @@ func (e *EnvSelection) Height() int {
 func (e *EnvSelection) SetHeight(height int) {
 	e.envList.SetHeight(height + 4)
 	e.envSelectedViewport.Height = height
+
+	e.modal.Foreground.(*EnvModal).SetHeight(height)
 }
 
 type envListItem struct {
@@ -227,33 +231,11 @@ func (e *EnvSelection) loadingView() string {
 }
 
 func (e *EnvSelection) modalView() string {
-	e.modal.Background = StringModel{content: e.listView()}
-
-	foreStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color("6")).
-		Padding(0, 1)
-
-	boldStyle := lipgloss.NewStyle().Bold(true)
-	title := boldStyle.Render("Bubble Tea Overlay")
-	content := "Hello! I'm in a modal window.\n\nPress <space> to close the window."
-	layout := lipgloss.JoinVertical(lipgloss.Left, title, content)
-
-	e.modal.Foreground = StringModel{content: foreStyle.Render(layout)}
 	return e.modal.View()
 }
 
 func (e *EnvSelection) listView() string {
-	var selected *Environment
-	if e.envList.SelectedItem() == nil {
-		selected = nil
-	} else {
-		if selectedItem, ok := e.envList.SelectedItem().(envListItem); ok {
-			selected = &selectedItem.environment
-		} else {
-			selected = nil
-		}
-	}
+	environment := e.getSelectedEnvironment()
 
 	// The list view should represent 40% of the total width.
 	envListViewWidth := int(float64(e.envList.Width()) * 0.4)
@@ -264,7 +246,7 @@ func (e *EnvSelection) listView() string {
 	envDetailsViewWidth := int(float64(e.envList.Width()-4) * 0.59)
 
 	// Fill the details view with the selected environment details
-	e.envSelectedViewport.SetContent(e.renderEnvDetails(selected, envDetailsViewWidth))
+	e.envSelectedViewport.SetContent(e.renderEnvDetails(environment, envDetailsViewWidth))
 
 	// Render the list view
 	envListView := lipgloss.NewStyle().
@@ -290,6 +272,20 @@ func (e *EnvSelection) listView() string {
 
 	// Join the list view, details view, and scrollbar horizontally
 	return lipgloss.JoinHorizontal(lipgloss.Top, envListView, lipgloss.JoinHorizontal(lipgloss.Right, envDetailsView, scrollbar.View()))
+}
+
+func (e *EnvSelection) getSelectedEnvironment() *Environment {
+	var selected *Environment
+	if e.envList.SelectedItem() == nil {
+		selected = nil
+	} else {
+		if selectedItem, ok := e.envList.SelectedItem().(envListItem); ok {
+			selected = &selectedItem.environment
+		} else {
+			selected = nil
+		}
+	}
+	return selected
 }
 
 func (e *EnvSelection) renderEnvDetails(environment *Environment, width int) string {
@@ -420,7 +416,7 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 
 		// Display the main list state
 		e.state = envListState
-
+		
 		if msg.err != nil {
 			return envSelectionErrorCmd(msg.err)
 		}
@@ -439,10 +435,24 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 
 		return nil
 
+	case envCommandMsg:
+		// The environment command has been completed. Exit the modal.
+		if msg.err != nil {
+			return envSelectionErrorCmd(msg.err)
+		}
+
+		e.state = envListState
+		return nil
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case " ":
 			if e.state == envListState {
+				// TODO: this actually shouldn't be the way the content is set. Intead of passing a string (which cannot be updated / can only be replaced)
+				// we need to pass in a Model that references all of the internal models (like spinners, lists, etc.). This way we can have Update() calls
+				// update the state of various objects, and have a later View() call on the modal that references the updated state.
+				e.modal.Background.(*PassthroughModel).SetContent(e.listView())
+				e.modal.Foreground.(*EnvModal).SetEnvironment(e.getSelectedEnvironment())
 				e.state = envModalState
 			} else if e.state == envModalState {
 				e.state = envListState
@@ -461,7 +471,10 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	if e.state == envModalState {
-		e.modal.Foreground, cmd = e.modal.Foreground.Update(msg)
+		foreground, cmd := e.modal.Foreground.Update(msg)
+		if envModal, ok := foreground.(*EnvModal); ok {
+			e.modal.Foreground = envModal
+		}
 		return cmd
 	}
 
@@ -484,8 +497,6 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 	keyCmds = append(keyCmds, cmd)
 
 	return tea.Batch(keyCmds...)
-
-	return cmd
 }
 
 // FetchEnvs fetches the environments and updates the env pick list model. This function automatically

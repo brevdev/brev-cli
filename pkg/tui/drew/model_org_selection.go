@@ -219,10 +219,10 @@ func fetchOrgs() []organization {
 	time.Sleep(time.Second * 1)
 
 	return []organization{
-		{ID: "1", Name: "Organization 1", Description: "First organization"},
-		{ID: "2", Name: "Organization 2", Description: "Second organization"},
-		{ID: "3", Name: "Organization 3", Description: "Third organization"},
-		{ID: "4", Name: "Organization 4", Description: "Fourth organization"},
+		{ID: "1", Name: "org 1", Description: "First organization"},
+		{ID: "2", Name: "brev-internal", Description: "Second organization"},
+		{ID: "3", Name: "my-cool-org", Description: "Third organization"},
+		{ID: "4", Name: "brev-load-testing", Description: "Fourth organization"},
 		{ID: "5", Name: "Organization 5", Description: "Fifth organization"},
 		{ID: "6", Name: "Organization 6", Description: "Sixth organization"},
 		{ID: "7", Name: "Organization 7", Description: "Seventh organization"},
