@@ -2,6 +2,7 @@ package drew
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -166,6 +167,7 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case initMsg:
+		log.Default().Println("initMsg received")
 
 		// If the program is being initialized, render the org pick list modal and fetch the orgs
 		m.renderOrgPickList = true

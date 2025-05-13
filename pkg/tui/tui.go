@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -320,6 +322,17 @@ func RunMainTUI(s *store.AuthHTTPStore, t *terminal.Terminal) error {
 	// 	tea.WithAltScreen(),
 	// 	tea.WithMouseCellMotion(),
 	// )
+
+	if len(os.Getenv("BREV_DEBUG_LOG")) > 0 {
+		f, err := tea.LogToFile("brev.log", "")
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
+
 	p := tea.NewProgram(&drew.MainModel{}, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
