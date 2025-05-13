@@ -35,7 +35,7 @@ func (m EnvModal) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		if msg.String() == "enter" {
-			return m, cmdEnvCommand(m.commands.SelectedItem().(commandItem).title)
+			return &m, cmdEnvCommand(m.commands.SelectedItem().(commandItem).title)
 		}
 	}
 
@@ -102,28 +102,33 @@ func (i commandItem) Title() string       { return i.title }
 func (i commandItem) Description() string { return "" }
 func (i commandItem) FilterValue() string { return i.title }
 
-type PassthroughModel struct {
-	content string
+// ContentFuncModel is a model that simply returns the result of a function call when its View()
+// method is invoked.
+type ContentFuncModel struct {
+	contentFunc func() string
 }
 
-func NewPassthroughModel() *PassthroughModel {
-	return &PassthroughModel{
-		content: "",
+func NewPassthroughModel(contentFunc func() string) *ContentFuncModel {
+	return &ContentFuncModel{
+		contentFunc: contentFunc,
 	}
 }
 
-func (m *PassthroughModel) SetContent(content string) {
-	m.content = content
+func (m *ContentFuncModel) SetContentFunc(contentFunc func() string) {
+	m.contentFunc = contentFunc
 }
 
-func (m PassthroughModel) Init() tea.Cmd {
+func (m ContentFuncModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m PassthroughModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m ContentFuncModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return &m, nil
 }
 
-func (m PassthroughModel) View() string {
-	return m.content
+func (m ContentFuncModel) View() string {
+	if m.contentFunc != nil {
+		return m.contentFunc()
+	}
+	return ""
 }

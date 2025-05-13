@@ -18,15 +18,14 @@ import (
 	lipgloss_table "github.com/charmbracelet/lipgloss/table"
 )
 
-const (
-	envListWidthPercentage    = 40.0
-	envDetailsWidthPercentage = 60.0
-)
-
-// NewEnvSelection creates a new environment pick list model.
+// NewEnvSelection creates a new environment selection model. This model displays a list of environments
+// on the left side of the screen, and a viewport of the selected environment's details on the right side.
 func NewEnvSelection() *EnvSelection {
+	// The model to return
 	envSelection := &EnvSelection{}
 
+	// The delegate for the environment list -- a list delegate allows for custom rendering of the list items.
+	// In this case we customize the various colors and styles of items based on whether or not they are selected.
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.NormalTitle = lipgloss.NewStyle().
 		Foreground(textColorNormalTitle).
@@ -53,6 +52,9 @@ func NewEnvSelection() *EnvSelection {
 
 	delegate.Styles.FilterMatch = lipgloss.NewStyle().Underline(true)
 
+	// The environment list model, which consumes the above delegate. Note here that the list is provided
+	// an empty slice of items, and "0" values for the width and height. This is because the list will be
+	// the state of this model will be updated dynamically (within the Update() method of this model).
 	list := list.New([]list.Item{}, delegate, 0, 0)
 	list.SetShowStatusBar(false)
 	list.SetShowTitle(false)
@@ -62,6 +64,8 @@ func NewEnvSelection() *EnvSelection {
 	list.DisableQuitKeybindings()
 	envSelection.envList = list
 
+	// The viewport model, which consumes the selected environment's details. Viewports deal with key
+	// bindings slightly differently than other models, so we must set them here at instantiation time.
 	envSelectedViewport := viewport.New(100, 50)
 	envSelectedViewport.KeyMap = viewport.KeyMap{
 		Up: key.NewBinding(
@@ -79,26 +83,31 @@ func NewEnvSelection() *EnvSelection {
 	}
 	envSelection.envSelectedViewport = envSelectedViewport
 
+	// The status spinner model, which is shared amongst any environment which displays a non-terminal
+	// status.
 	envStatusSpinner := spinner.New(
 		spinner.WithSpinner(spinner.MiniDot),
 	)
 	envSelection.statusSpinner = envStatusSpinner
 
-	envSpinner := spinner.New(
+	// The loading spinner model, which is used when fetching environments.
+	envLoadingSpinner := spinner.New(
 		spinner.WithSpinner(spinner.Points),
 		spinner.WithStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("#64748b"))),
 	)
-	envSelection.loadingSpinner = envSpinner
+	envSelection.loadingSpinner = envLoadingSpinner
 
-	envDetailsModal := overlay.New(
+	// The env actions modal, which is displayed as an overlay and contains additional actions to
+	// take on the selected environment.
+	envActionsModal := overlay.New(
 		NewEnvModal(),
-		NewPassthroughModel(),
+		NewPassthroughModel(func() string { return envSelection.listView() }),
 		overlay.Center,
 		overlay.Center,
 		0,
 		0,
 	)
-	envSelection.modal = envDetailsModal
+	envSelection.modal = envActionsModal
 
 	return envSelection
 }
@@ -132,6 +141,9 @@ type EnvSelection struct {
 	state envSelectionState
 }
 
+// HelpTextEntries returns the help text entries for the environment selection model.
+// TODO: this should be made more dynamic, as the help text should change based on the current state
+// of the model (e.g. when the modal is open, the help text should change to reflect the available actions).
 func (e *EnvSelection) HelpTextEntries() [][]string {
 	return [][]string{
 		{"q/esc", "exit"},
@@ -150,10 +162,11 @@ func (e *EnvSelection) Width() int {
 	return e.envList.Width()
 }
 
+// SetWidth sets the width of the environment selection model.
 func (e *EnvSelection) SetWidth(width int) {
 	e.envList.SetWidth(width)
 	e.envSelectedViewport.Width = width
-	
+
 	e.modal.Foreground.(*EnvModal).SetWidth(width)
 }
 
@@ -162,6 +175,7 @@ func (e *EnvSelection) Height() int {
 	return e.envList.Height()
 }
 
+// SetHeight sets the height of the environment selection model.
 func (e *EnvSelection) SetHeight(height int) {
 	e.envList.SetHeight(height + 4)
 	e.envSelectedViewport.Height = height
@@ -217,7 +231,7 @@ func (e *EnvSelection) View() string {
 }
 
 func (e *EnvSelection) loadingView() string {
-	spinner := fmt.Sprintf("Loading environments %s", e.loadingSpinner.View())
+	spinner := fmt.Sprintf("%s\n\nLoading environments %s", nvidiaLogoLarge, e.loadingSpinner.View())
 
 	// Create a vertically centered spinner box with full height
 	loadingBox := lipgloss.NewStyle().
@@ -406,97 +420,140 @@ func dataTable() *lipgloss_table.Table {
 		BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("238")))
 }
 
-func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
-	var cmd tea.Cmd
+func (e *EnvSelection) updateEnvList(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		// If the user presses the spacebar, open the modal with the selected environment in context
+		case " ":
+			e.modal.Foreground.(*EnvModal).SetEnvironment(e.getSelectedEnvironment())
+			e.state = envModalState
+			return nil
 
+		// If the user presses any other key, prepare for navigation
+		default:
+			var (
+				cmd  tea.Cmd
+				cmds []tea.Cmd
+			)
+
+			// We need to know if the user has changed the selection in the env list. If they have, we then need
+			// to scroll to the top of the viewport, otherwise the viewport will remember the previous scroll position.
+			previousSelection := e.envList.SelectedItem().(envListItem).environment.ID
+
+			// Pass the key event to the env pick list model to allow for environment selection
+			e.envList, cmd = e.envList.Update(msg)
+			cmds = append(cmds, cmd)
+
+			// If the selection has changed, scroll to the top of the viewport
+			if previousSelection != e.envList.SelectedItem().(envListItem).environment.ID {
+				e.envSelectedViewport.SetYOffset(0)
+			}
+
+			// Pass the key event to the env selection viewport to allow for viewport navigation
+			e.envSelectedViewport, cmd = e.envSelectedViewport.Update(msg)
+			cmds = append(cmds, cmd)
+
+			return tea.Batch(cmds...)
+		}
+	}
+
+	// Nothing more to do
+	return nil
+}
+
+func (e *EnvSelection) updateEnvModal(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 
-	case fetchEnvsMsg:
-		// The orgs have been fetched, so we need to update the org pick list model
-
-		// Display the main list state
-		e.state = envListState
-		
+	// The environment command has been completed
+	case envCommandMsg:
 		if msg.err != nil {
 			return envSelectionErrorCmd(msg.err)
 		}
 
-		// Insert the orgs into the org pick list model
+		// Move back to the list state
+		e.state = envListState
+		return nil
+
+	// A key has been pressed within the context of the modal
+	case tea.KeyMsg:
+		switch msg.String() {
+		// If the user presses the spacebar, move back to the list state
+		case " ":
+			// Move back to the list state
+			e.state = envListState
+			// Nothing more to do
+			return nil
+		}
+	}
+
+	// For all other messages, pass them to the modal and update its model
+	foreground, cmd := e.modal.Foreground.Update(msg)
+	if envModal, ok := foreground.(*EnvModal); ok {
+		e.modal.Foreground = envModal
+		return cmd
+	} else {
+		return envSelectionErrorCmd(fmt.Errorf("unknown modal message: %T", msg))
+	}
+}
+
+func (e *EnvSelection) updateLoadingState(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	// The orgs have been fetched, so we need to update the org pick list model
+	case fetchEnvsMsg:
+		if msg.err != nil {
+			return envSelectionErrorCmd(msg.err)
+		}
+
+		// Insert the fetched environments into the env pick list model
 		envListItems := make([]list.Item, len(msg.environments))
 		for i, env := range msg.environments {
 			envListItems[i] = envListItem{envSelection: e, environment: env}
 		}
 
+		// If there are any environments, show the status bar
 		if len(envListItems) > 0 {
 			e.envList.SetShowStatusBar(true)
 		}
+
 		// Update the env pick list model with the new items
 		e.envList.SetItems(envListItems)
 
-		return nil
-
-	case envCommandMsg:
-		// The environment command has been completed. Exit the modal.
-		if msg.err != nil {
-			return envSelectionErrorCmd(msg.err)
-		}
-
+		// Move from the loading state to the list state
 		e.state = envListState
-		return nil
+	}
 
-	case tea.KeyMsg:
-		switch msg.String() {
-		case " ":
-			if e.state == envListState {
-				// TODO: this actually shouldn't be the way the content is set. Intead of passing a string (which cannot be updated / can only be replaced)
-				// we need to pass in a Model that references all of the internal models (like spinners, lists, etc.). This way we can have Update() calls
-				// update the state of various objects, and have a later View() call on the modal that references the updated state.
-				e.modal.Background.(*PassthroughModel).SetContent(e.listView())
-				e.modal.Foreground.(*EnvModal).SetEnvironment(e.getSelectedEnvironment())
-				e.state = envModalState
-			} else if e.state == envModalState {
-				e.state = envListState
-			}
-			return nil
-		}
+	// Nothing more to do
+	return nil
+}
+
+func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
+	// Handle tick events for the status and loading spinners
+	switch msg := msg.(type) {
 	case spinner.TickMsg:
 		if msg.ID == e.statusSpinner.ID() {
+			var cmd tea.Cmd
 			e.statusSpinner, cmd = e.statusSpinner.Update(msg)
 			return cmd
 		}
-		if msg.ID == e.loadingSpinner.ID() && e.state == envLoadingState {
+		if msg.ID == e.loadingSpinner.ID() {
+			var cmd tea.Cmd
 			e.loadingSpinner, cmd = e.loadingSpinner.Update(msg)
 			return cmd
 		}
 	}
 
-	if e.state == envModalState {
-		foreground, cmd := e.modal.Foreground.Update(msg)
-		if envModal, ok := foreground.(*EnvModal); ok {
-			e.modal.Foreground = envModal
-		}
-		return cmd
+	// Handle other state-specific messages
+	switch e.state {
+	case envListState:
+		return e.updateEnvList(msg)
+	case envModalState:
+		return e.updateEnvModal(msg)
+	case envLoadingState:
+		return e.updateLoadingState(msg)
+	default:
+		return envSelectionErrorCmd(fmt.Errorf("unknown state: %d", e.state))
 	}
-
-	// We need to know if the user has changed the selection in the env list. If they have, we then need
-	// to scroll to the top of the viewport, otherwise the viewport will remember the previous scroll position.
-	previousSelection := e.envList.SelectedItem().(envListItem).environment.ID
-
-	// Pass the key event to the env pick list model to allow for environment selection
-	var keyCmds []tea.Cmd
-	e.envList, cmd = e.envList.Update(msg)
-	keyCmds = append(keyCmds, cmd)
-
-	// If the selection has changed, scroll to the top of the viewport
-	if previousSelection != e.envList.SelectedItem().(envListItem).environment.ID {
-		e.envSelectedViewport.SetYOffset(0)
-	}
-
-	// Pass the key event to the env selection viewport to allow for viewport navigation
-	e.envSelectedViewport, cmd = e.envSelectedViewport.Update(msg)
-	keyCmds = append(keyCmds, cmd)
-
-	return tea.Batch(keyCmds...)
 }
 
 // FetchEnvs fetches the environments and updates the env pick list model. This function automatically
@@ -539,7 +596,7 @@ func cmdFetchEnvs(organizationID string) tea.Cmd {
 
 func fetchEnvs(organizationID string) []Environment {
 	// simulate loading
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 2)
 
 	return []Environment{
 		{ID: "1", Name: "my-cool-env", InstanceType: Crusoe_1x_a100_40gb, Status: EnvironmentStatusRunning, PortMappings: []PortMapping{{"22", "22"}, {"8080", "80"}}, Tunnels: []Tunnel{{"443", "https://foo.bar.com"}}},
@@ -557,14 +614,7 @@ func fetchEnvs(organizationID string) []Environment {
 	}
 }
 
-var logoSmall = `[38;2;0;0;0;48;2;0;0;0m▞[0m[38;2;0;0;0;48;2;0;0;0m▘[0m[38;2;0;0;0;48;2;0;0;0m▗[0m[38;2;0;0;0;48;2;0;0;0m▞[0m[38;2;0;0;0;48;2;0;0;0m▗[0m[38;2;20;32;0;48;2;0;0;0m▗[0m[38;2;0;0;0;48;2;39;65;0m▀[0m[38;2;104;162;0;48;2;50;85;0m▐[0m[38;2;119;185;0;48;2;83;129;0m▀[0m[38;2;119;185;0;48;2;96;152;0m▀[0m[38;2;110;171;0;48;2;119;185;0m▖[0m[38;2;118;184;0;48;2;119;185;0m▖[0m[38;2;119;185;0;48;2;119;185;0m▗[0m[38;2;119;185;0;48;2;119;185;0m▗[0m[38;2;119;185;0;48;2;119;185;0m▘[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▗[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▝[0m[38;2;119;185;0;48;2;119;185;0m▞[0m
-[38;2;0;0;0;48;2;0;0;0m▖[0m[38;2;47;75;0;48;2;4;8;0m▗[0m[38;2;0;0;0;48;2;94;150;0m▀[0m[38;2;36;60;0;48;2;103;163;0m▀[0m[38;2;89;143;0;48;2;43;71;0m▀[0m[38;2;111;173;0;48;2;13;27;0m▀[0m[38;2;85;139;0;48;2;42;65;0m▀[0m[38;2;72;120;0;48;2;84;131;0m▞[0m[38;2;65;104;0;48;2;79;121;0m▀[0m[38;2;44;73;0;48;2;99;159;0m▀[0m[38;2;18;31;0;48;2;113;177;0m▀[0m[38;2;68;108;0;48;2;36;63;0m▞[0m[38;2;101;159;0;48;2;7;13;0m▀[0m[38;2;119;185;0;48;2;56;95;0m▀[0m[38;2;113;178;0;48;2;119;185;0m▖[0m[38;2;119;185;0;48;2;119;185;0m▝[0m[38;2;119;185;0;48;2;119;185;0m▖[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▝[0m[38;2;119;185;0;48;2;119;185;0m▗[0m
-[38;2;38;65;0;48;2;93;150;0m▘[0m[38;2;117;182;0;48;2;118;185;0m▘[0m[38;2;0;0;0;48;2;77;130;0m▗[0m[38;2;91;147;0;48;2;8;14;0m▗[0m[38;2;62;102;0;48;2;118;184;0m▀[0m[38;2;17;27;0;48;2;108;171;0m▗[0m[38;2;84;135;0;48;2;0;0;0m▀[0m[38;2;120;187;0;48;2;64;101;0m▗[0m[38;2;31;51;0;48;2;117;182;0m▀[0m[38;2;64;102;0;48;2;0;0;0m▖[0m[38;2;60;97;0;48;2;18;32;0m▐[0m[38;2;118;184;0;48;2;105;165;0m▐[0m[38;2;73;125;0;48;2;113;178;0m▐[0m[38;2;0;0;0;48;2;16;30;0m▐[0m[38;2;65;105;0;48;2;15;25;0m▐[0m[38;2;118;184;0;48;2;110;172;0m▐[0m[38;2;119;185;0;48;2;119;185;0m▐[0m[38;2;119;185;0;48;2;119;185;0m▗[0m[38;2;119;185;0;48;2;119;185;0m▖[0m[38;2;119;185;0;48;2;119;185;0m▞[0m
-[38;2;60;101;0;48;2;0;0;0m▝[0m[38;2;30;48;0;48;2;111;174;0m▖[0m[38;2;70;115;0;48;2;118;184;0m▝[0m[38;2;97;157;0;48;2;17;31;0m▖[0m[38;2;104;165;0;48;2;21;38;0m▀[0m[38;2;81;133;0;48;2;118;185;0m▞[0m[38;2;4;9;0;48;2;89;144;0m▀[0m[38;2;116;181;0;48;2;52;83;0m▐[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;94;146;0;48;2;111;175;0m▗[0m[38;2;117;183;0;48;2;52;88;0m▀[0m[38;2;92;145;0;48;2;26;43;0m▀[0m[38;2;11;17;0;48;2;89;143;0m▀[0m[38;2;34;56;0;48;2;105;167;0m▘[0m[38;2;68;107;0;48;2;113;177;0m▗[0m[38;2;108;171;0;48;2;12;22;0m▀[0m[38;2;79;126;0;48;2;0;0;0m▀[0m[38;2;117;182;0;48;2;20;36;0m▀[0m[38;2;93;154;0;48;2;119;185;0m▖[0m[38;2;119;185;0;48;2;119;185;0m▀[0m
-[38;2;0;0;0;48;2;0;0;0m▖[0m[38;2;0;0;0;48;2;0;0;0m▞[0m[38;2;70;110;0;48;2;0;0;0m▀[0m[38;2;118;184;0;48;2;39;63;0m▀[0m[38;2;48;77;0;48;2;97;155;0m▝[0m[38;2;16;30;0;48;2;108;172;0m▀[0m[38;2;76;119;0;48;2;56;93;0m▞[0m[38;2;63;102;0;48;2;96;152;0m▞[0m[38;2;46;78;0;48;2;94;146;0m▀[0m[38;2;54;87;0;48;2;83;133;0m▀[0m[38;2;96;157;0;48;2;67;109;0m▝[0m[38;2;116;182;0;48;2;31;52;0m▀[0m[38;2;102;159;0;48;2;4;9;0m▀[0m[38;2;25;40;0;48;2;52;81;0m▞[0m[38;2;0;0;0;48;2;68;110;0m▀[0m[38;2;0;0;0;48;2;104;163;0m▀[0m[38;2;36;58;0;48;2;118;185;0m▀[0m[38;2;80;127;0;48;2;116;181;0m▘[0m[38;2;118;184;0;48;2;119;185;0m▘[0m[38;2;119;185;0;48;2;119;185;0m▞[0m
-[38;2;0;0;0;48;2;0;0;0m▝[0m[38;2;0;0;0;48;2;0;0;0m▘[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▞[0m[38;2;0;0;0;48;2;0;0;0m▖[0m[38;2;29;52;0;48;2;0;0;0m▀[0m[38;2;64;102;0;48;2;0;0;0m▀[0m[38;2;48;80;0;48;2;103;162;0m▞[0m[38;2;59;89;0;48;2;119;185;0m▀[0m[38;2;60;97;0;48;2;119;185;0m▀[0m[38;2;75;121;0;48;2;119;185;0m▀[0m[38;2;96;153;0;48;2;119;185;0m▀[0m[38;2;113;176;0;48;2;119;185;0m▘[0m[38;2;118;184;0;48;2;119;185;0m▘[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▝[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▝[0m[38;2;119;185;0;48;2;119;185;0m▝[0m`
-
-var logoLarge = `[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;75;123;0;48;2;75;123;0m▀[0m[38;2;118;185;0;48;2;118;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m
+var nvidiaLogoLarge = `[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;75;123;0;48;2;75;123;0m▀[0m[38;2;118;185;0;48;2;118;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m[38;2;119;186;0;48;2;119;185;0m▀[0m
 [38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;75;123;0;48;2;75;131;0m▀[0m[38;2;118;185;0;48;2;118;184;0m▀[0m[38;2;119;185;0;48;2;118;184;0m▀[0m[38;2;119;185;0;48;2;118;184;0m▀[0m[38;2;119;185;0;48;2;119;184;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m
 [38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;22;32;0m▀[0m[38;2;0;0;0;48;2;78;127;0m▀[0m[38;2;0;0;0;48;2;107;167;0m▀[0m[38;2;31;52;0;48;2;119;185;0m▀[0m[38;2;56;97;0;48;2;118;184;0m▀[0m[38;2;80;134;0;48;2;119;185;0m▀[0m[38;2;91;147;0;48;2;119;185;0m▀[0m[38;2;89;140;0;48;2;89;140;0m▀[0m[38;2;63;103;0;48;2;21;31;0m▀[0m[38;2;54;89;0;48;2;0;0;0m▀[0m[38;2;56;87;0;48;2;0;0;0m▀[0m[38;2;65;105;0;48;2;0;0;0m▀[0m[38;2;80;127;0;48;2;0;0;0m▀[0m[38;2;95;149;0;48;2;0;0;0m▀[0m[38;2;112;175;0;48;2;0;0;0m▀[0m[38;2;119;185;0;48;2;47;73;0m▀[0m[38;2;119;185;0;48;2;80;133;0m▀[0m[38;2;119;185;0;48;2;115;179;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m
 [38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;0;0;0;48;2;36;65;0m▀[0m[38;2;0;0;0;48;2;93;147;0m▀[0m[38;2;31;52;0;48;2;119;185;0m▀[0m[38;2;88;131;0;48;2;119;184;0m▀[0m[38;2;119;185;0;48;2;118;185;0m▀[0m[38;2;118;184;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;97;152;0m▀[0m[38;2;118;184;0;48;2;72;107;0m▀[0m[38;2;119;185;0;48;2;38;73;0m▀[0m[38;2;118;185;0;48;2;10;26;0m▀[0m[38;2;108;165;0;48;2;0;0;0m▀[0m[38;2;89;140;0;48;2;79;129;0m▀[0m[38;2;75;139;0;48;2;118;184;0m▀[0m[38;2;65;121;0;48;2;118;184;0m▀[0m[38;2;65;97;0;48;2;118;184;0m▀[0m[38;2;42;87;0;48;2;119;186;0m▀[0m[38;2;5;22;0;48;2;119;185;0m▀[0m[38;2;0;0;0;48;2;99;152;0m▀[0m[38;2;0;0;0;48;2;63;105;0m▀[0m[38;2;0;0;0;48;2;17;20;0m▀[0m[38;2;0;0;0;48;2;0;0;0m▀[0m[38;2;16;26;0;48;2;0;0;0m▀[0m[38;2;72;113;0;48;2;0;0;0m▀[0m[38;2;118;184;0;48;2;18;35;0m▀[0m[38;2;119;185;0;48;2;77;124;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m[38;2;119;185;0;48;2;119;185;0m▀[0m

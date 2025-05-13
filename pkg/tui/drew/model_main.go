@@ -21,7 +21,6 @@ var (
 
 	infoStyle = func() lipgloss.Style {
 		b := lipgloss.RoundedBorder()
-		// b.Left = "┤"
 		return lipgloss.NewStyle().BorderStyle(b).Padding(0, 1)
 	}()
 
