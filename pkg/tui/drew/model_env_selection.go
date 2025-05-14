@@ -109,6 +109,17 @@ func NewEnvSelection() *EnvSelection {
 	)
 	envSelection.modal = envActionsModal
 
+	// The drag-drop modal for file transfer
+	dragDropModal := overlay.New(
+		NewEnvDragDropModal(),
+		NewPassthroughModel(func() string { return envSelection.listView() }),
+		overlay.Center,
+		overlay.Center,
+		0,
+		0,
+	)
+	envSelection.dragDropModal = dragDropModal
+
 	return envSelection
 }
 
@@ -118,6 +129,7 @@ const (
 	envLoadingState envSelectionState = iota
 	envListState
 	envModalState
+	envDragDropState
 )
 
 // EnvSelection is a model that represents the environment pick list. Note that this is not a complete
@@ -133,6 +145,9 @@ type EnvSelection struct {
 
 	// An overlay modal to display the environment details
 	modal *overlay.Model
+
+	// An overlay modal for drag-and-drop file transfer
+	dragDropModal *overlay.Model
 
 	// A spinner model to use when fetching environments
 	loadingSpinner spinner.Model
@@ -168,6 +183,7 @@ func (e *EnvSelection) SetWidth(width int) {
 	e.envSelectedViewport.Width = width
 
 	e.modal.Foreground.(*EnvModal).SetWidth(width)
+	e.dragDropModal.Foreground.(*EnvDragDropModal).SetWidth(width)
 }
 
 // Height returns the height of the organization pick list.
@@ -181,6 +197,7 @@ func (e *EnvSelection) SetHeight(height int) {
 	e.envSelectedViewport.Height = height
 
 	e.modal.Foreground.(*EnvModal).SetHeight(height)
+	e.dragDropModal.Foreground.(*EnvDragDropModal).SetHeight(height)
 }
 
 type envListItem struct {
@@ -225,6 +242,8 @@ func (e *EnvSelection) View() string {
 		return e.loadingView()
 	} else if e.state == envModalState {
 		return e.modalView()
+	} else if e.state == envDragDropState {
+		return e.dragDropModal.View()
 	} else {
 		return e.listView()
 	}
@@ -429,6 +448,11 @@ func (e *EnvSelection) updateEnvList(msg tea.Msg) tea.Cmd {
 			e.modal.Foreground.(*EnvModal).SetEnvironment(e.getSelectedEnvironment())
 			e.state = envModalState
 			return nil
+		// If the user presses enter, open the drag-drop modal
+		case "enter":
+			e.dragDropModal.Foreground.(*EnvDragDropModal).SetEnvironment(e.getSelectedEnvironment())
+			e.state = envDragDropState
+			return nil
 
 		// If the user presses any other key, prepare for navigation
 		default:
@@ -527,6 +551,27 @@ func (e *EnvSelection) updateLoadingState(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
+func (e *EnvSelection) updateDragDropModal(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case " ":
+			// Move back to the list state
+			e.state = envListState
+			return nil
+		}
+	}
+
+	// For all other messages, pass them to the modal and update its model
+	foreground, cmd := e.dragDropModal.Foreground.Update(msg)
+	if dragDropModal, ok := foreground.(*EnvDragDropModal); ok {
+		e.dragDropModal.Foreground = dragDropModal
+		return cmd
+	} else {
+		return envSelectionErrorCmd(fmt.Errorf("unknown modal message: %T", msg))
+	}
+}
+
 func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 	// Handle tick events for the status and loading spinners
 	switch msg := msg.(type) {
@@ -549,6 +594,8 @@ func (e *EnvSelection) Update(msg tea.Msg) tea.Cmd {
 		return e.updateEnvList(msg)
 	case envModalState:
 		return e.updateEnvModal(msg)
+	case envDragDropState:
+		return e.updateDragDropModal(msg)
 	case envLoadingState:
 		return e.updateLoadingState(msg)
 	default:
