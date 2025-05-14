@@ -333,7 +333,7 @@ func RunMainTUI(s *store.AuthHTTPStore, t *terminal.Terminal) error {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	}
 
-	p := tea.NewProgram(&drew.MainModel{}, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	p := tea.NewProgram(drew.NewMainModel(s), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
 }

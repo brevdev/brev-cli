@@ -2,17 +2,24 @@ package drew
 
 import (
 	"sort"
-	"time"
 
+	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
+type OrgStore interface {
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+}
+
 // NewOrgSelection creates a new organization pick list model.
-func NewOrgSelection() *OrgSelection {
-	orgSelection := &OrgSelection{}
+func NewOrgSelection(store OrgStore) *OrgSelection {
+	orgSelection := &OrgSelection{
+		store: store,
+	}
 
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.NormalTitle = lipgloss.NewStyle().
@@ -67,6 +74,7 @@ func NewOrgSelection() *OrgSelection {
 type OrgSelection struct {
 	orgPickListModel list.Model
 	orgSelected      *orgListItem
+	store           OrgStore
 }
 
 func (o *OrgSelection) SetHeight(height int) {
@@ -99,11 +107,11 @@ func (e *OrgSelection) HelpTextEntries() [][]string {
 }
 
 type orgListItem struct {
-	Organization organization
+	Organization entity.Organization
 }
 
 func (i orgListItem) Title() string       { return i.Organization.Name }
-func (i orgListItem) Description() string { return i.Organization.Description }
+func (i orgListItem) Description() string { return i.Organization.UserNetworkID }
 func (i orgListItem) FilterValue() string { return i.Organization.Name }
 
 type (
@@ -112,6 +120,11 @@ type (
 
 	// CloseOrgSelectionMsg is a message that indicates the organization pick list should be closed.
 	CloseOrgSelectionMsg struct{}
+
+	fetchOrgsMsg struct {
+		organizations []entity.Organization
+		err           error
+	}
 )
 
 func orgSelectionErrorCmd(err error) tea.Cmd {
@@ -176,6 +189,22 @@ func (o *OrgSelection) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+func cmdFetchOrgs(store OrgStore) tea.Cmd {
+	return func() tea.Msg {
+		organizations, err := store.GetOrganizations(nil)
+		if err != nil {
+			return fetchOrgsMsg{err: err}
+		}
+
+		// Sort the organizations by ID
+		sort.Slice(organizations, func(i, j int) bool {
+			return organizations[i].ID < organizations[j].ID
+		})
+
+		return fetchOrgsMsg{organizations: organizations}
+	}
+}
+
 // FetchOrgs fetches the organizations and updates the org pick list model. This function automatically
 // starts the spinner and returns a command that will update the org pick list model when the organizations
 // are fetched. The returned command should be used to render the next frame for the spinner, and should
@@ -185,51 +214,7 @@ func (o *OrgSelection) FetchOrgs() tea.Cmd {
 	startSpinnerCmd := o.orgPickListModel.StartSpinner()
 
 	// Fetch the organizations
-	fetchOrgsCmd := cmdFetchOrgs()
+	fetchOrgsCmd := cmdFetchOrgs(o.store)
 
 	return tea.Batch(startSpinnerCmd, fetchOrgsCmd)
-}
-
-type organization struct {
-	ID          string
-	Name        string
-	Description string
-}
-
-type fetchOrgsMsg struct {
-	organizations []organization
-	err           error
-}
-
-func cmdFetchOrgs() tea.Cmd {
-	return func() tea.Msg {
-		organizations := fetchOrgs()
-
-		// Sort the organizations by ID
-		sort.Slice(organizations, func(i, j int) bool {
-			return organizations[i].ID < organizations[j].ID
-		})
-
-		return fetchOrgsMsg{organizations: organizations, err: nil}
-	}
-}
-
-func fetchOrgs() []organization {
-	// simulate loading
-	time.Sleep(time.Second * 1)
-
-	return []organization{
-		{ID: "1", Name: "org 1", Description: "First organization"},
-		{ID: "2", Name: "brev-internal", Description: "Second organization"},
-		{ID: "3", Name: "my-cool-org", Description: "Third organization"},
-		{ID: "4", Name: "brev-load-testing", Description: "Fourth organization"},
-		{ID: "5", Name: "Organization 5", Description: "Fifth organization"},
-		{ID: "6", Name: "Organization 6", Description: "Sixth organization"},
-		{ID: "7", Name: "Organization 7", Description: "Seventh organization"},
-		{ID: "8", Name: "Organization 8", Description: "Eighth organization"},
-		{ID: "9", Name: "Organization 9", Description: "Ninth organization"},
-		{ID: "10", Name: "Organization 10", Description: "Tenth organization"},
-		{ID: "11", Name: "Organization 11", Description: "Eleventh organization"},
-		{ID: "12", Name: "Organization 12", Description: "Twelfth organization"},
-	}
 }

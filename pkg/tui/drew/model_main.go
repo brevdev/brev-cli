@@ -46,6 +46,16 @@ type MainModel struct {
 	renderOrgPickList bool
 	orgSelection      *OrgSelection
 	envSelection      *EnvSelection
+
+	// Store for API calls
+	store OrgStore
+}
+
+// NewMainModel creates a new main model.
+func NewMainModel(store OrgStore) *MainModel {
+	return &MainModel{
+		store: store,
+	}
 }
 
 func (m *MainModel) View() string {
@@ -128,7 +138,7 @@ func (m *MainModel) initCmd() tea.Cmd {
 }
 
 func (m *MainModel) Init() tea.Cmd {
-	m.orgSelection = NewOrgSelection()
+	m.orgSelection = NewOrgSelection(m.store)
 	m.envSelection = NewEnvSelection()
 
 	// TODO: if not default org is found (read from ~/.brev), submit the init commandø
