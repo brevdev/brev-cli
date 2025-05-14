@@ -311,6 +311,17 @@
         "--model",
         "llama2",
       ],
+    },
+    {
+      "name": "create",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/main.go",
+      "args": [
+        "create",
+        "test-workspace",
+      ],
     }
   ]
 }

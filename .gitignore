@@ -46,6 +46,7 @@ dist/
 # binary
 brev-cli
 brev
+brev.log
 
 # golang executable 
 go1.*

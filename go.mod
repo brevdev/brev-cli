@@ -1,6 +1,8 @@
 module github.com/brevdev/brev-cli
 
-go 1.22.6
+go 1.23.4
+
+toolchain go1.24.2
 
 require (
 	github.com/alessio/shellescape v1.4.1
@@ -108,6 +110,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
+	github.com/rmhubbert/bubbletea-overlay v0.3.2 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
 	github.com/skeema/knownhosts v1.3.0 // indirect
@@ -121,6 +124,7 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	github.com/zhengkyl/pearls v0.1.1 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	golang.org/x/mod v0.19.0 // indirect

@@ -2,12 +2,15 @@ package tui
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/brevdev/brev-cli/pkg/tui/drew"
 	"github.com/brevdev/brev-cli/pkg/tui/messages"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,8 +30,8 @@ const (
 // Style definitions
 var (
 	logoStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color(nvidiaGreen)).
-		Align(lipgloss.Center)
+			Foreground(lipgloss.Color(nvidiaGreen)).
+			Align(lipgloss.Center)
 
 	activeTabBorder = lipgloss.Border{
 		Top:         "─",
@@ -58,8 +61,8 @@ var (
 		Padding(0, 1)
 
 	activeTab = tab.Copy().
-		Border(activeTabBorder, true).
-		Foreground(lipgloss.Color(nvidiaGreen))
+			Border(activeTabBorder, true).
+			Foreground(lipgloss.Color(nvidiaGreen))
 
 	tabGap = tab.Copy().
 		BorderTop(false).
@@ -70,21 +73,21 @@ var (
 )
 
 type model struct {
-	tabs             []string
-	activeTab        int
-	spinner          spinner.Model
-	loading          bool
-	loadingProgress  int
-	ready            bool
-	width            int
-	height           int
-	store            *store.AuthHTTPStore
-	terminal         *terminal.Terminal
-	listModel        listModel
-	createModel      createModel
-	workspaces       []entity.Workspace
-	instanceTypes    *store.InstanceTypeResponse
-	err              error
+	tabs            []string
+	activeTab       int
+	spinner         spinner.Model
+	loading         bool
+	loadingProgress int
+	ready           bool
+	width           int
+	height          int
+	store           *store.AuthHTTPStore
+	terminal        *terminal.Terminal
+	listModel       listModel
+	createModel     createModel
+	workspaces      []entity.Workspace
+	instanceTypes   *store.InstanceTypeResponse
+	err             error
 }
 
 type workspacesLoadedMsg struct {
@@ -249,14 +252,14 @@ func (m model) View() string {
 		s.WriteString("\n\n")
 
 		loadingStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nvidiaGreen))
-		
+
 		var loadingText string
 		if m.workspaces == nil {
 			loadingText = "Fetching Your Instances"
 		} else {
 			loadingText = "Entering TUI"
 		}
-		
+
 		s.WriteString(loadingStyle.Render(
 			fmt.Sprintf("%s %s%s", m.spinner.View(), loadingText, strings.Repeat(".", m.loadingProgress)),
 		))
@@ -315,7 +318,22 @@ func max(a, b int) int {
 }
 
 func RunMainTUI(s *store.AuthHTTPStore, t *terminal.Terminal) error {
-	p := tea.NewProgram(initialModel(s, t), tea.WithAltScreen())
+	// p := tea.NewProgram(initialModel(s, t),
+	// 	tea.WithAltScreen(),
+	// 	tea.WithMouseCellMotion(),
+	// )
+
+	if len(os.Getenv("BREV_DEBUG_LOG")) > 0 {
+		f, err := tea.LogToFile("brev.log", "")
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		log.SetFlags(log.LstdFlags | log.Lshortfile)
+	}
+
+	p := tea.NewProgram(drew.NewMainModel(s), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()
 	return err
-} 
+}
