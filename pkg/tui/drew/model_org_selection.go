@@ -13,6 +13,7 @@ import (
 
 type OrgStore interface {
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	SetDefaultOrganization(org *entity.Organization) error
 }
 
 // NewOrgSelection creates a new organization pick list model.
@@ -177,6 +178,11 @@ func (o *OrgSelection) Update(msg tea.Msg) tea.Cmd {
 		case "enter":
 			if selected, ok := o.orgPickListModel.SelectedItem().(orgListItem); ok {
 				o.orgSelected = &selected
+				// Save the selected org as the default
+				err := o.store.SetDefaultOrganization(&selected.Organization)
+				if err != nil {
+					return orgSelectionErrorCmd(err)
+				}
 				return orgSelectionCloseCmd()
 			}
 
