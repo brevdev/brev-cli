@@ -282,7 +282,7 @@ func (ls Ls) RunUser(_ bool) error {
 
 func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, user.ID)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
 
 	projects := virtualproject.NewVirtualProjects(allWorkspaces)
 
@@ -300,10 +300,10 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Orga
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, user.ID)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
 }
 
-func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, userID string) {
+func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
 		if len(allWorkspaces) > 0 {
