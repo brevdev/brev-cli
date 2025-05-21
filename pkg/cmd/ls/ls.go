@@ -412,13 +412,9 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace,
 	header := table.Row{"Name", "Status", "Build", "Shell", "ID", "Machine"}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
-		isShared := ""
-		if w.IsShared(userID) {
-			isShared = "(shared)"
-		}
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := utilities.GetInstanceString(w)
-		workspaceRow := []table.Row{{fmt.Sprintf("%s %s", w.Name, isShared), getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
