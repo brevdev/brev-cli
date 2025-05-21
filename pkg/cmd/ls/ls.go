@@ -319,7 +319,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		}
 	} else {
 		ls.terminal.Vprintf("You have %d instances in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
-		displayWorkspacesTable(ls.terminal, userWorkspaces, userID)
+		displayWorkspacesTable(ls.terminal, userWorkspaces)
 
 		fmt.Print("\n")
 
@@ -405,7 +405,7 @@ func getBrevTableOptions() table.Options {
 	return options
 }
 
-func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace, userID string) {
+func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
