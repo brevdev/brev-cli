@@ -124,11 +124,10 @@ func RunOnboarding(t *terminal.Terminal, user *entity.User, store HelloStore) er
 
 	s := "Hey " + GetFirstName(user.Name) + " 👋\n"
 
-	s += "\n\nI'm excited you installed NVIDIA Brev. Let's get you started!\n"
-	s += "\nbtw, reach out if you need anything"
-	s += t.Yellow("brev-support@nvidia.com")
+	s += "\n\nI'm excited you installed Brev. Let's get you started!\n"
+	s += "\nbtw, reach out if you need anything " + t.Yellow("brev-support@nvidia.com")
 
-	s += "\n\nNVIDIA Brev is a dev tool for creating and sharing GPU accelerated instances"
+	s += "\n\nBrev is a dev tool for creating and sharing GPU accelerated instances"
 	s += "\nRun " + t.Green("brev ls") + " to see your instances 👇\n"
 
 	wg.Add(2)
