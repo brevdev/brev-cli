@@ -3,6 +3,7 @@ package open
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	uutil "github.com/brevdev/brev-cli/pkg/util"
@@ -27,9 +29,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	EditorVSCode = "code"
+	EditorCursor = "cursor"
+)
+
 var (
-	openLong    = "[command in beta] This will open VS Code SSH-ed in to your workspace. You must have 'code' installed in your path."
-	openExample = "brev open workspace_id_or_name\nbrev open my-app\nbrev open h9fp5vxwe"
+	openLong    = "[command in beta] This will open VS Code or Cursor SSH-ed in to your workspace. You must have the editor installed in your path."
+	openExample = "brev open workspace_id_or_name\nbrev open my-app\nbrev open my-app code\nbrev open my-app cursor\nbrev open --set-default cursor"
 )
 
 type OpenStore interface {
@@ -46,10 +53,10 @@ type OpenStore interface {
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
-	var openWithCursor bool
 	var waitForSetupToFinish bool
 	var directory string
 	var host bool
+	var setDefault string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"ssh": ""},
@@ -58,30 +65,85 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Short:                 "[beta] open VSCode or Cursor to your workspace",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
+		Args:                  cmderrors.TransformToValidationError(cobra.RangeArgs(1, 2)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if setDefault != "" {
+				return handleSetDefault(t, store, setDefault)
+			}
+			
 			setupDoneString := "------ Git repo cloned ------"
 			if waitForSetupToFinish {
 				setupDoneString = "------ Done running execs ------"
 			}
-			err := runOpenCommand(t, store, args[0], setupDoneString, directory, host)
+			
+			editorType, err := determineEditorType(args, store)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			
+			err = runOpenCommand(t, store, args[0], setupDoneString, directory, host, editorType)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&openWithCursor, "cursor", "c", false, "open cursor instead of VS Code")
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code or cursor)")
 
 	return cmd
 }
 
+func handleSetDefault(t *terminal.Terminal, store OpenStore, editorType string) error {
+	if editorType != EditorVSCode && editorType != EditorCursor {
+		return fmt.Errorf("invalid editor type: %s. Must be 'code' or 'cursor'", editorType)
+	}
+	
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	
+	settings := &files.PersonalSettings{
+		DefaultEditor: editorType,
+	}
+	
+	err = files.WritePersonalSettings(files.AppFs, homeDir, settings)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	
+	t.Vprintf(t.Green("Default editor set to %s\n"), editorType)
+	return nil
+}
+
+func determineEditorType(args []string, store OpenStore) (string, error) {
+	if len(args) == 2 {
+		editorType := args[1]
+		if editorType != EditorVSCode && editorType != EditorCursor {
+			return "", fmt.Errorf("invalid editor type: %s. Must be 'code' or 'cursor'", editorType)
+		}
+		return editorType, nil
+	}
+	
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return EditorVSCode, nil
+	}
+	
+	settings, err := files.ReadPersonalSettings(files.AppFs, homeDir)
+	if err != nil {
+		return EditorVSCode, nil
+	}
+	
+	return settings.DefaultEditor, nil
+}
+
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool) error { //nolint:funlen // define brev command
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string) error { //nolint:funlen // define brev command
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
@@ -132,10 +194,24 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using vscode
 	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
-	err = openVsCodeWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString)
+	err = openEditorWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString, editorType)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
+			_, errStore := tstore.UpdateUser(
+				workspace.CreatedByUserID,
+				&entity.UpdateUser{
+					OnboardingData: map[string]interface{}{
+						"pathErrorTS": time.Now().UTC().Unix(),
+					},
+				})
+			if errStore != nil {
+				return errors.New(errMsg + "\n" + errStore.Error())
+			}
+			return errors.New(errMsg)
+		}
+		if strings.Contains(err.Error(), `"cursor": executable file not found in $PATH`) {
+			errMsg := "cursor\": executable file not found in $PATH\n\nadd 'cursor' to your $PATH to open Cursor from the terminal"
 			_, errStore := tstore.UpdateUser(
 				workspace.CreatedByUserID,
 				&entity.UpdateUser{
@@ -232,13 +308,37 @@ func tryToInstallExtensions(
 	}
 }
 
+func tryToInstallCursorExtensions(
+	t *terminal.Terminal,
+	extIDs []string,
+) {
+	for _, extID := range extIDs {
+		extInstalled, err0 := uutil.IsCursorExtensionInstalled(extID)
+		if !extInstalled {
+			err1 := uutil.InstallCursorExtension(extID)
+			isRemoteInstalled, err2 := uutil.IsCursorExtensionInstalled(extID)
+			if !isRemoteInstalled {
+				err := multierror.Append(err0, err1, err2)
+				t.Print(t.Red("Couldn't install the necessary Cursor extension automatically.\nError: " + err.Error()))
+				t.Print("\tPlease install Cursor and the following Cursor extension: " + t.Yellow(extID) + ".\n")
+				_ = terminal.PromptGetInput(terminal.PromptContent{
+					Label:      "Hit enter when finished:",
+					ErrorMsg:   "error",
+					AllowEmpty: true,
+				})
+			}
+		}
+	}
+}
+
 // Opens code editor. Attempts to install code in path if not installed already
-func openVsCodeWithSSH(
+func openEditorWithSSH(
 	t *terminal.Terminal,
 	sshAlias string,
 	path string,
 	tstore OpenStore,
 	_ string,
+	editorType string,
 ) error {
 	// infinite for loop:
 	res := refresh.RunRefreshAsync(tstore)
@@ -255,14 +355,22 @@ func openVsCodeWithSSH(
 	}
 
 	// todo: add it here
-	s.Suffix = " Instance is ready. Opening VS Code 🤙"
+	editorName := "VS Code"
+	if editorType == EditorCursor {
+		editorName = "Cursor"
+	}
+	s.Suffix = fmt.Sprintf(" Instance is ready. Opening %s 🤙", editorName)
 	time.Sleep(250 * time.Millisecond)
 	s.Stop()
 	t.Vprintf("\n")
 
-	tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
-
-	err = openVsCode(sshAlias, path, tstore)
+	if editorType == EditorCursor {
+		tryToInstallCursorExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
+		err = openCursor(sshAlias, path, tstore)
+	} else {
+		tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
+		err = openVsCode(sshAlias, path, tstore)
+	}
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -289,7 +397,11 @@ func openVsCodeWithSSH(
 		if strings.Contains(err.Error(), "you are in a remote brev instance;") {
 			return breverrors.WrapAndTrace(err)
 		}
-		return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open VSCode, try adding it to PATH (you can do this in VSCode by running CMD-SHIFT-P and typing 'install code in path')\n")))
+		editorName := "VSCode"
+		if editorType == EditorCursor {
+			editorName = "Cursor"
+		}
+		return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open %s, try adding it to PATH\n"), editorName))
 	} else {
 		return nil
 	}
@@ -340,4 +452,22 @@ func openVsCode(sshAlias string, path string, store OpenStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func openCursor(sshAlias string, path string, store OpenStore) error {
+	cursorString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
+	cursorString = shellescape.QuoteCommand([]string{cursorString})
+
+	windowsPaths := getWindowsCursorPaths(store)
+	_, err := uutil.TryRunCursorCommand([]string{"--folder-uri", cursorString}, windowsPaths...)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func getWindowsCursorPaths(store vscodePathStore) []string {
+	wd, _ := store.GetWindowsDir()
+	paths := append([]string{}, fmt.Sprintf("%s/AppData/Local/Programs/Cursor/Cursor.exe", wd), fmt.Sprintf("%s/AppData/Local/Programs/Cursor/bin/cursor", wd))
+	return paths
 }

@@ -15,6 +15,10 @@ import (
 	"github.com/spf13/afero"
 )
 
+type PersonalSettings struct {
+	DefaultEditor string `json:"default_editor"`
+}
+
 const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
@@ -90,6 +94,11 @@ func GetOnboardingStepPath(home string) string {
 	path := GetBrevHome(home)
 	brevOnboardingFilePath := filepath.Join(path, "onboarding_step.json")
 	return brevOnboardingFilePath
+}
+
+func GetPersonalSettingsPath(home string) string {
+	fpath := makeBrevFilePath(personalSettingsCache, home)
+	return fpath
 }
 
 func GetNewBackupSSHConfigFilePath(home string) string {
@@ -246,6 +255,24 @@ func CatFile(filePath string) (string, error) {
 		}
 		return string(out), nil
 	}
+}
+
+func ReadPersonalSettings(fs afero.Fs, home string) (*PersonalSettings, error) {
+	settingsPath := GetPersonalSettingsPath(home)
+	var settings PersonalSettings
+	err := ReadJSON(fs, settingsPath, &settings)
+	if err != nil {
+		return &PersonalSettings{DefaultEditor: "code"}, nil
+	}
+	if settings.DefaultEditor == "" {
+		settings.DefaultEditor = "code"
+	}
+	return &settings, nil
+}
+
+func WritePersonalSettings(fs afero.Fs, home string, settings *PersonalSettings) error {
+	settingsPath := GetPersonalSettingsPath(home)
+	return OverwriteJSON(fs, settingsPath, settings)
 }
 
 // if this doesn't work, just exit
