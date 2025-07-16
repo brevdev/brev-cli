@@ -18,7 +18,7 @@ const (
 	ollamaAPIURL             EnvVarName = "OLLAMA_API_URL"
 )
 
-var ConsoleBaseURL = "https://console.brev.dev"
+var ConsoleBaseURL = "https://brev.nvidia.com"
 
 type ConstantsConfig struct{}
 
