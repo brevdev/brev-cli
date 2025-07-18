@@ -10,6 +10,14 @@
 
 ## Install the cli
 
+### From conda-forge
+
+To globally install `brev` [from conda-forge](https://github.com/conda-forge/brev-feedstock/) in an isolated environment with [`Pixi`](https://pixi.sh/), run
+
+```
+pixi global install brev
+```
+
 ### MacOS and Linux
 
 ```
