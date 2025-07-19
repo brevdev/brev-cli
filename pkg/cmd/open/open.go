@@ -35,8 +35,8 @@ const (
 )
 
 var (
-	openLong    = "[command in beta] This will open VS Code or Cursor SSH-ed in to your workspace. You must have the editor installed in your path."
-	openExample = "brev open workspace_id_or_name\nbrev open my-app\nbrev open my-app code\nbrev open my-app cursor\nbrev open --set-default cursor"
+	openLong    = "[command in beta] This will open VS Code or Cursor SSH-ed in to your instance. You must have the editor installed in your path."
+	openExample = "brev open instance_id_or_name\nbrev open my-instance\nbrev open my-instance code\nbrev open my-instance cursor\nbrev open --set-default cursor"
 )
 
 type OpenStore interface {
@@ -62,7 +62,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode or Cursor to your workspace",
+		Short:                 "[beta] open VSCode or Cursor to your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args: cmderrors.TransformToValidationError(func(cmd *cobra.Command, args []string) error {

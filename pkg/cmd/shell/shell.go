@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	openLong    = "[command in beta] This will shell in to your workspace"
-	openExample = "brev shell workspace_id_or_name\nbrev shell my-app\nbrev open h9fp5vxwe"
+	openLong    = "[command in beta] This will shell in to your instance"
+	openExample = "brev shell instance_id_or_name\nbrev shell my-instance\nbrev open h9fp5vxwe"
 )
 
 type ShellStore interface {
