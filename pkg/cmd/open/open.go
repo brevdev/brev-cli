@@ -65,7 +65,13 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Short:                 "[beta] open VSCode or Cursor to your workspace",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.RangeArgs(1, 2)),
+		Args: cmderrors.TransformToValidationError(func(cmd *cobra.Command, args []string) error {
+			setDefaultFlag, _ := cmd.Flags().GetString("set-default")
+			if setDefaultFlag != "" {
+				return cobra.NoArgs(cmd, args)
+			}
+			return cobra.RangeArgs(1, 2)(cmd, args)
+		}),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if setDefault != "" {
