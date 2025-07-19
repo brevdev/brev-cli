@@ -23,8 +23,8 @@ import (
 )
 
 var (
-	copyLong    = "Copy files between your local machine and remote instance"
-	copyExample = "brev copy instance_name:/path/to/remote/file /path/to/local/file\nbrev copy /path/to/local/file instance_name:/path/to/remote/file"
+	copyLong    = "Copy files and directories between your local machine and remote instance"
+	copyExample = "brev copy instance_name:/path/to/remote/file /path/to/local/file\nbrev copy /path/to/local/file instance_name:/path/to/remote/file\nbrev copy ./local-directory/ instance_name:/remote/path/"
 )
 
 type CopyStore interface {
@@ -44,7 +44,7 @@ func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopySto
 		Use:                   "copy",
 		Aliases:               []string{"cp", "scp"},
 		DisableFlagsInUseLine: true,
-		Short:                 "copy files between local and remote instance",
+		Short:                 "copy files and directories between local and remote instance",
 		Long:                  copyLong,
 		Example:               copyExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(2)),
@@ -174,11 +174,19 @@ func validateLocalFile(localPath string) error {
 	_, err := os.Stat(localPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return breverrors.NewValidationError(fmt.Sprintf("local file does not exist: %s", localPath))
+			return breverrors.NewValidationError(fmt.Sprintf("local file or directory does not exist: %s", localPath))
 		}
-		return breverrors.WrapAndTrace(fmt.Errorf("cannot access local file %s: %w", localPath, err))
+		return breverrors.WrapAndTrace(fmt.Errorf("cannot access local file or directory %s: %w", localPath, err))
 	}
 	return nil
+}
+
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.IsDir()
 }
 
 func parseWorkspacePath(path string) (workspace, filePath string, err error) {
@@ -200,15 +208,23 @@ func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUplo
 
 	startTime := time.Now()
 
+	scpArgs := []string{"scp"}
+
 	if isUpload {
-		scpCmd = exec.Command("scp", localPath, fmt.Sprintf("%s:%s", sshAlias, remotePath)) //nolint:gosec //sshAlias is validated workspace identifier
+		if isDirectory(localPath) {
+			scpArgs = append(scpArgs, "-r")
+		}
+		scpArgs = append(scpArgs, localPath, fmt.Sprintf("%s:%s", sshAlias, remotePath))
 		source = localPath
 		dest = fmt.Sprintf("%s:%s", sshAlias, remotePath)
 	} else {
-		scpCmd = exec.Command("scp", fmt.Sprintf("%s:%s", sshAlias, remotePath), localPath) //nolint:gosec //sshAlias is validated workspace identifier
+		scpArgs = append(scpArgs, "-r")
+		scpArgs = append(scpArgs, fmt.Sprintf("%s:%s", sshAlias, remotePath), localPath)
 		source = fmt.Sprintf("%s:%s", sshAlias, remotePath)
 		dest = localPath
 	}
+
+	scpCmd = exec.Command(scpArgs[0], scpArgs[1:]...) //nolint:gosec //sshAlias is validated workspace identifier
 
 	output, err := scpCmd.CombinedOutput()
 	if err != nil {
