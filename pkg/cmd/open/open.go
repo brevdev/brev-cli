@@ -33,11 +33,12 @@ const (
 	EditorVSCode   = "code"
 	EditorCursor   = "cursor"
 	EditorWindsurf = "windsurf"
+	EditorTmux     = "tmux"
 )
 
 var (
-	openLong    = "[command in beta] This will open VS Code, Cursor, or Windsurf SSH-ed in to your instance. You must have the editor installed in your path."
-	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open --set-default cursor\nbrev open --set-default windsurf"
+	openLong    = "[command in beta] This will open VS Code, Cursor, Windsurf, or tmux SSH-ed in to your instance. You must have the editor installed in your path."
+	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open instance tmux\nbrev open --set-default cursor\nbrev open --set-default windsurf\nbrev open --set-default tmux"
 )
 
 type OpenStore interface {
@@ -63,7 +64,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode, Cursor, or Windsurf to your instance",
+		Short:                 "[beta] open VSCode, Cursor, Windsurf, or tmux to your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args: cmderrors.TransformToValidationError(func(cmd *cobra.Command, args []string) error {
@@ -99,14 +100,14 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
-	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, or windsurf)")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, or tmux)")
 
 	return cmd
 }
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
-	if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf {
-		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', or 'windsurf'", editorType)
+	if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
+		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -130,8 +131,8 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 func determineEditorType(args []string) (string, error) {
 	if len(args) == 2 {
 		editorType := args[1]
-		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf {
-			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', or 'windsurf'", editorType)
+		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
+			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
 		}
 		return editorType, nil
 	}
@@ -213,6 +214,10 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		}
 		if strings.Contains(err.Error(), `"windsurf": executable file not found in $PATH`) {
 			errMsg := "windsurf\": executable file not found in $PATH\n\nadd 'windsurf' to your $PATH to open Windsurf from the terminal"
+			return handlePathError(tstore, workspace, errMsg)
+		}
+		if strings.Contains(err.Error(), `tmux: command not found`) {
+			errMsg := "tmux not found on remote instance. This will be installed automatically."
 			return handlePathError(tstore, workspace, errMsg)
 		}
 		return breverrors.WrapAndTrace(err)
@@ -352,6 +357,8 @@ func getEditorName(editorType string) string {
 		return "Cursor"
 	case EditorWindsurf:
 		return "Windsurf"
+	case EditorTmux:
+		return "tmux"
 	default:
 		return "VSCode"
 	}
@@ -380,6 +387,8 @@ func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, 
 	case EditorWindsurf:
 		tryToInstallWindsurfExtensions(t, extensions)
 		return openWindsurf(sshAlias, path, tstore)
+	case EditorTmux:
+		return openTmux(sshAlias, path, tstore)
 	default:
 		tryToInstallExtensions(t, extensions)
 		return openVsCode(sshAlias, path, tstore)
@@ -525,4 +534,56 @@ func getWindowsWindsurfPaths(store vscodePathStore) []string {
 	wd, _ := store.GetWindowsDir()
 	paths := append([]string{}, fmt.Sprintf("%s/AppData/Local/Programs/Windsurf/Windsurf.exe", wd), fmt.Sprintf("%s/AppData/Local/Programs/Windsurf/bin/windsurf", wd))
 	return paths
+}
+
+func openTmux(sshAlias string, path string, store OpenStore) error {
+	_ = store // unused parameter required by interface
+	err := ensureTmuxInstalled(sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	sessionName := "brev"
+
+	checkCmd := fmt.Sprintf("ssh %s 'tmux has-session -t %s 2>/dev/null'", sshAlias, sessionName)
+	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
+	err = checkExec.Run()
+
+	var tmuxCmd string
+	if err == nil {
+		tmuxCmd = fmt.Sprintf("ssh -t %s 'tmux attach-session -t %s'", sshAlias, sessionName)
+	} else {
+		tmuxCmd = fmt.Sprintf("ssh -t %s 'cd %s && tmux new-session -s %s'", sshAlias, path, sessionName)
+	}
+
+	sshCmd := exec.Command("bash", "-c", tmuxCmd) // #nosec G204
+	sshCmd.Stderr = os.Stderr
+	sshCmd.Stdout = os.Stdout
+	sshCmd.Stdin = os.Stdin
+
+	err = sshCmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func ensureTmuxInstalled(sshAlias string) error {
+	checkCmd := fmt.Sprintf("ssh %s 'which tmux >/dev/null 2>&1'", sshAlias)
+	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
+	err := checkExec.Run()
+	if err == nil {
+		return nil
+	}
+
+	installCmd := fmt.Sprintf("ssh %s 'sudo apt-get update && sudo apt-get install -y tmux'", sshAlias)
+	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
+	installExec.Stderr = os.Stderr
+	installExec.Stdout = os.Stdout
+
+	err = installExec.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
