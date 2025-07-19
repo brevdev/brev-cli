@@ -278,6 +278,7 @@ func pollUntil(s *spinner.Spinner, wsid string, state string, copyStore CopyStor
 		time.Sleep(5 * time.Second)
 		ws, err := copyStore.GetWorkspace(wsid)
 		if err != nil {
+			s.Stop()
 			return breverrors.WrapAndTrace(err)
 		}
 		s.Suffix = waitMsg
@@ -285,5 +286,6 @@ func pollUntil(s *spinner.Spinner, wsid string, state string, copyStore CopyStor
 			isReady = true
 		}
 	}
+	s.Stop()
 	return nil
 }
