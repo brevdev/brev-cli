@@ -122,7 +122,7 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	
-	t.Vprintf(t.Green("Default editor set to %s\n"), editorType)
+	t.Printf(t.Green("Default editor set to %s\n"), editorType)
 	return nil
 }
 
