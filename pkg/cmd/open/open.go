@@ -30,13 +30,14 @@ import (
 )
 
 const (
-	EditorVSCode = "code"
-	EditorCursor = "cursor"
+	EditorVSCode   = "code"
+	EditorCursor   = "cursor"
+	EditorWindsurf = "windsurf"
 )
 
 var (
-	openLong    = "[command in beta] This will open VS Code or Cursor SSH-ed in to your instance. You must have the editor installed in your path."
-	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open --set-default cursor"
+	openLong    = "[command in beta] This will open VS Code, Cursor, or Windsurf SSH-ed in to your instance. You must have the editor installed in your path."
+	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open --set-default cursor\nbrev open --set-default windsurf"
 )
 
 type OpenStore interface {
@@ -62,7 +63,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		Annotations:           map[string]string{"ssh": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode or Cursor to your instance",
+		Short:                 "[beta] open VSCode, Cursor, or Windsurf to your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args: cmderrors.TransformToValidationError(func(cmd *cobra.Command, args []string) error {
@@ -98,14 +99,14 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
-	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code or cursor)")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, or windsurf)")
 
 	return cmd
 }
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
-	if editorType != EditorVSCode && editorType != EditorCursor {
-		return fmt.Errorf("invalid editor type: %s. Must be 'code' or 'cursor'", editorType)
+	if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf {
+		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', or 'windsurf'", editorType)
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -129,8 +130,8 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 func determineEditorType(args []string) (string, error) {
 	if len(args) == 2 {
 		editorType := args[1]
-		if editorType != EditorVSCode && editorType != EditorCursor {
-			return "", fmt.Errorf("invalid editor type: %s. Must be 'code' or 'cursor'", editorType)
+		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf {
+			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', or 'windsurf'", editorType)
 		}
 		return editorType, nil
 	}
@@ -218,6 +219,20 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		}
 		if strings.Contains(err.Error(), `"cursor": executable file not found in $PATH`) {
 			errMsg := "cursor\": executable file not found in $PATH\n\nadd 'cursor' to your $PATH to open Cursor from the terminal"
+			_, errStore := tstore.UpdateUser(
+				workspace.CreatedByUserID,
+				&entity.UpdateUser{
+					OnboardingData: map[string]interface{}{
+						"pathErrorTS": time.Now().UTC().Unix(),
+					},
+				})
+			if errStore != nil {
+				return errors.New(errMsg + "\n" + errStore.Error())
+			}
+			return errors.New(errMsg)
+		}
+		if strings.Contains(err.Error(), `"windsurf": executable file not found in $PATH`) {
+			errMsg := "windsurf\": executable file not found in $PATH\n\nadd 'windsurf' to your $PATH to open Windsurf from the terminal"
 			_, errStore := tstore.UpdateUser(
 				workspace.CreatedByUserID,
 				&entity.UpdateUser{
@@ -337,6 +352,29 @@ func tryToInstallCursorExtensions(
 	}
 }
 
+func tryToInstallWindsurfExtensions(
+	t *terminal.Terminal,
+	extIDs []string,
+) {
+	for _, extID := range extIDs {
+		extInstalled, err0 := uutil.IsWindsurfExtensionInstalled(extID)
+		if !extInstalled {
+			err1 := uutil.InstallWindsurfExtension(extID)
+			isRemoteInstalled, err2 := uutil.IsWindsurfExtensionInstalled(extID)
+			if !isRemoteInstalled {
+				err := multierror.Append(err0, err1, err2)
+				t.Print(t.Red("Couldn't install the necessary Windsurf extension automatically.\nError: " + err.Error()))
+				t.Print("\tPlease install Windsurf and the following Windsurf extension: " + t.Yellow(extID) + ".\n")
+				_ = terminal.PromptGetInput(terminal.PromptContent{
+					Label:      "Hit enter when finished:",
+					ErrorMsg:   "error",
+					AllowEmpty: true,
+				})
+			}
+		}
+	}
+}
+
 // Opens code editor. Attempts to install code in path if not installed already
 func openEditorWithSSH(
 	t *terminal.Terminal,
@@ -361,19 +399,26 @@ func openEditorWithSSH(
 	}
 
 	// todo: add it here
-	editorName := "VS Code"
-	if editorType == EditorCursor {
+	editorName := "VSCode"
+	switch editorType {
+	case EditorCursor:
 		editorName = "Cursor"
+	case EditorWindsurf:
+		editorName = "Windsurf"
 	}
 	s.Suffix = fmt.Sprintf(" Instance is ready. Opening %s 🤙", editorName)
 	time.Sleep(250 * time.Millisecond)
 	s.Stop()
 	t.Vprintf("\n")
 
-	if editorType == EditorCursor {
+	switch editorType {
+	case EditorCursor:
 		tryToInstallCursorExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
 		err = openCursor(sshAlias, path, tstore)
-	} else {
+	case EditorWindsurf:
+		tryToInstallWindsurfExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
+		err = openWindsurf(sshAlias, path, tstore)
+	default:
 		tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
 		err = openVsCode(sshAlias, path, tstore)
 	}
@@ -404,8 +449,11 @@ func openEditorWithSSH(
 			return breverrors.WrapAndTrace(err)
 		}
 		editorName := "VSCode"
-		if editorType == EditorCursor {
+		switch editorType {
+		case EditorCursor:
 			editorName = "Cursor"
+		case EditorWindsurf:
+			editorName = "Windsurf"
 		}
 		return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open %s, try adding it to PATH\n"), editorName))
 	} else {
@@ -475,5 +523,23 @@ func openCursor(sshAlias string, path string, store OpenStore) error {
 func getWindowsCursorPaths(store vscodePathStore) []string {
 	wd, _ := store.GetWindowsDir()
 	paths := append([]string{}, fmt.Sprintf("%s/AppData/Local/Programs/Cursor/Cursor.exe", wd), fmt.Sprintf("%s/AppData/Local/Programs/Cursor/bin/cursor", wd))
+	return paths
+}
+
+func openWindsurf(sshAlias string, path string, store OpenStore) error {
+	windsurfString := fmt.Sprintf("vscode-remote://ssh-remote+%s%s", sshAlias, path)
+	windsurfString = shellescape.QuoteCommand([]string{windsurfString})
+
+	windowsPaths := getWindowsWindsurfPaths(store)
+	_, err := uutil.TryRunWindsurfCommand([]string{"--folder-uri", windsurfString}, windowsPaths...)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func getWindowsWindsurfPaths(store vscodePathStore) []string {
+	wd, _ := store.GetWindowsDir()
+	paths := append([]string{}, fmt.Sprintf("%s/AppData/Local/Programs/Windsurf/Windsurf.exe", wd), fmt.Sprintf("%s/AppData/Local/Programs/Windsurf/bin/windsurf", wd))
 	return paths
 }
