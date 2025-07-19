@@ -205,45 +205,15 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
-			_, errStore := tstore.UpdateUser(
-				workspace.CreatedByUserID,
-				&entity.UpdateUser{
-					OnboardingData: map[string]interface{}{
-						"pathErrorTS": time.Now().UTC().Unix(),
-					},
-				})
-			if errStore != nil {
-				return errors.New(errMsg + "\n" + errStore.Error())
-			}
-			return errors.New(errMsg)
+			return handlePathError(tstore, workspace, errMsg)
 		}
 		if strings.Contains(err.Error(), `"cursor": executable file not found in $PATH`) {
 			errMsg := "cursor\": executable file not found in $PATH\n\nadd 'cursor' to your $PATH to open Cursor from the terminal"
-			_, errStore := tstore.UpdateUser(
-				workspace.CreatedByUserID,
-				&entity.UpdateUser{
-					OnboardingData: map[string]interface{}{
-						"pathErrorTS": time.Now().UTC().Unix(),
-					},
-				})
-			if errStore != nil {
-				return errors.New(errMsg + "\n" + errStore.Error())
-			}
-			return errors.New(errMsg)
+			return handlePathError(tstore, workspace, errMsg)
 		}
 		if strings.Contains(err.Error(), `"windsurf": executable file not found in $PATH`) {
 			errMsg := "windsurf\": executable file not found in $PATH\n\nadd 'windsurf' to your $PATH to open Windsurf from the terminal"
-			_, errStore := tstore.UpdateUser(
-				workspace.CreatedByUserID,
-				&entity.UpdateUser{
-					OnboardingData: map[string]interface{}{
-						"pathErrorTS": time.Now().UTC().Unix(),
-					},
-				})
-			if errStore != nil {
-				return errors.New(errMsg + "\n" + errStore.Error())
-			}
-			return errors.New(errMsg)
+			return handlePathError(tstore, workspace, errMsg)
 		}
 		return breverrors.WrapAndTrace(err)
 	}
@@ -376,6 +346,68 @@ func tryToInstallWindsurfExtensions(
 }
 
 // Opens code editor. Attempts to install code in path if not installed already
+func getEditorName(editorType string) string {
+	switch editorType {
+	case EditorCursor:
+		return "Cursor"
+	case EditorWindsurf:
+		return "Windsurf"
+	default:
+		return "VSCode"
+	}
+}
+
+func handlePathError(tstore OpenStore, workspace *entity.Workspace, errMsg string) error {
+	_, errStore := tstore.UpdateUser(
+		workspace.CreatedByUserID,
+		&entity.UpdateUser{
+			OnboardingData: map[string]interface{}{
+				"pathErrorTS": time.Now().UTC().Unix(),
+			},
+		})
+	if errStore != nil {
+		return errors.New(errMsg + "\n" + errStore.Error())
+	}
+	return errors.New(errMsg)
+}
+
+func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, path string, tstore OpenStore) error {
+	extensions := []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"}
+	switch editorType {
+	case EditorCursor:
+		tryToInstallCursorExtensions(t, extensions)
+		return openCursor(sshAlias, path, tstore)
+	case EditorWindsurf:
+		tryToInstallWindsurfExtensions(t, extensions)
+		return openWindsurf(sshAlias, path, tstore)
+	default:
+		tryToInstallExtensions(t, extensions)
+		return openVsCode(sshAlias, path, tstore)
+	}
+}
+
+func validateRemoteWorkspace(t *terminal.Terminal, tstore OpenStore, editorType string, originalErr error) error {
+	err := mo.TupleToResult(tstore.IsWorkspace()).Match(
+		func(value bool) (bool, error) {
+			if value {
+				return true, errors.New("you are in a remote brev instance; brev open is not supported. Please run brev open locally instead")
+			}
+			return false, breverrors.WrapAndTrace(originalErr)
+		},
+		func(err2 error) (bool, error) {
+			return false, multierror.Append(originalErr, err2)
+		},
+	).Error()
+	if err != nil {
+		if strings.Contains(err.Error(), "you are in a remote brev instance;") {
+			return breverrors.WrapAndTrace(err)
+		}
+		editorName := getEditorName(editorType)
+		return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open %s, try adding it to PATH\n"), editorName))
+	}
+	return nil
+}
+
 func openEditorWithSSH(
 	t *terminal.Terminal,
 	sshAlias string,
@@ -384,12 +416,12 @@ func openEditorWithSSH(
 	_ string,
 	editorType string,
 ) error {
-	// infinite for loop:
 	res := refresh.RunRefreshAsync(tstore)
 	err := res.Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
 	s := t.NewSpinner()
 	s.Start()
 	s.Suffix = "  checking if your instance is ready..."
@@ -398,67 +430,18 @@ func openEditorWithSSH(
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// todo: add it here
-	editorName := "VSCode"
-	switch editorType {
-	case EditorCursor:
-		editorName = "Cursor"
-	case EditorWindsurf:
-		editorName = "Windsurf"
-	}
+	editorName := getEditorName(editorType)
 	s.Suffix = fmt.Sprintf(" Instance is ready. Opening %s 🤙", editorName)
 	time.Sleep(250 * time.Millisecond)
 	s.Stop()
 	t.Vprintf("\n")
 
-	switch editorType {
-	case EditorCursor:
-		tryToInstallCursorExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
-		err = openCursor(sshAlias, path, tstore)
-	case EditorWindsurf:
-		tryToInstallWindsurfExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
-		err = openWindsurf(sshAlias, path, tstore)
-	default:
-		tryToInstallExtensions(t, []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"})
-		err = openVsCode(sshAlias, path, tstore)
-	}
+	err = openEditorByType(t, editorType, sshAlias, path, tstore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// check if we are in a brev environment, if so transform the error message
-	// to indicate that the user should run brev open locally instead of in
-	// the cloud and that we intend on supporting this in the future
-	// if there is an error getting the workspace, append that error with
-	// multierror,
-	// otherwise, just return the error
-	err = mo.TupleToResult(tstore.IsWorkspace()).Match(
-		func(value bool) (bool, error) {
-			if value {
-				// todo log original error to sentry
-				return true, errors.New("you are in a remote brev instance; brev open is not supported. Please run brev open locally instead")
-			}
-			return false, breverrors.WrapAndTrace(err)
-		},
-		func(err2 error) (bool, error) {
-			return false, multierror.Append(err, err2)
-		},
-	).Error()
-	if err != nil {
-		if strings.Contains(err.Error(), "you are in a remote brev instance;") {
-			return breverrors.WrapAndTrace(err)
-		}
-		editorName := "VSCode"
-		switch editorType {
-		case EditorCursor:
-			editorName = "Cursor"
-		case EditorWindsurf:
-			editorName = "Windsurf"
-		}
-		return breverrors.WrapAndTrace(fmt.Errorf(t.Red("couldn't open %s, try adding it to PATH\n"), editorName))
-	} else {
-		return nil
-	}
+	return validateRemoteWorkspace(t, tstore, editorType, err)
 }
 
 func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias string) error {
