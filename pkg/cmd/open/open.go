@@ -69,7 +69,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if setDefault != "" {
-				return handleSetDefault(t, store, setDefault)
+				return handleSetDefault(t, setDefault)
 			}
 			
 			setupDoneString := "------ Git repo cloned ------"
@@ -77,7 +77,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				setupDoneString = "------ Done running execs ------"
 			}
 			
-			editorType, err := determineEditorType(args, store)
+			editorType, err := determineEditorType(args)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -97,7 +97,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	return cmd
 }
 
-func handleSetDefault(t *terminal.Terminal, store OpenStore, editorType string) error {
+func handleSetDefault(t *terminal.Terminal, editorType string) error {
 	if editorType != EditorVSCode && editorType != EditorCursor {
 		return fmt.Errorf("invalid editor type: %s. Must be 'code' or 'cursor'", editorType)
 	}
@@ -120,7 +120,7 @@ func handleSetDefault(t *terminal.Terminal, store OpenStore, editorType string) 
 	return nil
 }
 
-func determineEditorType(args []string, store OpenStore) (string, error) {
+func determineEditorType(args []string) (string, error) {
 	if len(args) == 2 {
 		editorType := args[1]
 		if editorType != EditorVSCode && editorType != EditorCursor {
