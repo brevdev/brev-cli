@@ -87,7 +87,7 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 
 	_ = writeconnectionevent.WriteWCEOnEnv(cstore, workspace.DNS)
 
-	err = runSCP(sshName, localPath, remotePath, isUpload)
+	err = runSCP(t, sshName, localPath, remotePath, isUpload)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -194,19 +194,29 @@ func parseWorkspacePath(path string) (workspace, filePath string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func runSCP(sshAlias, localPath, remotePath string, isUpload bool) error {
+func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
 	var scpCmd *exec.Cmd
+	var source, dest string
+
+	startTime := time.Now()
 
 	if isUpload {
 		scpCmd = exec.Command("scp", localPath, fmt.Sprintf("%s:%s", sshAlias, remotePath)) //nolint:gosec //sshAlias is validated workspace identifier
+		source = localPath
+		dest = fmt.Sprintf("%s:%s", sshAlias, remotePath)
 	} else {
 		scpCmd = exec.Command("scp", fmt.Sprintf("%s:%s", sshAlias, remotePath), localPath) //nolint:gosec //sshAlias is validated workspace identifier
+		source = fmt.Sprintf("%s:%s", sshAlias, remotePath)
+		dest = localPath
 	}
 
 	output, err := scpCmd.CombinedOutput()
 	if err != nil {
 		return breverrors.WrapAndTrace(fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output)))
 	}
+
+	duration := time.Since(startTime)
+	t.Vprintf(t.Green("✓ Successfully copied %s → %s (%v)\n"), source, dest, duration.Round(time.Millisecond))
 
 	return nil
 }
