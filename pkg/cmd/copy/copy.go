@@ -3,6 +3,7 @@ package copy
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -65,6 +66,13 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 	workspaceNameOrID, remotePath, localPath, isUpload, err := parseCopyArguments(source, dest)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	if isUpload {
+		err = validateLocalFile(localPath)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	workspace, err := prepareWorkspace(t, cstore, workspaceNameOrID)
@@ -160,6 +168,17 @@ func setupSSHConnection(t *terminal.Terminal, cstore CopyStore, workspace *entit
 	}
 
 	return sshName, nil
+}
+
+func validateLocalFile(localPath string) error {
+	_, err := os.Stat(localPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return breverrors.NewValidationError(fmt.Sprintf("local file does not exist: %s", localPath))
+		}
+		return breverrors.WrapAndTrace(fmt.Errorf("cannot access local file %s: %w", localPath, err))
+	}
+	return nil
 }
 
 func parseWorkspacePath(path string) (workspace, filePath string, err error) {
