@@ -543,7 +543,7 @@ func openTmux(sshAlias string, path string, store OpenStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	sessionName := fmt.Sprintf("brev-%s", sshAlias)
+	sessionName := "brev"
 
 	checkCmd := fmt.Sprintf("ssh %s 'tmux has-session -t %s 2>/dev/null'", sshAlias, sessionName)
 	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
