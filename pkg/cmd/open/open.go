@@ -72,7 +72,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			}
 			return cobra.RangeArgs(1, 2)(cmd, args)
 		}),
-		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
+		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if setDefault != "" {
 				return handleSetDefault(t, setDefault)
@@ -107,21 +107,21 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 	if editorType != EditorVSCode && editorType != EditorCursor {
 		return fmt.Errorf("invalid editor type: %s. Must be 'code' or 'cursor'", editorType)
 	}
-	
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	
+
 	settings := &files.PersonalSettings{
 		DefaultEditor: editorType,
 	}
-	
+
 	err = files.WritePersonalSettings(files.AppFs, homeDir, settings)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	
+
 	t.Vprint(t.Green("Default editor set to " + editorType + "\n"))
 	return nil
 }
@@ -134,17 +134,17 @@ func determineEditorType(args []string) (string, error) {
 		}
 		return editorType, nil
 	}
-	
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return EditorVSCode, nil
 	}
-	
+
 	settings, err := files.ReadPersonalSettings(files.AppFs, homeDir)
 	if err != nil {
 		return EditorVSCode, nil
 	}
-	
+
 	return settings.DefaultEditor, nil
 }
 
