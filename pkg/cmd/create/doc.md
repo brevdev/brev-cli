@@ -53,10 +53,10 @@ you can safely ctrl+c to exit
 ⣽  workspace is deploying
 your workspace is ready!
 
-connect to the workspace:
-	brev open foo	# brev open <name> -> open workspace in preferred editor
-	brev shell foo	# brev shell <name> -> ssh into workspace (shortcut)
-	ssh foo-8j4u	# ssh <ssh-name> -> ssh directly to workspace
+connect to the instance:
+	brev open foo	# brev open <name> -> open instance in preferred editor
+	brev shell foo	# brev shell <name> -> ssh into instance (shortcut)
+	ssh foo-8j4u	# ssh <ssh-name> -> ssh directly to instance
 
 ```
 
@@ -79,10 +79,10 @@ you can safely ctrl+c to exit
 ⣽  workspace is deploying
 your workspace is ready!
 
-connect to the workspace:
-	brev open foo	# brev open <name> -> open workspace in preferred editor
-	brev shell foo	# brev shell <name> -> ssh into workspace (shortcut)
-	ssh foo-8j4u	# ssh <ssh-name> -> ssh directly to workspace
+connect to the instance:
+	brev open foo	# brev open <name> -> open instance in preferred editor
+	brev shell foo	# brev shell <name> -> ssh into instance (shortcut)
+	ssh foo-8j4u	# ssh <ssh-name> -> ssh directly to instance
 
 ```
 
@@ -136,10 +136,10 @@ You can safely ctrl+c to exit
 ⡿  workspace is deploying
 Your workspace is ready!
 
-Connect to the workspace:
-	brev open merge-json	# brev open <NAME> -> open workspace in preferred editor
-	brev shell merge-json	# brev shell <NAME> -> ssh into workspace (shortcut)
-	ssh merge-json-wd6q	# ssh <SSH-NAME> -> ssh directly to workspace
+Connect to the instance:
+	brev open merge-json	# brev open <NAME> -> open instance in preferred editor
+	brev shell merge-json	# brev shell <NAME> -> ssh into instance (shortcut)
+	ssh merge-json-wd6q	# ssh <SSH-NAME> -> ssh directly to instance
 ```
 
 ### Create a workspace from a git repository
@@ -161,10 +161,10 @@ You can safely ctrl+c to exit
 ⣾  workspace is deploying
 Your workspace is ready!
 
-Connect to the workspace:
-	brev open react-starter-app	# brev open <NAME> -> open workspace in preferred editor
-	brev shell react-starter-app	# brev shell <NAME> -> ssh into workspace (shortcut)
-	ssh react-starter-app-8v8p	# ssh <SSH-NAME> -> ssh directly to workspace
+Connect to the instance:
+	brev open react-starter-app	# brev open <NAME> -> open instance in preferred editor
+	brev shell react-starter-app	# brev shell <NAME> -> ssh into instance (shortcut)
+	ssh react-starter-app-8v8p	# ssh <SSH-NAME> -> ssh directly to instance
 
 ```
 
@@ -184,10 +184,10 @@ You have 1 workspace in Org brev.dev
  NAME                             STATUS    URL                                                                       ID
  brev-cli                         RUNNING   brev-cli-p09m-brevdev.wgt-us-west-2-test.brev.dev                         x1yxqp09m
 
-Connect to running workspace:
-	brev open brev-cli	# brev open <NAME> -> open workspace in preferred editor
-	brev shell brev-cli	# brev shell <NAME> -> ssh into workspace (shortcut)
-	ssh brev-cli-p09m	# ssh <SSH-NAME> -> ssh directly to workspace
+Connect to running instance:
+	brev open brev-cli	# brev open <NAME> -> open instance in preferred editor
+	brev shell brev-cli	# brev shell <NAME> -> ssh into instance (shortcut)
+	ssh brev-cli-p09m	# ssh <SSH-NAME> -> ssh directly to instance
 
 7 other projects in Org brev.dev
  NAME                        MEMBERS
@@ -221,10 +221,10 @@ template 4nbb4lg2s ubuntu
 resource class 2x8
 workspace group brev-test-brevtenant-cluster
 You can safely ctrl+c to exit
-⣟  workspace is deploying Connect to the workspace:
-	brev open new-docs	# brev open <NAME> -> open workspace in preferred editor
-	brev shell new-docs	# brev shell <NAME> -> ssh into workspace (shortcut)
-	ssh new-docs-pek9	# ssh <SSH-NAME> -> ssh directly to workspace
+⣟  workspace is deploying Connect to the instance:
+	brev open new-docs	# brev open <NAME> -> open instance in preferred editor
+	brev shell new-docs	# brev shell <NAME> -> ssh into instance (shortcut)
+	ssh new-docs-pek9	# ssh <SSH-NAME> -> ssh directly to instance
 ```
 
 ### Start a stopped workspace
@@ -245,10 +245,10 @@ You have 1 workspace in Org brev.dev
  NAME                             STATUS     URL                                                                       ID
  linear-client                    STOPPED    linear-client-yw1a-brevdev.wgt-us-west-2-test.brev.dev                    gov5jyw1a
 
-Connect to running workspace:
-	brev open linear-client	# brev open <NAME> -> open workspace in preferred editor
-	brev shell linear-client	# brev shell <NAME> -> ssh into workspace (shortcut)
-	ssh linear-client-yw1a	# ssh <SSH-NAME> -> ssh directly to workspace
+Connect to running instance:
+	brev open linear-client	# brev open <NAME> -> open instance in preferred editor
+	brev shell linear-client	# brev shell <NAME> -> ssh into instance (shortcut)
+	ssh linear-client-yw1a	# ssh <SSH-NAME> -> ssh directly to instance
 
 ```
 
