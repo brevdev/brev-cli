@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	copyLong    = "Copy files between your local machine and remote workspace"
-	copyExample = "brev copy workspace_name:/path/to/remote/file /path/to/local/file\nbrev copy /path/to/local/file workspace_name:/path/to/remote/file"
+	copyLong    = "Copy files between your local machine and remote instance"
+	copyExample = "brev copy instance_name:/path/to/remote/file /path/to/local/file\nbrev copy /path/to/local/file instance_name:/path/to/remote/file"
 )
 
 type CopyStore interface {
@@ -43,7 +43,7 @@ func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopySto
 		Use:                   "copy",
 		Aliases:               []string{"cp", "scp"},
 		DisableFlagsInUseLine: true,
-		Short:                 "copy files between local and remote workspace",
+		Short:                 "copy files between local and remote instance",
 		Long:                  copyLong,
 		Example:               copyExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(2)),
@@ -99,7 +99,7 @@ func parseCopyArguments(source, dest string) (workspaceNameOrID, remotePath, loc
 	}
 
 	if (sourceWorkspace == "" && destWorkspace == "") || (sourceWorkspace != "" && destWorkspace != "") {
-		return "", "", "", false, breverrors.NewValidationError("exactly one of source or destination must be a workspace path (format: workspace_name:/path)")
+		return "", "", "", false, breverrors.NewValidationError("exactly one of source or destination must be an instance path (format: instance_name:/path)")
 	}
 
 	if sourceWorkspace != "" {
@@ -169,7 +169,7 @@ func parseWorkspacePath(path string) (workspace, filePath string, err error) {
 
 	parts := strings.Split(path, ":")
 	if len(parts) != 2 {
-		return "", "", breverrors.NewValidationError("invalid workspace path format, use workspace_name:/path")
+		return "", "", breverrors.NewValidationError("invalid instance path format, use instance_name:/path")
 	}
 
 	return parts[0], parts[1], nil
