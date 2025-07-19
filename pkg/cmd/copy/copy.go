@@ -216,6 +216,7 @@ func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUplo
 	}
 
 	duration := time.Since(startTime)
+	fmt.Print("\n")
 	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully copied %s → %s (%v)\n", source, dest, duration.Round(time.Millisecond))))
 
 	return nil
