@@ -77,17 +77,17 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if setDefault != "" {
 				return handleSetDefault(t, setDefault)
 			}
-			
+
 			setupDoneString := "------ Git repo cloned ------"
 			if waitForSetupToFinish {
 				setupDoneString = "------ Done running execs ------"
 			}
-			
+
 			editorType, err := determineEditorType(args)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			
+
 			err = runOpenCommand(t, store, args[0], setupDoneString, directory, host, editorType)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
