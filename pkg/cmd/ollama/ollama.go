@@ -21,7 +21,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -114,7 +113,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 			})
 
 			// Type out the creating workspace message
-			hello.TypeItToMeUnskippable27("🤙🦙🤙🦙🤙🦙🤙")
+			t.Vprint("🤙🦙🤙🦙🤙🦙🤙")
 			t.Vprint(t.Green("\n\n\n"))
 
 			_, err := res.Await()
@@ -152,7 +151,7 @@ func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore Ollam
 	instanceName := fmt.Sprintf("ollama-%s", uuid)
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, instanceName).WithInstanceType(instanceType)
 
-	hello.TypeItToMeUnskippable27(fmt.Sprintf("Creating Ollama server %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(opts.Model), t.Green(org.ID)))
+	t.Vprintf("Creating Ollama server %s with model %s in org %s\n", t.Green(cwOptions.Name), t.Green(opts.Model), t.Green(org.ID))
 
 	s := t.NewSpinner()
 
@@ -181,7 +180,7 @@ func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore Ollam
 		return breverrors.New("instance did not start")
 	}
 	s.Stop()
-	hello.TypeItToMeUnskippable27("VM is ready!\n")
+	t.Vprint("VM is ready!\n")
 	s.Start()
 
 	// TODO: look into timing of verb call

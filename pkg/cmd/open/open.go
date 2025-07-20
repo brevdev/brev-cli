@@ -12,7 +12,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -194,10 +193,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = hello.SetHasRunOpen(true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	// we don't care about the error here but should log with sentry
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using vscode

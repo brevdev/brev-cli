@@ -8,7 +8,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	utilities "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -31,7 +30,6 @@ type LsStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
-	hello.HelloStore
 }
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
@@ -50,37 +48,6 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
   brev ls --org <orgid>
 		`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			if hello.ShouldWeRunOnboardingLSStep(noLoginLsStore) && hello.ShouldWeRunOnboarding(noLoginLsStore) {
-				// Getting the workspaces should go in the hello.go file but then
-				// requires passing in stores and that makes it hard to use in other commands
-				org, err := getOrgForRunLs(loginLsStore, org)
-				if err != nil {
-					return err
-				}
-
-				allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				user, err := loginLsStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				var myWorkspaces []entity.Workspace
-				for _, v := range allWorkspaces {
-					if v.CreatedByUserID == user.ID {
-						myWorkspaces = append(myWorkspaces, v)
-					}
-				}
-
-				err = hello.Step1(t, myWorkspaces, user, loginLsStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-			}
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {

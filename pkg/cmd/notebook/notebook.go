@@ -1,7 +1,8 @@
 package notebook
 
 import (
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+	"fmt"
+	
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -43,7 +44,6 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			}()
 
 			// Type out the checking message
-			hello.TypeItToMeUnskippable27("Checking to make sure the workspace is running...")
 
 			// Wait for the network call to finish
 			result := <-resultCh
@@ -54,16 +54,15 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 
 			// Check if the workspace is running
 			if result.Workspace.Status != "RUNNING" {
-				hello.TypeItToMeUnskippable27("The workspace is not running. Please ensure it's in the running state before proceeding.")
 				return breverrors.WorkspaceNotRunning{Status: result.Workspace.Status}
 			}
 
 			urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 			warningType := color.New(color.FgBlack, color.Bold, color.BgCyan).SprintFunc()
 
-			hello.TypeItToMeUnskippable("\n" + warningType("  Please keep this terminal open 🤙  "))
+			fmt.Print("\n" + warningType("  Please keep this terminal open 🤙  "))
 
-			hello.TypeItToMeUnskippable27("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
+			fmt.Print("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 
 			// Port forward on 8888
 			err2 := portforward.RunPortforward(store, args[0], "8888:8888", false)
@@ -72,7 +71,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 			}
 
 			// Print out a link for the user
-			hello.TypeItToMeUnskippable27("Your notebook is accessible at: http://localhost:8888")
+			fmt.Print("Your notebook is accessible at: http://localhost:8888")
 
 			return nil
 		},
