@@ -2,7 +2,7 @@ package notebook
 
 import (
 	"fmt"
-	
+
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
