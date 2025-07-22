@@ -62,7 +62,7 @@ func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 
 			fmt.Print("\n" + warningType("  Please keep this terminal open 🤙  "))
 
-			fmt.Print("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
+			fmt.Print("\nClick to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 
 			// Port forward on 8888
 			err2 := portforward.RunPortforward(store, args[0], "8888:8888", false)
