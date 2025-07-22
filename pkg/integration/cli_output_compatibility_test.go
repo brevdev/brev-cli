@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -222,20 +223,29 @@ func Test_APIInstanceTypesEndpoint(t *testing.T) {
 		}
 		
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		err := json.NewEncoder(w).Encode(response)
+		if err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
 	}))
 	defer server.Close()
 	
 	// Test the API endpoint
 	client := &http.Client{Timeout: 5 * time.Second}
-	req, err := http.NewRequest("GET", server.URL+"/v1/instance/types", nil)
+	ctx := context.Background()
+	req, err := http.NewRequestWithContext(ctx, "GET", server.URL+"/v1/instance/types", nil)
 	require.NoError(t, err)
 	
 	req.Header.Set("User-Agent", "nvidia-ai-workbench")
 	
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Logf("Failed to close response body: %v", closeErr)
+		}
+	}()
 	
 	assert.Equal(t, 200, resp.StatusCode, "API should return 200 OK")
 	assert.Equal(t, "application/json", resp.Header.Get("Content-Type"), "API should return JSON")
