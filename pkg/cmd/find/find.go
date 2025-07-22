@@ -284,12 +284,13 @@ func displayInstanceTypesTable(_ *terminal.Terminal, instances []store.InstanceT
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"Instance Type", "Provider", "GPUs", "Node VRAM", "Memory", "vCPUs", "Price/hr", "Capabilities"}
+	header := table.Row{"Instance Type", "Provider", "GPUs", "Node VRAM", "Memory", "vCPUs", "Root Disk", "Price/hr", "Capabilities"}
 	ta.AppendHeader(header)
 
 	for _, instance := range instances {
 		gpuInfo := formatGPUInfo(instance.SupportedGPUs)
 		nodeVRAM := formatNodeVRAM(instance.SupportedGPUs)
+		rootDisk := formatRootDisk(instance.SupportedStorage)
 		capabilities := formatCapabilities(instance)
 		price := fmt.Sprintf("$%s", instance.BasePrice.Amount)
 
@@ -300,6 +301,7 @@ func displayInstanceTypesTable(_ *terminal.Terminal, instances []store.InstanceT
 			nodeVRAM,
 			instance.Memory,
 			fmt.Sprintf("%d", instance.VCPU),
+			rootDisk,
 			price,
 			capabilities,
 		}
@@ -361,6 +363,44 @@ func formatCapabilities(instance store.InstanceType) string {
 	}
 
 	return strings.Join(caps, ", ")
+}
+
+func formatRootDisk(storage []store.Storage) string {
+	if len(storage) == 0 {
+		return "None"
+	}
+
+	cheapestStorage := storage[0]
+	cheapestPrice := parsePrice(cheapestStorage.PricePerGBHr.Amount)
+
+	for _, s := range storage[1:] {
+		price := parsePrice(s.PricePerGBHr.Amount)
+		if price < cheapestPrice {
+			cheapestStorage = s
+			cheapestPrice = price
+		}
+	}
+
+	var diskSize string
+	if cheapestStorage.Size != "" && cheapestStorage.Size != "0B" {
+		diskSize = cheapestStorage.Size
+	} else if cheapestStorage.MinSize != "" && cheapestStorage.MaxSize != "" {
+		diskSize = fmt.Sprintf("%s-%s", cheapestStorage.MinSize, cheapestStorage.MaxSize)
+	} else {
+		diskSize = "Variable"
+	}
+
+	pricePerTB := cheapestPrice * 1000
+
+	return fmt.Sprintf("%s ($%.2f/TB/hr)", diskSize, pricePerTB)
+}
+
+func parsePrice(priceStr string) float64 {
+	price, err := strconv.ParseFloat(priceStr, 64)
+	if err != nil {
+		return 0
+	}
+	return price
 }
 
 func getBrevTableOptions() table.Options {

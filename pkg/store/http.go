@@ -268,6 +268,7 @@ type GPU struct {
 }
 
 type Storage struct {
+	Count        int    `json:"count"`
 	Size         string `json:"size"`
 	Type         string `json:"type"`
 	MinSize      string `json:"min_size"`
