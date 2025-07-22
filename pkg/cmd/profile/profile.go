@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -95,8 +94,8 @@ func profile(personalSettingsRepo string, t *terminal.Terminal, profileStore Pro
 		return breverrors.WrapAndTrace(err)
 	}
 
-	temp := start.MakeNewWorkspaceFromURL(personalSettingsRepo)
-	t.Vprint(temp.GitRepo)
+	gitRepo := makeGitRepoFromURL(personalSettingsRepo)
+	t.Vprint(gitRepo)
 
 	// TODO: make sure the git repo format works!!!!!!!
 
@@ -104,7 +103,7 @@ func profile(personalSettingsRepo string, t *terminal.Terminal, profileStore Pro
 		Username:          user.Username,
 		Name:              user.Name,
 		Email:             user.Email,
-		BaseWorkspaceRepo: temp.GitRepo,
+		BaseWorkspaceRepo: gitRepo,
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -112,4 +111,21 @@ func profile(personalSettingsRepo string, t *terminal.Terminal, profileStore Pro
 
 	t.Vprintf("Your personal config has been updated. All new instances will run this script.\n")
 	return nil
+}
+
+func makeGitRepoFromURL(url string) string {
+	if strings.Contains(url, "http") {
+		split := strings.Split(url, ".com/")
+		provider := strings.Split(split[0], "://")[1]
+
+		if strings.Contains(split[1], ".git") {
+			return fmt.Sprintf("%s.com:%s", provider, split[1])
+		} else {
+			return fmt.Sprintf("%s.com:%s.git", provider, split[1])
+		}
+	} else {
+		split := strings.Split(url, ".com:")
+		provider := strings.Split(split[0], "@")[1]
+		return fmt.Sprintf("%s.com:%s", provider, split[1])
+	}
 }
