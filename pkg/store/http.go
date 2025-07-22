@@ -221,7 +221,7 @@ func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
 func (n NoAuthHTTPStore) GetInstanceTypes() (*InstanceTypesResponse, error) {
 	publicClient := resty.New()
 	publicClient.SetBaseURL("https://api.brev.dev")
-	
+
 	res, err := publicClient.R().
 		SetHeader("Content-Type", "application/json").
 		Get("/v1/instance/types")
@@ -231,13 +231,13 @@ func (n NoAuthHTTPStore) GetInstanceTypes() (*InstanceTypesResponse, error) {
 	if res.StatusCode() >= 400 {
 		return nil, NewHTTPResponseError(res)
 	}
-	
+
 	var result InstanceTypesResponse
 	err = json.Unmarshal(res.Body(), &result)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	
+
 	return &result, nil
 }
 
@@ -246,18 +246,18 @@ type InstanceTypesResponse struct {
 }
 
 type InstanceType struct {
-	Type                string         `json:"type"`
-	SupportedGPUs       []GPU          `json:"supported_gpus"`
-	SupportedStorage    []Storage      `json:"supported_storage"`
-	Memory              string         `json:"memory"`
-	SupportedNumCores   []int          `json:"supported_num_cores"`
-	DefaultCores        int            `json:"default_cores"`
-	VCPU                int            `json:"vcpu"`
-	Provider            string         `json:"provider"`
-	BasePrice           Price          `json:"base_price"`
-	Stoppable           bool           `json:"stoppable"`
-	Rebootable          bool           `json:"rebootable"`
-	CanModifyFirewall   bool           `json:"can_modify_firewall_rules"`
+	Type              string    `json:"type"`
+	SupportedGPUs     []GPU     `json:"supported_gpus"`
+	SupportedStorage  []Storage `json:"supported_storage"`
+	Memory            string    `json:"memory"`
+	SupportedNumCores []int     `json:"supported_num_cores"`
+	DefaultCores      int       `json:"default_cores"`
+	VCPU              int       `json:"vcpu"`
+	Provider          string    `json:"provider"`
+	BasePrice         Price     `json:"base_price"`
+	Stoppable         bool      `json:"stoppable"`
+	Rebootable        bool      `json:"rebootable"`
+	CanModifyFirewall bool      `json:"can_modify_firewall_rules"`
 }
 
 type GPU struct {
