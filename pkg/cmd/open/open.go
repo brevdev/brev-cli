@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -24,6 +25,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/browser"
 	"github.com/samber/mo"
 
 	"github.com/spf13/cobra"
@@ -34,15 +36,17 @@ const (
 	EditorCursor   = "cursor"
 	EditorWindsurf = "windsurf"
 	EditorTmux     = "tmux"
+	EditorJupyter  = "jupyter"
 )
 
 var (
-	openLong    = "[command in beta] This will open VS Code, Cursor, Windsurf, or tmux SSH-ed in to your instance. You must have the editor installed in your path."
-	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open instance tmux\nbrev open --set-default cursor\nbrev open --set-default windsurf\nbrev open --set-default tmux"
+	openLong    = "[command in beta] This will open VS Code, Cursor, Windsurf, tmux, or Jupyter SSH-ed in to your instance. You must have the editor installed in your path."
+	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open instance tmux\nbrev open instance jupyter\nbrev open --set-default cursor\nbrev open --set-default windsurf\nbrev open --set-default tmux"
 )
 
 type OpenStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
+	util.MakeWorkspaceWithMetaStore
 	refresh.RefreshStore
 	UpdateUser(string, *entity.UpdateUser) (*entity.User, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
@@ -100,14 +104,14 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
-	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, or tmux)")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, tmux, or jupyter)")
 
 	return cmd
 }
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
-	if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
-		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
+	if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux && editorType != EditorJupyter {
+		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'tmux', or 'jupyter'", editorType)
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -131,8 +135,8 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 func determineEditorType(args []string) (string, error) {
 	if len(args) == 2 {
 		editorType := args[1]
-		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
-			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
+		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux && editorType != EditorJupyter {
+			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'tmux', or 'jupyter'", editorType)
 		}
 		return editorType, nil
 	}
@@ -359,6 +363,8 @@ func getEditorName(editorType string) string {
 		return "Windsurf"
 	case EditorTmux:
 		return "tmux"
+	case EditorJupyter:
+		return "Jupyter"
 	default:
 		return "VSCode"
 	}
@@ -389,6 +395,8 @@ func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, 
 		return openWindsurf(sshAlias, path, tstore)
 	case EditorTmux:
 		return openTmux(sshAlias, path, tstore)
+	case EditorJupyter:
+		return openJupyter(t, sshAlias, tstore)
 	default:
 		tryToInstallExtensions(t, extensions)
 		return openVsCode(sshAlias, path, tstore)
@@ -586,4 +594,30 @@ func ensureTmuxInstalled(sshAlias string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func openJupyter(t *terminal.Terminal, sshAlias string, store OpenStore) error {
+	t.Vprint(t.Green("Starting Jupyter port forwarding on port 8888...\n"))
+
+	go func() {
+		err := portforward.RunPortforward(store, sshAlias, "8888:8888", false)
+		if err != nil {
+			t.Vprint(t.Red("Port forwarding failed: " + err.Error() + "\n"))
+		}
+	}()
+
+	time.Sleep(2 * time.Second)
+
+	jupyterURL := "http://localhost:8888"
+	t.Vprint(t.Green("Opening Jupyter notebook in browser: " + jupyterURL + "\n"))
+
+	err := browser.OpenURL(jupyterURL)
+	if err != nil {
+		t.Vprint(t.Yellow("Could not open browser automatically. Please navigate to: " + jupyterURL + "\n"))
+	}
+
+	t.Vprint(t.Green("Jupyter notebook is now accessible at: " + jupyterURL + "\n"))
+	t.Vprint(t.Yellow("Keep this terminal open to maintain the connection.\n"))
+
+	select {}
 }
