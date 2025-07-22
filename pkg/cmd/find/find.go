@@ -25,7 +25,7 @@ type FilterOptions struct {
 	MinGPUCount    int
 	MinDisk        string
 	Provider       string
-	MinTotalVRAM   int
+	MinNodeVRAM    int
 	MaxHourlyPrice float64
 	MinGPUVRAM     int
 	Capabilities   []string
@@ -53,7 +53,7 @@ func NewCmdFindInstanceType(t *terminal.Terminal, findStore FindStore) *cobra.Co
 		Long:  "Find and filter instance types based on GPU, memory, price, and other criteria",
 		Example: `  brev find instance-type --gpu a100 --min-gpu-count 2 --min-disk 500GB
   brev find instance-type --gpu a100 --provider aws
-  brev find instance-type --min-total-vram 40 --max-hourly-price 2.5
+  brev find instance-type --min-node-vram 40 --max-hourly-price 2.5
   brev find instance-type --min-gpu-vram 40 --capabilities stoppable,rebootable
   brev find instance-type --min-ram 8 --min-cpu 2`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -73,7 +73,7 @@ func NewCmdFindInstanceType(t *terminal.Terminal, findStore FindStore) *cobra.Co
 	cmd.Flags().IntVar(&opts.MinGPUCount, "min-gpu-count", 0, "Minimum number of GPUs")
 	cmd.Flags().StringVar(&opts.MinDisk, "min-disk", "", "Minimum disk size (e.g., 500GB)")
 	cmd.Flags().StringVar(&opts.Provider, "provider", "", "Cloud provider (e.g., aws, gcp)")
-	cmd.Flags().IntVar(&opts.MinTotalVRAM, "min-total-vram", 0, "Minimum total VRAM in GB")
+	cmd.Flags().IntVar(&opts.MinNodeVRAM, "min-node-vram", 0, "Minimum node VRAM (total across all GPUs) in GB")
 	cmd.Flags().Float64Var(&opts.MaxHourlyPrice, "max-hourly-price", 0, "Maximum hourly price in USD")
 	cmd.Flags().IntVar(&opts.MinGPUVRAM, "min-gpu-vram", 0, "Minimum VRAM per GPU in GB")
 	cmd.Flags().StringSliceVar(&opts.Capabilities, "capabilities", []string{}, "Required capabilities (comma-separated: stoppable,rebootable)")
@@ -128,7 +128,7 @@ func matchesFilters(instance store.InstanceType, opts FilterOptions) bool {
 		return false
 	}
 
-	if opts.MinTotalVRAM > 0 && !hasMinTotalVRAM(instance, opts.MinTotalVRAM) {
+	if opts.MinNodeVRAM > 0 && !hasMinNodeVRAM(instance, opts.MinNodeVRAM) {
 		return false
 	}
 
@@ -172,7 +172,7 @@ func hasMinGPUCount(instance store.InstanceType, minCount int) bool {
 	return totalGPUs >= minCount
 }
 
-func hasMinTotalVRAM(instance store.InstanceType, minVRAM int) bool {
+func hasMinNodeVRAM(instance store.InstanceType, minVRAM int) bool {
 	totalVRAM := 0
 	for _, gpu := range instance.SupportedGPUs {
 		vram := parseMemoryToGB(gpu.Memory)
@@ -279,11 +279,12 @@ func displayInstanceTypesTable(t *terminal.Terminal, instances []store.InstanceT
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"Instance Type", "Provider", "GPUs", "Memory", "vCPUs", "Price/hr", "Capabilities"}
+	header := table.Row{"Instance Type", "Provider", "GPUs", "Node VRAM", "Memory", "vCPUs", "Price/hr", "Capabilities"}
 	ta.AppendHeader(header)
 
 	for _, instance := range instances {
 		gpuInfo := formatGPUInfo(instance.SupportedGPUs)
+		nodeVRAM := formatNodeVRAM(instance.SupportedGPUs)
 		capabilities := formatCapabilities(instance)
 		price := fmt.Sprintf("$%s", instance.BasePrice.Amount)
 
@@ -291,6 +292,7 @@ func displayInstanceTypesTable(t *terminal.Terminal, instances []store.InstanceT
 			instance.Type,
 			instance.Provider,
 			gpuInfo,
+			nodeVRAM,
 			instance.Memory,
 			fmt.Sprintf("%d", instance.VCPU),
 			price,
@@ -317,6 +319,24 @@ func formatGPUInfo(gpus []store.GPU) string {
 	}
 
 	return strings.Join(parts, ", ")
+}
+
+func formatNodeVRAM(gpus []store.GPU) string {
+	if len(gpus) == 0 {
+		return "0GB"
+	}
+
+	totalVRAM := 0
+	for _, gpu := range gpus {
+		vram := parseMemoryToGB(gpu.Memory)
+		totalVRAM += vram * gpu.Count
+	}
+
+	if totalVRAM == 0 {
+		return "0GB"
+	}
+
+	return fmt.Sprintf("%dGB", totalVRAM)
 }
 
 func formatCapabilities(instance store.InstanceType) string {
