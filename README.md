@@ -6,7 +6,7 @@
 
 [![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/createdevenv1.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
 
-[Brev.dev](https://brev.dev) makes it easy to develop on remote machines. Use Brev.dev to start a project and share your intance.
+[NVIDIA Brev](https://brev.nvidia.com) provides streamlined access to NVIDIA GPU instances on popular cloud platforms, automatic environment setup, and flexible deployment options, enabling developers to start experimenting instantly.
 
 ## Install the cli
 
@@ -18,19 +18,50 @@ To globally install `brev` [from conda-forge](https://github.com/conda-forge/bre
 pixi global install brev
 ```
 
-### MacOS and Linux
+### MacOS 
+Assumes [Homebrew](https://brew.sh/) (or Workbrew equivalent) are installed. 
 
+```zsh
+brew install brevdev/homebrew-brev/brev && brev login
 ```
-brew install brevdev/homebrew-brev/brev
+
+### Linux
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)"
+brev login
+```
+
+### Windows
+**Using Brev With Windows Subsystem for Linux (WSL)**
+
+Brev is supported on windows currently through the Windows Subsystem for Linux (WSL). This guide will walk you through the steps to get Brev up and running on your Windows machine.
+
+**Prerequisites**
+- WSL installed and configured
+- Virtualization enabled in your BIOS
+- Ubuntu 20.04 installed from the Microsoft Store
+
+Once you have WSL installed and configured, you can install Brev by running the following command in your terminal:
+
+```bash 
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)"
+```
+**Next Steps**
+
+Log in to your Brev account:
+
+```bash 
+brev login
 ```
 
 ## Get Started
 
-https://console.brev.dev
+https://brev.nvidia.com/
 
 ## Docs
 
-https://docs.brev.dev
+https://docs.nvidia.com/brev/latest/
 
 ---
 
@@ -39,9 +70,3 @@ https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-
 ## Contributing
 
 We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.
-
-## Trying other badge styles
-
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/brevdeployblack.svg?t=2023-08-15T14%3A21%3A03.847Z)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
-
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/brevdeploynavy.svg?t=2023-08-15T14%3A21%3A03.847Z)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
