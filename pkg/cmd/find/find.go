@@ -408,11 +408,12 @@ func formatRootDisk(storage []store.Storage) string {
 	}
 
 	var diskSize string
-	if cheapestStorage.Size != "" && cheapestStorage.Size != "0B" {
+	switch {
+	case cheapestStorage.Size != "" && cheapestStorage.Size != "0B":
 		diskSize = cheapestStorage.Size
-	} else if cheapestStorage.MinSize != "" && cheapestStorage.MaxSize != "" {
+	case cheapestStorage.MinSize != "" && cheapestStorage.MaxSize != "":
 		diskSize = fmt.Sprintf("%s-%s", cheapestStorage.MinSize, cheapestStorage.MaxSize)
-	} else {
+	default:
 		diskSize = "Variable"
 	}
 
