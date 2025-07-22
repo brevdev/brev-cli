@@ -51,3 +51,4 @@ jobs:
         run: |
           echo "✅ CLI Output Compatibility Tests Passed"
           echo "No breaking changes detected for external integrations." 
+        
