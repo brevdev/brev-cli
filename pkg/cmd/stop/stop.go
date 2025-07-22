@@ -47,7 +47,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 				return stopAllWorkspaces(t, loginStopStore)
 			} else {
 				if len(args) == 0 {
-					return breverrors.NewValidationError("please provide a workspace to stop")
+					return breverrors.NewValidationError("please provide an instance to stop")
 				}
 				var allErr error
 				for _, arg := range args {
@@ -63,7 +63,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 			return nil
 		},
 	}
-	cmd.Flags().BoolVarP(&all, "all", "a", false, "stop all workspaces")
+	cmd.Flags().BoolVarP(&all, "all", "a", false, "stop all instances")
 
 	return cmd
 }

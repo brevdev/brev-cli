@@ -89,7 +89,7 @@ func handleAdminUser(err error, deleteStore DeleteStore) error {
 		if user.GlobalUserType != "Admin" {
 			return breverrors.WrapAndTrace(err)
 		}
-		fmt.Println("attempting to delete a workspace you don't own as admin")
+		fmt.Println("attempting to delete an instance you don't own as admin")
 		return nil
 	}
 

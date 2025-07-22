@@ -10,7 +10,16 @@
 
 ## Install the cli
 
-### MacOS
+### From conda-forge
+
+To globally install `brev` [from conda-forge](https://github.com/conda-forge/brev-feedstock/) in an isolated environment with [`Pixi`](https://pixi.sh/), run
+
+```
+pixi global install brev
+```
+
+### MacOS 
+Assumes [Homebrew](https://brew.sh/) (or Workbrew equivalent) are installed. 
 
 ```zsh
 brew install brevdev/homebrew-brev/brev && brev login

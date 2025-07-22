@@ -206,9 +206,9 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, resetStore Reset
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
+		s.Suffix = "  instance is " + strings.ToLower(ws.Status)
 		if ws.Status == state {
-			s.Suffix = "Workspace is ready!"
+			s.Suffix = "Instance is ready!"
 			s.Stop()
 			isReady = true
 		}

@@ -107,9 +107,59 @@ func IsVSCodeExtensionInstalled(extensionID string) (bool, error) {
 	return strings.Contains(string(out), extensionID), nil
 }
 
+func InstallCursorExtension(extensionID string) error {
+	_, err := TryRunCursorCommand([]string{"--install-extension", extensionID, "--force"})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func IsCursorExtensionInstalled(extensionID string) (bool, error) {
+	out, err := TryRunCursorCommand([]string{"--list-extensions"})
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return strings.Contains(string(out), extensionID), nil
+}
+
+func InstallWindsurfExtension(extensionID string) error {
+	_, err := TryRunWindsurfCommand([]string{"--install-extension", extensionID, "--force"})
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func IsWindsurfExtensionInstalled(extensionID string) (bool, error) {
+	out, err := TryRunWindsurfCommand([]string{"--list-extensions"})
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return strings.Contains(string(out), extensionID), nil
+}
+
 func TryRunVsCodeCommand(args []string, extraPaths ...string) ([]byte, error) {
 	extraPaths = append(commonVSCodePaths, extraPaths...)
 	out, err := runManyVsCodeCommand(extraPaths, args)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return out, nil
+}
+
+func TryRunCursorCommand(args []string, extraPaths ...string) ([]byte, error) {
+	extraPaths = append(commonCursorPaths, extraPaths...)
+	out, err := runManyCursorCommand(extraPaths, args)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return out, nil
+}
+
+func TryRunWindsurfCommand(args []string, extraPaths ...string) ([]byte, error) {
+	extraPaths = append(commonWindsurfPaths, extraPaths...)
+	out, err := runManyWindsurfCommand(extraPaths, args)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -129,8 +179,52 @@ func runManyVsCodeCommand(vscodepaths []string, args []string) ([]byte, error) {
 	return nil, breverrors.WrapAndTrace(errs.ErrorOrNil())
 }
 
+func runManyCursorCommand(cursorpaths []string, args []string) ([]byte, error) {
+	errs := multierror.Append(nil)
+	for _, cursorpath := range cursorpaths {
+		out, err := runCursorCommand(cursorpath, args)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		} else {
+			return out, nil
+		}
+	}
+	return nil, breverrors.WrapAndTrace(errs.ErrorOrNil())
+}
+
 func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
 	cmd := exec.Command(vscodepath, args...) // #nosec G204
+	res, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return res, nil
+}
+
+func runCursorCommand(cursorpath string, args []string) ([]byte, error) {
+	cmd := exec.Command(cursorpath, args...) // #nosec G204
+	res, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return res, nil
+}
+
+func runManyWindsurfCommand(windsurfpaths []string, args []string) ([]byte, error) {
+	errs := multierror.Append(nil)
+	for _, windsurfpath := range windsurfpaths {
+		out, err := runWindsurfCommand(windsurfpath, args)
+		if err != nil {
+			errs = multierror.Append(errs, err)
+		} else {
+			return out, nil
+		}
+	}
+	return nil, breverrors.WrapAndTrace(errs.ErrorOrNil())
+}
+
+func runWindsurfCommand(windsurfpath string, args []string) ([]byte, error) {
+	cmd := exec.Command(windsurfpath, args...) // #nosec G204
 	res, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -150,4 +244,27 @@ var commonVSCodePaths = []string{
 	"/usr/share/code-insiders/bin/code-insiders",
 	"/usr/share/code-oss/bin/code-oss",
 	"/usr/share/code/bin/code",
+}
+
+var commonCursorPaths = []string{
+	"cursor",
+	"/Applications/Cursor.app/Contents/Resources/app/bin/cursor",
+	"/mnt/c/Program Files/Cursor/bin/cursor",
+	"/usr/bin/cursor",
+	"/usr/local/bin/cursor",
+	"/snap/bin/cursor",
+	"/usr/local/share/cursor/bin/cursor",
+	"/usr/share/cursor/bin/cursor",
+}
+
+var commonWindsurfPaths = []string{
+	"windsurf",
+	"/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf",
+	"/mnt/c/Program Files/Windsurf/Windsurf.exe",
+	"/mnt/c/Users/*/AppData/Local/Programs/Windsurf/bin/windsurf",
+	"/usr/bin/windsurf",
+	"/usr/local/bin/windsurf",
+	"/snap/bin/windsurf",
+	"/usr/local/share/windsurf/bin/windsurf",
+	"/usr/share/windsurf/bin/windsurf",
 }

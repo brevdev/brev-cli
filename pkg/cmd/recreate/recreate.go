@@ -139,7 +139,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 
 	// ensure name
 	if len(workspace.Name) == 0 {
-		return breverrors.NewValidationError("name field is required for empty workspaces")
+		return breverrors.NewValidationError("name field is required for empty instances")
 	}
 
 	// ensure org
@@ -197,9 +197,9 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, recreateStore re
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		s.Suffix = "  workspace is " + strings.ToLower(ws.Status)
+		s.Suffix = "  instance is " + strings.ToLower(ws.Status)
 		if ws.Status == state {
-			s.Suffix = "Workspace is ready!"
+			s.Suffix = "Instance is ready!"
 			s.Stop()
 			isReady = true
 		}
