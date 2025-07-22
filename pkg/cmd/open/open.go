@@ -221,6 +221,10 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			errMsg := "tmux not found on remote instance. This will be installed automatically."
 			return handlePathError(tstore, workspace, errMsg)
 		}
+		if strings.Contains(err.Error(), `vim: command not found`) {
+			errMsg := "vim not found on remote instance. This will be installed automatically."
+			return handlePathError(tstore, workspace, errMsg)
+		}
 		return breverrors.WrapAndTrace(err)
 	}
 	// Call analytics for open
@@ -578,6 +582,11 @@ func openTmux(sshAlias string, path string, store OpenStore) error {
 func openVim(sshAlias string, path string, store OpenStore) error {
 	_ = store
 
+	err := ensureVimInstalled(sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	vimCmd := fmt.Sprintf("ssh -t %s 'cd %s && vim'", sshAlias, path)
 
 	sshCmd := exec.Command("bash", "-c", vimCmd) // #nosec G204
@@ -585,7 +594,7 @@ func openVim(sshAlias string, path string, store OpenStore) error {
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
 
-	err := sshCmd.Run()
+	err = sshCmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -601,6 +610,26 @@ func ensureTmuxInstalled(sshAlias string) error {
 	}
 
 	installCmd := fmt.Sprintf("ssh %s 'sudo apt-get update && sudo apt-get install -y tmux'", sshAlias)
+	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
+	installExec.Stderr = os.Stderr
+	installExec.Stdout = os.Stdout
+
+	err = installExec.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func ensureVimInstalled(sshAlias string) error {
+	checkCmd := fmt.Sprintf("ssh %s 'which vim >/dev/null 2>&1'", sshAlias)
+	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
+	err := checkExec.Run()
+	if err == nil {
+		return nil
+	}
+
+	installCmd := fmt.Sprintf("ssh %s 'sudo apt-get update && sudo apt-get install -y vim'", sshAlias)
 	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
 	installExec.Stderr = os.Stderr
 	installExec.Stdout = os.Stdout
