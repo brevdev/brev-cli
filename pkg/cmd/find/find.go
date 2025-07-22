@@ -244,18 +244,18 @@ func hasMinDisk(instance store.InstanceType, minDiskStr string) bool {
 
 	for _, storage := range instance.SupportedStorage {
 		var diskSizeGB int
-		
+
 		if storage.Size != "" && storage.Size != "0B" {
 			diskSizeGB = parseMemoryToGB(storage.Size)
 		} else if storage.MaxSize != "" {
 			diskSizeGB = parseMemoryToGB(storage.MaxSize)
 		}
-		
+
 		if diskSizeGB >= minDiskGB {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
