@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	stopLong    = "Stop a Brev machine that's in a running state"
+	stopLong    = "Stop a Brev instance that's in a running state"
 	stopExample = "brev stop <ws_name>... \nbrev stop --all"
 )
 

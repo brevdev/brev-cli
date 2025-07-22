@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	startLong    = "Start a Brev machine that's in a paused or off state or create one from a url"
+	startLong    = "Start a Brev instance that's in a paused or off state or create one from a url"
 	startExample = `
   brev start <existing_ws_name>
   brev start <git url>

@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	notebookLong    = "Open a notebook on your Brev machine"
+	notebookLong    = "Open a notebook on your Brev instance"
 	notebookExample = "brev notebook <InstanceName>"
 )
 
@@ -29,7 +29,7 @@ type WorkspaceResult struct {
 func NewCmdNotebook(store NotebookStore, _ *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "notebook",
-		Short:   "Open a notebook on your Brev machine",
+		Short:   "Open a notebook on your Brev instance",
 		Long:    notebookLong,
 		Example: notebookExample,
 		Args:    cobra.ExactArgs(2),
