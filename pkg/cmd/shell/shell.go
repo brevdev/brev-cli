@@ -11,7 +11,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -171,12 +170,7 @@ func runSSH(_ *entity.Workspace, sshAlias, _ string) error {
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
 
-	err := hello.SetHasRunShell(true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = sshCmd.Run()
+	err := sshCmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

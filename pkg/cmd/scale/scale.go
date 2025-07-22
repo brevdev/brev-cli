@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	long    = "Scale your Brev instance to get a more powerful machine or save costs"
+	long    = "Scale your Brev instance to get more powerful hardware or save costs"
 	example = `
   brev scale MyInstance --gpu p3.2xlarge
   brev scale MyInstance --cpu 2x8

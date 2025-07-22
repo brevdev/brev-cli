@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	sshLinkLong    = "Port forward your Brev machine's port to your local port"
+	sshLinkLong    = "Port forward your Brev instance's port to your local port"
 	sshLinkExample = "brev port-forward <ws_name> -p local_port:remote_port"
 )
 
@@ -145,7 +145,7 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 func startInput(t *terminal.Terminal) string {
 	t.Vprint(t.Yellow("\nPorts flag was omitted, running interactive mode!\n"))
 	remoteInput := terminal.PromptGetInput(terminal.PromptContent{
-		Label:    "What port on your Brev machine would you like to forward?",
+		Label:    "What port on your Brev instance would you like to forward?",
 		ErrorMsg: "error",
 	})
 	localInput := terminal.PromptGetInput(terminal.PromptContent{

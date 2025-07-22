@@ -5,49 +5,33 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/brevdev/brev-cli/pkg/cmd/background"
-	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
-	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
 	"github.com/brevdev/brev-cli/pkg/cmd/create"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
-	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
-	"github.com/brevdev/brev-cli/pkg/cmd/fu"
-	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/initfile"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
 	"github.com/brevdev/brev-cli/pkg/cmd/notebook"
-	"github.com/brevdev/brev-cli/pkg/cmd/ollama"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
-	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/reset"
-	"github.com/brevdev/brev-cli/pkg/cmd/runtasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/scale"
-	"github.com/brevdev/brev-cli/pkg/cmd/secret"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/cmd/shell"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshkeys"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
-	"github.com/brevdev/brev-cli/pkg/cmd/status"
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
-	"github.com/brevdev/brev-cli/pkg/cmd/test"
-	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
-	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -135,17 +119,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
       Find more information at:
             https://brev.dev`,
 		PostRun: func(cmd *cobra.Command, args []string) {
-			shouldWe := hello.ShouldWeRunOnboarding(noLoginCmdStore)
-			if shouldWe {
-				user, err := loginCmdStore.GetCurrentUser()
-				if err != nil {
-					return
-				}
-				err = hello.CanWeOnboard(t, user, loginCmdStore)
-				if err != nil {
-					return
-				}
-			}
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
@@ -233,7 +206,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	return cmds
 }
 
-func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) { //nolint:funlen // define brev command
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) {
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
@@ -244,34 +217,20 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
 	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))
-	cmd.AddCommand(hello.NewCmdHello(t, noLoginCmdStore))
 	cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
 	// dev feature toggle
 	if featureflag.IsDev() {
 		_ = 0 // noop
-		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
-		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
-		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
-		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
-		cmd.AddCommand(envvars.NewCmdEnvVars(t, loginCmdStore))
 		cmd.AddCommand(connect.NewCmdConnect(t, noLoginCmdStore))
-		cmd.AddCommand(fu.NewCmdFu(t, loginCmdStore, noLoginCmdStore))
 	} else {
 		_ = 0 // noop
 	}
 	cmd.AddCommand(workspacegroups.NewCmdWorkspaceGroups(t, loginCmdStore))
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
-	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
-	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(copy.NewCmdCopy(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
-	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
-	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
-	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
-	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(create.NewCmdCreate(t, loginCmdStore))
 	cmd.AddCommand(stop.NewCmdStop(t, loginCmdStore, noLoginCmdStore))
@@ -279,14 +238,9 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(refresh.NewCmdRefresh(t, loginCmdStore))
-	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
-	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
-	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
-	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
-	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 }
 
 func hasQuickstartCommands(cmd *cobra.Command) bool {

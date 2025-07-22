@@ -9,16 +9,12 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-
-	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/fatih/color"
-	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 )
 
@@ -37,8 +33,6 @@ type LoginStore interface {
 	GetServerSockFile() string
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
-	hello.HelloStore
-	importideconfig.ImportIDEConfigStore
 	UserHomeDir() (string, error)
 }
 
@@ -67,33 +61,13 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		PostRunE: func(cmd *cobra.Command, args []string) error {
-			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
-			if shouldWe {
-				user, err := loginStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				err = hello.CanWeOnboard(t, user, loginStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
 			return nil
 		},
 		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
-				// if err is ImportIDEConfigError, log err with sentry but continue
-				if _, ok := err.(*importideconfig.ImportIDEConfigError); !ok {
-					return err
-				}
-				// todo alert sentry
-				err2 := RunTasksForUser(t)
-				if err2 != nil {
-					err = multierror.Append(err, err2)
-				}
-				return err //nolint:wrapcheck // we want to return the error from the login
+				return err
 			}
 			return nil
 		},

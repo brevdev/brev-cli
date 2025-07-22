@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	createLong    = "Create a new Brev machine"
+	createLong    = "Create a new Brev instance"
 	createExample = `
   brev create <name>
 	`
