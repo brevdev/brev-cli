@@ -150,6 +150,9 @@ func matchesResourceFilters(instance store.InstanceType, opts FilterOptions) boo
 	if opts.MinCPU > 0 && !hasMinCPU(instance, opts.MinCPU) {
 		return false
 	}
+	if opts.MinDisk != "" && !hasMinDisk(instance, opts.MinDisk) {
+		return false
+	}
 	return true
 }
 
@@ -231,6 +234,29 @@ func hasMinRAM(instance store.InstanceType, minRAM int) bool {
 
 func hasMinCPU(instance store.InstanceType, minCPU int) bool {
 	return instance.VCPU >= minCPU || instance.DefaultCores >= minCPU
+}
+
+func hasMinDisk(instance store.InstanceType, minDiskStr string) bool {
+	minDiskGB := parseMemoryToGB(minDiskStr)
+	if minDiskGB == 0 {
+		return true
+	}
+
+	for _, storage := range instance.SupportedStorage {
+		var diskSizeGB int
+		
+		if storage.Size != "" && storage.Size != "0B" {
+			diskSizeGB = parseMemoryToGB(storage.Size)
+		} else if storage.MaxSize != "" {
+			diskSizeGB = parseMemoryToGB(storage.MaxSize)
+		}
+		
+		if diskSizeGB >= minDiskGB {
+			return true
+		}
+	}
+	
+	return false
 }
 
 func parseMemoryToGB(memStr string) int {
