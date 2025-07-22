@@ -116,42 +116,47 @@ func filterInstanceTypes(instances []store.InstanceType, opts FilterOptions) []s
 }
 
 func matchesFilters(instance store.InstanceType, opts FilterOptions) bool {
+	return matchesGPUFilters(instance, opts) &&
+		matchesResourceFilters(instance, opts) &&
+		matchesCapabilityFilters(instance, opts)
+}
+
+func matchesGPUFilters(instance store.InstanceType, opts FilterOptions) bool {
 	if opts.GPU != "" && !hasGPU(instance, opts.GPU) {
 		return false
 	}
-
 	if opts.MinGPUCount > 0 && !hasMinGPUCount(instance, opts.MinGPUCount) {
 		return false
 	}
-
-	if opts.Provider != "" && !strings.EqualFold(instance.Provider, opts.Provider) {
-		return false
-	}
-
 	if opts.MinNodeVRAM > 0 && !hasMinNodeVRAM(instance, opts.MinNodeVRAM) {
 		return false
 	}
-
-	if opts.MaxHourlyPrice > 0 && !belowMaxPrice(instance, opts.MaxHourlyPrice) {
-		return false
-	}
-
 	if opts.MinGPUVRAM > 0 && !hasMinGPUVRAM(instance, opts.MinGPUVRAM) {
 		return false
 	}
+	return true
+}
 
-	if len(opts.Capabilities) > 0 && !hasCapabilities(instance, opts.Capabilities) {
+func matchesResourceFilters(instance store.InstanceType, opts FilterOptions) bool {
+	if opts.Provider != "" && !strings.EqualFold(instance.Provider, opts.Provider) {
 		return false
 	}
-
+	if opts.MaxHourlyPrice > 0 && !belowMaxPrice(instance, opts.MaxHourlyPrice) {
+		return false
+	}
 	if opts.MinRAM > 0 && !hasMinRAM(instance, opts.MinRAM) {
 		return false
 	}
-
 	if opts.MinCPU > 0 && !hasMinCPU(instance, opts.MinCPU) {
 		return false
 	}
+	return true
+}
 
+func matchesCapabilityFilters(instance store.InstanceType, opts FilterOptions) bool {
+	if len(opts.Capabilities) > 0 && !hasCapabilities(instance, opts.Capabilities) {
+		return false
+	}
 	return true
 }
 
@@ -274,7 +279,7 @@ func sortInstanceTypesByPrice(instances []store.InstanceType) {
 	})
 }
 
-func displayInstanceTypesTable(t *terminal.Terminal, instances []store.InstanceType) {
+func displayInstanceTypesTable(_ *terminal.Terminal, instances []store.InstanceType) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
