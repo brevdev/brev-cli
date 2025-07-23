@@ -217,3 +217,66 @@ func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
 		return false
 	}
 }
+
+func (n NoAuthHTTPStore) GetInstanceTypes() (*InstanceTypesResponse, error) {
+	publicClient := resty.New()
+	publicClient.SetBaseURL("https://api.brev.dev")
+
+	res, err := publicClient.R().
+		SetHeader("Content-Type", "application/json").
+		Get("/v1/instance/types")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.StatusCode() >= 400 {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	var result InstanceTypesResponse
+	err = json.Unmarshal(res.Body(), &result)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &result, nil
+}
+
+type InstanceTypesResponse struct {
+	Items []InstanceType `json:"items"`
+}
+
+type InstanceType struct {
+	Type              string    `json:"type"`
+	SupportedGPUs     []GPU     `json:"supported_gpus"`
+	SupportedStorage  []Storage `json:"supported_storage"`
+	Memory            string    `json:"memory"`
+	SupportedNumCores []int     `json:"supported_num_cores"`
+	DefaultCores      int       `json:"default_cores"`
+	VCPU              int       `json:"vcpu"`
+	Provider          string    `json:"provider"`
+	BasePrice         Price     `json:"base_price"`
+	Stoppable         bool      `json:"stoppable"`
+	Rebootable        bool      `json:"rebootable"`
+	CanModifyFirewall bool      `json:"can_modify_firewall_rules"`
+}
+
+type GPU struct {
+	Count        int    `json:"count"`
+	Memory       string `json:"memory"`
+	Manufacturer string `json:"manufacturer"`
+	Name         string `json:"name"`
+}
+
+type Storage struct {
+	Count        int    `json:"count"`
+	Size         string `json:"size"`
+	Type         string `json:"type"`
+	MinSize      string `json:"min_size"`
+	MaxSize      string `json:"max_size"`
+	PricePerGBHr Price  `json:"price_per_gb_hr"`
+}
+
+type Price struct {
+	Currency string `json:"currency"`
+	Amount   string `json:"amount"`
+}
