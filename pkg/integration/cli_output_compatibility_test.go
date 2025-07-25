@@ -119,6 +119,8 @@ func findHeaderLine(lines []string, requiredCols ...string) int {
 
 // validateCurrentOrgMarker checks that current org entries are properly marked
 func validateCurrentOrgMarker(t *testing.T, lines []string, headerLineIdx int) {
+	t.Helper()
+
 	for i := headerLineIdx + 1; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])
 		if line == "" {
@@ -163,6 +165,8 @@ func Test_InstanceListCommandOutputFormat(t *testing.T) {
 
 // validateColumnOrder ensures columns appear in the expected order for external parsers
 func validateColumnOrder(t *testing.T, headerLine string) {
+	t.Helper()
+
 	namePos := strings.Index(headerLine, nameColumn)
 	statusPos := strings.Index(headerLine, statusColumn)
 	idPos := strings.Index(headerLine, idColumn)
@@ -296,6 +300,8 @@ func Test_VersionParsingCompatibility(t *testing.T) {
 
 // compareVersions compares two semantic versions and returns true if installed < minimum
 func compareVersions(t *testing.T, installedVersion, minVersion string) bool {
+	t.Helper()
+
 	installedComponents := strings.Split(installedVersion, ".")
 	minComponents := strings.Split(minVersion, ".")
 
