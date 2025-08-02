@@ -26,8 +26,8 @@ brews:
       # token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     # The project name and current git tag are used in the format string.
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
-    homepage: "https://docs.brev.dev"
-    description: "CLI tool for managing workspaces provided by brev.dev"
+    homepage: "https://docs.nvidia.com/brev/latest/"
+    description: "CLI tool for managing workspaces provided by brev.nvidia.com"
     install: |
       bin.install "brev"
       generate_completions_from_executable("#{bin}/brev", "completion")
