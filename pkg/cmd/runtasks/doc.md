@@ -9,7 +9,7 @@
 In order for brev to connect to workspaces, there needs to be background daemons
 running to manage some things on your local machines environment. Currently, the
 one that is being launched by run-tasks is an ssh config file configuration
-daemon that periodically udpates a ssh config file with connection information
+daemon that periodically updates a ssh config file with connection information
 in order to access you workspaces.
 
 This command has to be run at every boot, see [Configuring SSH Proxy Daemon at Boot](https://docs.brev.dev/howto/configure-ssh-proxy-daemon-at-boot/) to
