@@ -24,9 +24,6 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      - name: Build brev binary
-        run: make fast-build
-
       - name: Run CLI output compatibility tests
         run: go test -v ./pkg/integration/
 
