@@ -49,17 +49,12 @@ func Test_VersionCommandOutputFormat(t *testing.T) {
 	hasVersionPrefix := strings.Contains(outputStr, currentVersionPrefix) || strings.Contains(outputStr, currentVersionPrefixAlt)
 	assert.True(t, hasVersionPrefix, "Version output should contain 'Current Version:' or 'Current version:' prefix")
 
-	// Test 2: Should contain a version number in X.Y.Z format (may be empty in dev builds)
+	// Test 2: Should contain a version number in X.Y.Z format (dev builds should also have version)
 	versionRegexp := regexp.MustCompile(versionPattern)
 	matches := versionRegexp.FindAllString(outputStr, -1)
 
-	// In dev environments, current version might be empty, but there should be a "New Version:" mentioned
-	if len(matches) == 0 {
-		// Check if this is a dev build scenario where current version is empty
-		assert.True(t, strings.Contains(outputStr, newVersionPrefix),
-			"If no current version found, should show available version for upgrade")
-		return
-	}
+	// Version should always be present, even in dev environments
+	require.NotEmpty(t, matches, "CLI version should always be present, cannot be an empty string")
 
 	// If we found version numbers, verify the first one is properly formatted
 	versionStr := matches[0]
