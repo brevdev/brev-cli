@@ -1,0 +1,51 @@
+name: CLI Output Compatibility Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  cli-output-compatibility:
+    runs-on: ubuntu-22.04
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.6'
+          cache: true
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run CLI output compatibility tests
+        run: go test -v ./pkg/integration/
+
+      - name: Report test results
+        if: failure()
+        run: |
+          echo "❌ CLI Output Compatibility Tests Failed"
+          echo "This indicates a potential breaking change for external integrations."
+          echo "Please review the failing tests and ensure backward compatibility."
+          echo ""
+          echo "These tests verify that CLI output formats remain stable for:"
+          echo "- NVIDIA Workbench integration"
+          echo "- Other external tools that parse brev CLI output"
+          echo ""
+          echo "If you intentionally changed output formats, please:"
+          echo "1. Update the external integrations first"
+          echo "2. Then update these tests to match the new format"
+          echo "3. Coordinate with integration maintainers"
+
+      - name: Report success
+        if: success()
+        run: |
+          echo "✅ CLI Output Compatibility Tests Passed"
+          echo "No breaking changes detected for external integrations." 
+        
