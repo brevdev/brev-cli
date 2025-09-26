@@ -449,7 +449,8 @@ func (w Workspace) GetProjectFolderPath() string {
 	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
 		prefix = "/home/brev/workspace"
 	} else {
-		prefix = "/home/ubuntu"
+		sshUser := w.GetSSHUser()
+		prefix = "/home/" + sshUser
 	}
 	var folderName string
 	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
