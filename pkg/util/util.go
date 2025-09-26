@@ -120,7 +120,19 @@ func IsCursorExtensionInstalled(extensionID string) (bool, error) {
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	return strings.Contains(string(out), extensionID), nil
+
+	// Check for the original extension ID
+	if strings.Contains(string(out), extensionID) {
+		return true, nil
+	}
+
+	// Check for Cursor-specific extension ID mappings
+	cursorEquivalent := mapVSCodeToCursorExtension(extensionID)
+	if cursorEquivalent != "" && strings.Contains(string(out), cursorEquivalent) {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func InstallWindsurfExtension(extensionID string) error {
@@ -267,4 +279,13 @@ var commonWindsurfPaths = []string{
 	"/snap/bin/windsurf",
 	"/usr/local/share/windsurf/bin/windsurf",
 	"/usr/share/windsurf/bin/windsurf",
+}
+
+// mapVSCodeToCursorExtension maps VSCode extension IDs to their Cursor equivalents
+func mapVSCodeToCursorExtension(vscodeExtensionID string) string {
+	cursorMappings := map[string]string{
+		"ms-vscode-remote.remote-ssh": "anysphere.remote-ssh",
+		// Add more mappings here as we discover them
+	}
+	return cursorMappings[vscodeExtensionID]
 }
