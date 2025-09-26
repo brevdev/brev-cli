@@ -179,7 +179,10 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WorkspaceNotRunning{Status: workspace.Status}
 	}
 
-	projPath := workspace.GetProjectFolderPath()
+	projPath, err := workspace.GetProjectFolderPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	if directory != "" {
 		projPath = directory
 	}

@@ -444,17 +444,20 @@ func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
 	return ok
 }
 
-func (w Workspace) GetProjectFolderPath() string {
+func (w Workspace) GetProjectFolderPath() (string, error) {
 	var prefix string
 	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
 		prefix = "/home/brev/workspace"
 	} else {
-		prefix = "/home/ubuntu"
+		if w.SSHUser == "" {
+			return "", fmt.Errorf("workspace %s has empty SSH user (workspace may not be running)", w.ID)
+		}
+		prefix = "/home/" + w.SSHUser
 	}
 	var folderName string
 	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
 		if path.IsAbs(w.IDEConfig.DefaultWorkingDir) {
-			return w.IDEConfig.DefaultWorkingDir
+			return w.IDEConfig.DefaultWorkingDir, nil
 		} else {
 			folderName = w.IDEConfig.DefaultWorkingDir
 		}
@@ -471,13 +474,13 @@ func (w Workspace) GetProjectFolderPath() string {
 				}
 			}
 		} else {
-			return prefix
+			return prefix, nil
 		}
 	} else {
-		return prefix
+		return prefix, nil
 	}
 
-	return filepath.Join(prefix, folderName) // TODO make workspace dir configurable
+	return filepath.Join(prefix, folderName), nil // TODO make workspace dir configurable
 }
 
 func GetDefaultProjectFolderNameFromRepo(repo string) string {

@@ -281,12 +281,16 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	privateKeyPath = "\"" + privateKeyPath + "\""
 	if workspace.IsLegacy() {
 		proxyCommand := makeProxyCommand(workspace.ID)
+		projPath, err := workspace.GetProjectFolderPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         "brev",
 			ProxyCommand: proxyCommand,
-			Dir:          workspace.GetProjectFolderPath(),
+			Dir:          projPath,
 		}
 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
 		if err != nil {
@@ -304,11 +308,15 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	hostname := workspace.GetHostname()
 	if workspace.SSHProxyHostname == "" {
 		port := workspace.GetSSHPort()
+		projPath, err := workspace.GetProjectFolderPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         user,
-			Dir:          workspace.GetProjectFolderPath(),
+			Dir:          projPath,
 			HostName:     hostname,
 			Port:         port,
 		}
@@ -322,12 +330,16 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 		}
 	} else {
 		proxyCommand := makeCloudflareSSHProxyCommand(cloudflaredBinaryPath, workspace.SSHProxyHostname)
+		projPath, err := workspace.GetProjectFolderPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         user,
 			ProxyCommand: proxyCommand,
-			Dir:          workspace.GetProjectFolderPath(),
+			Dir:          projPath,
 		}
 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
 		if err != nil {
@@ -344,11 +356,15 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	hostport := workspace.GetHostSSHPort()
 	hostuser := workspace.GetHostSSHUser()
 	if workspace.HostSSHProxyHostname == "" {
+		projPath, err := workspace.GetProjectFolderPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         hostuser,
-			Dir:          workspace.GetProjectFolderPath(),
+			Dir:          projPath,
 			HostName:     hostname,
 			Port:         hostport,
 		}
@@ -362,12 +378,16 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 		}
 	} else {
 		proxyCommand := makeCloudflareSSHProxyCommand(cloudflaredBinaryPath, workspace.HostSSHProxyHostname)
+		projPath, err := workspace.GetProjectFolderPath()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
 		entry := SSHConfigEntryV2{
 			Alias:        alias,
 			IdentityFile: privateKeyPath,
 			User:         hostuser,
 			ProxyCommand: proxyCommand,
-			Dir:          workspace.GetProjectFolderPath(),
+			Dir:          projPath,
 		}
 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
 		if err != nil {
