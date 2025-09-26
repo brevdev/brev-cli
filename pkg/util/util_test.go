@@ -21,3 +21,13 @@ func TestBasePath(t *testing.T) {
 	b := RemoveFileExtenstion(x)
 	assert.Equal(t, "abc/setup", b)
 }
+
+func TestMapVSCodeToCursorExtension(t *testing.T) {
+	// Test known mapping
+	result := mapVSCodeToCursorExtension("ms-vscode-remote.remote-ssh")
+	assert.Equal(t, "anysphere.remote-ssh", result)
+
+	// Test unknown extension (should return empty string)
+	result = mapVSCodeToCursorExtension("unknown.extension")
+	assert.Equal(t, "", result)
+}
