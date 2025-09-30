@@ -39,7 +39,7 @@ func PromptSelectInput(pc PromptSelectContent) string {
 }
 
 func DisplayBrevLogo(t *Terminal) { //nolint:funlen // logo
-	t.Vprint("Welcome to brev.dev")
+	t.Vprint("Welcome to NVIDIA Brev")
 	t.Vprint("")
 	t.Vprint("    ##@@@#.")
 	t.Vprint("  #@@@@@@@@@@.")

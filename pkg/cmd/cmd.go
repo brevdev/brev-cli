@@ -133,7 +133,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
       brev client for managing instances
 
       Find more information at:
-            https://brev.dev`,
+            https://brev.nvidia.com`,
 		PostRun: func(cmd *cobra.Command, args []string) {
 			shouldWe := hello.ShouldWeRunOnboarding(noLoginCmdStore)
 			if shouldWe {
