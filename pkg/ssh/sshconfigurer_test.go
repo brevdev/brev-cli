@@ -23,6 +23,7 @@ var somePlainWorkspaces = []entity.Workspace{
 		Status:           entity.Running,
 		Password:         "sdfal",
 		GitRepo:          "gitrepo",
+		SSHUser:          "ubuntu",
 	},
 	{
 		ID:               "test-id-2",
@@ -35,6 +36,7 @@ var somePlainWorkspaces = []entity.Workspace{
 		Status:           entity.Running,
 		Password:         "sdfal",
 		GitRepo:          "gitrepo",
+		SSHUser:          "ubuntu",
 	},
 }
 
