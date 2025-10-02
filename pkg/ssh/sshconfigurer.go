@@ -276,7 +276,7 @@ func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error
 	return buf.String(), nil
 }
 
-func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string) (string, error) { //nolint:funlen // ok
+func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string) (string, error) { //nolint:funlen,gocyclo // ok
 	alias := string(workspace.GetLocalIdentifier())
 	privateKeyPath = "\"" + privateKeyPath + "\""
 	if workspace.IsLegacy() {
