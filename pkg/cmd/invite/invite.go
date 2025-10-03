@@ -35,8 +35,8 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 		Short:       "Generate an invite link",
 		Long:        "Get an invite link to your active org. Use the optional org flag to invite to a different org",
 		Example: `
-  brev org invite
-  brev org --org <orgid>
+  brev invite
+  brev invite --org <orgid>
 		`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
