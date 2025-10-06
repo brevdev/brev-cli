@@ -30,6 +30,7 @@ type OrgCmdStore interface {
 	GetServerSockFile() string
 	CreateInviteLink(organizationID string) (string, error)
 	GetCurrentWorkspaceID() (string, error)
+	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 }
 
 func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
@@ -64,6 +65,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 
 	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
 	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore))
+	cmd.AddCommand(NewCmdOrgCreate(t, orgcmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))
 
 	return cmd
