@@ -73,7 +73,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 			if gpu != "" {
 				isValid := instancetypes.ValidateInstanceType(gpu)
 				if !isValid {
-					err := fmt.Errorf("invalid GPU instance type: %s, see https://brev.dev/docs/reference/gpu for a list of valid GPU instance types", gpu)
+					err := fmt.Errorf("invalid GPU instance type: %s, more information can be found on https://docs.nvidia.com/brev/latest/quick-start.html#select-your-compute", gpu)
 					return breverrors.WrapAndTrace(err)
 				}
 			}
@@ -103,13 +103,14 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
 	cmd.Flags().BoolVarP(&empty, "empty", "e", false, "create an empty workspace")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "name your workspace when creating a new one")
-	cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs.brev.dev/cpu for details")
+	// TODO: update doc links if re-adding cpu flag and support.
+	// cmd.Flags().StringVarP(&cpu, "cpu", "c", "", "CPU instance type. Defaults to 2x8 [2x8, 4x16, 8x32, 16x32]. See docs for details")
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "takes a raw gist url to an env setup script")
 	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "repo that holds env setup script. you must pass in --setup-path if you use this argument")
 	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to env setup script. If you include --setup-repo we will apply this argument to that repo")
 	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	// GPU options
-	cmd.Flags().StringVarP(&gpu, "gpu", "g", "n1-highmem-4:nvidia-tesla-t4:1", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
+	cmd.Flags().StringVarP(&gpu, "gpu", "g", "n1-highmem-4:nvidia-tesla-t4:1", "GPU instance type. Refer to https://docs.nvidia.com/brev/latest/quick-start.html#select-your-compute for more information")
 	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
 	if err != nil {
 		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
