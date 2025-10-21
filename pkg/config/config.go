@@ -9,7 +9,7 @@ type EnvVarName string // should be caps with underscore
 const (
 	brevAPIURL               EnvVarName = "BREV_API_URL"
 	brevAuthURL              EnvVarName = "BREV_AUTH_URL"
-	consoleBaseURL           EnvVarName = "BREV_CONSOLE_BASE_URL"
+	brevConsoleURL           EnvVarName = "BREV_CONSOLE_URL"
 	coordURL                 EnvVarName = "BREV_COORD_URL"
 	version                  EnvVarName = "VERSION"
 	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
@@ -34,8 +34,8 @@ func (c ConstantsConfig) GetBrevAuthURL() string {
 	return getEnvOrDefault(brevAuthURL, "https://api.ngc.nvidia.com")
 }
 
-func (c ConstantsConfig) GetConsoleBaseURL() string {
-	return getEnvOrDefault(consoleBaseURL, "https://brev.nvidia.com")
+func (c ConstantsConfig) GetConsoleURL() string {
+	return getEnvOrDefault(brevConsoleURL, "https://brev.nvidia.com")
 }
 
 func (c ConstantsConfig) GetOllamaAPIURL() string {

@@ -55,7 +55,7 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 }
 
 func goToProfileInConsole() {
-	url := fmt.Sprintf("%s/profile", config.GlobalConfig.GetConsoleBaseURL())
+	url := fmt.Sprintf("%s/profile", config.GlobalConfig.GetConsoleURL())
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	urlType := color.New(color.FgWhite, color.Bold).SprintFunc()

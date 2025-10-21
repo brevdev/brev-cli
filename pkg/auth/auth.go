@@ -223,7 +223,7 @@ func defaultAuthFunc(url, code string) {
 	}
 	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 	fmt.Println("Browser link: " + urlType(url) + "\n")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleBaseURL())))
+	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleURL())))
 	fmt.Print("\n")
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
@@ -245,7 +245,7 @@ func defaultAuthFunc(url, code string) {
 func skipBrowserAuthFunc(url, _ string) {
 	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
 	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleBaseURL())))
+	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleURL())))
 	fmt.Println("Waiting for login to complete in browser... Ctrl+C to use CLI command instead.")
 }
 
@@ -405,7 +405,7 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 		config.GlobalConfig.GetBrevAuthURL(),
 		"https://login.nvidia.com",
 		shouldPromptEmail,
-		config.GlobalConfig.GetConsoleBaseURL(),
+		config.GlobalConfig.GetConsoleURL(),
 	)
 
 	// Create the auth0 authenticator as an alternative
@@ -445,10 +445,6 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 			}
 		}
 	}
-
-	// if authenticator.GetCre[dentialProvider() == CredentialProviderKAS {
-	// 	config.ConsoleBaseURL = "https://brev.nvidia.com"
-	// }]
 
 	return authenticator
 }
