@@ -75,7 +75,7 @@ func RunOrgs(t *terminal.Terminal, store OrgCmdStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
-		t.Vprint(t.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.ConsoleBaseURL)))
+		t.Vprint(t.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.GlobalConfig.GetConsoleBaseURL())))
 		return nil
 	}
 

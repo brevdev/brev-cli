@@ -236,7 +236,7 @@ func (ls Ls) RunOrgs() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
-		ls.terminal.Vprint(ls.terminal.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.ConsoleBaseURL)))
+		ls.terminal.Vprint(ls.terminal.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.GlobalConfig.GetConsoleBaseURL())))
 		return nil
 	}
 
