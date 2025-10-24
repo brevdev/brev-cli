@@ -244,7 +244,6 @@ func Test_StartCommandFormat(t *testing.T) {
 	require.NoError(t, err, "brev start --help should succeed")
 
 	outputStr := string(output)
-	
 	// Verify the command exists
 	assert.Contains(t, outputStr, "start", "start command should exist")
 	assert.NotContains(t, outputStr, "unknown command", "start should be a valid command")
