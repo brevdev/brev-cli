@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -206,7 +205,7 @@ func (f FileStore) GetCurrentWorkspaceMeta() (*WorkspaceMeta, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	fileB, err := ioutil.ReadAll(file)
+	fileB, err := io.ReadAll(file)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

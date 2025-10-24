@@ -2,12 +2,12 @@ package paths
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	// breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 func GetVsCodePaths() []string {
-	fi, err := ioutil.ReadDir("/home/brev/.vscode-server/bin")
+	fi, err := os.ReadDir("/home/brev/.vscode-server/bin")
 	if err != nil {
 		return []string{}
 	}

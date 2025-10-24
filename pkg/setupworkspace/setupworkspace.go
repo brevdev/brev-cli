@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -50,7 +49,7 @@ func SetupWorkspace(params *store.SetupParamsV0) error {
 	if err != nil {
 		fmt.Println("------ Failure ------")
 		time.Sleep(time.Millisecond * 100) // wait for buffer to be written
-		logFile, errF := ioutil.ReadFile(logFilePath)
+		logFile, errF := os.ReadFile(logFilePath)
 		if errF != nil {
 			return multierror.Append(err, errF)
 		}
@@ -884,7 +883,7 @@ func (w WorkspaceIniter) SetupCodeServer(password string, bindAddr string, works
 		return breverrors.WrapAndTrace(err)
 	}
 
-	configFile, err := ioutil.ReadFile(codeServerConfigPath) //nolint:gosec // secure sandbox
+	configFile, err := os.ReadFile(codeServerConfigPath) //nolint:gosec // secure sandbox
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -1025,7 +1024,7 @@ mkdir -vp ~/.vscode-server/bin/"${commit_sha}"
 # Extract the tarball to the right location.
 tar --no-same-owner -xzv --strip-components=1 -C ~/.vscode-server/bin/"${commit_sha}" -f "/tmp/${archive}"
 `
-	err := ioutil.WriteFile("/tmp/vscode-install.sh", []byte(script), fs.ModePerm) //nolint:gosec // safe env
+	err := os.WriteFile("/tmp/vscode-install.sh", []byte(script), fs.ModePerm) //nolint:gosec // safe env
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

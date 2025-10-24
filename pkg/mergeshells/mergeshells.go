@@ -4,7 +4,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -336,7 +336,7 @@ func importFile(nameVersion string) ([]ShellFragment, error) {
 			return []ShellFragment{}, errors.New(strings.Join([]string{"Path does not exist:", path}, " "))
 		}
 	}
-	out, err := ioutil.ReadAll(script)
+	out, err := io.ReadAll(script)
 	stringScript := string(out)
 	if !noversion {
 		stringScript = strings.ReplaceAll(stringScript, "${version}", subPaths[1])
@@ -556,7 +556,7 @@ func appendPath(a string, b string) string {
 func recursivelyFindFile(filenames []string, path string) []string {
 	var paths []string
 
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		fmt.Println(err)
 	}
