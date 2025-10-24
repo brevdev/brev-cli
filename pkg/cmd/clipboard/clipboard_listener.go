@@ -3,7 +3,7 @@ package clipboard
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -56,7 +56,7 @@ func (server *Server) Run() {
 	r := gin.New()
 
 	r.GET("/", func(c *gin.Context) {
-		jsonData, err := ioutil.ReadAll(c.Request.Body)
+		jsonData, err := io.ReadAll(c.Request.Body)
 		if err != nil {
 			// Handle error
 			c.String(http.StatusBadRequest, "Can't parse body")

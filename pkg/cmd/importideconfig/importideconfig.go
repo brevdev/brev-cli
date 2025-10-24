@@ -3,7 +3,6 @@ package importideconfig
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -190,7 +189,7 @@ func getExtensions(homedir string) ([]entity.VscodeExtensionMetadata, error) {
 func recursivelyFindFile(filenames []string, path string) ([]string, error) {
 	var paths []string
 
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

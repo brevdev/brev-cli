@@ -3,7 +3,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -582,7 +582,7 @@ func (f FileStore) GetSetupParams() (*SetupParamsV0, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	fileB, err := ioutil.ReadAll(file)
+	fileB, err := io.ReadAll(file)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
