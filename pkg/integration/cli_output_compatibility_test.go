@@ -35,7 +35,7 @@ import (
 //      * Workbench has a custom parser that uses column headers to identify cells
 //      * New columns can be ADDED but existing columns cannot be REMOVED or RENAMED
 //      * Column order should be maintained for reliable parsing
-//    - brev --version: Must contain "Current Version:" or "Current version:" 
+//    - brev --version: Must contain "Current Version:" or "Current version:"
 //      followed by semantic version X.Y.Z that can be parsed with regex
 //    - brev org ls: Table format with NAME and ID columns
 //      * Current org marked with "*" prefix
@@ -247,7 +247,7 @@ func Test_StartCommandFormat(t *testing.T) {
 	// Verify the command exists
 	assert.Contains(t, outputStr, "start", "start command should exist")
 	assert.NotContains(t, outputStr, "unknown command", "start should be a valid command")
-	
+
 	// CRITICAL: Verify --org flag is documented and available
 	assert.Contains(t, outputStr, "--org", "start command MUST support --org flag for Workbench compatibility")
 }
@@ -367,10 +367,10 @@ func Test_ListWithOrgFlag(t *testing.T) {
 	require.NoError(t, err, "brev ls --help should succeed")
 
 	outputStr := string(output)
-	
+
 	// CRITICAL: Verify --org flag exists for ls command
 	assert.Contains(t, outputStr, "--org", "ls command MUST support --org flag for Workbench compatibility")
-	
+
 	// Verify the flag description mentions organization
 	lines := strings.Split(outputStr, "\n")
 	foundOrgLine := false
@@ -378,9 +378,9 @@ func Test_ListWithOrgFlag(t *testing.T) {
 		if strings.Contains(line, "--org") {
 			foundOrgLine = true
 			// The line should mention organization or org
-			assert.True(t, 
-				strings.Contains(strings.ToLower(line), "org") || 
-				strings.Contains(strings.ToLower(line), "organization"),
+			assert.True(t,
+				strings.Contains(strings.ToLower(line), "org") ||
+					strings.Contains(strings.ToLower(line), "organization"),
 				"--org flag should have documentation mentioning organization")
 			break
 		}
@@ -396,11 +396,11 @@ func Test_ShortHelpFlag(t *testing.T) {
 	require.NoError(t, err, "brev -h should succeed")
 
 	outputStr := string(output)
-	
+
 	// Should show help text
 	assert.Contains(t, outputStr, "brev", "Help should mention brev")
 	assert.Contains(t, outputStr, "Usage", "Help should show usage information")
-	
+
 	// Should list essential commands
 	essentialCommands := []string{"ls", "start", "stop", "org"}
 	for _, cmd := range essentialCommands {
@@ -416,15 +416,15 @@ func Test_VersionWithNoCheckLatestFlag(t *testing.T) {
 	require.NoError(t, err, "brev --version --no-check-latest should succeed")
 
 	outputStr := string(output)
-	
+
 	// Should still show version information (even if it's dev-XXXXXXXX format)
 	// The important thing is the command doesn't crash or fail
 	assert.NotEmpty(t, outputStr, "Version command should produce output")
-	
+
 	// For production builds, should contain version information
 	versionRegexp := regexp.MustCompile(versionPattern)
 	matches := versionRegexp.FindAllString(outputStr, -1)
-	
+
 	// If we find a semver version, validate it
 	if len(matches) > 0 {
 		versionStr := matches[0]
@@ -441,11 +441,11 @@ func Test_VersionWithNoCheckLatestFlag(t *testing.T) {
 func Test_InstanceListColumnHeadersStability(t *testing.T) {
 	cmd := exec.Command("go", "run", brevCLIPath, "ls", "--help")
 	output, _ := cmd.CombinedOutput()
-	
+
 	// Verify ls command exists
 	outputStr := string(output)
 	assert.NotContains(t, outputStr, "unknown command", "ls command must exist")
-	
+
 	// Run actual ls command (may skip if auth fails)
 	cmd = exec.Command("go", "run", brevCLIPath, "ls")
 	output, err := cmd.CombinedOutput()
@@ -455,20 +455,20 @@ func Test_InstanceListColumnHeadersStability(t *testing.T) {
 	}
 
 	outputStr = string(output)
-	
+
 	// If there are no instances, the output won't have column headers (which is correct behavior)
 	if strings.Contains(outputStr, "No instances") {
 		t.Log("✅ No instances present, skipping column header validation (headers only shown when data exists)")
 		return
 	}
-	
+
 	// CRITICAL: These columns MUST exist when instances are present - Workbench parser depends on them
 	requiredColumns := []string{"NAME", "STATUS", "ID"}
 	for _, col := range requiredColumns {
-		assert.Contains(t, outputStr, col, 
+		assert.Contains(t, outputStr, col,
 			"CRITICAL: '%s' column MUST exist for Workbench compatibility. DO NOT REMOVE OR RENAME.", col)
 	}
-	
+
 	// Note: Additional columns can be added, but these core columns must remain
 	t.Log("✅ All required column headers present. New columns can be added, but existing ones MUST NOT be removed or renamed.")
 }
@@ -484,7 +484,7 @@ func Test_OrgListColumnHeadersStability(t *testing.T) {
 	}
 
 	outputStr := string(output)
-	
+
 	// CRITICAL: These columns MUST exist for Workbench
 	requiredColumns := []string{"NAME", "ID"}
 	for _, col := range requiredColumns {
@@ -517,12 +517,12 @@ func Test_CommandExistenceForWorkbench(t *testing.T) {
 			// nolint:gosec // G204: false positive - cmd.args contains hardcoded test values, not user input
 			execCmd := exec.Command("go", append([]string{"run", brevCLIPath}, cmd.args...)...)
 			output, err := execCmd.CombinedOutput()
-			
+
 			// Command should execute (may fail with auth, but shouldn't be "unknown command")
 			outputStr := string(output)
-			assert.NotContains(t, outputStr, "unknown command", 
+			assert.NotContains(t, outputStr, "unknown command",
 				"CRITICAL: Command '%s' MUST exist for Workbench (%s)", cmd.name, cmd.description)
-			
+
 			// For help commands, should succeed
 			if strings.Contains(cmd.name, "help") || strings.HasSuffix(cmd.args[len(cmd.args)-1], "--help") {
 				assert.NoError(t, err, "Help command should succeed: %s", cmd.name)
