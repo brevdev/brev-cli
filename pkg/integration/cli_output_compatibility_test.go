@@ -514,6 +514,7 @@ func Test_CommandExistenceForWorkbench(t *testing.T) {
 
 	for _, cmd := range criticalCommands {
 		t.Run(cmd.name, func(t *testing.T) {
+			// nolint:gosec // G204: false positive - cmd.args contains hardcoded test values, not user input
 			execCmd := exec.Command("go", append([]string{"run", brevCLIPath}, cmd.args...)...)
 			output, err := execCmd.CombinedOutput()
 			
