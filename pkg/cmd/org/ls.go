@@ -11,7 +11,7 @@ import (
 
 func NewCmdOrgLs(t *terminal.Terminal, orgcmdStore OrgCmdStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"context": ""},
+		Annotations: map[string]string{"orgsubcommand": ""},
 		Use:         "ls",
 		Short:       "List your organizations",
 		Long: `List your organizations, your current org will be prefixed

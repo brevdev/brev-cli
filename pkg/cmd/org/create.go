@@ -14,6 +14,7 @@ import (
 
 func NewCmdOrgCreate(t *terminal.Terminal, orgcmdStore OrgCmdStore) *cobra.Command {
 	cmd := &cobra.Command{
+		Annotations: map[string]string{"orgsubcommand": ""},
 		Use:         "create",
 		Short:       "Create a new organization",
 		Long:        "Create a new organization with the specified name",
