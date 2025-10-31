@@ -60,8 +60,8 @@ func createOrg(orgName string, createStore OrgCmdStore, t *terminal.Terminal) er
 	fmt.Print("\n")
 	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully created organization %s (ID: %s) in %v\n", org.Name, org.ID, duration.Round(time.Millisecond))))
 	fmt.Print("\n")
-	t.Vprintf(t.Yellow("Switch to this organization:\n"))
-	t.Vprintf(t.Yellow("\tbrev org set %s\n"), org.Name)
+	t.Vprint(t.Yellow("Switch to this organization:\n"))
+	t.Vprint(t.Yellow(fmt.Sprintf("\tbrev org set %s\n", org.Name)))
 
 	return nil
 }
