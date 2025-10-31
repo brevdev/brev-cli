@@ -16,7 +16,7 @@ type SSHKeyStore interface {
 
 func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"housekeeping": ""},
+		Annotations: map[string]string{"configuration": ""},
 		Use:         "ssh-key",
 		Short:       "Get your pulic SSH-Key",
 		Long:        "Get your pulic SSH-Key to add to pull and push from your git repository.",

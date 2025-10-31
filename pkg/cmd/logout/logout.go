@@ -33,7 +33,7 @@ func NewCmdLogout(auth Auth, store LogoutStore) *cobra.Command {
 	}
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "logout",
 		DisableFlagsInUseLine: true,
 		Short:                 "Log out of brev",

@@ -60,7 +60,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 	var authProviderFlag string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "login",
 		DisableFlagsInUseLine: true,
 		Short:                 "Log into brev",

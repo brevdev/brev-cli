@@ -30,7 +30,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 	var org string
 
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"housekeeping": ""},
+		Annotations: map[string]string{"organization": ""},
 		Use:         "invite",
 		Short:       "Generate an invite link",
 		Long:        "Get an invite link to your active org. Use the optional org flag to invite to a different org",

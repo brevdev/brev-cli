@@ -22,7 +22,7 @@ type HelloStore interface {
 
 func NewCmdHello(t *terminal.Terminal, store HelloStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "hello",
 		DisableFlagsInUseLine: true,
 		Long:                  "Get a quick onboarding of the Brev CLI",

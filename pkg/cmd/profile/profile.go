@@ -32,7 +32,7 @@ func NewCmdProfile(t *terminal.Terminal, loginProfileStore ProfileStore, noLogin
 	var personalSettingsRepo string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "profile",
 		DisableFlagsInUseLine: true,
 		Short:                 "Personal profile commands",

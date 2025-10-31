@@ -25,7 +25,7 @@ type SetStore interface {
 
 func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:       map[string]string{"context": ""},
+		Annotations:       map[string]string{"organization": ""},
 		Use:               "set",
 		Short:             "Set active org (helps with completion)",
 		Long:              "Set your organization to view, open, create instances etc",

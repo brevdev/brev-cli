@@ -34,7 +34,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	var port string
 	var useHost bool
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"access": ""},
 		Use:                   "port-forward",
 		DisableFlagsInUseLine: true,
 		Short:                 "Enable a local tunnel",

@@ -35,7 +35,7 @@ type OrgCmdStore interface {
 
 func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"context": ""},
+		Annotations: map[string]string{"organization": ""},
 		Use:         "org",
 		Short:       "Organization commands",
 		Long:        "Organization commands",

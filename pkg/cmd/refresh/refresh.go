@@ -30,7 +30,7 @@ type RefreshStore interface {
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"housekeeping": ""},
+		Annotations: map[string]string{"configuration": ""},
 		Use:         "refresh",
 		Short:       "Force a refresh to the ssh config",
 		Long:        "Force a refresh to the ssh config",

@@ -40,7 +40,7 @@ type CopyStore interface {
 func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopyStore) *cobra.Command {
 	var host bool
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"access": ""},
 		Use:                   "copy",
 		Aliases:               []string{"cp", "scp"},
 		DisableFlagsInUseLine: true,

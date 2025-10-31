@@ -44,7 +44,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	var directory string
 	var host bool
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"access": ""},
 		Use:                   "shell",
 		Aliases:               []string{"ssh"},
 		DisableFlagsInUseLine: true,

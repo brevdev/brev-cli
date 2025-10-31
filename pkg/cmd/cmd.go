@@ -213,19 +213,18 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			}
 		},
 	}
-	cobra.AddTemplateFunc("hasContextCommands", hasContextCommands)
-	cobra.AddTemplateFunc("contextCommands", contextCommands)
-	cobra.AddTemplateFunc("hasSSHCommands", hasSSHCommands)
-	cobra.AddTemplateFunc("sshCommands", sshCommands)
 	cobra.AddTemplateFunc("hasWorkspaceCommands", hasWorkspaceCommands)
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
-	cobra.AddTemplateFunc("hasHousekeepingCommands", hasHousekeepingCommands)
-	cobra.AddTemplateFunc("hasDebugCommands", hasDebugCommands)
-	cobra.AddTemplateFunc("debugCommands", debugCommands)
-	cobra.AddTemplateFunc("printCautiousMetaCmdMessage", printCautiousMetaCmdMessage)
-	cobra.AddTemplateFunc("housekeepingCommands", housekeepingCommands)
+	cobra.AddTemplateFunc("hasAccessCommands", hasAccessCommands)
+	cobra.AddTemplateFunc("accessCommands", accessCommands)
+	cobra.AddTemplateFunc("hasOrganizationCommands", hasOrganizationCommands)
+	cobra.AddTemplateFunc("organizationCommands", organizationCommands)
+	cobra.AddTemplateFunc("hasConfigurationCommands", hasConfigurationCommands)
+	cobra.AddTemplateFunc("configurationCommands", configurationCommands)
 	cobra.AddTemplateFunc("hasQuickstartCommands", hasQuickstartCommands)
 	cobra.AddTemplateFunc("quickstartCommands", quickstartCommands)
+	cobra.AddTemplateFunc("hasDebugCommands", hasDebugCommands)
+	cobra.AddTemplateFunc("debugCommands", debugCommands)
 
 	cmds.SetUsageTemplate(usageTemplate)
 
@@ -274,7 +273,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(secret.NewCmdSecret(loginCmdStore, t))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(create.NewCmdCreate(t, loginCmdStore))
 	cmd.AddCommand(stop.NewCmdStop(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore, noLoginCmdStore))
@@ -291,49 +289,74 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 }
 
-func hasQuickstartCommands(cmd *cobra.Command) bool {
-	return len(quickstartCommands(cmd)) > 0
+func hasWorkspaceCommands(cmd *cobra.Command) bool {
+	return len(workspaceCommands(cmd)) > 0
 }
 
-func hasHousekeepingCommands(cmd *cobra.Command) bool {
-	return len(housekeepingCommands(cmd)) > 0
+func hasAccessCommands(cmd *cobra.Command) bool {
+	return len(accessCommands(cmd)) > 0
+}
+
+func hasOrganizationCommands(cmd *cobra.Command) bool {
+	return len(organizationCommands(cmd)) > 0
+}
+
+func hasConfigurationCommands(cmd *cobra.Command) bool {
+	return len(configurationCommands(cmd)) > 0
+}
+
+func hasQuickstartCommands(cmd *cobra.Command) bool {
+	return len(quickstartCommands(cmd)) > 0
 }
 
 func hasDebugCommands(cmd *cobra.Command) bool {
 	return len(debugCommands(cmd)) > 0
 }
 
-func printCautiousMetaCmdMessage() string {
-	yellow := color.New(color.FgYellow, color.Bold).SprintFunc()
-	return yellow("(we're actively working on getting rid of these commands)")
-}
-
-func hasSSHCommands(cmd *cobra.Command) bool {
-	return len(sshCommands(cmd)) > 0
-}
-
-func hasWorkspaceCommands(cmd *cobra.Command) bool {
-	return len(workspaceCommands(cmd)) > 0
-}
-
-func hasContextCommands(cmd *cobra.Command) bool {
-	return len(contextCommands(cmd)) > 0
-}
-
-func quickstartCommands(cmd *cobra.Command) []*cobra.Command {
+func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
-		if isQuickstartCommand(sub) {
+		if isWorkspaceCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
 	return cmds
 }
 
-func housekeepingCommands(cmd *cobra.Command) []*cobra.Command {
+func accessCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
-		if isHousekeepingCommand(sub) {
+		if isAccessCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func organizationCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isOrganizationCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func configurationCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isConfigurationCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func quickstartCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isQuickstartCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -350,34 +373,24 @@ func debugCommands(cmd *cobra.Command) []*cobra.Command {
 	return cmds
 }
 
-func sshCommands(cmd *cobra.Command) []*cobra.Command {
-	cmds := []*cobra.Command{}
-	for _, sub := range cmd.Commands() {
-		if isSSHCommand(sub) {
-			cmds = append(cmds, sub)
-		}
-	}
-	return cmds
+func isWorkspaceCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["workspace"]
+	return ok
 }
 
-func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
-	cmds := []*cobra.Command{}
-	for _, sub := range cmd.Commands() {
-		if isWorkspaceCommand(sub) {
-			cmds = append(cmds, sub)
-		}
-	}
-	return cmds
+func isAccessCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["access"]
+	return ok
 }
 
-func contextCommands(cmd *cobra.Command) []*cobra.Command {
-	cmds := []*cobra.Command{}
-	for _, sub := range cmd.Commands() {
-		if isContextCommand(sub) {
-			cmds = append(cmds, sub)
-		}
-	}
-	return cmds
+func isOrganizationCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["organization"]
+	return ok
+}
+
+func isConfigurationCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["configuration"]
+	return ok
 }
 
 func isQuickstartCommand(cmd *cobra.Command) bool {
@@ -385,28 +398,8 @@ func isQuickstartCommand(cmd *cobra.Command) bool {
 	return ok
 }
 
-func isHousekeepingCommand(cmd *cobra.Command) bool {
-	_, ok := cmd.Annotations["housekeeping"]
-	return ok
-}
-
 func isDebugCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["debug"]
-	return ok
-}
-
-func isSSHCommand(cmd *cobra.Command) bool {
-	_, ok := cmd.Annotations["ssh"]
-	return ok
-}
-
-func isWorkspaceCommand(cmd *cobra.Command) bool {
-	_, ok := cmd.Annotations["workspace"]
-	return ok
-}
-
-func isContextCommand(cmd *cobra.Command) bool {
-	_, ok := cmd.Annotations["context"]
 	return ok
 }
 
@@ -422,36 +415,44 @@ Examples:
 
 {{- if hasWorkspaceCommands . }}
 
-Instance Commands:
+Workspace Commands:
 {{- range workspaceCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}{{- end}}
+{{- end}}
+                         Tip: Use 'brev org ls' to list organizations
+{{- end}}
 
-{{- if hasSSHCommands . }}
+{{- if hasAccessCommands . }}
 
-{{- if hasContextCommands . }}
-
-Context Commands:
-{{- range contextCommands . }}
+Workspace Access:
+{{- range accessCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
-SSH Commands:
-{{- range sshCommands . }}
+{{- if hasOrganizationCommands . }}
+
+Organization Management:
+{{- range organizationCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}
+                         Use 'brev org --help' for organization subcommands:
+                           • org ls         List your organizations
+                           • org create     Create new organization
+                           • org set        Set active organization
+                           • org invite     Invite users to organization
+{{- end}}
+
+{{- if hasConfigurationCommands . }}
+
+Configuration:
+{{- range configurationCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
 {{- if hasQuickstartCommands . }}
 
-Quickstart Commands:
+Quick Start:
 {{- range quickstartCommands . }}
-  {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}{{- end}}
-
-{{- if hasHousekeepingCommands . }}
-
-Housekeeping Commands:
-{{- range housekeepingCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 

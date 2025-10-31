@@ -15,7 +15,7 @@ type HealthcheckStore interface {
 
 func NewCmdHealthcheck(t *terminal.Terminal, store HealthcheckStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"housekeeping": ""},
+		Annotations: map[string]string{"configuration": ""},
 		Use:         "healthcheck",
 		Short:       "Check backend to see if it's healthy",
 		Long:        "Check backend to see if it's healthy",
