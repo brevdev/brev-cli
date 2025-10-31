@@ -69,9 +69,14 @@ var (
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
+
+	// Define help flag before Cobra does with proper capitalization
+	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
+
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
+
 	return cmd
 }
 
