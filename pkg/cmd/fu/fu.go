@@ -30,7 +30,7 @@ type FuStore interface {
 
 func NewCmdFu(t *terminal.Terminal, loginFuStore FuStore, noLoginFuStore FuStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "fu",
 		DisableFlagsInUseLine: true,
 		Short:                 "Fetch all workspaces for a user and delete them",

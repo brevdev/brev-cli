@@ -10,7 +10,7 @@ type EnvVarsStore interface{}
 
 func NewCmdEnvVars(_ *terminal.Terminal, evStore EnvVarsStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "env-vars",
 		DisableFlagsInUseLine: true,
 		Short:                 "configure env vars in supported shells",
