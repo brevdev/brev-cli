@@ -97,7 +97,7 @@ func RunRedeem(t *terminal.Terminal, redeemStore RedeemStore, code string, orgFl
 
 	duration := time.Since(startTime)
 
-	t.Vprintf(t.Green("✓ Successfully redeemed coupon code: %s\n"), code)
+	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully redeemed coupon code: %s\n", code)))
 	if result.Data.Transaction.AmountUSD != "" {
 		t.Vprintf("  Credits added: $%s\n", result.Data.Transaction.AmountUSD)
 	}
