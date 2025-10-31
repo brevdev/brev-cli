@@ -79,7 +79,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 		Long:                  ollamaLong,
 		Example:               ollamaExample,
 		Annotations: map[string]string{
-			"quickstart": "",
+			"hidden": "",
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if model == "" {
