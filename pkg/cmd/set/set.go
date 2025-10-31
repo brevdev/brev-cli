@@ -27,7 +27,7 @@ func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore Set
 	cmd := &cobra.Command{
 		Annotations:       map[string]string{"organization": ""},
 		Use:               "set",
-		Short:             "Set active org (helps with completion)",
+		Short:             "Set active org (alias for 'brev org set')",
 		Long:              "Set your organization to view, open, create instances etc",
 		Example:           `brev set <org name>`,
 		Args:              cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
