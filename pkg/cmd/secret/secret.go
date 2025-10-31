@@ -28,7 +28,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 	var scope string
 
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"configuration": ""},
+		Annotations: map[string]string{"hidden": ""},
 		Use:         "secret",
 		Short:       "Add a secret/environment variable",
 		Long:        "Add a secret/environment variable to your instance, all instances in an org, or all of your instances",
