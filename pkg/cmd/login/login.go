@@ -63,7 +63,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "login",
 		DisableFlagsInUseLine: true,
-		Short:                 "Log into brev",
+		Short:                 "Log into Brev",
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		PostRunE: func(cmd *cobra.Command, args []string) error {

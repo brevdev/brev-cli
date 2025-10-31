@@ -30,7 +30,7 @@ func NewCmdStatus(t *terminal.Terminal, statusStore StatusStore) *cobra.Command 
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "status",
 		DisableFlagsInUseLine: true,
-		Short:                 "About this instance",
+		Short:                 "Show instance status",
 		Long:                  createLong,
 		Example:               createExample,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -418,9 +418,7 @@ Examples:
 Workspace Commands:
 {{- range workspaceCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}
-                         Tip: Use 'brev org ls' to list organizations
-{{- end}}
+{{- end}}{{- end}}
 
 {{- if hasAccessCommands . }}
 
@@ -434,13 +432,7 @@ Workspace Access:
 Organization Management:
 {{- range organizationCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}
-                         Use 'brev org --help' for organization subcommands:
-                           • org ls         List your organizations
-                           • org create     Create new organization
-                           • org set        Set active organization
-                           • org invite     Invite users to organization
-{{- end}}
+{{- end}}{{- end}}
 
 {{- if hasConfigurationCommands . }}
 

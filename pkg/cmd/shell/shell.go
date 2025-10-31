@@ -48,7 +48,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Use:                   "shell",
 		Aliases:               []string{"ssh"},
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open a shell in your instance",
+		Short:                 "[beta] Open a shell in your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),

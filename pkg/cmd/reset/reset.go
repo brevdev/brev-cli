@@ -42,7 +42,7 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "reset",
 		DisableFlagsInUseLine: true,
-		Short:                 "Reset an instance if it's in a weird state.",
+		Short:                 "Reset an instance to recover from errors",
 		Long:                  stripmd.Strip(long),
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),

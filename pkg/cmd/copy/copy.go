@@ -44,7 +44,7 @@ func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopySto
 		Use:                   "copy",
 		Aliases:               []string{"cp", "scp"},
 		DisableFlagsInUseLine: true,
-		Short:                 "copy files and directories between local and remote instance",
+		Short:                 "Copy files and directories between local and remote instance",
 		Long:                  copyLong,
 		Example:               copyExample,
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(2)),

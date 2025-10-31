@@ -41,7 +41,7 @@ func NewCmdCreate(t *terminal.Terminal, createStore CreateStore) *cobra.Command 
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "create",
 		DisableFlagsInUseLine: true,
-		Short:                 "Create a new instance ",
+		Short:                 "Create a new instance",
 		Long:                  createLong,
 		Example:               createExample,
 		RunE: func(cmd *cobra.Command, args []string) error {

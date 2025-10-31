@@ -29,7 +29,7 @@ func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "configure-env-vars",
 		DisableFlagsInUseLine: true,
-		Short:                 "configure env vars in supported shells",
+		Short:                 "Configure environment variables in supported shells",
 		Long:                  "configure env vars in supported shells",
 		Example:               "",
 		RunE: func(cmd *cobra.Command, args []string) error {

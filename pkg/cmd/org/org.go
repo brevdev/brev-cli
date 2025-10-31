@@ -37,7 +37,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"organization": ""},
 		Use:         "org",
-		Short:       "Organization commands",
+		Short:       "Organization commands (run 'brev org --help' for subcommands)",
 		Long:        "Organization commands",
 		Example: `
   brev org
