@@ -26,11 +26,11 @@ func NewCmdRedeem(t *terminal.Terminal, redeemStore RedeemStore, noRedeemStore R
 	var orgFlag string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"organization": ""},
 		Use:                   "redeem <code>",
 		DisableFlagsInUseLine: true,
-		Short:                 "Redeem a coupon code for credits",
-		Long:                  "Redeem a coupon code to add credits to your active organization",
+		Short:                 "Redeem a code for credits",
+		Long:                  "Redeem a code to add credits to your active organization",
 		Example: `
   brev redeem ABC123XYZ
   brev redeem ABC123XYZ --org myorg
@@ -97,7 +97,7 @@ func RunRedeem(t *terminal.Terminal, redeemStore RedeemStore, code string, orgFl
 
 	duration := time.Since(startTime)
 
-	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully redeemed coupon code: %s\n", code)))
+	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully redeemed code: %s\n", code)))
 	if result.Data.Transaction.AmountUSD != "" {
 		t.Vprintf("  Credits added: $%s\n", result.Data.Transaction.AmountUSD)
 	}
