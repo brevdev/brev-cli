@@ -420,14 +420,14 @@ Examples:
 
 {{- if hasWorkspaceCommands . }}
 
-Workspace Commands:
+Instance Commands:
 {{- range workspaceCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
 {{- if hasAccessCommands . }}
 
-Workspace Access:
+Instance Access:
 {{- range accessCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}

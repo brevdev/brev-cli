@@ -26,7 +26,7 @@ type ConfigureEnvVarsStore interface {
 
 func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "configure-env-vars",
 		DisableFlagsInUseLine: true,
 		Short:                 "Configure environment variables in supported shells",

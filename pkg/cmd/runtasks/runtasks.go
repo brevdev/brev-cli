@@ -22,7 +22,7 @@ func NewCmdRunTasks(t *terminal.Terminal, store RunTasksStore) *cobra.Command {
 	var runRemoteCMD bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "run-tasks",
 		DisableFlagsInUseLine: true,
 		Short:                 "Run background tasks for Brev",
