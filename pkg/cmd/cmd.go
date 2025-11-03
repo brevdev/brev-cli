@@ -220,6 +220,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	}
 	cobra.AddTemplateFunc("hasWorkspaceCommands", hasWorkspaceCommands)
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
+	cobra.AddTemplateFunc("hasProviderDependentCommands", hasProviderDependentCommands)
+	cobra.AddTemplateFunc("providerDependentCommands", providerDependentCommands)
 	cobra.AddTemplateFunc("hasAccessCommands", hasAccessCommands)
 	cobra.AddTemplateFunc("accessCommands", accessCommands)
 	cobra.AddTemplateFunc("hasOrganizationCommands", hasOrganizationCommands)
@@ -318,6 +320,10 @@ func hasDebugCommands(cmd *cobra.Command) bool {
 	return len(debugCommands(cmd)) > 0
 }
 
+func hasProviderDependentCommands(cmd *cobra.Command) bool {
+	return len(providerDependentCommands(cmd)) > 0
+}
+
 func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
@@ -378,6 +384,16 @@ func debugCommands(cmd *cobra.Command) []*cobra.Command {
 	return cmds
 }
 
+func providerDependentCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isProviderDependentCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
 func isWorkspaceCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["workspace"]
 	return ok
@@ -408,6 +424,11 @@ func isDebugCommand(cmd *cobra.Command) bool {
 	return ok
 }
 
+func isProviderDependentCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["provider-dependent"]
+	return ok
+}
+
 var usageTemplate = `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
   {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
@@ -418,12 +439,18 @@ Aliases:
 Examples:
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
 
-{{- if hasWorkspaceCommands . }}
+{{- if or (hasWorkspaceCommands .) (hasProviderDependentCommands .) }}
 
 Instance Commands:
 {{- range workspaceCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}{{- end}}
+{{- end}}
+{{- if hasProviderDependentCommands . }}
+
+  The following commands have provider-dependent support:
+{{- range providerDependentCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}{{- end}}
 
 {{- if hasAccessCommands . }}
 
