@@ -18,7 +18,7 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 	var org string
 
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"context": ""},
+		Annotations: map[string]string{"orgsubcommand": ""},
 		Use:         "set",
 		Short:       "Set active org",
 		Long:        "Set your organization to view, open, create workspaces etc",

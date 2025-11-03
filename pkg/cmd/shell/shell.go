@@ -44,11 +44,11 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	var directory string
 	var host bool
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"access": ""},
 		Use:                   "shell",
 		Aliases:               []string{"ssh"},
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open a shell in your instance",
+		Short:                 "[beta] Open a shell in your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),

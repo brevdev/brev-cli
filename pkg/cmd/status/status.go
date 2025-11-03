@@ -27,10 +27,10 @@ type StatusStore interface {
 
 func NewCmdStatus(t *terminal.Terminal, statusStore StatusStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "status",
 		DisableFlagsInUseLine: true,
-		Short:                 "About this instance",
+		Short:                 "Show instance status",
 		Long:                  createLong,
 		Example:               createExample,
 		RunE: func(cmd *cobra.Command, args []string) error {

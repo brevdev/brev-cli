@@ -34,7 +34,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 	var all bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"provider-dependent": ""},
 		Use:                   "stop",
 		DisableFlagsInUseLine: true,
 		Short:                 "Stop an instance if it's running",

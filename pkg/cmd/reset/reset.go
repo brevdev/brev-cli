@@ -39,10 +39,10 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 	var hardreset bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"provider-dependent": ""},
 		Use:                   "reset",
 		DisableFlagsInUseLine: true,
-		Short:                 "Reset an instance if it's in a weird state.",
+		Short:                 "Reset an instance to recover from errors",
 		Long:                  stripmd.Strip(long),
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),

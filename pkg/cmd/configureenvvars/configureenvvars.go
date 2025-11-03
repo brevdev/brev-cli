@@ -26,10 +26,10 @@ type ConfigureEnvVarsStore interface {
 
 func NewCmdConfigureEnvVars(_ *terminal.Terminal, cevStore ConfigureEnvVarsStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "configure-env-vars",
 		DisableFlagsInUseLine: true,
-		Short:                 "configure env vars in supported shells",
+		Short:                 "Configure environment variables in supported shells",
 		Long:                  "configure env vars in supported shells",
 		Example:               "",
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -31,7 +31,7 @@ type ImportIDEConfigStore interface {
 
 func NewCmdImportIDEConfig(t *terminal.Terminal, s ImportIDEConfigStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"housekeeping": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "import-ide-config",
 		DisableFlagsInUseLine: true,
 		Short:                 "Import your IDE config",

@@ -61,10 +61,10 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	var setDefault string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"ssh": ""},
+		Annotations:           map[string]string{"access": ""},
 		Use:                   "open",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] open VSCode, Cursor, Windsurf, or tmux to your instance",
+		Short:                 "[beta] Open VSCode, Cursor, Windsurf, or tmux to your instance",
 		Long:                  openLong,
 		Example:               openExample,
 		Args: cmderrors.TransformToValidationError(func(cmd *cobra.Command, args []string) error {

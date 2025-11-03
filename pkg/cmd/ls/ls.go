@@ -39,7 +39,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 	var org string
 
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"context": ""},
+		Annotations: map[string]string{"workspace": ""},
 		Use:         "ls",
 		Aliases:     []string{"list"},
 		Short:       "List instances within active org",

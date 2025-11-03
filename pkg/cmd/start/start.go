@@ -57,7 +57,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	var cpu string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"provider-dependent": ""},
 		Use:                   "start",
 		DisableFlagsInUseLine: true,
 		Short:                 "Start an instance if it's stopped, or create one from url",

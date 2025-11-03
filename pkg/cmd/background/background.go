@@ -30,7 +30,7 @@ type BackgroundStore interface {
 
 func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"workspace": ""},
+		Annotations:           map[string]string{"hidden": ""},
 		Use:                   "background [flags] [command]",
 		Aliases:               []string{"bg"},
 		DisableFlagsInUseLine: true,

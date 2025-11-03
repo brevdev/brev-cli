@@ -30,10 +30,10 @@ type RefreshStore interface {
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"housekeeping": ""},
+		Annotations: map[string]string{"configuration": ""},
 		Use:         "refresh",
-		Short:       "Force a refresh to the ssh config",
-		Long:        "Force a refresh to the ssh config",
+		Short:       "Force a refresh to the SSH config",
+		Long:        "Force a refresh to the SSH config",
 		Example:     `brev refresh`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
