@@ -98,7 +98,7 @@ func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string) er
 
 	t.Vprintf("Share this link to add someone to %s. It will expire in 7 days.", t.Green(org.Name))
 	t.Vprintf("\n\n  %s", t.Green("▸"))
-	t.Vprintf("    %s", t.White("%s/invite?token=%s\n\n", config.ConsoleBaseURL, token))
+	t.Vprintf("    %s", t.White("%s/invite?token=%s\n\n", config.GlobalConfig.GetConsoleURL(), token))
 
 	return nil
 }
