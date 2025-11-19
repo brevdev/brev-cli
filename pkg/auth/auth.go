@@ -403,7 +403,7 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 	kasAuthenticator := NewKasAuthenticator(
 		email,
 		config.GlobalConfig.GetBrevAuthURL(),
-		"https://login.nvidia.com",
+		config.GlobalConfig.GetBrevAuthIssuerURL(),
 		shouldPromptEmail,
 		config.GlobalConfig.GetConsoleURL(),
 	)
