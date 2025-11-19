@@ -12,6 +12,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 )
 
 var mePath = "api/me"
@@ -27,12 +28,15 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 	grpcURL := config.GlobalConfig.GetBrevGRPCURL()
 
 	// Configure TLS for HTTPS ingress (port 443)
+	// Unlike internal backend connections, we need TLS since we're going through external ingress
 	creds := credentials.NewTLS(nil)
 
-	// Create connection with TLS and proper authority header
+	// Create connection with TLS, load balancing, and larger message sizes
 	conn, err := grpc.NewClient(
 		grpcURL,
 		grpc.WithTransportCredentials(creds),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(32*1024*1024)), // 32MB max message size
 	)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -42,8 +46,11 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 	// Create user service client
 	client := devplaneapiv1grpc.NewUserServiceClient(conn)
 
-	// Call GetUserByToken
+	// Add authorization token to context as metadata
 	ctx := context.Background()
+	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+accessToken)
+
+	// Call GetUserByToken
 	resp, err := client.GetUserByToken(ctx, &devplaneapiv1.GetUserByTokenRequest{
 		Token: accessToken,
 	})
@@ -123,6 +130,9 @@ func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
 
 var userKeysPath = fmt.Sprintf("%s/keys", mePath)
 
+// GetCurrentUserKeys retrieves SSH keys for the current user
+// TODO: Migrate to gRPC SecretService once it's exposed through the ingress
+// For now, using REST API as SecretService returns 404 through ingress
 func (s AuthHTTPStore) GetCurrentUserKeys() (*entity.UserKeys, error) {
 	var result entity.UserKeys
 	res, err := s.authHTTPClient.restyClient.R().
