@@ -72,6 +72,15 @@ func RunRefreshBetter(store RefreshStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
+	privateKeyPath, err := store.GetPrivateKeyPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = store.Chmod(privateKeyPath, 0o600)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	return nil
 }
 
@@ -88,6 +97,15 @@ func RunRefresh(store RefreshStore) error {
 	}
 
 	err = cu.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	privateKeyPath, err := store.GetPrivateKeyPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = store.Chmod(privateKeyPath, 0o600)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
