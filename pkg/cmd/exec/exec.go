@@ -97,35 +97,41 @@ func runExec(t *terminal.Terminal, store ExecStore, workspaceNameOrID, scriptPat
 	}
 
 	if scriptPath != "" {
+		// #nosec G304 -- scriptPath is provided by user via CLI flag, intentional file read
 		scriptContent, err := os.ReadFile(scriptPath)
 		if err != nil {
 			return breverrors.WrapAndTrace(fmt.Errorf("failed to read script: %w", err))
 		}
 		return executeScriptViaSSH(t, sshAlias, string(scriptContent), workingDir, async)
 	}
-	
+
 	return executeCommandViaSSH(t, sshAlias, command, workingDir, async)
 }
-
 
 func executeScriptViaSSH(t *terminal.Terminal, sshAlias, scriptContent, workingDir string, async bool) error {
 	tmpFile, err := os.CreateTemp("", "brev-exec-*.sh")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		if removeErr := os.Remove(tmpFile.Name()); removeErr != nil {
+			t.Vprintf(t.Yellow("Warning: failed to remove temp file: %v\n", removeErr))
+		}
+	}()
 
 	_, err = tmpFile.WriteString(scriptContent)
 	if err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return breverrors.WrapAndTrace(err)
 	}
-	tmpFile.Close()
+	if err = tmpFile.Close(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	remotePath := "/tmp/brev-exec-script.sh"
 
 	t.Vprintf(t.Green("Copying script to workspace...\n"))
-	
+
 	var scpErr error
 	for attempt := 1; attempt <= 3; attempt++ {
 		if attempt > 1 {
@@ -133,22 +139,22 @@ func executeScriptViaSSH(t *terminal.Terminal, sshAlias, scriptContent, workingD
 			time.Sleep(3 * time.Second)
 		}
 
-		scpCmd := exec.Command("scp", 
+		scpCmd := exec.Command("scp",
 			"-o", "ConnectTimeout=40",
 			"-o", "ServerAliveInterval=20",
 			"-o", "ServerAliveCountMax=5",
-			"-o", "StrictHostKeyChecking=no", 
+			"-o", "StrictHostKeyChecking=no",
 			"-o", "UserKnownHostsFile=/dev/null",
-			tmpFile.Name(), 
+			tmpFile.Name(),
 			fmt.Sprintf("%s:%s", sshAlias, remotePath))
 		scpCmd.Env = os.Environ()
-		
+
 		output, err := scpCmd.CombinedOutput()
 		if err == nil {
 			scpErr = nil
 			break
 		}
-		
+
 		scpErr = fmt.Errorf("scp failed (attempt %d): %s\nOutput: %s", attempt, err.Error(), string(output))
 	}
 
@@ -171,23 +177,24 @@ func executeCommandViaSSH(t *terminal.Terminal, sshAlias, command, workingDir st
 	}
 
 	escapedCmd := strings.ReplaceAll(execCmd, "'", "'\"'\"'")
-	
+
 	const maxRetries = 3
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		if attempt > 1 {
 			t.Vprintf(t.Yellow("Retrying SSH command (attempt %d/%d)...\n", attempt, maxRetries))
-			time.Sleep(time.Duration(attempt*2) * time.Second) 
+			time.Sleep(time.Duration(attempt*2) * time.Second)
 		}
 
-		cmd := exec.Command("ssh", 
+		// #nosec G204 -- sshAlias and escapedCmd are controlled inputs from workspace config and user CLI flags
+		cmd := exec.Command("ssh",
 			"-o", "ConnectTimeout=30",
 			"-o", "ServerAliveInterval=10",
 			"-o", "ServerAliveCountMax=3",
-			"-o", "StrictHostKeyChecking=no", 
+			"-o", "StrictHostKeyChecking=no",
 			"-o", "UserKnownHostsFile=/dev/null",
-			sshAlias, 
+			sshAlias,
 			escapedCmd)
 		cmd.Env = os.Environ()
 
@@ -210,38 +217,37 @@ func executeCommandViaSSH(t *terminal.Terminal, sshAlias, command, workingDir st
 		if err == nil {
 			return nil
 		}
-		
+
 		lastErr = err
-		
+
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			if exitErr.ExitCode() == 255 {
 				t.Vprintf(t.Yellow("SSH connection closed, retrying...\n"))
 				continue
 			}
 		}
-		
+
 		return breverrors.WrapAndTrace(fmt.Errorf("command execution failed: %w", err))
 	}
-	
+
 	return breverrors.WrapAndTrace(fmt.Errorf("command execution failed after %d attempts: %w", maxRetries, lastErr))
 }
 
-
 func waitForSSH(sshAlias string, s *spinner.Spinner) error {
-	const maxRetries = 60 
-	const retryInterval = 2 * time.Second 
-	
+	const maxRetries = 60
+	const retryInterval = 2 * time.Second
+
 	counter := 0
 	s.Suffix = " waiting for SSH connection..."
 	s.Start()
 	defer s.Stop()
 
 	for counter < maxRetries {
-		cmd := exec.Command("ssh", 
-			"-o", "ConnectTimeout=30", 
-			"-o", "StrictHostKeyChecking=no", 
-			"-o", "UserKnownHostsFile=/dev/null", 
-			sshAlias, 
+		cmd := exec.Command("ssh",
+			"-o", "ConnectTimeout=30",
+			"-o", "StrictHostKeyChecking=no",
+			"-o", "UserKnownHostsFile=/dev/null",
+			sshAlias,
 			"echo", "test")
 		cmd.Env = os.Environ()
 		out, err := cmd.CombinedOutput()
@@ -252,14 +258,14 @@ func waitForSSH(sshAlias string, s *spinner.Spinner) error {
 
 		outputStr := string(out)
 		lines := strings.Split(outputStr, "\n")
-		
+
 		if len(lines) >= 2 {
 			stdErr := lines[1]
-			
+
 			if !store.SatisfactorySSHErrMessage(stdErr) {
-				if !strings.Contains(stdErr, "Connection closed") && 
-				   !strings.Contains(stdErr, "Connection refused") &&
-				   !strings.Contains(stdErr, "Connection timed out") {
+				if !strings.Contains(stdErr, "Connection closed") &&
+					!strings.Contains(stdErr, "Connection refused") &&
+					!strings.Contains(stdErr, "Connection timed out") {
 					return breverrors.WrapAndTrace(fmt.Errorf("SSH connection failed: %s", stdErr))
 				}
 			}
