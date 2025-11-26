@@ -139,6 +139,7 @@ func executeScriptViaSSH(t *terminal.Terminal, sshAlias, scriptContent, workingD
 			time.Sleep(3 * time.Second)
 		}
 
+		// #nosec G204 -- sshAlias and remotePath are controlled inputs from workspace config
 		scpCmd := exec.Command("scp",
 			"-o", "ConnectTimeout=40",
 			"-o", "ServerAliveInterval=20",
