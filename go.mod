@@ -1,6 +1,6 @@
 module github.com/brevdev/brev-cli
 
-go 1.24.0
+go 1.22.6
 
 require (
 	github.com/alessio/shellescape v1.4.1
