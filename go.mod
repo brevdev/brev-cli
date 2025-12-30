@@ -1,6 +1,6 @@
 module github.com/brevdev/brev-cli
 
-go 1.22.6
+go 1.24.0
 
 require (
 	github.com/alessio/shellescape v1.4.1
@@ -142,7 +142,7 @@ require (
 	github.com/xlab/treeprint v1.2.0 // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/oauth2 v0.21.0 // indirect
+	golang.org/x/oauth2 v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
