@@ -2,7 +2,6 @@
 package register
 
 import (
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -21,15 +20,13 @@ func NewCmdRegister(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "register",
+		Aliases:               []string{"spark"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Register your DGX Spark with Brev",
 		Long:                  registerLong,
 		Example:               registerExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runRegister(t)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
+			runRegister(t)
 			return nil
 		},
 	}
@@ -37,13 +34,11 @@ func NewCmdRegister(t *terminal.Terminal) *cobra.Command {
 	return cmd
 }
 
-func runRegister(t *terminal.Terminal) error {
+func runRegister(t *terminal.Terminal) {
 	t.Vprint("\n")
 	t.Vprint(t.Green("Thanks so much for your interest in registering your DGX Spark with Brev!\n\n"))
 	t.Vprint("To be on the waitlist for early access to this feature, please fill out this form:\n\n")
 	t.Vprint(t.Yellow("  👉 https://forms.gle/RHCHGmZuiMQQ2faA6\n\n"))
 	t.Vprint("We will reach out to the provided email with updates and instructions on how to register soon (:\n")
 	t.Vprint("\n")
-
-	return nil
 }
