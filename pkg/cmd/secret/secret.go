@@ -83,7 +83,7 @@ func NewCmdSecret(secretStore SecretStore, t *terminal.Terminal) *cobra.Command 
 
 func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, name string, value string, path string, scope string) error { //nolint:funlen, gocyclo // todo simplify me
 	if name == "" || envtype == "" || value == "" || path == "" {
-		t.Vprintf(t.Yellow("\nSome flags omitted, running interactive mode!\n"))
+		t.Vprintf("%s", t.Yellow("\nSome flags omitted, running interactive mode!\n"))
 	}
 
 	if name == "" {
@@ -191,14 +191,14 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 	secret, err := secretStore.CreateSecret(b)
 	if err != nil {
 		s.Stop()
-		t.Vprintf(t.Red(err.Error()))
+		t.Vprintf("%s", t.Red(err.Error()))
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(secret.Name)
+	t.Vprint(secret.Name)
 	s.Suffix = "  environment secret added"
 	s.Stop()
 
-	t.Vprintf(t.Green("\nEnvironment %s added\n", iType) + t.Yellow("\tNote: It might take up to 2 minutes to load into your environment."))
+	t.Vprintf("%s", t.Green("\nEnvironment %s added\n", iType)+t.Yellow("\tNote: It might take up to 2 minutes to load into your environment."))
 
 	return nil
 }

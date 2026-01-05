@@ -310,26 +310,26 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 		}
 	}
 
-	t.Vprintf(t.Green("current organization: ") + t.Yellow(fmt.Sprintf("%s\n", org.Name)))
+	t.Vprintf("%s", t.Green("current organization: ") + t.Yellow(fmt.Sprintf("%s\n", org.Name)))
 	if len(orgs) > 1 {
 		otherOrg := getOtherOrg(org, orgs)
-		t.Vprintf(t.Green("switch organizations:\n"))
-		t.Vprintf(t.Yellow("\tbrev set %s\n", otherOrg.Name))
+		t.Vprintf("%s", t.Green("switch organizations:\n"))
+		t.Vprintf("%s", t.Yellow("\tbrev set %s\n", otherOrg.Name))
 	}
 
 	if len(allWorkspaces) == 0 {
-		t.Vprintf(t.Green("create an instance:\n"))
+		t.Vprintf("%s", t.Green("create an instance:\n"))
 	}
 	if len(userWorkspaces) == 0 && len(allWorkspaces) > 1 {
-		t.Vprintf(t.Green("list teammates instances:\n"))
-		t.Vprintf(t.Yellow("\tbrev ls --all\n"))
+		t.Vprintf("%s", t.Green("list teammates instances:\n"))
+		t.Vprintf("%s", t.Yellow("\tbrev ls --all\n"))
 
-		t.Vprintf(t.Green("clone a teammate's instance:\n"))
-		t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev start %s\n", allWorkspaces[0].Name)))
+		t.Vprintf("%s", t.Green("clone a teammate's instance:\n"))
+		t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev start %s\n", allWorkspaces[0].Name)))
 	}
 	if len(userWorkspaces) > 0 {
-		t.Vprintf(t.Green("list your instances:\n"))
-		t.Vprintf(t.Yellow("\tbrev ls\n"))
+		t.Vprintf("%s", t.Green("list your instances:\n"))
+		t.Vprintf("%s", t.Yellow("\tbrev ls\n"))
 	}
 
 	return nil

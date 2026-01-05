@@ -29,7 +29,7 @@ func (c DockerContainerManager) GetContainer(ctx context.Context, containerIdent
 	cmd := exec.CommandContext(ctx, "docker", "container", "inspect", containerIdentifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+		return nil, breverrors.WrapAndTrace(fmt.Errorf("%s", string(out)))
 	}
 
 	res := inspectResults{}
@@ -57,7 +57,7 @@ func (c DockerContainerManager) StopContainer(ctx context.Context, containerIden
 	cmd := exec.CommandContext(ctx, "docker", "container", "stop", containerIdentifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+		return breverrors.WrapAndTrace(fmt.Errorf("%s", string(out)))
 	}
 	return nil
 }
@@ -66,7 +66,7 @@ func (c DockerContainerManager) DeleteContainer(ctx context.Context, containerId
 	cmd := exec.CommandContext(ctx, "docker", "container", "rm", containerIdentifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+		return breverrors.WrapAndTrace(fmt.Errorf("%s", string(out)))
 	}
 	return nil
 }
@@ -75,7 +75,7 @@ func (c DockerContainerManager) StartContainer(ctx context.Context, containerIde
 	cmd := exec.CommandContext(ctx, "docker", "container", "start", containerIdentifier)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+		return breverrors.WrapAndTrace(fmt.Errorf("%s", string(out)))
 	}
 	return nil
 }
@@ -84,7 +84,7 @@ func (c DockerContainerManager) DeleteVolume(ctx context.Context, volumeName str
 	cmd := exec.CommandContext(ctx, "docker", "volume", "rm", volumeName)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+		return breverrors.WrapAndTrace(fmt.Errorf("%s", string(out)))
 	}
 	return nil
 }
@@ -111,7 +111,7 @@ func (c DockerContainerManager) CreateContainer(ctx context.Context, options Cre
 	cmd := exec.CommandContext(ctx, "docker", dockerArgs...) //nolint:gosec // in sandboxed env
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", breverrors.WrapAndTrace(fmt.Errorf(string(out)))
+		return "", breverrors.WrapAndTrace(fmt.Errorf("%s", string(out)))
 	}
 	res := strings.Fields(string(out))
 	if len(res) == 0 {

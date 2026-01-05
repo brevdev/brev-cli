@@ -175,9 +175,9 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the instance:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open instance in VS Code\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into instance (shortcut)\n", workspace.Name)))
+	t.Vprintf("%v",t.Green("Connect to the instance:\n"))
+	t.Vprintf("%v", t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open instance in VS Code\n", workspace.Name)))
+	t.Vprintf("%v", t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into instance (shortcut)\n", workspace.Name)))
 	// t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to dev environment\n", workspace.GetLocalIdentifier())))
 }
 

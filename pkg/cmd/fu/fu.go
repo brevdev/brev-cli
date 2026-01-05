@@ -88,8 +88,8 @@ func fuUser(userID string, t *terminal.Terminal, fuStore FuStore) error {
 	for _, workspace := range allWorkspaces {
 		_, err2 := fuStore.DeleteWorkspace(workspace.ID)
 		if err2 != nil {
-			t.Vprintf(t.Red("Failed to delete workspace with ID: %s\n", workspace.ID))
-			t.Vprintf(t.Red("Error: %s\n", err.Error()))
+			t.Vprintf("%s", t.Red("Failed to delete workspace with ID: %s\n", workspace.ID))
+			t.Vprintf("%s", t.Red("Error: %s\n", err.Error()))
 			continue
 		}
 		t.Vprintf("✅ Deleted workspace %s\n", workspace.Name)
@@ -97,8 +97,8 @@ func fuUser(userID string, t *terminal.Terminal, fuStore FuStore) error {
 
 	err = fuStore.BanUser(userID)
 	if err != nil {
-		t.Vprintf(t.Red("Failed to ban user with ID: %s\n", userID))
-		t.Vprintf(t.Red("Error: %s\n", err.Error()))
+		t.Vprintf("%s", t.Red("Failed to ban user with ID: %s\n", userID))
+		t.Vprintf("%s", t.Red("Error: %s\n", err.Error()))
 	}
 	t.Vprint("\n")
 	t.Vprintf("🖕 Banned user %s\n", userID)

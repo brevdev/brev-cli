@@ -138,7 +138,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 	}
 
 	t.Vprint(t.Green("\nYour instance is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
+	t.Vprintf("%s", t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 	return nil
 }
 
@@ -187,7 +187,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 	}
 
 	t.Vprint(t.Green("\nYour instance is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
+	t.Vprintf("%s", t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 	return nil
 }
@@ -245,7 +245,7 @@ func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore Reset
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("Instance %s is resetting.\n", startedWorkspace.Name))
+	t.Vprintf("%s", t.Yellow("Instance %s is resetting.\n", startedWorkspace.Name))
 	t.Vprintf("Note: this can take a few seconds. Run 'brev ls' to check status\n")
 
 	return nil

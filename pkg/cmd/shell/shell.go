@@ -196,7 +196,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Sh
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
+	t.Vprintf("%s", t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
 	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight 🤙")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
