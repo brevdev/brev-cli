@@ -7,6 +7,27 @@ fast-build: ## go build -o brev
 	echo ${VERSION}
 	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
+.PHONY: local
+local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg, or make local for defaults)
+	$(call print-target)
+ifdef env
+	@echo "Building with env=$(env) wrapper..."
+	@echo ${VERSION}
+	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	@echo '#!/bin/sh' > brev
+	@echo '# Auto-generated wrapper with environment overrides' >> brev
+	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
+	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev
+	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev
+	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
+	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev
+	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev" "$$@"' >> brev
+	@chmod +x brev
+else
+	@echo "Building without environment overrides (using config.go defaults)..."
+	$(MAKE) fast-build
+endif
+
 .PHONY: install-dev
 install-dev: fast-build ## go install
 	cp brev $(shell go env GOPATH)/bin/
@@ -278,3 +299,13 @@ new-cmd:
 .PHONY: develop-with-nix
 develop-with-nix:
 	nix develop .
+
+.PHONY: update-devplane-deps
+update-devplane-deps: ## update devplane dependencies (use: make update-devplane-deps commit=<hash-or-tag>, defaults to latest)
+	@COMMIT=$${commit:-latest}; \
+	echo "Updating devplane dependencies to: $$COMMIT"; \
+	go get -u github.com/brevdev/dev-plane@$$COMMIT; \
+	go get buf.build/gen/go/brevdev/devplane/grpc/go@$$COMMIT; \
+	go get buf.build/gen/go/brevdev/devplane/protocolbuffers/go@$$COMMIT; \
+	go mod tidy; \
+	echo "Successfully updated to $$COMMIT"
