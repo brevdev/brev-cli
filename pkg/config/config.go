@@ -8,7 +8,9 @@ type EnvVarName string // should be caps with underscore
 
 const (
 	brevAPIURL               EnvVarName = "BREV_API_URL"
+	brevGRPCURL              EnvVarName = "BREV_GRPC_URL"
 	brevAuthURL              EnvVarName = "BREV_AUTH_URL"
+	brevAuthIssuerURL        EnvVarName = "BREV_AUTH_ISSUER_URL"
 	brevConsoleURL           EnvVarName = "BREV_CONSOLE_URL"
 	coordURL                 EnvVarName = "BREV_COORD_URL"
 	version                  EnvVarName = "VERSION"
@@ -30,8 +32,17 @@ func (c ConstantsConfig) GetBrevAPIURl() string {
 	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
 }
 
+func (c ConstantsConfig) GetBrevGRPCURL() string {
+	// GRPC does not use https:// prefix
+	return getEnvOrDefault(brevGRPCURL, "api.brev.dev:443")
+}
+
 func (c ConstantsConfig) GetBrevAuthURL() string {
 	return getEnvOrDefault(brevAuthURL, "https://api.ngc.nvidia.com")
+}
+
+func (c ConstantsConfig) GetBrevAuthIssuerURL() string {
+	return getEnvOrDefault(brevAuthIssuerURL, "https://login.nvidia.com")
 }
 
 func (c ConstantsConfig) GetConsoleURL() string {
