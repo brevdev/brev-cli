@@ -280,7 +280,7 @@ func ensureDeviceSalt(path string) (string, error) {
 }
 
 func computeHardwareFingerprint(hw telemetry.HardwareInfo) (string, error) {
-	desc := brevcloud.HardwareDescriptor{
+	desc := agent.HardwareDescriptor{
 		CPUs: hw.CPUCount,
 		RAM:  hw.RAMBytes,
 	}
@@ -290,13 +290,13 @@ func computeHardwareFingerprint(hw telemetry.HardwareInfo) (string, error) {
 			count = 1
 		}
 		for i := 0; i < count; i++ {
-			desc.GPUs = append(desc.GPUs, brevcloud.GPUDescriptor{
+			desc.GPUs = append(desc.GPUs, agent.GPUDescriptor{
 				Model:  gpu.Model,
 				Memory: gpu.MemoryBytes,
 			})
 		}
 	}
-	fp, err := brevcloud.ComputeHardwareFingerprint(desc)
+	fp, err := agent.ComputeHardwareFingerprint(desc)
 	if err != nil {
 		return "", errors.WrapAndTrace(err)
 	}

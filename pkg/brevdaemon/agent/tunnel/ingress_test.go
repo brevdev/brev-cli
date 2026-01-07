@@ -8,7 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
-	"github.com/brevdev/dev-plane/internal/appaccess"
+	"github.com/brevdev/dev-plane/pkg/brevcloud/appaccess"
 	"github.com/brevdev/dev-plane/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"

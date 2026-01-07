@@ -11,6 +11,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
+	"github.com/brevdev/dev-plane/pkg/brevcloud/appaccess"
 	"github.com/brevdev/dev-plane/pkg/errors"
 )
 

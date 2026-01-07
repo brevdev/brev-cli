@@ -12,7 +12,7 @@ import (
 	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
 	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
-	"github.com/brevdev/dev-plane/internal/brevcloud/provider"
+	"github.com/brevdev/dev-plane/pkg/brevcloud/tunnel"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -183,7 +183,7 @@ func TestGetTunnelTokenSendsPortsAndAuth(t *testing.T) {
 		BrevCloudNodeID: "fn-1",
 		DeviceToken:     "device-token",
 		TunnelName:      "default",
-		Ports: []provider.TunnelPortMapping{
+		Ports: []tunnel.TunnelPortMapping{
 			{LocalPort: 22},
 			{RemotePort: 8080},
 		},

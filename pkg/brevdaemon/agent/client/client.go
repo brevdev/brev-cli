@@ -11,7 +11,7 @@ import (
 	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/provider"
+	"github.com/brevdev/dev-plane/pkg/brevcloud/tunnel"
 	"github.com/brevdev/brev-cli/pkg/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -80,7 +80,7 @@ type TunnelTokenParams struct {
 	BrevCloudNodeID string
 	DeviceToken     string
 	TunnelName      string
-	Ports           []provider.TunnelPortMapping
+	Ports           []tunnel.TunnelPortMapping
 	AppIngresses    []AppIngress
 }
 
@@ -497,7 +497,7 @@ func gpuUtilizationToProto(gpu GPUUtilization) *brevapiv2.GPUUtilization {
 	return out
 }
 
-func tunnelPortsToProto(ports []provider.TunnelPortMapping) []*brevapiv2.TunnelPortMapping {
+func tunnelPortsToProto(ports []tunnel.TunnelPortMapping) []*brevapiv2.TunnelPortMapping {
 	if len(ports) == 0 {
 		return nil
 	}
