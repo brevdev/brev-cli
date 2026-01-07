@@ -183,7 +183,7 @@ func TestGetTunnelTokenSendsPortsAndAuth(t *testing.T) {
 		BrevCloudNodeID: "fn-1",
 		DeviceToken:     "device-token",
 		TunnelName:      "default",
-		Ports: []brevcloud.TunnelPortMapping{
+		Ports: []provider.TunnelPortMapping{
 			{LocalPort: 22},
 			{RemotePort: 8080},
 		},

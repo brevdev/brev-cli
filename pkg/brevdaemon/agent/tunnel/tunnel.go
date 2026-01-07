@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/health"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
+	"github.com/brevdev/brev-cli/pkg/brevdaemon/provider"
 	"github.com/brevdev/dev-plane/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -28,13 +29,6 @@ const (
 type TunnelConfig struct {
 	SSHPort      int
 	ClientBinary string
-}
-
-// TunnelPortMapping describes how a local port is exposed through the tunnel.
-type TunnelPortMapping struct {
-	LocalPort  int
-	RemotePort int
-	Protocol   string
 }
 
 // Manager fetches tunnel tokens and boots the tunnel client.
@@ -106,8 +100,10 @@ func (m *Manager) Start(ctx context.Context) error { //nolint:gocognit,gocyclo,f
 		BrevCloudNodeID: m.Identity.InstanceID,
 		DeviceToken:     m.Identity.DeviceToken,
 		TunnelName:      defaultTunnelName,
-		Ports: []TunnelPortMapping{
-			{LocalPort: m.Cfg.SSHPort},
+		Ports: []provider.TunnelPortMapping{ 
+			{
+				LocalPort: m.Cfg.SSHPort,
+			},
 		},
 	}
 

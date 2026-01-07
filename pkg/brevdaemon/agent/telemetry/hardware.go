@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"math"
 	"os"
 	"os/exec"
 	"runtime"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/dev-plane/pkg/errors"
+	"golang.org/x/sys/unix"
 )
 
 // HardwareInfo holds the coarse specs captured during registration.
@@ -178,7 +180,7 @@ func systemRAMBytes() (int64, error) {
 		}
 		total, _, err := parseMeminfo(data)
 		return total, err
-	case "darwin":
+	case darwin:
 		value, err := darwinMemoryBytes()
 		if err != nil {
 			return 0, errors.WrapAndTrace(err)
@@ -187,6 +189,17 @@ func systemRAMBytes() (int64, error) {
 	default:
 		return 0, errors.Errorf("unsupported platform %s", runtimeGOOS)
 	}
+}
+
+func darwinMemoryBytes() (int64, error) {
+	value, err := unix.SysctlUint64("hw.memsize")
+	if err != nil {
+		return 0, errors.WrapAndTrace(err)
+	}
+	if value > math.MaxInt64 {
+		return 0, errors.Errorf("memsize exceeds supported range")
+	}
+	return int64(value), nil
 }
 
 func detectGPUs(ctx context.Context) ([]GPUInfo, error) {
