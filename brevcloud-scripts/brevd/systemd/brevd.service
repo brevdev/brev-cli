@@ -1,0 +1,17 @@
+[Unit]
+Description=Brev Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/brevd
+ExecStart=/usr/local/bin/brevd
+Restart=on-failure
+RestartSec=10s
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
+

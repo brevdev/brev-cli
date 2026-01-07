@@ -42,3 +42,7 @@ func runRegister(t *terminal.Terminal) {
 	t.Vprint("We will reach out to the provided email with updates and instructions on how to register soon (:\n")
 	t.Vprint("\n")
 }
+
+// func runRegisterReal(t *terminal.Terminal) *cobra.Command {
+// 	return spark.NewCmdSpark(t, loginCmdStore, noLoginCmdStore)
+// }
