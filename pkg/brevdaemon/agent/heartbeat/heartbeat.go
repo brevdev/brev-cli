@@ -44,10 +44,10 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:gocyclo,funlen // loo
 		return errors.WrapAndTrace(err)
 	}
 
-	sampleFn := r.SampleUtilization
-	if sampleFn == nil {
-		sampleFn = telemetry.SampleUtilization
-	}
+	// sampleFn := r.SampleUtilization
+	// if sampleFn == nil {
+	// 	sampleFn = telemetry.SampleUtilization
+	// }
 	sleepFn := r.Sleep
 	if sleepFn == nil {
 		sleepFn = defaultSleep
@@ -90,19 +90,19 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:gocyclo,funlen // loo
 			}
 		}
 
-		util, err := sampleFn(ctx)
-		if err != nil {
-			r.Log.Warn("failed to sample utilization", zap.Error(err))
-			currentBackoff = minDurationValue(currentBackoff*2, maxInterval)
-			nextDelay = currentBackoff
-			continue
-		}
+		// util, err := sampleFn(ctx)
+		// if err != nil {
+		// 	r.Log.Warn("failed to sample utilization", zap.Error(err))
+		// 	currentBackoff = minDurationValue(currentBackoff*2, maxInterval)
+		// 	nextDelay = currentBackoff
+		// 	continue
+		// }
 
 		params := client.HeartbeatParams{
 			BrevCloudNodeID:       r.Identity.InstanceID,
 			DeviceToken:           r.Identity.DeviceToken,
 			ObservedAt:            nowFn(),
-			Utilization:           util.ToClient(),
+			// Utilization:           util.ToClient(),
 			AgentVersion:          "", // set by orchestrator later
 			Status:                currentStatusPtr(currentStatus),
 			DeviceFingerprintHash: r.Identity.DeviceFingerprintHash,
