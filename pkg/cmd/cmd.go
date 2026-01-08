@@ -40,7 +40,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/cmd/shell"
-	"github.com/brevdev/brev-cli/pkg/cmd/spark"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshkeys"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
 	"github.com/brevdev/brev-cli/pkg/cmd/status"
@@ -297,7 +296,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
 	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
-	cmd.AddCommand(spark.NewCmdSpark(t, loginCmdStore, noLoginCmdStore))
+	// cmd.AddCommand(spark.NewCmdSpark(t, loginCmdStore, noLoginCmdStore))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {

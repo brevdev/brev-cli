@@ -43,6 +43,5 @@ func runRegister(t *terminal.Terminal) {
 	t.Vprint("\n")
 }
 
-// func runRegisterReal(t *terminal.Terminal) *cobra.Command {
-// 	return spark.NewCmdSpark(t, loginCmdStore, noLoginCmdStore)
-// }
+// TODO
+// this should use spark/enroll.go

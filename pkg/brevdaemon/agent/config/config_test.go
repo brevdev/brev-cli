@@ -9,7 +9,7 @@ import (
 
 func TestLoadDefaults(t *testing.T) {
 	unsetConfigEnv(t)
-	t.Setenv(envBrevCloudURL, "https://example.dev/v1/brevcloudagent")
+	t.Setenv(EnvBrevCloudURL, "https://example.dev/v1/brevcloudagent")
 
 	cfg, err := Load()
 	if err != nil {
@@ -46,16 +46,16 @@ func TestLoadDefaults(t *testing.T) {
 
 func TestLoadOverrides(t *testing.T) {
 	unsetConfigEnv(t)
-	t.Setenv(envBrevCloudURL, "https://example.dev/v1")
-	t.Setenv(envRegistrationToken, "secret")
-	t.Setenv(envDisplayName, "edge-node")
-	t.Setenv(envCloudName, "private")
-	t.Setenv(envStateDir, "~/custom/.brevagent")
-	t.Setenv(envDeviceTokenPath, "~/custom/device_token.json")
-	t.Setenv(envHeartbeatInterval, "45s")
-	t.Setenv(envEnableTunnel, "false")
-	t.Setenv(envTunnelSSHPort, "2202")
-	t.Setenv(envTunnelCritical, "false")
+	t.Setenv(EnvBrevCloudURL, "https://example.dev/v1")
+	t.Setenv(EnvRegistrationToken, "secret")
+	t.Setenv(EnvDisplayName, "edge-node")
+	t.Setenv(EnvCloudName, "private")
+	t.Setenv(EnvStateDir, "~/custom/.brevagent")
+	t.Setenv(EnvDeviceTokenPath, "~/custom/device_token.json")
+	t.Setenv(EnvHeartbeatInterval, "45s")
+	t.Setenv(EnvEnableTunnel, "false")
+	t.Setenv(EnvTunnelSSHPort, "2202")
+	t.Setenv(EnvTunnelCritical, "false")
 
 	cfg, err := Load()
 	if err != nil {
@@ -104,27 +104,27 @@ func TestLoadMissingBrevCloudURL(t *testing.T) {
 
 func TestLoadInvalidValues(t *testing.T) {
 	unsetConfigEnv(t)
-	t.Setenv(envBrevCloudURL, "https://example.dev/v1")
-	t.Setenv(envHeartbeatInterval, "abc")
+	t.Setenv(EnvBrevCloudURL, "https://example.dev/v1")
+	t.Setenv(EnvHeartbeatInterval, "abc")
 
 	if _, err := Load(); err == nil {
 		t.Fatalf("expected invalid interval error")
 	}
 
-	t.Setenv(envHeartbeatInterval, "30s")
-	t.Setenv(envEnableTunnel, "not-bool")
+	t.Setenv(EnvHeartbeatInterval, "30s")
+	t.Setenv(EnvEnableTunnel, "not-bool")
 	if _, err := Load(); err == nil {
 		t.Fatalf("expected invalid bool error")
 	}
 
-	t.Setenv(envEnableTunnel, "true")
-	t.Setenv(envTunnelSSHPort, "100000")
+	t.Setenv(EnvEnableTunnel, "true")
+	t.Setenv(EnvTunnelSSHPort, "100000")
 	if _, err := Load(); err == nil {
 		t.Fatalf("expected invalid port error")
 	}
 
-	t.Setenv(envTunnelSSHPort, "22")
-	t.Setenv(envTunnelCritical, "not-bool")
+	t.Setenv(EnvTunnelSSHPort, "22")
+	t.Setenv(EnvTunnelCritical, "not-bool")
 	if _, err := Load(); err == nil {
 		t.Fatalf("expected invalid tunnel critical bool error")
 	}
@@ -133,15 +133,18 @@ func TestLoadInvalidValues(t *testing.T) {
 func unsetConfigEnv(t *testing.T) {
 	t.Helper()
 	envs := []string{
-		envRegistrationToken,
-		envDisplayName,
-		envCloudName,
-		envStateDir,
-		envDeviceTokenPath,
-		envHeartbeatInterval,
-		envEnableTunnel,
-		envTunnelSSHPort,
-		envTunnelCritical,
+		EnvBrevCloudURL,
+		EnvRegistrationToken,
+		EnvDisplayName,
+		EnvCloudName,
+		EnvCloudCredID,
+		EnvBrevCloudNodeID,
+		EnvStateDir,
+		EnvDeviceTokenPath,
+		EnvHeartbeatInterval,
+		EnvEnableTunnel,
+		EnvTunnelSSHPort,
+		EnvTunnelCritical,
 	}
 	for _, key := range envs {
 		t.Setenv(key, "")

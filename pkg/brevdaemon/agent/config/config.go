@@ -11,17 +11,18 @@ import (
 )
 
 const (
-	envPrefix                 = "BREV_AGENT_"
-	envBrevCloudURL           = envPrefix + "BREV_CLOUD_URL"
-	envRegistrationToken      = envPrefix + "REGISTRATION_TOKEN"
-	envDisplayName            = envPrefix + "DISPLAY_NAME"
-	envCloudName              = envPrefix + "CLOUD_NAME"
-	envStateDir               = envPrefix + "STATE_DIR"
-	envDeviceTokenPath        = envPrefix + "DEVICE_TOKEN_PATH"
-	envHeartbeatInterval      = envPrefix + "HEARTBEAT_INTERVAL"
-	envEnableTunnel           = envPrefix + "ENABLE_TUNNEL"
-	envTunnelSSHPort          = envPrefix + "TUNNEL_SSH_PORT"
-	envTunnelCritical         = envPrefix + "TUNNEL_CRITICAL"
+	EnvBrevCloudURL           = "BREV_AGENT_BREV_CLOUD_URL"
+	EnvRegistrationToken      = "BREV_AGENT_REGISTRATION_TOKEN"
+	EnvDisplayName            = "BREV_AGENT_DISPLAY_NAME"
+	EnvCloudName              = "BREV_AGENT_CLOUD_NAME"
+	EnvCloudCredID            = "BREV_AGENT_CLOUD_CRED_ID"
+	EnvBrevCloudNodeID        = "BREV_AGENT_BREV_CLOUD_NODE_ID"
+	EnvStateDir               = "BREV_AGENT_STATE_DIR"
+	EnvDeviceTokenPath        = "BREV_AGENT_DEVICE_TOKEN_PATH"
+	EnvHeartbeatInterval      = "BREV_AGENT_HEARTBEAT_INTERVAL"
+	EnvEnableTunnel           = "BREV_AGENT_ENABLE_TUNNEL"
+	EnvTunnelSSHPort          = "BREV_AGENT_TUNNEL_SSH_PORT"
+	EnvTunnelCritical         = "BREV_AGENT_TUNNEL_CRITICAL"
 	defaultStateDirName       = ".brev-agent"
 	defaultDeviceTokenName    = "device_token"
 	defaultHeartbeatInterval  = 30 * time.Second
@@ -48,8 +49,7 @@ type Config struct {
 	TunnelCritical bool
 }
 
-// Load constructs a Config from environment variables, applying defaults and
-// validation as defined in the MVP plan.
+// Load constructs a Config from environment variables, applying defaults and validations
 func Load() (Config, error) {
 	cfg := Config{
 		HeartbeatInterval: defaultHeartbeatInterval,
@@ -58,60 +58,60 @@ func Load() (Config, error) {
 		TunnelCritical:    defaultTunnelCritical,
 	}
 
-	cfg.BrevCloudAgentURL = strings.TrimSpace(os.Getenv(envBrevCloudURL))
+	cfg.BrevCloudAgentURL = strings.TrimSpace(os.Getenv(EnvBrevCloudURL))
 	if cfg.BrevCloudAgentURL == "" {
-		return Config{}, errors.Errorf("%s is required", envBrevCloudURL)
+		return Config{}, errors.Errorf("%s is required", EnvBrevCloudURL)
 	}
 
-	cfg.RegistrationToken = strings.TrimSpace(os.Getenv(envRegistrationToken))
-	cfg.DisplayName = strings.TrimSpace(os.Getenv(envDisplayName))
-	cfg.CloudName = strings.TrimSpace(os.Getenv(envCloudName))
-	stateDir, err := deriveStateDir(os.Getenv(envStateDir))
+	cfg.RegistrationToken = strings.TrimSpace(os.Getenv(EnvRegistrationToken))
+	cfg.DisplayName = strings.TrimSpace(os.Getenv(EnvDisplayName))
+	cfg.CloudName = strings.TrimSpace(os.Getenv(EnvCloudName))
+	stateDir, err := deriveStateDir(os.Getenv(EnvStateDir))
 	if err != nil {
 		return Config{}, errors.WrapAndTrace(err)
 	}
 	cfg.StateDir = stateDir
 
-	deviceToken, err := deriveDeviceTokenPath(os.Getenv(envDeviceTokenPath), stateDir)
+	deviceToken, err := deriveDeviceTokenPath(os.Getenv(EnvDeviceTokenPath), stateDir)
 	if err != nil {
 		return Config{}, errors.WrapAndTrace(err)
 	}
 	cfg.DeviceTokenPath = deviceToken
 
-	if intervalRaw := strings.TrimSpace(os.Getenv(envHeartbeatInterval)); intervalRaw != "" {
+	if intervalRaw := strings.TrimSpace(os.Getenv(EnvHeartbeatInterval)); intervalRaw != "" {
 		interval, err := time.ParseDuration(intervalRaw)
 		if err != nil {
-			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be a valid duration: %v", envHeartbeatInterval, err))
+			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be a valid duration: %v", EnvHeartbeatInterval, err))
 		}
 		if interval <= 0 {
-			return Config{}, errors.Errorf("%s must be positive", envHeartbeatInterval)
+			return Config{}, errors.Errorf("%s must be positive", EnvHeartbeatInterval)
 		}
 		cfg.HeartbeatInterval = interval
 	}
 
-	if enableTunnelRaw := strings.TrimSpace(os.Getenv(envEnableTunnel)); enableTunnelRaw != "" {
+	if enableTunnelRaw := strings.TrimSpace(os.Getenv(EnvEnableTunnel)); enableTunnelRaw != "" {
 		val, err := strconv.ParseBool(enableTunnelRaw)
 		if err != nil {
-			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be a boolean: %v", envEnableTunnel, err))
+			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be a boolean: %v", EnvEnableTunnel, err))
 		}
 		cfg.EnableTunnel = val
 	}
 
-	if portRaw := strings.TrimSpace(os.Getenv(envTunnelSSHPort)); portRaw != "" {
+	if portRaw := strings.TrimSpace(os.Getenv(EnvTunnelSSHPort)); portRaw != "" {
 		port, err := strconv.Atoi(portRaw)
 		if err != nil {
-			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be an integer: %v", envTunnelSSHPort, err))
+			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be an integer: %v", EnvTunnelSSHPort, err))
 		}
 		if port <= 0 || port > 65535 {
-			return Config{}, errors.Errorf("%s must be between 1 and 65535", envTunnelSSHPort)
+			return Config{}, errors.Errorf("%s must be between 1 and 65535", EnvTunnelSSHPort)
 		}
 		cfg.TunnelSSHPort = port
 	}
 
-	if tunnelCriticalRaw := strings.TrimSpace(os.Getenv(envTunnelCritical)); tunnelCriticalRaw != "" {
+	if tunnelCriticalRaw := strings.TrimSpace(os.Getenv(EnvTunnelCritical)); tunnelCriticalRaw != "" {
 		val, err := strconv.ParseBool(tunnelCriticalRaw)
 		if err != nil {
-			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be a boolean: %v", envTunnelCritical, err))
+			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be a boolean: %v", EnvTunnelCritical, err))
 		}
 		cfg.TunnelCritical = val
 	}

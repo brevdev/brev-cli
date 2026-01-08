@@ -54,6 +54,9 @@ clean: ## remove files created during build pipeline
 install-tools: ## go install tools
 	$(call print-target)
 	cd tools && go install $(shell cd tools && go list -e -f '{{ join .Imports " " }}' -tags=tools)
+	@if [ "$(shell uname)" = "Darwin" ] && ! command -v golangci-lint >/dev/null 2>&1; then \
+		(echo "Installing golangci-lint on macOS via homebrew..." && brew install golangci-lint); \
+	fi;
 
 .PHONY: generate
 generate: ## go generate
@@ -78,6 +81,7 @@ fmtcheck: ## go fmt --check
 .PHONY: lint
 lint: ## golangci-lint
 	$(call print-target)
+	golangci-lint --version
 	golangci-lint run --timeout 5m
 
 .PHONY: test

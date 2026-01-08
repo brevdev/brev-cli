@@ -155,24 +155,6 @@ func (a *agent) Run(ctx context.Context) error {
 	return nil
 }
 
-// Run preserves the legacy entrypoint used by cmd/devplane/agent.go so we do
-// not break existing workflows while the new standalone agent binary is built.
-func Run(ctx context.Context) error {
-	agentLogger := zap.L().Named("legacy-agent")
-	cfg, err := agentconfig.Load()
-	if err != nil {
-		return errors.WrapAndTrace(err)
-	}
-	a, err := NewAgent(cfg, agentLogger)
-	if err != nil {
-		return errors.WrapAndTrace(err)
-	}
-	if err := a.Run(ctx); err != nil {
-		return errors.WrapAndTrace(err)
-	}
-	return nil
-}
-
 func (a *agent) startStatusBridge(ctx context.Context) func() {
 	if a.statusReporter == nil || a.statusUpdates == nil {
 		return func() {}

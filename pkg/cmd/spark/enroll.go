@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	brevcloud "github.com/brevdev/brev-cli/pkg/brevcloud"
+	agentconfig "github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
 	sparklib "github.com/brevdev/brev-cli/pkg/spark"
@@ -33,11 +34,12 @@ var installUserScript string
 const (
 	defaultEnrollTimeout     = 10 * time.Minute
 	envFilePath              = "/etc/default/brevd"
-	stateDirDefault          = "/var/lib/devplane/brevd"
+	stateDirDefault          = "/home/brevcloud/.brev-agent"
 	serviceName              = "brevd"
 	binaryPath               = "/usr/local/bin/brevd"
 	binaryInstallScriptPath  = "/tmp/install-brevd-binary.sh"
 	serviceInstallScriptPath = "/tmp/install-brevd-service.sh"
+	userInstallScriptPath    = "/tmp/install-brevd-user.sh"
 )
 
 type enrollOptions struct {
@@ -152,6 +154,9 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 	}
 
 	cloudCredID, err := resolveDefaultCloudCred(ctx, loginStore)
+	if err != nil {
+		return fail(err)
+	}
 
 	if opts.dryRun {
 		t.Print(fmt.Sprintf("Dry-run: would connect to %s with cloud_cred_id=%s", sparklib.HostLabel(host), cloudCredID))
@@ -179,6 +184,14 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 		return fail(err)
 	}
 
+	if err := ensureBrevCloudUser(ctx, remote, host, opts.printCmd); err != nil {
+		return fail(err)
+	}
+
+	if err := ensureStateDir(ctx, remote, host, opts.printCmd); err != nil {
+		return fail(err)
+	}
+
 	// Minimal path: ensure agent and unit pre-exist.
 	if err := ensureAgentPresent(ctx, remote, host, opts.printCmd); err != nil {
 		return fail(err)
@@ -199,9 +212,24 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 		intent = *resp
 	}
 
+	if intent.RegistrationToken == "" {
+		return fail(errors.New("registration token missing from registration intent"))
+	}
+
+	configCloudCredID := intent.CloudCredID
+	if configCloudCredID == "" {
+		configCloudCredID = cloudCredID
+	}
+	if err := writeAgentConfig(ctx, remote, host, intent.BrevCloudNodeID, intent.RegistrationToken, configCloudCredID, opts.printCmd); err != nil {
+		return fail(err)
+	}
+
 	var result enrollResult
 	result.BrevCloudNodeID = intent.BrevCloudNodeID
 	result.CloudCredID = intent.CloudCredID
+	if result.CloudCredID == "" {
+		result.CloudCredID = cloudCredID
+	}
 
 	if opts.wait && !opts.mockRegistration {
 		node, err := waitForBrevCloudNode(ctx, brevCloudClient, intent.BrevCloudNodeID, t)
@@ -264,6 +292,13 @@ func resolveDefaultCloudCred(ctx context.Context, loginStore *store.AuthHTTPStor
 	return cred, nil
 }
 
+func ensureBrevCloudUser(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
+	userWriteCmd := buildWriteScriptCmd(userInstallScriptPath, installUserScript)
+	userExecuteCmd := buildExecuteScriptCmd(userInstallScriptPath, "")
+
+	return runInstallScript(ctx, remote, host, printCmd, "brevcloud user", userInstallScriptPath, userWriteCmd, userExecuteCmd)
+}
+
 func ensureAgentPresent(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
 	binaryWriteCmd := buildWriteScriptCmd(binaryInstallScriptPath, installBinaryScript)
 	binaryExecuteCmd := buildExecuteScriptCmd(binaryInstallScriptPath, "")
@@ -315,9 +350,6 @@ func buildWriteScriptCmd(remotePath, script string) string {
 }
 
 func buildExecuteScriptCmd(remotePath, envPrefix string) string {
-	if envPrefix != "" && !strings.HasSuffix(envPrefix, " ") {
-		envPrefix += " "
-	}
 	return fmt.Sprintf("%s %s && rm -f %s", envPrefix, remotePath, remotePath)
 }
 
@@ -342,10 +374,10 @@ func runInstallScript(ctx context.Context, remote sparklib.RemoteRunner, host sp
 	return nil
 }
 
-func ensureConfigDir(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
+func ensureStateDir(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
 	cmds := []string{
-		fmt.Sprintf("sudo -n mkdir -p %s", stateDirDefault),
-		fmt.Sprintf("sudo mkdir -p %s", stateDirDefault),
+		fmt.Sprintf("sudo install -d -m 700 -o brevcloud -g brevcloud %s", stateDirDefault),
+		fmt.Sprintf("sudo mkdir -p %s && sudo chown brevcloud:brevcloud %s && sudo chmod 700 %s", stateDirDefault, stateDirDefault, stateDirDefault),
 		fmt.Sprintf("mkdir -p %s", stateDirDefault),
 	}
 	var errs []string
@@ -359,19 +391,38 @@ func ensureConfigDir(ctx context.Context, remote sparklib.RemoteRunner, host spa
 		}
 		errs = append(errs, fmt.Sprintf("cmd=%s err=%v output=%s", cmd, err, strings.TrimSpace(out)))
 	}
-	return fmt.Errorf("failed to create config dir on %s; attempts: %s", sparklib.HostLabel(host), strings.Join(errs, " | "))
+	return fmt.Errorf("failed to create state dir on %s; attempts: %s", sparklib.HostLabel(host), strings.Join(errs, " | "))
 }
 
 func writeAgentConfig(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, brevCloudNodeID, registrationToken, cloudCredID string, printCmd bool) error {
+	brevCloudURL := strings.TrimSpace(os.Getenv(agentconfig.EnvBrevCloudURL))
+	if brevCloudURL == "" {
+		return fmt.Errorf("BREV_AGENT_BREV_CLOUD_URL must be set to configure the agent")
+	}
 	var b strings.Builder
-	b.WriteString("brev_cloud_node_id: ")
-	b.WriteString(brevCloudNodeID)
-	b.WriteString("\nregistration_token: ")
+	b.WriteString(agentconfig.EnvBrevCloudURL)
+	b.WriteString("=")
+	b.WriteString(brevCloudURL)
+	b.WriteString("\n")
+	b.WriteString(agentconfig.EnvRegistrationToken)
+	b.WriteString("=")
 	b.WriteString(registrationToken)
+	if brevCloudNodeID != "" {
+		b.WriteString("\n")
+		b.WriteString(agentconfig.EnvBrevCloudNodeID)
+		b.WriteString("=")
+		b.WriteString(brevCloudNodeID)
+	}
 	if cloudCredID != "" {
-		b.WriteString("\ncloud_cred_id: ")
+		b.WriteString("\n")
+		b.WriteString(agentconfig.EnvCloudCredID)
+		b.WriteString("=")
 		b.WriteString(cloudCredID)
 	}
+	b.WriteString("\n")
+	b.WriteString(agentconfig.EnvStateDir)
+	b.WriteString("=")
+	b.WriteString(stateDirDefault)
 	b.WriteString("\n")
 	payload := b.String()
 	cmds := []string{
