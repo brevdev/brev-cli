@@ -39,7 +39,7 @@ type Runner struct {
 
 // Run executes the heartbeat loop until the context is canceled or an
 // unrecoverable error occurs.
-func (r *Runner) Run(ctx context.Context) error { //nolint:gocyclo,funlen // loop coordinates retries, telemetry, and server responses
+func (r *Runner) Run(ctx context.Context) error { //nolint:funlen // loop coordinates retries, telemetry, and server responses
 	if err := r.validate(); err != nil {
 		return errors.WrapAndTrace(err)
 	}

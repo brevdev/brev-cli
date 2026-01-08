@@ -12,13 +12,13 @@ import (
 
 const (
 	EnvBrevCloudURL           = "BREV_AGENT_BREV_CLOUD_URL"
-	EnvRegistrationToken      = "BREV_AGENT_REGISTRATION_TOKEN"
+	EnvRegistrationToken      = "BREV_AGENT_REGISTRATION_TOKEN" //nolint:gosec // token env var name, not secret
 	EnvDisplayName            = "BREV_AGENT_DISPLAY_NAME"
 	EnvCloudName              = "BREV_AGENT_CLOUD_NAME"
-	EnvCloudCredID            = "BREV_AGENT_CLOUD_CRED_ID"
+	EnvCloudCredID            = "BREV_AGENT_CLOUD_CRED_ID" //nolint:gosec // credential env var name, not secret
 	EnvBrevCloudNodeID        = "BREV_AGENT_BREV_CLOUD_NODE_ID"
 	EnvStateDir               = "BREV_AGENT_STATE_DIR"
-	EnvDeviceTokenPath        = "BREV_AGENT_DEVICE_TOKEN_PATH"
+	EnvDeviceTokenPath        = "BREV_AGENT_DEVICE_TOKEN_PATH" //nolint:gosec // path key, not a credential
 	EnvHeartbeatInterval      = "BREV_AGENT_HEARTBEAT_INTERVAL"
 	EnvEnableTunnel           = "BREV_AGENT_ENABLE_TUNNEL"
 	EnvTunnelSSHPort          = "BREV_AGENT_TUNNEL_SSH_PORT"

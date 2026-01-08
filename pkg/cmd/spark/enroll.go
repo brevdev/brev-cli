@@ -93,7 +93,7 @@ type enrollResult struct {
 	AgentVersion    string `json:"agent_version,omitempty"`
 }
 
-func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store.AuthHTTPStore, alias string, opts enrollOptions) error {
+func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store.AuthHTTPStore, alias string, opts enrollOptions) error { //nolint:gocognit,gocyclo,funlen // enroll flow is linear but long; revisit if logic changes
 	ctx, cancel := sparklib.WithTimeout(ctx, opts.timeout)
 	defer cancel()
 
@@ -108,7 +108,7 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 	defer stopSpinner()
 
 	fail := func(err error) error {
-		msg := formatEnrollError(err, opts)
+		msg := formatEnrollError(err)
 		stopSpinner()
 		t.Eprint(t.Red("\n  Failed: " + msg))
 		return errors.New(msg)
@@ -232,7 +232,7 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 	}
 
 	if opts.wait && !opts.mockRegistration {
-		node, err := waitForBrevCloudNode(ctx, brevCloudClient, intent.BrevCloudNodeID, t)
+		node, err := waitForBrevCloudNode(ctx, brevCloudClient, intent.BrevCloudNodeID)
 		if err != nil {
 			return fail(err)
 		}
@@ -284,9 +284,16 @@ func resolveSparkHost(_ *terminal.Terminal, alias string) (sparklib.Host, error)
 func resolveDefaultCloudCred(ctx context.Context, loginStore *store.AuthHTTPStore) (string, error) {
 	client := brevcloud.NewClient(loginStore)
 	org, err := loginStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return "", breverrors.New("no active organization found")
+	}
+
 	cred, err := client.ListCloudCredID(ctx, org.ID)
 	if err != nil {
-		return "", err
+		return "", breverrors.WrapAndTrace(err)
 	}
 
 	return cred, nil
@@ -399,32 +406,18 @@ func writeAgentConfig(ctx context.Context, remote sparklib.RemoteRunner, host sp
 	if brevCloudURL == "" {
 		return fmt.Errorf("BREV_AGENT_BREV_CLOUD_URL must be set to configure the agent")
 	}
-	var b strings.Builder
-	b.WriteString(agentconfig.EnvBrevCloudURL)
-	b.WriteString("=")
-	b.WriteString(brevCloudURL)
-	b.WriteString("\n")
-	b.WriteString(agentconfig.EnvRegistrationToken)
-	b.WriteString("=")
-	b.WriteString(registrationToken)
+	lines := []string{
+		fmt.Sprintf("%s=%s", agentconfig.EnvBrevCloudURL, brevCloudURL),
+		fmt.Sprintf("%s=%s", agentconfig.EnvRegistrationToken, registrationToken),
+	}
 	if brevCloudNodeID != "" {
-		b.WriteString("\n")
-		b.WriteString(agentconfig.EnvBrevCloudNodeID)
-		b.WriteString("=")
-		b.WriteString(brevCloudNodeID)
+		lines = append(lines, fmt.Sprintf("%s=%s", agentconfig.EnvBrevCloudNodeID, brevCloudNodeID))
 	}
 	if cloudCredID != "" {
-		b.WriteString("\n")
-		b.WriteString(agentconfig.EnvCloudCredID)
-		b.WriteString("=")
-		b.WriteString(cloudCredID)
+		lines = append(lines, fmt.Sprintf("%s=%s", agentconfig.EnvCloudCredID, cloudCredID))
 	}
-	b.WriteString("\n")
-	b.WriteString(agentconfig.EnvStateDir)
-	b.WriteString("=")
-	b.WriteString(stateDirDefault)
-	b.WriteString("\n")
-	payload := b.String()
+	lines = append(lines, fmt.Sprintf("%s=%s", agentconfig.EnvStateDir, stateDirDefault), "")
+	payload := strings.Join(lines, "\n")
 	cmds := []string{
 		fmt.Sprintf("cat <<'EOF' | sudo -n tee %s >/dev/null\n%sEOF\n", envFilePath, payload),
 		fmt.Sprintf("cat <<'EOF' | sudo tee %s >/dev/null\n%sEOF\n", envFilePath, payload),
@@ -444,27 +437,27 @@ func writeAgentConfig(ctx context.Context, remote sparklib.RemoteRunner, host sp
 	return fmt.Errorf("failed to write config on %s; attempts: %s", sparklib.HostLabel(host), strings.Join(errs, " | "))
 }
 
-func waitForBrevCloudNode(ctx context.Context, client *brevcloud.Client, brevCloudNodeID string, t *terminal.Terminal) (*brevcloud.BrevCloudNode, error) {
+func waitForBrevCloudNode(ctx context.Context, client *brevcloud.Client, brevCloudNodeID string) (*brevcloud.BrevCloudNode, error) {
 	interval := 3 * time.Second
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		node, err := client.GetBrevCloudNode(ctx, brevCloudNodeID)
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		if strings.EqualFold(node.Phase, "ACTIVE") || node.LastSeenAt != "" {
 			return node, nil
 		}
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return nil, breverrors.WrapAndTrace(ctx.Err())
 		case <-ticker.C:
 		}
 	}
 }
 
-func formatEnrollError(err error, opts enrollOptions) string {
+func formatEnrollError(err error) string {
 	if err == nil {
 		return ""
 	}

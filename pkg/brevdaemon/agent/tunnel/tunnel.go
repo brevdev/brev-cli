@@ -186,7 +186,7 @@ type execCmdWrapper struct {
 }
 
 func (w *execCmdWrapper) SetEnv(env []string) {
-	w.Cmd.Env = env
+	w.Env = env
 }
 
 func (w *execCmdWrapper) CombinedOutput() ([]byte, error) {
@@ -241,10 +241,6 @@ func (m *Manager) configureCloudflaredService(ctx context.Context, token client.
 			name: "sudo",
 			args: []string{"cloudflared", "service", "install", token.Token},
 		},
-		// {
-		// 	name: "sudo",
-		// 	args: []string{"systemctl", "restart", "cloudflared.service"},
-		// },
 	}
 
 	for _, cmdSpec := range commands {

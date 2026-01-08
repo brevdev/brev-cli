@@ -119,7 +119,7 @@ func readLinuxMemory() (used, total int64, err error) {
 	return total - available, total, nil
 }
 
-func parseMeminfo(data []byte) (total, available int64, err error) { //nolint:gocyclo // parser handles multiple meminfo keys
+func parseMeminfo(data []byte) (total, available int64, err error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	var (
 		memFree int64
