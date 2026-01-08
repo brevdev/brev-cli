@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -32,11 +31,11 @@ var installServiceScript string
 var installUserScript string
 
 const (
-	defaultEnrollTimeout = 10 * time.Minute
-	envFilePath          = "/etc/default/brevd"
-	stateDirDefault      = "/var/lib/devplane/brevd"
-	serviceName          = "brevd"
-	binaryPath           = "/usr/local/bin/brevd"
+	defaultEnrollTimeout     = 10 * time.Minute
+	envFilePath              = "/etc/default/brevd"
+	stateDirDefault          = "/var/lib/devplane/brevd"
+	serviceName              = "brevd"
+	binaryPath               = "/usr/local/bin/brevd"
 	binaryInstallScriptPath  = "/tmp/install-brevd-binary.sh"
 	serviceInstallScriptPath = "/tmp/install-brevd-service.sh"
 )
@@ -48,7 +47,6 @@ type enrollOptions struct {
 	printCmd         bool
 	dryRun           bool
 	json             bool
-	assumeInstalled  bool
 	mockRegistration bool
 }
 
@@ -64,10 +62,6 @@ func NewCmdSparkEnroll(t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore)
 			alias := ""
 			if len(args) > 0 {
 				alias = args[0]
-			}
-
-			if env := os.Getenv("BREVD_ASSUME_INSTALLED"); strings.EqualFold(env, "true") {
-				opts.assumeInstalled = true
 			}
 
 			if loginCmdStore == nil {
@@ -192,34 +186,17 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 
 	var intent brevcloud.CreateRegistrationIntentResponse
 	if opts.mockRegistration {
-		logStep(t, "mocking registration intent (no API call)")
 		intent = brevcloud.MockRegistrationIntent(cloudCredID)
 	} else {
-		logStep(t, fmt.Sprintf("requesting registration intent for cloud cred %s", cloudCredID))
 		req := brevcloud.CreateRegistrationIntentRequest{
 			CloudCredID: cloudCredID,
 			OrgID:       orgID,
 		}
-		ref := ""
-		switch {
-		case req.CloudCredID != "" && req.OrgID != "":
-			ref = fmt.Sprintf("cloud cred %s org %s", req.CloudCredID, req.OrgID)
-		case req.CloudCredID != "":
-			ref = fmt.Sprintf("cloud cred %s", req.CloudCredID)
-		case req.OrgID != "":
-			ref = fmt.Sprintf("org %s", req.OrgID)
-		default:
-			ref = "no reference"
-		}
 		resp, err := brevCloudClient.CreateRegistrationIntent(ctx, req)
 		if err != nil {
-			return fail(fmt.Errorf("failed to create registration intent (%s): %w", ref, err))
+			return fail(err)
 		}
 		intent = *resp
-		logStep(t, fmt.Sprintf("created registration intent: brev_cloud_node_id=%s expires_at=%s", intent.BrevCloudNodeID, intent.ExpiresAt))
-		if strings.TrimSpace(intent.RegistrationToken) == "" {
-			return fail(fmt.Errorf("registration intent returned empty registration token for %s", ref))
-		}
 	}
 
 	var result enrollResult
@@ -227,7 +204,6 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 	result.CloudCredID = intent.CloudCredID
 
 	if opts.wait && !opts.mockRegistration {
-		logStep(t, fmt.Sprintf("waiting for brev cloud node %s to report active...", intent.BrevCloudNodeID))
 		node, err := waitForBrevCloudNode(ctx, brevCloudClient, intent.BrevCloudNodeID, t)
 		if err != nil {
 			return fail(err)
@@ -246,9 +222,7 @@ func runSparkEnroll(ctx context.Context, t *terminal.Terminal, loginStore *store
 		} else {
 			t.Print("\n" + t.Green("✓ Registration complete"))
 		}
-		if manageURL := enrollmentManageURL(loginStore, aliasLabel); manageURL != "" {
-			t.Print(fmt.Sprintf("Manage your %s %s", t.Yellow("Spark"), t.Blue(manageURL)))
-		}
+		t.Print(fmt.Sprintf("Manage your %s %s", t.Yellow("Spark"), t.Blue(fmt.Sprintf("https://brev.nvidia.com/org/%s/environments", orgID))))
 	}
 
 	if opts.json {
@@ -290,21 +264,6 @@ func resolveDefaultCloudCred(ctx context.Context, loginStore *store.AuthHTTPStor
 	return cred, nil
 }
 
-func hasAllLabels(labels map[string]string, required map[string]string) bool {
-	if len(required) == 0 {
-		return true
-	}
-	for k, v := range required {
-		if labels == nil {
-			return false
-		}
-		if val, ok := labels[k]; !ok || val != v {
-			return false
-		}
-	}
-	return true
-}
-
 func ensureAgentPresent(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
 	binaryWriteCmd := buildWriteScriptCmd(binaryInstallScriptPath, installBinaryScript)
 	binaryExecuteCmd := buildExecuteScriptCmd(binaryInstallScriptPath, "")
@@ -324,24 +283,8 @@ func ensureAgentPresent(ctx context.Context, remote sparklib.RemoteRunner, host 
 			fmt.Printf("[remote] Installing brevd from GitHub releases...\n")
 		}
 
-		// Write the install script to remote and execute it
-		if printCmd {
-			fmt.Printf("[remote] Writing install script to %s\n", binaryInstallScriptPath)
-		}
-		if _, err := remote.Run(ctx, host, binaryWriteCmd); err != nil {
-			return fmt.Errorf("failed to write install script on %s: %w", sparklib.HostLabel(host), err)
-		}
-
-		// Execute the install script
-		if printCmd {
-			fmt.Printf("[remote] %s\n", binaryExecuteCmd)
-		}
-		out, err := remote.Run(ctx, host, binaryExecuteCmd)
-		if err != nil {
-			return fmt.Errorf("failed to install brevd on %s: err=%v output=%s", sparklib.HostLabel(host), err, strings.TrimSpace(out))
-		}
-		if printCmd {
-			fmt.Printf("[remote] brevd install output: %s\n", strings.TrimSpace(out))
+		if err := runInstallScript(ctx, remote, host, printCmd, "brevd", binaryInstallScriptPath, binaryWriteCmd, binaryExecuteCmd); err != nil {
+			return err
 		}
 	}
 
@@ -357,24 +300,8 @@ func ensureAgentPresent(ctx context.Context, remote sparklib.RemoteRunner, host 
 			fmt.Printf("[remote] Installing brevd systemd service...\n")
 		}
 
-		// Write the service install script to remote and execute it with STATE_DIR env var
-		if printCmd {
-			fmt.Printf("[remote] Writing service install script to %s\n", serviceInstallScriptPath)
-		}
-		if _, err := remote.Run(ctx, host, serviceWriteCmd); err != nil {
-			return fmt.Errorf("failed to write service install script on %s: %w", sparklib.HostLabel(host), err)
-		}
-
-		// Execute the service install script with STATE_DIR environment variable
-		if printCmd {
-			fmt.Printf("[remote] %s\n", serviceExecuteCmd)
-		}
-		out, err := remote.Run(ctx, host, serviceExecuteCmd)
-		if err != nil {
-			return fmt.Errorf("failed to install brevd systemd service on %s: err=%v output=%s", sparklib.HostLabel(host), err, strings.TrimSpace(out))
-		}
-		if printCmd {
-			fmt.Printf("[remote] systemd service install output: %s\n", strings.TrimSpace(out))
+		if err := runInstallScript(ctx, remote, host, printCmd, "brevd systemd service", serviceInstallScriptPath, serviceWriteCmd, serviceExecuteCmd); err != nil {
+			return err
 		}
 	} else if printCmd {
 		fmt.Printf("[remote] systemd service check output: %s\n", strings.TrimSpace(out))
@@ -391,7 +318,28 @@ func buildExecuteScriptCmd(remotePath, envPrefix string) string {
 	if envPrefix != "" && !strings.HasSuffix(envPrefix, " ") {
 		envPrefix += " "
 	}
-	return fmt.Sprintf("%s%s && rm -f %s", envPrefix, remotePath, remotePath)
+	return fmt.Sprintf("%s %s && rm -f %s", envPrefix, remotePath, remotePath)
+}
+
+func runInstallScript(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool, scriptName, remotePath, writeCmd, executeCmd string) error {
+	if printCmd {
+		fmt.Printf("[remote] Writing %s install script to %s\n", scriptName, remotePath)
+	}
+	if _, err := remote.Run(ctx, host, writeCmd); err != nil {
+		return fmt.Errorf("failed to write %s install script on %s: %w", scriptName, sparklib.HostLabel(host), err)
+	}
+
+	if printCmd {
+		fmt.Printf("[remote] %s\n", executeCmd)
+	}
+	out, err := remote.Run(ctx, host, executeCmd)
+	if err != nil {
+		return fmt.Errorf("failed to install %s on %s: err=%v output=%s", scriptName, sparklib.HostLabel(host), err, strings.TrimSpace(out))
+	}
+	if printCmd {
+		fmt.Printf("[remote] %s install output: %s\n", scriptName, strings.TrimSpace(out))
+	}
+	return nil
 }
 
 func ensureConfigDir(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
@@ -445,15 +393,6 @@ func writeAgentConfig(ctx context.Context, remote sparklib.RemoteRunner, host sp
 	return fmt.Errorf("failed to write config on %s; attempts: %s", sparklib.HostLabel(host), strings.Join(errs, " | "))
 }
 
-func restartService(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
-	cmd := fmt.Sprintf("sudo systemctl restart %s", serviceName)
-	if printCmd {
-		fmt.Printf("[remote] %s\n", cmd)
-	}
-	_, err := remote.Run(ctx, host, cmd)
-	return breverrors.WrapAndTrace(err)
-}
-
 func waitForBrevCloudNode(ctx context.Context, client *brevcloud.Client, brevCloudNodeID string, t *terminal.Terminal) (*brevcloud.BrevCloudNode, error) {
 	interval := 3 * time.Second
 	ticker := time.NewTicker(interval)
@@ -470,7 +409,6 @@ func waitForBrevCloudNode(ctx context.Context, client *brevcloud.Client, brevClo
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		case <-ticker.C:
-			logStep(t, fmt.Sprintf("still waiting for brev cloud node %s (phase=%s last_seen_at=%s)", brevCloudNodeID, node.Phase, node.LastSeenAt))
 		}
 	}
 }
@@ -503,38 +441,6 @@ func isSudoError(msg string) bool {
 		strings.Contains(lower, "sudo: no tty present") ||
 		strings.Contains(lower, "sudo: sorry, you must have a tty")
 }
-
-func enrollmentManageURL(loginStore *store.AuthHTTPStore, alias string) string {
-	if loginStore == nil {
-		return ""
-	}
-	meta, err := loginStore.GetCurrentWorkspaceMeta()
-	if err != nil || meta == nil || meta.OrganizationID == "" || alias == "" {
-		return ""
-	}
-	return fmt.Sprintf("https://brev.nvidia.com/org/%s/compute/%s", meta.OrganizationID, url.PathEscape(alias))
-}
-
-//func buildEnrollScript(brevCloudNodeID, registrationToken, cloudCredID, brevCloudBase string, mock bool) string {
-//	var envContent strings.Builder
-//	envContent.WriteString("BREV_AGENT_BREV_CLOUD_NODE_ID=")
-//	envContent.WriteString(brevCloudNodeID)
-//	envContent.WriteString("\nBREV_AGENT_REGISTRATION_TOKEN=")
-//	envContent.WriteString(registrationToken)
-//	envContent.WriteString("\nBREV_AGENT_STATE_DIR=")
-//	envContent.WriteString(stateDirDefault)
-//	if brevCloudBase != "" {
-//		envContent.WriteString("\nBREV_AGENT_BREV_CLOUD_URL=")
-//		envContent.WriteString(brevCloudBase)
-//	}
-//	if cloudCredID != "" {
-//		envContent.WriteString("\nBREV_AGENT_CLOUD_CRED_ID=")
-//		envContent.WriteString(cloudCredID)
-//	}
-//	envContent.WriteString("\n")
-//
-//	return script
-//}
 
 func probeConnectivity(ctx context.Context, remote sparklib.RemoteRunner, host sparklib.Host, printCmd bool) error {
 	cmd := "uname -a && whoami && hostname"
