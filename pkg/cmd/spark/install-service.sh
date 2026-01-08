@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# Installs the brevd systemd service
-# Expects STATE_DIR to be set (defaults to /var/lib/devplane/brevd)
-
-STATE_DIR="${STATE_DIR:-/var/lib/devplane/brevd}"
-
 # Create systemd service file
 sudo tee /etc/systemd/system/brevd.service > /dev/null <<'EOF'
 [Unit]
@@ -33,7 +28,6 @@ if [ ! -f /etc/default/brevd ]; then
 BREV_AGENT_BREV_CLOUD_NODE_ID=""
 BREV_AGENT_BREV_CLOUD_URL=""
 BREV_AGENT_REGISTRATION_TOKEN=""
-BREV_AGENT_STATE_DIR="${STATE_DIR}"
 EOF
     sudo chmod 600 /etc/default/brevd
 fi

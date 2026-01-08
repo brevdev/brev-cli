@@ -35,6 +35,7 @@ func runSparkAgent(t *terminal.Terminal) error {
 	// Print immediately on startup
 	t.Vprint(fmt.Sprintf("[%s] Brev agent running\n", time.Now().Format(time.RFC3339)))
 
+	// TODO this should call the logic in pkg/brevdaemon/agent.go
 	for {
 		select {
 		case <-ticker.C:

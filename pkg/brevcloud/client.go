@@ -178,9 +178,6 @@ type CloudCred struct {
 	Labels     map[string]string
 }
 
-// ListCloudCred is a placeholder for future integration with a BrevCloud
-// cloud credential listing API. Today it returns an error so callers can
-// fall back to explicit --cloud-cred-id flags.
 func (c *Client) ListCloudCredID(ctx context.Context, orgID string) (string, error) {
 	resp, err := c.cloudCreds.ListCloudCred(ctx, connect.NewRequest(&devplaneapiv1.ListCloudCredRequest{
 		Options: &devplaneapiv1.ListCloudCredOptions{

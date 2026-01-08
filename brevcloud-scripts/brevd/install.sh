@@ -113,7 +113,6 @@ BREV_AGENT_CLOUD_CRED_ID="replace-me"
 # Optional overrides:
 # BREV_AGENT_DISPLAY_NAME="my-node"
 # BREV_AGENT_CLOUD_NAME="edge-cluster-a"
-# BREV_AGENT_STATE_DIR="/var/lib/brevd"
 # BREV_AGENT_DEVICE_TOKEN_PATH="/var/lib/brevd/device_token"
 # BREV_AGENT_HEARTBEAT_INTERVAL="30s"
 # BREV_AGENT_ENABLE_TUNNEL="true"
