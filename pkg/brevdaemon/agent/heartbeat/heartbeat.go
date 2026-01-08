@@ -99,9 +99,9 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:gocyclo,funlen // loo
 		// }
 
 		params := client.HeartbeatParams{
-			BrevCloudNodeID:       r.Identity.InstanceID,
-			DeviceToken:           r.Identity.DeviceToken,
-			ObservedAt:            nowFn(),
+			BrevCloudNodeID: r.Identity.InstanceID,
+			DeviceToken:     r.Identity.DeviceToken,
+			ObservedAt:      nowFn(),
 			// Utilization:           util.ToClient(),
 			AgentVersion:          "", // set by orchestrator later
 			Status:                currentStatusPtr(currentStatus),

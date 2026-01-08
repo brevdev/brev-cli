@@ -1,4 +1,6 @@
 package telemetry
 
-const goosLinux = "linux"
-const darwin = "darwin"
+const (
+	goosLinux = "linux"
+	darwin    = "darwin"
+)

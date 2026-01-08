@@ -11,8 +11,8 @@ import (
 	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
-	"github.com/brevdev/dev-plane/pkg/brevcloud/tunnel"
 	"github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/dev-plane/pkg/brevcloud/tunnel"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

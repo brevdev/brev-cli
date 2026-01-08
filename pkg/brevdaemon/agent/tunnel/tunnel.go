@@ -101,7 +101,7 @@ func (m *Manager) Start(ctx context.Context) error { //nolint:gocognit,gocyclo,f
 		BrevCloudNodeID: m.Identity.InstanceID,
 		DeviceToken:     m.Identity.DeviceToken,
 		TunnelName:      defaultTunnelName,
-		Ports: []tunnel.TunnelPortMapping{ 
+		Ports: []tunnel.TunnelPortMapping{
 			{
 				LocalPort: m.Cfg.SSHPort,
 			},
@@ -241,10 +241,10 @@ func (m *Manager) configureCloudflaredService(ctx context.Context, token client.
 			name: "sudo",
 			args: []string{"cloudflared", "service", "install", token.Token},
 		},
-		{
-			name: "sudo",
-			args: []string{"systemctl", "restart", "cloudflared.service"},
-		},
+		// {
+		// 	name: "sudo",
+		// 	args: []string{"systemctl", "restart", "cloudflared.service"},
+		// },
 	}
 
 	for _, cmdSpec := range commands {

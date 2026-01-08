@@ -25,7 +25,6 @@ func NewCmdSpark(t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLog
 		Long:  sparkLong,
 	}
 
-	cmd.AddCommand(NewCmdSparkSSH(t))
 	cmd.AddCommand(NewCmdSparkEnroll(t, loginCmdStore))
 	cmd.AddCommand(NewCmdSparkAgent(t))
 

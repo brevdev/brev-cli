@@ -2,7 +2,6 @@ package brevcloud
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -10,7 +9,9 @@ import (
 	"connectrpc.com/connect"
 
 	brevapiv2connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/brevapi/v2/brevapiv2connect"
+	devplaneapiv1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -20,8 +21,9 @@ import (
 //
 // It intentionally exposes small, CLI-focused types instead of raw protos.
 type Client struct {
-	operator brevapiv2connect.BrevCloudOperatorServiceClient
-	store    *store.AuthHTTPStore
+	operator   brevapiv2connect.BrevCloudOperatorServiceClient
+	cloudCreds devplaneapiv1connect.CloudCredServiceClient
+	store      *store.AuthHTTPStore
 }
 
 // NewClient constructs a BrevCloud client backed by brevapiv2.BrevCloudOperatorService.
@@ -179,9 +181,22 @@ type CloudCred struct {
 // ListCloudCred is a placeholder for future integration with a BrevCloud
 // cloud credential listing API. Today it returns an error so callers can
 // fall back to explicit --cloud-cred-id flags.
-func (c *Client) ListCloudCred(ctx context.Context) ([]CloudCred, error) {
-	_ = ctx
-	return nil, fmt.Errorf("ListCloudCred not implemented")
+func (c *Client) ListCloudCredID(ctx context.Context, orgID string) (string, error) {
+	resp, err := c.cloudCreds.ListCloudCred(ctx, connect.NewRequest(&devplaneapiv1.ListCloudCredRequest{
+		Options: &devplaneapiv1.ListCloudCredOptions{
+			HasAllLabels: map[string]string{
+				"name":      "brev-cloud-default",
+				"managedBy": "system",
+				"provider":  "brevcloud",
+				"orgId":     orgID,
+			},
+		},
+	}))
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return resp.Msg.Items[0].CloudCredId, nil
 }
 
 // MockRegistrationIntent constructs a safe, in-memory registration intent

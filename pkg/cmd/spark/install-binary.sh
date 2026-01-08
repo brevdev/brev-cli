@@ -33,4 +33,3 @@ sudo mv "${TMP_DIR}/brev" /usr/local/bin/brevd
 sudo chmod +x /usr/local/bin/brevd
 
 echo "Successfully installed brevd to /usr/local/bin/brevd"
-
