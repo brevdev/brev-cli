@@ -3,7 +3,6 @@ package workspacemanagerv2
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -134,7 +133,7 @@ func Test_Volumes(t *testing.T) {
 		err = cm.StartContainer(ctx, containerID)
 		assert.Nil(t, err)
 
-		info, err := ioutil.ReadDir(localPath)
+		info, err := os.ReadDir(localPath)
 		assert.Nil(t, err)
 		assert.Len(t, info, 2)
 	}

@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -30,7 +29,7 @@ type HubProxyStore interface {
 func dialError(url string, resp *http.Response, err error) {
 	if resp != nil {
 		extra := ""
-		b, err1 := ioutil.ReadAll(resp.Body)
+		b, err1 := io.ReadAll(resp.Body)
 		if err1 != nil {
 			log.Warningf("Failed to read HTTP body: %v", err1)
 		}
