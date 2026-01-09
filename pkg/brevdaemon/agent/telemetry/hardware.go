@@ -9,7 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"github.com/brevdev/dev-plane/pkg/errors"
 	"golang.org/x/sys/unix"
 )
@@ -63,33 +64,40 @@ func DetectHardware(ctx context.Context) (HardwareInfo, error) {
 	return hw, nil
 }
 
-// ToClient converts the telemetry DTO into the client package structure.
-func (h HardwareInfo) ToClient() *client.HardwareInfo {
-	out := &client.HardwareInfo{
-		CPUCount:     h.CPUCount,
-		RAMBytes:     h.RAMBytes,
-		Architecture: h.Architecture,
+// ToProto converts the telemetry DTO into the protobuf request payload used by the agent RPCs.
+func (h HardwareInfo) ToProto() *brevapiv2.HardwareInfo {
+	out := &brevapiv2.HardwareInfo{
+		CpuCount: clampToInt32(h.CPUCount),
+	}
+	if h.RAMBytes > 0 {
+		out.RamBytes = bytesValue(h.RAMBytes)
 	}
 	if h.MachineModel != "" {
-		out.MachineModel = h.MachineModel
+		out.SystemModel = protoString(h.MachineModel)
+	}
+	if h.Architecture != "" {
+		out.Architecture = protoString(h.Architecture)
 	}
 	if len(h.Storage) > 0 {
-		out.Storage = make([]client.StorageInfo, 0, len(h.Storage))
+		out.Storage = make([]*brevapiv2.StorageInfo, 0, len(h.Storage))
 		for _, s := range h.Storage {
-			out.Storage = append(out.Storage, client.StorageInfo{
-				Name:     s.Name,
-				Capacity: s.SizeBytes,
-				Type:     s.Type,
-			})
+			entry := &brevapiv2.StorageInfo{
+				Name: s.Name,
+				Type: s.Type,
+			}
+			if s.SizeBytes > 0 {
+				entry.Capacity = bytesValue(s.SizeBytes)
+			}
+			out.Storage = append(out.Storage, entry)
 		}
 	}
 	if len(h.GPUs) > 0 {
-		out.GPUs = make([]client.GPUInfo, 0, len(h.GPUs))
+		out.Gpus = make([]*brevapiv2.GPUInfo, 0, len(h.GPUs))
 		for _, gpu := range h.GPUs {
-			out.GPUs = append(out.GPUs, client.GPUInfo{
+			out.Gpus = append(out.Gpus, &brevapiv2.GPUInfo{
 				Model:       gpu.Model,
-				MemoryBytes: gpu.MemoryBytes,
-				Count:       gpu.Count,
+				Count:       clampToInt32(gpu.Count),
+				MemoryBytes: bytesValue(gpu.MemoryBytes),
 			})
 		}
 	}
@@ -315,4 +323,29 @@ func runCommand(ctx context.Context, name string, args ...string) ([]byte, error
 		return nil, errors.WrapAndTrace(err)
 	}
 	return out, nil
+}
+
+func bytesValue(v int64) *devplaneapiv1.Bytes {
+	if v <= 0 {
+		return nil
+	}
+	return &devplaneapiv1.Bytes{Value: v}
+}
+
+func clampToInt32(v int) int32 {
+	switch {
+	case v > math.MaxInt32:
+		return math.MaxInt32
+	case v < math.MinInt32:
+		return math.MinInt32
+	default:
+		return int32(v)
+	}
+}
+
+func protoString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }

@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
 	"github.com/brevdev/dev-plane/pkg/brevcloud/appaccess"
@@ -120,15 +121,15 @@ func failingHTTPProbe(context.Context, string, int, string, time.Duration) error
 	return errors.New("probe failed")
 }
 
-func requireAppIngress(t *testing.T, ingresses []client.AppIngress, appID string, port int) {
+func requireAppIngress(t *testing.T, ingresses []*brevapiv2.AppIngressRequest, appID string, port int) {
 	t.Helper()
 	for _, ingress := range ingresses {
-		if ingress.AppID == appID {
-			require.Equal(t, port, ingress.LocalPort)
-			require.Equal(t, "https", ingress.Protocol)
-			require.Equal(t, "/", ingress.PathPrefix)
-			require.Equal(t, appID, ingress.HostnamePrefix)
-			require.True(t, ingress.ForceHTTPS)
+		if ingress.GetAppId() == appID {
+			require.Equal(t, int32(port), ingress.GetLocalPort())
+			require.Equal(t, "https", ingress.GetProtocol())
+			require.Equal(t, "/", ingress.GetPathPrefix())
+			require.Equal(t, appID, ingress.GetHostnamePrefix())
+			require.True(t, ingress.GetForceHttps())
 			return
 		}
 	}
@@ -140,7 +141,7 @@ func TestManagerRequestsSSHWithoutAppIngressesForNonSpark(t *testing.T) {
 
 	ctx := context.Background()
 	clientStub := &stubAgentClient{
-		resp: client.TunnelTokenResult{Token: "token"},
+		resp: &brevapiv2.GetTunnelTokenResponse{Token: "token"},
 	}
 	manager := Manager{
 		Client:   clientStub,
@@ -160,9 +161,10 @@ func TestManagerRequestsSSHWithoutAppIngressesForNonSpark(t *testing.T) {
 	}
 
 	require.NoError(t, manager.Start(ctx))
-	require.Len(t, clientStub.lastReq.Ports, 1)
-	require.Equal(t, 22, clientStub.lastReq.Ports[0].LocalPort)
-	require.Empty(t, clientStub.lastReq.AppIngresses)
+	require.NotNil(t, clientStub.lastReq)
+	require.Len(t, clientStub.lastReq.Msg.GetRequestedPorts(), 1)
+	require.Equal(t, int32(22), clientStub.lastReq.Msg.GetRequestedPorts()[0].GetLocalPort())
+	require.Empty(t, clientStub.lastReq.Msg.GetAppIngresses())
 }
 
 func TestManagerIncludesAppIngressesForSparkWhenProbesPass(t *testing.T) {
@@ -170,7 +172,7 @@ func TestManagerIncludesAppIngressesForSparkWhenProbesPass(t *testing.T) {
 
 	ctx := context.Background()
 	clientStub := &stubAgentClient{
-		resp: client.TunnelTokenResult{Token: "token"},
+		resp: &brevapiv2.GetTunnelTokenResponse{Token: "token"},
 	}
 	manager := Manager{
 		Client:   clientStub,
@@ -190,20 +192,21 @@ func TestManagerIncludesAppIngressesForSparkWhenProbesPass(t *testing.T) {
 	}
 
 	require.NoError(t, manager.Start(ctx))
-	require.Len(t, clientStub.lastReq.Ports, 1)
-	require.Len(t, clientStub.lastReq.AppIngresses, 2)
-	requireAppIngressParams(t, clientStub.lastReq.AppIngresses, string(appaccess.AppIDDGXDashboard), 11000)
-	requireAppIngressParams(t, clientStub.lastReq.AppIngresses, string(appaccess.AppIDJupyter), 8888)
+	require.NotNil(t, clientStub.lastReq)
+	require.Len(t, clientStub.lastReq.Msg.GetRequestedPorts(), 1)
+	require.Len(t, clientStub.lastReq.Msg.GetAppIngresses(), 2)
+	requireAppIngressParams(t, clientStub.lastReq.Msg.GetAppIngresses(), string(appaccess.AppIDDGXDashboard), 11000)
+	requireAppIngressParams(t, clientStub.lastReq.Msg.GetAppIngresses(), string(appaccess.AppIDJupyter), 8888)
 }
 
-func requireAppIngressParams(t *testing.T, ingresses []client.AppIngress, appID string, port int) {
+func requireAppIngressParams(t *testing.T, ingresses []*brevapiv2.AppIngressRequest, appID string, port int) {
 	t.Helper()
 	for _, ingress := range ingresses {
-		if ingress.AppID == appID {
-			require.Equal(t, port, ingress.LocalPort)
-			require.Equal(t, appID, ingress.HostnamePrefix)
-			require.Equal(t, "https", ingress.Protocol)
-			require.True(t, ingress.ForceHTTPS)
+		if ingress.GetAppId() == appID {
+			require.Equal(t, int32(port), ingress.GetLocalPort())
+			require.Equal(t, appID, ingress.GetHostnamePrefix())
+			require.Equal(t, "https", ingress.GetProtocol())
+			require.True(t, ingress.GetForceHttps())
 			return
 		}
 	}
@@ -211,21 +214,24 @@ func requireAppIngressParams(t *testing.T, ingresses []client.AppIngress, appID 
 }
 
 type stubAgentClient struct {
-	lastReq client.TunnelTokenParams
-	resp    client.TunnelTokenResult
+	lastReq *connect.Request[brevapiv2.GetTunnelTokenRequest]
+	resp    *brevapiv2.GetTunnelTokenResponse
 }
 
-func (s *stubAgentClient) Register(context.Context, client.RegisterParams) (client.RegisterResult, error) {
-	return client.RegisterResult{}, nil
+func (s *stubAgentClient) Register(context.Context, *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error) {
+	return connect.NewResponse(&brevapiv2.RegisterResponse{}), nil
 }
 
-func (s *stubAgentClient) Heartbeat(context.Context, client.HeartbeatParams) (client.HeartbeatResult, error) {
-	return client.HeartbeatResult{}, nil
+func (s *stubAgentClient) Heartbeat(context.Context, *connect.Request[brevapiv2.HeartbeatRequest]) (*connect.Response[brevapiv2.HeartbeatResponse], error) {
+	return connect.NewResponse(&brevapiv2.HeartbeatResponse{}), nil
 }
 
-func (s *stubAgentClient) GetTunnelToken(_ context.Context, req client.TunnelTokenParams) (client.TunnelTokenResult, error) {
+func (s *stubAgentClient) GetTunnelToken(_ context.Context, req *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error) {
 	s.lastReq = req
-	return s.resp, nil
+	if s.resp == nil {
+		s.resp = &brevapiv2.GetTunnelTokenResponse{}
+	}
+	return connect.NewResponse(s.resp), nil
 }
 
 type stubCommand struct{}

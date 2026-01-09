@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	brevapiv2connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/brevapi/v2/brevapiv2connect"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
@@ -152,7 +155,7 @@ func writeOptional(path, value string) error {
 func EnsureIdentity(
 	ctx context.Context,
 	cfg config.Config,
-	agentClient client.BrevCloudAgentClient,
+	agentClient brevapiv2connect.BrevCloudAgentServiceClient,
 	store *IdentityStore,
 	hw telemetry.HardwareInfo,
 	log *zap.Logger,
@@ -183,24 +186,28 @@ func EnsureIdentity(
 		return Identity{}, errors.WrapAndTrace(err)
 	}
 
-	params := client.RegisterParams{
-		RegistrationToken:     cfg.RegistrationToken,
-		DisplayName:           cfg.DisplayName,
-		CloudName:             cfg.CloudName,
-		Hardware:              hw.ToClient(),
+	req := &brevapiv2.RegisterRequest{
+		RegistrationToken: cfg.RegistrationToken,
+		Hardware:          hw.ToProto(),
+	}
+	if cfg.DisplayName != "" {
+		req.DisplayName = client.ProtoString(cfg.DisplayName)
+	}
+	if cfg.CloudName != "" {
+		req.CloudName = client.ProtoString(cfg.CloudName)
 	}
 
 	log.Info("registering device with brevcloud agent service")
-	res, err := agentClient.Register(ctx, params)
+	resp, err := agentClient.Register(ctx, connect.NewRequest(req))
 	if err != nil {
-		return Identity{}, errors.WrapAndTrace(err)
+		return Identity{}, errors.WrapAndTrace(client.ClassifyError(err))
 	}
 
 	newIdentity := Identity{
-		InstanceID:              res.BrevCloudNodeID,
-		DeviceToken:             res.DeviceToken,
+		InstanceID:              resp.Msg.GetBrevCloudNodeId(),
+		DeviceToken:             resp.Msg.GetDeviceToken(),
 		DeviceSalt:              salt,
-		DeviceFingerprintStored: res.DeviceFingerprint,
+		DeviceFingerprintStored: resp.Msg.GetDeviceFingerprint(),
 	}
 	if err := store.Save(newIdentity); err != nil {
 		return Identity{}, errors.WrapAndTrace(err)

@@ -4,12 +4,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
 )
 
 // Status mirrors the heartbeat payload but keeps Go-native fields for internal coordination.
 type Status struct {
-	Phase              client.NodePhase
+	Phase              brevapiv2.BrevCloudNodePhase
 	Detail             string
 	LastTransitionTime time.Time
 }
@@ -92,7 +92,7 @@ func (r *Reporter) Publish(next Status) Status {
 // MarkActive marks the subsystem as healthy.
 func (r *Reporter) MarkActive(detail string) Status {
 	return r.Publish(Status{
-		Phase:  client.NodePhaseActive,
+		Phase:  brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE,
 		Detail: detail,
 	})
 }
@@ -100,7 +100,7 @@ func (r *Reporter) MarkActive(detail string) Status {
 // MarkError marks the subsystem as unhealthy with additional detail.
 func (r *Reporter) MarkError(detail string) Status {
 	return r.Publish(Status{
-		Phase:  client.NodePhaseError,
+		Phase:  brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ERROR,
 		Detail: detail,
 	})
 }

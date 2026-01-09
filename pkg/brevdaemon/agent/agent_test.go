@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	brevapiv2connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/brevapi/v2/brevapiv2connect"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	agentconfig "github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/heartbeat"
@@ -28,7 +31,7 @@ func TestNewAgentBuildsDependencies(t *testing.T) {
 		ensureIdentity = origEnsure
 	})
 
-	newBrevCloudAgentClient = func(agentconfig.Config, ...client.Option) (client.BrevCloudAgentClient, error) {
+	newBrevCloudAgentClient = func(agentconfig.Config, ...client.Option) (brevapiv2connect.BrevCloudAgentServiceClient, error) {
 		return &stubBrevCloudClient{}, nil
 	}
 
@@ -39,7 +42,7 @@ func TestNewAgentBuildsDependencies(t *testing.T) {
 	}
 
 	var ensureCalled bool
-	ensureIdentity = func(_ context.Context, _ agentconfig.Config, _ client.BrevCloudAgentClient, _ *identity.IdentityStore, _ telemetry.HardwareInfo, _ *zap.Logger) (identity.Identity, error) {
+	ensureIdentity = func(_ context.Context, _ agentconfig.Config, _ brevapiv2connect.BrevCloudAgentServiceClient, _ *identity.IdentityStore, _ telemetry.HardwareInfo, _ *zap.Logger) (identity.Identity, error) {
 		ensureCalled = true
 		return identity.Identity{
 			InstanceID:  "inst-1",
@@ -166,16 +169,16 @@ func TestAgentRunIgnoresTunnelError(t *testing.T) {
 
 type stubBrevCloudClient struct{}
 
-func (s *stubBrevCloudClient) Register(context.Context, client.RegisterParams) (client.RegisterResult, error) {
-	return client.RegisterResult{}, nil
+func (s *stubBrevCloudClient) Register(context.Context, *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error) {
+	return connect.NewResponse(&brevapiv2.RegisterResponse{}), nil
 }
 
-func (s *stubBrevCloudClient) Heartbeat(context.Context, client.HeartbeatParams) (client.HeartbeatResult, error) {
-	return client.HeartbeatResult{}, nil
+func (s *stubBrevCloudClient) Heartbeat(context.Context, *connect.Request[brevapiv2.HeartbeatRequest]) (*connect.Response[brevapiv2.HeartbeatResponse], error) {
+	return connect.NewResponse(&brevapiv2.HeartbeatResponse{}), nil
 }
 
-func (s *stubBrevCloudClient) GetTunnelToken(context.Context, client.TunnelTokenParams) (client.TunnelTokenResult, error) {
-	return client.TunnelTokenResult{}, nil
+func (s *stubBrevCloudClient) GetTunnelToken(context.Context, *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error) {
+	return connect.NewResponse(&brevapiv2.GetTunnelTokenResponse{}), nil
 }
 
 type stubRunner struct {

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
 )
 
 func TestNewReporterSeedsTimestamp(t *testing.T) {
@@ -39,8 +39,8 @@ func TestReporterTransitionsEmitUpdates(t *testing.T) {
 	reporter.MarkError("missing binary")
 	select {
 	case got := <-updates:
-		if got.Phase != client.NodePhaseError {
-			t.Fatalf("Phase = %v, want NodePhaseError", got.Phase)
+		if got.Phase != brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ERROR {
+			t.Fatalf("Phase = %v, want BrevCloudNodePhase_ERROR", got.Phase)
 		}
 		if got.Detail != "missing binary" {
 			t.Fatalf("Detail = %q, want %q", got.Detail, "missing binary")
@@ -55,8 +55,8 @@ func TestReporterTransitionsEmitUpdates(t *testing.T) {
 	reporter.MarkActive("recovered")
 	select {
 	case got := <-updates:
-		if got.Phase != client.NodePhaseActive {
-			t.Fatalf("Phase = %v, want NodePhaseActive", got.Phase)
+		if got.Phase != brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE {
+			t.Fatalf("Phase = %v, want BrevCloudNodePhase_ACTIVE", got.Phase)
 		}
 		if got.Detail != "recovered" {
 			t.Fatalf("Detail = %q, want %q", got.Detail, "recovered")
@@ -71,7 +71,7 @@ func TestReporterTransitionsEmitUpdates(t *testing.T) {
 
 func TestReporterPublishNoChangeDoesNotEmit(t *testing.T) {
 	initial := Status{
-		Phase:              client.NodePhaseActive,
+		Phase:              brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE,
 		Detail:             "ok",
 		LastTransitionTime: time.Unix(42, 0),
 	}

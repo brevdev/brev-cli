@@ -4,11 +4,15 @@ import (
 	"context"
 	cryptorand "crypto/rand"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"os/exec"
 	"time"
 
+	brevapiv2connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/brevapi/v2/brevapiv2connect"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/health"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
@@ -34,7 +38,7 @@ type TunnelConfig struct {
 
 // Manager fetches tunnel tokens and boots the tunnel client.
 type Manager struct {
-	Client   client.BrevCloudAgentClient
+	Client   brevapiv2connect.BrevCloudAgentServiceClient
 	Identity identity.Identity
 	Cfg      TunnelConfig
 	Log      *zap.Logger
@@ -97,15 +101,14 @@ func (m *Manager) Start(ctx context.Context) error { //nolint:gocognit,gocyclo,f
 	}
 	instanceType := detectInstanceTypeFromHardware(hw)
 
-	req := client.TunnelTokenParams{
-		BrevCloudNodeID: m.Identity.InstanceID,
-		DeviceToken:     m.Identity.DeviceToken,
-		TunnelName:      defaultTunnelName,
-		Ports: []tunnel.TunnelPortMapping{
+	req := &brevapiv2.GetTunnelTokenRequest{
+		BrevCloudNodeId: m.Identity.InstanceID,
+		RequestedPorts: tunnelPortsToProto([]tunnel.TunnelPortMapping{
 			{
 				LocalPort: m.Cfg.SSHPort,
 			},
-		},
+		}),
+		TunnelName: client.ProtoString(defaultTunnelName),
 	}
 
 	retryDelay := minRetryDelay
@@ -197,12 +200,15 @@ func (w *execCmdWrapper) CombinedOutput() ([]byte, error) {
 	return out, nil
 }
 
-func (m *Manager) requestTunnelToken(ctx context.Context, req client.TunnelTokenParams) (client.TunnelTokenResult, error) {
-	res, err := m.Client.GetTunnelToken(ctx, req)
+func (m *Manager) requestTunnelToken(ctx context.Context, req *brevapiv2.GetTunnelTokenRequest) (*brevapiv2.GetTunnelTokenResponse, error) {
+	connectReq := connect.NewRequest(req)
+	connectReq.Header().Set("Authorization", client.BearerToken(m.Identity.DeviceToken))
+
+	resp, err := m.Client.GetTunnelToken(ctx, connectReq)
 	if err != nil {
-		return client.TunnelTokenResult{}, errors.WrapAndTrace(err)
+		return nil, errors.WrapAndTrace(client.ClassifyError(err))
 	}
-	return res, nil
+	return resp.Msg, nil
 }
 
 func (m *Manager) delay(ctx context.Context, sleepFn func(context.Context, time.Duration) error, delay time.Duration) error {
@@ -232,14 +238,18 @@ func (m *Manager) markActive(detail string) {
 	}
 }
 
-func (m *Manager) configureCloudflaredService(ctx context.Context, token client.TunnelTokenResult) error {
+func (m *Manager) configureCloudflaredService(ctx context.Context, token *brevapiv2.GetTunnelTokenResponse) error {
 	commands := []struct {
 		name string
 		args []string
 	}{
 		{
 			name: "sudo",
-			args: []string{"cloudflared", "service", "install", token.Token},
+			args: []string{"cloudflared", "service", "install", token.GetToken()},
+		},
+		{
+			name: "sudo",
+			args: []string{"systemctl", "restart", "cloudflared.service"},
 		},
 	}
 
@@ -295,6 +305,38 @@ func addJitter(delay time.Duration) time.Duration {
 	}
 	factor := 0.8 + float64(n.Int64())/1000.0
 	return time.Duration(float64(delay) * factor)
+}
+
+func tunnelPortsToProto(ports []tunnel.TunnelPortMapping) []*brevapiv2.TunnelPortMapping {
+	if len(ports) == 0 {
+		return nil
+	}
+	out := make([]*brevapiv2.TunnelPortMapping, 0, len(ports))
+	for _, port := range ports {
+		lp := port.LocalPort
+		rp := port.RemotePort
+		if lp <= 0 && rp <= 0 {
+			continue
+		}
+		if rp <= 0 {
+			rp = lp
+		}
+		if lp <= 0 {
+			lp = rp
+		}
+		if rp > math.MaxInt32 || lp > math.MaxInt32 || lp < math.MinInt32 || rp < math.MinInt32 {
+			continue
+		}
+		out = append(out, &brevapiv2.TunnelPortMapping{
+			LocalPort:  int32(lp),
+			RemotePort: int32(rp),
+			Protocol:   port.Protocol,
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func defaultSleep(ctx context.Context, d time.Duration) error {

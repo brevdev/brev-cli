@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
 	"github.com/brevdev/dev-plane/pkg/errors"
 	"golang.org/x/sys/unix"
 )
@@ -38,27 +38,28 @@ type GPUUtilization struct {
 	TemperatureCelsius *float32
 }
 
-// ToClient converts the telemetry DTO into the client payload type.
-func (u UtilizationInfo) ToClient() *client.UtilizationInfo {
-	out := &client.UtilizationInfo{
-		CPUPercent:       u.CPUPercent,
-		MemoryUsedBytes:  u.MemoryUsedBytes,
-		MemoryTotalBytes: u.MemoryTotalBytes,
-		DiskPercent:      u.DiskPercent,
-		DiskUsedBytes:    u.DiskUsedBytes,
-		DiskTotalBytes:   u.DiskTotalBytes,
+// ToProto converts the telemetry DTO into the protobuf heartbeat payload.
+func (u UtilizationInfo) ToProto() *brevapiv2.ResourceUtilization {
+	out := &brevapiv2.ResourceUtilization{
+		CpuPercent:  u.CPUPercent,
+		DiskPercent: u.DiskPercent,
+	}
+	if u.MemoryUsedBytes > 0 {
+		out.MemoryUsed = bytesValue(u.MemoryUsedBytes)
+	}
+	if u.MemoryTotalBytes > 0 {
+		out.MemoryTotal = bytesValue(u.MemoryTotalBytes)
+	}
+	if u.DiskUsedBytes > 0 {
+		out.DiskUsed = bytesValue(u.DiskUsedBytes)
+	}
+	if u.DiskTotalBytes > 0 {
+		out.DiskTotal = bytesValue(u.DiskTotalBytes)
 	}
 	if len(u.GPUs) > 0 {
-		out.GPUs = make([]client.GPUUtilization, 0, len(u.GPUs))
+		out.Gpus = make([]*brevapiv2.GPUUtilization, 0, len(u.GPUs))
 		for _, gpu := range u.GPUs {
-			out.GPUs = append(out.GPUs, client.GPUUtilization{
-				Index:              gpu.Index,
-				Model:              gpu.Model,
-				UtilizationPercent: gpu.UtilizationPercent,
-				MemoryUsedBytes:    gpu.MemoryUsedBytes,
-				MemoryTotalBytes:   gpu.MemoryTotalBytes,
-				TemperatureCelsius: gpu.TemperatureCelsius,
-			})
+			out.Gpus = append(out.Gpus, gpuUtilizationToProto(gpu))
 		}
 	}
 	return out
@@ -378,4 +379,22 @@ func safeMulInt64(a, b int64) (int64, error) {
 		return 0, errors.Errorf("multiplication overflow")
 	}
 	return result.Int64(), nil
+}
+
+func gpuUtilizationToProto(gpu GPUUtilization) *brevapiv2.GPUUtilization {
+	out := &brevapiv2.GPUUtilization{
+		Index:              clampToInt32(gpu.Index),
+		Model:              gpu.Model,
+		UtilizationPercent: gpu.UtilizationPercent,
+	}
+	if gpu.MemoryUsedBytes > 0 {
+		out.MemoryUsed = bytesValue(gpu.MemoryUsedBytes)
+	}
+	if gpu.MemoryTotalBytes > 0 {
+		out.MemoryTotal = bytesValue(gpu.MemoryTotalBytes)
+	}
+	if gpu.TemperatureCelsius != nil {
+		out.TemperatureCelsius = gpu.TemperatureCelsius
+	}
+	return out
 }

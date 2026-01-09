@@ -6,7 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
 	"github.com/stretchr/testify/require"
@@ -74,9 +75,9 @@ func TestEnsureIdentityUsesStoredToken(t *testing.T) {
 
 	var registerCalled bool
 	client := &stubClient{
-		registerFn: func(context.Context, client.RegisterParams) (client.RegisterResult, error) {
+		registerFn: func(context.Context, *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error) {
 			registerCalled = true
-			return client.RegisterResult{}, nil
+			return connect.NewResponse(&brevapiv2.RegisterResponse{}), nil
 		},
 	}
 
@@ -100,19 +101,15 @@ func TestEnsureIdentityRegistersWhenMissing(t *testing.T) {
 
 	store := NewIdentityStore(cfg)
 
+	var captured *brevapiv2.RegisterRequest
 	client := &stubClient{
-		registerFn: func(_ context.Context, params client.RegisterParams) (client.RegisterResult, error) {
-			require.Equal(t, "reg-token", params.RegistrationToken)
-			require.Equal(t, "node", params.DisplayName)
-			require.Equal(t, "cloud", params.CloudName)
-			require.NotEmpty(t, params.DeviceFingerprintHash)
-			require.NotEmpty(t, params.HardwareFingerprint)
-			return client.RegisterResult{
-				BrevCloudNodeID:   "fn-new",
+		registerFn: func(_ context.Context, req *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error) {
+			captured = req.Msg
+			return connect.NewResponse(&brevapiv2.RegisterResponse{
+				BrevCloudNodeId:   "fn-new",
 				DeviceToken:       "new-token",
-				CloudCredID:       "cc-123",
 				DeviceFingerprint: "scoped-device-fp",
-			}, nil
+			}), nil
 		},
 	}
 
@@ -124,7 +121,12 @@ func TestEnsureIdentityRegistersWhenMissing(t *testing.T) {
 	require.Equal(t, "fn-new", id.InstanceID)
 	require.Equal(t, "new-token", id.DeviceToken)
 	require.Equal(t, "scoped-device-fp", id.DeviceFingerprintStored)
-	require.NotEmpty(t, id.DeviceFingerprintHash)
+
+	require.NotNil(t, captured)
+	require.Equal(t, "reg-token", captured.GetRegistrationToken())
+	require.Equal(t, "node", captured.GetDisplayName())
+	require.Equal(t, "cloud", captured.GetCloudName())
+	require.NotNil(t, captured.GetHardware())
 
 	data, err := os.ReadFile(cfg.DeviceTokenPath)
 	require.NoError(t, err)
@@ -146,20 +148,20 @@ func TestEnsureIdentityRequiresRegistrationToken(t *testing.T) {
 }
 
 type stubClient struct {
-	registerFn func(ctx context.Context, params client.RegisterParams) (client.RegisterResult, error)
+	registerFn func(ctx context.Context, req *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error)
 }
 
-func (s *stubClient) Register(ctx context.Context, params client.RegisterParams) (client.RegisterResult, error) {
+func (s *stubClient) Register(ctx context.Context, req *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error) {
 	if s.registerFn != nil {
-		return s.registerFn(ctx, params)
+		return s.registerFn(ctx, req)
 	}
-	return client.RegisterResult{}, nil
+	return connect.NewResponse(&brevapiv2.RegisterResponse{}), nil
 }
 
-func (s *stubClient) Heartbeat(context.Context, client.HeartbeatParams) (client.HeartbeatResult, error) {
-	return client.HeartbeatResult{}, nil
+func (s *stubClient) Heartbeat(context.Context, *connect.Request[brevapiv2.HeartbeatRequest]) (*connect.Response[brevapiv2.HeartbeatResponse], error) {
+	return connect.NewResponse(&brevapiv2.HeartbeatResponse{}), nil
 }
 
-func (s *stubClient) GetTunnelToken(context.Context, client.TunnelTokenParams) (client.TunnelTokenResult, error) {
-	return client.TunnelTokenResult{}, nil
+func (s *stubClient) GetTunnelToken(context.Context, *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error) {
+	return connect.NewResponse(&brevapiv2.GetTunnelTokenResponse{}), nil
 }

@@ -4,11 +4,15 @@ import (
 	"context"
 	"time"
 
+	brevapiv2connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/brevapi/v2/brevapiv2connect"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
 	"github.com/brevdev/dev-plane/pkg/errors"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -24,7 +28,7 @@ type HeartbeatConfig struct {
 
 // Runner drives the periodic heartbeat loop.
 type Runner struct {
-	Client   client.BrevCloudAgentClient
+	Client   brevapiv2connect.BrevCloudAgentServiceClient
 	Identity identity.Identity
 	Cfg      HeartbeatConfig
 	Log      *zap.Logger
@@ -33,8 +37,8 @@ type Runner struct {
 	Sleep             func(context.Context, time.Duration) error
 	Now               func() time.Time
 
-	DefaultStatus *client.HeartbeatStatus
-	StatusUpdates <-chan client.HeartbeatStatus
+	DefaultStatus *brevapiv2.BrevCloudNodeStatus
+	StatusUpdates <-chan *brevapiv2.BrevCloudNodeStatus
 }
 
 // Run executes the heartbeat loop until the context is canceled or an
@@ -59,11 +63,11 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:funlen // loop coordi
 
 	baseStatus := r.DefaultStatus
 	if baseStatus == nil {
-		baseStatus = &client.HeartbeatStatus{
-			Phase: client.NodePhaseActive,
+		baseStatus = &brevapiv2.BrevCloudNodeStatus{
+			Phase: brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE,
 		}
 	}
-	currentStatus := cloneStatus(*baseStatus)
+	currentStatus := cloneStatus(baseStatus)
 
 	base := r.Cfg.BaseInterval
 	if base <= 0 {
@@ -98,28 +102,33 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:funlen // loop coordi
 		// 	continue
 		// }
 
-		params := client.HeartbeatParams{
-			BrevCloudNodeID: r.Identity.InstanceID,
-			DeviceToken:     r.Identity.DeviceToken,
-			ObservedAt:      nowFn(),
-			// Utilization:           util.ToClient(),
-			AgentVersion:          "", // set by orchestrator later
-			Status:                currentStatusPtr(currentStatus),
+		req := &brevapiv2.HeartbeatRequest{
+			BrevCloudNodeId:       r.Identity.InstanceID,
+			ObservedAt:            timestamppb.New(nowFn()),
+			Status:                cloneStatus(currentStatus),
 			DeviceFingerprintHash: r.Identity.DeviceFingerprintHash,
 			HardwareFingerprint:   r.Identity.HardwareFingerprint,
 		}
 
 		if updated, ok := r.nextStatus(); ok {
 			currentStatus = updated
-			params.Status = currentStatusPtr(currentStatus)
+			req.Status = cloneStatus(currentStatus)
 		}
 
-		res, err := r.Client.Heartbeat(ctx, params)
+		connectReq := connect.NewRequest(req)
+		connectReq.Header().Set("Authorization", client.BearerToken(r.Identity.DeviceToken))
+
+		resp, err := r.Client.Heartbeat(ctx, connectReq)
 		if err != nil {
-			if errors.Is(err, client.ErrUnauthenticated) {
-				return errors.WrapAndTrace(err)
+			if classified := client.ClassifyError(err); classified != nil {
+				if errors.Is(classified, client.ErrUnauthenticated) {
+					return classified
+				}
+				r.Log.Warn("heartbeat failed", zap.Error(classified))
+				err = classified
+			} else {
+				r.Log.Warn("heartbeat failed", zap.Error(err))
 			}
-			r.Log.Warn("heartbeat failed", zap.Error(err))
 			currentBackoff = minDurationValue(currentBackoff*2, maxInterval)
 			nextDelay = currentBackoff
 			continue
@@ -127,8 +136,8 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:funlen // loop coordi
 
 		currentBackoff = base
 		nextDelay = base
-		if res.NextHeartbeatInterval > 0 {
-			nextDelay = clampDuration(res.NextHeartbeatInterval, base, maxInterval)
+		if interval := resp.Msg.GetNextHeartbeatInterval(); interval != nil {
+			nextDelay = clampDuration(interval.AsDuration(), base, maxInterval)
 		}
 	}
 }
@@ -149,12 +158,12 @@ func (r *Runner) validate() error {
 	return nil
 }
 
-func (r *Runner) nextStatus() (client.HeartbeatStatus, bool) {
+func (r *Runner) nextStatus() (*brevapiv2.BrevCloudNodeStatus, bool) {
 	if r.StatusUpdates == nil {
-		return client.HeartbeatStatus{}, false
+		return nil, false
 	}
 
-	var updated client.HeartbeatStatus
+	var updated *brevapiv2.BrevCloudNodeStatus
 	changed := false
 	for {
 		select {
@@ -172,25 +181,26 @@ func (r *Runner) nextStatus() (client.HeartbeatStatus, bool) {
 	}
 }
 
-func normalizeStatus(status client.HeartbeatStatus) client.HeartbeatStatus {
-	if status.Phase == client.NodePhaseUnspecified {
-		status.Phase = client.NodePhaseActive
+func normalizeStatus(status *brevapiv2.BrevCloudNodeStatus) *brevapiv2.BrevCloudNodeStatus {
+	if status == nil {
+		return nil
 	}
-	return cloneStatus(status)
-}
-
-func cloneStatus(status client.HeartbeatStatus) client.HeartbeatStatus {
-	out := status
-	if status.LastTransitionTime != nil {
-		t := *status.LastTransitionTime
-		out.LastTransitionTime = &t
+	out := cloneStatus(status)
+	if out.GetPhase() == brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_UNSPECIFIED {
+		out.Phase = brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE
 	}
 	return out
 }
 
-func currentStatusPtr(status client.HeartbeatStatus) *client.HeartbeatStatus {
-	s := cloneStatus(status)
-	return &s
+func cloneStatus(status *brevapiv2.BrevCloudNodeStatus) *brevapiv2.BrevCloudNodeStatus {
+	if status == nil {
+		return nil
+	}
+	out := *status
+	if status.LastTransitionTime != nil {
+		out.LastTransitionTime = timestamppb.New(status.LastTransitionTime.AsTime())
+	}
+	return &out
 }
 
 func defaultSleep(ctx context.Context, d time.Duration) error {

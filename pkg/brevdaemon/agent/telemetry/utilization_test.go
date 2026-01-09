@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func TestUtilizationToClientConversion(t *testing.T) {
+func TestUtilizationToProtoConversion(t *testing.T) {
 	temp := float32(65)
 	util := UtilizationInfo{
 		CPUPercent:       55.5,
@@ -32,11 +32,11 @@ func TestUtilizationToClientConversion(t *testing.T) {
 		},
 	}
 
-	clientUtil := util.ToClient()
-	require.Equal(t, util.CPUPercent, clientUtil.CPUPercent)
-	require.Equal(t, util.MemoryUsedBytes, clientUtil.MemoryUsedBytes)
-	require.Len(t, clientUtil.GPUs, 1)
-	require.Equal(t, temp, *clientUtil.GPUs[0].TemperatureCelsius)
+	clientUtil := util.ToProto()
+	require.Equal(t, util.CPUPercent, clientUtil.GetCpuPercent())
+	require.Equal(t, util.MemoryUsedBytes, clientUtil.GetMemoryUsed().GetValue())
+	require.Len(t, clientUtil.GetGpus(), 1)
+	require.Equal(t, temp, clientUtil.GetGpus()[0].GetTemperatureCelsius())
 }
 
 func TestParseMeminfoFallbacks(t *testing.T) {

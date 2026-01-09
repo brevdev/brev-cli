@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/health"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/stretchr/testify/require"
@@ -19,13 +20,12 @@ func TestManagerConfiguresCloudflaredService(t *testing.T) {
 
 	requested := false
 	stubClient := &stubClient{
-		getTunnelFn: func(context.Context, client.TunnelTokenParams) (client.TunnelTokenResult, error) {
+		getTunnelFn: func(context.Context, *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error) {
 			requested = true
-			return client.TunnelTokenResult{
+			return connect.NewResponse(&brevapiv2.GetTunnelTokenResponse{
 				Token:    "token",
 				Endpoint: "endpoint",
-				TTL:      time.Minute,
-			}, nil
+			}), nil
 		},
 	}
 
@@ -78,11 +78,11 @@ func TestManagerRetriesOnConfigureError(t *testing.T) {
 	reporter := &fakeReporter{}
 
 	stubClient := &stubClient{
-		getTunnelFn: func(context.Context, client.TunnelTokenParams) (client.TunnelTokenResult, error) {
-			return client.TunnelTokenResult{
+		getTunnelFn: func(context.Context, *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error) {
+			return connect.NewResponse(&brevapiv2.GetTunnelTokenResponse{
 				Token:    "token",
 				Endpoint: "endpoint",
-			}, nil
+			}), nil
 		},
 	}
 
@@ -175,20 +175,20 @@ func (f *fakeReporter) MarkError(detail string) health.Status {
 }
 
 type stubClient struct {
-	getTunnelFn func(context.Context, client.TunnelTokenParams) (client.TunnelTokenResult, error)
+	getTunnelFn func(context.Context, *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error)
 }
 
-func (s *stubClient) Register(context.Context, client.RegisterParams) (client.RegisterResult, error) {
-	return client.RegisterResult{}, nil
+func (s *stubClient) Register(context.Context, *connect.Request[brevapiv2.RegisterRequest]) (*connect.Response[brevapiv2.RegisterResponse], error) {
+	return connect.NewResponse(&brevapiv2.RegisterResponse{}), nil
 }
 
-func (s *stubClient) Heartbeat(context.Context, client.HeartbeatParams) (client.HeartbeatResult, error) {
-	return client.HeartbeatResult{}, nil
+func (s *stubClient) Heartbeat(context.Context, *connect.Request[brevapiv2.HeartbeatRequest]) (*connect.Response[brevapiv2.HeartbeatResponse], error) {
+	return connect.NewResponse(&brevapiv2.HeartbeatResponse{}), nil
 }
 
-func (s *stubClient) GetTunnelToken(ctx context.Context, params client.TunnelTokenParams) (client.TunnelTokenResult, error) {
+func (s *stubClient) GetTunnelToken(ctx context.Context, req *connect.Request[brevapiv2.GetTunnelTokenRequest]) (*connect.Response[brevapiv2.GetTunnelTokenResponse], error) {
 	if s.getTunnelFn != nil {
-		return s.getTunnelFn(ctx, params)
+		return s.getTunnelFn(ctx, req)
 	}
-	return client.TunnelTokenResult{}, nil
+	return connect.NewResponse(&brevapiv2.GetTunnelTokenResponse{}), nil
 }

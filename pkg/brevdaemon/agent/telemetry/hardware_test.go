@@ -76,7 +76,7 @@ RTX 6000, 24576
 	require.Equal(t, 1, results["RTX 6000"].Count)
 }
 
-func TestHardwareToClientConversion(t *testing.T) {
+func TestHardwareToProtoConversion(t *testing.T) {
 	info := HardwareInfo{
 		CPUCount:     8,
 		RAMBytes:     32 << 30,
@@ -88,14 +88,14 @@ func TestHardwareToClientConversion(t *testing.T) {
 			{Name: "nvme0n1", SizeBytes: 512 << 30, Type: "nvme"},
 		},
 	}
-	clientInfo := info.ToClient()
-	require.Equal(t, 8, clientInfo.CPUCount)
-	require.Equal(t, int64(32<<30), clientInfo.RAMBytes)
-	require.Equal(t, "arm64", clientInfo.Architecture)
-	require.Len(t, clientInfo.GPUs, 1)
-	require.Equal(t, 2, clientInfo.GPUs[0].Count)
-	require.Len(t, clientInfo.Storage, 1)
-	require.Equal(t, "nvme0n1", clientInfo.Storage[0].Name)
-	require.Equal(t, int64(512<<30), clientInfo.Storage[0].Capacity)
-	require.Equal(t, "nvme", clientInfo.Storage[0].Type)
+	clientInfo := info.ToProto()
+	require.Equal(t, int32(8), clientInfo.GetCpuCount())
+	require.Equal(t, int64(32<<30), clientInfo.GetRamBytes().GetValue())
+	require.Equal(t, "arm64", clientInfo.GetArchitecture())
+	require.Len(t, clientInfo.GetGpus(), 1)
+	require.Equal(t, int32(2), clientInfo.GetGpus()[0].GetCount())
+	require.Len(t, clientInfo.GetStorage(), 1)
+	require.Equal(t, "nvme0n1", clientInfo.GetStorage()[0].GetName())
+	require.Equal(t, int64(512<<30), clientInfo.GetStorage()[0].GetCapacity().GetValue())
+	require.Equal(t, "nvme", clientInfo.GetStorage()[0].GetType())
 }

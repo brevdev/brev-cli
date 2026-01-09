@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	agentconfig "github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/health"
@@ -15,6 +16,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Agent is the top-level interface that drives the agent lifecycle.
@@ -37,7 +39,7 @@ type agent struct {
 	tunnel    tunnelProcess
 
 	statusReporter *health.Reporter
-	statusUpdates  chan client.HeartbeatStatus
+	statusUpdates  chan *brevapiv2.BrevCloudNodeStatus
 }
 
 var (
@@ -72,13 +74,13 @@ func NewAgent(cfg agentconfig.Config, log *zap.Logger) (Agent, error) {
 	}
 
 	statusReporter := health.NewReporter(health.Status{
-		Phase:              client.NodePhaseActive,
+		Phase:              brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE,
 		LastTransitionTime: time.Now(),
 	})
-	defaultStatus := client.HeartbeatStatus{
-		Phase: client.NodePhaseActive,
+	defaultStatus := &brevapiv2.BrevCloudNodeStatus{
+		Phase: brevapiv2.BrevCloudNodePhase_BREV_CLOUD_NODE_PHASE_ACTIVE,
 	}
-	statusUpdates := make(chan client.HeartbeatStatus, 1)
+	statusUpdates := make(chan *brevapiv2.BrevCloudNodeStatus, 1)
 
 	hbRunner := &heartbeat.Runner{
 		Client:   cli,
@@ -88,7 +90,7 @@ func NewAgent(cfg agentconfig.Config, log *zap.Logger) (Agent, error) {
 			MaxInterval:  defaultHeartbeatMaxInterval,
 		},
 		Log:           log.Named("heartbeat"),
-		DefaultStatus: &defaultStatus,
+		DefaultStatus: defaultStatus,
 		StatusUpdates: statusUpdates,
 	}
 
@@ -185,14 +187,13 @@ func (a *agent) startStatusBridge(ctx context.Context) func() {
 	return cancel
 }
 
-func toHeartbeatStatus(status health.Status) client.HeartbeatStatus {
-	hbStatus := client.HeartbeatStatus{
+func toHeartbeatStatus(status health.Status) *brevapiv2.BrevCloudNodeStatus {
+	hbStatus := &brevapiv2.BrevCloudNodeStatus{
 		Phase:  status.Phase,
 		Detail: status.Detail,
 	}
 	if !status.LastTransitionTime.IsZero() {
-		t := status.LastTransitionTime
-		hbStatus.LastTransitionTime = &t
+		hbStatus.LastTransitionTime = timestamppb.New(status.LastTransitionTime)
 	}
 	return hbStatus
 }

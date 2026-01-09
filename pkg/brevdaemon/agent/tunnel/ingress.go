@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
+	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
 	"github.com/brevdev/dev-plane/pkg/brevcloud/appaccess"
 	"github.com/brevdev/dev-plane/pkg/errors"
@@ -39,7 +39,7 @@ func detectInstanceTypeFromHardware(hw telemetry.HardwareInfo) appaccess.Instanc
 	return appaccess.InstanceTypeUnknown
 }
 
-func buildAppIngresses(ctx context.Context, cfg appaccess.Config, tcpProbe probeFunc, httpProbe httpProbeFunc, systemdCheck systemdStatusFunc, timeout time.Duration, instanceType appaccess.InstanceType) []client.AppIngress {
+func buildAppIngresses(ctx context.Context, cfg appaccess.Config, tcpProbe probeFunc, httpProbe httpProbeFunc, systemdCheck systemdStatusFunc, timeout time.Duration, instanceType appaccess.InstanceType) []*brevapiv2.AppIngressRequest {
 	if instanceType != appaccess.InstanceTypeDGXSpark {
 		return nil
 	}
@@ -58,7 +58,7 @@ func buildAppIngresses(ctx context.Context, cfg appaccess.Config, tcpProbe probe
 	}
 
 	timeout = clampProbeTimeout(timeout)
-	ingresses := make([]client.AppIngress, 0, len(apps))
+	ingresses := make([]*brevapiv2.AppIngressRequest, 0, len(apps))
 	for _, spec := range apps {
 		if spec.DefaultPort <= 0 {
 			continue
@@ -85,18 +85,24 @@ func buildAppIngresses(ctx context.Context, cfg appaccess.Config, tcpProbe probe
 	return ingresses
 }
 
-func appIngressFromSpec(spec appaccess.AppSpec) client.AppIngress {
+func appIngressFromSpec(spec appaccess.AppSpec) *brevapiv2.AppIngressRequest {
 	pathPrefix := spec.PathPrefix
 	if pathPrefix == "" {
 		pathPrefix = "/"
 	}
-	return client.AppIngress{
-		AppID:          string(spec.ID),
-		Protocol:       spec.Protocol,
-		LocalPort:      spec.DefaultPort,
+	protocol := spec.Protocol
+	if spec.ForceHTTPS {
+		protocol = "https"
+	} else if protocol == "" {
+		protocol = "http"
+	}
+	return &brevapiv2.AppIngressRequest{
+		AppId:          string(spec.ID),
+		Protocol:       protocol,
+		LocalPort:      int32(spec.DefaultPort), // defaultPort validated above (>0)
 		HostnamePrefix: string(spec.ID),
 		PathPrefix:     pathPrefix,
-		ForceHTTPS:     spec.ForceHTTPS,
+		ForceHttps:     spec.ForceHTTPS,
 	}
 }
 
