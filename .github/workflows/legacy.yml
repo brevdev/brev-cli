@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  GOPRIVATE: "github.com/brevdev/*"
+
 jobs:
   ci:
     strategy:
@@ -20,6 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Configure git for private modules
+        env:
+        TOKEN: ${{ secrets.GH_TOKEN }}
+        run: git config --global url."https://${TOKEN}@github.com".insteadOf "https://github.com"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22.6'
