@@ -35,7 +35,7 @@ func NewCmdConnect(t *terminal.Terminal, store connectStore) *cobra.Command {
 
 func RunConnect(t *terminal.Terminal, _ []string, _ connectStore) error {
 	t.Vprintf("Connect the AWS IAM user to create instances in your AWS account.\n")
-	t.Vprintf(t.Yellow("\tFollow the guide here: %s", "https://onboarding.brev.dev/connect-aws\n\n"))
+	t.Vprint(t.Yellow("\tFollow the guide here: %s", "https://onboarding.brev.dev/connect-aws\n\n"))
 	// t.Vprintf(t.Yellow("Connect the AWS IAM user to create dev environments in your AWS account.\n\n"))
 
 	AccessKeyID := terminal.PromptGetInput(terminal.PromptContent{
@@ -49,9 +49,9 @@ func RunConnect(t *terminal.Terminal, _ []string, _ connectStore) error {
 		Mask:     '*',
 	})
 
-	t.Vprintf("\n")
-	t.Vprintf(AccessKeyID)
-	t.Vprintf(SecretAccessKey)
+	t.Vprint("\n")
+	t.Vprint(AccessKeyID)
+	t.Vprint(SecretAccessKey)
 
 	return nil
 }

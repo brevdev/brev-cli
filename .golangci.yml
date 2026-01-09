@@ -76,6 +76,8 @@ linters:
     staticcheck:
       checks:
         - all
+        - -ST1020 # https://staticcheck.dev/docs/checks#ST1020 - ignore exported fuction doc style
+        - -ST1021 # https://staticcheck.dev/docs/checks#ST1021 - ignore forced exported type doc style
         - -S1016 # https://staticcheck.dev/docs/checks/#S1016 - ignore as explicit field copy is preferred
         - -QF1008 # https://staticcheck.dev/docs/checks/#QF1008 - ignore as explicit use of embedded fields is preferred
         - -QF1001 # https://staticcheck.dev/docs/checks/#QF1001 - De Morgan's law (use of "!a && !b" over "!(a || b)") is typically preferred, but this is always case by case

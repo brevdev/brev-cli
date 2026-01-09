@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  GOPRIVATE: "github.com/brevdev/*"
+
 jobs:
   cli-output-compatibility:
     runs-on: ubuntu-22.04
@@ -15,18 +18,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Configure git for private modules
+        env:
+        TOKEN: ${{ secrets.GH_TOKEN }}
+        run: git config --global url."https://${TOKEN}@github.com".insteadOf "https://github.com"
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
-          go-version: '1.22.6'
-          cache: true
-
-      - name: Install dependencies
-        run: go mod download
-
+          go-version-file: go.mod
       - name: Run CLI output compatibility tests
         run: go test -v ./pkg/integration/
-
       - name: Report test results
         if: failure()
         run: |

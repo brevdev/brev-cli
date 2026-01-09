@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testerHome = "/home/tester"
+
 type staticLocator struct {
 	path string
 }
@@ -39,7 +41,7 @@ Host spark-two
 	err := afero.WriteFile(fs, configPath, []byte(config), 0o600)
 	require.NoError(t, err)
 
-	resolver := NewSyncConfigResolver(fs, staticLocator{path: configPath}, func() (string, error) { return "/home/tester", nil })
+	resolver := NewSyncConfigResolver(fs, staticLocator{path: configPath}, func() (string, error) { return testerHome, nil })
 	hosts, err := resolver.ResolveHosts()
 	require.NoError(t, err)
 	require.Len(t, hosts, 3)
@@ -48,7 +50,7 @@ Host spark-two
 	require.Equal(t, "spark-alt", hosts[1].Alias)
 	require.Equal(t, "spark-two", hosts[2].Alias)
 
-	require.Equal(t, "/home/tester/.ssh/spark_one", hosts[0].IdentityFile)
+	require.Equal(t, testerHome+"/.ssh/spark_one", hosts[0].IdentityFile)
 	require.Equal(t, "spark-one.local", hosts[0].Hostname)
 	require.Equal(t, 2222, hosts[0].Port)
 	require.Equal(t, "ubuntu", hosts[0].User)
@@ -60,7 +62,7 @@ Host spark-two
 
 func TestResolveHostsMissingFile(t *testing.T) {
 	fs := afero.NewMemMapFs()
-	resolver := NewSyncConfigResolver(fs, staticLocator{path: "/tmp/missing"}, func() (string, error) { return "/home/tester", nil })
+	resolver := NewSyncConfigResolver(fs, staticLocator{path: "/tmp/missing"}, func() (string, error) { return testerHome, nil })
 
 	_, err := resolver.ResolveHosts()
 	require.Error(t, err)
@@ -77,7 +79,7 @@ Host spark-one
 	err := afero.WriteFile(fs, configPath, []byte(config), 0o600)
 	require.NoError(t, err)
 
-	resolver := NewSyncConfigResolver(fs, staticLocator{path: configPath}, func() (string, error) { return "/home/tester", nil })
+	resolver := NewSyncConfigResolver(fs, staticLocator{path: configPath}, func() (string, error) { return testerHome, nil })
 	_, err = resolver.ResolveHosts()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "Hostname")

@@ -40,7 +40,7 @@ func (s StaticFiles) GetMountFromPath() string {
 
 func (s StaticFiles) Setup(_ context.Context) error {
 	path := s.GetMountFromPath()
-	err := os.MkdirAll(path, os.ModePerm)
+	err := os.MkdirAll(path, 0o750)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

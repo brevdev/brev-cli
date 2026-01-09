@@ -37,7 +37,7 @@ func (r RemoteRunner) Run(ctx context.Context, host Host, remoteCmd string) (str
 	}
 
 	argv := buildSSHCommand(host, remoteCmd)
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) //nolint:gosec // command args constructed from validated host data
 
 	var buf bytes.Buffer
 	cmd.Stdout = &buf

@@ -111,7 +111,7 @@ func Test_Volumes(t *testing.T) {
 		localPath := fmt.Sprintf("/tmp/brevcli-test-volume/%s", uuid.New().String())
 		fmt.Println(localPath)
 
-		err := os.MkdirAll(localPath, os.ModePerm)
+		err := os.MkdirAll(localPath, 0o750)
 		assert.Nil(t, err)
 
 		_, err = os.OpenFile(filepath.Join(localPath, "original"), os.O_CREATE, 0o600) //nolint:gosec // test

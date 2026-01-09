@@ -10,6 +10,8 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
+const goosLinux = "linux"
+
 type BasicStore struct {
 	envGetter func(string) string
 }
@@ -31,7 +33,7 @@ func (b BasicStore) GetWSLHostHomeDir() (string, error) {
 	if runtime.GOOS == "windows" {
 		return "", breverrors.New("not supported on windows")
 	}
-	if runtime.GOOS == "linux" {
+	if runtime.GOOS == goosLinux {
 		path := ""
 		if b.envGetter == nil {
 			path = os.Getenv("PATH")
