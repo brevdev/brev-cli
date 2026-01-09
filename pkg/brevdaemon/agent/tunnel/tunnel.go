@@ -247,10 +247,6 @@ func (m *Manager) configureCloudflaredService(ctx context.Context, token *brevap
 			name: "sudo",
 			args: []string{"cloudflared", "service", "install", token.GetToken()},
 		},
-		{
-			name: "sudo",
-			args: []string{"systemctl", "restart", "cloudflared.service"},
-		},
 	}
 
 	for _, cmdSpec := range commands {

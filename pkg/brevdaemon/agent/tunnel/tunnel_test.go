@@ -61,11 +61,9 @@ func TestManagerConfiguresCloudflaredService(t *testing.T) {
 	err := manager.Start(ctx)
 	require.NoError(t, err)
 	require.True(t, requested)
-	require.Len(t, executed, 2)
+	require.Len(t, executed, 1)
 	require.Equal(t, "sudo", executed[0].name)
 	require.Equal(t, []string{"cloudflared", "service", "install", "token"}, executed[0].args)
-	require.Equal(t, "sudo", executed[1].name)
-	require.Equal(t, []string{"systemctl", "restart", "cloudflared.service"}, executed[1].args)
 	require.NotEmpty(t, reporter.actives)
 	require.Contains(t, reporter.actives[0], "cloudflared service configured")
 }
