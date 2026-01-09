@@ -122,7 +122,7 @@ func (r *Runner) Run(ctx context.Context) error { //nolint:funlen // loop coordi
 		if err != nil {
 			if classified := client.ClassifyError(err); classified != nil {
 				if errors.Is(classified, client.ErrUnauthenticated) {
-					return classified
+					return classified //nolint:wrapcheck // classification intentionally returned verbatim for caller handling
 				}
 				r.Log.Warn("heartbeat failed", zap.Error(classified))
 				err = classified

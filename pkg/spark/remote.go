@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
+	"github.com/brevdev/brev-cli/pkg/errors"
 )
 
 // RemoteRunner executes commands on a Spark host over ssh and returns stdout/stderr.
@@ -25,7 +26,7 @@ func NewRemoteRunner(fs afero.Fs) RemoteRunner {
 // Run executes the provided remote shell command via ssh and returns combined output.
 func (r RemoteRunner) Run(ctx context.Context, host Host, remoteCmd string) (string, error) {
 	if host.IdentityFile == "" {
-		return "", fmt.Errorf("missing identity file for %s", host.Alias)
+		return "", errors.WrapAndTrace(fmt.Errorf("missing identity file for %s", host.Alias))
 	}
 
 	exists, err := afero.Exists(r.fs, host.IdentityFile)
@@ -33,7 +34,7 @@ func (r RemoteRunner) Run(ctx context.Context, host Host, remoteCmd string) (str
 		return "", err
 	}
 	if !exists {
-		return "", fmt.Errorf("identity file not found at %s", host.IdentityFile)
+		return "", errors.WrapAndTrace(fmt.Errorf("identity file not found at %s", host.IdentityFile))
 	}
 
 	argv := buildSSHCommand(host, remoteCmd)
@@ -44,7 +45,7 @@ func (r RemoteRunner) Run(ctx context.Context, host Host, remoteCmd string) (str
 	cmd.Stderr = &buf
 
 	if err := cmd.Run(); err != nil {
-		return buf.String(), fmt.Errorf("ssh to %s failed for command %q: %w\noutput:\n%s", hostLabel(host), remoteCmd, err, buf.String())
+		return buf.String(), errors.WrapAndTrace(fmt.Errorf("ssh to %s failed for command %q: %w\noutput:\n%s", hostLabel(host), remoteCmd, err, buf.String()))
 	}
 	return buf.String(), nil
 }
