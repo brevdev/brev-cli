@@ -3,9 +3,7 @@ package identity
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +11,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
-	"github.com/brevdev/dev-plane/pkg/brevcloud/agent"
 	"github.com/brevdev/dev-plane/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -185,19 +182,12 @@ func EnsureIdentity(
 	if err != nil {
 		return Identity{}, errors.WrapAndTrace(err)
 	}
-	hardwareFP, err := computeHardwareFingerprint(hw)
-	if err != nil {
-		return Identity{}, errors.WrapAndTrace(err)
-	}
-	deviceFPHash := computeDeviceFingerprintHash(hardwareFP, salt)
 
 	params := client.RegisterParams{
 		RegistrationToken:     cfg.RegistrationToken,
 		DisplayName:           cfg.DisplayName,
 		CloudName:             cfg.CloudName,
 		Hardware:              hw.ToClient(),
-		HardwareFingerprint:   hardwareFP,
-		DeviceFingerprintHash: deviceFPHash,
 	}
 
 	log.Info("registering device with brevcloud agent service")
@@ -210,9 +200,7 @@ func EnsureIdentity(
 		InstanceID:              res.BrevCloudNodeID,
 		DeviceToken:             res.DeviceToken,
 		DeviceSalt:              salt,
-		DeviceFingerprintHash:   deviceFPHash,
 		DeviceFingerprintStored: res.DeviceFingerprint,
-		HardwareFingerprint:     hardwareFP,
 	}
 	if err := store.Save(newIdentity); err != nil {
 		return Identity{}, errors.WrapAndTrace(err)
@@ -277,33 +265,4 @@ func ensureDeviceSalt(path string) (string, error) {
 		return "", errors.WrapAndTrace(err)
 	}
 	return salt, nil
-}
-
-func computeHardwareFingerprint(hw telemetry.HardwareInfo) (string, error) {
-	desc := agent.HardwareDescriptor{
-		CPUs: hw.CPUCount,
-		RAM:  hw.RAMBytes,
-	}
-	for _, gpu := range hw.GPUs {
-		count := gpu.Count
-		if count <= 0 {
-			count = 1
-		}
-		for i := 0; i < count; i++ {
-			desc.GPUs = append(desc.GPUs, agent.GPUDescriptor{
-				Model:  gpu.Model,
-				Memory: gpu.MemoryBytes,
-			})
-		}
-	}
-	fp, err := agent.ComputeHardwareFingerprint(desc)
-	if err != nil {
-		return "", errors.WrapAndTrace(err)
-	}
-	return fp, nil
-}
-
-func computeDeviceFingerprintHash(hardwareFP, deviceSalt string) string {
-	sum := sha256.Sum256([]byte(strings.Join([]string{hardwareFP, deviceSalt}, "|")))
-	return hex.EncodeToString(sum[:])
 }
