@@ -10,23 +10,23 @@ import (
 )
 
 const (
-	agentShort = "Run the Brev agent daemon on the Spark node"
+	agentShort = "Run the Brev agent daemon"
 	agentLong  = "Runs the Brev agent daemon in a continuous loop, reporting status and handling workloads."
 )
 
-func NewCmdSparkAgent(t *terminal.Terminal) *cobra.Command {
+func NewCmdBrevAgent(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Short: agentShort,
 		Long:  agentLong,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runSparkAgent(t)
+			return runBrevAgent(t)
 		},
 	}
 	return cmd
 }
 
-func runSparkAgent(t *terminal.Terminal) error {
+func runBrevAgent(t *terminal.Terminal) error {
 	t.Vprint(t.Green("Starting Brev agent daemon...\n"))
 
 	ticker := time.NewTicker(1 * time.Minute)

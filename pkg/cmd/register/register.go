@@ -29,6 +29,9 @@ var installBinaryScript string
 //go:embed install-service.sh
 var installServiceScript string
 
+//go:embed uninstall-service.sh
+var uninstallServiceScript string
+
 //go:embed install-user.sh
 var installUserScript string
 
@@ -135,23 +138,34 @@ func NewCmdUnregisterRemoteHost(t *terminal.Terminal, loginCmdStore *store.AuthH
 }
 
 func runRegisterLocal(ctx context.Context, t *terminal.Terminal, loginStore *store.AuthHTTPStore, args []string) error {
+	// Step 1: Install the brevcloud user
 	if err := runEmbeddedScriptLocally("brevcloud-install-user", installUserScript); err != nil {
 		return fmt.Errorf("failed to install brevcloud user: %w", err)
 	}
 
+	// Step 2: Install the brev-agent systemd service
+	if err := runEmbeddedScriptLocally("brev-agent-install-service", installServiceScript); err != nil {
+		return fmt.Errorf("failed to install brev-agent systemd service: %w", err)
+	}
+
+	return nil
+}
+
+func runUnregisterLocal(ctx context.Context, t *terminal.Terminal, loginStore *store.AuthHTTPStore, args []string) error {
+	// Step 1: Uninstall the brev-agent systemd service
+	if err := runEmbeddedScriptLocally("brev-agent-uninstall-service", uninstallServiceScript); err != nil {
+		return fmt.Errorf("failed to uninstall brev-agent systemd service: %w", err)
+	}
+
+	// Step 2: Uninstall the brevcloud user
+	if err := runEmbeddedScriptLocally("brevcloud-uninstall-user", uninstallUserScript); err != nil {
+		return fmt.Errorf("failed to uninstall brevcloud user: %w", err)
+	}
 	return nil
 }
 
 func runRegisterRemote(ctx context.Context, t *terminal.Terminal, loginStore *store.AuthHTTPStore, args []string) error {
 	fmt.Println("register remote")
-	return nil
-}
-
-func runUnregisterLocal(ctx context.Context, t *terminal.Terminal, loginStore *store.AuthHTTPStore, args []string) error {
-	if err := runEmbeddedScriptLocally("brevcloud-uninstall-user", uninstallUserScript); err != nil {
-		return fmt.Errorf("failed to uninstall brevcloud user: %w", err)
-	}
-
 	return nil
 }
 
