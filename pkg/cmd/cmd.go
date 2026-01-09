@@ -223,6 +223,10 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cobra.AddTemplateFunc("workspaceCommands", workspaceCommands)
 	cobra.AddTemplateFunc("hasProviderDependentCommands", hasProviderDependentCommands)
 	cobra.AddTemplateFunc("providerDependentCommands", providerDependentCommands)
+	cobra.AddTemplateFunc("hasRegisterCommands", hasRegisterCommands)
+	cobra.AddTemplateFunc("registerCommands", registerCommands)
+	cobra.AddTemplateFunc("subTreeCommands", subTreeCommands)
+	cobra.AddTemplateFunc("isSubTreeCommand", isSubTreeCommand)
 	cobra.AddTemplateFunc("hasAccessCommands", hasAccessCommands)
 	cobra.AddTemplateFunc("accessCommands", accessCommands)
 	cobra.AddTemplateFunc("hasOrganizationCommands", hasOrganizationCommands)
@@ -287,7 +291,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(refresh.NewCmdRefresh(t, loginCmdStore))
-	cmd.AddCommand(register.NewCmdRegister(t))
+	cmd.AddCommand(register.NewCmdRegister(t, loginCmdStore))
+	cmd.AddCommand(register.NewCmdUnregister(t, loginCmdStore))
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
@@ -296,7 +301,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
 	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
-	// cmd.AddCommand(spark.NewCmdSpark(t, loginCmdStore, noLoginCmdStore))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {
@@ -325,6 +329,10 @@ func hasDebugCommands(cmd *cobra.Command) bool {
 
 func hasProviderDependentCommands(cmd *cobra.Command) bool {
 	return len(providerDependentCommands(cmd)) > 0
+}
+
+func hasRegisterCommands(cmd *cobra.Command) bool {
+	return len(registerCommands(cmd)) > 0
 }
 
 func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
@@ -397,6 +405,28 @@ func providerDependentCommands(cmd *cobra.Command) []*cobra.Command {
 	return cmds
 }
 
+func registerCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isRegisterCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+// SubTreeCommands are commands that themselves have a tree of subcommands. Use of the 'sub-tree' annotation
+// will mark commands as this way, adding the 'Available Commands' section to the hep text.
+func subTreeCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if isSubTreeCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
 func isWorkspaceCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["workspace"]
 	return ok
@@ -429,6 +459,16 @@ func isDebugCommand(cmd *cobra.Command) bool {
 
 func isProviderDependentCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["provider-dependent"]
+	return ok
+}
+
+func isRegisterCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["register"]
+	return ok
+}
+
+func isSubTreeCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["sub-tree"]
 	return ok
 }
 
@@ -490,8 +530,18 @@ Debug Commands:
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
-{{- end}}{{if .HasAvailableLocalFlags}}
+{{- end}}
 
+{{- if hasRegisterCommands . }}
+
+Register Commands:
+{{- range registerCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+{{if isSubTreeCommand . }}
+{{$cmds := .Commands}}Available Commands:{{range $cmds}}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}{{if .HasAvailableLocalFlags}}
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
 
