@@ -180,6 +180,12 @@ build-darwin-amd:
 	echo ${VERSION}
 	GOOS=darwin GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
+.PHONY: build-linux
+build-linux:
+	$(call print-target)
+	echo ${VERSION}
+	GOOS=linux GOARCH=amd64 go build -o brev_linux_amd64 -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	GOOS=linux GOARCH=arm64 go build -o brev_linux_arm64 -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: setup-workspace-repo
 setup-workspace-repo: build-linux-amd
