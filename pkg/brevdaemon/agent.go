@@ -18,7 +18,7 @@ const (
 	exitCodeError  = 3
 )
 
-func main() {
+func Main() {
 	os.Exit(runMain())
 }
 

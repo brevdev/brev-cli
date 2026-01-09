@@ -6,11 +6,13 @@ linters:
   default: none
   enable:
     - bodyclose
+    - copyloopvar
     - dupl
     - errcheck
     - forcetypeassert
     - funlen
     - gocognit
+    - goconst
     - gocritic
     - gocyclo
     - goprintffuncname
@@ -20,23 +22,30 @@ linters:
     - misspell
     - noctx
     - nolintlint
+    - revive
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
-    - thelper
     - tparallel
     - unconvert
     - unparam
     - unused
+    - whitespace
     - wrapcheck
   settings:
+    errcheck:
+      exclude-functions:
+        - (*encoding/json.Encoder).Encode
     funlen:
       lines: 100
     gocyclo:
-      min-complexity: 16
+      min-complexity: 15
+    govet:
+      check-shadowing: true
     misspell:
       locale: US
     nolintlint:
+      allow-leading-space: false # require machine-readable nolint directives (with no leading space)
       require-explanation: true
       require-specific: false
       allow-unused: false
@@ -54,7 +63,6 @@ linters:
         - name: increment-decrement
         - name: var-naming
         - name: var-declaration
-        - name: package-comments
         - name: range
         - name: receiver-naming
         - name: time-naming
@@ -68,14 +76,20 @@ linters:
     staticcheck:
       checks:
         - all
-        - -ST1000
-        - -ST1020
+        - -S1016 # https://staticcheck.dev/docs/checks/#S1016 - ignore as explicit field copy is preferred
+        - -QF1008 # https://staticcheck.dev/docs/checks/#QF1008 - ignore as explicit use of embedded fields is preferred
+        - -QF1001 # https://staticcheck.dev/docs/checks/#QF1001 - De Morgan's law (use of "!a && !b" over "!(a || b)") is typically preferred, but this is always case by case
     wrapcheck:
       ignore-sigs:
         - .WrapAndTrace
         - .Errorf
         - .Wrap
         - .New
+        - .ValidateStruct
+        - .Permanent
+        - .Decode
+issues:
+  exclude-use-default: false
   exclusions:
     generated: lax
     paths:
