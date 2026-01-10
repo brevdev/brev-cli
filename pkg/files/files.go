@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -186,7 +185,7 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = ioutil.WriteFile(filepath, dataBytes, os.ModePerm)
+	err = ioutil.WriteFile(filepath, dataBytes, 0o600)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

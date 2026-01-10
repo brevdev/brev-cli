@@ -214,7 +214,7 @@ func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path stri
 	t.Vprint(t.Yellow(strings.Join(deps, " \n")))
 	shellString := GenerateShellScript(path)
 	fmt.Println(GenerateLogs(shellString))
-	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm)
+	mderr := os.MkdirAll(filepath.Join(path, ".brev"), 0o750)
 	if mderr == nil {
 		// generate a string that is the collections.Concatenation of dependency-ordering the contents of all the dependencies
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
@@ -481,11 +481,8 @@ func nodeVersion(path string) *string {
 	paths := recursivelyFindFile([]string{"package\\-lock\\.json$", "package\\.json$"}, path)
 	retval := ""
 	if len(paths) > 0 {
-
 		sort.Strings(paths)
-
 		i := len(paths) - 1
-
 		keypath := "engines.node"
 		jsonstring, _ := files.CatFile(paths[i])
 		value := gjson.Get(jsonstring, keypath)
@@ -503,20 +500,15 @@ func gatsbyVersion(path string) *string {
 	retval := ""
 	var foundGatsby bool
 	if len(paths) > 0 {
-
 		sort.Strings(paths)
 		for _, path := range paths {
 			keypath := "dependencies.gatsby"
-			jsonstring, err := files.CatFile(path)
+			jsonstring, _ := files.CatFile(path)
 			value := gjson.Get(jsonstring, keypath)
 
-			if err != nil {
-				//
-			}
 			if value.String() != "" {
 				foundGatsby = true
 			}
-
 		}
 		if foundGatsby {
 			return &retval
@@ -530,17 +522,13 @@ func goVersion(path string) *string {
 	paths := recursivelyFindFile([]string{"go\\.mod"}, path)
 
 	if len(paths) > 0 {
-
 		sort.Strings(paths)
 		for _, path := range paths {
 			fmt.Println(path)
-			res, err := readGoMod(path)
-			if err != nil {
-				//
-			}
+			res, _ := readGoMod(path)
+
 			return &res
 		}
-
 	}
 	return nil
 }
@@ -564,7 +552,6 @@ func recursivelyFindFile(filenames []string, path string) []string {
 	for _, f := range files {
 		dir, err := os.Stat(appendPath(path, f.Name()))
 		if err != nil {
-			// fmt.Println(t.Red(err.Error()))
 		} else {
 			for _, filename := range filenames {
 
@@ -572,16 +559,7 @@ func recursivelyFindFile(filenames []string, path string) []string {
 				res := r.MatchString(f.Name())
 
 				if res {
-					// t.Vprint(t.Yellow(filename) + "---" + t.Yellow(path+f.Name()))
 					paths = append(paths, appendPath(path, f.Name()))
-
-					// fileContents, err := catFile(appendPath(path, f.Name()))
-					// if err != nil {
-					// 	//
-					// }
-
-					// TODO: read
-					// if file has json, read the json
 				}
 			}
 
@@ -590,9 +568,7 @@ func recursivelyFindFile(filenames []string, path string) []string {
 			}
 		}
 	}
-
 	// TODO: make the list collections.Unique
-
 	return paths
 }
 

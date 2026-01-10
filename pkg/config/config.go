@@ -8,6 +8,7 @@ type EnvVarName string // should be caps with underscore
 
 const (
 	brevAPIURL               EnvVarName = "BREV_API_URL"
+	brevAPIV2URL             EnvVarName = "BREV_API_V2_URL"
 	brevGRPCURL              EnvVarName = "BREV_GRPC_URL"
 	brevAuthURL              EnvVarName = "BREV_AUTH_URL"
 	brevAuthIssuerURL        EnvVarName = "BREV_AUTH_ISSUER_URL"
@@ -32,9 +33,17 @@ func (c ConstantsConfig) GetBrevAPIURl() string {
 	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
 }
 
-func (c ConstantsConfig) GetBrevGRPCURL() string {
-	// GRPC does not use https:// prefix
-	return getEnvOrDefault(brevGRPCURL, "api.brev.dev:443")
+// func (c ConstantsConfig) GetBrevGRPCURL() string {
+// 	return getEnvOrDefault(brevGRPCURL, "api.brev.dev:443")
+// }
+
+// GetDevplaneAPIURL returns the base URL for DevPlane APIs.
+// Prefer BREV_API_V2_URL when set, otherwise fall back to BREV_API_URL.
+func (c ConstantsConfig) GetDevplaneAPIURL() string {
+	if v2 := os.Getenv(string(brevAPIV2URL)); v2 != "" {
+		return v2
+	}
+	return c.GetBrevAPIURl()
 }
 
 func (c ConstantsConfig) GetBrevAuthURL() string {

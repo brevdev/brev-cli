@@ -62,7 +62,7 @@ func NewCmdupdatemodel(t *terminal.Terminal, store updatemodelStore) *cobra.Comm
 
 				if params != nil && params.WorkspaceKeyPair != nil {
 					keys := params.WorkspaceKeyPair
-					pubkeys, err := ssh.NewPublicKeys("ubuntu", []byte(keys.PrivateKeyData), "") //nolint:govet //abc
+					pubkeys, err := ssh.NewPublicKeys("ubuntu", []byte(keys.PrivateKeyData), "")
 					if err != nil {
 						return nil, breverrors.WrapAndTrace(err)
 					}

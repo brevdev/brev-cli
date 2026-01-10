@@ -51,23 +51,23 @@ func New() (t *Terminal) {
 }
 
 func (t *Terminal) Print(a string) {
-	fmt.Fprintln(t.out, a)
+	_, _ = fmt.Fprintln(t.out, a)
 }
 
 func (t *Terminal) Vprint(a string) {
-	fmt.Fprintln(t.verbose, a)
+	_, _ = fmt.Fprintln(t.verbose, a)
 }
 
 func (t *Terminal) Vprintf(format string, a ...interface{}) {
-	fmt.Fprintf(t.verbose, format, a...)
+	_, _ = fmt.Fprintf(t.verbose, format, a...)
 }
 
 func (t *Terminal) Eprint(a string) {
-	fmt.Fprintln(t.err, a)
+	_, _ = fmt.Fprintln(t.err, a)
 }
 
 func (t *Terminal) Eprintf(format string, a ...interface{}) {
-	fmt.Fprintf(t.err, format, a...)
+	_, _ = fmt.Fprintf(t.err, format, a...)
 }
 
 func (t *Terminal) Errprint(err error, a string) {

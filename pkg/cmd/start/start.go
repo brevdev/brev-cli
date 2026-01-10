@@ -32,6 +32,8 @@ var (
 	`
 )
 
+const instanceSpinnerSuffix = " Creating your instance. Hang tight 🤙"
+
 type StartStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -250,7 +252,7 @@ func maybeStartEmpty(t *terminal.Terminal, user *entity.User, options StartOptio
 func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
 	pathExists := allutil.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
-		return fmt.Errorf(strings.Join([]string{"Path:", options.RepoOrPathOrNameOrID, "does not exist."}, " "))
+		return fmt.Errorf("Path: %s does not exist.", options.RepoOrPathOrNameOrID)
 	}
 	var gitpath string
 	if options.RepoOrPathOrNameOrID == "." {
@@ -258,13 +260,13 @@ func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options Sta
 	} else {
 		gitpath = filepath.Join(options.RepoOrPathOrNameOrID, ".git", "config")
 	}
-	file, error := startStore.GetFileAsString(gitpath)
-	if error != nil {
-		return fmt.Errorf(strings.Join([]string{"Could not read .git/config at", options.RepoOrPathOrNameOrID}, " "))
+	fileContents, readErr := startStore.GetFileAsString(gitpath)
+	if readErr != nil {
+		return fmt.Errorf("Could not read .git/config at %s", options.RepoOrPathOrNameOrID)
 	}
 	// Get GitUrl
 	var gitURL string
-	for _, v := range strings.Split(file, "\n") {
+	for _, v := range strings.Split(fileContents, "\n") {
 		if strings.Contains(v, "url") {
 			gitURL = strings.Split(v, "= ")[1]
 		}
@@ -365,7 +367,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 	t.Vprintf("\tCloud %s\n\n", t.Green(cwOptions.WorkspaceGroupID))
 
 	s := t.NewSpinner()
-	s.Suffix = " Creating your instance. Hang tight 🤙"
+	s.Suffix = instanceSpinnerSuffix
 	s.Start()
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
@@ -471,7 +473,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 	t.Vprintf("\tCloud %s\n", cwOptions.WorkspaceGroupID)
 
 	s := t.NewSpinner()
-	s.Suffix = " Creating your instance. Hang tight 🤙"
+	s.Suffix = instanceSpinnerSuffix
 	s.Start()
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
@@ -639,7 +641,7 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 	t.Vprintf("\tCloud %s\n", options.WorkspaceGroupID)
 
 	s := t.NewSpinner()
-	s.Suffix = " Creating your instance. Hang tight 🤙"
+	s.Suffix = instanceSpinnerSuffix
 	s.Start()
 	w, err := startStore.CreateWorkspace(orgID, options)
 	if err != nil {

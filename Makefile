@@ -14,15 +14,15 @@ ifdef env
 	@echo "Building with env=$(env) wrapper..."
 	@echo ${VERSION}
 	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
-	@echo '#!/bin/sh' > brev
-	@echo '# Auto-generated wrapper with environment overrides' >> brev
-	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
-	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev
-	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev
-	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
-	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev
-	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev" "$$@"' >> brev
-	@chmod +x brev
+	@echo '#!/bin/sh' > brev-local
+	@echo '# Auto-generated wrapper with environment overrides' >> brev-local
+	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev-local
+	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev-local
+	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev-local
+	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev-local
+	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev-local
+	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev" "$$@"' >> brev-local
+	@chmod +x brev-local
 else
 	@echo "Building without environment overrides (using config.go defaults)..."
 	$(MAKE) fast-build
@@ -54,6 +54,9 @@ clean: ## remove files created during build pipeline
 install-tools: ## go install tools
 	$(call print-target)
 	cd tools && go install $(shell cd tools && go list -e -f '{{ join .Imports " " }}' -tags=tools)
+	@if [ "$(shell uname)" = "Darwin" ] && ! command -v golangci-lint >/dev/null 2>&1; then \
+		(echo "Installing golangci-lint on macOS via homebrew..." && brew install golangci-lint); \
+	fi;
 
 .PHONY: generate
 generate: ## go generate
@@ -78,6 +81,7 @@ fmtcheck: ## go fmt --check
 .PHONY: lint
 lint: ## golangci-lint
 	$(call print-target)
+	golangci-lint --version
 	golangci-lint run --timeout 5m
 
 .PHONY: test
@@ -175,7 +179,6 @@ build-darwin-amd:
 	$(call print-target)
 	echo ${VERSION}
 	GOOS=darwin GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
-
 
 .PHONY: setup-workspace-repo
 setup-workspace-repo: build-linux-amd
