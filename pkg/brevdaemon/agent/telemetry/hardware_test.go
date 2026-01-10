@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

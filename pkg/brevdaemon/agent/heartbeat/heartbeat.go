@@ -10,7 +10,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
-	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

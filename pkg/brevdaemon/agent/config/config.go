@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/errors"
 )
 
 const (
@@ -45,7 +45,7 @@ type Config struct {
 	HeartbeatInterval time.Duration
 
 	EnableTunnel   bool
-	TunnelSSHPort  int
+	TunnelSSHPort  int32
 	TunnelCritical bool
 }
 
@@ -98,14 +98,14 @@ func Load() (Config, error) {
 	}
 
 	if portRaw := strings.TrimSpace(os.Getenv(EnvTunnelSSHPort)); portRaw != "" {
-		port, err := strconv.Atoi(portRaw)
+		port, err := strconv.ParseInt(portRaw, 10, 32)
 		if err != nil {
 			return Config{}, errors.WrapAndTrace(errors.Errorf("%s must be an integer: %v", EnvTunnelSSHPort, err))
 		}
 		if port <= 0 || port > 65535 {
 			return Config{}, errors.Errorf("%s must be between 1 and 65535", EnvTunnelSSHPort)
 		}
-		cfg.TunnelSSHPort = port
+		cfg.TunnelSSHPort = int32(port)
 	}
 
 	if tunnelCriticalRaw := strings.TrimSpace(os.Getenv(EnvTunnelCritical)); tunnelCriticalRaw != "" {

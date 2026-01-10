@@ -14,7 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/client"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/config"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
-	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -186,9 +186,14 @@ func EnsureIdentity(
 		return Identity{}, errors.WrapAndTrace(err)
 	}
 
+	hardwareFingerprint, err := computeHardwareFingerprint(hw)
+	if err != nil {
+		return Identity{}, errors.WrapAndTrace(err)
+	}
 	req := &brevapiv2.RegisterRequest{
-		RegistrationToken: cfg.RegistrationToken,
-		Hardware:          hw.ToProto(),
+		RegistrationToken:   cfg.RegistrationToken,
+		Hardware:            hw.ToProto(),
+		HardwareFingerprint: hardwareFingerprint,
 	}
 	if cfg.DisplayName != "" {
 		req.DisplayName = client.ProtoString(cfg.DisplayName)
@@ -272,4 +277,8 @@ func ensureDeviceSalt(path string) (string, error) {
 		return "", errors.WrapAndTrace(err)
 	}
 	return salt, nil
+}
+
+func computeHardwareFingerprint(_ telemetry.HardwareInfo) (string, error) {
+	return rand.Text(), nil
 }

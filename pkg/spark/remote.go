@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/afero"
 	"github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/spf13/afero"
 )
 
 // RemoteRunner executes commands on a Spark host over ssh and returns stdout/stderr.

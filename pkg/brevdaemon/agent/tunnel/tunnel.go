@@ -17,9 +17,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/health"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/identity"
 	"github.com/brevdev/brev-cli/pkg/brevdaemon/agent/telemetry"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/dev-plane/pkg/brevcloud/appaccess"
-	"github.com/brevdev/dev-plane/pkg/brevcloud/tunnel"
-	"github.com/brevdev/dev-plane/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -32,7 +31,7 @@ const (
 
 // TunnelConfig configures tunnel management.
 type TunnelConfig struct {
-	SSHPort      int
+	SSHPort      int32
 	ClientBinary string
 }
 
@@ -49,9 +48,6 @@ type Manager struct {
 	LookPath       func(string) (string, error)
 
 	DetectHardware func(context.Context) (telemetry.HardwareInfo, error)
-	Probe          probeFunc
-	HTTPProbe      httpProbeFunc
-	SystemdStatus  systemdStatusFunc
 	ProbeTimeout   time.Duration
 	AppConfig      appaccess.Config
 
@@ -88,22 +84,9 @@ func (m *Manager) Start(ctx context.Context) error { //nolint:gocognit,gocyclo,f
 		jitterFn = addJitter
 	}
 
-	detectFn := m.detectHardwareFunc()
-	probeFn := m.probeFunc()
-	httpProbe := m.httpProbeFunc()
-	systemdStatus := m.systemdStatusFunc()
-	probeTimeout := m.probeTimeout()
-	appCfg := m.appAccessConfig()
-
-	hw, hwErr := detectFn(ctx)
-	if hwErr != nil {
-		m.Log.Info("skipping app ingress discovery: hardware detection failed", zap.Error(hwErr))
-	}
-	instanceType := detectInstanceTypeFromHardware(hw)
-
 	req := &brevapiv2.GetTunnelTokenRequest{
 		BrevCloudNodeId: m.Identity.InstanceID,
-		RequestedPorts: tunnelPortsToProto([]tunnel.TunnelPortMapping{
+		RequestedPorts: tunnelPortsToProto([]brevapiv2.TunnelPortMapping{
 			{
 				LocalPort: m.Cfg.SSHPort,
 			},
@@ -119,11 +102,6 @@ func (m *Manager) Start(ctx context.Context) error { //nolint:gocognit,gocyclo,f
 		}
 
 		req.AppIngresses = nil
-		if instanceType == appaccess.InstanceTypeDGXSpark {
-			if ingresses := buildAppIngresses(ctx, appCfg, probeFn, httpProbe, systemdStatus, probeTimeout, instanceType); len(ingresses) > 0 {
-				req.AppIngresses = ingresses
-			}
-		}
 
 		token, err := m.requestTunnelToken(ctx, req)
 		if err != nil {
@@ -303,7 +281,7 @@ func addJitter(delay time.Duration) time.Duration {
 	return time.Duration(float64(delay) * factor)
 }
 
-func tunnelPortsToProto(ports []tunnel.TunnelPortMapping) []*brevapiv2.TunnelPortMapping {
+func tunnelPortsToProto(ports []brevapiv2.TunnelPortMapping) []*brevapiv2.TunnelPortMapping {
 	if len(ports) == 0 {
 		return nil
 	}
@@ -324,8 +302,8 @@ func tunnelPortsToProto(ports []tunnel.TunnelPortMapping) []*brevapiv2.TunnelPor
 			continue
 		}
 		out = append(out, &brevapiv2.TunnelPortMapping{
-			LocalPort:  int32(lp),
-			RemotePort: int32(rp),
+			LocalPort:  lp,
+			RemotePort: rp,
 			Protocol:   port.Protocol,
 		})
 	}
@@ -354,39 +332,4 @@ func (m *Manager) detectHardwareFunc() func(context.Context) (telemetry.Hardware
 		return m.DetectHardware
 	}
 	return telemetry.DetectHardware
-}
-
-func (m *Manager) probeFunc() probeFunc {
-	if m.Probe != nil {
-		return m.Probe
-	}
-	return defaultIngressProbe
-}
-
-func (m *Manager) httpProbeFunc() httpProbeFunc {
-	if m.HTTPProbe != nil {
-		return m.HTTPProbe
-	}
-	return defaultHTTPProbe
-}
-
-func (m *Manager) systemdStatusFunc() systemdStatusFunc {
-	if m.SystemdStatus != nil {
-		return m.SystemdStatus
-	}
-	return defaultSystemdStatus
-}
-
-func (m *Manager) probeTimeout() time.Duration {
-	if m.ProbeTimeout > 0 {
-		return m.ProbeTimeout
-	}
-	return 750 * time.Millisecond
-}
-
-func (m *Manager) appAccessConfig() appaccess.Config {
-	if len(m.AppConfig.Allowlist) == 0 {
-		return appaccess.DefaultConfig()
-	}
-	return m.AppConfig
 }

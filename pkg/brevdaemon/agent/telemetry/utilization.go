@@ -13,7 +13,7 @@ import (
 	"time"
 
 	brevapiv2 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/brevapi/v2"
-	"github.com/brevdev/dev-plane/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/errors"
 	"golang.org/x/sys/unix"
 )
 

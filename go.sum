@@ -1,5 +1,3 @@
-braces.dev/errtrace v0.3.0 h1:pzfd6LcWgfWtXLaNFWRnxV/7NP+FSOlIjRLwDuHfPxs=
-braces.dev/errtrace v0.3.0/go.mod h1:YQpXdo+u5iimgQdZzFoic8AjedEDncXGpp6/2SfazzI=
 buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20251231160605-b3cca76916ad.2 h1:0kN/kFTB+1FwQKYfRmclNov3zl2l6piRWsLIvxI0MNg=
 buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20251231160605-b3cca76916ad.2/go.mod h1:RmMcZfWXsOjdUZZ2WoT2PuhhrLYcHbPYguosSqJ5498=
 buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20251231160605-b3cca76916ad.1 h1:XQiAbF+9b+yRXr5oUIUYCJ7/drS3hjd3/BpCUO04hOI=
