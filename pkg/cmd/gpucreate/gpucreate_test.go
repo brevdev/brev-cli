@@ -1,0 +1,346 @@
+package gpucreate
+
+import (
+	"testing"
+
+	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/stretchr/testify/assert"
+)
+
+// MockGPUCreateStore is a mock implementation of GPUCreateStore for testing
+type MockGPUCreateStore struct {
+	User                *entity.User
+	Org                 *entity.Organization
+	Workspaces          map[string]*entity.Workspace
+	CreateError         error
+	CreateErrorTypes    map[string]error // Errors for specific instance types
+	DeleteError         error
+	CreatedWorkspaces   []*entity.Workspace
+	DeletedWorkspaceIDs []string
+}
+
+func NewMockGPUCreateStore() *MockGPUCreateStore {
+	return &MockGPUCreateStore{
+		User: &entity.User{
+			ID:             "user-123",
+			GlobalUserType: "Standard",
+		},
+		Org: &entity.Organization{
+			ID:   "org-123",
+			Name: "test-org",
+		},
+		Workspaces:          make(map[string]*entity.Workspace),
+		CreateErrorTypes:    make(map[string]error),
+		CreatedWorkspaces:   []*entity.Workspace{},
+		DeletedWorkspaceIDs: []string{},
+	}
+}
+
+func (m *MockGPUCreateStore) GetCurrentUser() (*entity.User, error) {
+	return m.User, nil
+}
+
+func (m *MockGPUCreateStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	return m.Org, nil
+}
+
+func (m *MockGPUCreateStore) GetWorkspace(workspaceID string) (*entity.Workspace, error) {
+	if ws, ok := m.Workspaces[workspaceID]; ok {
+		return ws, nil
+	}
+	return &entity.Workspace{
+		ID:     workspaceID,
+		Status: entity.Running,
+	}, nil
+}
+
+func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error) {
+	// Check for type-specific errors first
+	if err, ok := m.CreateErrorTypes[options.InstanceType]; ok {
+		return nil, err
+	}
+
+	if m.CreateError != nil {
+		return nil, m.CreateError
+	}
+
+	ws := &entity.Workspace{
+		ID:           "ws-" + options.Name,
+		Name:         options.Name,
+		InstanceType: options.InstanceType,
+		Status:       entity.Running,
+	}
+	m.Workspaces[ws.ID] = ws
+	m.CreatedWorkspaces = append(m.CreatedWorkspaces, ws)
+	return ws, nil
+}
+
+func (m *MockGPUCreateStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, error) {
+	if m.DeleteError != nil {
+		return nil, m.DeleteError
+	}
+
+	m.DeletedWorkspaceIDs = append(m.DeletedWorkspaceIDs, workspaceID)
+	ws := m.Workspaces[workspaceID]
+	delete(m.Workspaces, workspaceID)
+	return ws, nil
+}
+
+func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
+	return []entity.Workspace{}, nil
+}
+
+func TestIsValidInstanceType(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"Valid AWS instance type", "g5.xlarge", true},
+		{"Valid AWS large instance", "p4d.24xlarge", true},
+		{"Valid GCP instance type", "n1-highmem-4:nvidia-tesla-t4:1", true},
+		{"Single letter", "a", false},
+		{"No numbers", "xlarge", false},
+		{"No letters", "12345", false},
+		{"Empty string", "", false},
+		{"Single character", "1", false},
+		{"Valid with colon", "g5:xlarge", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isValidInstanceType(tt.input)
+			assert.Equal(t, tt.expected, result, "Validation failed for %s", tt.input)
+		})
+	}
+}
+
+func TestParseInstanceTypesFromFlag(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{"Single type", "g5.xlarge", []string{"g5.xlarge"}},
+		{"Multiple types comma separated", "g5.xlarge,g5.2xlarge,p3.2xlarge", []string{"g5.xlarge", "g5.2xlarge", "p3.2xlarge"}},
+		{"With spaces", "g5.xlarge, g5.2xlarge, p3.2xlarge", []string{"g5.xlarge", "g5.2xlarge", "p3.2xlarge"}},
+		{"Empty string", "", []string{}},
+		{"Only spaces", "   ", []string{}},
+		{"Trailing comma", "g5.xlarge,", []string{"g5.xlarge"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseInstanceTypes(tt.input)
+			assert.NoError(t, err)
+
+			// Handle nil vs empty slice
+			if len(tt.expected) == 0 {
+				assert.Empty(t, result)
+			} else {
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGPUCreateOptions(t *testing.T) {
+	opts := GPUCreateOptions{
+		Name:          "my-instance",
+		InstanceTypes: []string{"g5.xlarge", "g5.2xlarge"},
+		Count:         2,
+		Parallel:      3,
+		Detached:      true,
+	}
+
+	assert.Equal(t, "my-instance", opts.Name)
+	assert.Len(t, opts.InstanceTypes, 2)
+	assert.Equal(t, 2, opts.Count)
+	assert.Equal(t, 3, opts.Parallel)
+	assert.True(t, opts.Detached)
+}
+
+func TestResolveWorkspaceUserOptionsStandard(t *testing.T) {
+	user := &entity.User{
+		ID:             "user-123",
+		GlobalUserType: "Standard",
+	}
+
+	options := &store.CreateWorkspacesOptions{}
+	result := resolveWorkspaceUserOptions(options, user)
+
+	assert.Equal(t, store.UserWorkspaceTemplateID, result.WorkspaceTemplateID)
+	assert.Equal(t, store.UserWorkspaceClassID, result.WorkspaceClassID)
+}
+
+func TestResolveWorkspaceUserOptionsAdmin(t *testing.T) {
+	user := &entity.User{
+		ID:             "user-123",
+		GlobalUserType: "Admin",
+	}
+
+	options := &store.CreateWorkspacesOptions{}
+	result := resolveWorkspaceUserOptions(options, user)
+
+	assert.Equal(t, store.DevWorkspaceTemplateID, result.WorkspaceTemplateID)
+	assert.Equal(t, store.DevWorkspaceClassID, result.WorkspaceClassID)
+}
+
+func TestResolveWorkspaceUserOptionsPreserveExisting(t *testing.T) {
+	user := &entity.User{
+		ID:             "user-123",
+		GlobalUserType: "Standard",
+	}
+
+	options := &store.CreateWorkspacesOptions{
+		WorkspaceTemplateID: "custom-template",
+		WorkspaceClassID:    "custom-class",
+	}
+	result := resolveWorkspaceUserOptions(options, user)
+
+	// Should preserve existing values
+	assert.Equal(t, "custom-template", result.WorkspaceTemplateID)
+	assert.Equal(t, "custom-class", result.WorkspaceClassID)
+}
+
+func TestMockGPUCreateStoreBasics(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+
+	user, err := mock.GetCurrentUser()
+	assert.NoError(t, err)
+	assert.Equal(t, "user-123", user.ID)
+
+	org, err := mock.GetActiveOrganizationOrDefault()
+	assert.NoError(t, err)
+	assert.Equal(t, "org-123", org.ID)
+}
+
+func TestMockGPUCreateStoreCreateWorkspace(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+
+	options := store.NewCreateWorkspacesOptions("cluster-1", "test-instance")
+	options.WithInstanceType("g5.xlarge")
+
+	ws, err := mock.CreateWorkspace("org-123", options)
+	assert.NoError(t, err)
+	assert.Equal(t, "test-instance", ws.Name)
+	assert.Equal(t, "g5.xlarge", ws.InstanceType)
+	assert.Len(t, mock.CreatedWorkspaces, 1)
+}
+
+func TestMockGPUCreateStoreDeleteWorkspace(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+
+	// First create a workspace
+	options := store.NewCreateWorkspacesOptions("cluster-1", "test-instance")
+	ws, _ := mock.CreateWorkspace("org-123", options)
+
+	// Then delete it
+	_, err := mock.DeleteWorkspace(ws.ID)
+	assert.NoError(t, err)
+	assert.Contains(t, mock.DeletedWorkspaceIDs, ws.ID)
+}
+
+func TestMockGPUCreateStoreTypeSpecificError(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.CreateErrorTypes["g5.xlarge"] = assert.AnError
+
+	options := store.NewCreateWorkspacesOptions("cluster-1", "test-instance")
+	options.WithInstanceType("g5.xlarge")
+
+	_, err := mock.CreateWorkspace("org-123", options)
+	assert.Error(t, err)
+
+	// Different type should work
+	options2 := store.NewCreateWorkspacesOptions("cluster-1", "test-instance-2")
+	options2.WithInstanceType("g5.2xlarge")
+
+	ws, err := mock.CreateWorkspace("org-123", options2)
+	assert.NoError(t, err)
+	assert.NotNil(t, ws)
+}
+
+func TestParseInstanceTypesFromTableOutput(t *testing.T) {
+	// Simulated table output from brev gpus command
+	// Note: This tests the parsing logic, not actual stdin reading
+	tableLines := []string{
+		"TYPE           GPU    COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR",
+		"g5.xlarge      A10G   1      24 GB     24 GB       8.6         4      $1.01",
+		"g5.2xlarge     A10G   1      24 GB     24 GB       8.6         8      $1.21",
+		"p4d.24xlarge   A100   8      40 GB     320 GB      8.0         96     $32.77",
+		"",
+		"Found 3 GPU instance types",
+	}
+
+	// Test parsing each line (simulating the scanner behavior)
+	var types []string
+	lineNum := 0
+	for _, line := range tableLines {
+		lineNum++
+
+		// Skip header line
+		if lineNum == 1 && (contains(line, "TYPE") || contains(line, "GPU")) {
+			continue
+		}
+
+		// Skip empty lines and summary
+		if line == "" || startsWith(line, "Found ") {
+			continue
+		}
+
+		// Extract first column
+		fields := splitFields(line)
+		if len(fields) > 0 && isValidInstanceType(fields[0]) {
+			types = append(types, fields[0])
+		}
+	}
+
+	assert.Len(t, types, 3)
+	assert.Contains(t, types, "g5.xlarge")
+	assert.Contains(t, types, "g5.2xlarge")
+	assert.Contains(t, types, "p4d.24xlarge")
+}
+
+// Helper functions for testing
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && findSubstring(s, substr) >= 0
+}
+
+func findSubstring(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func startsWith(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
+}
+
+func splitFields(s string) []string {
+	var fields []string
+	var current string
+	inField := false
+
+	for _, c := range s {
+		if c == ' ' || c == '\t' {
+			if inField {
+				fields = append(fields, current)
+				current = ""
+				inField = false
+			}
+		} else {
+			current += string(c)
+			inField = true
+		}
+	}
+
+	if inField {
+		fields = append(fields, current)
+	}
+
+	return fields
+}
