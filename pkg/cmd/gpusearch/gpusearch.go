@@ -225,14 +225,23 @@ func getGPUCapability(gpuName string) float64 {
 	// Order matters: more specific patterns must come before less specific ones
 	// (e.g., "A100" before "A10", "L40S" before "L40")
 	capabilities := []gpuCapabilityEntry{
+		// NVIDIA Professional (before other RTX patterns)
+		{"RTXPRO6000", 12.0},
+
+		// NVIDIA Blackwell
+		{"B200", 10.0},
+		{"RTX5090", 10.0},
+
 		// NVIDIA Hopper
 		{"H100", 9.0},
 		{"H200", 9.0},
 
-		// NVIDIA Ada Lovelace (L40S before L40, L4)
+		// NVIDIA Ada Lovelace (L40S before L40, L4; RTX*Ada before RTX*)
 		{"L40S", 8.9},
 		{"L40", 8.9},
 		{"L4", 8.9},
+		{"RTX6000ADA", 8.9},
+		{"RTX4000ADA", 8.9},
 		{"RTX4090", 8.9},
 		{"RTX4080", 8.9},
 
@@ -241,6 +250,9 @@ func getGPUCapability(gpuName string) float64 {
 		{"A10G", 8.6},
 		{"A10", 8.6},
 		{"A40", 8.6},
+		{"A6000", 8.6},
+		{"A5000", 8.6},
+		{"A4000", 8.6},
 		{"A30", 8.0},
 		{"A16", 8.6},
 		{"RTX3090", 8.6},
@@ -248,6 +260,7 @@ func getGPUCapability(gpuName string) float64 {
 
 		// NVIDIA Turing
 		{"T4", 7.5},
+		{"RTX6000", 7.5},
 		{"RTX2080", 7.5},
 
 		// NVIDIA Volta
@@ -257,6 +270,9 @@ func getGPUCapability(gpuName string) float64 {
 		{"P100", 6.0},
 		{"P40", 6.1},
 		{"P4", 6.1},
+
+		// NVIDIA Maxwell
+		{"M60", 5.2},
 
 		// NVIDIA Kepler
 		{"K80", 3.7},
