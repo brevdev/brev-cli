@@ -77,7 +77,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "gpu-create",
-		Aliases:               []string{"gpu-retry", "gcreate"},
+		Aliases:               []string{"gpu-retry", "gcreate", "provision"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Create GPU instances with automatic retry",
 		Long:                  long,
