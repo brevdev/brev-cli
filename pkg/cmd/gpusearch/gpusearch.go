@@ -344,6 +344,11 @@ func filterInstances(instances []GPUInstanceInfo, gpuName string, minVRAM, minTo
 	var filtered []GPUInstanceInfo
 
 	for _, inst := range instances {
+		// Filter out non-NVIDIA GPUs (AMD, Intel/Habana, etc.)
+		if !strings.Contains(strings.ToUpper(inst.Manufacturer), "NVIDIA") {
+			continue
+		}
+
 		// Filter by GPU name (case-insensitive partial match)
 		if gpuName != "" && !strings.Contains(strings.ToLower(inst.GPUName), strings.ToLower(gpuName)) {
 			continue
