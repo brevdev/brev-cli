@@ -583,3 +583,20 @@ type ModifyWorkspaceRequest struct {
 	ExecsV1           *ExecsV1  `json:"execsV1"`
 	InstanceType      string    `json:"instanceType"`
 }
+
+// GPUInstanceType represents a GPU instance type from the API
+type GPUInstanceType struct {
+	InstanceType         string  `json:"instanceType"`
+	GPUName              string  `json:"gpuName"`
+	GPUMemoryGB          float64 `json:"gpuMemoryGB"`
+	GPUCount             int     `json:"gpuCount"`
+	TotalGPUMemoryGB     float64 `json:"totalGpuMemoryGB"`
+	GPUCapability        float64 `json:"gpuCapability"`
+	VCPUs                int     `json:"vcpus"`
+	MemoryGB             float64 `json:"memoryGB"`
+	PricePerHour         float64 `json:"pricePerHour"`
+	Provider             string  `json:"provider"`
+	Region               string  `json:"region"`
+	Available            bool    `json:"available"`
+	InterconnectBandwidth string `json:"interconnectBandwidth,omitempty"`
+}

@@ -691,6 +691,38 @@ var (
 	ollamaModelPath        = fmt.Sprintf(ollamaModelPathPattern, fmt.Sprintf("{%s}", modelNameParamName), fmt.Sprintf("{%s}", tagNameParamName))
 )
 
+// GetInstanceTypes fetches GPU instance types from the API
+func (s NoAuthHTTPStore) GetInstanceTypes() ([]entity.GPUInstanceType, error) {
+	var result []entity.GPUInstanceType
+	res, err := s.noAuthHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get("v1/instance/types")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return result, nil
+}
+
+// GetInstanceTypes fetches GPU instance types from the API (authenticated version)
+func (s AuthHTTPStore) GetInstanceTypes() ([]entity.GPUInstanceType, error) {
+	var result []entity.GPUInstanceType
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get("v1/instance/types")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return result, nil
+}
+
 func ValidateOllamaModel(model string, tag string) (bool, error) {
 	// Special case for deepseek models
 	if strings.HasPrefix(model, "deepseek-r1") {
