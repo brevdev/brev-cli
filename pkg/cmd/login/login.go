@@ -310,7 +310,7 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 		}
 	}
 
-	t.Vprintf("%s", t.Green("current organization: ") + t.Yellow(fmt.Sprintf("%s\n", org.Name)))
+	t.Vprintf("%s", t.Green("current organization: ")+t.Yellow(fmt.Sprintf("%s\n", org.Name)))
 	if len(orgs) > 1 {
 		otherOrg := getOtherOrg(org, orgs)
 		t.Vprintf("%s", t.Green("switch organizations:\n"))

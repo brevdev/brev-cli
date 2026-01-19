@@ -214,7 +214,8 @@ func WriteBrevFile(t *terminal.Terminal, deps []string, gitURL string, path stri
 	t.Vprint(t.Yellow(strings.Join(deps, " \n")))
 	shellString := GenerateShellScript(path)
 	fmt.Println(GenerateLogs(shellString))
-	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm)
+	// Suppress error by Lint to lower the permission level (os.ModePerm)
+	mderr := os.MkdirAll(filepath.Join(path, ".brev"), os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 	if mderr == nil {
 		// generate a string that is the collections.Concatenation of dependency-ordering the contents of all the dependencies
 		// found by cat'ing the directory generated from the deps string, using the translated ruby code with go generics
