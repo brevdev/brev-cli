@@ -30,7 +30,9 @@ linters-settings:
   gocyclo:
     min-complexity: 16
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
+
   misspell:
     locale: US
   nolintlint:
@@ -68,7 +70,8 @@ linters:
     - bodyclose
     # - depguard
     - dupl
-    - exportloopref
+    # exportloopref is deprecated. Copyvarloop is used instead.
+    - copyloopvar
     - forcetypeassert
     - funlen
     # - gci

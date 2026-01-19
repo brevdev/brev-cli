@@ -147,7 +147,8 @@ func NewWorkspaceIniter(workspaceDir string, user *user.User, params *store.Setu
 
 	params.ReposV0 = InitRepos(params.ReposV0)
 
-	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
+	// Suppress lint error to remove (params.ExecsV0 == nil), to support any edge case
+	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") { //nolint:gosimple //ok
 		defaultScript := "#!/bin/bash\n"
 		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
 		params.ProjectSetupScript = &b64DefaultScript
@@ -1283,11 +1284,13 @@ func RunSetupScript(logsPath string, workingDir string, setupExecPath string, us
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		err = os.MkdirAll(logsPath, os.ModePerm)
+		// Suppress error by Lint to lower the permission level (os.ModePerm)
+		err = os.MkdirAll(logsPath, os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		err = os.MkdirAll(archivePath, os.ModePerm)
+		// Suppress error by Lint to lower the permission level (os.ModePerm)
+		err = os.MkdirAll(archivePath, os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

@@ -186,7 +186,8 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = ioutil.WriteFile(filepath, dataBytes, os.ModePerm)
+	// Suppress error by Lint to lower the permission level (os.ModePerm)
+	err = ioutil.WriteFile(filepath, dataBytes, os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

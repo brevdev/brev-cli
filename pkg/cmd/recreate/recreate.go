@@ -129,7 +129,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 	}
 
 	t.Vprint(t.Green("\nYour instance is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
+	t.Vprintf("%s", t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 	return nil
 }
 
@@ -178,7 +178,7 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 	}
 
 	t.Vprint(t.Green("\nYour instance is ready!"))
-	t.Vprintf(t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
+	t.Vprintf("%s", t.Green("\nSSH into your machine:\n\tssh %s\n", w.GetLocalIdentifier()))
 
 	return nil
 }

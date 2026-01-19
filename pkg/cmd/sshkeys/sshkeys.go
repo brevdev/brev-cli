@@ -44,11 +44,11 @@ func NewCmdSSHKeys(t *terminal.Terminal, sshKeyStore SSHKeyStore) *cobra.Command
 }
 
 func DisplaySSHKeys(t *terminal.Terminal, publicKey string) {
-	t.Vprintf(publicKey)
+	t.Vprintf("%s", publicKey)
 	t.Print("\n")
-	t.Eprintf(t.Yellow("Copy 👆 and add it to your git provider:\n"))
-	t.Eprintf(t.Yellow("\tGithub: https://github.com/settings/keys\n"))
-	t.Eprintf(t.Yellow("\tGitlab: https://gitlab.com/-/profile/keys\n"))
-	t.Eprintf(t.Yellow("Check authentication by starting a new instance\n"))
-	t.Eprintf(t.Yellow("\tbrev start --empty --name test-ssh && brev delete test-ssh\n"))
+	t.Eprintf("%s", t.Yellow("Copy 👆 and add it to your git provider:\n"))
+	t.Eprintf("%s", t.Yellow("\tGithub: https://github.com/settings/keys\n"))
+	t.Eprintf("%s", t.Yellow("\tGitlab: https://gitlab.com/-/profile/keys\n"))
+	t.Eprintf("%s", t.Yellow("Check authentication by starting a new instance\n"))
+	t.Eprintf("%s", t.Yellow("\tbrev start --empty --name test-ssh && brev delete test-ssh\n"))
 }

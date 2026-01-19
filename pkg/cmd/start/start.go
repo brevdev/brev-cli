@@ -250,7 +250,7 @@ func maybeStartEmpty(t *terminal.Terminal, user *entity.User, options StartOptio
 func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
 	pathExists := allutil.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
-		return fmt.Errorf(strings.Join([]string{"Path:", options.RepoOrPathOrNameOrID, "does not exist."}, " "))
+		return fmt.Errorf("%s", strings.Join([]string{"Path:", options.RepoOrPathOrNameOrID, "does not exist."}, " "))
 	}
 	var gitpath string
 	if options.RepoOrPathOrNameOrID == "." {
@@ -260,7 +260,7 @@ func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options Sta
 	}
 	file, error := startStore.GetFileAsString(gitpath)
 	if error != nil {
-		return fmt.Errorf(strings.Join([]string{"Could not read .git/config at", options.RepoOrPathOrNameOrID}, " "))
+		return fmt.Errorf("%s", strings.Join([]string{"Could not read .git/config at", options.RepoOrPathOrNameOrID}, " "))
 	}
 	// Get GitUrl
 	var gitURL string
@@ -333,7 +333,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 		setupScriptContents += "\n" + contents
 
 		if err1 != nil {
-			t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", options.SetupScript) + t.Yellow("Continuing with default setup script 👍"))
+			t.Vprint(t.Red("Couldn't fetch setup script from %s\n", options.SetupScript) + t.Yellow("Continuing with default setup script 👍"))
 			return breverrors.WrapAndTrace(err1)
 		}
 	}
@@ -424,7 +424,7 @@ func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, 
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf(t.Yellow("Instance %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
+	t.Vprintf("%s", t.Yellow("Instance %s is starting. \nNote: this can take about a minute. Run 'brev ls' to check status\n\n", startedWorkspace.Name))
 
 	// Don't poll and block the shell if detached flag is set
 	if startOptions.Detached {
@@ -507,7 +507,7 @@ func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScr
 		if IsURL(setupScriptURLOrPath) {
 			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptURLOrPath)
 			if err1 != nil {
-				t.Vprintf(t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath) + t.Yellow("Continuing with default setup script 👍"))
+				t.Vprint(t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath) + t.Yellow("Continuing with default setup script 👍"))
 				return breverrors.WrapAndTrace(err1)
 			}
 			setupScriptContents += "\n" + contents
@@ -660,9 +660,9 @@ func createWorkspace(user *entity.User, t *terminal.Terminal, workspace NewWorks
 }
 
 func displayConnectBreadCrumb(t *terminal.Terminal, workspace *entity.Workspace) {
-	t.Vprintf(t.Green("Connect to the instance:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open instance in VS Code\n", workspace.Name)))
-	t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into instance (shortcut)\n", workspace.Name)))
+	t.Vprintf("%s", t.Green("Connect to the instance:\n"))
+	t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev open %s\t# brev open <NAME> -> open instance in VS Code\n", workspace.Name)))
+	t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev shell %s\t# brev shell <NAME> -> ssh into instance (shortcut)\n", workspace.Name)))
 	// t.Vprintf(t.Yellow(fmt.Sprintf("\tssh %s\t# ssh <SSH-NAME> -> ssh directly to instance\n", workspace.GetLocalIdentifier())))
 }
 

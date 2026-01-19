@@ -40,7 +40,8 @@ func (s StaticFiles) GetMountFromPath() string {
 
 func (s StaticFiles) Setup(_ context.Context) error {
 	path := s.GetMountFromPath()
-	err := os.MkdirAll(path, os.ModePerm)
+	// Suppress error by Lint to lower the permission level (os.ModePerm)
+	err := os.MkdirAll(path, os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

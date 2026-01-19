@@ -275,7 +275,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, tstore OpenStore, wsIDOrName 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf(t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
+	t.Vprintf("%s", t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
 	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
