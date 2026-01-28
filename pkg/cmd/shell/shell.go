@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
-	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
@@ -35,11 +34,17 @@ var (
   brev shell my-instance -c "nvidia-smi"
   brev shell my-instance -c "python train.py"
 
+  # Run a command on multiple instances
+  brev shell instance1 instance2 instance3 -c "nvidia-smi"
+
   # Run a script file on the instance
   brev shell my-instance -c @setup.sh
 
-  # Chain: create and run a command (reads instance name from stdin)
+  # Chain: create and run a command (reads instance names from stdin)
   brev create my-instance | brev shell -c "nvidia-smi"
+
+  # Run command on a cluster (multiple instances from stdin)
+  brev create my-cluster --count 3 | brev shell -c "nvidia-smi"
 
   # Create a GPU instance and SSH into it (use command substitution for interactive shell)
   brev shell $(brev create my-instance)
@@ -66,17 +71,17 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	var command string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
-		Use:                   "shell",
+		Use:                   "shell [instance...]",
 		Aliases:               []string{"ssh"},
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] Open a shell in your instance",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cmderrors.TransformToValidationError(cobra.RangeArgs(0, 1)),
+		Args:                  cobra.ArbitraryArgs,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get instance name from args or stdin
-			instanceName, err := getInstanceName(args)
+			// Get instance names from args or stdin
+			instanceNames, err := getInstanceNames(args)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -87,9 +92,29 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 				return breverrors.WrapAndTrace(err)
 			}
 
-			err = runShellCommand(t, store, instanceName, host, cmdToRun)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			// Interactive shell only supports one instance
+			if cmdToRun == "" && len(instanceNames) > 1 {
+				return breverrors.NewValidationError("interactive shell only supports one instance; use -c to run a command on multiple instances")
+			}
+
+			// Run on each instance
+			var lastErr error
+			for _, instanceName := range instanceNames {
+				if len(instanceNames) > 1 {
+					fmt.Fprintf(os.Stderr, "\n=== %s ===\n", instanceName)
+				}
+				err = runShellCommand(t, store, instanceName, host, cmdToRun)
+				if err != nil {
+					if len(instanceNames) > 1 {
+						fmt.Fprintf(os.Stderr, "Error on %s: %v\n", instanceName, err)
+						lastErr = err
+						continue
+					}
+					return breverrors.WrapAndTrace(err)
+				}
+			}
+			if lastErr != nil {
+				return breverrors.NewValidationError("one or more instances failed")
 			}
 			return nil
 		},
@@ -100,26 +125,31 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	return cmd
 }
 
-// getInstanceName gets the instance name from args or stdin
-func getInstanceName(args []string) (string, error) {
-	if len(args) > 0 {
-		return args[0], nil
-	}
+// getInstanceNames gets instance names from args or stdin (supports multiple)
+func getInstanceNames(args []string) ([]string, error) {
+	var names []string
+
+	// Add names from args
+	names = append(names, args...)
 
 	// Check if stdin is piped
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		// Stdin is piped, read instance name
+		// Stdin is piped, read instance names (one per line)
 		scanner := bufio.NewScanner(os.Stdin)
-		if scanner.Scan() {
+		for scanner.Scan() {
 			name := strings.TrimSpace(scanner.Text())
 			if name != "" {
-				return name, nil
+				names = append(names, name)
 			}
 		}
 	}
 
-	return "", breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+	if len(names) == 0 {
+		return nil, breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+	}
+
+	return names, nil
 }
 
 // parseCommand parses the command string, loading from file if prefixed with @

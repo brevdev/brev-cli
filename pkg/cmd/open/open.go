@@ -43,11 +43,21 @@ var (
   brev open instance_id_or_name
   brev open my-instance
 
+  # Open multiple instances (each in separate editor window)
+  brev open instance1 instance2 instance3
+
   # Open with a specific editor
   brev open my-instance code
   brev open my-instance cursor
   brev open my-instance windsurf
   brev open my-instance tmux
+
+  # Open multiple instances with specific editor (flag is explicit)
+  brev open instance1 instance2 --editor cursor
+  brev open instance1 instance2 -e cursor
+
+  # Or use positional arg (last arg is editor if it matches code/cursor/windsurf/tmux)
+  brev open instance1 instance2 cursor
 
   # Set a default editor
   brev open --set-default cursor
@@ -55,6 +65,9 @@ var (
 
   # Create a GPU instance and open it immediately (reads instance name from stdin)
   brev create my-instance | brev open
+
+  # Open a cluster (multiple instances from stdin)
+  brev create my-cluster --count 3 | brev open
 
   # Create with specific GPU and open in Cursor
   brev search --gpu-name A100 | brev create ml-box | brev open cursor
@@ -81,10 +94,11 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	var directory string
 	var host bool
 	var setDefault string
+	var editor string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
-		Use:                   "open",
+		Use:                   "open [instance...] [editor]",
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] Open VSCode, Cursor, Windsurf, or tmux to your instance",
 		Long:                  openLong,
@@ -94,8 +108,8 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if setDefaultFlag != "" {
 				return cobra.NoArgs(cmd, args)
 			}
-			// Allow 0-2 args: instance name can come from stdin
-			return cobra.RangeArgs(0, 2)(cmd, args)
+			// Allow arbitrary args: instance names can come from stdin, last arg might be editor
+			return nil
 		}),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -103,10 +117,20 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				return handleSetDefault(t, setDefault)
 			}
 
-			// Get instance name from args or stdin
-			instanceName, remainingArgs, err := getInstanceNameOpen(args)
+			// Validate editor flag if provided
+			if editor != "" && !isEditorType(editor) {
+				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editor))
+			}
+
+			// Get instance names and editor type from args or stdin
+			instanceNames, editorType, err := getInstanceNamesAndEditor(args, editor)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
+			}
+
+			// tmux only supports one instance (interactive)
+			if editorType == EditorTmux && len(instanceNames) > 1 {
+				return breverrors.NewValidationError("tmux only supports one instance since it requires interactive stdin")
 			}
 
 			setupDoneString := "------ Git repo cloned ------"
@@ -114,14 +138,24 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				setupDoneString = "------ Done running execs ------"
 			}
 
-			editorType, err := determineEditorType(remainingArgs)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			// Open each instance
+			var lastErr error
+			for _, instanceName := range instanceNames {
+				if len(instanceNames) > 1 {
+					fmt.Fprintf(os.Stderr, "Opening %s...\n", instanceName)
+				}
+				err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType)
+				if err != nil {
+					if len(instanceNames) > 1 {
+						fmt.Fprintf(os.Stderr, "Error opening %s: %v\n", instanceName, err)
+						lastErr = err
+						continue
+					}
+					return breverrors.WrapAndTrace(err)
+				}
 			}
-
-			err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			if lastErr != nil {
+				return breverrors.NewValidationError("one or more instances failed to open")
 			}
 			return nil
 		},
@@ -130,34 +164,64 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
 	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, or tmux)")
+	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, or tmux)")
 
 	return cmd
 }
 
-// getInstanceNameOpen gets the instance name from args or stdin, returning remaining args for editor type
-func getInstanceNameOpen(args []string) (string, []string, error) {
+// isEditorType checks if a string is a valid editor type
+func isEditorType(s string) bool {
+	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTmux
+}
+
+// getInstanceNamesAndEditor gets instance names from args/stdin and determines editor type
+// editorFlag takes precedence, otherwise last arg may be an editor type (code, cursor, windsurf, tmux)
+func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, string, error) {
+	var names []string
+	editorType := editorFlag
+
+	// If no editor flag, check if last arg is an editor type
+	if editorType == "" && len(args) > 0 && isEditorType(args[len(args)-1]) {
+		editorType = args[len(args)-1]
+		args = args[:len(args)-1]
+	}
+
+	// Add names from remaining args
+	names = append(names, args...)
+
 	// Check if stdin is piped
 	stat, _ := os.Stdin.Stat()
-	stdinPiped := (stat.Mode() & os.ModeCharDevice) == 0
-
-	if stdinPiped {
-		// Read instance name from stdin
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		// Stdin is piped, read instance names (one per line)
 		scanner := bufio.NewScanner(os.Stdin)
-		if scanner.Scan() {
+		for scanner.Scan() {
 			name := strings.TrimSpace(scanner.Text())
 			if name != "" {
-				// All args are for editor type
-				return name, args, nil
+				names = append(names, name)
 			}
 		}
 	}
 
-	// Instance name from args
-	if len(args) > 0 {
-		return args[0], args[1:], nil
+	if len(names) == 0 {
+		return nil, "", breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
 	}
 
-	return "", nil, breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+	// If no editor specified, get default
+	if editorType == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			editorType = EditorVSCode
+		} else {
+			settings, err := files.ReadPersonalSettings(files.AppFs, homeDir)
+			if err != nil {
+				editorType = EditorVSCode
+			} else {
+				editorType = settings.DefaultEditor
+			}
+		}
+	}
+
+	return names, editorType, nil
 }
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
@@ -181,29 +245,6 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 
 	t.Vprint(t.Green("Default editor set to " + editorType + "\n"))
 	return nil
-}
-
-func determineEditorType(args []string) (string, error) {
-	// args now contains only the editor type (if provided), not the instance name
-	if len(args) >= 1 {
-		editorType := args[0]
-		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
-			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
-		}
-		return editorType, nil
-	}
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return EditorVSCode, nil
-	}
-
-	settings, err := files.ReadPersonalSettings(files.AppFs, homeDir)
-	if err != nil {
-		return EditorVSCode, nil
-	}
-
-	return settings.DefaultEditor, nil
 }
 
 // Fetch workspace info, then open code editor
