@@ -1,8 +1,10 @@
 package gpucreate
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/stretchr/testify/assert"
@@ -89,6 +91,10 @@ func (m *MockGPUCreateStore) DeleteWorkspace(workspaceID string) (*entity.Worksp
 
 func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
 	return []entity.Workspace{}, nil
+}
+
+func (m *MockGPUCreateStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
+	return nil, nil
 }
 
 func TestIsValidInstanceType(t *testing.T) {
@@ -280,17 +286,17 @@ func TestParseInstanceTypesFromTableOutput(t *testing.T) {
 		lineNum++
 
 		// Skip header line
-		if lineNum == 1 && (contains(line, "TYPE") || contains(line, "GPU")) {
+		if lineNum == 1 && (strings.Contains(line, "TYPE") || strings.Contains(line, "GPU")) {
 			continue
 		}
 
 		// Skip empty lines and summary
-		if line == "" || startsWith(line, "Found ") {
+		if line == "" || strings.HasPrefix(line, "Found ") {
 			continue
 		}
 
 		// Extract first column
-		fields := splitFields(line)
+		fields := strings.Fields(line)
 		if len(fields) > 0 && isValidInstanceType(fields[0]) {
 			types = append(types, fields[0])
 		}
@@ -302,45 +308,3 @@ func TestParseInstanceTypesFromTableOutput(t *testing.T) {
 	assert.Contains(t, types, "p4d.24xlarge")
 }
 
-// Helper functions for testing
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && findSubstring(s, substr) >= 0
-}
-
-func findSubstring(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
-
-func startsWith(s, prefix string) bool {
-	return len(s) >= len(prefix) && s[:len(prefix)] == prefix
-}
-
-func splitFields(s string) []string {
-	var fields []string
-	var current string
-	inField := false
-
-	for _, c := range s {
-		if c == ' ' || c == '\t' {
-			if inField {
-				fields = append(fields, current)
-				current = ""
-				inField = false
-			}
-		} else {
-			current += string(c)
-			inField = true
-		}
-	}
-
-	if inField {
-		fields = append(fields, current)
-	}
-
-	return fields
-}

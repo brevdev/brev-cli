@@ -168,19 +168,19 @@ func TestFilterInstancesByGPUName(t *testing.T) {
 	instances := processInstances(response.Items)
 
 	// Filter by A10G
-	filtered := filterInstances(instances, "A10G", "", 0, 0, 0, 0)
+	filtered := filterInstances(instances, "A10G", "", 0, 0, 0, 0, 0)
 	assert.Len(t, filtered, 2, "Should have 2 A10G instances")
 
 	// Filter by V100
-	filtered = filterInstances(instances, "V100", "", 0, 0, 0, 0)
+	filtered = filterInstances(instances, "V100", "", 0, 0, 0, 0, 0)
 	assert.Len(t, filtered, 2, "Should have 2 V100 instances")
 
 	// Filter by lowercase (case-insensitive)
-	filtered = filterInstances(instances, "v100", "", 0, 0, 0, 0)
+	filtered = filterInstances(instances, "v100", "", 0, 0, 0, 0, 0)
 	assert.Len(t, filtered, 2, "Should have 2 V100 instances (case-insensitive)")
 
 	// Filter by partial match
-	filtered = filterInstances(instances, "A1", "", 0, 0, 0, 0)
+	filtered = filterInstances(instances, "A1", "", 0, 0, 0, 0, 0)
 	assert.Len(t, filtered, 3, "Should have 3 instances matching 'A1' (A10G and A100)")
 }
 
@@ -189,11 +189,11 @@ func TestFilterInstancesByMinVRAM(t *testing.T) {
 	instances := processInstances(response.Items)
 
 	// Filter by min VRAM 24GB
-	filtered := filterInstances(instances, "", "", 24, 0, 0, 0)
+	filtered := filterInstances(instances, "", "", 24, 0, 0, 0, 0)
 	assert.Len(t, filtered, 4, "Should have 4 instances with >= 24GB VRAM")
 
 	// Filter by min VRAM 40GB
-	filtered = filterInstances(instances, "", "", 40, 0, 0, 0)
+	filtered = filterInstances(instances, "", "", 40, 0, 0, 0, 0)
 	assert.Len(t, filtered, 1, "Should have 1 instance with >= 40GB VRAM")
 	assert.Equal(t, "A100", filtered[0].GPUName)
 }
@@ -203,11 +203,11 @@ func TestFilterInstancesByMinTotalVRAM(t *testing.T) {
 	instances := processInstances(response.Items)
 
 	// Filter by min total VRAM 60GB
-	filtered := filterInstances(instances, "", "", 0, 60, 0, 0)
+	filtered := filterInstances(instances, "", "", 0, 60, 0, 0, 0)
 	assert.Len(t, filtered, 2, "Should have 2 instances with >= 60GB total VRAM")
 
 	// Filter by min total VRAM 300GB
-	filtered = filterInstances(instances, "", "", 0, 300, 0, 0)
+	filtered = filterInstances(instances, "", "", 0, 300, 0, 0, 0)
 	assert.Len(t, filtered, 1, "Should have 1 instance with >= 300GB total VRAM")
 	assert.Equal(t, "p4d.24xlarge", filtered[0].Type)
 }
@@ -217,11 +217,11 @@ func TestFilterInstancesByMinCapability(t *testing.T) {
 	instances := processInstances(response.Items)
 
 	// Filter by capability >= 8.0
-	filtered := filterInstances(instances, "", "", 0, 0, 8.0, 0)
+	filtered := filterInstances(instances, "", "", 0, 0, 8.0, 0, 0)
 	assert.Len(t, filtered, 4, "Should have 4 instances with capability >= 8.0")
 
 	// Filter by capability >= 8.5
-	filtered = filterInstances(instances, "", "", 0, 0, 8.5, 0)
+	filtered = filterInstances(instances, "", "", 0, 0, 8.5, 0, 0)
 	assert.Len(t, filtered, 3, "Should have 3 instances with capability >= 8.5")
 }
 
@@ -230,11 +230,11 @@ func TestFilterInstancesCombined(t *testing.T) {
 	instances := processInstances(response.Items)
 
 	// Filter by GPU name and min VRAM
-	filtered := filterInstances(instances, "A10G", "", 24, 0, 0, 0)
+	filtered := filterInstances(instances, "A10G", "", 24, 0, 0, 0, 0)
 	assert.Len(t, filtered, 2, "Should have 2 A10G instances with >= 24GB VRAM")
 
 	// Filter by GPU name, min VRAM, and capability
-	filtered = filterInstances(instances, "", "", 24, 0, 8.5, 0)
+	filtered = filterInstances(instances, "", "", 24, 0, 8.5, 0, 0)
 	assert.Len(t, filtered, 3, "Should have 3 instances with >= 24GB VRAM and capability >= 8.5")
 }
 
@@ -336,7 +336,7 @@ func TestEmptyInstanceTypes(t *testing.T) {
 
 	assert.Len(t, instances, 0, "Should have 0 instances")
 
-	filtered := filterInstances(instances, "A100", "", 0, 0, 0, 0)
+	filtered := filterInstances(instances, "A100", "", 0, 0, 0, 0, 0)
 	assert.Len(t, filtered, 0, "Filtered should also be empty")
 }
 

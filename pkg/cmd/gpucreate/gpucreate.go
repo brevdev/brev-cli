@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
@@ -32,7 +33,14 @@ The command will:
 1. Try to create instances using the provided instance types (in order)
 2. Continue until the desired count is reached
 3. Optionally try multiple instance types in parallel
-4. Clean up any extra instances that were created beyond the requested count`
+4. Clean up any extra instances that were created beyond the requested count
+
+Startup Scripts:
+You can attach a startup script that runs when the instance boots using the
+--startup-script flag. The script can be provided as:
+  - An inline string: --startup-script 'pip install torch'
+  - A file path (prefix with @): --startup-script @setup.sh
+  - An absolute file path: --startup-script @/path/to/setup.sh`
 
 	example = `
   # Create a single instance with a specific GPU type
@@ -46,6 +54,15 @@ The command will:
 
   # Try multiple specific types in order
   brev gpu-create --name my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
+
+  # Attach a startup script from a file
+  brev gpu-create --name my-instance --type g5.xlarge --startup-script @setup.sh
+
+  # Attach an inline startup script
+  brev gpu-create --name my-instance --type g5.xlarge --startup-script 'pip install torch transformers'
+
+  # Combine: find cheapest A100, attach setup script
+  brev gpus --gpu-name A100 --sort price | brev gpu-create --name ml-box --startup-script @ml-setup.sh
 `
 )
 
@@ -75,6 +92,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var parallel int
 	var detached bool
 	var timeout int
+	var startupScript string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -107,6 +125,12 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				parallel = 1
 			}
 
+			// Parse startup script (can be a string or @filepath)
+			scriptContent, err := parseStartupScript(startupScript)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
 			opts := GPUCreateOptions{
 				Name:          name,
 				InstanceTypes: types,
@@ -114,6 +138,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				Parallel:      parallel,
 				Detached:      detached,
 				Timeout:       time.Duration(timeout) * time.Second,
+				StartupScript: scriptContent,
 			}
 
 			err = RunGPUCreate(t, gpuCreateStore, opts)
@@ -130,6 +155,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	cmd.Flags().IntVarP(&parallel, "parallel", "p", 1, "Number of parallel creation attempts")
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "Don't wait for instances to be ready")
 	cmd.Flags().IntVar(&timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
+	cmd.Flags().StringVarP(&startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
 
 	return cmd
 }
@@ -142,6 +168,28 @@ type GPUCreateOptions struct {
 	Parallel      int
 	Detached      bool
 	Timeout       time.Duration
+	StartupScript string
+}
+
+// parseStartupScript parses the startup script from a string or file path
+// If the value starts with @, it's treated as a file path
+func parseStartupScript(value string) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	// Check if it's a file path (prefixed with @)
+	if strings.HasPrefix(value, "@") {
+		filePath := strings.TrimPrefix(value, "@")
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		return string(content), nil
+	}
+
+	// Otherwise, treat it as the script content directly
+	return value, nil
 }
 
 // parseInstanceTypes parses instance types from flag value or stdin
@@ -205,27 +253,24 @@ func parseInstanceTypes(flagValue string) ([]string, error) {
 	return types, nil
 }
 
-// isValidInstanceType checks if a string looks like a valid instance type
+// isValidInstanceType checks if a string looks like a valid instance type.
+// Instance types typically have formats like: g5.xlarge, p4d.24xlarge, n1-highmem-4:nvidia-tesla-t4:1
 func isValidInstanceType(s string) bool {
-	// Instance types typically have formats like:
-	// g5.xlarge, p4d.24xlarge, n1-highmem-4:nvidia-tesla-t4:1
 	if len(s) < 2 {
 		return false
 	}
-
-	// Should contain alphanumeric characters
-	hasLetter := false
-	hasNumber := false
+	var hasLetter, hasDigit bool
 	for _, c := range s {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+		if unicode.IsLetter(c) {
 			hasLetter = true
+		} else if unicode.IsDigit(c) {
+			hasDigit = true
 		}
-		if c >= '0' && c <= '9' {
-			hasNumber = true
+		if hasLetter && hasDigit {
+			return true
 		}
 	}
-
-	return hasLetter && hasNumber
+	return hasLetter && hasDigit
 }
 
 // RunGPUCreate executes the GPU create with retry logic
@@ -318,7 +363,7 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 				t.Vprintf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, instanceType, instanceName)
 
 				// Attempt to create the workspace
-				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, instanceType, user, allInstanceTypes)
+				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, instanceType, user, allInstanceTypes, opts.StartupScript)
 
 				result := CreateResult{
 					Workspace:    workspace,
@@ -415,7 +460,7 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 }
 
 // createWorkspaceWithType creates a workspace with the specified instance type
-func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, user *entity.User, allInstanceTypes *gpusearch.AllInstanceTypesResponse) (*entity.Workspace, error) {
+func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, user *entity.User, allInstanceTypes *gpusearch.AllInstanceTypesResponse, startupScript string) (*entity.Workspace, error) {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, name)
 	cwOptions.WithInstanceType(instanceType)
@@ -427,6 +472,11 @@ func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanc
 		if workspaceGroupID != "" {
 			cwOptions.WorkspaceGroupID = workspaceGroupID
 		}
+	}
+
+	// Set startup script if provided
+	if startupScript != "" {
+		cwOptions.StartupScript = startupScript
 	}
 
 	workspace, err := gpuCreateStore.CreateWorkspace(orgID, cwOptions)
