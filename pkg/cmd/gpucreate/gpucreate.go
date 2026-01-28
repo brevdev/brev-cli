@@ -2,7 +2,6 @@
 package gpucreate
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -39,11 +38,25 @@ automatically searches for GPUs matching these criteria:
   - Boot time under 7 minutes
 Results are sorted by price (cheapest first).
 
-The command will:
-1. Try to create instances using the provided instance types (in order)
-2. Continue until the desired count is reached
-3. Optionally try multiple instance types in parallel
-4. Clean up any extra instances that were created beyond the requested count
+Retry and Fallback Logic:
+When multiple instance types are provided (via --type or piped input), the command
+tries to create ALL instances using the first type before falling back to the next:
+
+  1. Try first type for all instances (using --parallel workers if specified)
+  2. If first type succeeds for all instances, done
+  3. If first type fails for some instances, try second type for remaining instances
+  4. Continue until all instances are created or all types are exhausted
+
+Example with --count 2 and types [A, B]:
+  - Try A for instance-1 → success
+  - Try A for instance-2 → success
+  - Done! (both instances use type A)
+
+If type A fails for instance-2:
+  - Try A for instance-1 → success
+  - Try A for instance-2 → fail
+  - Try B for instance-2 → success
+  - Done! (instance-1 uses A, instance-2 uses B)
 
 Startup Scripts:
 You can attach a startup script that runs when the instance boots using the
@@ -71,13 +84,21 @@ You can attach a startup script that runs when the instance boots using the
   # Create with a specific GPU type
   brev create my-instance --type g5.xlarge
 
-  # Pipe instance types from brev search (tries each type until one succeeds)
+  # Pipe instance types from brev search (tries first type, falls back if needed)
   brev search --min-vram 24 | brev create my-instance
 
-  # Create 3 instances, trying types in parallel
-  brev search --gpu-name A100 | brev create my-cluster --count 3 --parallel 5
+  # Create multiple instances (all use same type, with fallback)
+  brev create my-cluster --count 3 --type g5.xlarge
+  # Creates: my-cluster-1, my-cluster-2, my-cluster-3 (all g5.xlarge)
 
-  # Try multiple specific types in order
+  # Create multiple instances with fallback types
+  brev search --gpu-name A100 | brev create my-cluster --count 2
+  # Tries first A100 type for both instances, falls back to next type if needed
+
+  # Create instances in parallel (faster, but may use more types on partial failures)
+  brev search --gpu-name A100 | brev create my-cluster --count 3 --parallel 3
+
+  # Try multiple specific types in order (fallback chain)
   brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
 
   # Attach a startup script from a file
@@ -472,116 +493,115 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 
 	// Track successful creations
 	var successfulWorkspaces []*entity.Workspace
-	var mu sync.Mutex
-	var wg sync.WaitGroup
+	var fatalError error
 
-	// Create a context for cancellation
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Channel to coordinate attempts
-	specsChan := make(chan InstanceSpec, len(opts.InstanceTypes))
+	// Try each instance type in order, attempting to create ALL instances with that type
+	// before falling back to the next type
 	for _, spec := range opts.InstanceTypes {
-		specsChan <- spec
-	}
-	close(specsChan)
+		// Check if we've created enough instances
+		if len(successfulWorkspaces) >= opts.Count {
+			break
+		}
 
-	// Results channel
-	resultsChan := make(chan CreateResult, len(opts.InstanceTypes))
+		remaining := opts.Count - len(successfulWorkspaces)
+		logf("Trying %s for %d instance(s)...\n", spec.Type, remaining)
 
-	// Track instance index for naming (incremented only on successful creation)
-	instanceIndex := 0
+		// Create instances with this type (in parallel if requested)
+		var mu sync.Mutex
+		var wg sync.WaitGroup
 
-	// Start parallel workers
-	workerCount := opts.Parallel
-	if workerCount > len(opts.InstanceTypes) {
-		workerCount = len(opts.InstanceTypes)
-	}
+		// Determine how many parallel workers to use
+		workerCount := opts.Parallel
+		if workerCount > remaining {
+			workerCount = remaining
+		}
 
-	for i := 0; i < workerCount; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
+		// Track which instance indices need to be created
+		indicesToCreate := make(chan int, remaining)
+		for i := len(successfulWorkspaces); i < opts.Count; i++ {
+			indicesToCreate <- i
+		}
+		close(indicesToCreate)
 
-			for spec := range specsChan {
-				// Check if we've already created enough
-				mu.Lock()
-				if len(successfulWorkspaces) >= opts.Count {
-					mu.Unlock()
-					return
-				}
-				// Get current index for naming (only increment on success)
-				currentIndex := instanceIndex
-				mu.Unlock()
+		// Track results for this type
+		var typeSuccesses []*entity.Workspace
+		var typeHadFailure bool
 
-				// Check context
-				select {
-				case <-ctx.Done():
-					return
-				default:
-				}
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func(workerID int) {
+				defer wg.Done()
 
-				// Determine instance name based on current successful count
-				instanceName := opts.Name
-				if opts.Count > 1 || currentIndex > 0 {
-					instanceName = fmt.Sprintf("%s-%d", opts.Name, currentIndex+1)
-				}
-
-				logf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, spec.Type, instanceName)
-
-				// Attempt to create the workspace
-				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, spec.Type, spec.DiskGB, user, allInstanceTypes, opts.StartupScript)
-
-				result := CreateResult{
-					Workspace:    workspace,
-					InstanceType: spec.Type,
-					Error:        err,
-				}
-
-				if err != nil {
-					errStr := err.Error()
-					if piped {
-						logf("[Worker %d] %s Failed: %s\n", workerID+1, spec.Type, errStr)
-					} else {
-						logf("[Worker %d] %s Failed: %s\n", workerID+1, t.Yellow(spec.Type), errStr)
-					}
-
-					// Check for fatal errors that should stop all workers
-					if strings.Contains(errStr, "duplicate workspace") {
-						logf("\nError: Workspace '%s' already exists. Use a different name or delete the existing workspace.\n", instanceName)
-						cancel() // Stop all workers
-						resultsChan <- result
+				for idx := range indicesToCreate {
+					// Check if we've already created enough
+					mu.Lock()
+					currentSuccessCount := len(successfulWorkspaces) + len(typeSuccesses)
+					if currentSuccessCount >= opts.Count {
+						mu.Unlock()
 						return
 					}
-				} else {
-					if piped {
-						logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, spec.Type, instanceName)
-					} else {
-						logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, t.Green(spec.Type), instanceName)
-					}
-					mu.Lock()
-					successfulWorkspaces = append(successfulWorkspaces, workspace)
-					instanceIndex++ // Only increment on success
-					if len(successfulWorkspaces) >= opts.Count {
-						cancel() // Signal other workers to stop
-					}
 					mu.Unlock()
+
+					// Determine instance name
+					instanceName := opts.Name
+					if opts.Count > 1 {
+						instanceName = fmt.Sprintf("%s-%d", opts.Name, idx+1)
+					}
+
+					logf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, spec.Type, instanceName)
+
+					// Attempt to create the workspace
+					workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, spec.Type, spec.DiskGB, user, allInstanceTypes, opts.StartupScript)
+
+					if err != nil {
+						errStr := err.Error()
+						if piped {
+							logf("[Worker %d] %s Failed: %s\n", workerID+1, spec.Type, errStr)
+						} else {
+							logf("[Worker %d] %s Failed: %s\n", workerID+1, t.Yellow(spec.Type), errStr)
+						}
+
+						mu.Lock()
+						typeHadFailure = true
+						// Check for fatal errors
+						if strings.Contains(errStr, "duplicate workspace") {
+							fatalError = fmt.Errorf("workspace '%s' already exists. Use a different name or delete the existing workspace", instanceName)
+						}
+						mu.Unlock()
+					} else {
+						if piped {
+							logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, spec.Type, instanceName)
+						} else {
+							logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, t.Green(spec.Type), instanceName)
+						}
+						mu.Lock()
+						typeSuccesses = append(typeSuccesses, workspace)
+						mu.Unlock()
+					}
 				}
+			}(i)
+		}
 
-				resultsChan <- result
-			}
-		}(i)
-	}
-
-	// Wait for all workers to finish
-	go func() {
 		wg.Wait()
-		close(resultsChan)
-	}()
 
-	// Collect results
-	for range resultsChan {
-		// Just drain the channel
+		// Add successful creations from this type
+		successfulWorkspaces = append(successfulWorkspaces, typeSuccesses...)
+
+		// Check for fatal error
+		if fatalError != nil {
+			logf("\nError: %s\n", fatalError.Error())
+			break
+		}
+
+		// If this type worked for all remaining instances, we're done
+		if !typeHadFailure && len(successfulWorkspaces) >= opts.Count {
+			break
+		}
+
+		// If we still need more instances and this type had failures, try the next type
+		if len(successfulWorkspaces) < opts.Count && typeHadFailure {
+			logf("\nType %s had failures, trying next type...\n\n", spec.Type)
+		}
 	}
 
 	// Check if we created enough instances
