@@ -36,22 +36,58 @@ type BasePrice struct {
 	Amount   string `json:"amount"`
 }
 
+// Storage represents a storage configuration within an instance type
+type Storage struct {
+	Count       int         `json:"count"`
+	Size        string      `json:"size"`
+	Type        string      `json:"type"`
+	MinSize     string      `json:"min_size"`
+	MaxSize     string      `json:"max_size"`
+	SizeBytes   MemoryBytes `json:"size_bytes"`
+}
+
+// WorkspaceGroup represents a workspace group that can run an instance type
+type WorkspaceGroup struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	PlatformType string `json:"platformType"`
+}
+
 // InstanceType represents an instance type from the API
 type InstanceType struct {
-	Type               string        `json:"type"`
-	SupportedGPUs      []GPU         `json:"supported_gpus"`
-	SupportedStorage   []interface{} `json:"supported_storage"` // Complex objects, not used in filtering
-	Memory             string        `json:"memory"`
-	VCPU               int           `json:"vcpu"`
-	BasePrice          BasePrice     `json:"base_price"`
-	Location           string        `json:"location"`
-	SubLocation        string        `json:"sub_location"`
-	AvailableLocations []string      `json:"available_locations"`
+	Type               string           `json:"type"`
+	SupportedGPUs      []GPU            `json:"supported_gpus"`
+	SupportedStorage   []Storage        `json:"supported_storage"`
+	Memory             string           `json:"memory"`
+	VCPU               int              `json:"vcpu"`
+	BasePrice          BasePrice        `json:"base_price"`
+	Location           string           `json:"location"`
+	SubLocation        string           `json:"sub_location"`
+	AvailableLocations []string         `json:"available_locations"`
+	Provider           string           `json:"provider"`
+	WorkspaceGroups    []WorkspaceGroup `json:"workspace_groups"`
 }
 
 // InstanceTypesResponse represents the API response
 type InstanceTypesResponse struct {
 	Items []InstanceType `json:"items"`
+}
+
+// AllInstanceTypesResponse represents the authenticated API response with workspace groups
+type AllInstanceTypesResponse struct {
+	AllInstanceTypes []InstanceType `json:"allInstanceTypes"`
+}
+
+// GetWorkspaceGroupID returns the workspace group ID for an instance type, or empty string if not found
+func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) string {
+	for _, it := range r.AllInstanceTypes {
+		if it.Type == instanceType {
+			if len(it.WorkspaceGroups) > 0 {
+				return it.WorkspaceGroups[0].ID
+			}
+		}
+	}
+	return ""
 }
 
 // GPUSearchStore defines the interface for fetching instance types
@@ -62,7 +98,7 @@ type GPUSearchStore interface {
 var (
 	long = `Search and filter GPU instance types available on Brev.
 
-Filter instances by GPU name, VRAM, total VRAM, and GPU compute capability.
+Filter instances by GPU name, provider, VRAM, total VRAM, GPU compute capability, and disk size.
 Sort results by various columns to find the best instance for your needs.`
 
 	example = `
@@ -73,6 +109,10 @@ Sort results by various columns to find the best instance for your needs.`
   brev gpu-search --gpu-name A100
   brev gpu-search --gpu-name "L40S"
 
+  # Filter by provider/cloud (case-insensitive, partial match)
+  brev gpu-search --provider aws
+  brev gpu-search --provider gcp
+
   # Filter by minimum VRAM per GPU (in GB)
   brev gpu-search --min-vram 24
 
@@ -82,21 +122,28 @@ Sort results by various columns to find the best instance for your needs.`
   # Filter by minimum GPU compute capability
   brev gpu-search --min-capability 8.0
 
-  # Sort by different columns (price, gpu-count, vram, total-vram, vcpu)
+  # Filter by minimum disk size (in GB)
+  brev gpu-search --min-disk 500
+
+  # Sort by different columns (price, gpu-count, vram, total-vram, vcpu, provider, disk)
   brev gpu-search --sort price
-  brev gpu-search --sort total-vram --desc
+  brev gpu-search --sort provider
+  brev gpu-search --sort disk --desc
 
   # Combine filters
   brev gpu-search --gpu-name A100 --min-vram 40 --sort price
+  brev gpu-search --provider aws --gpu-name A100 --sort price
 `
 )
 
 // NewCmdGPUSearch creates the gpu-search command
 func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command {
 	var gpuName string
+	var provider string
 	var minVRAM float64
 	var minTotalVRAM float64
 	var minCapability float64
+	var minDisk float64
 	var sortBy string
 	var descending bool
 
@@ -109,7 +156,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunGPUSearch(t, store, gpuName, minVRAM, minTotalVRAM, minCapability, sortBy, descending)
+			err := RunGPUSearch(t, store, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, sortBy, descending)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -118,10 +165,12 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 	}
 
 	cmd.Flags().StringVarP(&gpuName, "gpu-name", "g", "", "Filter by GPU name (case-insensitive, partial match)")
+	cmd.Flags().StringVarP(&provider, "provider", "p", "", "Filter by provider/cloud (case-insensitive, partial match)")
 	cmd.Flags().Float64VarP(&minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
 	cmd.Flags().Float64VarP(&minTotalVRAM, "min-total-vram", "t", 0, "Minimum total VRAM (GPU count * VRAM) in GB")
 	cmd.Flags().Float64VarP(&minCapability, "min-capability", "c", 0, "Minimum GPU compute capability (e.g., 8.0 for Ampere)")
-	cmd.Flags().StringVarP(&sortBy, "sort", "s", "price", "Sort by: price, gpu-count, vram, total-vram, vcpu, type")
+	cmd.Flags().Float64Var(&minDisk, "min-disk", 0, "Minimum disk size in GB")
+	cmd.Flags().StringVarP(&sortBy, "sort", "s", "price", "Sort by: price, gpu-count, vram, total-vram, vcpu, type, provider, disk")
 	cmd.Flags().BoolVarP(&descending, "desc", "d", false, "Sort in descending order")
 
 	return cmd
@@ -130,6 +179,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 // GPUInstanceInfo holds processed GPU instance information for display
 type GPUInstanceInfo struct {
 	Type         string
+	Provider     string
 	GPUName      string
 	GPUCount     int
 	VRAMPerGPU   float64 // in GB
@@ -137,12 +187,14 @@ type GPUInstanceInfo struct {
 	Capability   float64
 	VCPUs        int
 	Memory       string
+	DiskMin      float64 // in GB (min disk size, same as DiskMax if fixed)
+	DiskMax      float64 // in GB (max disk size, same as DiskMin if fixed)
 	PricePerHour float64
 	Manufacturer string
 }
 
 // RunGPUSearch executes the GPU search with filters and sorting
-func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName string, minVRAM, minTotalVRAM, minCapability float64, sortBy string, descending bool) error {
+func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, sortBy string, descending bool) error {
 	response, err := store.GetInstanceTypes()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -157,7 +209,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName string, mi
 	instances := processInstances(response.Items)
 
 	// Apply filters
-	filtered := filterInstances(instances, gpuName, minVRAM, minTotalVRAM, minCapability)
+	filtered := filterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk)
 
 	if len(filtered) == 0 {
 		t.Vprint(t.Yellow("No GPU instances match the specified filters"))
@@ -212,6 +264,86 @@ func parseMemoryToGB(memory string) float64 {
 	return totalGB
 }
 
+// parseSizeToGB parses size strings like "16TiB", "10GiB", "2TiB768GiB" to GB
+func parseSizeToGB(size string) float64 {
+	var totalGB float64
+
+	// Match TiB values and convert to GB (1 TiB = 1024 GiB)
+	tibRe := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*TiB`)
+	tibMatches := tibRe.FindAllStringSubmatch(size, -1)
+	for _, match := range tibMatches {
+		if val, err := strconv.ParseFloat(match[1], 64); err == nil {
+			totalGB += val * 1024
+		}
+	}
+
+	// Match GiB values
+	gibRe := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*GiB`)
+	gibMatches := gibRe.FindAllStringSubmatch(size, -1)
+	for _, match := range gibMatches {
+		if val, err := strconv.ParseFloat(match[1], 64); err == nil {
+			totalGB += val
+		}
+	}
+
+	// Match TB values (1 TB = 1000 GB)
+	tbRe := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*TB`)
+	tbMatches := tbRe.FindAllStringSubmatch(size, -1)
+	for _, match := range tbMatches {
+		if val, err := strconv.ParseFloat(match[1], 64); err == nil {
+			totalGB += val * 1000
+		}
+	}
+
+	// Match GB values
+	gbRe := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*GB`)
+	gbMatches := gbRe.FindAllStringSubmatch(size, -1)
+	for _, match := range gbMatches {
+		if val, err := strconv.ParseFloat(match[1], 64); err == nil {
+			totalGB += val
+		}
+	}
+
+	return totalGB
+}
+
+// extractDiskSize extracts min and max disk size from storage configuration
+// Returns (minGB, maxGB). For fixed-size storage, both values are the same.
+func extractDiskSize(storage []Storage) (float64, float64) {
+	if len(storage) == 0 {
+		return 0, 0
+	}
+
+	// Use the first storage entry
+	s := storage[0]
+
+	// Check if it's flexible storage (has min_size and max_size)
+	if s.MinSize != "" && s.MaxSize != "" {
+		minGB := parseSizeToGB(s.MinSize)
+		maxGB := parseSizeToGB(s.MaxSize)
+		return minGB, maxGB
+	}
+
+	// Fixed storage - use size or size_bytes
+	var sizeGB float64
+	if s.Size != "" && s.Size != "0B" {
+		sizeGB = parseSizeToGB(s.Size)
+	}
+
+	// Fallback to size_bytes
+	if sizeGB == 0 && s.SizeBytes.Value > 0 {
+		if s.SizeBytes.Unit == "GiB" || s.SizeBytes.Unit == "GB" {
+			sizeGB = float64(s.SizeBytes.Value)
+		} else if s.SizeBytes.Unit == "MiB" || s.SizeBytes.Unit == "MB" {
+			sizeGB = float64(s.SizeBytes.Value) / 1024
+		} else if s.SizeBytes.Unit == "TiB" || s.SizeBytes.Unit == "TB" {
+			sizeGB = float64(s.SizeBytes.Value) * 1024
+		}
+	}
+
+	return sizeGB, sizeGB
+}
+
 // gpuCapabilityEntry represents a GPU pattern and its compute capability
 type gpuCapabilityEntry struct {
 	pattern    string
@@ -229,6 +361,7 @@ func getGPUCapability(gpuName string) float64 {
 		{"RTXPRO6000", 12.0},
 
 		// NVIDIA Blackwell
+		{"B300", 10.3},
 		{"B200", 10.0},
 		{"RTX5090", 10.0},
 
@@ -301,6 +434,9 @@ func processInstances(items []InstanceType) []GPUInstanceInfo {
 			continue // Skip non-GPU instances
 		}
 
+		// Extract disk size info from first storage entry
+		diskMin, diskMax := extractDiskSize(item.SupportedStorage)
+
 		for _, gpu := range item.SupportedGPUs {
 			vramPerGPU := parseMemoryToGB(gpu.Memory)
 			// Also check memory_bytes as fallback
@@ -323,6 +459,7 @@ func processInstances(items []InstanceType) []GPUInstanceInfo {
 
 			instances = append(instances, GPUInstanceInfo{
 				Type:         item.Type,
+				Provider:     item.Provider,
 				GPUName:      gpu.Name,
 				GPUCount:     gpu.Count,
 				VRAMPerGPU:   vramPerGPU,
@@ -330,6 +467,8 @@ func processInstances(items []InstanceType) []GPUInstanceInfo {
 				Capability:   capability,
 				VCPUs:        item.VCPU,
 				Memory:       item.Memory,
+				DiskMin:      diskMin,
+				DiskMax:      diskMax,
 				PricePerHour: price,
 				Manufacturer: gpu.Manufacturer,
 			})
@@ -340,7 +479,7 @@ func processInstances(items []InstanceType) []GPUInstanceInfo {
 }
 
 // filterInstances applies all filters to the instance list
-func filterInstances(instances []GPUInstanceInfo, gpuName string, minVRAM, minTotalVRAM, minCapability float64) []GPUInstanceInfo {
+func filterInstances(instances []GPUInstanceInfo, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64) []GPUInstanceInfo {
 	var filtered []GPUInstanceInfo
 
 	for _, inst := range instances {
@@ -351,6 +490,11 @@ func filterInstances(instances []GPUInstanceInfo, gpuName string, minVRAM, minTo
 
 		// Filter by GPU name (case-insensitive partial match)
 		if gpuName != "" && !strings.Contains(strings.ToLower(inst.GPUName), strings.ToLower(gpuName)) {
+			continue
+		}
+
+		// Filter by provider (case-insensitive partial match)
+		if provider != "" && !strings.Contains(strings.ToLower(inst.Provider), strings.ToLower(provider)) {
 			continue
 		}
 
@@ -366,6 +510,11 @@ func filterInstances(instances []GPUInstanceInfo, gpuName string, minVRAM, minTo
 
 		// Filter by minimum GPU capability
 		if minCapability > 0 && inst.Capability < minCapability {
+			continue
+		}
+
+		// Filter by minimum disk size (use max available size for comparison)
+		if minDisk > 0 && inst.DiskMax < minDisk {
 			continue
 		}
 
@@ -394,6 +543,10 @@ func sortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) 
 			less = instances[i].Type < instances[j].Type
 		case "capability":
 			less = instances[i].Capability < instances[j].Capability
+		case "provider":
+			less = instances[i].Provider < instances[j].Provider
+		case "disk":
+			less = instances[i].DiskMax < instances[j].DiskMax
 		default:
 			less = instances[i].PricePerHour < instances[j].PricePerHour
 		}
@@ -415,13 +568,34 @@ func getBrevTableOptions() table.Options {
 	return options
 }
 
+// formatDiskSize formats the disk size for display
+func formatDiskSize(minGB, maxGB float64) string {
+	if minGB == 0 && maxGB == 0 {
+		return "-"
+	}
+
+	formatSize := func(gb float64) string {
+		if gb >= 1000 {
+			return fmt.Sprintf("%.0fTB", gb/1000)
+		}
+		return fmt.Sprintf("%.0fGB", gb)
+	}
+
+	if minGB == maxGB {
+		// Fixed size
+		return formatSize(minGB)
+	}
+	// Range
+	return fmt.Sprintf("%s-%s", formatSize(minGB), formatSize(maxGB))
+}
+
 // displayGPUTable renders the GPU instances as a table
 func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -431,15 +605,18 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 		if inst.Capability > 0 {
 			capStr = fmt.Sprintf("%.1f", inst.Capability)
 		}
+		diskStr := formatDiskSize(inst.DiskMin, inst.DiskMax)
 		priceStr := fmt.Sprintf("$%.2f", inst.PricePerHour)
 
 		row := table.Row{
 			inst.Type,
+			inst.Provider,
 			t.Green(inst.GPUName),
 			inst.GPUCount,
 			vramStr,
 			totalVramStr,
 			capStr,
+			diskStr,
 			inst.VCPUs,
 			priceStr,
 		}

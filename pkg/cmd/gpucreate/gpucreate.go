@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -56,6 +57,7 @@ type GPUCreateStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
 }
 
 // CreateResult holds the result of a workspace creation attempt
@@ -241,6 +243,14 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 		return breverrors.NewValidationError("no organization found")
 	}
 
+	// Fetch instance types with workspace groups to determine correct workspace group ID
+	allInstanceTypes, err := gpuCreateStore.GetAllInstanceTypesWithWorkspaceGroups(org.ID)
+	if err != nil {
+		t.Vprintf("Warning: could not fetch instance types with workspace groups: %s\n", err.Error())
+		t.Vprintf("Falling back to default workspace group\n")
+		allInstanceTypes = nil
+	}
+
 	t.Vprintf("Attempting to create %d instance(s) with %d parallel attempts\n", opts.Count, opts.Parallel)
 	t.Vprintf("Instance types to try: %s\n\n", strings.Join(opts.InstanceTypes, ", "))
 
@@ -308,7 +318,7 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 				t.Vprintf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, instanceType, instanceName)
 
 				// Attempt to create the workspace
-				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, instanceType, user)
+				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, instanceType, user, allInstanceTypes)
 
 				result := CreateResult{
 					Workspace:    workspace,
@@ -405,11 +415,19 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 }
 
 // createWorkspaceWithType creates a workspace with the specified instance type
-func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, user *entity.User) (*entity.Workspace, error) {
+func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, user *entity.User, allInstanceTypes *gpusearch.AllInstanceTypesResponse) (*entity.Workspace, error) {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, name)
 	cwOptions.WithInstanceType(instanceType)
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
+
+	// Look up the workspace group ID for this instance type
+	if allInstanceTypes != nil {
+		workspaceGroupID := allInstanceTypes.GetWorkspaceGroupID(instanceType)
+		if workspaceGroupID != "" {
+			cwOptions.WorkspaceGroupID = workspaceGroupID
+		}
+	}
 
 	workspace, err := gpuCreateStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {

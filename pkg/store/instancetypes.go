@@ -2,6 +2,8 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
+	"runtime"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -11,6 +13,8 @@ import (
 const (
 	instanceTypesAPIURL  = "https://api.brev.dev"
 	instanceTypesAPIPath = "v1/instance/types"
+	// Authenticated API for instance types with workspace groups
+	allInstanceTypesPathPattern = "api/instances/alltypesavailable/%s"
 )
 
 // GetInstanceTypes fetches all available instance types from the public API
@@ -42,6 +46,27 @@ func fetchInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
 	err = json.Unmarshal(res.Body(), &result)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &result, nil
+}
+
+// GetAllInstanceTypesWithWorkspaceGroups fetches instance types with workspace groups from the authenticated API
+func (s AuthHTTPStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
+	path := fmt.Sprintf(allInstanceTypesPathPattern, orgID)
+
+	var result gpusearch.AllInstanceTypesResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetQueryParam("utm_source", "cli").
+		SetQueryParam("os", runtime.GOOS).
+		SetResult(&result).
+		Get(path)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
 	}
 
 	return &result, nil
