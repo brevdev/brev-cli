@@ -6,12 +6,60 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/hashicorp/go-multierror"
 )
+
+// isWSL returns true if running in Windows Subsystem for Linux
+func isWSL() bool {
+	if runtime.GOOS != "linux" {
+		return false
+	}
+	// Check for WSL-specific indicators
+	if _, err := os.Stat("/proc/sys/fs/binfmt_misc/WSLInterop"); err == nil {
+		return true
+	}
+	// Also check /proc/version for "microsoft" or "WSL"
+	if data, err := os.ReadFile("/proc/version"); err == nil {
+		lower := strings.ToLower(string(data))
+		if strings.Contains(lower, "microsoft") || strings.Contains(lower, "wsl") {
+			return true
+		}
+	}
+	return false
+}
+
+// wslPathToWindows converts a WSL path like /mnt/c/Users/... to C:\Users\...
+func wslPathToWindows(wslPath string) string {
+	if strings.HasPrefix(wslPath, "/mnt/") && len(wslPath) > 6 {
+		// Extract drive letter: /mnt/c/... -> c
+		drive := strings.ToUpper(string(wslPath[5]))
+		// Get rest of path: /mnt/c/Users/... -> /Users/...
+		rest := wslPath[6:]
+		// Convert to Windows path: C:\Users\...
+		windowsPath := drive + ":" + strings.ReplaceAll(rest, "/", "\\")
+		return windowsPath
+	}
+	return wslPath
+}
+
+// runWindowsExeInWSL runs a Windows executable from WSL using cmd.exe
+func runWindowsExeInWSL(exePath string, args []string) ([]byte, error) {
+	// Convert WSL path to Windows path
+	windowsPath := wslPathToWindows(exePath)
+
+	// Build the command string for cmd.exe
+	// We need to quote the path and args properly for Windows
+	cmdArgs := []string{"/c", windowsPath}
+	cmdArgs = append(cmdArgs, args...)
+
+	cmd := exec.Command("cmd.exe", cmdArgs...) // #nosec G204
+	return cmd.CombinedOutput()
+}
 
 // This package should only be used as a holding pattern to be later moved into more specific packages
 
@@ -205,6 +253,15 @@ func runManyCursorCommand(cursorpaths []string, args []string) ([]byte, error) {
 }
 
 func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
+	// In WSL, Windows .exe files need to be run through cmd.exe
+	if isWSL() && (strings.HasSuffix(vscodepath, ".exe") || strings.HasPrefix(vscodepath, "/mnt/")) {
+		res, err := runWindowsExeInWSL(vscodepath, args)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return res, nil
+	}
+
 	cmd := exec.Command(vscodepath, args...) // #nosec G204
 	res, err := cmd.CombinedOutput()
 	if err != nil {
@@ -214,6 +271,15 @@ func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
 }
 
 func runCursorCommand(cursorpath string, args []string) ([]byte, error) {
+	// In WSL, Windows .exe files need to be run through cmd.exe
+	if isWSL() && (strings.HasSuffix(cursorpath, ".exe") || strings.HasPrefix(cursorpath, "/mnt/")) {
+		res, err := runWindowsExeInWSL(cursorpath, args)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return res, nil
+	}
+
 	cmd := exec.Command(cursorpath, args...) // #nosec G204
 	res, err := cmd.CombinedOutput()
 	if err != nil {
@@ -236,6 +302,15 @@ func runManyWindsurfCommand(windsurfpaths []string, args []string) ([]byte, erro
 }
 
 func runWindsurfCommand(windsurfpath string, args []string) ([]byte, error) {
+	// In WSL, Windows .exe files need to be run through cmd.exe
+	if isWSL() && (strings.HasSuffix(windsurfpath, ".exe") || strings.HasPrefix(windsurfpath, "/mnt/")) {
+		res, err := runWindowsExeInWSL(windsurfpath, args)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return res, nil
+	}
+
 	cmd := exec.Command(windsurfpath, args...) // #nosec G204
 	res, err := cmd.CombinedOutput()
 	if err != nil {

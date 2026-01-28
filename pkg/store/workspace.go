@@ -34,6 +34,17 @@ type ModifyWorkspaceRequest struct {
 	InstanceType      string            `json:"instanceType,omitempty"`
 }
 
+// LifeCycleScriptAttr holds the lifecycle script configuration
+type LifeCycleScriptAttr struct {
+	Script string `json:"script,omitempty"`
+}
+
+// VMBuild holds VM-specific build configuration
+type VMBuild struct {
+	ForceJupyterInstall  bool                 `json:"forceJupyterInstall,omitempty"`
+	LifeCycleScriptAttr  *LifeCycleScriptAttr `json:"lifeCycleScriptAttr,omitempty"`
+}
+
 type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
@@ -57,6 +68,7 @@ type CreateWorkspacesOptions struct {
 	DiskStorage          string               `json:"diskStorage"`
 	BaseImage            string               `json:"baseImage"`
 	VMOnlyMode           bool                 `json:"vmOnlyMode"`
+	VMBuild              *VMBuild             `json:"vmBuild,omitempty"`
 	PortMappings         map[string]string    `json:"portMappings"`
 	Files                interface{}          `json:"files"`
 	Labels               interface{}          `json:"labels"`
@@ -88,6 +100,7 @@ var (
 var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
+	isStoppable := false
 	return &CreateWorkspacesOptions{
 		BaseImage:            "",
 		Description:          "",
@@ -95,12 +108,12 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		ExecsV1:              &entity.ExecsV1{},
 		Files:                nil,
 		InstanceType:         "",
-		IsStoppable:          nil,
+		IsStoppable:          &isStoppable,
 		Labels:               nil,
 		LaunchJupyterOnStart: false,
 		Name:                 name,
-		PortMappings:         nil,
-		ReposV1:              nil,
+		PortMappings:         map[string]string{},
+		ReposV1:              &entity.ReposV1{},
 		VMOnlyMode:           true,
 		WorkspaceGroupID:     "GCP",
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,

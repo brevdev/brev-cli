@@ -14,6 +14,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/fu"
+	"github.com/brevdev/brev-cli/pkg/cmd/gpucreate"
+	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
@@ -157,8 +159,13 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
 			// version info gets in the way of the output for
-			// configure-env-vars, since shells are going to eval it
-			if featureflag.ShowVersionOnRun() && !printVersion && cmd.Name() != "configure-env-vars" {
+			// configure-env-vars (shells eval it) and gpu-create/provision (piped to other commands)
+			skipVersionCommands := map[string]bool{
+				"configure-env-vars": true,
+				"gpu-create":         true,
+				"provision":          true,
+			}
+			if featureflag.ShowVersionOnRun() && !printVersion && !skipVersionCommands[cmd.Name()] {
 				v, err := remoteversion.BuildCheckLatestVersionString(t, noLoginCmdStore)
 				// todo this should not be fatal when it errors
 				if err != nil {
@@ -270,6 +277,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	}
 	cmd.AddCommand(workspacegroups.NewCmdWorkspaceGroups(t, loginCmdStore))
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
+	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
+	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
 	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
 	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))

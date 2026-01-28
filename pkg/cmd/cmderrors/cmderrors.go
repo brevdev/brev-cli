@@ -39,7 +39,7 @@ func DisplayAndHandleError(err error) {
 		case *breverrors.NvidiaMigrationError:
 			// Handle nvidia migration error
 			if nvErr, ok := errors.Cause(err).(*breverrors.NvidiaMigrationError); ok {
-				fmt.Println("\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
+				fmt.Fprintln(os.Stderr, "\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
 				brevBin, err1 := os.Executable()
 				if err1 == nil {
 					cmd := exec.Command(brevBin, "login", "--auth", "nvidia") // #nosec G204
@@ -68,9 +68,9 @@ func DisplayAndHandleError(err error) {
 			}
 		}
 		if featureflag.Debug() || featureflag.IsDev() {
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err)
 		} else {
-			fmt.Println(prettyErr)
+			fmt.Fprintln(os.Stderr, prettyErr)
 		}
 	}
 }
