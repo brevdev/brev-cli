@@ -441,3 +441,110 @@ func TestFilterByMaxBootTimeExcludesUnknown(t *testing.T) {
 	noFilter := FilterInstances(instances, "", "", 0, 0, 0, 0, 0)
 	assert.Len(t, noFilter, 3, "Without filter, all 3 instances should be included")
 }
+
+func TestExtractCloud(t *testing.T) {
+	tests := []struct {
+		name         string
+		instanceType string
+		provider     string
+		expectedCloud string
+	}{
+		// Direct providers - cloud equals provider
+		{"AWS direct", "g5.xlarge", "aws", "aws"},
+		{"GCP direct", "n1-highmem-8:nvidia-tesla-v100:8", "gcp", "gcp"},
+		{"Nebius direct", "gpu-h100-sxm.1gpu-16vcpu-200gb", "nebius", "nebius"},
+		{"OCI direct", "oci.h100x8.sxm", "oci", "oci"},
+		{"Lambda Labs direct", "gpu_1x_h100_sxm5", "lambda-labs", "lambda-labs"},
+		{"Crusoe direct", "l40s-48gb.1x", "crusoe", "crusoe"},
+		{"Launchpad direct", "dmz.h100x2.pcie", "launchpad", "launchpad"},
+
+		// Aggregators - extract cloud from type name prefix
+		{"Shadeform hyperstack", "hyperstack_H100", "shadeform", "hyperstack"},
+		{"Shadeform latitude", "latitude_H100x4", "shadeform", "latitude"},
+		{"Shadeform cudo", "cudo_A40", "shadeform", "cudo"},
+		{"Shadeform horizon", "horizon_H100x8", "shadeform", "horizon"},
+		{"Shadeform paperspace", "paperspace_H100", "shadeform", "paperspace"},
+
+		// Edge cases
+		{"Unknown aggregator no underscore", "someinstance", "unknown-agg", "unknown-agg"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractCloud(tt.instanceType, tt.provider)
+			assert.Equal(t, tt.expectedCloud, result)
+		})
+	}
+}
+
+func TestExtractDiskInfoWithPricing(t *testing.T) {
+	// Test flexible storage with pricing
+	storageWithPrice := []Storage{
+		{
+			MinSize:      "50GiB",
+			MaxSize:      "2560GiB",
+			PricePerGBHr: BasePrice{Currency: "USD", Amount: "0.00014"},
+		},
+	}
+
+	minGB, maxGB, pricePerMo := extractDiskInfo(storageWithPrice)
+	assert.Equal(t, 50.0, minGB)
+	assert.Equal(t, 2560.0, maxGB)
+	assert.InDelta(t, 0.1022, pricePerMo, 0.001, "Price should be ~$0.10/GB/mo (0.00014 * 730)")
+
+	// Test fixed storage (no pricing)
+	fixedStorage := []Storage{
+		{
+			Size: "500GiB",
+		},
+	}
+
+	minGB, maxGB, pricePerMo = extractDiskInfo(fixedStorage)
+	assert.Equal(t, 500.0, minGB)
+	assert.Equal(t, 500.0, maxGB)
+	assert.Equal(t, 0.0, pricePerMo, "Fixed storage should have no separate price")
+
+	// Test empty storage
+	minGB, maxGB, pricePerMo = extractDiskInfo([]Storage{})
+	assert.Equal(t, 0.0, minGB)
+	assert.Equal(t, 0.0, maxGB)
+	assert.Equal(t, 0.0, pricePerMo)
+}
+
+func TestProcessInstancesCloudExtraction(t *testing.T) {
+	response := &InstanceTypesResponse{
+		Items: []InstanceType{
+			{
+				Type:     "hyperstack_H100",
+				Provider: "shadeform",
+				SupportedGPUs: []GPU{
+					{Count: 1, Name: "H100", Manufacturer: "NVIDIA", Memory: "80GiB"},
+				},
+				Memory:    "180GiB",
+				VCPU:      28,
+				BasePrice: BasePrice{Currency: "USD", Amount: "2.28"},
+			},
+			{
+				Type:     "gpu-h100-sxm.1gpu-16vcpu-200gb",
+				Provider: "nebius",
+				SupportedGPUs: []GPU{
+					{Count: 1, Name: "H100", Manufacturer: "NVIDIA", Memory: "80GiB"},
+				},
+				Memory:    "200GiB",
+				VCPU:      16,
+				BasePrice: BasePrice{Currency: "USD", Amount: "3.54"},
+			},
+		},
+	}
+
+	instances := ProcessInstances(response.Items)
+	assert.Len(t, instances, 2)
+
+	// Shadeform instance should have cloud extracted from type name
+	assert.Equal(t, "hyperstack", instances[0].Cloud)
+	assert.Equal(t, "shadeform", instances[0].Provider)
+
+	// Nebius instance should have cloud = provider
+	assert.Equal(t, "nebius", instances[1].Cloud)
+	assert.Equal(t, "nebius", instances[1].Provider)
+}

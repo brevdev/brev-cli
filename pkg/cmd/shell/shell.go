@@ -38,14 +38,14 @@ var (
   # Run a script file on the instance
   brev shell my-instance -c @setup.sh
 
-  # Chain: provision and run a command (reads instance name from stdin)
-  brev provision --name my-instance | brev shell -c "nvidia-smi"
+  # Chain: create and run a command (reads instance name from stdin)
+  brev create my-instance | brev shell -c "nvidia-smi"
 
-  # Create a GPU instance and SSH into it immediately (use command substitution for interactive shell)
-  brev shell $(brev provision --name my-instance)
+  # Create a GPU instance and SSH into it (use command substitution for interactive shell)
+  brev shell $(brev create my-instance)
 
   # Create with specific GPU and connect
-  brev shell $(brev gpus --gpu-name A100 | brev gpu-create --name ml-box)
+  brev shell $(brev search --gpu-name A100 | brev create ml-box)
 
   # SSH into the host machine instead of the container
   brev shell my-instance --host`

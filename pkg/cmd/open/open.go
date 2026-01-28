@@ -54,10 +54,13 @@ var (
   brev open --set-default windsurf
 
   # Create a GPU instance and open it immediately (reads instance name from stdin)
-  brev provision --name my-instance | brev open
+  brev create my-instance | brev open
 
   # Create with specific GPU and open in Cursor
-  brev gpus --gpu-name A100 | brev gpu-create --name ml-box | brev open cursor`
+  brev search --gpu-name A100 | brev create ml-box | brev open cursor
+
+  # Note: tmux requires command substitution (not pipes) since it needs interactive stdin
+  brev open $(brev create my-instance) tmux`
 )
 
 type OpenStore interface {

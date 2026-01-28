@@ -28,7 +28,7 @@ var (
 
 This command attempts to create GPU instances, trying different instance types
 until the desired number of instances are successfully created. Instance types
-can be specified directly, piped from 'brev gpus', or auto-selected using defaults.
+can be specified directly, piped from 'brev search', or auto-selected using defaults.
 
 Default Behavior:
 If no instance types are specified (no --type flag and no piped input), the command
@@ -54,37 +54,40 @@ You can attach a startup script that runs when the instance boots using the
 
 	example = `
   # Quick start: create an instance using smart defaults (sorted by price)
-  brev provision --name my-instance
+  brev create my-instance
 
-  # Create and immediately open in VS Code (reads instance name from stdin)
-  brev provision --name my-instance | brev open
+  # Create with explicit --name flag
+  brev create --name my-instance
 
-  # Create and SSH into the instance (use command substitution for interactive shell)
-  brev shell $(brev provision --name my-instance)
+  # Create and immediately open in VS Code
+  brev create my-instance | brev open
 
-  # Create and run a command (non-interactive, reads instance name from stdin)
-  brev provision --name my-instance | brev shell -c "nvidia-smi"
+  # Create and SSH into the instance
+  brev shell $(brev create my-instance)
 
-  # Create a single instance with a specific GPU type
-  brev gpu-create --name my-instance --type g5.xlarge
+  # Create and run a command
+  brev create my-instance | brev shell -c "nvidia-smi"
 
-  # Pipe instance types from brev gpus (tries each type until one succeeds)
-  brev gpus --min-vram 24 | brev gpu-create --name my-instance
+  # Create with a specific GPU type
+  brev create my-instance --type g5.xlarge
+
+  # Pipe instance types from brev search (tries each type until one succeeds)
+  brev search --min-vram 24 | brev create my-instance
 
   # Create 3 instances, trying types in parallel
-  brev gpus --gpu-name A100 | brev gpu-create --name my-cluster --count 3 --parallel 5
+  brev search --gpu-name A100 | brev create my-cluster --count 3 --parallel 5
 
   # Try multiple specific types in order
-  brev gpu-create --name my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
+  brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
 
   # Attach a startup script from a file
-  brev gpu-create --name my-instance --type g5.xlarge --startup-script @setup.sh
+  brev create my-instance --type g5.xlarge --startup-script @setup.sh
 
   # Attach an inline startup script
-  brev gpu-create --name my-instance --type g5.xlarge --startup-script 'pip install torch transformers'
+  brev create my-instance --startup-script 'pip install torch'
 
   # Combine: find cheapest A100, attach setup script
-  brev gpus --gpu-name A100 --sort price | brev gpu-create --name ml-box --startup-script @ml-setup.sh
+  brev search --gpu-name A100 --sort price | brev create ml-box -s @ml-setup.sh
 `
 )
 
@@ -127,13 +130,18 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "gpu-create",
-		Aliases:               []string{"gpu-retry", "gcreate", "provision"},
+		Use:                   "create [name]",
+		Aliases:               []string{"provision", "gpu-create", "gpu-retry", "gcreate"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Create GPU instances with automatic retry",
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Accept name as positional arg or --name flag
+			if len(args) > 0 && name == "" {
+				name = args[0]
+			}
+
 			// Check if output is being piped (for chaining with brev shell/open)
 			piped := isStdoutPiped()
 
@@ -159,12 +167,12 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				}
 
 				if len(types) == 0 {
-					return breverrors.NewValidationError("no GPU instances match the default filters. Try 'brev gpus' to see available options")
+					return breverrors.NewValidationError("no GPU instances match the default filters. Try 'brev search' to see available options")
 				}
 			}
 
 			if name == "" {
-				return breverrors.NewValidationError("--name flag is required")
+				return breverrors.NewValidationError("name is required (as argument or --name flag)")
 			}
 
 			if count < 1 {
@@ -199,7 +207,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "name", "n", "", "Base name for the instances (required)")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(&instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
 	cmd.Flags().IntVarP(&count, "count", "c", 1, "Number of instances to create")
 	cmd.Flags().IntVarP(&parallel, "parallel", "p", 1, "Number of parallel creation attempts")

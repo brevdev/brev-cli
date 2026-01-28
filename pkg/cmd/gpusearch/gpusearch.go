@@ -45,7 +45,7 @@ type Storage struct {
 	MinSize      string      `json:"min_size"`
 	MaxSize      string      `json:"max_size"`
 	SizeBytes    MemoryBytes `json:"size_bytes"`
-	PricePerGBHr float64     `json:"price_per_gb_hr"`
+	PricePerGBHr BasePrice   `json:"price_per_gb_hr"` // Uses BasePrice since API returns {currency, amount}
 }
 
 // WorkspaceGroup represents a workspace group that can run an instance type
@@ -114,43 +114,43 @@ Features column shows instance capabilities:
 
 	example = `
   # List all GPU instances
-  brev gpu-search
+  brev search
 
   # Filter by GPU name (case-insensitive, partial match)
-  brev gpu-search --gpu-name A100
-  brev gpu-search --gpu-name "L40S"
+  brev search --gpu-name A100
+  brev search --gpu-name "L40S"
 
   # Filter by provider/cloud (case-insensitive, partial match)
-  brev gpu-search --provider aws
-  brev gpu-search --provider gcp
+  brev search --provider aws
+  brev search --provider gcp
 
   # Filter by minimum VRAM per GPU (in GB)
-  brev gpu-search --min-vram 24
+  brev search --min-vram 24
 
   # Filter by minimum total VRAM (in GB)
-  brev gpu-search --min-total-vram 80
+  brev search --min-total-vram 80
 
   # Filter by minimum GPU compute capability
-  brev gpu-search --min-capability 8.0
+  brev search --min-capability 8.0
 
   # Filter by minimum disk size (in GB)
-  brev gpu-search --min-disk 500
+  brev search --min-disk 500
 
   # Filter by maximum boot time (in minutes)
-  brev gpu-search --max-boot-time 5
+  brev search --max-boot-time 5
 
   # Sort by different columns (price, gpu-count, vram, total-vram, vcpu, provider, disk, boot-time)
-  brev gpu-search --sort price
-  brev gpu-search --sort boot-time
-  brev gpu-search --sort disk --desc
+  brev search --sort price
+  brev search --sort boot-time
+  brev search --sort disk --desc
 
   # Combine filters
-  brev gpu-search --gpu-name A100 --min-vram 40 --sort price
-  brev gpu-search --gpu-name H100 --max-boot-time 3 --sort price
+  brev search --gpu-name A100 --min-vram 40 --sort price
+  brev search --gpu-name H100 --max-boot-time 3 --sort price
 `
 )
 
-// NewCmdGPUSearch creates the gpu-search command
+// NewCmdGPUSearch creates the search command
 func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command {
 	var gpuName string
 	var provider string
@@ -165,8 +165,8 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "gpu-search",
-		Aliases:               []string{"gpu", "gpus", "gpu-list"},
+		Use:                   "search",
+		Aliases:               []string{"gpu-search", "gpu", "gpus", "gpu-list"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Search and filter GPU instance types",
 		Long:                  long,
@@ -197,7 +197,8 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 // GPUInstanceInfo holds processed GPU instance information for display
 type GPUInstanceInfo struct {
 	Type         string  `json:"type"`
-	Provider     string  `json:"provider"`
+	Cloud        string  `json:"cloud"`    // Underlying cloud (e.g., hyperstack, aws, gcp)
+	Provider     string  `json:"provider"` // Provider/aggregator (e.g., shadeform, aws, gcp)
 	GPUName      string  `json:"gpu_name"`
 	GPUCount     int     `json:"gpu_count"`
 	VRAMPerGPU   float64 `json:"vram_per_gpu_gb"`
@@ -205,9 +206,10 @@ type GPUInstanceInfo struct {
 	Capability   float64 `json:"capability"`
 	VCPUs        int     `json:"vcpus"`
 	Memory       string  `json:"memory"`
-	DiskMin      float64 `json:"disk_min_gb"`
-	DiskMax      float64 `json:"disk_max_gb"`
-	BootTime     int     `json:"boot_time_seconds"`
+	DiskMin        float64 `json:"disk_min_gb"`
+	DiskMax        float64 `json:"disk_max_gb"`
+	DiskPricePerMo float64 `json:"disk_price_per_gb_mo,omitempty"` // $/GB/month for flexible storage
+	BootTime       int     `json:"boot_time_seconds"`
 	Stoppable    bool    `json:"stoppable"`
 	Rebootable   bool    `json:"rebootable"`
 	FlexPorts    bool    `json:"flex_ports"`
@@ -356,21 +358,30 @@ func parseDurationToSeconds(duration string) int {
 	return totalSeconds
 }
 
-// extractDiskSize extracts min and max disk size from storage configuration
-// Returns (minGB, maxGB). For fixed-size storage, both values are the same.
-func extractDiskSize(storage []Storage) (float64, float64) {
+// extractDiskInfo extracts min/max disk size and price from storage configuration
+// Returns (minGB, maxGB, pricePerGBMonth). For fixed-size storage, min==max and price is 0.
+func extractDiskInfo(storage []Storage) (float64, float64, float64) {
 	if len(storage) == 0 {
-		return 0, 0
+		return 0, 0, 0
 	}
 
 	// Use the first storage entry
 	s := storage[0]
 
+	// Convert price per GB per hour to per month (730 hours average)
+	var pricePerGBMonth float64
+	if s.PricePerGBHr.Amount != "" {
+		pricePerHr, _ := strconv.ParseFloat(s.PricePerGBHr.Amount, 64)
+		if pricePerHr > 0 {
+			pricePerGBMonth = pricePerHr * 730
+		}
+	}
+
 	// Check if it's flexible storage (has min_size and max_size)
 	if s.MinSize != "" && s.MaxSize != "" {
 		minGB := parseSizeToGB(s.MinSize)
 		maxGB := parseSizeToGB(s.MaxSize)
-		return minGB, maxGB
+		return minGB, maxGB, pricePerGBMonth
 	}
 
 	// Fixed storage - use size or size_bytes
@@ -390,7 +401,32 @@ func extractDiskSize(storage []Storage) (float64, float64) {
 		}
 	}
 
-	return sizeGB, sizeGB
+	// Fixed storage doesn't have separate pricing - it's included in base price
+	return sizeGB, sizeGB, 0
+}
+
+// extractCloud extracts the underlying cloud from the instance type and provider
+// For aggregators like shadeform, the cloud is in the type name prefix (e.g., "hyperstack_H100" -> "hyperstack")
+// For direct providers like aws/gcp, the provider IS the cloud
+func extractCloud(instanceType, provider string) string {
+	// Direct cloud providers - provider is the cloud
+	directProviders := map[string]bool{
+		"aws": true, "gcp": true, "azure": true, "oci": true,
+		"nebius": true, "crusoe": true, "lambda-labs": true, "launchpad": true,
+	}
+
+	if directProviders[strings.ToLower(provider)] {
+		return provider
+	}
+
+	// For aggregators, try to extract cloud from type name prefix
+	// Pattern: cloudname_GPUtype (e.g., "hyperstack_H100", "cudo_A40", "latitude_H100")
+	if idx := strings.Index(instanceType, "_"); idx > 0 {
+		return instanceType[:idx]
+	}
+
+	// Fallback to provider
+	return provider
 }
 
 // gpuCapabilityEntry represents a GPU pattern and its compute capability
@@ -483,8 +519,8 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 			continue // Skip non-GPU instances
 		}
 
-		// Extract disk size info from first storage entry
-		diskMin, diskMax := extractDiskSize(item.SupportedStorage)
+		// Extract disk size and price info from first storage entry
+		diskMin, diskMax, diskPricePerMo := extractDiskInfo(item.SupportedStorage)
 
 		// Extract boot time
 		bootTime := parseDurationToSeconds(item.EstimatedDeployTime)
@@ -510,23 +546,25 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 			}
 
 			instances = append(instances, GPUInstanceInfo{
-				Type:         item.Type,
-				Provider:     item.Provider,
-				GPUName:      gpu.Name,
-				GPUCount:     gpu.Count,
-				VRAMPerGPU:   vramPerGPU,
-				TotalVRAM:    totalVRAM,
-				Capability:   capability,
-				VCPUs:        item.VCPU,
-				Memory:       item.Memory,
-				DiskMin:      diskMin,
-				DiskMax:      diskMax,
-				BootTime:     bootTime,
-				Stoppable:    item.Stoppable,
-				Rebootable:   item.Rebootable,
-				FlexPorts:    item.CanModifyFirewallRules,
-				PricePerHour: price,
-				Manufacturer: gpu.Manufacturer,
+				Type:           item.Type,
+				Cloud:          extractCloud(item.Type, item.Provider),
+				Provider:       item.Provider,
+				GPUName:        gpu.Name,
+				GPUCount:       gpu.Count,
+				VRAMPerGPU:     vramPerGPU,
+				TotalVRAM:      totalVRAM,
+				Capability:     capability,
+				VCPUs:          item.VCPU,
+				Memory:         item.Memory,
+				DiskMin:        diskMin,
+				DiskMax:        diskMax,
+				DiskPricePerMo: diskPricePerMo,
+				BootTime:       bootTime,
+				Stoppable:      item.Stoppable,
+				Rebootable:     item.Rebootable,
+				FlexPorts:      item.CanModifyFirewallRules,
+				PricePerHour:   price,
+				Manufacturer:   gpu.Manufacturer,
 			})
 		}
 	}
@@ -699,7 +737,7 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -710,19 +748,30 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 			capStr = fmt.Sprintf("%.1f", inst.Capability)
 		}
 		diskStr := formatDiskSize(inst.DiskMin, inst.DiskMax)
+		diskPriceStr := "-"
+		if inst.DiskPricePerMo > 0 {
+			diskPriceStr = fmt.Sprintf("$%.2f", inst.DiskPricePerMo)
+		}
 		bootStr := formatBootTime(inst.BootTime)
 		featuresStr := formatFeatures(inst.Stoppable, inst.Rebootable, inst.FlexPorts)
 		priceStr := fmt.Sprintf("$%.2f", inst.PricePerHour)
 
+		// Format cloud:provider - only show both if different
+		providerStr := inst.Provider
+		if inst.Cloud != "" && inst.Cloud != inst.Provider {
+			providerStr = fmt.Sprintf("%s:%s", inst.Cloud, inst.Provider)
+		}
+
 		row := table.Row{
 			inst.Type,
-			inst.Provider,
+			providerStr,
 			t.Green(inst.GPUName),
 			inst.GPUCount,
 			vramStr,
 			totalVramStr,
 			capStr,
 			diskStr,
+			diskPriceStr,
 			bootStr,
 			featuresStr,
 			inst.VCPUs,
