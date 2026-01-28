@@ -2,9 +2,10 @@
 package gpucreate
 
 import (
-	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -27,7 +28,16 @@ var (
 
 This command attempts to create GPU instances, trying different instance types
 until the desired number of instances are successfully created. Instance types
-can be specified directly or piped from 'brev gpus'.
+can be specified directly, piped from 'brev gpus', or auto-selected using defaults.
+
+Default Behavior:
+If no instance types are specified (no --type flag and no piped input), the command
+automatically searches for GPUs matching these criteria:
+  - Minimum 20GB total VRAM
+  - Minimum 500GB disk
+  - Compute capability 8.0+ (Ampere or newer)
+  - Boot time under 7 minutes
+Results are sorted by price (cheapest first).
 
 The command will:
 1. Try to create instances using the provided instance types (in order)
@@ -43,6 +53,18 @@ You can attach a startup script that runs when the instance boots using the
   - An absolute file path: --startup-script @/path/to/setup.sh`
 
 	example = `
+  # Quick start: create an instance using smart defaults (sorted by price)
+  brev provision --name my-instance
+
+  # Create and immediately open in VS Code (reads instance name from stdin)
+  brev provision --name my-instance | brev open
+
+  # Create and SSH into the instance (use command substitution for interactive shell)
+  brev shell $(brev provision --name my-instance)
+
+  # Create and run a command (non-interactive, reads instance name from stdin)
+  brev provision --name my-instance | brev shell -c "nvidia-smi"
+
   # Create a single instance with a specific GPU type
   brev gpu-create --name my-instance --type g5.xlarge
 
@@ -69,6 +91,7 @@ You can attach a startup script that runs when the instance boots using the
 // GPUCreateStore defines the interface for GPU create operations
 type GPUCreateStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
+	gpusearch.GPUSearchStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
@@ -76,6 +99,14 @@ type GPUCreateStore interface {
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
 }
+
+// Default filter values for automatic GPU selection
+const (
+	defaultMinTotalVRAM  = 20.0  // GB
+	defaultMinDisk       = 500.0 // GB
+	defaultMinCapability = 8.0
+	defaultMaxBootTime   = 7 // minutes
+)
 
 // CreateResult holds the result of a workspace creation attempt
 type CreateResult struct {
@@ -103,14 +134,33 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		Long:                  long,
 		Example:               example,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Check if output is being piped (for chaining with brev shell/open)
+			piped := isStdoutPiped()
+
 			// Parse instance types from flag or stdin
 			types, err := parseInstanceTypes(instanceTypes)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
+			// If no types provided, use default filters to find suitable GPUs
 			if len(types) == 0 {
-				return breverrors.NewValidationError("no instance types provided. Use --type flag or pipe from 'brev gpus'")
+				msg := fmt.Sprintf("No instance types specified, using defaults: min-total-vram=%.0fGB, min-disk=%.0fGB, min-capability=%.1f, max-boot-time=%dm\n\n",
+					defaultMinTotalVRAM, defaultMinDisk, defaultMinCapability, defaultMaxBootTime)
+				if piped {
+					fmt.Fprint(os.Stderr, msg)
+				} else {
+					t.Vprint(msg)
+				}
+
+				types, err = getDefaultInstanceTypes(gpuCreateStore)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+
+				if len(types) == 0 {
+					return breverrors.NewValidationError("no GPU instances match the default filters. Try 'brev gpus' to see available options")
+				}
 			}
 
 			if name == "" {
@@ -160,10 +210,16 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	return cmd
 }
 
+// InstanceSpec holds an instance type and its target disk size
+type InstanceSpec struct {
+	Type     string
+	DiskGB   float64 // Target disk size in GB, 0 means use default
+}
+
 // GPUCreateOptions holds the options for GPU instance creation
 type GPUCreateOptions struct {
 	Name          string
-	InstanceTypes []string
+	InstanceTypes []InstanceSpec
 	Count         int
 	Parallel      int
 	Detached      bool
@@ -192,9 +248,40 @@ func parseStartupScript(value string) (string, error) {
 	return value, nil
 }
 
+// getDefaultInstanceTypes fetches GPU instance types using default filters
+func getDefaultInstanceTypes(store GPUCreateStore) ([]InstanceSpec, error) {
+	response, err := store.GetInstanceTypes()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	if response == nil || len(response.Items) == 0 {
+		return nil, nil
+	}
+
+	// Use gpusearch package to process, filter, and sort instances
+	instances := gpusearch.ProcessInstances(response.Items)
+	filtered := gpusearch.FilterInstances(instances, "", "", 0, defaultMinTotalVRAM, defaultMinCapability, defaultMinDisk, defaultMaxBootTime)
+	gpusearch.SortInstances(filtered, "price", false)
+
+	// Convert to InstanceSpec with disk info
+	var specs []InstanceSpec
+	for _, inst := range filtered {
+		// For defaults, use the minimum disk size that meets the filter
+		diskGB := inst.DiskMin
+		if inst.DiskMin != inst.DiskMax && defaultMinDisk > inst.DiskMin && defaultMinDisk <= inst.DiskMax {
+			diskGB = defaultMinDisk
+		}
+		specs = append(specs, InstanceSpec{Type: inst.Type, DiskGB: diskGB})
+	}
+
+	return specs, nil
+}
+
 // parseInstanceTypes parses instance types from flag value or stdin
-func parseInstanceTypes(flagValue string) ([]string, error) {
-	var types []string
+// Returns InstanceSpec with type and optional disk size (from JSON input)
+func parseInstanceTypes(flagValue string) ([]InstanceSpec, error) {
+	var specs []InstanceSpec
 
 	// First check if there's a flag value
 	if flagValue != "" {
@@ -202,7 +289,7 @@ func parseInstanceTypes(flagValue string) ([]string, error) {
 		for _, p := range parts {
 			p = strings.TrimSpace(p)
 			if p != "" {
-				types = append(types, p)
+				specs = append(specs, InstanceSpec{Type: p})
 			}
 		}
 	}
@@ -210,47 +297,87 @@ func parseInstanceTypes(flagValue string) ([]string, error) {
 	// Check if there's piped input from stdin
 	stat, _ := os.Stdin.Stat()
 	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		// Data is being piped to stdin
-		scanner := bufio.NewScanner(os.Stdin)
-		lineNum := 0
-		for scanner.Scan() {
-			line := scanner.Text()
-			lineNum++
-
-			// Skip header line (first line typically contains column names)
-			if lineNum == 1 && (strings.Contains(line, "TYPE") || strings.Contains(line, "GPU")) {
-				continue
-			}
-
-			// Skip empty lines
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-
-			// Skip summary lines (e.g., "Found X GPU instance types")
-			if strings.HasPrefix(line, "Found ") {
-				continue
-			}
-
-			// Extract the first column (TYPE) from the table output
-			// The format is: TYPE  GPU  COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR
-			fields := strings.Fields(line)
-			if len(fields) > 0 {
-				instanceType := fields[0]
-				// Validate it looks like an instance type (contains letters and possibly numbers/dots)
-				if isValidInstanceType(instanceType) {
-					types = append(types, instanceType)
-				}
-			}
+		// Data is being piped to stdin - read all input first
+		input, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
 		}
 
-		if err := scanner.Err(); err != nil {
-			return nil, breverrors.WrapAndTrace(err)
+		inputStr := strings.TrimSpace(string(input))
+		if inputStr == "" {
+			return specs, nil
+		}
+
+		// Check if input is JSON (starts with '[')
+		if strings.HasPrefix(inputStr, "[") {
+			jsonSpecs, err := parseJSONInput(inputStr)
+			if err != nil {
+				return nil, breverrors.WrapAndTrace(err)
+			}
+			specs = append(specs, jsonSpecs...)
+		} else {
+			// Parse as table format
+			tableSpecs := parseTableInput(inputStr)
+			specs = append(specs, tableSpecs...)
 		}
 	}
 
-	return types, nil
+	return specs, nil
+}
+
+// parseJSONInput parses JSON array input from gpu-search --json
+func parseJSONInput(input string) ([]InstanceSpec, error) {
+	var instances []gpusearch.GPUInstanceInfo
+	if err := json.Unmarshal([]byte(input), &instances); err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	var specs []InstanceSpec
+	for _, inst := range instances {
+		spec := InstanceSpec{
+			Type:   inst.Type,
+			DiskGB: inst.TargetDisk,
+		}
+		specs = append(specs, spec)
+	}
+	return specs, nil
+}
+
+// parseTableInput parses table format input from gpu-search
+func parseTableInput(input string) []InstanceSpec {
+	var specs []InstanceSpec
+	lines := strings.Split(input, "\n")
+
+	for i, line := range lines {
+		// Skip header line (first line typically contains column names)
+		if i == 0 && (strings.Contains(line, "TYPE") || strings.Contains(line, "GPU")) {
+			continue
+		}
+
+		// Skip empty lines
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Skip summary lines (e.g., "Found X GPU instance types")
+		if strings.HasPrefix(line, "Found ") {
+			continue
+		}
+
+		// Extract the first column (TYPE) from the table output
+		// The format is: TYPE  GPU  COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR
+		fields := strings.Fields(line)
+		if len(fields) > 0 {
+			instanceType := fields[0]
+			// Validate it looks like an instance type (contains letters and possibly numbers/dots)
+			if isValidInstanceType(instanceType) {
+				specs = append(specs, InstanceSpec{Type: instanceType})
+			}
+		}
+	}
+
+	return specs
 }
 
 // isValidInstanceType checks if a string looks like a valid instance type.
@@ -273,8 +400,44 @@ func isValidInstanceType(s string) bool {
 	return hasLetter && hasDigit
 }
 
+// isStdoutPiped returns true if stdout is being piped (not a terminal)
+func isStdoutPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
+// stderrPrintf prints to stderr (used when stdout is piped)
+func stderrPrintf(format string, a ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, a...)
+}
+
+// formatInstanceSpecs formats a slice of InstanceSpec for display
+func formatInstanceSpecs(specs []InstanceSpec) string {
+	var parts []string
+	for _, spec := range specs {
+		if spec.DiskGB > 0 {
+			parts = append(parts, fmt.Sprintf("%s (%.0fGB disk)", spec.Type, spec.DiskGB))
+		} else {
+			parts = append(parts, spec.Type)
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
 // RunGPUCreate executes the GPU create with retry logic
 func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUCreateOptions) error {
+	// Check if output is being piped (for chaining with brev shell/open)
+	piped := isStdoutPiped()
+
+	// Helper to print progress - uses stderr when piped so only instance name goes to stdout
+	logf := func(format string, a ...interface{}) {
+		if piped {
+			fmt.Fprintf(os.Stderr, format, a...)
+		} else {
+			t.Vprintf(format, a...)
+		}
+	}
+
 	user, err := gpuCreateStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -291,13 +454,13 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	// Fetch instance types with workspace groups to determine correct workspace group ID
 	allInstanceTypes, err := gpuCreateStore.GetAllInstanceTypesWithWorkspaceGroups(org.ID)
 	if err != nil {
-		t.Vprintf("Warning: could not fetch instance types with workspace groups: %s\n", err.Error())
-		t.Vprintf("Falling back to default workspace group\n")
+		logf("Warning: could not fetch instance types with workspace groups: %s\n", err.Error())
+		logf("Falling back to default workspace group\n")
 		allInstanceTypes = nil
 	}
 
-	t.Vprintf("Attempting to create %d instance(s) with %d parallel attempts\n", opts.Count, opts.Parallel)
-	t.Vprintf("Instance types to try: %s\n\n", strings.Join(opts.InstanceTypes, ", "))
+	logf("Attempting to create %d instance(s) with %d parallel attempts\n", opts.Count, opts.Parallel)
+	logf("Instance types to try: %s\n\n", formatInstanceSpecs(opts.InstanceTypes))
 
 	// Track successful creations
 	var successfulWorkspaces []*entity.Workspace
@@ -309,18 +472,17 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	defer cancel()
 
 	// Channel to coordinate attempts
-	typesChan := make(chan string, len(opts.InstanceTypes))
-	for _, it := range opts.InstanceTypes {
-		typesChan <- it
+	specsChan := make(chan InstanceSpec, len(opts.InstanceTypes))
+	for _, spec := range opts.InstanceTypes {
+		specsChan <- spec
 	}
-	close(typesChan)
+	close(specsChan)
 
 	// Results channel
 	resultsChan := make(chan CreateResult, len(opts.InstanceTypes))
 
-	// Track instance index for naming
+	// Track instance index for naming (incremented only on successful creation)
 	instanceIndex := 0
-	var indexMu sync.Mutex
 
 	// Start parallel workers
 	workerCount := opts.Parallel
@@ -333,13 +495,15 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 		go func(workerID int) {
 			defer wg.Done()
 
-			for instanceType := range typesChan {
+			for spec := range specsChan {
 				// Check if we've already created enough
 				mu.Lock()
 				if len(successfulWorkspaces) >= opts.Count {
 					mu.Unlock()
 					return
 				}
+				// Get current index for naming (only increment on success)
+				currentIndex := instanceIndex
 				mu.Unlock()
 
 				// Check context
@@ -349,34 +513,47 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 				default:
 				}
 
-				// Get unique instance name
-				indexMu.Lock()
-				currentIndex := instanceIndex
-				instanceIndex++
-				indexMu.Unlock()
-
+				// Determine instance name based on current successful count
 				instanceName := opts.Name
 				if opts.Count > 1 || currentIndex > 0 {
 					instanceName = fmt.Sprintf("%s-%d", opts.Name, currentIndex+1)
 				}
 
-				t.Vprintf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, instanceType, instanceName)
+				logf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, spec.Type, instanceName)
 
 				// Attempt to create the workspace
-				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, instanceType, user, allInstanceTypes, opts.StartupScript)
+				workspace, err := createWorkspaceWithType(gpuCreateStore, org.ID, instanceName, spec.Type, spec.DiskGB, user, allInstanceTypes, opts.StartupScript)
 
 				result := CreateResult{
 					Workspace:    workspace,
-					InstanceType: instanceType,
+					InstanceType: spec.Type,
 					Error:        err,
 				}
 
 				if err != nil {
-					t.Vprintf("[Worker %d] %s Failed: %s\n", workerID+1, t.Yellow(instanceType), err.Error())
+					errStr := err.Error()
+					if piped {
+						logf("[Worker %d] %s Failed: %s\n", workerID+1, spec.Type, errStr)
+					} else {
+						logf("[Worker %d] %s Failed: %s\n", workerID+1, t.Yellow(spec.Type), errStr)
+					}
+
+					// Check for fatal errors that should stop all workers
+					if strings.Contains(errStr, "duplicate workspace") {
+						logf("\nError: Workspace '%s' already exists. Use a different name or delete the existing workspace.\n", instanceName)
+						cancel() // Stop all workers
+						resultsChan <- result
+						return
+					}
 				} else {
-					t.Vprintf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, t.Green(instanceType), instanceName)
+					if piped {
+						logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, spec.Type, instanceName)
+					} else {
+						logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, t.Green(spec.Type), instanceName)
+					}
 					mu.Lock()
 					successfulWorkspaces = append(successfulWorkspaces, workspace)
+					instanceIndex++ // Only increment on success
 					if len(successfulWorkspaces) >= opts.Count {
 						cancel() // Signal other workers to stop
 					}
@@ -401,12 +578,12 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 
 	// Check if we created enough instances
 	if len(successfulWorkspaces) < opts.Count {
-		t.Vprintf("\n%s Only created %d/%d instances\n", t.Yellow("Warning:"), len(successfulWorkspaces), opts.Count)
+		logf("\nWarning: Only created %d/%d instances\n", len(successfulWorkspaces), opts.Count)
 
 		if len(successfulWorkspaces) > 0 {
-			t.Vprintf("Successfully created instances:\n")
+			logf("Successfully created instances:\n")
 			for _, ws := range successfulWorkspaces {
-				t.Vprintf("  - %s (ID: %s)\n", ws.Name, ws.ID)
+				logf("  - %s (ID: %s)\n", ws.Name, ws.ID)
 			}
 		}
 
@@ -416,15 +593,15 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	// If we created more than needed, clean up extras
 	if len(successfulWorkspaces) > opts.Count {
 		extras := successfulWorkspaces[opts.Count:]
-		t.Vprintf("\nCleaning up %d extra instance(s)...\n", len(extras))
+		logf("\nCleaning up %d extra instance(s)...\n", len(extras))
 
 		for _, ws := range extras {
-			t.Vprintf("  Deleting %s...", ws.Name)
+			logf("  Deleting %s...", ws.Name)
 			_, err := gpuCreateStore.DeleteWorkspace(ws.ID)
 			if err != nil {
-				t.Vprintf(" %s\n", t.Red("Failed"))
+				logf(" Failed\n")
 			} else {
-				t.Vprintf(" %s\n", t.Green("Done"))
+				logf(" Done\n")
 			}
 		}
 
@@ -433,15 +610,23 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 
 	// Wait for instances to be ready (unless detached)
 	if !opts.Detached {
-		t.Vprintf("\nWaiting for instance(s) to be ready...\n")
-		t.Vprintf("You can safely ctrl+c to exit\n")
+		logf("\nWaiting for instance(s) to be ready...\n")
+		logf("You can safely ctrl+c to exit\n")
 
 		for _, ws := range successfulWorkspaces {
-			err := pollUntilReady(t, ws.ID, gpuCreateStore, opts.Timeout)
+			err := pollUntilReady(t, ws.ID, gpuCreateStore, opts.Timeout, piped, logf)
 			if err != nil {
-				t.Vprintf("  %s: %s\n", ws.Name, t.Yellow("Timeout waiting for ready state"))
+				logf("  %s: Timeout waiting for ready state\n", ws.Name)
 			}
 		}
+	}
+
+	// If output is piped, just print instance name(s) for chaining with brev shell/open
+	if piped {
+		for _, ws := range successfulWorkspaces {
+			fmt.Println(ws.Name)
+		}
+		return nil
 	}
 
 	// Print summary
@@ -460,11 +645,16 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 }
 
 // createWorkspaceWithType creates a workspace with the specified instance type
-func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, user *entity.User, allInstanceTypes *gpusearch.AllInstanceTypesResponse, startupScript string) (*entity.Workspace, error) {
+func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, diskGB float64, user *entity.User, allInstanceTypes *gpusearch.AllInstanceTypesResponse, startupScript string) (*entity.Workspace, error) {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, name)
 	cwOptions.WithInstanceType(instanceType)
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
+
+	// Set disk size if specified (convert GB to Gi format)
+	if diskGB > 0 {
+		cwOptions.DiskStorage = fmt.Sprintf("%.0fGi", diskGB)
+	}
 
 	// Look up the workspace group ID for this instance type
 	if allInstanceTypes != nil {
@@ -474,9 +664,14 @@ func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanc
 		}
 	}
 
-	// Set startup script if provided
+	// Set startup script if provided using VMBuild lifecycle script
 	if startupScript != "" {
-		cwOptions.StartupScript = startupScript
+		cwOptions.VMBuild = &store.VMBuild{
+			ForceJupyterInstall: true,
+			LifeCycleScriptAttr: &store.LifeCycleScriptAttr{
+				Script: startupScript,
+			},
+		}
 	}
 
 	workspace, err := gpuCreateStore.CreateWorkspace(orgID, cwOptions)
@@ -507,7 +702,7 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 // pollUntilReady waits for a workspace to reach the running state
-func pollUntilReady(t *terminal.Terminal, wsID string, gpuCreateStore GPUCreateStore, timeout time.Duration) error {
+func pollUntilReady(t *terminal.Terminal, wsID string, gpuCreateStore GPUCreateStore, timeout time.Duration, piped bool, logf func(string, ...interface{})) error {
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
@@ -517,7 +712,11 @@ func pollUntilReady(t *terminal.Terminal, wsID string, gpuCreateStore GPUCreateS
 		}
 
 		if ws.Status == entity.Running {
-			t.Vprintf("  %s: %s\n", ws.Name, t.Green("Ready"))
+			if piped {
+				logf("  %s: Ready\n", ws.Name)
+			} else {
+				logf("  %s: %s\n", ws.Name, t.Green("Ready"))
+			}
 			return nil
 		}
 

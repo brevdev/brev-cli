@@ -39,12 +39,13 @@ type BasePrice struct {
 
 // Storage represents a storage configuration within an instance type
 type Storage struct {
-	Count       int         `json:"count"`
-	Size        string      `json:"size"`
-	Type        string      `json:"type"`
-	MinSize     string      `json:"min_size"`
-	MaxSize     string      `json:"max_size"`
-	SizeBytes   MemoryBytes `json:"size_bytes"`
+	Count        int         `json:"count"`
+	Size         string      `json:"size"`
+	Type         string      `json:"type"`
+	MinSize      string      `json:"min_size"`
+	MaxSize      string      `json:"max_size"`
+	SizeBytes    MemoryBytes `json:"size_bytes"`
+	PricePerGBHr float64     `json:"price_per_gb_hr"`
 }
 
 // WorkspaceGroup represents a workspace group that can run an instance type
@@ -56,18 +57,21 @@ type WorkspaceGroup struct {
 
 // InstanceType represents an instance type from the API
 type InstanceType struct {
-	Type                string           `json:"type"`
-	SupportedGPUs       []GPU            `json:"supported_gpus"`
-	SupportedStorage    []Storage        `json:"supported_storage"`
-	Memory              string           `json:"memory"`
-	VCPU                int              `json:"vcpu"`
-	BasePrice           BasePrice        `json:"base_price"`
-	Location            string           `json:"location"`
-	SubLocation         string           `json:"sub_location"`
-	AvailableLocations  []string         `json:"available_locations"`
-	Provider            string           `json:"provider"`
-	WorkspaceGroups     []WorkspaceGroup `json:"workspace_groups"`
-	EstimatedDeployTime string           `json:"estimated_deploy_time"`
+	Type                   string           `json:"type"`
+	SupportedGPUs          []GPU            `json:"supported_gpus"`
+	SupportedStorage       []Storage        `json:"supported_storage"`
+	Memory                 string           `json:"memory"`
+	VCPU                   int              `json:"vcpu"`
+	BasePrice              BasePrice        `json:"base_price"`
+	Location               string           `json:"location"`
+	SubLocation            string           `json:"sub_location"`
+	AvailableLocations     []string         `json:"available_locations"`
+	Provider               string           `json:"provider"`
+	WorkspaceGroups        []WorkspaceGroup `json:"workspace_groups"`
+	EstimatedDeployTime    string           `json:"estimated_deploy_time"`
+	Stoppable              bool             `json:"stoppable"`
+	Rebootable             bool             `json:"rebootable"`
+	CanModifyFirewallRules bool             `json:"can_modify_firewall_rules"`
 }
 
 // InstanceTypesResponse represents the API response
@@ -101,7 +105,12 @@ var (
 	long = `Search and filter GPU instance types available on Brev.
 
 Filter instances by GPU name, provider, VRAM, total VRAM, GPU compute capability, disk size, and boot time.
-Sort results by various columns to find the best instance for your needs.`
+Sort results by various columns to find the best instance for your needs.
+
+Features column shows instance capabilities:
+  S = Stoppable (can stop and restart without losing data)
+  R = Rebootable (can reboot the instance)
+  P = Flex Ports (can modify firewall/port rules)`
 
 	example = `
   # List all GPU instances
@@ -199,12 +208,27 @@ type GPUInstanceInfo struct {
 	DiskMin      float64 `json:"disk_min_gb"`
 	DiskMax      float64 `json:"disk_max_gb"`
 	BootTime     int     `json:"boot_time_seconds"`
+	Stoppable    bool    `json:"stoppable"`
+	Rebootable   bool    `json:"rebootable"`
+	FlexPorts    bool    `json:"flex_ports"`
+	TargetDisk   float64 `json:"target_disk_gb,omitempty"`
 	PricePerHour float64 `json:"price_per_hour"`
 	Manufacturer string  `json:"-"` // exclude from JSON output
 }
 
+// isStdoutPiped returns true if stdout is being piped (not a terminal)
+func isStdoutPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
 // RunGPUSearch executes the GPU search with filters and sorting
 func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int, sortBy string, descending, jsonOutput bool) error {
+	// Auto-switch to JSON when stdout is piped (for chaining with provision)
+	if !jsonOutput && isStdoutPiped() {
+		jsonOutput = true
+	}
+
 	response, err := store.GetInstanceTypes()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -220,10 +244,10 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	}
 
 	// Process and filter instances
-	instances := processInstances(response.Items)
+	instances := ProcessInstances(response.Items)
 
 	// Apply filters
-	filtered := filterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime)
+	filtered := FilterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime)
 
 	if len(filtered) == 0 {
 		if jsonOutput {
@@ -234,8 +258,19 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 		return nil
 	}
 
+	// Set target disk for each instance
+	// For flexible storage, use minDisk if specified and within range
+	for i := range filtered {
+		inst := &filtered[i]
+		if inst.DiskMin != inst.DiskMax && minDisk > 0 && minDisk >= inst.DiskMin && minDisk <= inst.DiskMax {
+			inst.TargetDisk = minDisk
+		} else {
+			inst.TargetDisk = inst.DiskMin
+		}
+	}
+
 	// Sort instances
-	sortInstances(filtered, sortBy, descending)
+	SortInstances(filtered, sortBy, descending)
 
 	// Display results
 	if jsonOutput {
@@ -439,8 +474,8 @@ func getGPUCapability(gpuName string) float64 {
 	return 0
 }
 
-// processInstances converts raw instance types to GPUInstanceInfo
-func processInstances(items []InstanceType) []GPUInstanceInfo {
+// ProcessInstances converts raw instance types to GPUInstanceInfo
+func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 	var instances []GPUInstanceInfo
 
 	for _, item := range items {
@@ -487,6 +522,9 @@ func processInstances(items []InstanceType) []GPUInstanceInfo {
 				DiskMin:      diskMin,
 				DiskMax:      diskMax,
 				BootTime:     bootTime,
+				Stoppable:    item.Stoppable,
+				Rebootable:   item.Rebootable,
+				FlexPorts:    item.CanModifyFirewallRules,
 				PricePerHour: price,
 				Manufacturer: gpu.Manufacturer,
 			})
@@ -496,8 +534,8 @@ func processInstances(items []InstanceType) []GPUInstanceInfo {
 	return instances
 }
 
-// filterInstances applies all filters to the instance list
-func filterInstances(instances []GPUInstanceInfo, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int) []GPUInstanceInfo {
+// FilterInstances applies all filters to the instance list
+func FilterInstances(instances []GPUInstanceInfo, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int) []GPUInstanceInfo {
 	var filtered []GPUInstanceInfo
 
 	for _, inst := range instances {
@@ -537,7 +575,8 @@ func filterInstances(instances []GPUInstanceInfo, gpuName, provider string, minV
 		}
 
 		// Filter by maximum boot time (convert minutes to seconds for comparison)
-		if maxBootTime > 0 && inst.BootTime > maxBootTime*60 {
+		// Exclude instances with unknown boot time (0) when filter is specified
+		if maxBootTime > 0 && (inst.BootTime == 0 || inst.BootTime > maxBootTime*60) {
 			continue
 		}
 
@@ -547,8 +586,8 @@ func filterInstances(instances []GPUInstanceInfo, gpuName, provider string, minV
 	return filtered
 }
 
-// sortInstances sorts the instance list by the specified column
-func sortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) {
+// SortInstances sorts the instance list by the specified column
+func SortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) {
 	sort.Slice(instances, func(i, j int) bool {
 		var less bool
 		switch strings.ToLower(sortBy) {
@@ -635,13 +674,32 @@ func formatBootTime(seconds int) string {
 	return fmt.Sprintf("%dm%ds", minutes, secs)
 }
 
+// formatFeatures formats feature flags as abbreviated string
+// S=stoppable, R=rebootable, P=flex ports (can modify firewall)
+func formatFeatures(stoppable, rebootable, flexPorts bool) string {
+	var features []string
+	if stoppable {
+		features = append(features, "S")
+	}
+	if rebootable {
+		features = append(features, "R")
+	}
+	if flexPorts {
+		features = append(features, "P")
+	}
+	if len(features) == 0 {
+		return "-"
+	}
+	return strings.Join(features, "")
+}
+
 // displayGPUTable renders the GPU instances as a table
 func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "BOOT", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "BOOT", "FEATURES", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -653,6 +711,7 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 		}
 		diskStr := formatDiskSize(inst.DiskMin, inst.DiskMax)
 		bootStr := formatBootTime(inst.BootTime)
+		featuresStr := formatFeatures(inst.Stoppable, inst.Rebootable, inst.FlexPorts)
 		priceStr := fmt.Sprintf("$%.2f", inst.PricePerHour)
 
 		row := table.Row{
@@ -665,6 +724,7 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 			capStr,
 			diskStr,
 			bootStr,
+			featuresStr,
 			inst.VCPUs,
 			priceStr,
 		}

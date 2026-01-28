@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -26,7 +27,28 @@ import (
 
 var (
 	openLong    = "[command in beta] This will shell in to your instance"
-	openExample = "brev shell instance_id_or_name\nbrev shell instance\nbrev open h9fp5vxwe"
+	openExample = `  # SSH into an instance by name or ID
+  brev shell instance_id_or_name
+  brev shell my-instance
+
+  # Run a command on the instance (non-interactive, pipes stdout/stderr)
+  brev shell my-instance -c "nvidia-smi"
+  brev shell my-instance -c "python train.py"
+
+  # Run a script file on the instance
+  brev shell my-instance -c @setup.sh
+
+  # Chain: provision and run a command (reads instance name from stdin)
+  brev provision --name my-instance | brev shell -c "nvidia-smi"
+
+  # Create a GPU instance and SSH into it immediately (use command substitution for interactive shell)
+  brev shell $(brev provision --name my-instance)
+
+  # Create with specific GPU and connect
+  brev shell $(brev gpus --gpu-name A100 | brev gpu-create --name ml-box)
+
+  # SSH into the host machine instead of the container
+  brev shell my-instance --host`
 )
 
 type ShellStore interface {
@@ -40,9 +62,8 @@ type ShellStore interface {
 }
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
-	var runRemoteCMD bool
-	var directory string
 	var host bool
+	var command string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "shell",
@@ -51,10 +72,22 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		Short:                 "[beta] Open a shell in your instance",
 		Long:                  openLong,
 		Example:               openExample,
-		Args:                  cmderrors.TransformToValidationError(cmderrors.TransformToValidationError(cobra.ExactArgs(1))),
+		Args:                  cmderrors.TransformToValidationError(cobra.RangeArgs(0, 1)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runShellCommand(t, store, args[0], directory, host)
+			// Get instance name from args or stdin
+			instanceName, err := getInstanceName(args)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			// Parse command (can be inline or @filepath)
+			cmdToRun, err := parseCommand(command)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			err = runShellCommand(t, store, instanceName, host, cmdToRun)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -62,13 +95,53 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		},
 	}
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
-	cmd.Flags().BoolVarP(&runRemoteCMD, "remote", "r", true, "run remote commands")
-	cmd.Flags().StringVarP(&directory, "dir", "d", "", "override directory to launch shell")
+	cmd.Flags().StringVarP(&command, "command", "c", "", "command to run on the instance (use @filename to run a script file)")
 
 	return cmd
 }
 
-func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID, directory string, host bool) error {
+// getInstanceName gets the instance name from args or stdin
+func getInstanceName(args []string) (string, error) {
+	if len(args) > 0 {
+		return args[0], nil
+	}
+
+	// Check if stdin is piped
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		// Stdin is piped, read instance name
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			name := strings.TrimSpace(scanner.Text())
+			if name != "" {
+				return name, nil
+			}
+		}
+	}
+
+	return "", breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+}
+
+// parseCommand parses the command string, loading from file if prefixed with @
+func parseCommand(command string) (string, error) {
+	if command == "" {
+		return "", nil
+	}
+
+	// If prefixed with @, read from file
+	if strings.HasPrefix(command, "@") {
+		filePath := strings.TrimPrefix(command, "@")
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		return string(content), nil
+	}
+
+	return command, nil
+}
+
+func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool, command string) error {
 	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
@@ -114,7 +187,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID,
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using the shell
 	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
-	err = runSSH(workspace, sshName, directory)
+	err = runSSH(workspace, sshName, command)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -162,14 +235,29 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	}
 }
 
-func runSSH(_ *entity.Workspace, sshAlias, _ string) error {
+func runSSH(_ *entity.Workspace, sshAlias string, command string) error {
 	sshAgentEval := "eval $(ssh-agent -s)"
-	cmd := fmt.Sprintf("ssh %s", sshAlias)
+
+	var cmd string
+	if command != "" {
+		// Non-interactive: run command and pipe stdout/stderr
+		// Escape the command for passing to SSH
+		escapedCmd := strings.ReplaceAll(command, "'", "'\\''")
+		cmd = fmt.Sprintf("ssh %s '%s'", sshAlias, escapedCmd)
+	} else {
+		// Interactive shell
+		cmd = fmt.Sprintf("ssh %s", sshAlias)
+	}
+
 	cmd = fmt.Sprintf("%s && %s", sshAgentEval, cmd)
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
-	sshCmd.Stdin = os.Stdin
+
+	// Only attach stdin for interactive sessions
+	if command == "" {
+		sshCmd.Stdin = os.Stdin
+	}
 
 	err := hello.SetHasRunShell(true)
 	if err != nil {

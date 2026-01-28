@@ -1,6 +1,7 @@
 package open
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -38,7 +39,25 @@ const (
 
 var (
 	openLong    = "[command in beta] This will open VS Code, Cursor, Windsurf, or tmux SSH-ed in to your instance. You must have the editor installed in your path."
-	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open instance tmux\nbrev open --set-default cursor\nbrev open --set-default windsurf\nbrev open --set-default tmux"
+	openExample = `  # Open an instance by name or ID
+  brev open instance_id_or_name
+  brev open my-instance
+
+  # Open with a specific editor
+  brev open my-instance code
+  brev open my-instance cursor
+  brev open my-instance windsurf
+  brev open my-instance tmux
+
+  # Set a default editor
+  brev open --set-default cursor
+  brev open --set-default windsurf
+
+  # Create a GPU instance and open it immediately (reads instance name from stdin)
+  brev provision --name my-instance | brev open
+
+  # Create with specific GPU and open in Cursor
+  brev gpus --gpu-name A100 | brev gpu-create --name ml-box | brev open cursor`
 )
 
 type OpenStore interface {
@@ -72,7 +91,8 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if setDefaultFlag != "" {
 				return cobra.NoArgs(cmd, args)
 			}
-			return cobra.RangeArgs(1, 2)(cmd, args)
+			// Allow 0-2 args: instance name can come from stdin
+			return cobra.RangeArgs(0, 2)(cmd, args)
 		}),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -80,17 +100,23 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				return handleSetDefault(t, setDefault)
 			}
 
+			// Get instance name from args or stdin
+			instanceName, remainingArgs, err := getInstanceNameOpen(args)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
 			setupDoneString := "------ Git repo cloned ------"
 			if waitForSetupToFinish {
 				setupDoneString = "------ Done running execs ------"
 			}
 
-			editorType, err := determineEditorType(args)
+			editorType, err := determineEditorType(remainingArgs)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			err = runOpenCommand(t, store, args[0], setupDoneString, directory, host, editorType)
+			err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -103,6 +129,32 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, or tmux)")
 
 	return cmd
+}
+
+// getInstanceNameOpen gets the instance name from args or stdin, returning remaining args for editor type
+func getInstanceNameOpen(args []string) (string, []string, error) {
+	// Check if stdin is piped
+	stat, _ := os.Stdin.Stat()
+	stdinPiped := (stat.Mode() & os.ModeCharDevice) == 0
+
+	if stdinPiped {
+		// Read instance name from stdin
+		scanner := bufio.NewScanner(os.Stdin)
+		if scanner.Scan() {
+			name := strings.TrimSpace(scanner.Text())
+			if name != "" {
+				// All args are for editor type
+				return name, args, nil
+			}
+		}
+	}
+
+	// Instance name from args
+	if len(args) > 0 {
+		return args[0], args[1:], nil
+	}
+
+	return "", nil, breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
 }
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
@@ -129,8 +181,9 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 }
 
 func determineEditorType(args []string) (string, error) {
-	if len(args) == 2 {
-		editorType := args[1]
+	// args now contains only the editor type (if provided), not the instance name
+	if len(args) >= 1 {
+		editorType := args[0]
 		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
 			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
 		}

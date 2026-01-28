@@ -97,6 +97,27 @@ func (m *MockGPUCreateStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string
 	return nil, nil
 }
 
+func (m *MockGPUCreateStore) GetInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
+	// Return a default set of instance types for testing
+	return &gpusearch.InstanceTypesResponse{
+		Items: []gpusearch.InstanceType{
+			{
+				Type: "g5.xlarge",
+				SupportedGPUs: []gpusearch.GPU{
+					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
+				},
+				SupportedStorage: []gpusearch.Storage{
+					{Size: "500GiB"},
+				},
+				Memory:              "16GiB",
+				VCPU:                4,
+				BasePrice:           gpusearch.BasePrice{Currency: "USD", Amount: "1.006"},
+				EstimatedDeployTime: "5m0s",
+			},
+		},
+	}, nil
+}
+
 func TestIsValidInstanceType(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -145,7 +166,12 @@ func TestParseInstanceTypesFromFlag(t *testing.T) {
 			if len(tt.expected) == 0 {
 				assert.Empty(t, result)
 			} else {
-				assert.Equal(t, tt.expected, result)
+				// Compare just the Type field of each InstanceSpec
+				var resultTypes []string
+				for _, spec := range result {
+					resultTypes = append(resultTypes, spec.Type)
+				}
+				assert.Equal(t, tt.expected, resultTypes)
 			}
 		})
 	}
@@ -153,15 +179,22 @@ func TestParseInstanceTypesFromFlag(t *testing.T) {
 
 func TestGPUCreateOptions(t *testing.T) {
 	opts := GPUCreateOptions{
-		Name:          "my-instance",
-		InstanceTypes: []string{"g5.xlarge", "g5.2xlarge"},
-		Count:         2,
-		Parallel:      3,
-		Detached:      true,
+		Name: "my-instance",
+		InstanceTypes: []InstanceSpec{
+			{Type: "g5.xlarge", DiskGB: 500},
+			{Type: "g5.2xlarge"},
+		},
+		Count:    2,
+		Parallel: 3,
+		Detached: true,
 	}
 
 	assert.Equal(t, "my-instance", opts.Name)
 	assert.Len(t, opts.InstanceTypes, 2)
+	assert.Equal(t, "g5.xlarge", opts.InstanceTypes[0].Type)
+	assert.Equal(t, 500.0, opts.InstanceTypes[0].DiskGB)
+	assert.Equal(t, "g5.2xlarge", opts.InstanceTypes[1].Type)
+	assert.Equal(t, 0.0, opts.InstanceTypes[1].DiskGB)
 	assert.Equal(t, 2, opts.Count)
 	assert.Equal(t, 3, opts.Parallel)
 	assert.True(t, opts.Detached)
@@ -267,6 +300,32 @@ func TestMockGPUCreateStoreTypeSpecificError(t *testing.T) {
 	assert.NotNil(t, ws)
 }
 
+func TestGetDefaultInstanceTypes(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+
+	// Get default instance types - the mock returns a g5.xlarge which has:
+	// - 24GB VRAM (>= 20GB total VRAM requirement)
+	// - 500GB disk (>= 500GB requirement)
+	// - A10G GPU = 8.6 capability (>= 8.0 requirement)
+	// - 5m boot time (< 7m requirement)
+	specs, err := getDefaultInstanceTypes(mock)
+	assert.NoError(t, err)
+	assert.Len(t, specs, 1)
+	assert.Equal(t, "g5.xlarge", specs[0].Type)
+	assert.Equal(t, 500.0, specs[0].DiskGB) // Should use the instance's disk size
+}
+
+func TestGetDefaultInstanceTypesFiltersOut(t *testing.T) {
+	// The mock returns a g5.xlarge which meets all requirements
+	mock := NewMockGPUCreateStore()
+
+	specs, err := getDefaultInstanceTypes(mock)
+	assert.NoError(t, err)
+	// Should return the A10G instance which meets all requirements
+	assert.Len(t, specs, 1)
+	assert.Equal(t, "g5.xlarge", specs[0].Type)
+}
+
 func TestParseInstanceTypesFromTableOutput(t *testing.T) {
 	// Simulated table output from brev gpus command
 	// Note: This tests the parsing logic, not actual stdin reading
@@ -306,5 +365,55 @@ func TestParseInstanceTypesFromTableOutput(t *testing.T) {
 	assert.Contains(t, types, "g5.xlarge")
 	assert.Contains(t, types, "g5.2xlarge")
 	assert.Contains(t, types, "p4d.24xlarge")
+}
+
+func TestParseJSONInput(t *testing.T) {
+	// Simulated JSON output from gpu-search --json
+	jsonInput := `[
+		{
+			"type": "g5.xlarge",
+			"provider": "aws",
+			"gpu_name": "A10G",
+			"target_disk_gb": 1000
+		},
+		{
+			"type": "p4d.24xlarge",
+			"provider": "aws",
+			"gpu_name": "A100",
+			"target_disk_gb": 500
+		},
+		{
+			"type": "g6.xlarge",
+			"provider": "aws",
+			"gpu_name": "L4"
+		}
+	]`
+
+	specs, err := parseJSONInput(jsonInput)
+	assert.NoError(t, err)
+	assert.Len(t, specs, 3)
+
+	// Check first instance with disk
+	assert.Equal(t, "g5.xlarge", specs[0].Type)
+	assert.Equal(t, 1000.0, specs[0].DiskGB)
+
+	// Check second instance with different disk
+	assert.Equal(t, "p4d.24xlarge", specs[1].Type)
+	assert.Equal(t, 500.0, specs[1].DiskGB)
+
+	// Check third instance without disk (should be 0)
+	assert.Equal(t, "g6.xlarge", specs[2].Type)
+	assert.Equal(t, 0.0, specs[2].DiskGB)
+}
+
+func TestFormatInstanceSpecs(t *testing.T) {
+	specs := []InstanceSpec{
+		{Type: "g5.xlarge", DiskGB: 1000},
+		{Type: "p4d.24xlarge", DiskGB: 0},
+		{Type: "g6.xlarge", DiskGB: 500},
+	}
+
+	result := formatInstanceSpecs(specs)
+	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)", result)
 }
 
