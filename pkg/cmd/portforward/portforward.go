@@ -155,7 +155,7 @@ func startInput(t *terminal.Terminal) string {
 
 	port := localInput + ":" + remoteInput
 
-	t.Vprintf(t.Green("\n-p " + port + "\n"))
+	t.Vprintf("%s", t.Green("\n-p "+port+"\n"))
 
 	return port
 }

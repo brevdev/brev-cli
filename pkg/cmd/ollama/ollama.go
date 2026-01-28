@@ -255,8 +255,8 @@ func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore Ollam
 }
 
 func displayOllamaConnectBreadCrumb(t *terminal.Terminal, link string, model string) {
-	t.Vprintf(t.Green("Query the Ollama API with the following command:\n"))
-	t.Vprintf(t.Yellow(fmt.Sprintf("curl %s/api/chat -d '{\n  \"model\": \"%s\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"why is the sky blue?\"\n    }\n  ]\n}'\n", link, model)))
+	t.Vprintf("%s", t.Green("Query the Ollama API with the following command:\n"))
+	t.Vprintf("%s", t.Yellow(fmt.Sprintf("curl %s/api/chat -d '{\n  \"model\": \"%s\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"why is the sky blue?\"\n    }\n  ]\n}'\n", link, model)))
 }
 
 func pollInstanceUntilVMReady(workspace *entity.Workspace, interval time.Duration, timeout time.Duration, ollamaStore OllamaStore) (bool, error) {
