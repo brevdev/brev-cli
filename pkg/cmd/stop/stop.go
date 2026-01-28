@@ -88,7 +88,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			} else {
-				t.Vprintf(t.Green("\n%s stopped ✓", v.Name))
+				t.Vprintf("%s", t.Green("\n%s stopped ✓", v.Name))
 			}
 		}
 	}
@@ -135,10 +135,10 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	} else {
 		if workspaceName == "self" {
-			t.Vprintf(t.Green("Stopping this instance\n") +
+			t.Vprintf("%s", t.Green("Stopping this instance\n")+
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 		} else {
-			t.Vprintf(t.Green("Stopping instance "+workspaceName+".\n") +
+			t.Vprintf("%s", t.Green("Stopping instance "+workspaceName+".\n")+
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 		}
 	}

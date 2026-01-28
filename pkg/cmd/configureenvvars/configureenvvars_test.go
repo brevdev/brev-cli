@@ -148,7 +148,7 @@ export ` + BrevManagedEnvVarsKey + "=foo",
 			got := generateExportString(tt.args.brevEnvsString, tt.args.envFileContents)
 			diff := cmp.Diff(tt.want, got)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatalf("%s", diff)
 			}
 		})
 	}
@@ -234,7 +234,7 @@ func Test_addUnsetEntriesToOutput(t *testing.T) {
 			got := addUnsetEntriesToOutput(tt.args.currentEnvs, tt.args.newEnvs, tt.args.output)
 			diff := cmp.Diff(tt.want, got)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatalf("%s", diff)
 			}
 		})
 	}

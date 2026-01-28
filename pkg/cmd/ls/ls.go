@@ -248,10 +248,10 @@ func (ls Ls) RunOrgs() error {
 	displayOrgTable(ls.terminal, orgs, defaultOrg)
 	if len(orgs) > 1 {
 		fmt.Print("\n")
-		ls.terminal.Vprintf(ls.terminal.Green("Switch orgs:\n"))
+		ls.terminal.Vprintf("%s", ls.terminal.Green("Switch orgs:\n"))
 		notDefaultOrg := getOtherOrg(orgs, *defaultOrg)
 		// TODO suggest org with max workspaces
-		ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev set <NAME> ex: brev set %s\n", notDefaultOrg.Name))
+		ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev set <NAME> ex: brev set %s\n", notDefaultOrg.Name))
 	}
 
 	return nil
@@ -307,18 +307,18 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
 		if len(allWorkspaces) > 0 {
-			ls.terminal.Vprintf(ls.terminal.Green("See teammates' instances:\n"))
-			ls.terminal.Vprintf(ls.terminal.Yellow("\tbrev ls --all\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Green("See teammates' instances:\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
-			ls.terminal.Vprintf(ls.terminal.Green("Start a new instance:\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Green("Start a new instance:\n"))
 		}
 		if len(otherOrgs) > 1 {
-			ls.terminal.Vprintf(ls.terminal.Green("Switch to another org:\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Green("Switch to another org:\n"))
 			// TODO suggest org with max workspaces
-			ls.terminal.Vprintf(ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
+			ls.terminal.Vprintf("%s", ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
 		}
 	} else {
-		ls.terminal.Vprintf("You have %d instances in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
+		ls.terminal.Vprintf("You have %d instances in Org %s\n", len(userWorkspaces), ls.terminal.Yellow(org.Name))
 		displayWorkspacesTable(ls.terminal, userWorkspaces)
 
 		fmt.Print("\n")
@@ -333,14 +333,14 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 	for _, w := range workspaces {
 		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
 			if !foundAResettableWorkspace {
-				t.Vprintf(t.Red("Reset unhealthy or failed instance:\n"))
+				t.Vprintf("%s", t.Red("Reset unhealthy or failed instance:\n"))
 			}
-			t.Vprintf(t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
+			t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
 			foundAResettableWorkspace = true
 		}
 	}
 	if foundAResettableWorkspace {
-		t.Vprintf(t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
+		t.Vprintf("%s", t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
 	}
 }
 
@@ -382,16 +382,16 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 func displayProjects(t *terminal.Terminal, orgName string, projects []virtualproject.VirtualProject) {
 	if len(projects) > 0 {
 		fmt.Print("\n")
-		t.Vprintf("%d other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
+		t.Vprintf("%d other projects in Org %s\n", len(projects), t.Yellow(orgName))
 		displayProjectsTable(projects)
 
 		fmt.Print("\n")
-		t.Vprintf(t.Green("Join a project:\n") +
+		t.Vprintf("%s", t.Green("Join a project:\n")+
 			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
 	} else {
-		t.Vprintf("no other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
+		t.Vprintf("no other projects in Org %s\n", t.Yellow(orgName))
 		fmt.Print("\n")
-		t.Vprintf(t.Green("Invite a teamate:\n") +
+		t.Vprintf("%s", t.Green("Invite a teamate:\n")+
 			t.Yellow("\tbrev invite"))
 	}
 }

@@ -553,7 +553,7 @@ Host testName2-host
 			}
 			diff := cmp.Diff(tt.want, got)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatalf("%s", diff)
 			}
 		})
 	}
@@ -785,7 +785,7 @@ Host testName1-host
 			}
 			diff := cmp.Diff(tt.linuxSSHConfig, linuxConfig)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatalf("%s", diff)
 			}
 
 			linuxBrevSSHConfig, err := s.store.GetFileAsString("/home/test/.brev/ssh_config")
@@ -794,7 +794,7 @@ Host testName1-host
 			}
 			diff = cmp.Diff(tt.linuxBrevSSHConfig, linuxBrevSSHConfig)
 			if diff != "" {
-				t.Fatalf(diff)
+				t.Fatalf("%s", diff)
 			}
 
 			if tt.windowsSSHConfigExists {
@@ -805,7 +805,7 @@ Host testName1-host
 				}
 				diff = cmp.Diff(tt.windowsSSHConfig, windowsConfig)
 				if diff != "" {
-					t.Fatalf(diff)
+					t.Fatalf("%s", diff)
 				}
 
 				windowsBrevSSHConfig, err := s.store.GetFileAsString("/mnt/c/Users/15854/.brev/ssh_config")
@@ -814,7 +814,7 @@ Host testName1-host
 				}
 				diff = cmp.Diff(tt.windowsBrevSSHConfig, windowsBrevSSHConfig)
 				if diff != "" {
-					t.Fatalf(diff)
+					t.Fatalf("%s", diff)
 				}
 			}
 		})
