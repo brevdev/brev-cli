@@ -166,10 +166,8 @@ func Foldl[T any, R any](fn func(acc R, next T) R, base R, list []T) R {
 // loops over list and returns when has returns true
 func ListHas[K any](list []K, has func(l K) bool) bool {
 	k := Find(list, has)
-	if k != nil { //nolint:gosimple //ok
-		return true
-	}
-	return false
+	// Simplify nil check by returning the expression directly
+	return k != nil
 }
 
 func ListContains[K comparable](list []K, item K) bool {

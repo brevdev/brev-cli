@@ -12,7 +12,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/browser"
 )
 
@@ -333,14 +333,18 @@ func isAccessTokenValid(token string) (bool, error) {
 	parser := jwt.Parser{}
 	ptoken, _, err := parser.ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
-		ve := &jwt.ValidationError{}
-		if errors.As(err, &ve) {
+		// ValidationErrors occurred while parsing token is handled below. jwt.ValidationErrors is removed in new jwt v5
+		if errors.Is(err, jwt.ErrTokenMalformed) || errors.Is(err, jwt.ErrTokenUnverifiable) {
 			// fmt.Printf("warning: token error validation failed | %v\n", err)
 			return false, nil
 		}
 		return false, breverrors.WrapAndTrace(err)
 	}
-	err = ptoken.Claims.Valid()
+	// Migrate from deprecated claims.Valid() to jwt v5 Validator.Validate() for standards-compliant claim validation.
+	validator := jwt.NewValidator(
+		jwt.WithIssuedAt(),
+	)
+	err = validator.Validate(ptoken.Claims)
 	if err != nil {
 		// https://pkg.go.dev/github.com/golang-jwt/jwt@v3.2.2+incompatible#MapClaims.Valid // https://github.com/dgrijalva/jwt-go/issues/383 // sometimes client clock is skew/out of sync with server who generated token
 		if strings.Contains(err.Error(), "Token used before issued") { // not a security issue because we always check server side as well
