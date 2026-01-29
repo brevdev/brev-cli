@@ -318,7 +318,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
 		}
 	} else {
-		ls.terminal.Vprintf("You have %d instances in Org "+ls.terminal.Yellow(org.Name)+"\n", len(userWorkspaces))
+		ls.terminal.Vprintf("You have %d instances in Org %s\n", len(userWorkspaces), ls.terminal.Yellow(org.Name))
 		displayWorkspacesTable(ls.terminal, userWorkspaces)
 
 		fmt.Print("\n")
@@ -382,14 +382,14 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 func displayProjects(t *terminal.Terminal, orgName string, projects []virtualproject.VirtualProject) {
 	if len(projects) > 0 {
 		fmt.Print("\n")
-		t.Vprintf("%d other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
+		t.Vprintf("%d other projects in Org %s\n", len(projects), t.Yellow(orgName))
 		displayProjectsTable(projects)
 
 		fmt.Print("\n")
 		t.Vprintf("%s", t.Green("Join a project:\n")+
 			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
 	} else {
-		t.Vprintf("no other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
+		t.Vprintf("no other projects in Org %s\n", t.Yellow(orgName))
 		fmt.Print("\n")
 		t.Vprintf("%s", t.Green("Invite a teamate:\n")+
 			t.Yellow("\tbrev invite"))
