@@ -250,7 +250,7 @@ func maybeStartEmpty(t *terminal.Terminal, user *entity.User, options StartOptio
 func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
 	pathExists := allutil.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
-		return fmt.Errorf("%s", strings.Join([]string{"Path:", options.RepoOrPathOrNameOrID, "does not exist."}, " "))
+		return fmt.Errorf("Path: %s does not exist", options.RepoOrPathOrNameOrID)
 	}
 	var gitpath string
 	if options.RepoOrPathOrNameOrID == "." {
@@ -260,7 +260,7 @@ func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options Sta
 	}
 	file, error := startStore.GetFileAsString(gitpath)
 	if error != nil {
-		return fmt.Errorf("%s", strings.Join([]string{"Could not read .git/config at", options.RepoOrPathOrNameOrID}, " "))
+		return fmt.Errorf("Could not read .git/config at %s", options.RepoOrPathOrNameOrID)
 	}
 	// Get GitUrl
 	var gitURL string
@@ -333,7 +333,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Start
 		setupScriptContents += "\n" + contents
 
 		if err1 != nil {
-			t.Vprint(t.Red("Couldn't fetch setup script from %s\n", options.SetupScript) + t.Yellow("Continuing with default setup script 👍"))
+			t.Vprintf("%s", t.Red("Couldn't fetch setup script from %s\n", options.SetupScript)+t.Yellow("Continuing with default setup script 👍"))
 			return breverrors.WrapAndTrace(err1)
 		}
 	}
@@ -507,7 +507,7 @@ func createNewWorkspaceFromGit(user *entity.User, t *terminal.Terminal, setupScr
 		if IsURL(setupScriptURLOrPath) {
 			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptURLOrPath)
 			if err1 != nil {
-				t.Vprint(t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath) + t.Yellow("Continuing with default setup script 👍"))
+				t.Vprintf("%s", t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath)+t.Yellow("Continuing with default setup script 👍"))
 				return breverrors.WrapAndTrace(err1)
 			}
 			setupScriptContents += "\n" + contents

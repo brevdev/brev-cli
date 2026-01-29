@@ -135,10 +135,10 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		return breverrors.WrapAndTrace(err)
 	} else {
 		if workspaceName == "self" {
-			t.Vprint(t.Green("Stopping this instance\n") +
+			t.Vprintf("%s", t.Green("Stopping this instance\n")+
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 		} else {
-			t.Vprint(t.Green("Stopping instance "+workspaceName+".\n") +
+			t.Vprintf("%s", t.Green("Stopping instance "+workspaceName+".\n")+
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
 		}
 	}

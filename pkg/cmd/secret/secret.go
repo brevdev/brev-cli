@@ -194,7 +194,7 @@ func addSecret(secretStore SecretStore, t *terminal.Terminal, envtype string, na
 		t.Vprintf("%s", t.Red(err.Error()))
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprint(secret.Name)
+	t.Vprintf("%s", secret.Name)
 	s.Suffix = "  environment secret added"
 	s.Stop()
 

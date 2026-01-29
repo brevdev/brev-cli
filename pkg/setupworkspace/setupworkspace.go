@@ -148,7 +148,7 @@ func NewWorkspaceIniter(workspaceDir string, user *user.User, params *store.Setu
 	params.ReposV0 = InitRepos(params.ReposV0)
 
 	// Suppress lint error to remove (params.ExecsV0 == nil), to support any edge case
-	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") { //nolint:gosimple //ok
+	if (params.ExecsV0 == nil || len(params.ExecsV0) == 0) && (params.ProjectSetupScript == nil || *params.ProjectSetupScript == "") {
 		defaultScript := "#!/bin/bash\n"
 		b64DefaultScript := base64.StdEncoding.EncodeToString([]byte(defaultScript))
 		params.ProjectSetupScript = &b64DefaultScript

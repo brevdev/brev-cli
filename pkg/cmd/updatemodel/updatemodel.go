@@ -350,7 +350,6 @@ func (r repoMerger) reposValues() []*entity.RepoV1 {
 	values := []*entity.RepoV1{}
 	for _, repo := range r.repos {
 		for _, v := range *repo {
-			// Remove redundant reassignments of range variables; Go v1.24 no longer requires shadowing inside loops, so key/val can be used directly
 			values = append(values, &v)
 		}
 	}

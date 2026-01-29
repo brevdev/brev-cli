@@ -703,7 +703,7 @@ alice=bob`,
 			}
 			diff := cmp.Diff(out, tt.want, cmp.AllowUnexported(item{}))
 			if diff != "" {
-				t.Fatalf("%v", diff)
+				t.Fatalf("%s", diff)
 			}
 		})
 	}

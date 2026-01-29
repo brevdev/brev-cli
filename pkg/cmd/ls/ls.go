@@ -386,12 +386,12 @@ func displayProjects(t *terminal.Terminal, orgName string, projects []virtualpro
 		displayProjectsTable(projects)
 
 		fmt.Print("\n")
-		t.Vprint(t.Green("Join a project:\n") +
+		t.Vprintf("%s", t.Green("Join a project:\n")+
 			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
 	} else {
 		t.Vprintf("no other projects in Org "+t.Yellow(orgName)+"\n", len(projects))
 		fmt.Print("\n")
-		t.Vprint(t.Green("Invite a teamate:\n") +
+		t.Vprintf("%s", t.Green("Invite a teamate:\n")+
 			t.Yellow("\tbrev invite"))
 	}
 }

@@ -1,105 +1,45 @@
-linters-settings:
-  goimports:
-    local-prefixes: github.com/brevdev/brev-cli
-  revive:
-    min-confidence: 0.8
-    rules:
-      - name: blank-imports
-      - name: context-as-argument
-      - name: context-as-argument
-      - name: context-keys-type
-      - name: dot-imports
-      - name: error-return
-      - name: error-strings
-      - name: error-naming
-      - name: if-return
-      - name: increment-decrement
-      - name: var-naming
-      - name: var-declaration
-      - name: package-comments
-      - name: range
-      - name: receiver-naming
-      - name: time-naming
-      - name: unexported-return
-      - name: errorf
-      - name: empty-block
-      - name: superfluous-else
-      - name: unused-parameter
-      - name: unreachable-code
-      - name: redefines-builtin-id
-  gocyclo:
-    min-complexity: 16
-  govet:
-    enable:
-      - shadow
+version: "2"
 
-  misspell:
-    locale: US
-  nolintlint:
-    allow-leading-space: false # require machine-readable nolint directives (with no leading space)
-    allow-unused: false # report any unused nolint directives
-    require-explanation: true # require an explanation for nolint directives
-    require-specific: false # don't require nolint directives to be specific about which linter is being skipped
-  funlen:
-    lines: 100
-  wrapcheck:
-    ignoreSigs:
-      - .WrapAndTrace
-      - .Errorf
-      - .Wrap
-      - .New
-  stylecheck:
-    checks: ["all", "-ST1020", "-ST1000"]
+linters:
+  default: none
+  enable:
+    - govet
+    - ineffassign
+    - unused
+    - bodyclose
+    - dupl
+    - copyloopvar
+    - forcetypeassert
+    - funlen
+    - gocognit
+    - gocritic
+    - gocyclo
+    - goprintffuncname
+    - misspell
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - unparam
+    - wrapcheck
+  settings:
+    gocyclo:
+      min-complexity: 16
+    misspell:
+      locale: US
+    funlen:
+      lines: 100
+      statements: 60
+    wrapcheck:
+      ignore-sigs:
+        - .WrapAndTrace
+        - .Errorf
+        - .Wrap
+        - .New
 
 run:
   build-tags:
     - codeanalysis
 
-linters:
-  # please, do not use `enable-all`: it's deprecated and will be removed soon.
-  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-  disable-all: true
+formatters:
   enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    # - staticcheck
-    - typecheck
-    - unused
-    - bodyclose
-    # - depguard
-    - dupl
-    # exportloopref is deprecated. Copyvarloop is used instead.
-    - copyloopvar
-    - forcetypeassert
-    - funlen
-    # - gci
-    - gocognit
-    # - goconst
-    - gocritic
-    - gocyclo
-    # - godot
     - gofumpt
-    # - revive
-    # - gomnd
-    - goprintffuncname
-    - gosec
-    # - ifshort
-    - misspell
-    - noctx
-    - nolintlint
-    - rowserrcheck
-    - sqlclosecheck
-    - stylecheck
-    - thelper
-    - tparallel
-    - unconvert
-    - unparam
-    # - whitespace
-    # - errorlint
-    # - goerr113
-    - wrapcheck
-issues:
-  # enable issues excluded by default
-  exclude-use-default: false
