@@ -41,8 +41,8 @@ type LifeCycleScriptAttr struct {
 
 // VMBuild holds VM-specific build configuration
 type VMBuild struct {
-	ForceJupyterInstall  bool                 `json:"forceJupyterInstall,omitempty"`
-	LifeCycleScriptAttr  *LifeCycleScriptAttr `json:"lifeCycleScriptAttr,omitempty"`
+	ForceJupyterInstall bool                 `json:"forceJupyterInstall,omitempty"`
+	LifeCycleScriptAttr *LifeCycleScriptAttr `json:"lifeCycleScriptAttr,omitempty"`
 }
 
 type CreateWorkspacesOptions struct {
