@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/cmd/claudeskill"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 
@@ -188,6 +189,12 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 	err = o.showBreadCrumbs(t, org, user)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	// Offer to install Claude Code skill if Claude is detected
+	homeDir, err := o.LoginStore.UserHomeDir()
+	if err == nil {
+		claudeskill.RunInstallSkillIfWanted(t, homeDir)
 	}
 
 	return nil

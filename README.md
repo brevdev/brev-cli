@@ -59,6 +59,43 @@ brev login
 
 https://brev.nvidia.com/
 
+## Claude Code Integration
+
+Use Brev with [Claude Code](https://claude.ai/code) for AI-assisted GPU instance management.
+
+### Install the Claude Code Skill
+
+**Option 1: Via Brev CLI (recommended)**
+
+If you have Brev installed, the skill is offered automatically during `brev login`. Or install manually:
+
+```bash
+brev claude-skill
+```
+
+**Option 2: Standalone installer**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-claude-skill.sh | bash
+```
+
+### Usage
+
+After installing, restart Claude Code and use natural language:
+- "Create an A100 instance for ML training"
+- "Search for GPUs with 40GB VRAM"
+- "Stop all my running instances"
+
+Or invoke directly with `/brev-cli`.
+
+### Uninstall
+
+```bash
+brev claude-skill --uninstall
+```
+
+See [.claude/skills/brev-cli/INSTALLATION.md](.claude/skills/brev-cli/INSTALLATION.md) for more options.
+
 ## Docs
 
 https://docs.nvidia.com/brev/latest/
