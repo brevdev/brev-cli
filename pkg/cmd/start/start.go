@@ -2,8 +2,10 @@
 package start
 
 import (
+	"bufio"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -29,6 +31,7 @@ var (
   brev start <existing_ws_name>
   brev start <git url>
   brev start <git url> --org myFancyOrg
+  echo instance-name | brev start
 	`
 )
 
@@ -65,10 +68,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			repoOrPathOrNameOrID := ""
-			if len(args) > 0 {
-				repoOrPathOrNameOrID = args[0]
-			}
+			piped := isStdoutPiped()
+			names, stdinPiped := getInstanceNamesFromStdin(args)
 
 			if gpu != "" {
 				isValid := instancetypes.ValidateInstanceType(gpu)
@@ -76,6 +77,45 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 					err := fmt.Errorf("invalid GPU instance type: %s, more information can be found on https://docs.nvidia.com/brev/latest/quick-start.html#select-your-compute", gpu)
 					return breverrors.WrapAndTrace(err)
 				}
+			}
+
+			// If stdin is piped, handle multiple instances (only start existing stopped instances)
+			if stdinPiped && len(names) > 0 {
+				var startedNames []string
+				for _, instanceName := range names {
+					err := runStartWorkspace(t, StartOptions{
+						RepoOrPathOrNameOrID: instanceName,
+						Name:                 "",
+						OrgName:              org,
+						SetupScript:          setupScript,
+						SetupRepo:            setupRepo,
+						SetupPath:            setupPath,
+						WorkspaceClass:       cpu,
+						Detached:             true, // Always detached when piping multiple
+						InstanceType:         gpu,
+						Piped:                piped,
+					}, startStore)
+					if err != nil {
+						if !piped {
+							t.Vprintf("Error starting %s: %s\n", instanceName, err.Error())
+						}
+					} else {
+						startedNames = append(startedNames, instanceName)
+					}
+				}
+				// Output names for piping to next command
+				if piped {
+					for _, n := range startedNames {
+						fmt.Println(n)
+					}
+				}
+				return nil
+			}
+
+			// Single instance mode (original behavior)
+			repoOrPathOrNameOrID := ""
+			if len(names) > 0 {
+				repoOrPathOrNameOrID = names[0]
 			}
 
 			err := runStartWorkspace(t, StartOptions{
@@ -88,6 +128,7 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 				WorkspaceClass:       cpu,
 				Detached:             detached,
 				InstanceType:         gpu,
+				Piped:                piped,
 			}, startStore)
 			if err != nil {
 				if strings.Contains(err.Error(), "duplicate instance with name") {
@@ -96,6 +137,10 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 					t.Vprint(t.Yellow("\tbrev delete [name]"))
 				}
 				return breverrors.WrapAndTrace(err)
+			}
+			// Output name for piping to next command
+			if piped && repoOrPathOrNameOrID != "" {
+				fmt.Println(repoOrPathOrNameOrID)
 			}
 			return nil
 		},
@@ -129,6 +174,7 @@ type StartOptions struct {
 	WorkspaceClass       string
 	Detached             bool
 	InstanceType         string
+	Piped                bool // true when stdout is piped to another command
 }
 
 func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
@@ -688,4 +734,33 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 		}
 	}
 	return nil
+}
+
+// isStdoutPiped returns true if stdout is being piped to another command
+func isStdoutPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
+// getInstanceNamesFromStdin returns instance names from args and stdin if piped
+// Returns the names and whether stdin was piped
+func getInstanceNamesFromStdin(args []string) ([]string, bool) {
+	var names []string
+	names = append(names, args...)
+
+	// Check if stdin is piped
+	stat, _ := os.Stdin.Stat()
+	stdinPiped := (stat.Mode() & os.ModeCharDevice) == 0
+
+	if stdinPiped {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			name := strings.TrimSpace(scanner.Text())
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+
+	return names, stdinPiped
 }

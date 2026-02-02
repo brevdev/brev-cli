@@ -2,6 +2,7 @@
 package ls
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -37,17 +38,23 @@ type LsStore interface {
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
 	var org string
+	var jsonOutput bool
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"workspace": ""},
 		Use:         "ls",
 		Aliases:     []string{"list"},
 		Short:       "List instances within active org",
-		Long:        "List instances within your active org. List all instances if no active org is set.",
+		Long: `List instances within your active org. List all instances if no active org is set.
+
+When stdout is piped, outputs instance names only (one per line) for easy chaining
+with other commands like stop, start, or delete.`,
 		Example: `
   brev ls
+  brev ls --json
+  brev ls | grep running | brev stop
   brev ls orgs
-  brev ls --org <orgid>
+  brev ls orgs --json
 		`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 			if hello.ShouldWeRunOnboardingLSStep(noLoginLsStore) && hello.ShouldWeRunOnboarding(noLoginLsStore) {
@@ -94,23 +101,28 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org, showAll)
+			// Auto-switch to names-only output when piped (for chaining with stop/start/delete)
+			piped := isStdoutPiped()
+
+			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput, piped)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			// Call analytics for ls
-			userID := ""
-			user, err := loginLsStore.GetCurrentUser()
-			if err != nil {
-				userID = ""
-			} else {
-				userID = user.ID
+			// Call analytics for ls (skip when piped to avoid polluting output)
+			if !piped && !jsonOutput {
+				userID := ""
+				user, err := loginLsStore.GetCurrentUser()
+				if err != nil {
+					userID = ""
+				} else {
+					userID = user.ID
+				}
+				data := analytics.EventData{
+					EventName: "Brev ls",
+					UserID:    userID,
+				}
+				_ = analytics.TrackEvent(data)
 			}
-			data := analytics.EventData{
-				EventName: "Brev ls",
-				UserID:    userID,
-			}
-			_ = analytics.TrackEvent(data)
 			return nil
 		},
 	}
@@ -123,8 +135,15 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 	}
 
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
+}
+
+// isStdoutPiped returns true if stdout is being piped to another command
+func isStdoutPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
 }
 
 func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, error) {
@@ -156,8 +175,8 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool) error {
-	ls := NewLs(lsStore, t)
+func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool, piped bool) error {
+	ls := NewLs(lsStore, t, jsonOutput, piped)
 	user, err := lsStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -219,15 +238,26 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 }
 
 type Ls struct {
-	lsStore  LsStore
-	terminal *terminal.Terminal
+	lsStore    LsStore
+	terminal   *terminal.Terminal
+	jsonOutput bool
+	piped      bool
 }
 
-func NewLs(lsStore LsStore, terminal *terminal.Terminal) *Ls {
+func NewLs(lsStore LsStore, terminal *terminal.Terminal, jsonOutput bool, piped bool) *Ls {
 	return &Ls{
-		lsStore:  lsStore,
-		terminal: terminal,
+		lsStore:    lsStore,
+		terminal:   terminal,
+		jsonOutput: jsonOutput,
+		piped:      piped,
 	}
+}
+
+// OrgInfo represents organization data for JSON output
+type OrgInfo struct {
+	Name     string `json:"name"`
+	ID       string `json:"id"`
+	IsActive bool   `json:"is_active"`
 }
 
 func (ls Ls) RunOrgs() error {
@@ -236,6 +266,13 @@ func (ls Ls) RunOrgs() error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
+		if ls.jsonOutput {
+			fmt.Println("[]")
+			return nil
+		}
+		if ls.piped {
+			return nil
+		}
 		ls.terminal.Vprint(ls.terminal.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.GlobalConfig.GetConsoleURL())))
 		return nil
 	}
@@ -244,6 +281,19 @@ func (ls Ls) RunOrgs() error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+
+	// Handle JSON output
+	if ls.jsonOutput {
+		return ls.outputOrgsJSON(orgs, defaultOrg)
+	}
+
+	// Handle piped output - clean table without colors
+	if ls.piped {
+		displayOrgTablePlain(orgs, defaultOrg)
+		return nil
+	}
+
+	// Standard table output
 	ls.terminal.Vprint(ls.terminal.Yellow("Your organizations:"))
 	displayOrgTable(ls.terminal, orgs, defaultOrg)
 	if len(orgs) > 1 {
@@ -254,6 +304,23 @@ func (ls Ls) RunOrgs() error {
 		ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev set <NAME> ex: brev set %s\n", notDefaultOrg.Name))
 	}
 
+	return nil
+}
+
+func (ls Ls) outputOrgsJSON(orgs []entity.Organization, defaultOrg *entity.Organization) error {
+	var infos []OrgInfo
+	for _, o := range orgs {
+		infos = append(infos, OrgInfo{
+			Name:     o.Name,
+			ID:       o.ID,
+			IsActive: defaultOrg != nil && o.ID == defaultOrg.ID,
+		})
+	}
+	output, err := json.MarshalIndent(infos, "", "  ")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Println(string(output))
 	return nil
 }
 
@@ -350,6 +417,27 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		return breverrors.WrapAndTrace(err)
 	}
 
+	// Determine which workspaces to show
+	var workspacesToShow []entity.Workspace
+	if showAll {
+		workspacesToShow = allWorkspaces
+	} else {
+		workspacesToShow = store.FilterForUserWorkspaces(allWorkspaces, user.ID)
+	}
+
+	// Handle JSON output
+	if ls.jsonOutput {
+		return ls.outputWorkspacesJSON(workspacesToShow)
+	}
+
+	// Handle piped output - clean table without colors or extra text
+	// Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
+	if ls.piped {
+		displayWorkspacesTablePlain(workspacesToShow)
+		return nil
+	}
+
+	// Standard table output with colors and help text
 	orgs, err := ls.lsStore.GetOrganizations(nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -359,6 +447,52 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	} else {
 		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces)
 	}
+	return nil
+}
+
+// WorkspaceInfo represents workspace data for JSON output
+type WorkspaceInfo struct {
+	Name         string `json:"name"`
+	ID           string `json:"id"`
+	Status       string `json:"status"`
+	BuildStatus  string `json:"build_status"`
+	ShellStatus  string `json:"shell_status"`
+	HealthStatus string `json:"health_status"`
+	InstanceType string `json:"instance_type"`
+	InstanceKind string `json:"instance_kind"`
+}
+
+// getInstanceTypeAndKind returns the instance type and kind (gpu/cpu)
+func getInstanceTypeAndKind(w entity.Workspace) (string, string) {
+	if w.InstanceType != "" {
+		return w.InstanceType, "gpu"
+	}
+	if w.WorkspaceClassID != "" {
+		return w.WorkspaceClassID, "cpu"
+	}
+	return "", ""
+}
+
+func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace) error {
+	var infos []WorkspaceInfo
+	for _, w := range workspaces {
+		instanceType, instanceKind := getInstanceTypeAndKind(w)
+		infos = append(infos, WorkspaceInfo{
+			Name:         w.Name,
+			ID:           w.ID,
+			Status:       getWorkspaceDisplayStatus(w),
+			BuildStatus:  string(w.VerbBuildStatus),
+			ShellStatus:  getShellDisplayStatus(w),
+			HealthStatus: w.HealthStatus,
+			InstanceType: instanceType,
+			InstanceKind: instanceKind,
+		})
+	}
+	output, err := json.MarshalIndent(infos, "", "  ")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Println(string(output))
 	return nil
 }
 
@@ -420,6 +554,23 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta.Render()
 }
 
+// displayWorkspacesTablePlain outputs a clean table without colors for piping
+// Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
+func displayWorkspacesTablePlain(workspaces []entity.Workspace) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE"}
+	ta.AppendHeader(header)
+	for _, w := range workspaces {
+		status := getWorkspaceDisplayStatus(w)
+		instanceString := utilities.GetInstanceString(w)
+		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString}}
+		ta.AppendRows(workspaceRow)
+	}
+	ta.Render()
+}
+
 func getShellDisplayStatus(w entity.Workspace) string {
 	status := entity.NotReady
 	if w.Status == entity.Running && w.VerbBuildStatus == entity.Completed {
@@ -448,6 +599,24 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 			workspaceRow = []table.Row{{t.Green("* " + o.Name), t.Green(o.ID)}}
 		}
 		ta.AppendRows(workspaceRow)
+	}
+	ta.Render()
+}
+
+// displayOrgTablePlain outputs a clean table without colors for piping
+// Enables: brev ls orgs | grep myorg | awk '{print $1}'
+func displayOrgTablePlain(orgs []entity.Organization, currentOrg *entity.Organization) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "ID"}
+	ta.AppendHeader(header)
+	for _, o := range orgs {
+		activeMarker := ""
+		if currentOrg != nil && o.ID == currentOrg.ID {
+			activeMarker = "* "
+		}
+		ta.AppendRows([]table.Row{{activeMarker + o.Name, o.ID}})
 	}
 	ta.Render()
 }

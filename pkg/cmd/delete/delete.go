@@ -1,8 +1,10 @@
 package delete
 
 import (
+	"bufio"
 	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -18,7 +20,7 @@ import (
 var (
 	//go:embed doc.md
 	deleteLong    string
-	deleteExample = "brev delete <ws_name>"
+	deleteExample = "brev delete <ws_name>...\necho instance-name | brev delete"
 )
 
 type DeleteStore interface {
@@ -37,11 +39,25 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 		Example:               deleteExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginDeleteStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			piped := isStdoutPiped()
+			names, err := getInstanceNames(args)
+			if err != nil {
+				return err
+			}
 			var allError error
-			for _, workspace := range args {
-				err := deleteWorkspace(workspace, t, loginDeleteStore)
+			var deletedNames []string
+			for _, workspace := range names {
+				err := deleteWorkspace(workspace, t, loginDeleteStore, piped)
 				if err != nil {
 					allError = multierror.Append(allError, err)
+				} else {
+					deletedNames = append(deletedNames, workspace)
+				}
+			}
+			// Output names for piping to next command
+			if piped {
+				for _, name := range deletedNames {
+					fmt.Println(name)
 				}
 			}
 			if allError != nil {
@@ -54,10 +70,10 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 	return cmd
 }
 
-func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore) error {
+func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore, piped bool) error {
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(deleteStore, workspaceName)
 	if err != nil {
-		err1 := handleAdminUser(err, deleteStore)
+		err1 := handleAdminUser(err, deleteStore, piped)
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
@@ -75,12 +91,14 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprintf("Deleting instance %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
+	if !piped {
+		t.Vprintf("Deleting instance %s. This can take a few minutes. Run 'brev ls' to check status\n", deletedWorkspace.Name)
+	}
 
 	return nil
 }
 
-func handleAdminUser(err error, deleteStore DeleteStore) error {
+func handleAdminUser(err error, deleteStore DeleteStore, piped bool) error {
 	if strings.Contains(err.Error(), "not found") {
 		user, err1 := deleteStore.GetCurrentUser()
 		if err1 != nil {
@@ -89,7 +107,9 @@ func handleAdminUser(err error, deleteStore DeleteStore) error {
 		if user.GlobalUserType != "Admin" {
 			return breverrors.WrapAndTrace(err)
 		}
-		fmt.Println("attempting to delete an instance you don't own as admin")
+		if !piped {
+			fmt.Println("attempting to delete an instance you don't own as admin")
+		}
 		return nil
 	}
 
@@ -98,4 +118,37 @@ func handleAdminUser(err error, deleteStore DeleteStore) error {
 	}
 
 	return nil
+}
+
+// isStdoutPiped returns true if stdout is being piped to another command
+func isStdoutPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
+// getInstanceNames gets instance names from args or stdin (supports piping)
+func getInstanceNames(args []string) ([]string, error) {
+	var names []string
+
+	// Add names from args
+	names = append(names, args...)
+
+	// Check if stdin is piped
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		// Stdin is piped, read instance names (one per line)
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			name := strings.TrimSpace(scanner.Text())
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+
+	if len(names) == 0 {
+		return nil, breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+	}
+
+	return names, nil
 }
