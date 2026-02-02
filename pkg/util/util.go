@@ -58,7 +58,8 @@ func runWindowsExeInWSL(exePath string, args []string) ([]byte, error) {
 	cmdArgs = append(cmdArgs, args...)
 
 	cmd := exec.Command("cmd.exe", cmdArgs...) // #nosec G204
-	return cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
+	return output, breverrors.WrapAndTrace(err)
 }
 
 // This package should only be used as a holding pattern to be later moved into more specific packages

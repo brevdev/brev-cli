@@ -32,15 +32,15 @@ import (
 )
 
 const (
-	EditorVSCode    = "code"
-	EditorCursor    = "cursor"
-	EditorWindsurf  = "windsurf"
-	EditorTerminal  = "terminal"
-	EditorTmux      = "tmux"
+	EditorVSCode   = "code"
+	EditorCursor   = "cursor"
+	EditorWindsurf = "windsurf"
+	EditorTerminal = "terminal"
+	EditorTmux     = "tmux"
 )
 
 var (
-	openLong    = `[command in beta] This will open an editor SSH-ed in to your instance.
+	openLong = `[command in beta] This will open an editor SSH-ed in to your instance.
 
 Supported editors:
   code      - VS Code
@@ -148,7 +148,6 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-
 
 			setupDoneString := "------ Git repo cloned ------"
 			if waitForSetupToFinish {
@@ -670,29 +669,29 @@ func openInNewTerminalWindow(command string) error {
 	do script "%s"
 end tell`, command)
 		cmd := exec.Command("osascript", "-e", script) // #nosec G204
-		return cmd.Run()
+		return breverrors.WrapAndTrace(cmd.Run())
 
 	case "linux":
 		// Check if we're in WSL by looking for wt.exe
 		if _, err := exec.LookPath("wt.exe"); err == nil {
 			// WSL: use Windows Terminal
 			cmd := exec.Command("wt.exe", "new-tab", "bash", "-c", command) // #nosec G204
-			return cmd.Run()
+			return breverrors.WrapAndTrace(cmd.Run())
 		}
 		// Try gnome-terminal first (Ubuntu/GNOME)
 		if _, err := exec.LookPath("gnome-terminal"); err == nil {
 			cmd := exec.Command("gnome-terminal", "--", "bash", "-c", command+"; exec bash") // #nosec G204
-			return cmd.Run()
+			return breverrors.WrapAndTrace(cmd.Run())
 		}
 		// Try konsole (KDE)
 		if _, err := exec.LookPath("konsole"); err == nil {
 			cmd := exec.Command("konsole", "-e", "bash", "-c", command+"; exec bash") // #nosec G204
-			return cmd.Run()
+			return breverrors.WrapAndTrace(cmd.Run())
 		}
 		// Try xterm as fallback
 		if _, err := exec.LookPath("xterm"); err == nil {
 			cmd := exec.Command("xterm", "-e", "bash", "-c", command+"; exec bash") // #nosec G204
-			return cmd.Run()
+			return breverrors.WrapAndTrace(cmd.Run())
 		}
 		return breverrors.NewValidationError("no supported terminal emulator found. Install gnome-terminal, konsole, or xterm")
 
@@ -700,11 +699,11 @@ end tell`, command)
 		// Windows: use Windows Terminal
 		if _, err := exec.LookPath("wt.exe"); err == nil {
 			cmd := exec.Command("wt.exe", "new-tab", "cmd", "/c", command) // #nosec G204
-			return cmd.Run()
+			return breverrors.WrapAndTrace(cmd.Run())
 		}
 		// Fallback to start cmd
 		cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", command) // #nosec G204
-		return cmd.Run()
+		return breverrors.WrapAndTrace(cmd.Run())
 
 	default:
 		return breverrors.NewValidationError(fmt.Sprintf("'terminal' editor is not supported on %s", runtime.GOOS))
