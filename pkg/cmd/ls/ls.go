@@ -110,18 +110,7 @@ with other commands like stop, start, or delete.`,
 			}
 			// Call analytics for ls (skip when piped to avoid polluting output)
 			if !piped && !jsonOutput {
-				userID := ""
-				user, err := loginLsStore.GetCurrentUser()
-				if err != nil {
-					userID = ""
-				} else {
-					userID = user.ID
-				}
-				data := analytics.EventData{
-					EventName: "Brev ls",
-					UserID:    userID,
-				}
-				_ = analytics.TrackEvent(data)
+				trackLsAnalytics(loginLsStore)
 			}
 			return nil
 		},
@@ -144,6 +133,20 @@ with other commands like stop, start, or delete.`,
 func isStdoutPiped() bool {
 	stat, _ := os.Stdout.Stat()
 	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
+// trackLsAnalytics sends analytics event for ls command
+func trackLsAnalytics(store LsStore) {
+	userID := ""
+	user, err := store.GetCurrentUser()
+	if err == nil {
+		userID = user.ID
+	}
+	data := analytics.EventData{
+		EventName: "Brev ls",
+		UserID:    userID,
+	}
+	_ = analytics.TrackEvent(data)
 }
 
 func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, error) {

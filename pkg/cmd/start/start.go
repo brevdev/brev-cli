@@ -81,68 +81,11 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 
 			// If stdin is piped, handle multiple instances (only start existing stopped instances)
 			if stdinPiped && len(names) > 0 {
-				var startedNames []string
-				for _, instanceName := range names {
-					err := runStartWorkspace(t, StartOptions{
-						RepoOrPathOrNameOrID: instanceName,
-						Name:                 "",
-						OrgName:              org,
-						SetupScript:          setupScript,
-						SetupRepo:            setupRepo,
-						SetupPath:            setupPath,
-						WorkspaceClass:       cpu,
-						Detached:             true, // Always detached when piping multiple
-						InstanceType:         gpu,
-						Piped:                piped,
-					}, startStore)
-					if err != nil {
-						if !piped {
-							t.Vprintf("Error starting %s: %s\n", instanceName, err.Error())
-						}
-					} else {
-						startedNames = append(startedNames, instanceName)
-					}
-				}
-				// Output names for piping to next command
-				if piped {
-					for _, n := range startedNames {
-						fmt.Println(n)
-					}
-				}
-				return nil
+				return runBatchStart(t, names, org, setupScript, setupRepo, setupPath, cpu, gpu, piped, startStore)
 			}
 
 			// Single instance mode (original behavior)
-			repoOrPathOrNameOrID := ""
-			if len(names) > 0 {
-				repoOrPathOrNameOrID = names[0]
-			}
-
-			err := runStartWorkspace(t, StartOptions{
-				RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
-				Name:                 name,
-				OrgName:              org,
-				SetupScript:          setupScript,
-				SetupRepo:            setupRepo,
-				SetupPath:            setupPath,
-				WorkspaceClass:       cpu,
-				Detached:             detached,
-				InstanceType:         gpu,
-				Piped:                piped,
-			}, startStore)
-			if err != nil {
-				if strings.Contains(err.Error(), "duplicate instance with name") {
-					t.Vprint(t.Yellow("try running:"))
-					t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
-					t.Vprint(t.Yellow("\tbrev delete [name]"))
-				}
-				return breverrors.WrapAndTrace(err)
-			}
-			// Output name for piping to next command
-			if piped && repoOrPathOrNameOrID != "" {
-				fmt.Println(repoOrPathOrNameOrID)
-			}
-			return nil
+			return runSingleStart(t, names, name, org, setupScript, setupRepo, setupPath, cpu, gpu, detached, piped, startStore)
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -763,4 +706,71 @@ func getInstanceNamesFromStdin(args []string) ([]string, bool) {
 	}
 
 	return names, stdinPiped
+}
+
+// runBatchStart handles starting multiple instances when stdin is piped
+func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
+	var startedNames []string
+	for _, instanceName := range names {
+		err := runStartWorkspace(t, StartOptions{
+			RepoOrPathOrNameOrID: instanceName,
+			Name:                 "",
+			OrgName:              org,
+			SetupScript:          setupScript,
+			SetupRepo:            setupRepo,
+			SetupPath:            setupPath,
+			WorkspaceClass:       cpu,
+			Detached:             true, // Always detached when piping multiple
+			InstanceType:         gpu,
+			Piped:                piped,
+		}, startStore)
+		if err != nil {
+			if !piped {
+				t.Vprintf("Error starting %s: %s\n", instanceName, err.Error())
+			}
+		} else {
+			startedNames = append(startedNames, instanceName)
+		}
+	}
+	// Output names for piping to next command
+	if piped {
+		for _, n := range startedNames {
+			fmt.Println(n)
+		}
+	}
+	return nil
+}
+
+// runSingleStart handles starting a single instance (original behavior)
+func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript, setupRepo, setupPath, cpu, gpu string, detached, piped bool, startStore StartStore) error {
+	repoOrPathOrNameOrID := ""
+	if len(names) > 0 {
+		repoOrPathOrNameOrID = names[0]
+	}
+
+	err := runStartWorkspace(t, StartOptions{
+		RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
+		Name:                 name,
+		OrgName:              org,
+		SetupScript:          setupScript,
+		SetupRepo:            setupRepo,
+		SetupPath:            setupPath,
+		WorkspaceClass:       cpu,
+		Detached:             detached,
+		InstanceType:         gpu,
+		Piped:                piped,
+	}, startStore)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate instance with name") {
+			t.Vprint(t.Yellow("try running:"))
+			t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
+			t.Vprint(t.Yellow("\tbrev delete [name]"))
+		}
+		return breverrors.WrapAndTrace(err)
+	}
+	// Output name for piping to next command
+	if piped && repoOrPathOrNameOrID != "" {
+		fmt.Println(repoOrPathOrNameOrID)
+	}
+	return nil
 }
