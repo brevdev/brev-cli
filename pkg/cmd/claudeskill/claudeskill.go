@@ -149,7 +149,7 @@ func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
@@ -241,7 +241,7 @@ func downloadFile(client *http.Client, url, destPath string) error {
 	}
 
 	// Write file
-	if err := os.WriteFile(destPath, body, 0644); err != nil { //nolint:gosec // skill files are not sensitive
+	if err := os.WriteFile(destPath, body, 0o644); err != nil { //nolint:gosec // skill files are not sensitive
 		return breverrors.WrapAndTrace(err)
 	}
 
