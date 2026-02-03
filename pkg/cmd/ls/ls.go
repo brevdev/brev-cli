@@ -10,7 +10,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-	utilities "github.com/brevdev/brev-cli/pkg/cmd/util"
+	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -102,7 +102,7 @@ with other commands like stop, start, or delete.`,
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Auto-switch to names-only output when piped (for chaining with stop/start/delete)
-			piped := isStdoutPiped()
+			piped := cmdutil.IsStdoutPiped()
 
 			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput, piped)
 			if err != nil {
@@ -127,12 +127,6 @@ with other commands like stop, start, or delete.`,
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
-}
-
-// isStdoutPiped returns true if stdout is being piped to another command
-func isStdoutPiped() bool {
-	stat, _ := os.Stdout.Stat()
-	return (stat.Mode() & os.ModeCharDevice) == 0
 }
 
 // trackLsAnalytics sends analytics event for ls command
@@ -550,7 +544,7 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
-		instanceString := utilities.GetInstanceString(w)
+		instanceString := cmdutil.GetInstanceString(w)
 		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
 		ta.AppendRows(workspaceRow)
 	}
@@ -567,7 +561,7 @@ func displayWorkspacesTablePlain(workspaces []entity.Workspace) {
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
-		instanceString := utilities.GetInstanceString(w)
+		instanceString := cmdutil.GetInstanceString(w)
 		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString}}
 		ta.AppendRows(workspaceRow)
 	}
