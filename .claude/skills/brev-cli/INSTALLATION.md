@@ -26,8 +26,14 @@ curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/insta
 
 ### Install from a specific branch
 
+**Using the standalone script:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-claude-skill.sh | bash -s -- --branch my-branch
+```
+
+**Using the CLI command:**
+```bash
+BREV_SKILL_BRANCH=my-branch brev claude-skill
 ```
 
 ### Uninstall
