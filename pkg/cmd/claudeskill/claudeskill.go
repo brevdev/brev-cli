@@ -19,12 +19,28 @@ import (
 )
 
 const (
-	// GitHub raw content base URL
-	baseURL = "https://raw.githubusercontent.com/brevdev/brev-cli/main/.claude/skills/brev-cli"
+	// GitHub raw content base URL template
+	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.claude/skills/brev-cli"
+
+	// Default branch
+	defaultBranch = "main"
+
+	// Environment variable to override branch (for testing)
+	branchEnvVar = "BREV_SKILL_BRANCH"
 
 	// Skill name
 	skillName = "brev-cli"
 )
+
+// getBaseURL returns the base URL for downloading skill files
+// Uses BREV_SKILL_BRANCH env var if set, otherwise defaults to main
+func getBaseURL() string {
+	branch := os.Getenv(branchEnvVar)
+	if branch == "" {
+		branch = defaultBranch
+	}
+	return fmt.Sprintf(baseURLTemplate, branch)
+}
 
 // Files to download (relative to skill directory)
 var skillFiles = []string{
@@ -133,10 +149,15 @@ func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
 // InstallSkill downloads and installs the Claude skill
 func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 	skillDir := GetSkillDir(homeDir)
+	baseURL := getBaseURL()
 
 	if !quiet {
 		fmt.Println()
 		fmt.Printf("  Installing brev-cli skill to %s\n", t.Yellow(skillDir))
+		// Show branch if not default
+		if branch := os.Getenv(branchEnvVar); branch != "" {
+			fmt.Printf("  Using branch: %s\n", t.Yellow(branch))
+		}
 		fmt.Println()
 	}
 
