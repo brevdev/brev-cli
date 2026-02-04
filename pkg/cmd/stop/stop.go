@@ -17,7 +17,7 @@ import (
 
 var (
 	stopLong    = "Stop a Brev machine that's in a running state"
-	stopExample = "brev stop <ws_name>... \nbrev stop --all"
+	stopExample = "brev stop <ws_name>...\nbrev stop --all\necho instance-name | brev stop"
 )
 
 type StopStore interface {
@@ -43,17 +43,28 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		// Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs()),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			piped := util.IsStdoutPiped()
 			if all {
-				return stopAllWorkspaces(t, loginStopStore)
+				return stopAllWorkspaces(t, loginStopStore, piped)
 			} else {
-				if len(args) == 0 {
-					return breverrors.NewValidationError("please provide an instance to stop")
+				names, err := util.GetInstanceNames(args)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
 				}
 				var allErr error
-				for _, arg := range args {
-					err := stopWorkspace(arg, t, loginStopStore)
+				var stoppedNames []string
+				for _, name := range names {
+					err := stopWorkspace(name, t, loginStopStore, piped)
 					if err != nil {
 						allErr = multierror.Append(allErr, err)
+					} else {
+						stoppedNames = append(stoppedNames, name)
+					}
+				}
+				// Output names for piping to next command
+				if piped {
+					for _, name := range stoppedNames {
+						fmt.Println(name)
 					}
 				}
 				if allErr != nil {
@@ -68,7 +79,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 	return cmd
 }
 
-func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
+func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool) error {
 	user, err := stopStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -81,21 +92,33 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprintf("Turning off all of your instances")
+	if !piped {
+		t.Vprintf("Turning off all of your instances")
+	}
+	var stoppedNames []string
 	for _, v := range workspaces {
 		if v.Status == entity.Running {
 			_, err = stopStore.StopWorkspace(v.ID)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			} else {
-				t.Vprintf("%s", t.Green("\n%s stopped ✓", v.Name))
+				stoppedNames = append(stoppedNames, v.Name)
+				if !piped {
+					t.Vprintf("%s", t.Green("\n%s stopped ✓", v.Name))
+				}
 			}
+		}
+	}
+	// Output names for piping to next command
+	if piped {
+		for _, name := range stoppedNames {
+			fmt.Println(name)
 		}
 	}
 	return nil
 }
 
-func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore) error {
+func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, piped bool) error {
 	user, err := stopStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -106,7 +129,9 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	if workspaceName == "self" {
 		wsID, err2 := stopStore.GetCurrentWorkspaceID()
 		if err2 != nil {
-			t.Vprintf("\n Error: %s", t.Red(err2.Error()))
+			if !piped {
+				t.Vprintf("\n Error: %s", t.Red(err2.Error()))
+			}
 			return breverrors.WrapAndTrace(err2)
 		}
 		workspaceID = wsID
@@ -117,7 +142,9 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 				return breverrors.WrapAndTrace(err3)
 			} else {
 				if user.GlobalUserType == entity.Admin {
-					fmt.Println("admin trying to stop any instance")
+					if !piped {
+						fmt.Println("admin trying to stop any instance")
+					}
 					workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
@@ -133,7 +160,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	_, err = stopStore.StopWorkspace(workspaceID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
-	} else {
+	} else if !piped {
 		if workspaceName == "self" {
 			t.Vprintf("%s", t.Green("Stopping this instance\n")+
 				"Note: this can take a few seconds. Run 'brev ls' to check status\n")
@@ -145,7 +172,3 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 
 	return nil
 }
-
-// get current workspace
-// stopWorkspace("")
-// stop the workspace
