@@ -4,6 +4,17 @@
 
 Make the Brev CLI idiomatic, programmable, and agent-friendly. Users and AI agents should be able to compose commands using standard Unix patterns (`|`, `grep`, `awk`, `jq`) while also having structured output options for programmatic access.
 
+## Why Now
+
+Coding agents (Claude Code, Cursor, Cline, Aider, OpenCode, Clawdbot) are becoming the primary interface between developers and their tools. These agents prefer CLIs over APIs:
+
+- **Text-native** - LLMs think in text; pipes and grep are natural
+- **Self-documenting** - `--help` and tab completion beat reading API docs
+- **Composable** - Chain steps: `brev search | brev create | brev exec "setup.sh"`
+- **Learned from training** - Agents already know Unix conventions from GitHub/Stack Overflow
+
+Most GPU clouds have dashboards and APIs, but weak CLIs. A composable Brev CLI becomes the default for autonomous GPU workflows.
+
 ## Goals
 
 1. **Unix Idiomatic** - Commands work naturally with pipes and standard tools
