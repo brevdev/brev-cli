@@ -49,7 +49,7 @@ Make the Brev CLI idiomatic, programmable, and agent-friendly. Users and AI agen
 | `brev create` | Instance types (table or JSON) | Instance names | ✅ |
 | `brev shell` | - | - (interactive) | ✅ |
 | `brev exec` | Instance names | Command stdout/stderr | ✅ |
-| `brev open` | Instance names | - | ✅ |
+| `brev open` | Instance names | Instance names | ✅ |
 
 ### Exec Command (`brev exec`)
 
@@ -115,6 +115,13 @@ brev open gpu-1 gpu-2 gpu-3 cursor
 
 # Pipe from create
 brev create my-cluster --count 3 | brev open cursor
+```
+
+**Output for chaining**:
+Outputs instance names when piped, enabling pipelines:
+```bash
+# Create, open in editor, then run setup
+brev create my-gpu | brev open cursor | brev exec "pip install -r requirements.txt"
 ```
 
 **Cross-platform support**:

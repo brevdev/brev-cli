@@ -169,6 +169,10 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 					}
 					return breverrors.WrapAndTrace(err)
 				}
+				// Output instance name for chaining (only if stdout is piped)
+				if isPiped() {
+					fmt.Println(instanceName)
+				}
 			}
 			if errors != nil {
 				return breverrors.WrapAndTrace(errors)
@@ -188,6 +192,12 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 // isEditorType checks if a string is a valid editor type
 func isEditorType(s string) bool {
 	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTerminal || s == EditorTmux
+}
+
+// isPiped returns true if stdout is piped to another command
+func isPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
 }
 
 // getInstanceNamesAndEditor gets instance names from args/stdin and determines editor type
