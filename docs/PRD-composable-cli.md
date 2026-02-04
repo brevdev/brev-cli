@@ -47,7 +47,8 @@ Make the Brev CLI idiomatic, programmable, and agent-friendly. Users and AI agen
 | `brev start` | Instance names | Instance names | ✅ |
 | `brev delete` | Instance names | Instance names | ✅ |
 | `brev create` | Instance types (table or JSON) | Instance names | ✅ |
-| `brev shell` | Instance names | Instance names (after -c) | ✅ |
+| `brev shell` | - | - (interactive) | ✅ |
+| `brev shell -c` | Instance names | Command stdout/stderr | ✅ |
 | `brev open` | Instance names | - | ✅ |
 
 ### Shell Enhancements (`brev shell`)
