@@ -2,7 +2,7 @@ package store
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"path"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -92,7 +92,7 @@ func (f FileStore) GetCurrentWorkspaceServiceToken() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	token, err := ioutil.ReadAll(saTokenFile)
+	token, err := io.ReadAll(saTokenFile)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}

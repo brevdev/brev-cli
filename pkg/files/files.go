@@ -3,7 +3,7 @@ package files
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -143,7 +143,7 @@ func ReadString(fs afero.Fs, unsafeFilePathString string) (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	dataBytes, err := ioutil.ReadAll(f)
+	dataBytes, err := io.ReadAll(f)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -186,7 +186,7 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = ioutil.WriteFile(filepath, dataBytes, os.ModePerm)
+	err = os.WriteFile(filepath, dataBytes, os.ModePerm)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
