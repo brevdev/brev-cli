@@ -1,10 +1,4 @@
-<boolp align="center">
-<img width="230" src="https://raw.githubusercontent.com/brevdev/assets/main/logo.svg"/>
-</p>
-
-# Brev.dev
-
-[![](https://uohmivykqgnnbiouffke.supabase.co/storage/v1/object/public/landingpage/createdevenv1.svg)](https://console.brev.dev/environment/new?repo=https://github.com/brevdev/brev-cli&instance=2x8)
+# NVIDIA Brev CLI
 
 [NVIDIA Brev](https://brev.nvidia.com) provides streamlined access to NVIDIA GPU instances on popular cloud platforms, automatic environment setup, and flexible deployment options, enabling developers to start experimenting instantly.
 
