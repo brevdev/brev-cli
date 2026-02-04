@@ -59,7 +59,10 @@ func runWindowsExeInWSL(exePath string, args []string) ([]byte, error) {
 
 	cmd := exec.Command("cmd.exe", cmdArgs...) // #nosec G204
 	output, err := cmd.CombinedOutput()
-	return output, breverrors.WrapAndTrace(err)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return output, nil
 }
 
 // This package should only be used as a holding pattern to be later moved into more specific packages
@@ -253,17 +256,14 @@ func runManyCursorCommand(cursorpaths []string, args []string) ([]byte, error) {
 	return nil, breverrors.WrapAndTrace(errs.ErrorOrNil())
 }
 
-func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
+// runEditorCommand runs an editor executable with the given args, handling WSL compatibility
+func runEditorCommand(path string, args []string) ([]byte, error) {
 	// In WSL, Windows .exe files need to be run through cmd.exe
-	if isWSL() && (strings.HasSuffix(vscodepath, ".exe") || strings.HasPrefix(vscodepath, "/mnt/")) {
-		res, err := runWindowsExeInWSL(vscodepath, args)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		return res, nil
+	if isWSL() && (strings.HasSuffix(path, ".exe") || strings.HasPrefix(path, "/mnt/")) {
+		return runWindowsExeInWSL(path, args)
 	}
 
-	cmd := exec.Command(vscodepath, args...) // #nosec G204
+	cmd := exec.Command(path, args...) // #nosec G204
 	res, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -271,22 +271,12 @@ func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
 	return res, nil
 }
 
-func runCursorCommand(cursorpath string, args []string) ([]byte, error) {
-	// In WSL, Windows .exe files need to be run through cmd.exe
-	if isWSL() && (strings.HasSuffix(cursorpath, ".exe") || strings.HasPrefix(cursorpath, "/mnt/")) {
-		res, err := runWindowsExeInWSL(cursorpath, args)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		return res, nil
-	}
+func runVsCodeCommand(vscodepath string, args []string) ([]byte, error) {
+	return runEditorCommand(vscodepath, args)
+}
 
-	cmd := exec.Command(cursorpath, args...) // #nosec G204
-	res, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return res, nil
+func runCursorCommand(cursorpath string, args []string) ([]byte, error) {
+	return runEditorCommand(cursorpath, args)
 }
 
 func runManyWindsurfCommand(windsurfpaths []string, args []string) ([]byte, error) {
@@ -303,21 +293,7 @@ func runManyWindsurfCommand(windsurfpaths []string, args []string) ([]byte, erro
 }
 
 func runWindsurfCommand(windsurfpath string, args []string) ([]byte, error) {
-	// In WSL, Windows .exe files need to be run through cmd.exe
-	if isWSL() && (strings.HasSuffix(windsurfpath, ".exe") || strings.HasPrefix(windsurfpath, "/mnt/")) {
-		res, err := runWindowsExeInWSL(windsurfpath, args)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		return res, nil
-	}
-
-	cmd := exec.Command(windsurfpath, args...) // #nosec G204
-	res, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return res, nil
+	return runEditorCommand(windsurfpath, args)
 }
 
 var commonVSCodePaths = []string{

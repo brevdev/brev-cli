@@ -140,7 +140,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 
 			// Validate editor flag if provided
 			if editor != "" && !isEditorType(editor) {
-				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editor))
+				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', or 'tmux'", editor))
 			}
 
 			// Get instance names and editor type from args or stdin
@@ -155,7 +155,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			}
 
 			// Open each instance
-			var lastErr error
+			var errors error
 			for _, instanceName := range instanceNames {
 				if len(instanceNames) > 1 {
 					fmt.Fprintf(os.Stderr, "Opening %s...\n", instanceName)
@@ -164,14 +164,14 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				if err != nil {
 					if len(instanceNames) > 1 {
 						fmt.Fprintf(os.Stderr, "Error opening %s: %v\n", instanceName, err)
-						lastErr = err
+						errors = multierror.Append(errors, err)
 						continue
 					}
 					return breverrors.WrapAndTrace(err)
 				}
 			}
-			if lastErr != nil {
-				return breverrors.NewValidationError("one or more instances failed to open")
+			if errors != nil {
+				return breverrors.WrapAndTrace(errors)
 			}
 			return nil
 		},
@@ -215,6 +215,9 @@ func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, stri
 			if name != "" {
 				names = append(names, name)
 			}
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, "", breverrors.WrapAndTrace(err)
 		}
 	}
 
@@ -710,10 +713,7 @@ end tell`, command)
 	}
 }
 
-func openTerminal(sshAlias string, path string, store OpenStore) error {
-	_ = store // unused parameter required by interface
-	_ = path  // unused, just opens SSH
-
+func openTerminal(sshAlias string, _ string, _ OpenStore) error {
 	sshCmd := fmt.Sprintf("ssh %s", sshAlias)
 	err := openInNewTerminalWindow(sshCmd)
 	if err != nil {
