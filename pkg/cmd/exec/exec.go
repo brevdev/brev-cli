@@ -1,6 +1,7 @@
-package shell
+package exec
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -19,30 +19,38 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/spf13/cobra"
 )
 
 var (
-	openLong    = "[command in beta] This will shell in to your instance"
-	openExample = `  # SSH into an instance by name or ID
-  brev shell instance_id_or_name
-  brev shell my-instance
+	execLong    = "Execute a command on one or more instances non-interactively"
+	execExample = `  # Run a command on an instance
+  brev exec my-instance "nvidia-smi"
+  brev exec my-instance "python train.py"
 
-  # Create a GPU instance and SSH into it
-  brev shell $(brev create my-instance)
+  # Run a command on multiple instances
+  brev exec instance1 instance2 instance3 "nvidia-smi"
 
-  # Create with specific GPU and connect
-  brev shell $(brev search --gpu-name A100 | brev create ml-box)
+  # Run a script file on the instance (@ prefix reads local file)
+  brev exec my-instance @setup.sh
+  brev exec my-instance @scripts/deploy.sh
+
+  # Chain: create and run a command (reads instance names from stdin)
+  brev create my-instance | brev exec "nvidia-smi"
+
+  # Run command on a cluster
+  brev create my-cluster --count 3 | brev exec "nvidia-smi"
+
+  # Pipeline: create, setup, then run
+  brev create my-gpu | brev exec "pip install torch" | brev exec "python train.py"
 
   # SSH into the host machine instead of the container
-  brev shell my-instance --host
-
-  # For non-interactive command execution, use 'brev exec':
-  brev exec my-instance "nvidia-smi"`
+  brev exec my-instance --host "nvidia-smi"`
 )
 
-type ShellStore interface {
+type ExecStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
@@ -52,23 +60,60 @@ type ShellStore interface {
 	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
-func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
+func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecStore) *cobra.Command {
 	var host bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
-		Use:                   "shell <instance>",
-		Aliases:               []string{"ssh"},
+		Use:                   "exec [instance...] <command>",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] Open a shell in your instance",
-		Long:                  openLong,
-		Example:               openExample,
-		Args:                  cobra.ExactArgs(1),
+		Short:                 "Execute a command on instance(s)",
+		Long:                  execLong,
+		Example:               execExample,
+		Args:                  cobra.MinimumNArgs(1),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			instanceName := args[0]
-			err := runShellCommand(t, store, instanceName, host)
+			// Last argument is the command, rest are instance names
+			command := args[len(args)-1]
+			instanceArgs := args[:len(args)-1]
+
+			// Get instance names from args or stdin
+			instanceNames, err := getInstanceNames(instanceArgs)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
+			}
+
+			// Parse command (can be inline or @filepath)
+			cmdToRun, err := parseCommand(command)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
+			if cmdToRun == "" {
+				return breverrors.NewValidationError("command is required")
+			}
+
+			// Run on each instance
+			var errors error
+			for _, instanceName := range instanceNames {
+				if len(instanceNames) > 1 {
+					fmt.Fprintf(os.Stderr, "\n=== %s ===\n", instanceName)
+				}
+				err = runExecCommand(t, store, instanceName, host, cmdToRun)
+				if err != nil {
+					if len(instanceNames) > 1 {
+						fmt.Fprintf(os.Stderr, "Error on %s: %v\n", instanceName, err)
+						errors = multierror.Append(errors, err)
+						continue
+					}
+					return breverrors.WrapAndTrace(err)
+				}
+				// Output instance name for chaining (only if stdout is piped)
+				if isPiped() {
+					fmt.Println(instanceName)
+				}
+			}
+			if errors != nil {
+				return breverrors.WrapAndTrace(errors)
 			}
 			return nil
 		},
@@ -78,7 +123,62 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	return cmd
 }
 
-func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool) error {
+// isPiped returns true if stdout is piped to another command
+func isPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
+// getInstanceNames gets instance names from args or stdin (supports multiple)
+func getInstanceNames(args []string) ([]string, error) {
+	var names []string
+
+	// Add names from args
+	names = append(names, args...)
+
+	// Check if stdin is piped
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		// Stdin is piped, read instance names (one per line)
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			name := strings.TrimSpace(scanner.Text())
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	}
+
+	if len(names) == 0 {
+		return nil, breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+	}
+
+	return names, nil
+}
+
+// parseCommand parses the command string, loading from file if prefixed with @
+func parseCommand(command string) (string, error) {
+	if command == "" {
+		return "", nil
+	}
+
+	// If prefixed with @, read from file
+	if strings.HasPrefix(command, "@") {
+		filePath := strings.TrimPrefix(command, "@")
+		content, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		return string(content), nil
+	}
+
+	return command, nil
+}
+
+func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID string, host bool, command string) error {
 	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
@@ -124,11 +224,11 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using the shell
 	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
-	err = runSSH(sshName)
+	err = runSSH(sshName, command)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// Call analytics for shell
+	// Call analytics for exec
 	userID := ""
 	user, err := sstore.GetCurrentUser()
 	if err != nil {
@@ -137,7 +237,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		userID = user.ID
 	}
 	data := analytics.EventData{
-		EventName: "Brev Open",
+		EventName: "Brev Exec",
 		UserID:    userID,
 		Properties: map[string]string{
 			"instanceId": workspace.ID,
@@ -172,28 +272,28 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	}
 }
 
-func runSSH(sshAlias string) error {
+func runSSH(sshAlias string, command string) error {
 	sshAgentEval := "eval $(ssh-agent -s)"
-	cmd := fmt.Sprintf("%s && ssh %s", sshAgentEval, sshAlias)
 
+	// Non-interactive: run command and pipe stdout/stderr
+	// Escape the command for passing to SSH
+	escapedCmd := strings.ReplaceAll(command, "'", "'\\''")
+	cmd := fmt.Sprintf("ssh %s '%s'", sshAlias, escapedCmd)
+
+	cmd = fmt.Sprintf("%s && %s", sshAgentEval, cmd)
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
-	sshCmd.Stdin = os.Stdin
+	// Don't attach stdin - exec is non-interactive
 
-	err := hello.SetHasRunShell(true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = sshCmd.Run()
+	err := sshCmd.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore ShellStore, wsIDOrName string, workspace *entity.Workspace) error {
+func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore ExecStore, wsIDOrName string, workspace *entity.Workspace) error {
 	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -207,7 +307,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Sh
 		return breverrors.WrapAndTrace(err)
 	}
 	t.Vprintf("%s", t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
-	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight 🤙")
+	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -218,13 +318,13 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Sh
 	return nil
 }
 
-func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellStore, waitMsg string) error {
+func pollUntil(s *spinner.Spinner, wsid string, state string, execStore ExecStore, waitMsg string) error {
 	isReady := false
 	s.Suffix = waitMsg
 	s.Start()
 	for !isReady {
 		time.Sleep(5 * time.Second)
-		ws, err := shellStore.GetWorkspace(wsid)
+		ws, err := execStore.GetWorkspace(wsid)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -233,5 +333,6 @@ func pollUntil(s *spinner.Spinner, wsid string, state string, shellStore ShellSt
 			isReady = true
 		}
 	}
+	s.Stop()
 	return nil
 }

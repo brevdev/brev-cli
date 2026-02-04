@@ -48,41 +48,51 @@ Make the Brev CLI idiomatic, programmable, and agent-friendly. Users and AI agen
 | `brev delete` | Instance names | Instance names | ✅ |
 | `brev create` | Instance types (table or JSON) | Instance names | ✅ |
 | `brev shell` | - | - (interactive) | ✅ |
-| `brev shell -c` | Instance names | Command stdout/stderr | ✅ |
+| `brev exec` | Instance names | Command stdout/stderr | ✅ |
 | `brev open` | Instance names | - | ✅ |
 
-### Shell Enhancements (`brev shell`)
+### Exec Command (`brev exec`)
 
-Non-interactive command execution with `-c` flag, enabling scripted and agentic workflows.
+Non-interactive command execution for scripted and agentic workflows.
 
 **Run commands directly**:
 ```bash
-brev shell my-gpu -c "nvidia-smi"
-brev shell my-gpu -c "python train.py && echo done"
+brev exec my-gpu "nvidia-smi"
+brev exec my-gpu "python train.py && echo done"
 ```
 
 **Run local scripts remotely** (`@filepath` syntax):
 ```bash
-brev shell my-gpu -c @setup.sh           # Runs local setup.sh on remote
-brev shell my-gpu -c @scripts/deploy.sh  # Relative paths supported
+brev exec my-gpu @setup.sh           # Runs local setup.sh on remote
+brev exec my-gpu @scripts/deploy.sh  # Relative paths supported
 ```
 
 **Multi-instance support**:
 ```bash
 # Run on multiple instances
-brev shell gpu-1 gpu-2 gpu-3 -c "nvidia-smi"
+brev exec gpu-1 gpu-2 gpu-3 "nvidia-smi"
 
 # Pipe from create
-brev create my-cluster --count 3 | brev shell -c "nvidia-smi"
+brev create my-cluster --count 3 | brev exec "nvidia-smi"
 
 # Chain with other commands
-brev ls | grep RUNNING | brev shell -c "df -h"
+brev ls | grep RUNNING | brev exec "df -h"
 ```
 
 **Output for chaining**:
-When using `-c`, outputs instance names after execution completes, enabling pipelines:
+Outputs instance names after execution completes, enabling pipelines:
 ```bash
-brev create my-gpu | brev shell -c "pip install torch" | brev shell -c "python train.py"
+brev create my-gpu | brev exec "pip install torch" | brev exec "python train.py"
+```
+
+### Shell Command (`brev shell`)
+
+Interactive SSH session to an instance. Use `brev exec` for non-interactive commands.
+
+```bash
+brev shell my-gpu                    # Interactive shell
+brev shell $(brev create my-gpu)     # Create and connect
+brev shell my-gpu --host             # SSH to host instead of container
 ```
 
 ### Open Enhancements (`brev open`)
@@ -151,7 +161,7 @@ brev ls | grep STOPPED | awk '{print $1}' | brev delete
 ### Chained Lifecycle
 ```bash
 # Create, use, cleanup
-brev search --gpu-name A100 | head -1 | brev create --name job-1 | brev shell -c "python train.py" && brev delete job-1
+brev search --gpu-name A100 | head -1 | brev create --name job-1 | brev exec "python train.py" && brev delete job-1
 ```
 
 ### JSON Processing
@@ -207,7 +217,7 @@ With composable CLI + skills, agents can autonomously:
 
 1. **Provision** - Search, filter, and create instances matching workload requirements
 2. **Deploy** - Stream code/data to instances via pipeable `cp`
-3. **Execute** - Run workloads via `brev shell -c`, capture output
+3. **Execute** - Run workloads via `brev exec`, capture output
 4. **Monitor** - Poll status via `brev ls --json`, stream logs
 5. **Scale** - Spin up parallel instances, distribute work
 6. **Cleanup** - Stop/delete instances, manage costs
@@ -221,7 +231,7 @@ Agent:
 1. brev search --gpu-name H100 --stoppable --min-disk 500 | head -1 | brev create --name training-job
 2. brev wait training-job --state ready
 3. tar czf - ./src | brev cp - training-job:/app/
-4. brev shell training-job -c "cd /app && python train.py --checkpoint-interval 3600"
+4. brev exec training-job "cd /app && python train.py --checkpoint-interval 3600"
 5. brev cp training-job:/app/checkpoints - | tar xzf - -C ./results/
 6. brev delete training-job
 ```
@@ -273,7 +283,7 @@ brev cp gpu-1:/checkpoint.pt - | brev cp - gpu-2:/checkpoint.pt
 **Agentic use cases**:
 ```bash
 # Agent streams training data, captures results
-cat dataset.jsonl | brev shell my-gpu -c "python train.py" > results.log
+cat dataset.jsonl | brev exec my-gpu "python train.py" > results.log
 
 # Agent deploys code without temp files
 tar czf - ./src | brev cp - my-gpu:/app/src.tar.gz
