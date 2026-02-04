@@ -61,7 +61,8 @@ func NewCmdBackground(t *terminal.Terminal, s BackgroundStore) *cobra.Command {
 			}
 			// Create logs directory if it doesn't exist
 			logsDir := os.Getenv("HOME") + "/brev-background-logs"
-			err = os.MkdirAll(logsDir, os.ModePerm)
+			// Suppress error by Lint to lower the permission level (os.ModePerm)
+			err = os.MkdirAll(logsDir, os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 			if err != nil {
 				log.Fatal(err)
 			}

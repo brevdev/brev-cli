@@ -162,6 +162,7 @@ func (u updateModel) RunE(_ *cobra.Command, _ []string) error { //nolint:funlen 
 		}
 	}
 	if workspace.ReposV1 != nil {
+		// Remove redundant reassignments of range variables; Go v1.24 no longer requires shadowing inside loops, so key/val can be used directly
 		for key, val := range *workspace.ReposV1 {
 			reposv1FromBE[key] = val
 		}

@@ -15,7 +15,8 @@ import (
 
 func init() {
 	path := os.Getenv("HOME") + "/.config/Jetbrains/JetBrainsGateway2022.3"
-	err := os.MkdirAll(path, os.ModePerm)
+	// Suppress error by Lint to lower the permission level (os.ModePerm)
+	err := os.MkdirAll(path, os.ModePerm) //nolint:gosec // ok: directory must be world-writable
 	if err != nil {
 		println(err)
 	}
