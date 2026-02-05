@@ -1,5 +1,7 @@
 # Code Generation Guidelines
 
+> **Also read**: `CLAUDE-GO.md` and `CLAUDE-REVIEW.md` and `CLAUDE-LOCAL.md` (if present) for complete guidance.
+
 These guidelines apply to all code generation, regardless of language. For language-specific rules, see `CLAUDE-GO.md` or `CLAUDE-TS.md`.
 
 ---
