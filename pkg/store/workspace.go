@@ -75,6 +75,10 @@ var (
 	DefaultDiskStorage         = "120Gi"
 )
 
+const (
+	defaultWorkspaceGroupID = "GCP"
+)
+
 var (
 	DefaultApplicationID = "92f59a4yf"
 	DefaultApplication   = entity.Application{
@@ -102,10 +106,89 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PortMappings:         nil,
 		ReposV1:              nil,
 		VMOnlyMode:           true,
-		WorkspaceGroupID:     "GCP",
+		WorkspaceGroupID:     defaultWorkspaceGroupID,
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		WorkspaceVersion:     "v1",
 	}
+}
+
+// InferWorkspaceGroupFromInstanceType determines the workspace group ID from the instance type name.
+func InferWorkspaceGroupFromInstanceType(instanceType string) string {
+	instanceType = strings.TrimSpace(strings.ToLower(instanceType))
+
+	if instanceType == "" {
+		return defaultWorkspaceGroupID
+	}
+
+	if strings.Contains(instanceType, ":") {
+		return "GCP"
+	}
+
+	if strings.Contains(instanceType, "_") {
+		prefix := strings.SplitN(instanceType, "_", 2)[0]
+
+		if prefix == "gpu" {
+			return "lambda-labs-test"
+		}
+
+		shadeformProviders := map[string]bool{
+			"massedcompute": true,
+			"excesssupply":  true,
+			"hyperstack":    true,
+			"cudo":          true,
+			"datacrunch":    true,
+			"boostrun":      true,
+			"paperspace":    true,
+			"imwt":          true,
+			"voltagepark":   true,
+			"denvr":         true,
+			"digitalocean":  true,
+			"fpt":           true,
+			"scaleway":      true,
+			"vultr":         true,
+			"evergreen":     true,
+			"verda":         true,
+		}
+
+		if shadeformProviders[prefix] {
+			return "shadeform"
+		}
+
+		if prefix != "" {
+			return prefix
+		}
+	}
+
+	if strings.Contains(instanceType, ".") {
+		if strings.HasPrefix(instanceType, "oci.") ||
+			strings.HasPrefix(instanceType, "azurerm.") ||
+			strings.HasPrefix(instanceType, "dmz.") {
+			return "launchpad"
+		}
+		if strings.HasPrefix(instanceType, "gpu-") {
+			return "brev-nebius-prod"
+		}
+		if strings.Contains(instanceType, "-") && strings.HasSuffix(instanceType, "x") {
+			return "crusoe-brev-wg"
+		}
+		dotIndex := strings.Index(instanceType, ".")
+		if dotIndex > 0 {
+			prefix := instanceType[:dotIndex]
+			hasLetter := false
+			hasDigit := false
+			for _, ch := range prefix {
+				if ch >= 'a' && ch <= 'z' {
+					hasLetter = true
+				} else if ch >= '0' && ch <= '9' {
+					hasDigit = true
+				}
+			}
+			if hasLetter && hasDigit {
+				return "devplane-brev-1"
+			}
+		}
+	}
+	return defaultWorkspaceGroupID
 }
 
 func (c *CreateWorkspacesOptions) WithCustomSetupRepo(gitRepo string, path string) *CreateWorkspacesOptions {
@@ -125,6 +208,9 @@ func (c *CreateWorkspacesOptions) WithGitRepo(gitRepo string) *CreateWorkspacesO
 
 func (c *CreateWorkspacesOptions) WithInstanceType(instanceType string) *CreateWorkspacesOptions {
 	c.InstanceType = instanceType
+	if instanceType != "" {
+		c.WorkspaceGroupID = InferWorkspaceGroupFromInstanceType(instanceType)
+	}
 	return c
 }
 
