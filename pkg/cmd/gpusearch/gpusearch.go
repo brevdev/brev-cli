@@ -271,7 +271,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	SortInstances(filtered, sortBy, descending)
 
 	// Display results
-	return displayResults(t, filtered, jsonOutput, piped)
+	return DisplayResults(t, filtered, jsonOutput, piped)
 }
 
 // validateSortOption returns an error if sortBy is not a valid option
@@ -313,7 +313,7 @@ func setTargetDisks(instances []GPUInstanceInfo, minDisk float64) {
 }
 
 // displayResults renders the GPU instances in the appropriate format
-func displayResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
+func DisplayResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
 	if jsonOutput {
 		return displayGPUJSON(instances)
 	}

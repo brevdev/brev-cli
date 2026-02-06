@@ -179,6 +179,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var detached bool
 	var timeout int
 	var startupScript string
+	var dryRun bool
 	var filters searchFilterFlags
 
 	cmd := &cobra.Command{
@@ -203,6 +204,10 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 
 			// If no types provided, use search filters (or defaults) to find suitable GPUs
 			if len(types) == 0 {
+				if dryRun {
+					return runDryRun(t, gpuCreateStore, &filters)
+				}
+
 				types, err = getFilteredInstanceTypes(gpuCreateStore, &filters)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
@@ -256,6 +261,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "Don't wait for instances to be ready")
 	cmd.Flags().IntVar(&timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
 	cmd.Flags().StringVarP(&startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show matching instance types without creating anything")
 
 	// Search filter flags (same as brev search, used when --type is not specified)
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
@@ -312,22 +318,17 @@ func parseStartupScript(value string) (string, error) {
 	return value, nil
 }
 
-// getFilteredInstanceTypes fetches GPU instance types using user-provided filters
-// merged with defaults. When a filter flag is not set, the default value is used.
-func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]InstanceSpec, error) {
+// searchInstances fetches and filters GPU instances using user-provided filters merged with defaults
+func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64, error) {
 	response, err := s.GetInstanceTypes()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, 0, breverrors.WrapAndTrace(err)
 	}
 
 	if response == nil || len(response.Items) == 0 {
-		return nil, nil
+		return nil, 0, nil
 	}
 
-	// Merge user-provided filters with defaults
-	gpuName := filters.gpuName
-	provider := filters.provider
-	minVRAM := filters.minVRAM
 	minTotalVRAM := orDefault(filters.minTotalVRAM, defaultMinTotalVRAM)
 	minCapability := orDefault(filters.minCapability, defaultMinCapability)
 	minDisk := orDefault(filters.minDisk, defaultMinDisk)
@@ -341,9 +342,20 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 	}
 
 	instances := gpusearch.ProcessInstances(response.Items)
-	filtered := gpusearch.FilterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime,
-		filters.stoppable, filters.rebootable, filters.flexPorts)
+	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, filters.minVRAM,
+		minTotalVRAM, minCapability, minDisk, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts)
 	gpusearch.SortInstances(filtered, sortBy, filters.descending)
+
+	return filtered, minDisk, nil
+}
+
+// getFilteredInstanceTypes fetches GPU instance types using user-provided filters
+// merged with defaults. When a filter flag is not set, the default value is used.
+func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]InstanceSpec, error) {
+	filtered, minDisk, err := searchInstances(s, filters)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
 
 	var specs []InstanceSpec
 	for _, inst := range filtered {
@@ -355,6 +367,17 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 	}
 
 	return specs, nil
+}
+
+// runDryRun shows the instance types that would be used without creating anything
+func runDryRun(t *terminal.Terminal, s GPUCreateStore, filters *searchFilterFlags) error {
+	filtered, _, err := searchInstances(s, filters)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	piped := isStdoutPiped()
+	return gpusearch.DisplayResults(t, filtered, false, piped)
 }
 
 // orDefault returns val if it's non-zero, otherwise returns def
