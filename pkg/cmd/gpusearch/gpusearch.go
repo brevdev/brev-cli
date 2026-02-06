@@ -238,6 +238,16 @@ func isStdoutPiped() bool {
 
 // RunGPUSearch executes the GPU search with filters and sorting
 func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput bool) error {
+	// Validate sortBy option
+	if sortBy != "" && !validSortOptions[strings.ToLower(sortBy)] {
+		validOptions := make([]string, 0, len(validSortOptions))
+		for opt := range validSortOptions {
+			validOptions = append(validOptions, opt)
+		}
+		sort.Strings(validOptions)
+		return breverrors.NewValidationError(fmt.Sprintf("invalid sort option %q. Valid options: %s", sortBy, strings.Join(validOptions, ", ")))
+	}
+
 	// Detect if stdout is piped (for plain table output)
 	piped := isStdoutPiped()
 
@@ -327,11 +337,35 @@ var unitMultipliers = map[string]float64{
 	"MB":  1.0 / 1000,
 }
 
+// Compiled regexes for parsing (compiled once at package init)
+var (
+	sizeUnitRe     = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(TiB|TB|GiB|GB|MiB|MB)`)
+	durationHoursRe   = regexp.MustCompile(`(\d+)h`)
+	durationMinutesRe = regexp.MustCompile(`(\d+)m`)
+	durationSecondsRe = regexp.MustCompile(`(\d+)s`)
+)
+
+// hoursInMonth is the average number of hours in a month (730 = 365*24/12)
+const hoursInMonth = 730
+
+// validSortOptions defines the allowed sort-by field names
+var validSortOptions = map[string]bool{
+	"price":      true,
+	"gpu-count":  true,
+	"vram":       true,
+	"total-vram": true,
+	"vcpu":       true,
+	"type":       true,
+	"capability": true,
+	"provider":   true,
+	"disk":       true,
+	"boot-time":  true,
+}
+
 // parseToGB converts size/memory strings like "22GiB360MiB", "16TiB", "2TiB768GiB" to GB
 func parseToGB(s string) float64 {
 	var totalGB float64
-	re := regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(TiB|TB|GiB|GB|MiB|MB)`)
-	for _, match := range re.FindAllStringSubmatch(s, -1) {
+	for _, match := range sizeUnitRe.FindAllStringSubmatch(s, -1) {
 		if val, err := strconv.ParseFloat(match[1], 64); err == nil {
 			totalGB += val * unitMultipliers[match[2]]
 		}
@@ -354,24 +388,21 @@ func parseDurationToSeconds(duration string) int {
 	var totalSeconds int
 
 	// Match hours
-	hRe := regexp.MustCompile(`(\d+)h`)
-	if match := hRe.FindStringSubmatch(duration); len(match) > 1 {
+	if match := durationHoursRe.FindStringSubmatch(duration); len(match) > 1 {
 		if val, err := strconv.Atoi(match[1]); err == nil {
 			totalSeconds += val * 3600
 		}
 	}
 
 	// Match minutes
-	mRe := regexp.MustCompile(`(\d+)m`)
-	if match := mRe.FindStringSubmatch(duration); len(match) > 1 {
+	if match := durationMinutesRe.FindStringSubmatch(duration); len(match) > 1 {
 		if val, err := strconv.Atoi(match[1]); err == nil {
 			totalSeconds += val * 60
 		}
 	}
 
 	// Match seconds
-	sRe := regexp.MustCompile(`(\d+)s`)
-	if match := sRe.FindStringSubmatch(duration); len(match) > 1 {
+	if match := durationSecondsRe.FindStringSubmatch(duration); len(match) > 1 {
 		if val, err := strconv.Atoi(match[1]); err == nil {
 			totalSeconds += val
 		}
@@ -395,7 +426,7 @@ func extractDiskInfo(storage []Storage) (float64, float64, float64) {
 	if s.PricePerGBHr.Amount != "" {
 		pricePerHr, _ := strconv.ParseFloat(s.PricePerGBHr.Amount, 64)
 		if pricePerHr > 0 {
-			pricePerGBMonth = pricePerHr * 730
+			pricePerGBMonth = pricePerHr * hoursInMonth
 		}
 	}
 
@@ -800,6 +831,61 @@ func formatFeatures(stoppable, rebootable, flexPorts bool) string {
 	return strings.Join(features, "")
 }
 
+// formattedInstanceFields holds pre-formatted string fields for table display
+type formattedInstanceFields struct {
+	VRAM         string
+	TotalVRAM    string
+	Capability   string
+	Disk         string
+	DiskPrice    string
+	Boot         string
+	Features     string
+	Price        string
+	Provider     string
+	TargetDisk   string
+}
+
+// formatInstanceFields formats common instance fields for table display
+// If includeUnits is true, includes "GB" suffix on VRAM fields (for colored display)
+func formatInstanceFields(inst GPUInstanceInfo, includeUnits bool) formattedInstanceFields {
+	var vramStr, totalVramStr string
+	if includeUnits {
+		vramStr = fmt.Sprintf("%.0f GB", inst.VRAMPerGPU)
+		totalVramStr = fmt.Sprintf("%.0f GB", inst.TotalVRAM)
+	} else {
+		vramStr = fmt.Sprintf("%.0f", inst.VRAMPerGPU)
+		totalVramStr = fmt.Sprintf("%.0f", inst.TotalVRAM)
+	}
+
+	capStr := "-"
+	if inst.Capability > 0 {
+		capStr = fmt.Sprintf("%.1f", inst.Capability)
+	}
+
+	diskPriceStr := "-"
+	if inst.DiskPricePerMo > 0 {
+		diskPriceStr = fmt.Sprintf("$%.2f", inst.DiskPricePerMo)
+	}
+
+	providerStr := inst.Provider
+	if inst.Cloud != "" && inst.Cloud != inst.Provider {
+		providerStr = fmt.Sprintf("%s:%s", inst.Cloud, inst.Provider)
+	}
+
+	return formattedInstanceFields{
+		VRAM:       vramStr,
+		TotalVRAM:  totalVramStr,
+		Capability: capStr,
+		Disk:       formatDiskSize(inst.DiskMin, inst.DiskMax),
+		DiskPrice:  diskPriceStr,
+		Boot:       formatBootTime(inst.BootTime),
+		Features:   formatFeatures(inst.Stoppable, inst.Rebootable, inst.FlexPorts),
+		Price:      fmt.Sprintf("$%.2f", inst.PricePerHour),
+		Provider:   providerStr,
+		TargetDisk: fmt.Sprintf("%.0f", inst.TargetDisk),
+	}
+}
+
 // displayGPUTable renders the GPU instances as a table
 func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
@@ -810,41 +896,21 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
-		vramStr := fmt.Sprintf("%.0f GB", inst.VRAMPerGPU)
-		totalVramStr := fmt.Sprintf("%.0f GB", inst.TotalVRAM)
-		capStr := "-"
-		if inst.Capability > 0 {
-			capStr = fmt.Sprintf("%.1f", inst.Capability)
-		}
-		diskStr := formatDiskSize(inst.DiskMin, inst.DiskMax)
-		diskPriceStr := "-"
-		if inst.DiskPricePerMo > 0 {
-			diskPriceStr = fmt.Sprintf("$%.2f", inst.DiskPricePerMo)
-		}
-		bootStr := formatBootTime(inst.BootTime)
-		featuresStr := formatFeatures(inst.Stoppable, inst.Rebootable, inst.FlexPorts)
-		priceStr := fmt.Sprintf("$%.2f", inst.PricePerHour)
-
-		// Format cloud:provider - only show both if different
-		providerStr := inst.Provider
-		if inst.Cloud != "" && inst.Cloud != inst.Provider {
-			providerStr = fmt.Sprintf("%s:%s", inst.Cloud, inst.Provider)
-		}
-
+		f := formatInstanceFields(inst, true)
 		row := table.Row{
 			inst.Type,
-			providerStr,
+			f.Provider,
 			t.Green(inst.GPUName),
 			inst.GPUCount,
-			vramStr,
-			totalVramStr,
-			capStr,
-			diskStr,
-			diskPriceStr,
-			bootStr,
-			featuresStr,
+			f.VRAM,
+			f.TotalVRAM,
+			f.Capability,
+			f.Disk,
+			f.DiskPrice,
+			f.Boot,
+			f.Features,
 			inst.VCPUs,
-			priceStr,
+			f.Price,
 		}
 		ta.AppendRow(row)
 	}
@@ -864,45 +930,22 @@ func displayGPUTablePlain(instances []GPUInstanceInfo) {
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
-		vramStr := fmt.Sprintf("%.0f", inst.VRAMPerGPU)
-		totalVramStr := fmt.Sprintf("%.0f", inst.TotalVRAM)
-		capStr := "-"
-		if inst.Capability > 0 {
-			capStr = fmt.Sprintf("%.1f", inst.Capability)
-		}
-		diskStr := formatDiskSize(inst.DiskMin, inst.DiskMax)
-		diskPriceStr := "-"
-		if inst.DiskPricePerMo > 0 {
-			diskPriceStr = fmt.Sprintf("$%.2f", inst.DiskPricePerMo)
-		}
-		bootStr := formatBootTime(inst.BootTime)
-		featuresStr := formatFeatures(inst.Stoppable, inst.Rebootable, inst.FlexPorts)
-		priceStr := fmt.Sprintf("$%.2f", inst.PricePerHour)
-
-		// Format target disk as integer GB
-		targetDiskStr := fmt.Sprintf("%.0f", inst.TargetDisk)
-
-		// Format cloud:provider - only show both if different
-		providerStr := inst.Provider
-		if inst.Cloud != "" && inst.Cloud != inst.Provider {
-			providerStr = fmt.Sprintf("%s:%s", inst.Cloud, inst.Provider)
-		}
-
+		f := formatInstanceFields(inst, false)
 		row := table.Row{
 			inst.Type,
-			targetDiskStr,
-			providerStr,
+			f.TargetDisk,
+			f.Provider,
 			inst.GPUName,
 			inst.GPUCount,
-			vramStr,
-			totalVramStr,
-			capStr,
-			diskStr,
-			diskPriceStr,
-			bootStr,
-			featuresStr,
+			f.VRAM,
+			f.TotalVRAM,
+			f.Capability,
+			f.Disk,
+			f.DiskPrice,
+			f.Boot,
+			f.Features,
 			inst.VCPUs,
-			priceStr,
+			f.Price,
 		}
 		ta.AppendRow(row)
 	}

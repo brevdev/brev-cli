@@ -6,12 +6,11 @@ import (
 	"runtime"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	resty "github.com/go-resty/resty/v2"
 )
 
 const (
-	instanceTypesAPIURL  = "https://api.brev.dev"
 	instanceTypesAPIPath = "v1/instance/types"
 	// Authenticated API for instance types with workspace groups
 	allInstanceTypesPathPattern = "api/instances/alltypesavailable/%s"
@@ -29,8 +28,8 @@ func (s AuthHTTPStore) GetInstanceTypes() (*gpusearch.InstanceTypesResponse, err
 
 // fetchInstanceTypes fetches instance types from the public Brev API
 func fetchInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
-	client := resty.New()
-	client.SetBaseURL(instanceTypesAPIURL)
+	cfg := config.NewConstants()
+	client := NewRestyClient(cfg.GetBrevPublicAPIURL())
 
 	res, err := client.R().
 		SetHeader("Accept", "application/json").
