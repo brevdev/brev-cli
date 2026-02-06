@@ -230,8 +230,8 @@ type GPUInstanceInfo struct {
 	Manufacturer   string  `json:"-"` // exclude from JSON output
 }
 
-// isStdoutPiped returns true if stdout is being piped (not a terminal)
-func isStdoutPiped() bool {
+// IsStdoutPiped returns true if stdout is being piped (not a terminal)
+func IsStdoutPiped() bool {
 	stat, _ := os.Stdout.Stat()
 	return (stat.Mode() & os.ModeCharDevice) == 0
 }
@@ -243,7 +243,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	}
 
 	// Detect if stdout is piped (for plain table output)
-	piped := isStdoutPiped()
+	piped := IsStdoutPiped()
 
 	response, err := store.GetInstanceTypes()
 	if err != nil {
@@ -271,7 +271,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	SortInstances(filtered, sortBy, descending)
 
 	// Display results
-	return displayResults(t, filtered, jsonOutput, piped)
+	return DisplayResults(t, filtered, jsonOutput, piped)
 }
 
 // validateSortOption returns an error if sortBy is not a valid option
@@ -313,7 +313,7 @@ func setTargetDisks(instances []GPUInstanceInfo, minDisk float64) {
 }
 
 // displayResults renders the GPU instances in the appropriate format
-func displayResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
+func DisplayResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
 	if jsonOutput {
 		return displayGPUJSON(instances)
 	}
