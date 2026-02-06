@@ -20,6 +20,7 @@ const (
 	sentryURL                EnvVarName = "DEFAULT_SENTRY_URL"
 	debugHTTP                EnvVarName = "DEBUG_HTTP"
 	ollamaAPIURL             EnvVarName = "OLLAMA_API_URL"
+	brevPublicAPIURL         EnvVarName = "BREV_PUBLIC_API_URL"
 )
 
 type ConstantsConfig struct{}
@@ -30,6 +31,11 @@ func NewConstants() *ConstantsConfig {
 
 func (c ConstantsConfig) GetBrevAPIURl() string {
 	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
+}
+
+// GetBrevPublicAPIURL returns the public REST API URL (no auth required)
+func (c ConstantsConfig) GetBrevPublicAPIURL() string {
+	return getEnvOrDefault(brevPublicAPIURL, "https://api.brev.dev")
 }
 
 func (c ConstantsConfig) GetBrevGRPCURL() string {
