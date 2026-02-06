@@ -238,14 +238,8 @@ func isStdoutPiped() bool {
 
 // RunGPUSearch executes the GPU search with filters and sorting
 func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput bool) error {
-	// Validate sortBy option
-	if sortBy != "" && !validSortOptions[strings.ToLower(sortBy)] {
-		validOptions := make([]string, 0, len(validSortOptions))
-		for opt := range validSortOptions {
-			validOptions = append(validOptions, opt)
-		}
-		sort.Strings(validOptions)
-		return breverrors.NewValidationError(fmt.Sprintf("invalid sort option %q. Valid options: %s", sortBy, strings.Join(validOptions, ", ")))
+	if err := validateSortOption(sortBy); err != nil {
+		return err
 	}
 
 	// Detect if stdout is piped (for plain table output)
@@ -257,15 +251,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	}
 
 	if response == nil || len(response.Items) == 0 {
-		if jsonOutput {
-			fmt.Println("[]")
-			return nil
-		}
-		if piped {
-			return nil
-		}
-		t.Vprint(t.Yellow("No instance types found"))
-		return nil
+		return displayEmptyResults(t, "No instance types found", jsonOutput, piped)
 	}
 
 	// Process and filter instances
@@ -275,45 +261,68 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	filtered := FilterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime, stoppable, rebootable, flexPorts)
 
 	if len(filtered) == 0 {
-		if jsonOutput {
-			fmt.Println("[]")
-			return nil
-		}
-		if piped {
-			return nil
-		}
-		t.Vprint(t.Yellow("No GPU instances match the specified filters"))
-		return nil
+		return displayEmptyResults(t, "No GPU instances match the specified filters", jsonOutput, piped)
 	}
 
 	// Set target disk for each instance
-	// For flexible storage, use minDisk if specified and within range
-	for i := range filtered {
-		inst := &filtered[i]
+	setTargetDisks(filtered, minDisk)
+
+	// Sort instances
+	SortInstances(filtered, sortBy, descending)
+
+	// Display results
+	return displayResults(t, filtered, jsonOutput, piped)
+}
+
+// validateSortOption returns an error if sortBy is not a valid option
+func validateSortOption(sortBy string) error {
+	if sortBy != "" && !validSortOptions[strings.ToLower(sortBy)] {
+		validOptions := make([]string, 0, len(validSortOptions))
+		for opt := range validSortOptions {
+			validOptions = append(validOptions, opt)
+		}
+		sort.Strings(validOptions)
+		return breverrors.NewValidationError(fmt.Sprintf("invalid sort option %q. Valid options: %s", sortBy, strings.Join(validOptions, ", ")))
+	}
+	return nil
+}
+
+// displayEmptyResults handles output when no results are found
+func displayEmptyResults(t *terminal.Terminal, message string, jsonOutput, piped bool) error {
+	if jsonOutput {
+		fmt.Println("[]")
+		return nil
+	}
+	if piped {
+		return nil
+	}
+	t.Vprint(t.Yellow(message))
+	return nil
+}
+
+// setTargetDisks sets the target disk for each instance based on minDisk filter
+func setTargetDisks(instances []GPUInstanceInfo, minDisk float64) {
+	for i := range instances {
+		inst := &instances[i]
 		if inst.DiskMin != inst.DiskMax && minDisk > 0 && minDisk >= inst.DiskMin && minDisk <= inst.DiskMax {
 			inst.TargetDisk = minDisk
 		} else {
 			inst.TargetDisk = inst.DiskMin
 		}
 	}
+}
 
-	// Sort instances
-	SortInstances(filtered, sortBy, descending)
-
-	// Display results
+// displayResults renders the GPU instances in the appropriate format
+func displayResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
 	if jsonOutput {
-		return displayGPUJSON(filtered)
+		return displayGPUJSON(instances)
 	}
-
-	// Plain table when piped - enables: brev search | grep H100 | brev create
 	if piped {
-		displayGPUTablePlain(filtered)
+		displayGPUTablePlain(instances)
 		return nil
 	}
-
-	displayGPUTable(t, filtered)
-	t.Vprintf("\n%s\n", t.Green(fmt.Sprintf("Found %d GPU instance types", len(filtered))))
-
+	displayGPUTable(t, instances)
+	t.Vprintf("\n%s\n", t.Green(fmt.Sprintf("Found %d GPU instance types", len(instances))))
 	return nil
 }
 
@@ -339,7 +348,7 @@ var unitMultipliers = map[string]float64{
 
 // Compiled regexes for parsing (compiled once at package init)
 var (
-	sizeUnitRe     = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(TiB|TB|GiB|GB|MiB|MB)`)
+	sizeUnitRe        = regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(TiB|TB|GiB|GB|MiB|MB)`)
 	durationHoursRe   = regexp.MustCompile(`(\d+)h`)
 	durationMinutesRe = regexp.MustCompile(`(\d+)m`)
 	durationSecondsRe = regexp.MustCompile(`(\d+)s`)
@@ -833,16 +842,16 @@ func formatFeatures(stoppable, rebootable, flexPorts bool) string {
 
 // formattedInstanceFields holds pre-formatted string fields for table display
 type formattedInstanceFields struct {
-	VRAM         string
-	TotalVRAM    string
-	Capability   string
-	Disk         string
-	DiskPrice    string
-	Boot         string
-	Features     string
-	Price        string
-	Provider     string
-	TargetDisk   string
+	VRAM       string
+	TotalVRAM  string
+	Capability string
+	Disk       string
+	DiskPrice  string
+	Boot       string
+	Features   string
+	Price      string
+	Provider   string
+	TargetDisk string
 }
 
 // formatInstanceFields formats common instance fields for table display
