@@ -300,30 +300,38 @@ func TestMockGPUCreateStoreTypeSpecificError(t *testing.T) {
 	assert.NotNil(t, ws)
 }
 
-func TestGetDefaultInstanceTypes(t *testing.T) {
+func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
-	// Get default instance types - the mock returns a g5.xlarge which has:
+	// Get instance types with no user filters (uses defaults):
 	// - 24GB VRAM (>= 20GB total VRAM requirement)
 	// - 500GB disk (>= 500GB requirement)
 	// - A10G GPU = 8.6 capability (>= 8.0 requirement)
 	// - 5m boot time (< 7m requirement)
-	specs, err := getDefaultInstanceTypes(mock)
+	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{})
 	assert.NoError(t, err)
 	assert.Len(t, specs, 1)
 	assert.Equal(t, "g5.xlarge", specs[0].Type)
 	assert.Equal(t, 500.0, specs[0].DiskGB) // Should use the instance's disk size
 }
 
-func TestGetDefaultInstanceTypesFiltersOut(t *testing.T) {
-	// The mock returns a g5.xlarge which meets all requirements
+func TestGetFilteredInstanceTypesWithGPUName(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
-	specs, err := getDefaultInstanceTypes(mock)
+	// Filter by GPU name that matches the mock data
+	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "A10G"})
 	assert.NoError(t, err)
-	// Should return the A10G instance which meets all requirements
 	assert.Len(t, specs, 1)
 	assert.Equal(t, "g5.xlarge", specs[0].Type)
+}
+
+func TestGetFilteredInstanceTypesNoMatch(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+
+	// Filter by GPU name that doesn't match
+	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "H100"})
+	assert.NoError(t, err)
+	assert.Len(t, specs, 0)
 }
 
 func TestParseInstanceTypesFromTableOutput(t *testing.T) {

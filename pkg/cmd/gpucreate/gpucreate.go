@@ -30,14 +30,15 @@ This command attempts to create GPU instances, trying different instance types
 until the desired number of instances are successfully created. Instance types
 can be specified directly, piped from 'brev search', or auto-selected using defaults.
 
-Default Behavior:
-If no instance types are specified (no --type flag and no piped input), the command
-automatically searches for GPUs matching these criteria:
-  - Minimum 20GB total VRAM
-  - Minimum 500GB disk
-  - Compute capability 8.0+ (Ampere or newer)
-  - Boot time under 7 minutes
-Results are sorted by price (cheapest first).
+Search Filters:
+You can use the same filter flags as 'brev search' to control which GPU types
+are considered. If no instance types are specified (no --type flag and no piped input),
+the command automatically searches for GPUs matching either your filters or defaults:
+  - Minimum 20GB total VRAM (--min-total-vram)
+  - Minimum 500GB disk (--min-disk)
+  - Compute capability 8.0+ (--min-capability)
+  - Boot time under 7 minutes (--max-boot-time, only when no filters set)
+Results are sorted by price (cheapest first) unless --sort is specified.
 
 Retry and Fallback Logic:
 When multiple instance types are provided (via --type or piped input), the command
@@ -110,6 +111,12 @@ You can attach a startup script that runs when the instance boots using the
 
   # Combine: find cheapest A100, attach setup script
   brev search --gpu-name A100 --sort price | brev create ml-box -s @ml-setup.sh
+
+  # Use search filters directly (no piping needed)
+  brev create my-instance -g a100
+  brev create my-instance --gpu-name h100 --min-vram 80
+  brev create my-instance --provider aws --min-total-vram 40
+  brev create my-instance -g a100 --sort vram --desc
 `
 )
 
@@ -140,6 +147,29 @@ type CreateResult struct {
 	Error        error
 }
 
+// searchFilterFlags holds the search filter flag values for create
+type searchFilterFlags struct {
+	gpuName       string
+	provider      string
+	minVRAM       float64
+	minTotalVRAM  float64
+	minCapability float64
+	minDisk       float64
+	maxBootTime   int
+	stoppable     bool
+	rebootable    bool
+	flexPorts     bool
+	sortBy        string
+	descending    bool
+}
+
+// hasUserFilters returns true if the user specified any search filter flags
+func (f *searchFilterFlags) hasUserFilters() bool {
+	return f.gpuName != "" || f.provider != "" || f.minVRAM > 0 || f.minTotalVRAM > 0 ||
+		f.minCapability > 0 || f.minDisk > 0 || f.maxBootTime > 0 ||
+		f.stoppable || f.rebootable || f.flexPorts
+}
+
 // NewCmdGPUCreate creates the gpu-create command
 func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra.Command {
 	var name string
@@ -149,6 +179,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var detached bool
 	var timeout int
 	var startupScript string
+	var filters searchFilterFlags
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -164,32 +195,21 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				name = args[0]
 			}
 
-			// Check if output is being piped (for chaining with brev shell/open)
-			piped := isStdoutPiped()
-
 			// Parse instance types from flag or stdin
 			types, err := parseInstanceTypes(instanceTypes)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			// If no types provided, use default filters to find suitable GPUs
+			// If no types provided, use search filters (or defaults) to find suitable GPUs
 			if len(types) == 0 {
-				msg := fmt.Sprintf("No instance types specified, using defaults: min-total-vram=%.0fGB, min-disk=%.0fGB, min-capability=%.1f, max-boot-time=%dm\n\n",
-					defaultMinTotalVRAM, defaultMinDisk, defaultMinCapability, defaultMaxBootTime)
-				if piped {
-					fmt.Fprint(os.Stderr, msg)
-				} else {
-					t.Vprint(msg)
-				}
-
-				types, err = getDefaultInstanceTypes(gpuCreateStore)
+				types, err = getFilteredInstanceTypes(gpuCreateStore, &filters)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
 
 				if len(types) == 0 {
-					return breverrors.NewValidationError("no GPU instances match the default filters. Try 'brev search' to see available options")
+					return breverrors.NewValidationError("no GPU instances match the specified filters. Try 'brev search' to see available options")
 				}
 			}
 
@@ -237,6 +257,20 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	cmd.Flags().IntVar(&timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
 	cmd.Flags().StringVarP(&startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
 
+	// Search filter flags (same as brev search, used when --type is not specified)
+	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
+	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
+	cmd.Flags().Float64VarP(&filters.minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
+	cmd.Flags().Float64Var(&filters.minTotalVRAM, "min-total-vram", 0, "Minimum total VRAM in GB")
+	cmd.Flags().Float64Var(&filters.minCapability, "min-capability", 0, "Minimum GPU compute capability (e.g., 8.0)")
+	cmd.Flags().Float64Var(&filters.minDisk, "min-disk", 0, "Minimum disk size in GB")
+	cmd.Flags().IntVar(&filters.maxBootTime, "max-boot-time", 0, "Maximum boot time in minutes")
+	cmd.Flags().BoolVar(&filters.stoppable, "stoppable", false, "Only use instances that can be stopped/restarted")
+	cmd.Flags().BoolVar(&filters.rebootable, "rebootable", false, "Only use instances that can be rebooted")
+	cmd.Flags().BoolVar(&filters.flexPorts, "flex-ports", false, "Only use instances with configurable firewall rules")
+	cmd.Flags().StringVar(&filters.sortBy, "sort", "price", "Sort instance preference by: price, vram, boot-time, etc.")
+	cmd.Flags().BoolVar(&filters.descending, "desc", false, "Sort in descending order")
+
 	return cmd
 }
 
@@ -278,9 +312,10 @@ func parseStartupScript(value string) (string, error) {
 	return value, nil
 }
 
-// getDefaultInstanceTypes fetches GPU instance types using default filters
-func getDefaultInstanceTypes(store GPUCreateStore) ([]InstanceSpec, error) {
-	response, err := store.GetInstanceTypes()
+// getFilteredInstanceTypes fetches GPU instance types using user-provided filters
+// merged with defaults. When a filter flag is not set, the default value is used.
+func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]InstanceSpec, error) {
+	response, err := s.GetInstanceTypes()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -289,23 +324,45 @@ func getDefaultInstanceTypes(store GPUCreateStore) ([]InstanceSpec, error) {
 		return nil, nil
 	}
 
-	// Use gpusearch package to process, filter, and sort instances
-	instances := gpusearch.ProcessInstances(response.Items)
-	filtered := gpusearch.FilterInstances(instances, "", "", 0, defaultMinTotalVRAM, defaultMinCapability, defaultMinDisk, defaultMaxBootTime, false, false, false)
-	gpusearch.SortInstances(filtered, "price", false)
+	// Merge user-provided filters with defaults
+	gpuName := filters.gpuName
+	provider := filters.provider
+	minVRAM := filters.minVRAM
+	minTotalVRAM := orDefault(filters.minTotalVRAM, defaultMinTotalVRAM)
+	minCapability := orDefault(filters.minCapability, defaultMinCapability)
+	minDisk := orDefault(filters.minDisk, defaultMinDisk)
+	maxBootTime := filters.maxBootTime
+	if maxBootTime == 0 && !filters.hasUserFilters() {
+		maxBootTime = defaultMaxBootTime
+	}
+	sortBy := filters.sortBy
+	if sortBy == "" {
+		sortBy = "price"
+	}
 
-	// Convert to InstanceSpec with disk info
+	instances := gpusearch.ProcessInstances(response.Items)
+	filtered := gpusearch.FilterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime,
+		filters.stoppable, filters.rebootable, filters.flexPorts)
+	gpusearch.SortInstances(filtered, sortBy, filters.descending)
+
 	var specs []InstanceSpec
 	for _, inst := range filtered {
-		// For defaults, use the minimum disk size that meets the filter
 		diskGB := inst.DiskMin
-		if inst.DiskMin != inst.DiskMax && defaultMinDisk > inst.DiskMin && defaultMinDisk <= inst.DiskMax {
-			diskGB = defaultMinDisk
+		if inst.DiskMin != inst.DiskMax && minDisk > inst.DiskMin && minDisk <= inst.DiskMax {
+			diskGB = minDisk
 		}
 		specs = append(specs, InstanceSpec{Type: inst.Type, DiskGB: diskGB})
 	}
 
 	return specs, nil
+}
+
+// orDefault returns val if it's non-zero, otherwise returns def
+func orDefault(val, def float64) float64 {
+	if val > 0 {
+		return val
+	}
+	return def
 }
 
 // parseInstanceTypes parses instance types from flag value or stdin
