@@ -230,8 +230,8 @@ type GPUInstanceInfo struct {
 	Manufacturer   string  `json:"-"` // exclude from JSON output
 }
 
-// isStdoutPiped returns true if stdout is being piped (not a terminal)
-func isStdoutPiped() bool {
+// IsStdoutPiped returns true if stdout is being piped (not a terminal)
+func IsStdoutPiped() bool {
 	stat, _ := os.Stdout.Stat()
 	return (stat.Mode() & os.ModeCharDevice) == 0
 }
@@ -243,7 +243,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 	}
 
 	// Detect if stdout is piped (for plain table output)
-	piped := isStdoutPiped()
+	piped := IsStdoutPiped()
 
 	response, err := store.GetInstanceTypes()
 	if err != nil {

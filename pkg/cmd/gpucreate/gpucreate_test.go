@@ -334,45 +334,25 @@ func TestGetFilteredInstanceTypesNoMatch(t *testing.T) {
 	assert.Len(t, specs, 0)
 }
 
-func TestParseInstanceTypesFromTableOutput(t *testing.T) {
-	// Simulated table output from brev gpus command
-	// Note: This tests the parsing logic, not actual stdin reading
-	tableLines := []string{
-		"TYPE           GPU    COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR",
-		"g5.xlarge      A10G   1      24 GB     24 GB       8.6         4      $1.01",
-		"g5.2xlarge     A10G   1      24 GB     24 GB       8.6         8      $1.21",
-		"p4d.24xlarge   A100   8      40 GB     320 GB      8.0         96     $32.77",
+func TestParseTableInput(t *testing.T) {
+	tableInput := strings.Join([]string{
+		"TYPE           TARGET_DISK  GPU    COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR",
+		"g5.xlarge      500          A10G   1      24 GB     24 GB       8.6         4      $1.01",
+		"g5.2xlarge     500          A10G   1      24 GB     24 GB       8.6         8      $1.21",
+		"p4d.24xlarge   1000         A100   8      40 GB     320 GB      8.0         96     $32.77",
 		"",
 		"Found 3 GPU instance types",
-	}
+	}, "\n")
 
-	// Test parsing each line (simulating the scanner behavior)
-	var types []string
-	lineNum := 0
-	for _, line := range tableLines {
-		lineNum++
+	specs := parseTableInput(tableInput)
 
-		// Skip header line
-		if lineNum == 1 && (strings.Contains(line, "TYPE") || strings.Contains(line, "GPU")) {
-			continue
-		}
-
-		// Skip empty lines and summary
-		if line == "" || strings.HasPrefix(line, "Found ") {
-			continue
-		}
-
-		// Extract first column
-		fields := strings.Fields(line)
-		if len(fields) > 0 && isValidInstanceType(fields[0]) {
-			types = append(types, fields[0])
-		}
-	}
-
-	assert.Len(t, types, 3)
-	assert.Contains(t, types, "g5.xlarge")
-	assert.Contains(t, types, "g5.2xlarge")
-	assert.Contains(t, types, "p4d.24xlarge")
+	assert.Len(t, specs, 3)
+	assert.Equal(t, "g5.xlarge", specs[0].Type)
+	assert.Equal(t, 500.0, specs[0].DiskGB)
+	assert.Equal(t, "g5.2xlarge", specs[1].Type)
+	assert.Equal(t, 500.0, specs[1].DiskGB)
+	assert.Equal(t, "p4d.24xlarge", specs[2].Type)
+	assert.Equal(t, 1000.0, specs[2].DiskGB)
 }
 
 func TestParseJSONInput(t *testing.T) {

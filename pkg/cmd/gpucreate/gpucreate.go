@@ -68,55 +68,23 @@ You can attach a startup script that runs when the instance boots using the
   - An absolute file path: --startup-script @/path/to/setup.sh`
 
 	example = `
-  # Quick start: create an instance using smart defaults (sorted by price)
+  # Create an instance using smart defaults (sorted by price)
   brev create my-instance
-
-  # Create with explicit --name flag
-  brev create --name my-instance
-
-  # Create and immediately open in VS Code
-  brev create my-instance | brev open
-
-  # Create and SSH into the instance
-  brev shell $(brev create my-instance)
-
-  # Create and run a command
-  brev create my-instance | brev shell -c "nvidia-smi"
 
   # Create with a specific GPU type
   brev create my-instance --type g5.xlarge
 
-  # Pipe instance types from brev search (tries first type, falls back if needed)
-  brev search --min-vram 24 | brev create my-instance
-
-  # Create multiple instances (all use same type, with fallback)
-  brev create my-cluster --count 3 --type g5.xlarge
-  # Creates: my-cluster-1, my-cluster-2, my-cluster-3 (all g5.xlarge)
-
-  # Create multiple instances with fallback types
-  brev search --gpu-name A100 | brev create my-cluster --count 2
-  # Tries first A100 type for both instances, falls back to next type if needed
-
-  # Create instances in parallel (faster, but may use more types on partial failures)
-  brev search --gpu-name A100 | brev create my-cluster --count 3 --parallel 3
-
-  # Try multiple specific types in order (fallback chain)
+  # Try multiple types in order (fallback chain)
   brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
 
-  # Attach a startup script from a file
-  brev create my-instance --type g5.xlarge --startup-script @setup.sh
+  # Pipe from search for automatic fallback
+  brev search --gpu-name A100 | brev create my-instance
 
-  # Attach an inline startup script
-  brev create my-instance --startup-script 'pip install torch'
+  # Create multiple instances in parallel
+  brev create my-cluster --count 3 --type g5.xlarge --parallel 3
 
-  # Combine: find cheapest A100, attach setup script
-  brev search --gpu-name A100 --sort price | brev create ml-box -s @ml-setup.sh
-
-  # Use search filters directly (no piping needed)
-  brev create my-instance -g a100
-  brev create my-instance --gpu-name h100 --min-vram 80
-  brev create my-instance --provider aws --min-total-vram 40
-  brev create my-instance -g a100 --sort vram --desc
+  # Use search filters directly and attach a startup script
+  brev create my-instance -g a100 --startup-script @setup.sh
 `
 )
 
@@ -254,16 +222,22 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "name", "n", "", "Base name for the instances (or pass as first argument)")
-	cmd.Flags().StringVarP(&instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
-	cmd.Flags().IntVarP(&count, "count", "c", 1, "Number of instances to create")
-	cmd.Flags().IntVarP(&parallel, "parallel", "p", 1, "Number of parallel creation attempts")
-	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "Don't wait for instances to be ready")
-	cmd.Flags().IntVar(&timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
-	cmd.Flags().StringVarP(&startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
-	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Show matching instance types without creating anything")
+	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &filters)
 
-	// Search filter flags (same as brev search, used when --type is not specified)
+	return cmd
+}
+
+// registerCreateFlags registers all flags for the create command
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, filters *searchFilterFlags) {
+	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
+	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
+	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
+	cmd.Flags().IntVarP(parallel, "parallel", "p", 1, "Number of parallel creation attempts")
+	cmd.Flags().BoolVarP(detached, "detached", "d", false, "Don't wait for instances to be ready")
+	cmd.Flags().IntVar(timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
+	cmd.Flags().StringVarP(startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
+	cmd.Flags().BoolVar(dryRun, "dry-run", false, "Show matching instance types without creating anything")
+
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
 	cmd.Flags().Float64VarP(&filters.minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
@@ -276,8 +250,6 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	cmd.Flags().BoolVar(&filters.flexPorts, "flex-ports", false, "Only use instances with configurable firewall rules")
 	cmd.Flags().StringVar(&filters.sortBy, "sort", "price", "Sort instance preference by: price, vram, boot-time, etc.")
 	cmd.Flags().BoolVar(&filters.descending, "desc", false, "Sort in descending order")
-
-	return cmd
 }
 
 // InstanceSpec holds an instance type and its target disk size
@@ -376,8 +348,11 @@ func runDryRun(t *terminal.Terminal, s GPUCreateStore, filters *searchFilterFlag
 		return breverrors.WrapAndTrace(err)
 	}
 
-	piped := isStdoutPiped()
-	return gpusearch.DisplayResults(t, filtered, false, piped)
+	piped := gpusearch.IsStdoutPiped()
+	if err := gpusearch.DisplayResults(t, filtered, false, piped); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 // orDefault returns val if it's non-zero, otherwise returns def
@@ -518,12 +493,6 @@ func isValidInstanceType(s string) bool {
 	return hasLetter && hasDigit
 }
 
-// isStdoutPiped returns true if stdout is being piped (not a terminal)
-func isStdoutPiped() bool {
-	stat, _ := os.Stdout.Stat()
-	return (stat.Mode() & os.ModeCharDevice) == 0
-}
-
 // formatInstanceSpecs formats a slice of InstanceSpec for display
 func formatInstanceSpecs(specs []InstanceSpec) string {
 	var parts []string
@@ -551,7 +520,7 @@ type createContext struct {
 
 // newCreateContext initializes the context for instance creation
 func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreateOptions) (*createContext, error) {
-	piped := isStdoutPiped()
+	piped := gpusearch.IsStdoutPiped()
 
 	ctx := &createContext{
 		t:     t,
@@ -655,8 +624,7 @@ func (c *createContext) runWorker(workerID int, spec InstanceSpec, indices <-cha
 
 		c.logf("[Worker %d] Trying %s for instance '%s'...\n", workerID+1, spec.Type, instanceName)
 
-		// Attempt to create the workspace
-		workspace, err := createWorkspaceWithType(c.store, c.org.ID, instanceName, spec.Type, spec.DiskGB, c.user, c.allInstanceTypes, c.opts.StartupScript)
+		workspace, err := c.createWorkspace(instanceName, spec)
 
 		mu.Lock()
 		if err != nil {
@@ -668,14 +636,18 @@ func (c *createContext) runWorker(workerID int, spec InstanceSpec, indices <-cha
 	}
 }
 
+// colorize applies a terminal color function if output is not piped
+func (c *createContext) colorize(s string, colorFn func(string, ...interface{}) string) string {
+	if c.piped {
+		return s
+	}
+	return colorFn(s)
+}
+
 // handleCreateError processes a failed instance creation (must be called with lock held)
 func (c *createContext) handleCreateError(workerID int, instanceType, instanceName string, err error, result *typeCreateResult) {
 	errStr := err.Error()
-	if c.piped {
-		c.logf("[Worker %d] %s Failed: %s\n", workerID+1, instanceType, errStr)
-	} else {
-		c.logf("[Worker %d] %s Failed: %s\n", workerID+1, c.t.Yellow(instanceType), errStr)
-	}
+	c.logf("[Worker %d] %s Failed: %s\n", workerID+1, c.colorize(instanceType, c.t.Yellow), errStr)
 
 	result.hadFailure = true
 	if strings.Contains(errStr, "duplicate workspace") {
@@ -685,11 +657,7 @@ func (c *createContext) handleCreateError(workerID int, instanceType, instanceNa
 
 // handleCreateSuccess processes a successful instance creation (must be called with lock held)
 func (c *createContext) handleCreateSuccess(workerID int, instanceType, instanceName string, workspace *entity.Workspace, result *typeCreateResult) {
-	if c.piped {
-		c.logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, instanceType, instanceName)
-	} else {
-		c.logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, c.t.Green(instanceType), instanceName)
-	}
+	c.logf("[Worker %d] %s Success! Created instance '%s'\n", workerID+1, c.colorize(instanceType, c.t.Green), instanceName)
 	result.successes = append(result.successes, workspace)
 }
 
@@ -725,7 +693,7 @@ func (c *createContext) waitForInstances(workspaces []*entity.Workspace) {
 	c.logf("You can safely ctrl+c to exit\n")
 
 	for _, ws := range workspaces {
-		err := pollUntilReady(c.t, ws.ID, c.store, c.opts.Timeout, c.piped, c.logf)
+		err := c.pollUntilReady(ws.ID)
 		if err != nil {
 			c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
 		}
@@ -810,37 +778,33 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	return nil
 }
 
-// createWorkspaceWithType creates a workspace with the specified instance type
-func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanceType string, diskGB float64, user *entity.User, allInstanceTypes *gpusearch.AllInstanceTypesResponse, startupScript string) (*entity.Workspace, error) {
+// createWorkspace creates a workspace with the specified instance type and name
+func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity.Workspace, error) {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, name)
-	cwOptions.WithInstanceType(instanceType)
-	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
+	cwOptions.WithInstanceType(spec.Type)
+	cwOptions = resolveWorkspaceUserOptions(cwOptions, c.user)
 
-	// Set disk size if specified (convert GB to Gi format)
-	if diskGB > 0 {
-		cwOptions.DiskStorage = fmt.Sprintf("%.0fGi", diskGB)
+	if spec.DiskGB > 0 {
+		cwOptions.DiskStorage = fmt.Sprintf("%.0fGi", spec.DiskGB)
 	}
 
-	// Look up the workspace group ID for this instance type
-	if allInstanceTypes != nil {
-		workspaceGroupID := allInstanceTypes.GetWorkspaceGroupID(instanceType)
-		if workspaceGroupID != "" {
-			cwOptions.WorkspaceGroupID = workspaceGroupID
+	if c.allInstanceTypes != nil {
+		if wgID := c.allInstanceTypes.GetWorkspaceGroupID(spec.Type); wgID != "" {
+			cwOptions.WorkspaceGroupID = wgID
 		}
 	}
 
-	// Set startup script if provided using VMBuild lifecycle script
-	if startupScript != "" {
+	if c.opts.StartupScript != "" {
 		cwOptions.VMBuild = &store.VMBuild{
 			ForceJupyterInstall: true,
 			LifeCycleScriptAttr: &store.LifeCycleScriptAttr{
-				Script: startupScript,
+				Script: c.opts.StartupScript,
 			},
 		}
 	}
 
-	workspace, err := gpuCreateStore.CreateWorkspace(orgID, cwOptions)
+	workspace, err := c.store.CreateWorkspace(c.org.ID, cwOptions)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -850,39 +814,34 @@ func createWorkspaceWithType(gpuCreateStore GPUCreateStore, orgID, name, instanc
 
 // resolveWorkspaceUserOptions sets workspace template and class based on user type
 func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
+	isAdmin := featureflag.IsAdmin(user.GlobalUserType)
 	if options.WorkspaceTemplateID == "" {
-		if featureflag.IsAdmin(user.GlobalUserType) {
+		options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
+		if isAdmin {
 			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
-		} else {
-			options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
 		}
 	}
 	if options.WorkspaceClassID == "" {
-		if featureflag.IsAdmin(user.GlobalUserType) {
+		options.WorkspaceClassID = store.UserWorkspaceClassID
+		if isAdmin {
 			options.WorkspaceClassID = store.DevWorkspaceClassID
-		} else {
-			options.WorkspaceClassID = store.UserWorkspaceClassID
 		}
 	}
 	return options
 }
 
 // pollUntilReady waits for a workspace to reach the running state
-func pollUntilReady(t *terminal.Terminal, wsID string, gpuCreateStore GPUCreateStore, timeout time.Duration, piped bool, logf func(string, ...interface{})) error {
-	deadline := time.Now().Add(timeout)
+func (c *createContext) pollUntilReady(wsID string) error {
+	deadline := time.Now().Add(c.opts.Timeout)
 
 	for time.Now().Before(deadline) {
-		ws, err := gpuCreateStore.GetWorkspace(wsID)
+		ws, err := c.store.GetWorkspace(wsID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 
 		if ws.Status == entity.Running {
-			if piped {
-				logf("  %s: Ready\n", ws.Name)
-			} else {
-				logf("  %s: %s\n", ws.Name, t.Green("Ready"))
-			}
+			c.logf("  %s: %s\n", ws.Name, c.colorize("Ready", c.t.Green))
 			return nil
 		}
 
