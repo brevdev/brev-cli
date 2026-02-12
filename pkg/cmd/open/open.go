@@ -1,10 +1,12 @@
 package open
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -33,12 +35,66 @@ const (
 	EditorVSCode   = "code"
 	EditorCursor   = "cursor"
 	EditorWindsurf = "windsurf"
+	EditorTerminal = "terminal"
 	EditorTmux     = "tmux"
 )
 
 var (
-	openLong    = "[command in beta] This will open VS Code, Cursor, Windsurf, or tmux SSH-ed in to your instance. You must have the editor installed in your path."
-	openExample = "brev open instance_id_or_name\nbrev open instance\nbrev open instance code\nbrev open instance cursor\nbrev open instance windsurf\nbrev open instance tmux\nbrev open --set-default cursor\nbrev open --set-default windsurf\nbrev open --set-default tmux"
+	openLong = `[command in beta] This will open an editor SSH-ed in to your instance.
+
+Supported editors:
+  code      - VS Code
+  cursor    - Cursor
+  windsurf  - Windsurf
+  terminal  - Opens a new terminal window with SSH
+  tmux      - Opens a new terminal window with SSH + tmux session
+
+Terminal support by platform:
+  macOS:   Terminal.app
+  Linux:   gnome-terminal, konsole, or xterm
+  WSL:     Windows Terminal (wt.exe)
+  Windows: Windows Terminal or cmd
+
+You must have the editor installed in your path.`
+	openExample = `  # Open an instance by name or ID
+  brev open instance_id_or_name
+  brev open my-instance
+
+  # Open multiple instances (each in separate editor window)
+  brev open instance1 instance2 instance3
+
+  # Open with a specific editor
+  brev open my-instance code
+  brev open my-instance cursor
+  brev open my-instance windsurf
+  brev open my-instance terminal
+  brev open my-instance tmux
+
+  # Open multiple instances with specific editor (flag is explicit)
+  brev open instance1 instance2 --editor cursor
+  brev open instance1 instance2 -e cursor
+
+  # Or use positional arg (last arg is editor if it matches code/cursor/windsurf/tmux)
+  brev open instance1 instance2 cursor
+
+  # Set a default editor
+  brev open --set-default cursor
+  brev open --set-default windsurf
+
+  # Create a GPU instance and open it immediately (reads instance name from stdin)
+  brev create my-instance | brev open
+
+  # Open a cluster (multiple instances from stdin)
+  brev create my-cluster --count 3 | brev open
+
+  # Create with specific GPU and open in Cursor
+  brev search --gpu-name A100 | brev create ml-box | brev open cursor
+
+  # Open in a new terminal window with SSH
+  brev create my-instance | brev open terminal
+
+  # Open in a new terminal window with tmux (supports multiple instances)
+  brev create my-cluster --count 3 | brev open tmux`
 )
 
 type OpenStore interface {
@@ -59,10 +115,11 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	var directory string
 	var host bool
 	var setDefault string
+	var editor string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
-		Use:                   "open",
+		Use:                   "open [instance...] [editor]",
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] Open VSCode, Cursor, Windsurf, or tmux to your instance",
 		Long:                  openLong,
@@ -72,7 +129,8 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 			if setDefaultFlag != "" {
 				return cobra.NoArgs(cmd, args)
 			}
-			return cobra.RangeArgs(1, 2)(cmd, args)
+			// Allow arbitrary args: instance names can come from stdin, last arg might be editor
+			return nil
 		}),
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -80,19 +138,44 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				return handleSetDefault(t, setDefault)
 			}
 
+			// Validate editor flag if provided
+			if editor != "" && !isEditorType(editor) {
+				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', or 'tmux'", editor))
+			}
+
+			// Get instance names and editor type from args or stdin
+			instanceNames, editorType, err := getInstanceNamesAndEditor(args, editor)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
 			setupDoneString := "------ Git repo cloned ------"
 			if waitForSetupToFinish {
 				setupDoneString = "------ Done running execs ------"
 			}
 
-			editorType, err := determineEditorType(args)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			// Open each instance
+			var errors error
+			for _, instanceName := range instanceNames {
+				if len(instanceNames) > 1 {
+					fmt.Fprintf(os.Stderr, "Opening %s...\n", instanceName)
+				}
+				err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType)
+				if err != nil {
+					if len(instanceNames) > 1 {
+						fmt.Fprintf(os.Stderr, "Error opening %s: %v\n", instanceName, err)
+						errors = multierror.Append(errors, err)
+						continue
+					}
+					return breverrors.WrapAndTrace(err)
+				}
+				// Output instance name for chaining (only if stdout is piped)
+				if isPiped() {
+					fmt.Println(instanceName)
+				}
 			}
-
-			err = runOpenCommand(t, store, args[0], setupDoneString, directory, host, editorType)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			if errors != nil {
+				return breverrors.WrapAndTrace(errors)
 			}
 			return nil
 		},
@@ -100,14 +183,79 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
-	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, or tmux)")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, terminal, or tmux)")
+	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, terminal, or tmux)")
 
 	return cmd
 }
 
+// isEditorType checks if a string is a valid editor type
+func isEditorType(s string) bool {
+	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTerminal || s == EditorTmux
+}
+
+// isPiped returns true if stdout is piped to another command
+func isPiped() bool {
+	stat, _ := os.Stdout.Stat()
+	return (stat.Mode() & os.ModeCharDevice) == 0
+}
+
+// getInstanceNamesAndEditor gets instance names from args/stdin and determines editor type
+// editorFlag takes precedence, otherwise last arg may be an editor type (code, cursor, windsurf, tmux)
+func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, string, error) {
+	var names []string
+	editorType := editorFlag
+
+	// If no editor flag, check if last arg is an editor type
+	if editorType == "" && len(args) > 0 && isEditorType(args[len(args)-1]) {
+		editorType = args[len(args)-1]
+		args = args[:len(args)-1]
+	}
+
+	// Add names from remaining args
+	names = append(names, args...)
+
+	// Check if stdin is piped
+	stat, _ := os.Stdin.Stat()
+	if (stat.Mode() & os.ModeCharDevice) == 0 {
+		// Stdin is piped, read instance names (one per line)
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			name := strings.TrimSpace(scanner.Text())
+			if name != "" {
+				names = append(names, name)
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			return nil, "", breverrors.WrapAndTrace(err)
+		}
+	}
+
+	if len(names) == 0 {
+		return nil, "", breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+	}
+
+	// If no editor specified, get default
+	if editorType == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			editorType = EditorVSCode
+		} else {
+			settings, err := files.ReadPersonalSettings(files.AppFs, homeDir)
+			if err != nil {
+				editorType = EditorVSCode
+			} else {
+				editorType = settings.DefaultEditor
+			}
+		}
+	}
+
+	return names, editorType, nil
+}
+
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
-	if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
-		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
+	if !isEditorType(editorType) {
+		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', or 'tmux'", editorType)
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -126,28 +274,6 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 
 	t.Vprint(t.Green("Default editor set to " + editorType + "\n"))
 	return nil
-}
-
-func determineEditorType(args []string) (string, error) {
-	if len(args) == 2 {
-		editorType := args[1]
-		if editorType != EditorVSCode && editorType != EditorCursor && editorType != EditorWindsurf && editorType != EditorTmux {
-			return "", fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', or 'tmux'", editorType)
-		}
-		return editorType, nil
-	}
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return EditorVSCode, nil
-	}
-
-	settings, err := files.ReadPersonalSettings(files.AppFs, homeDir)
-	if err != nil {
-		return EditorVSCode, nil
-	}
-
-	return settings.DefaultEditor, nil
 }
 
 // Fetch workspace info, then open code editor
@@ -360,6 +486,8 @@ func getEditorName(editorType string) string {
 		return "Cursor"
 	case EditorWindsurf:
 		return "Windsurf"
+	case EditorTerminal:
+		return "Terminal"
 	case EditorTmux:
 		return "tmux"
 	default:
@@ -390,8 +518,10 @@ func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, 
 	case EditorWindsurf:
 		tryToInstallWindsurfExtensions(t, extensions)
 		return openWindsurf(sshAlias, path, tstore)
+	case EditorTerminal:
+		return openTerminal(sshAlias, path, tstore)
 	case EditorTmux:
-		return openTmux(sshAlias, path, tstore)
+		return openTerminalWithTmux(sshAlias, path, tstore)
 	default:
 		tryToInstallExtensions(t, extensions)
 		return openVsCode(sshAlias, path, tstore)
@@ -466,7 +596,11 @@ func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias 
 		}
 
 		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
+		lines := strings.Split(outputStr, "\n")
+		stdErr := outputStr
+		if len(lines) > 1 {
+			stdErr = lines[1]
+		}
 
 		if counter == 160 || !store.SatisfactorySSHErrMessage(stdErr) {
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
@@ -539,8 +673,70 @@ func getWindowsWindsurfPaths(store vscodePathStore) []string {
 	return paths
 }
 
-func openTmux(sshAlias string, path string, store OpenStore) error {
-	_ = store // unused parameter required by interface
+// openInNewTerminalWindow opens a command in a new terminal window based on the platform
+// macOS: Terminal.app via osascript
+// Linux: gnome-terminal, konsole, or xterm (tries in order)
+// Windows/WSL: Windows Terminal (wt.exe)
+func openInNewTerminalWindow(command string) error {
+	switch runtime.GOOS {
+	case "darwin":
+		// macOS: use osascript to open Terminal.app
+		script := fmt.Sprintf(`tell application "Terminal"
+	activate
+	do script "%s"
+end tell`, command)
+		cmd := exec.Command("osascript", "-e", script) // #nosec G204
+		return breverrors.WrapAndTrace(cmd.Run())
+
+	case "linux":
+		// Check if we're in WSL by looking for wt.exe
+		if _, err := exec.LookPath("wt.exe"); err == nil {
+			// WSL: use Windows Terminal
+			cmd := exec.Command("wt.exe", "new-tab", "bash", "-c", command) // #nosec G204
+			return breverrors.WrapAndTrace(cmd.Run())
+		}
+		// Try gnome-terminal first (Ubuntu/GNOME)
+		if _, err := exec.LookPath("gnome-terminal"); err == nil {
+			cmd := exec.Command("gnome-terminal", "--", "bash", "-c", command+"; exec bash") // #nosec G204
+			return breverrors.WrapAndTrace(cmd.Run())
+		}
+		// Try konsole (KDE)
+		if _, err := exec.LookPath("konsole"); err == nil {
+			cmd := exec.Command("konsole", "-e", "bash", "-c", command+"; exec bash") // #nosec G204
+			return breverrors.WrapAndTrace(cmd.Run())
+		}
+		// Try xterm as fallback
+		if _, err := exec.LookPath("xterm"); err == nil {
+			cmd := exec.Command("xterm", "-e", "bash", "-c", command+"; exec bash") // #nosec G204
+			return breverrors.WrapAndTrace(cmd.Run())
+		}
+		return breverrors.NewValidationError("no supported terminal emulator found. Install gnome-terminal, konsole, or xterm")
+
+	case "windows":
+		// Windows: use Windows Terminal
+		if _, err := exec.LookPath("wt.exe"); err == nil {
+			cmd := exec.Command("wt.exe", "new-tab", "cmd", "/c", command) // #nosec G204
+			return breverrors.WrapAndTrace(cmd.Run())
+		}
+		// Fallback to start cmd
+		cmd := exec.Command("cmd", "/c", "start", "cmd", "/k", command) // #nosec G204
+		return breverrors.WrapAndTrace(cmd.Run())
+
+	default:
+		return breverrors.NewValidationError(fmt.Sprintf("'terminal' editor is not supported on %s", runtime.GOOS))
+	}
+}
+
+func openTerminal(sshAlias string, _ string, _ OpenStore) error {
+	sshCmd := fmt.Sprintf("ssh %s", sshAlias)
+	err := openInNewTerminalWindow(sshCmd)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func openTerminalWithTmux(sshAlias string, path string, _ OpenStore) error {
 	err := ensureTmuxInstalled(sshAlias)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -548,23 +744,21 @@ func openTmux(sshAlias string, path string, store OpenStore) error {
 
 	sessionName := "brev"
 
+	// Check if tmux session exists
 	checkCmd := fmt.Sprintf("ssh %s 'tmux has-session -t %s 2>/dev/null'", sshAlias, sessionName)
 	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
-	err = checkExec.Run()
+	checkErr := checkExec.Run()
 
 	var tmuxCmd string
-	if err == nil {
+	if checkErr == nil {
+		// Session exists, attach to it
 		tmuxCmd = fmt.Sprintf("ssh -t %s 'tmux attach-session -t %s'", sshAlias, sessionName)
 	} else {
+		// Create new session
 		tmuxCmd = fmt.Sprintf("ssh -t %s 'cd %s && tmux new-session -s %s'", sshAlias, path, sessionName)
 	}
 
-	sshCmd := exec.Command("bash", "-c", tmuxCmd) // #nosec G204
-	sshCmd.Stderr = os.Stderr
-	sshCmd.Stdout = os.Stdout
-	sshCmd.Stdin = os.Stdin
-
-	err = sshCmd.Run()
+	err = openInNewTerminalWindow(tmuxCmd)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
