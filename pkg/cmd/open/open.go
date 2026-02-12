@@ -737,7 +737,6 @@ func openTerminal(sshAlias string, _ string, _ OpenStore) error {
 }
 
 func openTerminalWithTmux(sshAlias string, path string, _ OpenStore) error {
-
 	err := ensureTmuxInstalled(sshAlias)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
