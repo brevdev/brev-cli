@@ -4,23 +4,24 @@ package start
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
-	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/instancetypes"
 	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	allutil "github.com/brevdev/brev-cli/pkg/util"
+	"github.com/brevdev/brev-cli/pkg/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
-
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 var (
@@ -29,11 +30,12 @@ var (
   brev start <existing_ws_name>
   brev start <git url>
   brev start <git url> --org myFancyOrg
+  echo instance-name | brev start
 	`
 )
 
 type StartStore interface {
-	util.GetWorkspaceByNameOrIDErrStore
+	cmdutil.GetWorkspaceByNameOrIDErrStore
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
@@ -65,10 +67,8 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			repoOrPathOrNameOrID := ""
-			if len(args) > 0 {
-				repoOrPathOrNameOrID = args[0]
-			}
+			piped := cmdutil.IsStdoutPiped()
+			names, stdinPiped := cmdutil.GetInstanceNamesWithPipeInfo(args)
 
 			if gpu != "" {
 				isValid := instancetypes.ValidateInstanceType(gpu)
@@ -78,26 +78,13 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 				}
 			}
 
-			err := runStartWorkspace(t, StartOptions{
-				RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
-				Name:                 name,
-				OrgName:              org,
-				SetupScript:          setupScript,
-				SetupRepo:            setupRepo,
-				SetupPath:            setupPath,
-				WorkspaceClass:       cpu,
-				Detached:             detached,
-				InstanceType:         gpu,
-			}, startStore)
-			if err != nil {
-				if strings.Contains(err.Error(), "duplicate instance with name") {
-					t.Vprint(t.Yellow("try running:"))
-					t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
-					t.Vprint(t.Yellow("\tbrev delete [name]"))
-				}
-				return breverrors.WrapAndTrace(err)
+			// If stdin is piped, handle multiple instances (only start existing stopped instances)
+			if stdinPiped && len(names) > 0 {
+				return runBatchStart(t, names, org, setupScript, setupRepo, setupPath, cpu, gpu, piped, startStore)
 			}
-			return nil
+
+			// Single instance mode (original behavior)
+			return runSingleStart(t, names, name, org, setupScript, setupRepo, setupPath, cpu, gpu, detached, piped, startStore)
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -173,7 +160,7 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 }
 
 func maybeStartWithLocalPath(options StartOptions, user *entity.User, t *terminal.Terminal, startStore StartStore) (bool, error) {
-	if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
+	if util.DoesPathExist(options.RepoOrPathOrNameOrID) {
 		err := startWorkspaceFromPath(user, t, options, startStore)
 		if err != nil {
 			return false, breverrors.WrapAndTrace(err)
@@ -205,7 +192,7 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options St
 				return false, breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s is a failed workspace", options.RepoOrPathOrNameOrID))
 			}
 		}
-		if allutil.DoesPathExist(options.RepoOrPathOrNameOrID) {
+		if util.DoesPathExist(options.RepoOrPathOrNameOrID) {
 			t.Print(t.Yellow(fmt.Sprintf("Warning: local path found and instance name/id found %s. Using instance name/id. If you meant to specify a local path change directory and try again.", options.RepoOrPathOrNameOrID)))
 		}
 		errr := startStopppedWorkspace(&userWorkspaces[0], startStore, t, options)
@@ -226,7 +213,7 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options St
 }
 
 func maybeStartFromGitURL(t *terminal.Terminal, user *entity.User, options StartOptions, startStore StartStore) (bool, error) {
-	if allutil.IsGitURL(options.RepoOrPathOrNameOrID) { // todo this is function is not complete, some cloneable urls are not identified
+	if util.IsGitURL(options.RepoOrPathOrNameOrID) { // todo this is function is not complete, some cloneable urls are not identified
 		err := createNewWorkspaceFromGit(user, t, options.SetupScript, options, startStore)
 		if err != nil {
 			return true, breverrors.WrapAndTrace(err)
@@ -248,7 +235,7 @@ func maybeStartEmpty(t *terminal.Terminal, user *entity.User, options StartOptio
 }
 
 func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
-	pathExists := allutil.DoesPathExist(options.RepoOrPathOrNameOrID)
+	pathExists := util.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
 		return fmt.Errorf("Path: %s does not exist", options.RepoOrPathOrNameOrID)
 	}
@@ -278,7 +265,7 @@ func startWorkspaceFromPath(user *entity.User, t *terminal.Terminal, options Sta
 	if options.RepoOrPathOrNameOrID == "." {
 		localSetupPath = filepath.Join(".brev", "setup.sh")
 	}
-	if !allutil.DoesPathExist(localSetupPath) {
+	if !util.DoesPathExist(localSetupPath) {
 		fmt.Println(strings.Join([]string{"Generating setup script at", localSetupPath}, "\n"))
 		mergeshells.ImportPath(t, options.RepoOrPathOrNameOrID, startStore)
 		fmt.Println("setup script generated.")
@@ -686,6 +673,74 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 			s.Stop()
 			isReady = true
 		}
+	}
+	return nil
+}
+
+// runBatchStart handles starting multiple instances when stdin is piped
+func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
+	var startedNames []string
+	var errs error
+	for _, instanceName := range names {
+		err := runStartWorkspace(t, StartOptions{
+			RepoOrPathOrNameOrID: instanceName,
+			Name:                 "",
+			OrgName:              org,
+			SetupScript:          setupScript,
+			SetupRepo:            setupRepo,
+			SetupPath:            setupPath,
+			WorkspaceClass:       cpu,
+			Detached:             true, // Always detached when piping multiple
+			InstanceType:         gpu,
+		}, startStore)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error starting %s: %s\n", instanceName, err.Error())
+			errs = multierror.Append(errs, err)
+		} else {
+			startedNames = append(startedNames, instanceName)
+		}
+	}
+	// Output names for piping to next command
+	if piped {
+		for _, n := range startedNames {
+			fmt.Println(n)
+		}
+	}
+	if errs != nil {
+		return breverrors.WrapAndTrace(errs)
+	}
+	return nil
+}
+
+// runSingleStart handles starting a single instance (original behavior)
+func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript, setupRepo, setupPath, cpu, gpu string, detached, piped bool, startStore StartStore) error {
+	repoOrPathOrNameOrID := ""
+	if len(names) > 0 {
+		repoOrPathOrNameOrID = names[0]
+	}
+
+	err := runStartWorkspace(t, StartOptions{
+		RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
+		Name:                 name,
+		OrgName:              org,
+		SetupScript:          setupScript,
+		SetupRepo:            setupRepo,
+		SetupPath:            setupPath,
+		WorkspaceClass:       cpu,
+		Detached:             detached,
+		InstanceType:         gpu,
+	}, startStore)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate instance with name") {
+			t.Vprint(t.Yellow("try running:"))
+			t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
+			t.Vprint(t.Yellow("\tbrev delete [name]"))
+		}
+		return breverrors.WrapAndTrace(err)
+	}
+	// Output name for piping to next command
+	if piped && repoOrPathOrNameOrID != "" {
+		fmt.Println(repoOrPathOrNameOrID)
 	}
 	return nil
 }
