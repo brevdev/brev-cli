@@ -596,7 +596,11 @@ func waitForSSHToBeAvailable(t *terminal.Terminal, s *spinner.Spinner, sshAlias 
 		}
 
 		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
+		lines := strings.Split(outputStr, "\n")
+		stdErr := outputStr
+		if len(lines) > 1 {
+			stdErr = lines[1]
+		}
 
 		if counter == 160 || !store.SatisfactorySSHErrMessage(stdErr) {
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
@@ -732,8 +736,7 @@ func openTerminal(sshAlias string, _ string, _ OpenStore) error {
 	return nil
 }
 
-func openTerminalWithTmux(sshAlias string, path string, store OpenStore) error {
-	_ = store // unused parameter required by interface
+func openTerminalWithTmux(sshAlias string, path string, _ OpenStore) error {
 
 	err := ensureTmuxInstalled(sshAlias)
 	if err != nil {

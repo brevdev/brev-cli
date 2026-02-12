@@ -2,7 +2,6 @@ package exec
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,7 +17,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
-	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/spf13/cobra"
@@ -51,13 +49,10 @@ var (
 )
 
 type ExecStore interface {
-	util.GetWorkspaceByNameOrIDErrStore
+	util.WorkspaceStartStore
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	StartWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetCurrentUserKeys() (*entity.UserKeys, error)
 }
 
 func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecStore) *cobra.Command {
@@ -178,6 +173,8 @@ func parseCommand(command string) (string, error) {
 	return command, nil
 }
 
+const pollTimeout = 10 * time.Minute
+
 func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID string, host bool, command string) error {
 	s := t.NewSpinner()
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
@@ -186,12 +183,12 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	}
 
 	if workspace.Status == "STOPPED" { // we start the env for the user
-		err = startWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace)
+		err = util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}
-	err = pollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...")
+	err = util.PollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...", pollTimeout)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -216,7 +213,7 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = waitForSSHToBeAvailable(sshName, s)
+	err = util.WaitForSSHToBeAvailable(sshName, s)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -248,30 +245,6 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	return nil
 }
 
-func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
-	counter := 0
-	s.Suffix = " waiting for SSH connection to be available"
-	s.Start()
-	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=10", sshAlias, "echo", " ")
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			s.Stop()
-			return nil
-		}
-
-		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
-
-		if counter == 40 || !store.SatisfactorySSHErrMessage(stdErr) {
-			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
-		}
-
-		counter++
-		time.Sleep(1 * time.Second)
-	}
-}
-
 func runSSH(sshAlias string, command string) error {
 	sshAgentEval := "eval $(ssh-agent -s)"
 
@@ -290,49 +263,5 @@ func runSSH(sshAlias string, command string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	return nil
-}
-
-func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore ExecStore, wsIDOrName string, workspace *entity.Workspace) error {
-	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	startedWorkspace, err := tstore.StartWorkspace(workspaces[0].ID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	t.Vprintf("%s", t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
-	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight")
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func pollUntil(s *spinner.Spinner, wsid string, state string, execStore ExecStore, waitMsg string) error {
-	isReady := false
-	s.Suffix = waitMsg
-	s.Start()
-	for !isReady {
-		time.Sleep(5 * time.Second)
-		ws, err := execStore.GetWorkspace(wsid)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		s.Suffix = waitMsg
-		if ws.Status == state {
-			isReady = true
-		}
-	}
-	s.Stop()
 	return nil
 }
