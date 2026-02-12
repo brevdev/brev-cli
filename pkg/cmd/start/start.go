@@ -4,6 +4,7 @@ package start
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
+	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 )
 
@@ -114,7 +116,6 @@ type StartOptions struct {
 	WorkspaceClass       string
 	Detached             bool
 	InstanceType         string
-	Piped                bool // true when stdout is piped to another command
 }
 
 func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
@@ -679,6 +680,7 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 // runBatchStart handles starting multiple instances when stdin is piped
 func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
 	var startedNames []string
+	var errs error
 	for _, instanceName := range names {
 		err := runStartWorkspace(t, StartOptions{
 			RepoOrPathOrNameOrID: instanceName,
@@ -690,12 +692,10 @@ func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setup
 			WorkspaceClass:       cpu,
 			Detached:             true, // Always detached when piping multiple
 			InstanceType:         gpu,
-			Piped:                piped,
 		}, startStore)
 		if err != nil {
-			if !piped {
-				t.Vprintf("Error starting %s: %s\n", instanceName, err.Error())
-			}
+			fmt.Fprintf(os.Stderr, "Error starting %s: %s\n", instanceName, err.Error())
+			errs = multierror.Append(errs, err)
 		} else {
 			startedNames = append(startedNames, instanceName)
 		}
@@ -705,6 +705,9 @@ func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setup
 		for _, n := range startedNames {
 			fmt.Println(n)
 		}
+	}
+	if errs != nil {
+		return breverrors.WrapAndTrace(errs)
 	}
 	return nil
 }
@@ -726,7 +729,6 @@ func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript
 		WorkspaceClass:       cpu,
 		Detached:             detached,
 		InstanceType:         gpu,
-		Piped:                piped,
 	}, startStore)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate instance with name") {

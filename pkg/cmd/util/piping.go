@@ -2,6 +2,7 @@ package util
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strings"
 
@@ -46,6 +47,10 @@ func GetInstanceNamesWithPipeInfo(args []string) ([]string, bool) {
 			if name != "" {
 				names = append(names, name)
 			}
+		}
+		if err := scanner.Err(); err != nil {
+			// Log but don't fail - partial input is still useful
+			fmt.Fprintf(os.Stderr, "warning: error reading stdin: %v\n", err)
 		}
 	}
 
