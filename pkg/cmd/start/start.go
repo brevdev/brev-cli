@@ -677,7 +677,8 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 	return nil
 }
 
-// runBatchStart handles starting multiple instances when stdin is piped
+// runBatchStart handles starting multiple instances when stdin is piped.
+// Exit codes: 0 = all succeeded, 1 = all failed, 2 = partial failure.
 func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
 	var startedNames []string
 	var errs error
@@ -700,14 +701,18 @@ func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setup
 			startedNames = append(startedNames, instanceName)
 		}
 	}
-	// Output names for piping to next command
+	// Always output successful names for piping to next command
 	if piped {
 		for _, n := range startedNames {
 			fmt.Println(n)
 		}
 	}
 	if errs != nil {
-		return breverrors.WrapAndTrace(errs)
+		exitCode := 1 // all failed
+		if len(startedNames) > 0 {
+			exitCode = 2 // partial failure
+		}
+		return breverrors.NewExitCodeError(errs, exitCode)
 	}
 	return nil
 }

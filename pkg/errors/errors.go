@@ -123,6 +123,27 @@ func (v ValidationError) Error() string {
 	return v.Message
 }
 
+// ExitCodeError wraps an error with a specific process exit code.
+// Use this to distinguish between failure modes (e.g., partial vs full failure).
+type ExitCodeError struct {
+	Err      error
+	ExitCode int
+}
+
+func NewExitCodeError(err error, exitCode int) ExitCodeError {
+	return ExitCodeError{Err: err, ExitCode: exitCode}
+}
+
+var _ error = ExitCodeError{}
+
+func (e ExitCodeError) Error() string {
+	return e.Err.Error()
+}
+
+func (e ExitCodeError) Unwrap() error {
+	return e.Err
+}
+
 type DeclineToLoginError struct{}
 
 func (d *DeclineToLoginError) Error() string     { return "declined to login" }
