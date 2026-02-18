@@ -68,7 +68,11 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 					}
 				}
 				if allErr != nil {
-					return breverrors.WrapAndTrace(allErr)
+					exitCode := 1 // all failed
+					if len(stoppedNames) > 0 {
+						exitCode = 2 // partial failure
+					}
+					return breverrors.NewExitCodeError(allErr, exitCode)
 				}
 			}
 			return nil
