@@ -701,18 +701,14 @@ func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setup
 			startedNames = append(startedNames, instanceName)
 		}
 	}
-	// Always output successful names for piping to next command
+	if errs != nil {
+		return breverrors.WrapAndTrace(errs)
+	}
+	// Only output names for piping if all succeeded
 	if piped {
 		for _, n := range startedNames {
 			fmt.Println(n)
 		}
-	}
-	if errs != nil {
-		exitCode := 1 // all failed
-		if len(startedNames) > 0 {
-			exitCode = 2 // partial failure
-		}
-		return breverrors.NewExitCodeError(errs, exitCode)
 	}
 	return nil
 }

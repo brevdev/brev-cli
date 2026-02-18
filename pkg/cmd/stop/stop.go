@@ -61,18 +61,14 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 						stoppedNames = append(stoppedNames, name)
 					}
 				}
-				// Output names for piping to next command
+				if allErr != nil {
+					return breverrors.WrapAndTrace(allErr)
+				}
+				// Only output names for piping if all succeeded
 				if piped {
 					for _, name := range stoppedNames {
 						fmt.Println(name)
 					}
-				}
-				if allErr != nil {
-					exitCode := 1 // all failed
-					if len(stoppedNames) > 0 {
-						exitCode = 2 // partial failure
-					}
-					return breverrors.NewExitCodeError(allErr, exitCode)
 				}
 			}
 			return nil

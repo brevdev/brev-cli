@@ -3,6 +3,7 @@ package delete
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -52,14 +53,14 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 					deletedNames = append(deletedNames, workspace)
 				}
 			}
-			// Output names for piping to next command
+			if allError != nil {
+				return breverrors.WrapAndTrace(allError)
+			}
+			// Only output names for piping if all succeeded
 			if piped {
 				for _, name := range deletedNames {
 					fmt.Println(name)
 				}
-			}
-			if allError != nil {
-				return breverrors.WrapAndTrace(allError)
 			}
 			return nil
 		},
@@ -106,7 +107,7 @@ func handleAdminUser(err error, deleteStore DeleteStore, piped bool) error {
 			return breverrors.WrapAndTrace(err)
 		}
 		if !piped {
-			fmt.Println("attempting to delete an instance you don't own as admin")
+			fmt.Fprintln(os.Stderr, "attempting to delete an instance you don't own as admin")
 		}
 		return nil
 	}

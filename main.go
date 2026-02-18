@@ -1,7 +1,6 @@
 package main
 
 import (
-	stderrors "errors"
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/cmd"
@@ -17,11 +16,6 @@ func main() {
 	if err := command.Execute(); err != nil {
 		cmderrors.DisplayAndHandleError(err)
 		done()
-		exitCode := 1
-		var exitErr errors.ExitCodeError
-		if stderrors.As(err, &exitErr) {
-			exitCode = exitErr.ExitCode
-		}
-		os.Exit(exitCode) //nolint:gocritic // manually call done
+		os.Exit(1) //nolint:gocritic // manually call done
 	}
 }
