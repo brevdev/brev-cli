@@ -61,6 +61,20 @@ https://docs.nvidia.com/brev/latest/
 
 https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-affe-063a76eca9da.mp4
 
+## Claude Code Integration
+
+Brev CLI includes a skill for [Claude Code](https://claude.com/claude-code) that enables natural language GPU instance management.
+
+```bash
+# Install via CLI
+brev claude-skill
+
+# Or via standalone installer
+curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-claude-skill.sh | bash
+```
+
+Once installed, you can say things like "create an A100 instance for ML training" or "search for GPUs with 40GB VRAM" in Claude Code.
+
 ## Contributing
 
 We welcome PRs! Checkout [Contributing.md](docs/CONTRIBUTING.md) for more.

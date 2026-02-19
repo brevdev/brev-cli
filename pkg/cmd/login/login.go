@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/cmd/claudeskill"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 
@@ -94,6 +95,11 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 					err = multierror.Append(err, err2)
 				}
 				return err //nolint:wrapcheck // we want to return the error from the login
+			}
+			// Offer Claude Code skill installation after successful login
+			homeDir, homeErr := opts.LoginStore.UserHomeDir()
+			if homeErr == nil {
+				claudeskill.RunInstallSkillIfWanted(t, homeDir)
 			}
 			return nil
 		},

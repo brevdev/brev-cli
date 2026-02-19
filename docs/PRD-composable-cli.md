@@ -4,17 +4,6 @@
 
 Make the Brev CLI idiomatic, programmable, and agent-friendly. Users and AI agents should be able to compose commands using standard Unix patterns (`|`, `grep`, `awk`, `jq`) while also having structured output options for programmatic access.
 
-## Why Now
-
-Coding agents (Claude Code, Cursor, Cline, Aider, OpenCode, Clawdbot) are becoming the primary interface between developers and their tools. These agents prefer CLIs over APIs:
-
-- **Text-native** - LLMs think in text; pipes and grep are natural
-- **Self-documenting** - `--help` and tab completion beat reading API docs
-- **Composable** - Chain steps: `brev search | brev create | brev exec "setup.sh"`
-- **Learned from training** - Agents already know Unix conventions from GitHub/Stack Overflow
-
-Most GPU clouds have dashboards and APIs, but weak CLIs. A composable Brev CLI becomes the default for autonomous GPU workflows.
-
 ## Goals
 
 1. **Unix Idiomatic** - Commands work naturally with pipes and standard tools
@@ -58,87 +47,6 @@ Most GPU clouds have dashboards and APIs, but weak CLIs. A composable Brev CLI b
 | `brev start` | Instance names | Instance names | ✅ |
 | `brev delete` | Instance names | Instance names | ✅ |
 | `brev create` | Instance types (table or JSON) | Instance names | ✅ |
-| `brev shell` | - | - (interactive) | ✅ |
-| `brev exec` | Instance names | Command stdout/stderr | ✅ |
-| `brev open` | Instance names | Instance names | ✅ |
-
-### Exec Command (`brev exec`)
-
-Non-interactive command execution for scripted and agentic workflows.
-
-**Run commands directly**:
-```bash
-brev exec my-gpu "nvidia-smi"
-brev exec my-gpu "python train.py && echo done"
-```
-
-**Run local scripts remotely** (`@filepath` syntax):
-```bash
-brev exec my-gpu @setup.sh           # Runs local setup.sh on remote
-brev exec my-gpu @scripts/deploy.sh  # Relative paths supported
-```
-
-**Multi-instance support**:
-```bash
-# Run on multiple instances
-brev exec gpu-1 gpu-2 gpu-3 "nvidia-smi"
-
-# Pipe from create
-brev create my-cluster --count 3 | brev exec "nvidia-smi"
-
-# Chain with other commands
-brev ls | grep RUNNING | brev exec "df -h"
-```
-
-**Output for chaining**:
-Outputs instance names after execution completes, enabling pipelines:
-```bash
-brev create my-gpu | brev exec "pip install torch" | brev exec "python train.py"
-```
-
-### Shell Command (`brev shell`)
-
-Interactive SSH session to an instance. Use `brev exec` for non-interactive commands.
-
-```bash
-brev shell my-gpu                    # Interactive shell
-brev shell $(brev create my-gpu)     # Create and connect
-brev shell my-gpu --host             # SSH to host instead of container
-```
-
-### Open Enhancements (`brev open`)
-
-Open instances in editors/terminals with multi-instance and cross-platform support.
-
-**Editor options**:
-```bash
-brev open my-gpu vscode      # VS Code (default)
-brev open my-gpu cursor      # Cursor
-brev open my-gpu vim         # Vim over SSH
-brev open my-gpu terminal    # Terminal/SSH session
-brev open my-gpu tmux        # Tmux session
-```
-
-**Multi-instance support**:
-```bash
-# Open multiple instances (each in separate window)
-brev open gpu-1 gpu-2 gpu-3 cursor
-
-# Pipe from create
-brev create my-cluster --count 3 | brev open cursor
-```
-
-**Output for chaining**:
-Outputs instance names when piped, enabling pipelines:
-```bash
-# Create, open in editor, then run setup
-brev create my-gpu | brev open cursor | brev exec "pip install -r requirements.txt"
-```
-
-**Cross-platform support**:
-- macOS: Terminal.app, iTerm2
-- Linux: Default terminal emulator
-- Windows/WSL: Fixed exec format errors
 
 ### Search Filters
 ```bash
@@ -179,7 +87,7 @@ brev ls | grep STOPPED | awk '{print $1}' | brev delete
 ### Chained Lifecycle
 ```bash
 # Create, use, cleanup
-brev search --gpu-name A100 | head -1 | brev create --name job-1 | brev exec "python train.py" && brev delete job-1
+brev search --gpu-name A100 | head -1 | brev create --name job-1 | brev shell -c "python train.py" && brev delete job-1
 ```
 
 ### JSON Processing
@@ -235,7 +143,7 @@ With composable CLI + skills, agents can autonomously:
 
 1. **Provision** - Search, filter, and create instances matching workload requirements
 2. **Deploy** - Stream code/data to instances via pipeable `cp`
-3. **Execute** - Run workloads via `brev exec`, capture output
+3. **Execute** - Run workloads via `brev shell -c`, capture output
 4. **Monitor** - Poll status via `brev ls --json`, stream logs
 5. **Scale** - Spin up parallel instances, distribute work
 6. **Cleanup** - Stop/delete instances, manage costs
@@ -249,7 +157,7 @@ Agent:
 1. brev search --gpu-name H100 --stoppable --min-disk 500 | head -1 | brev create --name training-job
 2. brev wait training-job --state ready
 3. tar czf - ./src | brev cp - training-job:/app/
-4. brev exec training-job "cd /app && python train.py --checkpoint-interval 3600"
+4. brev shell training-job -c "cd /app && python train.py --checkpoint-interval 3600"
 5. brev cp training-job:/app/checkpoints - | tar xzf - -C ./results/
 6. brev delete training-job
 ```
@@ -301,7 +209,7 @@ brev cp gpu-1:/checkpoint.pt - | brev cp - gpu-2:/checkpoint.pt
 **Agentic use cases**:
 ```bash
 # Agent streams training data, captures results
-cat dataset.jsonl | brev exec my-gpu "python train.py" > results.log
+cat dataset.jsonl | brev shell my-gpu -c "python train.py" > results.log
 
 # Agent deploys code without temp files
 tar czf - ./src | brev cp - my-gpu:/app/src.tar.gz
