@@ -43,6 +43,36 @@ type LifeCycleScriptAttr struct {
 type VMBuild struct {
 	ForceJupyterInstall bool                 `json:"forceJupyterInstall,omitempty"`
 	LifeCycleScriptAttr *LifeCycleScriptAttr `json:"lifeCycleScriptAttr,omitempty"`
+	K8s                 *K8sConfig           `json:"k8s,omitempty"`
+}
+
+// K8sConfig holds Kubernetes configuration for VM builds
+type K8sConfig struct {
+	IsDisabled         bool `json:"isDisabled"`
+	IsDashboardEnabled bool `json:"isDashboardEnabled"`
+}
+
+// CustomContainer holds custom container build configuration
+type CustomContainer struct {
+	ContainerURL string    `json:"containerUrl"`
+	EntryPoint   string    `json:"entryPoint"`
+	Registry     *Registry `json:"registry,omitempty"`
+}
+
+// DockerCompose holds Docker Compose build configuration
+type DockerCompose struct {
+	FileURL              string            `json:"fileUrl,omitempty"`
+	YamlString           string            `json:"yamlString,omitempty"`
+	JupyterInstall       bool              `json:"jupyterInstall"`
+	EnvironmentVariables map[string]string `json:"environmentVariables,omitempty"`
+	Registries           []*Registry       `json:"registries,omitempty"`
+}
+
+// Registry holds container registry credentials
+type Registry struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Url      string `json:"url"`
 }
 
 type CreateWorkspacesOptions struct {
@@ -69,6 +99,9 @@ type CreateWorkspacesOptions struct {
 	BaseImage            string               `json:"baseImage"`
 	VMOnlyMode           bool                 `json:"vmOnlyMode"`
 	VMBuild              *VMBuild             `json:"vmBuild,omitempty"`
+	CustomContainer      *CustomContainer     `json:"customContainer,omitempty"`
+	DockerCompose        *DockerCompose       `json:"dockerCompose,omitempty"`
+	OnContainer          bool                 `json:"onContainer,omitempty"`
 	PortMappings         map[string]string    `json:"portMappings"`
 	Files                interface{}          `json:"files"`
 	Labels               interface{}          `json:"labels"`
@@ -114,8 +147,8 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		Name:                 name,
 		PortMappings:         map[string]string{},
 		ReposV1:              &entity.ReposV1{},
-		VMOnlyMode:           true,
-		WorkspaceGroupID:     "GCP",
+		VMBuild:              &VMBuild{ForceJupyterInstall: true},
+		WorkspaceGroupID:     "", // resolved dynamically from instance type
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		WorkspaceVersion:     "v1",
 	}
@@ -153,6 +186,16 @@ func (c *CreateWorkspacesOptions) WithStartupScript(startupScript string) *Creat
 
 func (c *CreateWorkspacesOptions) WithWorkspaceClassID(workspaceClassID string) *CreateWorkspacesOptions {
 	c.WorkspaceClassID = workspaceClassID
+	return c
+}
+
+func (c *CreateWorkspacesOptions) WithVMBuild(vmBuild *VMBuild) *CreateWorkspacesOptions {
+	c.VMBuild = vmBuild
+	return c
+}
+
+func (c *CreateWorkspacesOptions) WithWorkspaceGroupID(workspaceGroupID string) *CreateWorkspacesOptions {
+	c.WorkspaceGroupID = workspaceGroupID
 	return c
 }
 

@@ -148,6 +148,10 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var timeout int
 	var startupScript string
 	var dryRun bool
+	var mode string
+	var jupyter bool
+	var containerImage string
+	var composeFile string
 	var filters searchFilterFlags
 
 	cmd := &cobra.Command{
@@ -162,6 +166,10 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			// Accept name as positional arg or --name flag
 			if len(args) > 0 && name == "" {
 				name = args[0]
+			}
+
+			if err := validateBuildMode(mode, containerImage, composeFile); err != nil {
+				return err
 			}
 
 			// Parse instance types from flag or stdin
@@ -204,14 +212,21 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return breverrors.WrapAndTrace(err)
 			}
 
+			jupyterSet := cmd.Flags().Changed("jupyter")
+
 			opts := GPUCreateOptions{
-				Name:          name,
-				InstanceTypes: types,
-				Count:         count,
-				Parallel:      parallel,
-				Detached:      detached,
-				Timeout:       time.Duration(timeout) * time.Second,
-				StartupScript: scriptContent,
+				Name:           name,
+				InstanceTypes:  types,
+				Count:          count,
+				Parallel:       parallel,
+				Detached:       detached,
+				Timeout:        time.Duration(timeout) * time.Second,
+				StartupScript:  scriptContent,
+				Mode:           mode,
+				Jupyter:        jupyter,
+				JupyterSet:     jupyterSet,
+				ContainerImage: containerImage,
+				ComposeFile:    composeFile,
 			}
 
 			err = RunGPUCreate(t, gpuCreateStore, opts)
@@ -222,13 +237,13 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &filters)
+	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &filters)
 
 	return cmd
 }
 
 // registerCreateFlags registers all flags for the create command
-func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, filters *searchFilterFlags) {
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile *string, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
 	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
@@ -237,6 +252,12 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().IntVar(timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
 	cmd.Flags().StringVarP(startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
 	cmd.Flags().BoolVar(dryRun, "dry-run", false, "Show matching instance types without creating anything")
+
+	// Build mode flags
+	cmd.Flags().StringVarP(mode, "mode", "m", "vm", "Build mode: vm (default), k8s, container, compose")
+	cmd.Flags().BoolVar(jupyter, "jupyter", true, "Install Jupyter (default true for vm/k8s modes)")
+	cmd.Flags().StringVar(containerImage, "container-image", "", "Container image URL (required for container mode)")
+	cmd.Flags().StringVar(composeFile, "compose-file", "", "Docker compose file path or URL (required for compose mode)")
 
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
@@ -260,13 +281,18 @@ type InstanceSpec struct {
 
 // GPUCreateOptions holds the options for GPU instance creation
 type GPUCreateOptions struct {
-	Name          string
-	InstanceTypes []InstanceSpec
-	Count         int
-	Parallel      int
-	Detached      bool
-	Timeout       time.Duration
-	StartupScript string
+	Name           string
+	InstanceTypes  []InstanceSpec
+	Count          int
+	Parallel       int
+	Detached       bool
+	Timeout        time.Duration
+	StartupScript  string
+	Mode           string
+	Jupyter        bool
+	JupyterSet     bool // whether --jupyter was explicitly set
+	ContainerImage string
+	ComposeFile    string
 }
 
 // parseStartupScript parses the startup script from a string or file path
@@ -795,13 +821,10 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		}
 	}
 
-	if c.opts.StartupScript != "" {
-		cwOptions.VMBuild = &store.VMBuild{
-			ForceJupyterInstall: true,
-			LifeCycleScriptAttr: &store.LifeCycleScriptAttr{
-				Script: c.opts.StartupScript,
-			},
-		}
+	// Apply build mode
+	err := applyBuildMode(cwOptions, c.opts)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	workspace, err := c.store.CreateWorkspace(c.org.ID, cwOptions)
@@ -810,6 +833,95 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	}
 
 	return workspace, nil
+}
+
+func validateBuildMode(mode, containerImage, composeFile string) error {
+	switch mode {
+	case "vm", "k8s", "container", "compose":
+		// valid
+	default:
+		return breverrors.NewValidationError(fmt.Sprintf("invalid mode %q: must be one of vm, k8s, container, compose", mode))
+	}
+	if mode == "container" && containerImage == "" {
+		return breverrors.NewValidationError("--container-image is required for container mode")
+	}
+	if mode == "compose" && composeFile == "" {
+		return breverrors.NewValidationError("--compose-file is required for compose mode")
+	}
+	return nil
+}
+
+// applyBuildMode configures the workspace options based on the selected build mode.
+// The server determines the mode from which build field is present (vmBuild, customContainer,
+// dockerCompose) — we do NOT send vmOnlyMode or onContainer, matching the UI behavior.
+func applyBuildMode(cwOptions *store.CreateWorkspacesOptions, opts GPUCreateOptions) error {
+	mode := opts.Mode
+	if mode == "" {
+		mode = "vm"
+	}
+
+	switch mode {
+	case "vm":
+		jupyter := true
+		if opts.JupyterSet {
+			jupyter = opts.Jupyter
+		}
+		cwOptions.VMBuild = &store.VMBuild{
+			ForceJupyterInstall: jupyter,
+		}
+		if opts.StartupScript != "" {
+			cwOptions.VMBuild.LifeCycleScriptAttr = &store.LifeCycleScriptAttr{
+				Script: opts.StartupScript,
+			}
+		}
+
+	case "k8s":
+		jupyter := false // UI defaults to false for k8s
+		if opts.JupyterSet {
+			jupyter = opts.Jupyter
+		}
+		cwOptions.VMBuild = &store.VMBuild{
+			ForceJupyterInstall: jupyter,
+			K8s: &store.K8sConfig{
+				IsDisabled:         false,
+				IsDashboardEnabled: true,
+			},
+		}
+		if opts.StartupScript != "" {
+			cwOptions.VMBuild.LifeCycleScriptAttr = &store.LifeCycleScriptAttr{
+				Script: opts.StartupScript,
+			}
+		}
+
+	case "container":
+		cwOptions.VMBuild = nil
+		cwOptions.CustomContainer = &store.CustomContainer{
+			ContainerURL: opts.ContainerImage,
+		}
+
+	case "compose":
+		cwOptions.VMBuild = nil
+		composeConfig := &store.DockerCompose{}
+
+		if strings.HasPrefix(opts.ComposeFile, "http://") || strings.HasPrefix(opts.ComposeFile, "https://") {
+			composeConfig.FileURL = opts.ComposeFile
+		} else {
+			content, err := os.ReadFile(opts.ComposeFile)
+			if err != nil {
+				return breverrors.WrapAndTrace(fmt.Errorf("could not read compose file %s: %w", opts.ComposeFile, err))
+			}
+			composeConfig.YamlString = string(content)
+		}
+
+		jupyter := false
+		if opts.JupyterSet {
+			jupyter = opts.Jupyter
+		}
+		composeConfig.JupyterInstall = jupyter
+		cwOptions.DockerCompose = composeConfig
+	}
+
+	return nil
 }
 
 // resolveWorkspaceUserOptions sets workspace template and class based on user type

@@ -1,3 +1,6 @@
+// Deprecated: This package is superseded by pkg/cmd/gpucreate which is the
+// registered "brev create" command. This code is not wired into cmd.go and
+// should not be modified. Use gpucreate for all new work.
 package create
 
 import (
