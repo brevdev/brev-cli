@@ -74,6 +74,9 @@ func GetSSHPrivateKeyPath(home string) string {
 }
 
 func GetUserSSHConfigPath(home string) (string, error) {
+	if override := os.Getenv("BREV_SSH_CONFIG_FILE"); override != "" {
+		return override, nil
+	}
 	sshConfigPath := filepath.Join(home, ".ssh", "config")
 	return sshConfigPath, nil
 }
