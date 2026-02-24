@@ -340,8 +340,8 @@ func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.
 	}
 
 	instances := gpusearch.ProcessInstances(response.Items)
-	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, filters.minVRAM,
-		minTotalVRAM, minCapability, minDisk, 0, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts, true)
+	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, "", filters.minVRAM,
+		minTotalVRAM, minCapability, 0, minDisk, 0, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts, true)
 	gpusearch.SortInstances(filtered, sortBy, filters.descending)
 
 	return filtered, minDisk, nil
