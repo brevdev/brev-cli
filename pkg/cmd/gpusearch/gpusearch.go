@@ -57,23 +57,23 @@ type WorkspaceGroup struct {
 
 // InstanceType represents an instance type from the API
 type InstanceType struct {
-	Type                    string           `json:"type"`
-	SupportedGPUs           []GPU            `json:"supported_gpus"`
-	SupportedStorage        []Storage        `json:"supported_storage"`
-	SupportedArchitectures  []string         `json:"supported_architectures"`
-	Memory                  string           `json:"memory"`
-	InstanceMemoryBytes     MemoryBytes      `json:"memory_bytes"`
-	VCPU                    int              `json:"vcpu"`
-	BasePrice               BasePrice        `json:"base_price"`
-	Location                string           `json:"location"`
-	SubLocation             string           `json:"sub_location"`
-	AvailableLocations      []string         `json:"available_locations"`
-	Provider                string           `json:"provider"`
-	WorkspaceGroups         []WorkspaceGroup `json:"workspace_groups"`
-	EstimatedDeployTime     string           `json:"estimated_deploy_time"`
-	Stoppable               bool             `json:"stoppable"`
-	Rebootable              bool             `json:"rebootable"`
-	CanModifyFirewallRules  bool             `json:"can_modify_firewall_rules"`
+	Type                   string           `json:"type"`
+	SupportedGPUs          []GPU            `json:"supported_gpus"`
+	SupportedStorage       []Storage        `json:"supported_storage"`
+	SupportedArchitectures []string         `json:"supported_architectures"`
+	Memory                 string           `json:"memory"`
+	InstanceMemoryBytes    MemoryBytes      `json:"memory_bytes"`
+	VCPU                   int              `json:"vcpu"`
+	BasePrice              BasePrice        `json:"base_price"`
+	Location               string           `json:"location"`
+	SubLocation            string           `json:"sub_location"`
+	AvailableLocations     []string         `json:"available_locations"`
+	Provider               string           `json:"provider"`
+	WorkspaceGroups        []WorkspaceGroup `json:"workspace_groups"`
+	EstimatedDeployTime    string           `json:"estimated_deploy_time"`
+	Stoppable              bool             `json:"stoppable"`
+	Rebootable             bool             `json:"rebootable"`
+	CanModifyFirewallRules bool             `json:"can_modify_firewall_rules"`
 }
 
 // InstanceTypesResponse represents the API response
@@ -433,7 +433,7 @@ func DisplayCPUResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOu
 		displayCPUTablePlain(instances)
 		return nil
 	}
-	displayCPUTable(t, instances)
+	displayCPUTable(instances)
 	t.Vprintf("\n%s\n", t.Green(fmt.Sprintf("Found %d CPU instance types", len(instances))))
 	return nil
 }
@@ -921,6 +921,8 @@ func FilterCPUInstances(instances []GPUInstanceInfo, provider, arch string, minR
 }
 
 // SortInstances sorts the instance list by the specified column
+//
+//nolint:gocyclo
 func SortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) {
 	sort.Slice(instances, func(i, j int) bool {
 		var less bool
@@ -948,14 +950,13 @@ func SortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) 
 		case "arch":
 			less = instances[i].Arch < instances[j].Arch
 		case "boot-time":
-			// Instances with no boot time (0) should always appear last
 			switch {
 			case instances[i].BootTime == 0 && instances[j].BootTime == 0:
-				return false // both unknown, equal
+				return false
 			case instances[i].BootTime == 0:
-				return false // i unknown goes after j
+				return false
 			case instances[j].BootTime == 0:
-				return true // j unknown goes after i
+				return true
 			}
 			less = instances[i].BootTime < instances[j].BootTime
 		default:
@@ -1233,7 +1234,7 @@ func displayGPUTablePlainWide(instances []GPUInstanceInfo) {
 }
 
 // displayCPUTable renders CPU instances as a colored table
-func displayCPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
+func displayCPUTable(instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
