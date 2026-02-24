@@ -182,12 +182,13 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 
 func shouldLogin() (bool, error) {
 	reader := bufio.NewReader(os.Stdin) // TODO 9 inject?
-	fmt.Print(`You are currently logged out, would you like to log in? [y/n]: `)
+	fmt.Print(`You are currently logged out, would you like to log in? [Y/n]: `)
 	text, err := reader.ReadString('\n')
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	return strings.ToLower(strings.TrimSpace(text)) == "y", nil
+	trimmed := strings.ToLower(strings.TrimSpace(text))
+	return trimmed == "y" || trimmed == "", nil
 }
 
 func (t Auth) LoginWithToken(token string) error {
