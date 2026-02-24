@@ -75,9 +75,27 @@ func GetSSHPrivateKeyPath(home string) string {
 
 // GetUserSSHConfigPath returns the user's SSH config path.
 // The path can be overridden via the BREV_SSH_CONFIG_FILE environment variable.
+func expandPathWithHome(path, home string) string {
+	if path == "" {
+		return path
+	}
+
+	if path[0] == '~' {
+		// Only expand the current user's home directory, i.e. paths starting with "~" or "~/".
+		if len(path) == 1 || path[1] == '/' || path[1] == os.PathSeparator {
+			// Strip the "~" and join the remainder with the provided home directory.
+			return filepath.Join(home, path[1:])
+		}
+	}
+
+	return path
+}
+
 func GetUserSSHConfigPath(home string) (string, error) {
 	if override := os.Getenv("BREV_SSH_CONFIG_FILE"); override != "" {
-		return override, nil
+		expanded := expandPathWithHome(override, home)
+		cleaned := filepath.Clean(expanded)
+		return cleaned, nil
 	}
 	sshConfigPath := filepath.Join(home, ".ssh", "config")
 	return sshConfigPath, nil
