@@ -73,6 +73,8 @@ func GetSSHPrivateKeyPath(home string) string {
 	return fpath
 }
 
+// GetUserSSHConfigPath returns the user's SSH config path.
+// The path can be overridden via the BREV_SSH_CONFIG_FILE environment variable.
 func GetUserSSHConfigPath(home string) (string, error) {
 	if override := os.Getenv("BREV_SSH_CONFIG_FILE"); override != "" {
 		return override, nil
