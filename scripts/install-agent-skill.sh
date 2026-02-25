@@ -2,7 +2,7 @@
 #
 # Brev CLI Agent Skill Installer
 #
-# Installs the brev-cli skill to both ~/.claude/skills/brev-cli/ and ~/.agent/skills/brev-cli/
+# Installs the brev-cli skill to both ~/.claude/skills/brev-cli/ and ~/.agents/skills/brev-cli/
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-agent-skill.sh | bash
@@ -77,7 +77,7 @@ for dir in "${INSTALL_DIRS[@]}"; do
 done
 echo ""
 
-# Files to download (relative to .agent/skills/brev-cli/)
+# Files to download (relative to .agents/skills/brev-cli/)
 FILES=(
     "SKILL.md"
     "prompts/quick-session.md"
