@@ -1,5 +1,5 @@
-// Package claudeskill handles installation of the Brev CLI Claude Code skill
-package claudeskill
+// Package agentskill handles installation of the Brev CLI agent skill
+package agentskill
 
 import (
 	"bufio"
@@ -20,7 +20,7 @@ import (
 
 const (
 	// GitHub raw content base URL template
-	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.claude/skills/brev-cli"
+	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.agent/skills/brev-cli"
 
 	// Default branch
 	defaultBranch = "main"
@@ -54,20 +54,20 @@ var skillFiles = []string{
 	"examples/common-patterns.md",
 }
 
-// ClaudeSkillStore interface for any store dependencies
-type ClaudeSkillStore interface {
+// AgentSkillStore interface for any store dependencies
+type AgentSkillStore interface {
 	UserHomeDir() (string, error)
 }
 
-// NewCmdClaudeSkill creates the claude-skill command with install/uninstall subcommands
-func NewCmdClaudeSkill(t *terminal.Terminal, store ClaudeSkillStore) *cobra.Command {
+// NewCmdAgentSkill creates the agent-skill command with install/uninstall subcommands
+func NewCmdAgentSkill(t *terminal.Terminal, store AgentSkillStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "claude-skill",
+		Use:                   "agent-skill",
 		DisableFlagsInUseLine: true,
-		Short:                 "Manage the Brev CLI skill for Claude Code",
-		Long:                  "Install or uninstall the Brev CLI skill for Claude Code AI assistant",
-		Example:               "brev claude-skill install\nbrev claude-skill uninstall",
+		Short:                 "Manage the Brev CLI skill for AI coding agents",
+		Long:                  "Install or uninstall the Brev CLI skill for AI coding agents (Claude Code, etc.)",
+		Example:               "brev agent-skill install\nbrev agent-skill uninstall",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Default to install when run without subcommand
 			homeDir, err := store.UserHomeDir()
@@ -84,11 +84,11 @@ func NewCmdClaudeSkill(t *terminal.Terminal, store ClaudeSkillStore) *cobra.Comm
 	return cmd
 }
 
-func newCmdInstall(t *terminal.Terminal, store ClaudeSkillStore) *cobra.Command {
+func newCmdInstall(t *terminal.Terminal, store AgentSkillStore) *cobra.Command {
 	return &cobra.Command{
 		Use:     "install",
-		Short:   "Install the Brev CLI skill for Claude Code",
-		Example: "brev claude-skill install",
+		Short:   "Install the Brev CLI skill for AI coding agents",
+		Example: "brev agent-skill install",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			homeDir, err := store.UserHomeDir()
 			if err != nil {
@@ -99,11 +99,11 @@ func newCmdInstall(t *terminal.Terminal, store ClaudeSkillStore) *cobra.Command 
 	}
 }
 
-func newCmdUninstall(t *terminal.Terminal, store ClaudeSkillStore) *cobra.Command {
+func newCmdUninstall(t *terminal.Terminal, store AgentSkillStore) *cobra.Command {
 	return &cobra.Command{
 		Use:     "uninstall",
-		Short:   "Uninstall the Brev CLI skill for Claude Code",
-		Example: "brev claude-skill uninstall",
+		Short:   "Uninstall the Brev CLI skill for AI coding agents",
+		Example: "brev agent-skill uninstall",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			homeDir, err := store.UserHomeDir()
 			if err != nil {
@@ -114,7 +114,20 @@ func newCmdUninstall(t *terminal.Terminal, store ClaudeSkillStore) *cobra.Comman
 	}
 }
 
-// GetSkillDir returns the path to the Claude skill directory
+// installDirs are the parent directories under $HOME where skills are installed.
+// We install to both so the skill works with Claude Code (~/.claude) and other agents (~/.agent).
+var installDirs = []string{".claude", ".agent"}
+
+// GetSkillDirs returns all paths where the skill should be installed
+func GetSkillDirs(homeDir string) []string {
+	dirs := make([]string, len(installDirs))
+	for i, dir := range installDirs {
+		dirs[i] = filepath.Join(homeDir, dir, "skills", skillName)
+	}
+	return dirs
+}
+
+// GetSkillDir returns the primary skill directory (for backwards compat)
 func GetSkillDir(homeDir string) string {
 	return filepath.Join(homeDir, ".claude", "skills", skillName)
 }
@@ -126,14 +139,18 @@ func IsClaudeInstalled(homeDir string) bool {
 	return err == nil
 }
 
-// IsSkillInstalled checks if the brev-cli skill is already installed
+// IsSkillInstalled checks if the brev-cli skill is installed in any location
 func IsSkillInstalled(homeDir string) bool {
-	skillFile := filepath.Join(GetSkillDir(homeDir), "SKILL.md")
-	_, err := os.Stat(skillFile)
-	return err == nil
+	for _, dir := range GetSkillDirs(homeDir) {
+		skillFile := filepath.Join(dir, "SKILL.md")
+		if _, err := os.Stat(skillFile); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
-// PromptInstallSkill asks the user if they want to install the Claude skill
+// PromptInstallSkill asks the user if they want to install the agent skill
 // Returns true if they want to install, false otherwise
 func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
 	// Skip if skill is already installed
@@ -148,9 +165,9 @@ func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
 
 	fmt.Println()
 	caretType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("  ", caretType("▸"), "    Claude Code Integration")
+	fmt.Println("  ", caretType("▸"), "    AI Agent Integration")
 	fmt.Println()
-	fmt.Println("       We detected Claude Code on your system.")
+	fmt.Println("       We detected an AI coding agent on your system.")
 	fmt.Println("       Would you like to install the Brev CLI skill?")
 	fmt.Println()
 	fmt.Println("       This enables natural language commands like:")
@@ -160,7 +177,7 @@ func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
 	fmt.Println()
 
 	prompt := promptui.Select{
-		Label: "Install Claude Code skill",
+		Label: "Install agent skill",
 		Items: []string{"Yes, install it", "No, skip for now"},
 	}
 
@@ -172,49 +189,58 @@ func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
 	return idx == 0
 }
 
-// InstallSkill downloads and installs the Claude skill
+// InstallSkill downloads and installs the agent skill to all install paths
 func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
-	skillDir := GetSkillDir(homeDir)
+	skillDirs := GetSkillDirs(homeDir)
 	baseURL := getBaseURL()
 
 	if !quiet {
 		fmt.Println()
-		fmt.Printf("  Installing brev-cli skill to %s\n", t.Yellow(skillDir))
-		// Show branch if not default
+		for _, d := range skillDirs {
+			fmt.Printf("  Installing brev-cli skill to %s\n", t.Yellow(d))
+		}
 		if branch := os.Getenv(branchEnvVar); branch != "" {
 			fmt.Printf("  Using branch: %s\n", t.Yellow(branch))
 		}
 		fmt.Println()
 	}
 
-	// Create directory structure
-	dirs := []string{
-		skillDir,
-		filepath.Join(skillDir, "prompts"),
-		filepath.Join(skillDir, "reference"),
-		filepath.Join(skillDir, "examples"),
-	}
-
-	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return breverrors.WrapAndTrace(err)
+	// Create directory structure for all install paths
+	for _, skillDir := range skillDirs {
+		for _, sub := range []string{"", "prompts", "reference", "examples"} {
+			if err := os.MkdirAll(filepath.Join(skillDir, sub), 0o755); err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 		}
 	}
 
-	// Download files
+	// Download files once, then write to all paths
 	client := &http.Client{Timeout: 30 * time.Second}
 	failed := 0
 
 	for _, file := range skillFiles {
 		url := fmt.Sprintf("%s/%s", baseURL, file)
-		destPath := filepath.Join(skillDir, file)
 
-		if err := downloadFile(client, url, destPath); err != nil {
+		body, err := downloadBytes(client, url)
+		if err != nil {
 			if !quiet {
 				fmt.Printf("    %s %s\n", t.Red("✗"), file)
 			}
 			failed++
-		} else if !quiet {
+			continue
+		}
+
+		for _, skillDir := range skillDirs {
+			destPath := filepath.Join(skillDir, file)
+			if writeErr := os.WriteFile(destPath, body, 0o644); writeErr != nil { //nolint:gosec // skill files are not sensitive
+				if !quiet {
+					fmt.Printf("    %s %s (%s)\n", t.Red("✗"), file, skillDir)
+				}
+				failed++
+			}
+		}
+
+		if !quiet {
 			fmt.Printf("    %s %s\n", t.Green("✓"), file)
 		}
 	}
@@ -229,30 +255,32 @@ func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 
 	fmt.Println()
 	fmt.Println("  " + t.Green("Next steps:"))
-	fmt.Println("    1. Restart Claude Code (or start a new conversation)")
+	fmt.Println("    1. Restart your AI coding agent (or start a new conversation)")
 	fmt.Println("    2. Say " + t.Yellow("\"create a gpu instance\"") + " or use " + t.Yellow("/brev-cli"))
 	fmt.Println()
 
 	return nil
 }
 
-// UninstallSkill removes the Claude skill
+// UninstallSkill removes the agent skill from all install paths
 func UninstallSkill(t *terminal.Terminal, homeDir string) error {
-	skillDir := GetSkillDir(homeDir)
-
 	if !IsSkillInstalled(homeDir) {
-		fmt.Printf("  Skill not installed at %s\n", skillDir)
+		fmt.Println("  Skill is not installed")
 		return nil
 	}
 
-	fmt.Printf("  Uninstalling skill from %s\n", skillDir)
-
-	if err := os.RemoveAll(skillDir); err != nil {
-		return breverrors.WrapAndTrace(err)
+	for _, skillDir := range GetSkillDirs(homeDir) {
+		if _, err := os.Stat(skillDir); err != nil {
+			continue
+		}
+		fmt.Printf("  Uninstalling skill from %s\n", skillDir)
+		if err := os.RemoveAll(skillDir); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	fmt.Printf("  %s Skill uninstalled\n", t.Green("✓"))
-	fmt.Println("  Restart Claude Code to apply changes.")
+	fmt.Println("  Restart your AI coding agent to apply changes.")
 
 	return nil
 }
@@ -269,36 +297,30 @@ func RunInstallSkillIfWanted(t *terminal.Terminal, homeDir string) {
 	}
 }
 
-// downloadFile downloads a file from URL to destPath
-func downloadFile(client *http.Client, url, destPath string) error {
+// downloadBytes fetches a URL and returns the response body
+func downloadBytes(client *http.Client, url string) ([]byte, error) {
 	resp, err := client.Get(url) //nolint:gosec,noctx // URL is hardcoded
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return breverrors.NewValidationError(fmt.Sprintf("failed to download %s: %s", url, resp.Status))
+		return nil, breverrors.NewValidationError(fmt.Sprintf("failed to download %s: %s", url, resp.Status))
 	}
 
-	// Read body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	// Write file
-	if err := os.WriteFile(destPath, body, 0o644); err != nil { //nolint:gosec // skill files are not sensitive
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
+	return body, nil
 }
 
 // PromptInstallSkillSimple is a simpler yes/no prompt for the login flow
 func PromptInstallSkillSimple() bool {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Install Claude Code skill? [y/N]: ")
+	fmt.Print("Install agent skill? [y/N]: ")
 	response, _ := reader.ReadString('\n')
 	response = strings.ToLower(strings.TrimSpace(response))
 	return response == "y" || response == "yes"

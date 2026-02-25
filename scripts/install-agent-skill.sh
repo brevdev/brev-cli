@@ -1,14 +1,14 @@
 #!/bin/bash
 #
-# Brev CLI Claude Code Skill Installer
+# Brev CLI Agent Skill Installer
 #
-# Installs the brev-cli skill to ~/.claude/skills/brev-cli/
+# Installs the brev-cli skill to both ~/.claude/skills/brev-cli/ and ~/.agent/skills/brev-cli/
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-claude-skill.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-agent-skill.sh | bash
 #
 # Or with a specific branch:
-#   curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-claude-skill.sh | bash -s -- --branch my-branch
+#   curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/scripts/install-agent-skill.sh | bash -s -- --branch my-branch
 #
 
 set -e
@@ -17,7 +17,7 @@ set -e
 REPO="brevdev/brev-cli"
 BRANCH="main"
 SKILL_NAME="brev-cli"
-INSTALL_DIR="$HOME/.claude/skills/$SKILL_NAME"
+INSTALL_DIRS=("$HOME/.claude/skills/$SKILL_NAME" "$HOME/.agent/skills/$SKILL_NAME")
 BASE_URL="https://raw.githubusercontent.com/$REPO"
 
 # Colors
@@ -39,10 +39,10 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Brev CLI Claude Code Skill Installer"
+            echo "Brev CLI Agent Skill Installer"
             echo ""
             echo "Usage:"
-            echo "  install-claude-skill.sh [options]"
+            echo "  install-agent-skill.sh [options]"
             echo ""
             echo "Options:"
             echo "  --branch, -b <branch>  Install from specific branch (default: main)"
@@ -59,23 +59,25 @@ done
 
 # Uninstall
 if [[ "$UNINSTALL" == "true" ]]; then
-    if [[ -d "$INSTALL_DIR" ]]; then
-        echo -e "${YELLOW}Uninstalling brev-cli skill...${NC}"
-        rm -rf "$INSTALL_DIR"
-        echo -e "${GREEN}✓ Skill uninstalled from $INSTALL_DIR${NC}"
-        echo -e "${BLUE}Restart Claude Code to apply changes.${NC}"
-    else
-        echo -e "${YELLOW}Skill not installed at $INSTALL_DIR${NC}"
-    fi
+    for dir in "${INSTALL_DIRS[@]}"; do
+        if [[ -d "$dir" ]]; then
+            echo -e "${YELLOW}Uninstalling brev-cli skill from $dir...${NC}"
+            rm -rf "$dir"
+            echo -e "${GREEN}✓ Removed $dir${NC}"
+        fi
+    done
+    echo -e "${BLUE}Restart your AI coding agent to apply changes.${NC}"
     exit 0
 fi
 
-echo -e "${BLUE}Installing brev-cli Claude Code skill...${NC}"
+echo -e "${BLUE}Installing brev-cli agent skill...${NC}"
 echo -e "  Branch: ${YELLOW}$BRANCH${NC}"
-echo -e "  Target: ${YELLOW}$INSTALL_DIR${NC}"
+for dir in "${INSTALL_DIRS[@]}"; do
+    echo -e "  Target: ${YELLOW}$dir${NC}"
+done
 echo ""
 
-# Files to download (relative to .claude/skills/brev-cli/)
+# Files to download (relative to .agent/skills/brev-cli/)
 FILES=(
     "SKILL.md"
     "prompts/quick-session.md"
@@ -86,24 +88,32 @@ FILES=(
     "examples/common-patterns.md"
 )
 
-# Create directory structure
+# Create directory structure for all install paths
 echo -e "${BLUE}Creating directory structure...${NC}"
-mkdir -p "$INSTALL_DIR"/{prompts,reference,examples}
+for dir in "${INSTALL_DIRS[@]}"; do
+    mkdir -p "$dir"/{prompts,reference,examples}
+done
 
-# Download files
+# Download files once, copy to all paths
 echo -e "${BLUE}Downloading skill files...${NC}"
+TMPDIR=$(mktemp -d)
 FAILED=0
 for file in "${FILES[@]}"; do
-    url="$BASE_URL/$BRANCH/.claude/skills/$SKILL_NAME/$file"
-    dest="$INSTALL_DIR/$file"
+    url="$BASE_URL/$BRANCH/.agent/skills/$SKILL_NAME/$file"
+    tmp_dest="$TMPDIR/$file"
+    mkdir -p "$(dirname "$tmp_dest")"
 
-    if curl -fsSL "$url" -o "$dest" 2>/dev/null; then
+    if curl -fsSL "$url" -o "$tmp_dest" 2>/dev/null; then
+        for dir in "${INSTALL_DIRS[@]}"; do
+            cp "$tmp_dest" "$dir/$file"
+        done
         echo -e "  ${GREEN}✓${NC} $file"
     else
         echo -e "  ${RED}✗${NC} $file (failed to download)"
         FAILED=$((FAILED + 1))
     fi
 done
+rm -rf "$TMPDIR"
 
 echo ""
 
@@ -116,7 +126,7 @@ fi
 
 echo ""
 echo -e "${BLUE}Next steps:${NC}"
-echo -e "  1. Restart Claude Code (or start a new conversation)"
+echo -e "  1. Restart your AI coding agent (or start a new conversation)"
 echo -e "  2. Use ${YELLOW}/brev-cli${NC} or say ${YELLOW}\"create a gpu instance\"${NC}"
 echo ""
 echo -e "${BLUE}Quick commands:${NC}"
