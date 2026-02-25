@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
@@ -155,7 +156,20 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				}
 			}
 		},
+		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+			userID := ""
+			user, err := noLoginCmdStore.GetCurrentUser()
+			if err == nil && user != nil {
+				userID = user.ID
+			}
+			if userID == "" {
+				userID = analytics.GetOrCreateAnalyticsID()
+			}
+			analytics.CaptureCommand(userID, cmd, args)
+			return nil
+		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			analytics.RecordCommandStart(cmd, args)
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
 			// version info gets in the way of the output for
 			// configure-env-vars, since shells are going to eval it

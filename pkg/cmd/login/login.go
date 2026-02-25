@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -224,6 +225,19 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 		// by getting this far, we know they have set up the cli
 		newOnboardingStatus["usedCLI"] = true
 	}
+
+	_, analyticsAsked := analytics.IsAnalyticsEnabled()
+	if !analyticsAsked {
+		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
+			Label:    "Help us improve Brev by sharing anonymous usage data?",
+			ErrorMsg: "Error: must choose an option",
+			Items:    []string{"Yes, share anonymous usage data", "No, opt out"},
+		})
+		optIn := strings.HasPrefix(choice, "Yes")
+		_ = analytics.SetAnalyticsPreference(optIn)
+	}
+
+	analytics.IdentifyUser(user.ID)
 
 	user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
 		// username, name, and email are required fields, but we only care about onboarding status
