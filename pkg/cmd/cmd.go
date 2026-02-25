@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
+	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
