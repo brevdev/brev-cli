@@ -27,33 +27,24 @@ func (r ExecCommandRunner) Run(name string, args ...string) ([]byte, error) {
 	return out, nil
 }
 
-// HardwareProfile mirrors the proto HardwareInfo message.
-type HardwareProfile struct {
-	GPUs         []GPUInfo     `json:"gpus"`
-	RAMBytes     int64         `json:"ram_bytes"`
-	CPUCount     int           `json:"cpu_count"`
-	CPUModel     string        `json:"cpu_model,omitempty"`
-	SystemVendor string        `json:"system_vendor,omitempty"`
-	SystemModel  string        `json:"system_model,omitempty"`
-	Architecture string        `json:"architecture,omitempty"`
-	OSName       string        `json:"os_name,omitempty"`
-	OSVersion    string        `json:"os_version,omitempty"`
-	Storage      []StorageInfo `json:"storage,omitempty"`
+// NodeSpec matches the proto NodeSpec message from dev-plane.
+// All fields are best-effort.
+type NodeSpec struct {
+	GPUs         []NodeGPU `json:"gpus"`
+	RAMBytes     *int64    `json:"ram_bytes,omitempty"`
+	CPUCount     *int32    `json:"cpu_count,omitempty"`
+	Architecture string    `json:"architecture,omitempty"`
+	StorageBytes *int64    `json:"storage_bytes,omitempty"`
+	StorageType  string    `json:"storage_type,omitempty"`
+	OS           string    `json:"os,omitempty"`
+	OSVersion    string    `json:"os_version,omitempty"`
 }
 
-// GPUInfo describes a single GPU.
-type GPUInfo struct {
-	Name          string `json:"name"`
-	MemoryMB      int64  `json:"memory_mb"`
-	DriverVersion string `json:"driver_version,omitempty"`
-	PCIBusID      string `json:"pci_bus_id,omitempty"`
-}
-
-// StorageInfo describes a block storage device.
-type StorageInfo struct {
-	Name  string `json:"name"`
-	Bytes int64  `json:"bytes"`
-	Type  string `json:"type"`
+// NodeGPU matches the proto NodeGPU message.
+type NodeGPU struct {
+	Model       string `json:"model"`
+	Count       int32  `json:"count"`
+	MemoryBytes *int64 `json:"memory_bytes,omitempty"`
 }
 
 // FileReader abstracts file reading for testability.
@@ -62,68 +53,60 @@ type FileReader interface {
 }
 
 // CollectHardwareProfile gathers system hardware information.
-// CPU count/model and RAM are required; everything else is best-effort.
-func CollectHardwareProfile(runner CommandRunner, reader FileReader) (*HardwareProfile, error) {
-	profile := &HardwareProfile{
+// All fields are best-effort; failures are silently ignored.
+func CollectHardwareProfile(runner CommandRunner, reader FileReader) (*NodeSpec, error) {
+	spec := &NodeSpec{
 		Architecture: runtime.GOARCH,
 	}
 
-	cpuCount, cpuModel, err := parseCPUInfo(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CPU info: %w", err)
+	if gpus, err := parseNvidiaSMI(runner); err == nil {
+		spec.GPUs = gpus
 	}
-	profile.CPUCount = cpuCount
-	profile.CPUModel = cpuModel
 
-	ramBytes, err := parseMemInfo(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read memory info: %w", err)
+	if cpuCount, err := parseCPUCount(reader); err == nil {
+		count32 := int32(cpuCount)
+		spec.CPUCount = &count32
 	}
-	profile.RAMBytes = ramBytes
+
+	if ramBytes, err := parseMemInfo(reader); err == nil {
+		spec.RAMBytes = &ramBytes
+	}
 
 	osName, osVersion := parseOSRelease(reader)
-	profile.OSName = osName
-	profile.OSVersion = osVersion
+	spec.OS = osName
+	spec.OSVersion = osVersion
 
-	profile.SystemVendor = readSysFile(reader, "/sys/class/dmi/id/sys_vendor")
-	profile.SystemModel = readSysFile(reader, "/sys/class/dmi/id/product_name")
+	storageBytes, storageType := collectStorage(runner)
+	if storageBytes > 0 {
+		spec.StorageBytes = &storageBytes
+		spec.StorageType = storageType
+	}
 
-	profile.GPUs = parseNvidiaSMI(runner)
-	profile.Storage = parseLsblk(runner)
-
-	return profile, nil
+	return spec, nil
 }
 
-// parseCPUInfo reads /proc/cpuinfo and returns (count, model).
-func parseCPUInfo(reader FileReader) (int, string, error) {
+// parseCPUCount reads /proc/cpuinfo and returns the number of logical processors.
+func parseCPUCount(reader FileReader) (int, error) {
 	data, err := reader.ReadFile("/proc/cpuinfo")
 	if err != nil {
-		return 0, "", breverrors.WrapAndTrace(err)
+		return 0, breverrors.WrapAndTrace(err)
 	}
-	return parseCPUInfoContent(string(data))
+	return parseCPUCountContent(string(data))
 }
 
-// parseCPUInfoContent parses the content of /proc/cpuinfo.
-func parseCPUInfoContent(content string) (int, string, error) {
+// parseCPUCountContent parses the content of /proc/cpuinfo for processor count.
+func parseCPUCountContent(content string) (int, error) {
 	count := 0
-	model := ""
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "processor") {
+		if strings.HasPrefix(scanner.Text(), "processor") {
 			count++
-		}
-		if strings.HasPrefix(line, "model name") && model == "" {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				model = strings.TrimSpace(parts[1])
-			}
 		}
 	}
 	if count == 0 {
-		return 0, "", fmt.Errorf("no processors found in /proc/cpuinfo")
+		return 0, fmt.Errorf("no processors found in /proc/cpuinfo")
 	}
-	return count, model, nil
+	return count, nil
 }
 
 // parseMemInfo reads /proc/meminfo and returns total RAM in bytes.
@@ -190,30 +173,34 @@ func unquote(s string) string {
 	return s
 }
 
-// readSysFile reads a single-line sysfs file, returning empty string on failure.
-func readSysFile(reader FileReader, path string) string {
-	data, err := reader.ReadFile(path)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
-}
-
 // parseNvidiaSMI queries nvidia-smi for GPU information.
-func parseNvidiaSMI(runner CommandRunner) []GPUInfo {
+// Returns an error if nvidia-smi fails or no GPUs are found.
+func parseNvidiaSMI(runner CommandRunner) ([]NodeGPU, error) {
 	out, err := runner.Run("nvidia-smi",
-		"--query-gpu=name,memory.total,driver_version,pci.bus_id",
+		"--query-gpu=name,memory.total",
 		"--format=csv,noheader,nounits",
 	)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("nvidia-smi not available: %w", err)
 	}
-	return parseNvidiaSMIOutput(string(out))
+	gpus := parseNvidiaSMIOutput(string(out))
+	if len(gpus) == 0 {
+		return nil, fmt.Errorf("nvidia-smi returned no GPUs")
+	}
+	return gpus, nil
 }
 
-// parseNvidiaSMIOutput parses nvidia-smi CSV output into GPUInfo slices.
-func parseNvidiaSMIOutput(output string) []GPUInfo {
-	var gpus []GPUInfo
+// parseNvidiaSMIOutput parses nvidia-smi CSV output, grouping identical GPU
+// models into a single NodeGPU with a count.
+func parseNvidiaSMIOutput(output string) []NodeGPU {
+	type gpuKey struct {
+		model       string
+		memoryBytes int64
+	}
+
+	counts := make(map[gpuKey]int32)
+	var order []gpuKey
+
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -224,82 +211,94 @@ func parseNvidiaSMIOutput(output string) []GPUInfo {
 		if len(parts) < 2 {
 			continue
 		}
-		gpu := GPUInfo{
-			Name: strings.TrimSpace(parts[0]),
-		}
+		model := strings.TrimSpace(parts[0])
 		memMB, err := strconv.ParseInt(strings.TrimSpace(parts[1]), 10, 64)
-		if err == nil {
-			gpu.MemoryMB = memMB
+		if err != nil {
+			continue
 		}
-		if len(parts) >= 3 {
-			gpu.DriverVersion = strings.TrimSpace(parts[2])
+		key := gpuKey{model: model, memoryBytes: memMB * 1024 * 1024}
+		if counts[key] == 0 {
+			order = append(order, key)
 		}
-		if len(parts) >= 4 {
-			gpu.PCIBusID = strings.TrimSpace(parts[3])
-		}
-		gpus = append(gpus, gpu)
+		counts[key]++
+	}
+
+	gpus := make([]NodeGPU, 0, len(order))
+	for _, key := range order {
+		mem := key.memoryBytes
+		gpus = append(gpus, NodeGPU{
+			Model:       key.model,
+			Count:       counts[key],
+			MemoryBytes: &mem,
+		})
 	}
 	return gpus
 }
 
-// parseLsblk queries lsblk for block device information.
-func parseLsblk(runner CommandRunner) []StorageInfo {
+// collectStorage sums disk devices from lsblk to get total storage bytes
+// and infers a storage type from the device names.
+func collectStorage(runner CommandRunner) (int64, string) {
 	out, err := runner.Run("lsblk", "-b", "-d", "-n", "-o", "NAME,SIZE,TYPE")
 	if err != nil {
-		return nil
+		return 0, ""
 	}
-	return parseLsblkOutput(string(out))
+	return parseStorageOutput(string(out))
 }
 
-// parseLsblkOutput parses lsblk output into StorageInfo slices.
-func parseLsblkOutput(output string) []StorageInfo {
-	var devices []StorageInfo
+// parseStorageOutput parses lsblk output, summing disk device sizes and
+// inferring storage type.
+func parseStorageOutput(output string) (int64, string) {
+	var totalBytes int64
+	storageType := ""
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 {
+		if len(fields) < 3 || fields[2] != "disk" {
 			continue
 		}
 		size, err := strconv.ParseInt(fields[1], 10, 64)
 		if err != nil {
 			continue
 		}
-		devices = append(devices, StorageInfo{
-			Name:  fields[0],
-			Bytes: size,
-			Type:  fields[2],
-		})
+		totalBytes += size
+		if storageType == "" {
+			if strings.HasPrefix(fields[0], "nvme") {
+				storageType = "NVMe"
+			} else {
+				storageType = "SSD"
+			}
+		}
 	}
-	return devices
+	return totalBytes, storageType
 }
 
-// FormatHardwareProfile returns a human-readable summary of the hardware profile.
-func FormatHardwareProfile(p *HardwareProfile) string {
+// FormatNodeSpec returns a human-readable summary of the hardware profile.
+func FormatNodeSpec(s *NodeSpec) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "    CPU:     %d x %s\n", p.CPUCount, p.CPUModel)
-	fmt.Fprintf(&b, "    RAM:     %d GB\n", p.RAMBytes/(1024*1024*1024))
-	if len(p.GPUs) > 0 {
-		// Group GPUs by name
-		gpuCounts := make(map[string]int)
-		gpuMemory := make(map[string]int64)
-		var gpuOrder []string
-		for _, gpu := range p.GPUs {
-			if gpuCounts[gpu.Name] == 0 {
-				gpuOrder = append(gpuOrder, gpu.Name)
-			}
-			gpuCounts[gpu.Name]++
-			gpuMemory[gpu.Name] = gpu.MemoryMB
-		}
-		for _, name := range gpuOrder {
-			memGB := gpuMemory[name] / 1024
-			fmt.Fprintf(&b, "    GPUs:    %d x %s (%d GB)\n", gpuCounts[name], name, memGB)
-		}
-	} else {
-		b.WriteString("    GPUs:    none detected\n")
+	if s.CPUCount != nil {
+		fmt.Fprintf(&b, "    CPU:     %d cores\n", *s.CPUCount)
 	}
-	fmt.Fprintf(&b, "    Arch:    %s\n", p.Architecture)
-	if p.OSName != "" || p.OSVersion != "" {
-		fmt.Fprintf(&b, "    OS:      %s %s\n", p.OSName, p.OSVersion)
+	if s.RAMBytes != nil {
+		fmt.Fprintf(&b, "    RAM:     %d GB\n", *s.RAMBytes/(1024*1024*1024))
+	}
+	for _, gpu := range s.GPUs {
+		if gpu.MemoryBytes != nil {
+			memGB := *gpu.MemoryBytes / (1024 * 1024 * 1024)
+			fmt.Fprintf(&b, "    GPUs:    %d x %s (%d GB)\n", gpu.Count, gpu.Model, memGB)
+		} else {
+			fmt.Fprintf(&b, "    GPUs:    %d x %s\n", gpu.Count, gpu.Model)
+		}
+	}
+	fmt.Fprintf(&b, "    Arch:    %s\n", s.Architecture)
+	if s.OS != "" || s.OSVersion != "" {
+		fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
+	}
+	if s.StorageBytes != nil {
+		fmt.Fprintf(&b, "    Storage: %d GB", *s.StorageBytes/(1024*1024*1024))
+		if s.StorageType != "" {
+			fmt.Fprintf(&b, " (%s)", s.StorageType)
+		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }

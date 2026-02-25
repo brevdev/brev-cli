@@ -66,7 +66,7 @@ func runDeregister(t *terminal.Terminal, s DeregisterStore) error {
 	t.Vprint("")
 	t.Vprint(t.Green("Deregistering DGX Spark"))
 	t.Vprint("")
-	t.Vprintf("  Node ID: %s\n", reg.BrevCloudNodeID)
+	t.Vprintf("  Node ID: %s\n", reg.ExternalNodeID)
 	t.Vprintf("  Name:    %s\n", reg.DisplayName)
 	t.Vprint("")
 
@@ -80,7 +80,7 @@ func runDeregister(t *terminal.Terminal, s DeregisterStore) error {
 		Items: []string{"Yes, proceed", "No, cancel"},
 	})
 	if confirm != "Yes, proceed" {
-		t.Vprint("Deregistration cancelled.")
+		t.Vprint("Deregistration canceled.")
 		return nil
 	}
 

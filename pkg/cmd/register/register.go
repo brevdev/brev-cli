@@ -3,6 +3,7 @@ package register
 
 import (
 	"fmt"
+	"os"
 	"os/user"
 	"runtime"
 
@@ -24,7 +25,11 @@ type RegisterStore interface {
 type OSFileReader struct{}
 
 func (r OSFileReader) ReadFile(path string) ([]byte, error) {
-	return readOSFile(path)
+	data, err := os.ReadFile(path) // #nosec G304
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return data, nil
 }
 
 var (
@@ -107,7 +112,7 @@ func runRegister(t *terminal.Terminal, s RegisterStore, name string) error { //n
 		Items: []string{"Yes, proceed", "No, cancel"},
 	})
 	if result != "Yes, proceed" {
-		t.Vprint("Registration cancelled.")
+		t.Vprint("Registration canceled.")
 		return nil
 	}
 
@@ -124,30 +129,22 @@ func runRegister(t *terminal.Terminal, s RegisterStore, name string) error { //n
 
 	runner := ExecCommandRunner{}
 	reader := OSFileReader{}
-	profile, err := CollectHardwareProfile(runner, reader)
+	nodeSpec, err := CollectHardwareProfile(runner, reader)
 	if err != nil {
 		return fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
 
 	t.Vprint("  Hardware profile:")
-	t.Vprint(FormatHardwareProfile(profile))
-
-	desc := HardwareProfileToDescriptor(profile)
-	fingerprint, err := ComputeHardwareFingerprint(desc)
-	if err != nil {
-		t.Vprintf("  Warning: could not compute hardware fingerprint: %v\n", err)
-	} else {
-		t.Vprintf("  Fingerprint: %s\n", fingerprint)
-	}
+	t.Vprint(FormatNodeSpec(nodeSpec))
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[TODO] Registration API call not yet implemented."))
-	t.Vprint("       Once implemented, the backend will return a node ID")
+	t.Vprint("       Once implemented, the backend will return an external_node_id")
 	t.Vprintf("       that will be persisted to %s/spark_registration.json.\n", brevHome)
 	t.Vprint("")
 
-	_ = org.ID // will be used in the registration API call
-	_ = name   // will be sent as display_name
+	_ = org.ID // will be used in AddNodeRequest.organization_id
+	_ = name   // will be sent as AddNodeRequest.name
 
 	return nil
 }
