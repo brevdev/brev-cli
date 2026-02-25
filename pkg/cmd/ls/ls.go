@@ -88,7 +88,7 @@ with other commands like stop, start, or delete.`,
 				}
 
 			}
-			return nil
+			return cmdcontext.InvokeParentPersistentPostRun(cmd, args)
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)

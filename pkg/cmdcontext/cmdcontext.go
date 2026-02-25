@@ -36,3 +36,26 @@ func InvokeParentPersistentPreRun(cmd *cobra.Command, args []string) error {
 
 	return nil
 }
+
+// InvokeParentPersistentPostRun executes the immediate parent command's
+// PersistentPostRunE and PersistentPostRun functions, in that order.
+func InvokeParentPersistentPostRun(cmd *cobra.Command, args []string) error {
+	parentCmd := cmd.Parent()
+	if parentCmd == nil {
+		return nil
+	}
+
+	parentPersistentPostRunE := parentCmd.PersistentPostRunE
+	if parentPersistentPostRunE != nil {
+		if err := parentPersistentPostRunE(cmd, args); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	parentPersistentPostRun := parentCmd.PersistentPostRun
+	if parentPersistentPostRun != nil {
+		parentPersistentPostRun(cmd, args)
+	}
+
+	return nil
+}
