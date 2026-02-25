@@ -101,15 +101,11 @@ with other commands like stop, start, or delete.`,
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
 		ValidArgs: []string{"orgs", "workspaces"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Auto-switch to names-only output when piped (for chaining with stop/start/delete)
-			piped := cmdutil.IsStdoutPiped()
-
-			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput, piped)
+			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			// Call analytics for ls (skip when piped to avoid polluting output)
-			if !piped && !jsonOutput {
+			if !jsonOutput {
 				trackLsAnalytics(loginLsStore)
 			}
 			return nil
@@ -172,8 +168,8 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool, piped bool) error {
-	ls := NewLs(lsStore, t, jsonOutput, piped)
+func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
+	ls := NewLs(lsStore, t, jsonOutput)
 	user, err := lsStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -238,15 +234,13 @@ type Ls struct {
 	lsStore    LsStore
 	terminal   *terminal.Terminal
 	jsonOutput bool
-	piped      bool
 }
 
-func NewLs(lsStore LsStore, terminal *terminal.Terminal, jsonOutput bool, piped bool) *Ls {
+func NewLs(lsStore LsStore, terminal *terminal.Terminal, jsonOutput bool) *Ls {
 	return &Ls{
 		lsStore:    lsStore,
 		terminal:   terminal,
 		jsonOutput: jsonOutput,
-		piped:      piped,
 	}
 }
 
@@ -267,9 +261,6 @@ func (ls Ls) RunOrgs() error {
 			fmt.Println("[]")
 			return nil
 		}
-		if ls.piped {
-			return nil
-		}
 		ls.terminal.Vprint(ls.terminal.Yellow(fmt.Sprintf("You don't have any orgs. Create one! %s", config.GlobalConfig.GetConsoleURL())))
 		return nil
 	}
@@ -284,13 +275,7 @@ func (ls Ls) RunOrgs() error {
 		return ls.outputOrgsJSON(orgs, defaultOrg)
 	}
 
-	// Handle piped output - clean table without colors
-	if ls.piped {
-		displayOrgTablePlain(orgs, defaultOrg)
-		return nil
-	}
-
-	// Standard table output
+	// Table output with colors and help text
 	ls.terminal.Vprint(ls.terminal.Yellow("Your organizations:"))
 	displayOrgTable(ls.terminal, orgs, defaultOrg)
 	if len(orgs) > 1 {
@@ -427,14 +412,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		return ls.outputWorkspacesJSON(workspacesToShow)
 	}
 
-	// Handle piped output - clean table without colors or extra text
-	// Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
-	if ls.piped {
-		displayWorkspacesTablePlain(workspacesToShow)
-		return nil
-	}
-
-	// Standard table output with colors and help text
+	// Table output with colors and help text
 	orgs, err := ls.lsStore.GetOrganizations(nil)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -551,23 +529,6 @@ func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace)
 	ta.Render()
 }
 
-// displayWorkspacesTablePlain outputs a clean table without colors for piping
-// Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
-func displayWorkspacesTablePlain(workspaces []entity.Workspace) {
-	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE"}
-	ta.AppendHeader(header)
-	for _, w := range workspaces {
-		status := getWorkspaceDisplayStatus(w)
-		instanceString := cmdutil.GetInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString}}
-		ta.AppendRows(workspaceRow)
-	}
-	ta.Render()
-}
-
 func getShellDisplayStatus(w entity.Workspace) string {
 	status := entity.NotReady
 	if w.Status == entity.Running && w.VerbBuildStatus == entity.Completed {
@@ -584,6 +545,44 @@ func getWorkspaceDisplayStatus(w entity.Workspace) string {
 	return status
 }
 
+// TODO: use displayOrgTablePlain and displayWorkspacesTablePlain for piped output
+// once Workbench stops depending on the colored output format.
+
+// displayWorkspacesTablePlain outputs a clean table without colors for piping
+// Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
+func displayWorkspacesTablePlain(workspaces []entity.Workspace) { //nolint:unused // see TODO above
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE"}
+	ta.AppendHeader(header)
+	for _, w := range workspaces {
+		status := getWorkspaceDisplayStatus(w)
+		instanceString := cmdutil.GetInstanceString(w)
+		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString}}
+		ta.AppendRows(workspaceRow)
+	}
+	ta.Render()
+}
+
+// displayOrgTablePlain outputs a clean table without colors for piping
+// Enables: brev ls orgs | grep myorg | awk '{print $1}'
+func displayOrgTablePlain(orgs []entity.Organization, currentOrg *entity.Organization) { //nolint:unused // see TODO above
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	header := table.Row{"NAME", "ID"}
+	ta.AppendHeader(header)
+	for _, o := range orgs {
+		activeMarker := ""
+		if currentOrg != nil && o.ID == currentOrg.ID {
+			activeMarker = "* "
+		}
+		ta.AppendRows([]table.Row{{activeMarker + o.Name, o.ID}})
+	}
+	ta.Render()
+}
+
 func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOrg *entity.Organization) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
@@ -596,24 +595,6 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 			workspaceRow = []table.Row{{t.Green("* " + o.Name), t.Green(o.ID)}}
 		}
 		ta.AppendRows(workspaceRow)
-	}
-	ta.Render()
-}
-
-// displayOrgTablePlain outputs a clean table without colors for piping
-// Enables: brev ls orgs | grep myorg | awk '{print $1}'
-func displayOrgTablePlain(orgs []entity.Organization, currentOrg *entity.Organization) {
-	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "ID"}
-	ta.AppendHeader(header)
-	for _, o := range orgs {
-		activeMarker := ""
-		if currentOrg != nil && o.ID == currentOrg.ID {
-			activeMarker = "* "
-		}
-		ta.AppendRows([]table.Row{{activeMarker + o.Name, o.ID}})
 	}
 	ta.Render()
 }
