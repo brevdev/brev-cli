@@ -177,6 +177,7 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 	stdoutStat, _ := os.Stdout.Stat()
 	isTTY := (stdoutStat.Mode() & os.ModeCharDevice) != 0
 	isStdinPiped := (stdinStat.Mode() & os.ModeCharDevice) == 0
+	isStdoutPiped := (stdoutStat.Mode() & os.ModeCharDevice) == 0
 
 	// CI detection
 	isCI := detectCI()
@@ -207,6 +208,7 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		// Terminal
 		Set("is_tty", isTTY).
 		Set("is_stdin_piped", isStdinPiped).
+		Set("is_stdout_piped", isStdoutPiped).
 		Set("shell", os.Getenv("SHELL")).
 		Set("terminal", os.Getenv("TERM")).
 		// Environment
