@@ -161,7 +161,7 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 	})
 
 	// Parent process
-	parentName, parentCmdline := getParentProcessInfo()
+	parentName, _ := getParentProcessInfo()
 
 	// CWD
 	cwd, _ := os.Getwd()
@@ -204,7 +204,6 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		// Context
 		Set("cwd", cwd).
 		Set("parent_process", parentName).
-		Set("parent_cmdline", parentCmdline).
 		// Terminal
 		Set("is_tty", isTTY).
 		Set("is_stdin_piped", isStdinPiped).
