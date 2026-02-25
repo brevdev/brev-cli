@@ -17,7 +17,7 @@ set -e
 REPO="brevdev/brev-cli"
 BRANCH="main"
 SKILL_NAME="brev-cli"
-INSTALL_DIRS=("$HOME/.claude/skills/$SKILL_NAME" "$HOME/.agent/skills/$SKILL_NAME")
+INSTALL_DIRS=("$HOME/.claude/skills/$SKILL_NAME" "$HOME/.agents/skills/$SKILL_NAME")
 BASE_URL="https://raw.githubusercontent.com/$REPO"
 
 # Colors
@@ -99,7 +99,7 @@ echo -e "${BLUE}Downloading skill files...${NC}"
 TMPDIR=$(mktemp -d)
 FAILED=0
 for file in "${FILES[@]}"; do
-    url="$BASE_URL/$BRANCH/.agent/skills/$SKILL_NAME/$file"
+    url="$BASE_URL/$BRANCH/.agents/skills/$SKILL_NAME/$file"
     tmp_dest="$TMPDIR/$file"
     mkdir -p "$(dirname "$tmp_dest")"
 

@@ -20,7 +20,7 @@ import (
 
 const (
 	// GitHub raw content base URL template
-	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.agent/skills/brev-cli"
+	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.agents/skills/brev-cli"
 
 	// Default branch
 	defaultBranch = "main"
@@ -116,7 +116,7 @@ func newCmdUninstall(t *terminal.Terminal, store AgentSkillStore) *cobra.Command
 
 // installDirs are the parent directories under $HOME where skills are installed.
 // We install to both so the skill works with Claude Code (~/.claude) and other agents (~/.agent).
-var installDirs = []string{".claude", ".agent"}
+var installDirs = []string{".claude", ".agents"}
 
 // GetSkillDirs returns all paths where the skill should be installed
 func GetSkillDirs(homeDir string) []string {
