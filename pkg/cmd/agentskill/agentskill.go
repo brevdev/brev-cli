@@ -219,29 +219,8 @@ func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 	failed := 0
 
 	for _, file := range skillFiles {
-		url := fmt.Sprintf("%s/%s", baseURL, file)
-
-		body, err := downloadBytes(client, url)
-		if err != nil {
-			if !quiet {
-				fmt.Printf("    %s %s\n", t.Red("✗"), file)
-			}
+		if !downloadAndInstallFile(client, baseURL, file, skillDirs, t, quiet) {
 			failed++
-			continue
-		}
-
-		for _, skillDir := range skillDirs {
-			destPath := filepath.Join(skillDir, file)
-			if writeErr := os.WriteFile(destPath, body, 0o644); writeErr != nil { //nolint:gosec // skill files are not sensitive
-				if !quiet {
-					fmt.Printf("    %s %s (%s)\n", t.Red("✗"), file, skillDir)
-				}
-				failed++
-			}
-		}
-
-		if !quiet {
-			fmt.Printf("    %s %s\n", t.Green("✓"), file)
 		}
 	}
 
@@ -295,6 +274,39 @@ func RunInstallSkillIfWanted(t *terminal.Terminal, homeDir string) {
 			fmt.Printf("  %s Failed to install skill: %v\n", t.Yellow("Warning:"), err)
 		}
 	}
+}
+
+// downloadAndInstallFile downloads a single file and writes it to all skill dirs.
+// Returns true on success, false if the download or any write failed.
+func downloadAndInstallFile(client *http.Client, baseURL, file string, skillDirs []string, t *terminal.Terminal, quiet bool) bool {
+	url := fmt.Sprintf("%s/%s", baseURL, file)
+
+	body, err := downloadBytes(client, url)
+	if err != nil {
+		if !quiet {
+			fmt.Printf("    %s %s\n", t.Red("✗"), file)
+		}
+		return false
+	}
+
+	fileFailed := false
+	for _, skillDir := range skillDirs {
+		destPath := filepath.Join(skillDir, file)
+		if writeErr := os.WriteFile(destPath, body, 0o644); writeErr != nil { //nolint:gosec // skill files are not sensitive
+			if !quiet {
+				fmt.Printf("    %s %s (%s)\n", t.Red("✗"), file, skillDir)
+			}
+			fileFailed = true
+		}
+	}
+
+	if fileFailed {
+		return false
+	}
+	if !quiet {
+		fmt.Printf("    %s %s\n", t.Green("✓"), file)
+	}
+	return true
 }
 
 // downloadBytes fetches a URL and returns the response body
