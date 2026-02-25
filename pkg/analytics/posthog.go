@@ -1,6 +1,7 @@
 package analytics
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
@@ -65,10 +66,13 @@ func SetAnalyticsPreference(enabled bool) error {
 	}
 	settings, err := files.ReadPersonalSettings(fs, home)
 	if err != nil {
-		return err
+		return fmt.Errorf("reading personal settings: %w", err)
 	}
 	settings.AnalyticsEnabled = &enabled
-	return files.WritePersonalSettings(fs, home, settings)
+	if err := files.WritePersonalSettings(fs, home, settings); err != nil {
+		return fmt.Errorf("writing personal settings: %w", err)
+	}
+	return nil
 }
 
 // GetOrCreateAnalyticsID returns a stable anonymous UUID for tracking, creating one if needed.
@@ -247,7 +251,11 @@ func readSettings() *files.PersonalSettings {
 }
 
 func getHomeDir() (string, error) {
-	return os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("getting home dir: %w", err)
+	}
+	return home, nil
 }
 
 func detectCI() bool {
