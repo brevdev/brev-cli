@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const posthogAPIKey = "phc_NZZQP1QJCWzyeIH7P6UTjrSf9c64x4xjSktCuynAmNY"
+const posthogAPIKey = "phc_PWWXIQgQ31lXWMGI2dnTY3FyjBh7gPcMhlno1RLapLm"
 
 var (
 	client     posthog.Client
