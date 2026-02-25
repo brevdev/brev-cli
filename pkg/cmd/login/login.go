@@ -231,7 +231,7 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "Help us improve Brev by sharing usage data?",
 			ErrorMsg: "Error: must choose an option",
-			Items:    []string{"Yes, share anonymous usage data", "No, opt out"},
+			Items:    []string{"Yes, share usage data", "No, opt out"},
 		})
 		optIn := strings.HasPrefix(choice, "Yes")
 		_ = analytics.SetAnalyticsPreference(optIn)
