@@ -94,6 +94,30 @@ func GetOrCreateAnalyticsID() string {
 	return settings.AnalyticsID
 }
 
+// CaptureAnalyticsOptIn sends an event recording the user's analytics consent choice.
+// This is sent regardless of the user's choice so we can measure opt-in rates.
+func CaptureAnalyticsOptIn(optedIn bool) {
+	anonID := GetOrCreateAnalyticsID()
+	if anonID == "" {
+		return
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return
+	}
+
+	_ = c.Enqueue(posthog.Capture{
+		DistinctId: anonID,
+		Event:      "analytics_opt_in",
+		Properties: posthog.NewProperties().
+			Set("opted_in", optedIn).
+			Set("os", runtime.GOOS).
+			Set("arch", runtime.GOARCH).
+			Set("cli_version", version.Version),
+	})
+}
+
 // IdentifyUser links the anonymous analytics ID to a real user ID using PostHog Alias.
 func IdentifyUser(userID string) {
 	enabled, asked := IsAnalyticsEnabled()
