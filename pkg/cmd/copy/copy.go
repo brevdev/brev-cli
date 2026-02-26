@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	copyLong    = "Copy files and directories between your local machine and remote instance"
+	copyLong    = "Copy files and directories between your local machine and remote instance (uses rsync by default and falls back to scp)"
 	copyExample = "brev copy instance_name:/path/to/remote/file /path/to/local/file\nbrev copy /path/to/local/file instance_name:/path/to/remote/file\nbrev copy ./local-directory/ instance_name:/remote/path/"
 )
 
@@ -87,7 +87,7 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 
 	_ = writeconnectionevent.WriteWCEOnEnv(cstore, workspace.DNS)
 
-	err = runSCP(t, sshName, localPath, remotePath, isUpload)
+	err = runCopyWithFallback(t, sshName, localPath, remotePath, isUpload)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -202,33 +202,23 @@ func parseWorkspacePath(path string) (workspace, filePath string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
-	var scpCmd *exec.Cmd
-	var source, dest string
+type commandRunner func(name string, args ...string) ([]byte, error)
+
+func combinedOutputRunner(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...) //nolint:gosec
+	return cmd.CombinedOutput()
+}
+
+func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
 
 	startTime := time.Now()
-
-	scpArgs := []string{"scp"}
-
-	if isUpload {
-		if isDirectory(localPath) {
-			scpArgs = append(scpArgs, "-r")
-		}
-		scpArgs = append(scpArgs, localPath, fmt.Sprintf("%s:%s", sshAlias, remotePath))
-		source = localPath
-		dest = fmt.Sprintf("%s:%s", sshAlias, remotePath)
-	} else {
-		scpArgs = append(scpArgs, "-r")
-		scpArgs = append(scpArgs, fmt.Sprintf("%s:%s", sshAlias, remotePath), localPath)
-		source = fmt.Sprintf("%s:%s", sshAlias, remotePath)
-		dest = localPath
+	fellBack, err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner)
+	if fellBack {
+		t.Vprint(t.Yellow("rsync failed, falling back to scp...\n"))
 	}
-
-	scpCmd = exec.Command(scpArgs[0], scpArgs[1:]...) //nolint:gosec //sshAlias is validated workspace identifier
-
-	output, err := scpCmd.CombinedOutput()
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output)))
+		return breverrors.WrapAndTrace(err)
 	}
 
 	duration := time.Since(startTime)
@@ -236,6 +226,70 @@ func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUplo
 	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully copied %s → %s (%v)\n", source, dest, duration.Round(time.Millisecond))))
 
 	return nil
+}
+
+func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner) (bool, error) {
+	err := runRsyncCommand(sshAlias, localPath, remotePath, isUpload, runner)
+	if err == nil {
+		return false, nil
+	}
+
+	scpErr := runSCPCommand(sshAlias, localPath, remotePath, isUpload, runner)
+	if scpErr != nil {
+		return true, fmt.Errorf("rsync failed: %v\nscp fallback failed: %w", err, scpErr)
+	}
+
+	return true, nil
+}
+
+func runRsyncCommand(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner) error {
+	rsyncArgs := buildRsyncArgs(sshAlias, localPath, remotePath, isUpload)
+	output, err := runner("rsync", rsyncArgs...)
+	if err != nil {
+		return fmt.Errorf("rsync failed: %s\nOutput: %s", err.Error(), string(output))
+	}
+	return nil
+}
+
+func runSCPCommand(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner) error {
+	scpArgs := buildSCPArgs(sshAlias, localPath, remotePath, isUpload)
+	output, err := runner("scp", scpArgs...)
+	if err != nil {
+		return fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output))
+	}
+	return nil
+}
+
+func buildRsyncArgs(sshAlias, localPath, remotePath string, isUpload bool) []string {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
+
+	rsyncArgs := []string{"-z", "-e", "ssh"}
+	if !isUpload || isDirectory(localPath) {
+		rsyncArgs = append(rsyncArgs, "-r")
+	}
+	rsyncArgs = append(rsyncArgs, source, dest)
+
+	return rsyncArgs
+}
+
+func buildSCPArgs(sshAlias, localPath, remotePath string, isUpload bool) []string {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
+
+	scpArgs := []string{}
+	if !isUpload || isDirectory(localPath) {
+		scpArgs = append(scpArgs, "-r")
+	}
+	scpArgs = append(scpArgs, source, dest)
+
+	return scpArgs
+}
+
+func transferEndpoints(sshAlias, localPath, remotePath string, isUpload bool) (source, dest string) {
+	remoteTarget := fmt.Sprintf("%s:%s", sshAlias, remotePath)
+	if isUpload {
+		return localPath, remoteTarget
+	}
+	return remoteTarget, localPath
 }
 
 func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
