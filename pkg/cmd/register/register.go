@@ -175,8 +175,8 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 
 	t.Vprint(t.Green("  Registration complete."))
 
-	if cmds := addResp.Msg.GetSetupCommands(); len(cmds) > 0 {
-		if err := runSetupCommands(cmds); err != nil {
+	if cmd := addResp.Msg.GetSetupCommand(); cmd != "" {
+		if err := runSetupCommand(cmd); err != nil {
 			t.Vprintf("  Warning: setup command failed: %v\n", err)
 		}
 	}

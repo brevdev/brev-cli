@@ -3,8 +3,8 @@ module github.com/brevdev/brev-cli
 go 1.24.0
 
 require (
-	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20260226031750-e6fd8dbaf991.2
-	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260226031750-e6fd8dbaf991.1
+	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20260226200709-e1ac2ea142d1.2
+	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260226200709-e1ac2ea142d1.1
 	connectrpc.com/connect v1.19.1
 	github.com/alessio/shellescape v1.4.1
 	github.com/brevdev/parse v0.0.11

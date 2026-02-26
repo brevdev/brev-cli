@@ -8,12 +8,12 @@ fast-build: ## go build -o brev
 	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: local
-local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg, or make local for defaults)
+local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg arch=linux/amd64, or make local for defaults)
 	$(call print-target)
 ifdef env
 	@echo "Building with env=$(env) wrapper..."
 	@echo ${VERSION}
-	CGO_ENABLED=0 go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(if $(arch),GOOS=$(word 1,$(subst /, ,$(arch))) GOARCH=$(word 2,$(subst /, ,$(arch))),) CGO_ENABLED=0 go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 	@echo '#!/bin/sh' > brev
 	@echo '# Auto-generated wrapper with environment overrides' >> brev
 	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
@@ -25,7 +25,7 @@ ifdef env
 	@chmod +x brev
 else
 	@echo "Building without environment overrides (using config.go defaults)..."
-	$(MAKE) fast-build
+	$(if $(arch),GOOS=$(word 1,$(subst /, ,$(arch))) GOARCH=$(word 2,$(subst /, ,$(arch))),) CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 endif
 
 .PHONY: install-dev

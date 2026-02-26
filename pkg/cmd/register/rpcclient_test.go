@@ -176,7 +176,7 @@ func Test_NewNodeServiceClient_AddNode(t *testing.T) {
 					Name:           req.GetName(),
 					DeviceId:       req.GetDeviceId(),
 				},
-				SetupCommands: map[string]string{"netbird": "netbird up"},
+				SetupCommand: "netbird up",
 			}, nil
 		},
 	}
@@ -199,8 +199,8 @@ func Test_NewNodeServiceClient_AddNode(t *testing.T) {
 	if resp.Msg.GetExternalNode().GetExternalNodeId() != "unode_abc" {
 		t.Errorf("unexpected node ID: %s", resp.Msg.GetExternalNode().GetExternalNodeId())
 	}
-	if len(resp.Msg.GetSetupCommands()) != 1 {
-		t.Errorf("expected 1 setup command, got %d", len(resp.Msg.GetSetupCommands()))
+	if resp.Msg.GetSetupCommand() != "netbird up" {
+		t.Errorf("expected setup command 'netbird up', got %q", resp.Msg.GetSetupCommand())
 	}
 }
 
