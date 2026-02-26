@@ -206,7 +206,11 @@ type commandRunner func(name string, args ...string) ([]byte, error)
 
 func combinedOutputRunner(name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...) //nolint:gosec
-	return cmd.CombinedOutput()
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return output, fmt.Errorf("run %s command: %w", name, err)
+	}
+	return output, nil
 }
 
 func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
