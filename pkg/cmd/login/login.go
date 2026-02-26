@@ -241,6 +241,7 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 		})
 		optIn := strings.HasPrefix(choice, "Yes")
 		_ = analytics.SetAnalyticsPreference(optIn)
+		analytics.CaptureAnalyticsOptIn(optIn)
 	}
 
 	analytics.IdentifyUser(user.ID)
