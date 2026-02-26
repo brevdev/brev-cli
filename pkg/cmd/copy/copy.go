@@ -205,7 +205,7 @@ func parseWorkspacePath(path string) (workspace, filePath string, err error) {
 type commandRunner func(name string, args ...string) ([]byte, error)
 
 func combinedOutputRunner(name string, args ...string) ([]byte, error) {
-	cmd := exec.Command(name, args...) //nolint:gosec
+	cmd := exec.Command(name, args...) //nolint:gosec // Command and args come from internal call sites using fixed binaries/flags (rsync/scp).
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return output, fmt.Errorf("run %s command: %w", name, err)
@@ -217,10 +217,9 @@ func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath s
 	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
 
 	startTime := time.Now()
-	fellBack, err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner)
-	if fellBack {
+	err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner, func() {
 		t.Vprint(t.Yellow("rsync failed, falling back to scp...\n"))
-	}
+	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -232,18 +231,22 @@ func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath s
 	return nil
 }
 
-func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner) (bool, error) {
+func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner, onFallback func()) error {
 	err := runRsyncCommand(sshAlias, localPath, remotePath, isUpload, runner)
 	if err == nil {
-		return false, nil
+		return nil
+	}
+
+	if onFallback != nil {
+		onFallback()
 	}
 
 	scpErr := runSCPCommand(sshAlias, localPath, remotePath, isUpload, runner)
 	if scpErr != nil {
-		return true, fmt.Errorf("rsync failed: %v\nscp fallback failed: %w", err, scpErr)
+		return fmt.Errorf("%v\nscp fallback failed: %w", err, scpErr)
 	}
 
-	return true, nil
+	return nil
 }
 
 func runRsyncCommand(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner) error {

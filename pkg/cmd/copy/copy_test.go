@@ -61,9 +61,12 @@ func TestTransferWithFallback(t *testing.T) {
 			return []byte("ok"), nil
 		}
 
-		fellBack, err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner)
+		onFallbackCalled := false
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() {
+			onFallbackCalled = true
+		})
 		assert.NoError(t, err)
-		assert.False(t, fellBack)
+		assert.False(t, onFallbackCalled)
 		assert.Equal(t, []string{"rsync"}, calls)
 	})
 
@@ -77,10 +80,11 @@ func TestTransferWithFallback(t *testing.T) {
 			return []byte("scp ok"), nil
 		}
 
-		fellBack, err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner)
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() {
+			calls = append(calls, "fallback")
+		})
 		assert.NoError(t, err)
-		assert.True(t, fellBack)
-		assert.Equal(t, []string{"rsync", "scp"}, calls)
+		assert.Equal(t, []string{"rsync", "fallback", "scp"}, calls)
 	})
 
 	t.Run("rsync fails and scp fails", func(t *testing.T) {
@@ -91,12 +95,12 @@ func TestTransferWithFallback(t *testing.T) {
 			return []byte("scp output"), errors.New("exit status 1")
 		}
 
-		fellBack, err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner)
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() {})
 		assert.Error(t, err)
-		assert.True(t, fellBack)
-		assert.Contains(t, err.Error(), "rsync failed")
+		assert.Contains(t, err.Error(), "rsync failed: exit status 1")
 		assert.Contains(t, err.Error(), "scp fallback failed")
 		assert.Contains(t, err.Error(), "rsync output")
 		assert.Contains(t, err.Error(), "scp output")
+		assert.NotContains(t, err.Error(), "rsync failed: rsync failed:")
 	})
 }
