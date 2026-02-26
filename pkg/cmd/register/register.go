@@ -9,6 +9,8 @@ import (
 	"runtime"
 	"time"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -147,19 +149,20 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
 
 	deviceID := uuid.New().String()
-	client := NewConnectNodeClient(s, config.GlobalConfig.GetBrevAPIURl())
-	addResp, err := client.AddNode(ctx, &AddNodeRequest{
-		OrganizationID: org.ID,
+	client := NewNodeServiceClient(s, config.GlobalConfig.GetBrevAPIURl())
+	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
+		OrganizationId: org.ID,
 		Name:           name,
-		DeviceID:       deviceID,
-		NodeSpec:       nodeSpec,
-	})
+		DeviceId:       deviceID,
+		NodeSpec:       toProtoNodeSpec(nodeSpec),
+	}))
 	if err != nil {
 		return fmt.Errorf("failed to register node: %w", err)
 	}
 
+	node := addResp.Msg.GetExternalNode()
 	reg := &DeviceRegistration{
-		ExternalNodeID: addResp.ExternalNode.ExternalNodeID,
+		ExternalNodeID: node.GetExternalNodeId(),
 		DisplayName:    name,
 		OrgID:          org.ID,
 		DeviceID:       deviceID,
@@ -172,8 +175,8 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 
 	t.Vprint(t.Green("  Registration complete."))
 
-	if len(addResp.SetupCommands) > 0 {
-		if err := runSetupCommands(addResp.SetupCommands); err != nil {
+	if cmds := addResp.Msg.GetSetupCommands(); len(cmds) > 0 {
+		if err := runSetupCommands(cmds); err != nil {
 			t.Vprintf("  Warning: setup command failed: %v\n", err)
 		}
 	}

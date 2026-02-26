@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"runtime"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -89,11 +92,11 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore)
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("Removing node from Brev..."))
-	client := register.NewConnectNodeClient(s, config.GlobalConfig.GetBrevAPIURl())
-	if err := client.RemoveNode(ctx, &register.RemoveNodeRequest{
-		ExternalNodeID: reg.ExternalNodeID,
-		OrganizationID: reg.OrgID,
-	}); err != nil {
+	client := register.NewNodeServiceClient(s, config.GlobalConfig.GetBrevAPIURl())
+	if _, err := client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
+		ExternalNodeId: reg.ExternalNodeID,
+		OrganizationId: reg.OrgID,
+	})); err != nil {
 		return fmt.Errorf("failed to deregister node: %w", err)
 	}
 	t.Vprint(t.Green("  Node removed from Brev."))

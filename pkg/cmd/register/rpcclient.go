@@ -1,58 +1,13 @@
 package register
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
+
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
-
-// TODO: Replace these local types with generated proto types once the
-// ExternalNodeService is published to buf.build:
-//
-//   import (
-//       nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
-//       nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
-//   )
-
-// AddNodeRequest matches the proto AddNodeRequest message.
-type AddNodeRequest struct {
-	OrganizationID string    `json:"organization_id"`
-	Name           string    `json:"name"`
-	DeviceID       string    `json:"device_id"`
-	NodeSpec       *NodeSpec `json:"node_spec"`
-}
-
-// AddNodeResponse matches the proto AddNodeResponse message.
-type AddNodeResponse struct {
-	ExternalNode  *ExternalNode     `json:"external_node"`
-	SetupCommands map[string]string `json:"setup_commands"`
-}
-
-// ExternalNode matches the proto ExternalNode message (subset of fields we need).
-type ExternalNode struct {
-	ExternalNodeID string `json:"external_node_id"`
-	OrganizationID string `json:"organization_id"`
-	Name           string `json:"name"`
-	DeviceID       string `json:"device_id"`
-}
-
-// RemoveNodeRequest matches the proto RemoveNodeRequest message.
-type RemoveNodeRequest struct {
-	ExternalNodeID string `json:"external_node_id"`
-	OrganizationID string `json:"organization_id"`
-}
-
-// ExternalNodeServiceClient defines the RPCs we call from the CLI.
-// This will be replaced by the generated ConnectRPC client interface
-// once the service is published.
-type ExternalNodeServiceClient interface {
-	AddNode(ctx context.Context, req *AddNodeRequest) (*AddNodeResponse, error)
-	RemoveNode(ctx context.Context, req *RemoveNodeRequest) error
-}
 
 // tokenProvider abstracts access token retrieval for the HTTP transport.
 type tokenProvider interface {
@@ -90,76 +45,49 @@ func newAuthenticatedHTTPClient(provider tokenProvider) *http.Client {
 	}
 }
 
-// ConnectNodeClient is a temporary REST-based implementation of ExternalNodeServiceClient.
-// It will be replaced by the generated ConnectRPC client once the service proto
-// is published to buf.build.
-//
-// TODO: Replace with:
-//
-//	httpClient := newAuthenticatedHTTPClient(store)
-//	client := nodev1connect.NewExternalNodeServiceClient(httpClient, baseURL)
-type ConnectNodeClient struct {
-	httpClient *http.Client
-	baseURL    string
+// NewNodeServiceClient creates a ConnectRPC ExternalNodeServiceClient using the
+// given token provider for authentication.
+func NewNodeServiceClient(provider tokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
+	return nodev1connect.NewExternalNodeServiceClient(
+		newAuthenticatedHTTPClient(provider),
+		baseURL,
+	)
 }
 
-// NewConnectNodeClient creates a new ConnectNodeClient.
-func NewConnectNodeClient(provider tokenProvider, baseURL string) *ConnectNodeClient {
-	return &ConnectNodeClient{
-		httpClient: newAuthenticatedHTTPClient(provider),
-		baseURL:    baseURL,
-	}
-}
-
-func (c *ConnectNodeClient) AddNode(ctx context.Context, req *AddNodeRequest) (*AddNodeResponse, error) {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal AddNodeRequest: %w", err)
+// toProtoNodeSpec converts the local NodeSpec (used for collection, display, persistence)
+// to the generated proto NodeSpec for RPC calls.
+func toProtoNodeSpec(s *NodeSpec) *nodev1.NodeSpec {
+	if s == nil {
+		return nil
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/devplaneapi.v1.ExternalNodeService/AddNode", bytes.NewReader(body))
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("AddNode request failed: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // best-effort close
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("AddNode returned status %d", resp.StatusCode)
+	proto := &nodev1.NodeSpec{
+		RamBytes:     s.RAMBytes,
+		CpuCount:     s.CPUCount,
+		StorageBytes: s.StorageBytes,
 	}
 
-	var result AddNodeResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode AddNode response: %w", err)
+	if s.Architecture != "" {
+		proto.Architecture = &s.Architecture
 	}
-	return &result, nil
-}
+	if s.StorageType != "" {
+		proto.StorageType = &s.StorageType
+	}
+	if s.OS != "" {
+		proto.Os = &s.OS
+	}
+	if s.OSVersion != "" {
+		proto.OsVersion = &s.OSVersion
+	}
 
-func (c *ConnectNodeClient) RemoveNode(ctx context.Context, req *RemoveNodeRequest) error {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("failed to marshal RemoveNodeRequest: %w", err)
+	for _, g := range s.GPUs {
+		pg := &nodev1.GPUSpec{
+			Model:       g.Model,
+			Count:       g.Count,
+			MemoryBytes: g.MemoryBytes,
+		}
+		proto.Gpus = append(proto.Gpus, pg)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/devplaneapi.v1.ExternalNodeService/RemoveNode", bytes.NewReader(body))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return fmt.Errorf("RemoveNode request failed: %w", err)
-	}
-	defer resp.Body.Close() //nolint:errcheck // best-effort close
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("RemoveNode returned status %d", resp.StatusCode)
-	}
-	return nil
+	return proto
 }
