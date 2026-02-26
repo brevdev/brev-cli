@@ -8,7 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-// InstallNetbird downloads and installs netbird using the official install script.
+// InstallNetbird downloads and installs NetBird using the official install script.
 func InstallNetbird(t *terminal.Terminal) error {
 	script := `(curl -fsSL https://pkgs.netbird.io/install.sh | sh) || (curl -fsSL https://pkgs.netbird.io/install.sh | sh -s -- --update)`
 
@@ -17,7 +17,7 @@ func InstallNetbird(t *terminal.Terminal) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install netbird: %w", err)
+		return fmt.Errorf("failed to install NetBird: %w", err)
 	}
 	return nil
 }
@@ -36,7 +36,7 @@ func runSetupCommands(commands map[string]string) error {
 	return nil
 }
 
-// UninstallNetbird stops, uninstalls, and removes netbird.
+// UninstallNetbird stops, uninstalls, and removes NetBird.
 func UninstallNetbird(t *terminal.Terminal) error {
 	script := `netbird service stop && netbird service uninstall && sudo apt-get remove -y netbird`
 
@@ -45,7 +45,7 @@ func UninstallNetbird(t *terminal.Terminal) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to uninstall netbird: %w", err)
+		return fmt.Errorf("failed to uninstall NetBird: %w", err)
 	}
 	return nil
 }

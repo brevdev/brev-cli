@@ -206,3 +206,205 @@ func Test_FormatNodeSpec(t *testing.T) {
 		t.Errorf("expected GPU info in output: %s", output)
 	}
 }
+
+func Test_FormatNodeSpec_MinimalFields(t *testing.T) {
+	s := &NodeSpec{
+		GPUs: []NodeGPU{
+			{Model: "NVIDIA GB10", Count: 1},
+		},
+		Architecture: "arm64",
+	}
+	output := FormatNodeSpec(s)
+	if strings.Contains(output, "CPU:") {
+		t.Errorf("should not contain CPU when nil: %s", output)
+	}
+	if strings.Contains(output, "RAM:") {
+		t.Errorf("should not contain RAM when nil: %s", output)
+	}
+	if !strings.Contains(output, "NVIDIA GB10") {
+		t.Errorf("expected GPU info: %s", output)
+	}
+	if !strings.Contains(output, "arm64") {
+		t.Errorf("expected arch info: %s", output)
+	}
+}
+
+func Test_FormatNodeSpec_WithStorage(t *testing.T) {
+	storageBytes := int64(1099511627776) // 1 TB
+	s := &NodeSpec{
+		Architecture: "amd64",
+		StorageBytes: &storageBytes,
+		StorageType:  "NVMe",
+	}
+	output := FormatNodeSpec(s)
+	if !strings.Contains(output, "Storage:") {
+		t.Errorf("expected storage in output: %s", output)
+	}
+	if !strings.Contains(output, "NVMe") {
+		t.Errorf("expected NVMe in output: %s", output)
+	}
+}
+
+func Test_parseNvidiaSMIOutput_MalformedLines(t *testing.T) {
+	output := `
+malformed line
+NVIDIA GB10, 131072
+, ,
+just-a-name
+NVIDIA A100, not-a-number
+`
+	gpus := parseNvidiaSMIOutput(output)
+	if len(gpus) != 1 {
+		t.Fatalf("expected 1 valid GPU, got %d", len(gpus))
+	}
+	if gpus[0].Model != "NVIDIA GB10" {
+		t.Errorf("unexpected model: %s", gpus[0].Model)
+	}
+}
+
+func Test_parseStorageOutput_Empty(t *testing.T) {
+	totalBytes, storageType := parseStorageOutput("")
+	if totalBytes != 0 {
+		t.Errorf("expected 0 bytes, got %d", totalBytes)
+	}
+	if storageType != "" {
+		t.Errorf("expected empty storage type, got %s", storageType)
+	}
+}
+
+func Test_parseStorageOutput_NoDiskDevices(t *testing.T) {
+	output := `sr0  1073741312 rom
+loop0  123456 loop
+`
+	totalBytes, storageType := parseStorageOutput(output)
+	if totalBytes != 0 {
+		t.Errorf("expected 0 bytes for non-disk devices, got %d", totalBytes)
+	}
+	if storageType != "" {
+		t.Errorf("expected empty storage type, got %s", storageType)
+	}
+}
+
+// mockCommandRunner for testing CollectHardwareProfile
+type mockCommandRunner struct {
+	outputs map[string][]byte
+	errors  map[string]error
+}
+
+func (m *mockCommandRunner) Run(name string, args ...string) ([]byte, error) {
+	key := name
+	if err, ok := m.errors[key]; ok {
+		return nil, err
+	}
+	if out, ok := m.outputs[key]; ok {
+		return out, nil
+	}
+	return nil, nil
+}
+
+type mockFileReader struct {
+	files map[string][]byte
+}
+
+func (m *mockFileReader) ReadFile(path string) ([]byte, error) {
+	if data, ok := m.files[path]; ok {
+		return data, nil
+	}
+	return nil, &mockFileNotFoundError{path: path}
+}
+
+type mockFileNotFoundError struct{ path string }
+
+func (e *mockFileNotFoundError) Error() string { return "file not found: " + e.path }
+
+func Test_CollectHardwareProfile_WithMocks(t *testing.T) {
+	runner := &mockCommandRunner{
+		outputs: map[string][]byte{
+			"nvidia-smi": []byte("NVIDIA GB10, 131072\nNVIDIA GB10, 131072\n"),
+			"lsblk":      []byte("nvme0n1  500107862016 disk\n"),
+		},
+	}
+	reader := &mockFileReader{
+		files: map[string][]byte{
+			"/proc/cpuinfo":   []byte("processor\t: 0\nprocessor\t: 1\n"),
+			"/proc/meminfo":   []byte("MemTotal:       131886028 kB\n"),
+			"/etc/os-release": []byte("NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\n"),
+		},
+	}
+
+	spec, err := CollectHardwareProfile(runner, reader)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(spec.GPUs) != 1 || spec.GPUs[0].Count != 2 {
+		t.Errorf("expected 1 GPU group with count 2, got %v", spec.GPUs)
+	}
+	if spec.CPUCount == nil || *spec.CPUCount != 2 {
+		t.Errorf("expected 2 CPUs, got %v", spec.CPUCount)
+	}
+	if spec.RAMBytes == nil || *spec.RAMBytes != 131886028*1024 {
+		t.Errorf("unexpected RAM: %v", spec.RAMBytes)
+	}
+	if spec.OS != "Ubuntu" || spec.OSVersion != "24.04" {
+		t.Errorf("unexpected OS: %s %s", spec.OS, spec.OSVersion)
+	}
+	if spec.StorageBytes == nil || *spec.StorageBytes != 500107862016 {
+		t.Errorf("unexpected storage: %v", spec.StorageBytes)
+	}
+}
+
+func Test_CollectHardwareProfile_GPUBestEffort(t *testing.T) {
+	runner := &mockCommandRunner{
+		errors: map[string]error{
+			"nvidia-smi": &mockFileNotFoundError{path: "nvidia-smi"},
+		},
+	}
+	reader := &mockFileReader{
+		files: map[string][]byte{
+			"/proc/cpuinfo": []byte("processor\t: 0\n"),
+			"/proc/meminfo": []byte("MemTotal:       131886028 kB\n"),
+		},
+	}
+
+	spec, err := CollectHardwareProfile(runner, reader)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(spec.GPUs) != 0 {
+		t.Errorf("expected 0 GPUs when nvidia-smi fails, got %d", len(spec.GPUs))
+	}
+	if spec.CPUCount == nil || *spec.CPUCount != 1 {
+		t.Errorf("expected 1 CPU, got %v", spec.CPUCount)
+	}
+}
+
+func Test_CollectHardwareProfile_OptionalFieldsMissing(t *testing.T) {
+	runner := &mockCommandRunner{
+		outputs: map[string][]byte{
+			"nvidia-smi": []byte("NVIDIA GB10, 131072\n"),
+		},
+		errors: map[string]error{
+			"lsblk": &mockFileNotFoundError{path: "lsblk"},
+		},
+	}
+	reader := &mockFileReader{
+		files: map[string][]byte{},
+	}
+
+	spec, err := CollectHardwareProfile(runner, reader)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if spec.CPUCount != nil {
+		t.Errorf("expected nil CPUCount when /proc/cpuinfo missing")
+	}
+	if spec.RAMBytes != nil {
+		t.Errorf("expected nil RAMBytes when /proc/meminfo missing")
+	}
+	if spec.StorageBytes != nil {
+		t.Errorf("expected nil StorageBytes when lsblk fails")
+	}
+	if len(spec.GPUs) != 1 {
+		t.Errorf("expected 1 GPU, got %d", len(spec.GPUs))
+	}
+}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -40,8 +41,7 @@ func (r OSFileReader) ReadFile(path string) ([]byte, error) {
 var (
 	registerLong = `Register your DGX Spark with NVIDIA Brev
 
-This command installs netbird (network agent), collects a hardware profile,
-and registers this machine with Brev.`
+This command installs NetBird (network agent), and registers this machine with Brev.`
 
 	registerExample = `  brev register --name "My DGX Spark"`
 )
@@ -54,7 +54,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		Use:                   "register",
 		Aliases:               []string{"spark"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Register your DGX Spark with Brev",
+		Short:                 "Register this device with Brev",
 		Long:                  registerLong,
 		Example:               registerExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -62,7 +62,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&name, "name", "n", "", "Display name for this DGX Spark (required)")
+	cmd.Flags().StringVarP(&name, "name", "n", "", "Display name (required)")
 	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
@@ -108,7 +108,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprintf("  Linux user:   %s\n", linuxUser)
 	t.Vprint("")
 	t.Vprint("This will perform the following steps:")
-	t.Vprint("  1. Install netbird (network agent)")
+	t.Vprint("  1. Install NetBird (network agent)")
 	t.Vprint("  2. Collect hardware profile")
 	t.Vprint("  3. Register this machine with Brev")
 	t.Vprint("")
@@ -123,11 +123,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 1/3] Installing netbird..."))
+	t.Vprint(t.Yellow("[Step 1/3] Installing NetBird..."))
 	if err := InstallNetbird(t); err != nil {
-		return fmt.Errorf("netbird installation failed: %w", err)
+		return fmt.Errorf("NetBird installation failed: %w", err)
 	}
-	t.Vprint(t.Green("  Netbird installed successfully."))
+	t.Vprint(t.Green("  NetBird installed successfully."))
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
@@ -147,7 +147,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
 
 	deviceID := uuid.New().String()
-	client := NewConnectNodeClient(s, DevPlaneBaseURL)
+	client := NewConnectNodeClient(s, config.GlobalConfig.GetBrevAPIURl())
 	addResp, err := client.AddNode(ctx, &AddNodeRequest{
 		OrganizationID: org.ID,
 		Name:           name,
@@ -158,7 +158,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		return fmt.Errorf("failed to register node: %w", err)
 	}
 
-	reg := &SparkRegistration{
+	reg := &DeviceRegistration{
 		ExternalNodeID: addResp.ExternalNode.ExternalNodeID,
 		DisplayName:    name,
 		OrgID:          org.ID,
@@ -171,18 +171,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	}
 
 	t.Vprint(t.Green("  Registration complete."))
-	t.Vprintf("  Node ID: %s\n", addResp.ExternalNode.ExternalNodeID)
 
 	if len(addResp.SetupCommands) > 0 {
-		t.Vprint("")
-		t.Vprint("  Running network setup commands...")
 		if err := runSetupCommands(addResp.SetupCommands); err != nil {
 			t.Vprintf("  Warning: setup command failed: %v\n", err)
-		} else {
-			t.Vprint(t.Green("  Network setup complete."))
 		}
 	}
-
-	t.Vprint("")
 	return nil
 }

@@ -63,7 +63,11 @@ func (s *AuthHTTPStore) GetWindowsDir() (string, error) {
 
 // GetAccessToken returns a fresh access token, refreshing if needed.
 func (s *AuthHTTPStore) GetAccessToken() (string, error) {
-	return s.authHTTPClient.auth.GetAccessToken()
+	token, err := s.authHTTPClient.auth.GetAccessToken()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return token, nil
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {

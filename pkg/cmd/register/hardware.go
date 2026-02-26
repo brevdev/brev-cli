@@ -276,27 +276,27 @@ func parseStorageOutput(output string) (int64, string) {
 func FormatNodeSpec(s *NodeSpec) string {
 	var b strings.Builder
 	if s.CPUCount != nil {
-		fmt.Fprintf(&b, "    CPU:     %d cores\n", *s.CPUCount)
+		_, _ = fmt.Fprintf(&b, "    CPU:     %d cores\n", *s.CPUCount)
 	}
 	if s.RAMBytes != nil {
-		fmt.Fprintf(&b, "    RAM:     %d GB\n", *s.RAMBytes/(1024*1024*1024))
+		_, _ = fmt.Fprintf(&b, "    RAM:     %d GB\n", *s.RAMBytes/(1024*1024*1024))
 	}
 	for _, gpu := range s.GPUs {
 		if gpu.MemoryBytes != nil {
 			memGB := *gpu.MemoryBytes / (1024 * 1024 * 1024)
-			fmt.Fprintf(&b, "    GPUs:    %d x %s (%d GB)\n", gpu.Count, gpu.Model, memGB)
+			_, _ = fmt.Fprintf(&b, "    GPUs:    %d x %s (%d GB)\n", gpu.Count, gpu.Model, memGB)
 		} else {
-			fmt.Fprintf(&b, "    GPUs:    %d x %s\n", gpu.Count, gpu.Model)
+			_, _ = fmt.Fprintf(&b, "    GPUs:    %d x %s\n", gpu.Count, gpu.Model)
 		}
 	}
-	fmt.Fprintf(&b, "    Arch:    %s\n", s.Architecture)
+	_, _ = fmt.Fprintf(&b, "    Arch:    %s\n", s.Architecture)
 	if s.OS != "" || s.OSVersion != "" {
-		fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
+		_, _ = fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
 	}
 	if s.StorageBytes != nil {
-		fmt.Fprintf(&b, "    Storage: %d GB", *s.StorageBytes/(1024*1024*1024))
+		_, _ = fmt.Fprintf(&b, "    Storage: %d GB", *s.StorageBytes/(1024*1024*1024))
 		if s.StorageType != "" {
-			fmt.Fprintf(&b, " (%s)", s.StorageType)
+			_, _ = fmt.Fprintf(&b, " (%s)", s.StorageType)
 		}
 		b.WriteString("\n")
 	}

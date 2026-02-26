@@ -7,6 +7,7 @@ import (
 	"runtime"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -25,7 +26,7 @@ var (
 	deregisterLong = `Deregister your DGX Spark from NVIDIA Brev
 
 This command removes the local registration data and optionally uninstalls
-netbird (network agent).`
+NetBird (network agent).`
 
 	deregisterExample = `  brev deregister`
 )
@@ -73,8 +74,8 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore)
 	t.Vprint("")
 
 	removeNetbird := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label: "Would you also like to uninstall netbird?",
-		Items: []string{"Yes, uninstall netbird", "No, keep netbird installed"},
+		Label: "Would you also like to uninstall NetBird?",
+		Items: []string{"Yes, uninstall NetBird", "No, keep NetBird installed"},
 	})
 
 	confirm := terminal.PromptSelectInput(terminal.PromptSelectContent{
@@ -88,7 +89,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore)
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("Removing node from Brev..."))
-	client := register.NewConnectNodeClient(s, register.DevPlaneBaseURL)
+	client := register.NewConnectNodeClient(s, config.GlobalConfig.GetBrevAPIURl())
 	if err := client.RemoveNode(ctx, &register.RemoveNodeRequest{
 		ExternalNodeID: reg.ExternalNodeID,
 		OrganizationID: reg.OrgID,
@@ -98,12 +99,12 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore)
 	t.Vprint(t.Green("  Node removed from Brev."))
 	t.Vprint("")
 
-	if removeNetbird == "Yes, uninstall netbird" {
-		t.Vprint("Removing netbird...")
+	if removeNetbird == "Yes, uninstall NetBird" {
+		t.Vprint("Removing NetBird...")
 		if err := register.UninstallNetbird(t); err != nil {
-			t.Vprintf("  Warning: failed to uninstall netbird: %v\n", err)
+			t.Vprintf("  Warning: failed to uninstall NetBird: %v\n", err)
 		} else {
-			t.Vprint(t.Green("  Netbird uninstalled."))
+			t.Vprint(t.Green("  NetBird uninstalled."))
 		}
 		t.Vprint("")
 	}

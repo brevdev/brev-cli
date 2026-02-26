@@ -1,17 +1,19 @@
 package register
 
 import (
+	"encoding/json"
 	"path/filepath"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/spf13/afero"
 )
 
 const registrationFileName = "spark_registration.json"
 
-// SparkRegistration is the persistent identity file for a registered DGX Spark.
+// DeviceRegistration is the persistent identity file for a registered device.
 // Fields align with the AddNodeResponse from dev-plane.
-type SparkRegistration struct {
+type DeviceRegistration struct {
 	ExternalNodeID string   `json:"external_node_id"`
 	DisplayName    string   `json:"display_name"`
 	OrgID          string   `json:"org_id"`
@@ -25,19 +27,25 @@ func registrationPath(brevHome string) string {
 }
 
 // SaveRegistration writes the registration to ~/.brev/spark_registration.json.
-func SaveRegistration(brevHome string, reg *SparkRegistration) error {
+func SaveRegistration(brevHome string, reg *DeviceRegistration) error {
 	path := registrationPath(brevHome)
-	err := files.OverwriteJSON(files.AppFs, path, reg)
+	data, err := json.MarshalIndent(reg, "", "  ")
 	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err := files.AppFs.MkdirAll(filepath.Dir(path), 0o770); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err := afero.WriteFile(files.AppFs, path, data, 0o600); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
 // LoadRegistration reads the registration from ~/.brev/spark_registration.json.
-func LoadRegistration(brevHome string) (*SparkRegistration, error) {
+func LoadRegistration(brevHome string) (*DeviceRegistration, error) {
 	path := registrationPath(brevHome)
-	var reg SparkRegistration
+	var reg DeviceRegistration
 	err := files.ReadJSON(files.AppFs, path, &reg)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

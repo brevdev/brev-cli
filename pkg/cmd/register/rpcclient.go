@@ -10,10 +10,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-// DevPlaneBaseURL is the base URL for the dev-plane API.
-// TODO: source from config once the URL is finalized.
-const DevPlaneBaseURL = "https://brevapi.us-west-2-prod.control-plane.brev.dev"
-
 // TODO: Replace these local types with generated proto types once the
 // ExternalNodeService is published to buf.build:
 //
@@ -76,7 +72,11 @@ func (t *bearerTokenTransport) RoundTrip(req *http.Request) (*http.Response, err
 	}
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+token)
-	return t.base.RoundTrip(req)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp, nil
 }
 
 // newAuthenticatedHTTPClient creates an http.Client that injects the bearer token
