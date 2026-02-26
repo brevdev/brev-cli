@@ -57,7 +57,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService) (registerDeps, *httpte
 		commandRunner: &mockCommandRunner{
 			outputs: map[string][]byte{
 				"nvidia-smi": []byte("NVIDIA GB10, 131072\n"),
-				"lsblk":      []byte("nvme0n1  500107862016 disk\n"),
+				"lsblk":      []byte("nvme0n1  500107862016 disk 0\n"),
 			},
 		},
 		fileReader: &mockFileReader{

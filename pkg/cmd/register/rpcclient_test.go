@@ -59,7 +59,6 @@ func Test_toProtoNodeSpec(t *testing.T) {
 	cpuCount := int32(12)
 	ramBytes := int64(137438953472)
 	memBytes := int64(137438953472)
-	storageBytes := int64(500107862016)
 
 	local := &NodeSpec{
 		GPUs: []NodeGPU{
@@ -68,10 +67,11 @@ func Test_toProtoNodeSpec(t *testing.T) {
 		RAMBytes:     &ramBytes,
 		CPUCount:     &cpuCount,
 		Architecture: "arm64",
-		StorageBytes: &storageBytes,
-		StorageType:  "NVMe",
-		OS:           "Ubuntu",
-		OSVersion:    "24.04",
+		Storage: []NodeStorage{
+			{StorageBytes: 500107862016, StorageType: "SSD"},
+		},
+		OS:        "Ubuntu",
+		OSVersion: "24.04",
 	}
 
 	proto := toProtoNodeSpec(local)
@@ -94,8 +94,8 @@ func Test_toProtoNodeSpec(t *testing.T) {
 	if proto.GetStorageBytes() != 500107862016 {
 		t.Errorf("expected StorageBytes, got %d", proto.GetStorageBytes())
 	}
-	if proto.GetStorageType() != "NVMe" {
-		t.Errorf("expected NVMe, got %s", proto.GetStorageType())
+	if proto.GetStorageType() != "SSD" {
+		t.Errorf("expected SSD, got %s", proto.GetStorageType())
 	}
 	if len(proto.GetGpus()) != 1 {
 		t.Fatalf("expected 1 GPU, got %d", len(proto.GetGpus()))

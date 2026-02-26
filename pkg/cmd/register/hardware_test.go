@@ -136,29 +136,40 @@ func Test_parseNvidiaSMIOutput_Empty(t *testing.T) {
 }
 
 func Test_parseStorageOutput(t *testing.T) {
-	output := `nvme0n1  500107862016 disk
-nvme1n1  1000204886016 disk
-sda  2048 rom
+	output := `nvme0n1  500107862016 disk 0
+nvme1n1  1000204886016 disk 0
+sda  2048 rom 1
 `
-	totalBytes, storageType := parseStorageOutput(output)
-	expected := int64(500107862016 + 1000204886016)
-	if totalBytes != expected {
-		t.Errorf("expected %d bytes, got %d", expected, totalBytes)
+	devices := parseStorageOutput(output)
+	if len(devices) != 2 {
+		t.Fatalf("expected 2 devices, got %d", len(devices))
 	}
-	if storageType != "NVMe" {
-		t.Errorf("expected NVMe, got %s", storageType)
+	if devices[0].StorageBytes != 500107862016 {
+		t.Errorf("expected 500107862016, got %d", devices[0].StorageBytes)
+	}
+	if devices[0].StorageType != "SSD" {
+		t.Errorf("expected SSD, got %s", devices[0].StorageType)
+	}
+	if devices[1].StorageBytes != 1000204886016 {
+		t.Errorf("expected 1000204886016, got %d", devices[1].StorageBytes)
+	}
+	if devices[1].StorageType != "SSD" {
+		t.Errorf("expected SSD, got %s", devices[1].StorageType)
 	}
 }
 
 func Test_parseStorageOutput_SDA(t *testing.T) {
-	output := `sda  500107862016 disk
+	output := `sda  500107862016 disk 1
 `
-	totalBytes, storageType := parseStorageOutput(output)
-	if totalBytes != 500107862016 {
-		t.Errorf("expected 500107862016 bytes, got %d", totalBytes)
+	devices := parseStorageOutput(output)
+	if len(devices) != 1 {
+		t.Fatalf("expected 1 device, got %d", len(devices))
 	}
-	if storageType != "" {
-		t.Errorf("expected empty storage type for non-nvme disk, got %s", storageType)
+	if devices[0].StorageBytes != 500107862016 {
+		t.Errorf("expected 500107862016 bytes, got %d", devices[0].StorageBytes)
+	}
+	if devices[0].StorageType != "HDD" {
+		t.Errorf("expected HDD, got %s", devices[0].StorageType)
 	}
 }
 
@@ -233,18 +244,22 @@ func Test_FormatNodeSpec_MinimalFields(t *testing.T) {
 }
 
 func Test_FormatNodeSpec_WithStorage(t *testing.T) {
-	storageBytes := int64(1099511627776) // 1 TB
 	s := &NodeSpec{
 		Architecture: "amd64",
-		StorageBytes: &storageBytes,
-		StorageType:  "NVMe",
+		Storage: []NodeStorage{
+			{StorageBytes: 500107862016, StorageType: "SSD"},
+			{StorageBytes: 1000204886016, StorageType: "HDD"},
+		},
 	}
 	output := FormatNodeSpec(s)
 	if !strings.Contains(output, "Storage:") {
 		t.Errorf("expected storage in output: %s", output)
 	}
-	if !strings.Contains(output, "NVMe") {
-		t.Errorf("expected NVMe in output: %s", output)
+	if !strings.Contains(output, "SSD") {
+		t.Errorf("expected SSD in output: %s", output)
+	}
+	if !strings.Contains(output, "HDD") {
+		t.Errorf("expected HDD in output: %s", output)
 	}
 }
 
@@ -266,25 +281,19 @@ NVIDIA A100, not-a-number
 }
 
 func Test_parseStorageOutput_Empty(t *testing.T) {
-	totalBytes, storageType := parseStorageOutput("")
-	if totalBytes != 0 {
-		t.Errorf("expected 0 bytes, got %d", totalBytes)
-	}
-	if storageType != "" {
-		t.Errorf("expected empty storage type, got %s", storageType)
+	devices := parseStorageOutput("")
+	if len(devices) != 0 {
+		t.Errorf("expected 0 devices, got %d", len(devices))
 	}
 }
 
 func Test_parseStorageOutput_NoDiskDevices(t *testing.T) {
-	output := `sr0  1073741312 rom
-loop0  123456 loop
+	output := `sr0  1073741312 rom 1
+loop0  123456 loop 0
 `
-	totalBytes, storageType := parseStorageOutput(output)
-	if totalBytes != 0 {
-		t.Errorf("expected 0 bytes for non-disk devices, got %d", totalBytes)
-	}
-	if storageType != "" {
-		t.Errorf("expected empty storage type, got %s", storageType)
+	devices := parseStorageOutput(output)
+	if len(devices) != 0 {
+		t.Errorf("expected 0 devices for non-disk entries, got %d", len(devices))
 	}
 }
 
@@ -324,7 +333,7 @@ func Test_CollectHardwareProfile_WithMocks(t *testing.T) {
 	runner := &mockCommandRunner{
 		outputs: map[string][]byte{
 			"nvidia-smi": []byte("NVIDIA GB10, 131072\nNVIDIA GB10, 131072\n"),
-			"lsblk":      []byte("nvme0n1  500107862016 disk\n"),
+			"lsblk":      []byte("nvme0n1  500107862016 disk 0\n"),
 		},
 	}
 	reader := &mockFileReader{
@@ -351,8 +360,11 @@ func Test_CollectHardwareProfile_WithMocks(t *testing.T) {
 	if spec.OS != "Ubuntu" || spec.OSVersion != "24.04" {
 		t.Errorf("unexpected OS: %s %s", spec.OS, spec.OSVersion)
 	}
-	if spec.StorageBytes == nil || *spec.StorageBytes != 500107862016 {
-		t.Errorf("unexpected storage: %v", spec.StorageBytes)
+	if len(spec.Storage) != 1 || spec.Storage[0].StorageBytes != 500107862016 {
+		t.Errorf("unexpected storage: %v", spec.Storage)
+	}
+	if spec.Storage[0].StorageType != "SSD" {
+		t.Errorf("expected SSD, got %s", spec.Storage[0].StorageType)
 	}
 }
 
@@ -404,8 +416,8 @@ func Test_CollectHardwareProfile_OptionalFieldsMissing(t *testing.T) {
 	if spec.RAMBytes != nil {
 		t.Errorf("expected nil RAMBytes when /proc/meminfo missing")
 	}
-	if spec.StorageBytes != nil {
-		t.Errorf("expected nil StorageBytes when lsblk fails")
+	if len(spec.Storage) != 0 {
+		t.Errorf("expected empty Storage when lsblk fails, got %v", spec.Storage)
 	}
 	if len(spec.GPUs) != 1 {
 		t.Errorf("expected 1 GPU, got %d", len(spec.GPUs))

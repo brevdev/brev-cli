@@ -30,14 +30,19 @@ func (r ExecCommandRunner) Run(name string, args ...string) ([]byte, error) {
 // NodeSpec matches the proto NodeSpec message from dev-plane.
 // All fields are best-effort.
 type NodeSpec struct {
-	GPUs         []NodeGPU `json:"gpus"`
-	RAMBytes     *int64    `json:"ram_bytes,omitempty"`
-	CPUCount     *int32    `json:"cpu_count,omitempty"`
-	Architecture string    `json:"architecture,omitempty"`
-	StorageBytes *int64    `json:"storage_bytes,omitempty"`
-	StorageType  string    `json:"storage_type,omitempty"`
-	OS           string    `json:"os,omitempty"`
-	OSVersion    string    `json:"os_version,omitempty"`
+	GPUs         []NodeGPU     `json:"gpus"`
+	RAMBytes     *int64        `json:"ram_bytes,omitempty"`
+	CPUCount     *int32        `json:"cpu_count,omitempty"`
+	Architecture string        `json:"architecture,omitempty"`
+	Storage      []NodeStorage `json:"storage,omitempty"`
+	OS           string        `json:"os,omitempty"`
+	OSVersion    string        `json:"os_version,omitempty"`
+}
+
+// NodeStorage represents a single storage device with its size and type.
+type NodeStorage struct {
+	StorageBytes int64  `json:"storage_bytes"`
+	StorageType  string `json:"storage_type,omitempty"` // "SSD" or "HDD"
 }
 
 // NodeGPU matches the proto NodeGPU message.
@@ -76,11 +81,7 @@ func CollectHardwareProfile(runner CommandRunner, reader FileReader) (*NodeSpec,
 	spec.OS = osName
 	spec.OSVersion = osVersion
 
-	storageBytes, storageType := collectStorage(runner)
-	if storageBytes > 0 {
-		spec.StorageBytes = &storageBytes
-		spec.StorageType = storageType
-	}
+	spec.Storage = collectStorage(runner)
 
 	return spec, nil
 }
@@ -235,39 +236,42 @@ func parseNvidiaSMIOutput(output string) []NodeGPU {
 	return gpus
 }
 
-// collectStorage sums disk devices from lsblk to get total storage bytes
-// and infers a storage type from the device names.
-func collectStorage(runner CommandRunner) (int64, string) {
-	out, err := runner.Run("lsblk", "-b", "-d", "-n", "-o", "NAME,SIZE,TYPE")
+// collectStorage returns per-device storage entries from lsblk,
+// using the ROTA column to determine device type.
+func collectStorage(runner CommandRunner) []NodeStorage {
+	out, err := runner.Run("lsblk", "-b", "-d", "-n", "-o", "NAME,SIZE,TYPE,ROTA")
 	if err != nil {
-		return 0, ""
+		return nil
 	}
 	return parseStorageOutput(string(out))
 }
 
-// parseStorageOutput parses lsblk output, summing disk device sizes and
-// inferring storage type.
-func parseStorageOutput(output string) (int64, string) {
-	var totalBytes int64
-	storageType := ""
+// parseStorageOutput parses lsblk output (NAME,SIZE,TYPE,ROTA columns),
+// returning one NodeStorage entry per disk device. ROTA=0 → SSD, ROTA=1 → HDD.
+func parseStorageOutput(output string) []NodeStorage {
+	var devices []NodeStorage
 	scanner := bufio.NewScanner(strings.NewReader(output))
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) < 3 || fields[2] != "disk" {
+		if len(fields) < 4 || fields[2] != "disk" {
 			continue
 		}
 		size, err := strconv.ParseInt(fields[1], 10, 64)
 		if err != nil {
 			continue
 		}
-		totalBytes += size
-		if storageType == "" {
-			if strings.HasPrefix(fields[0], "nvme") {
-				storageType = "NVMe"
+		entry := NodeStorage{StorageBytes: size}
+		rota, err := strconv.Atoi(fields[3])
+		if err == nil {
+			if rota == 0 {
+				entry.StorageType = "SSD"
+			} else {
+				entry.StorageType = "HDD"
 			}
 		}
+		devices = append(devices, entry)
 	}
-	return totalBytes, storageType
+	return devices
 }
 
 // FormatNodeSpec returns a human-readable summary of the hardware profile.
@@ -291,10 +295,10 @@ func FormatNodeSpec(s *NodeSpec) string {
 	if s.OS != "" || s.OSVersion != "" {
 		_, _ = fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
 	}
-	if s.StorageBytes != nil {
-		_, _ = fmt.Fprintf(&b, "    Storage: %d GB", *s.StorageBytes/(1024*1024*1024))
-		if s.StorageType != "" {
-			_, _ = fmt.Fprintf(&b, " (%s)", s.StorageType)
+	for _, st := range s.Storage {
+		_, _ = fmt.Fprintf(&b, "    Storage: %d GB", st.StorageBytes/(1024*1024*1024))
+		if st.StorageType != "" {
+			_, _ = fmt.Fprintf(&b, " (%s)", st.StorageType)
 		}
 		b.WriteString("\n")
 	}
