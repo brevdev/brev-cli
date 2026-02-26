@@ -2,10 +2,14 @@
 package register
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
 	"runtime"
+	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -19,6 +23,7 @@ type RegisterStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetBrevHomePath() (string, error)
+	GetAccessToken() (string, error)
 }
 
 // OSFileReader reads files from the real OS filesystem.
@@ -53,7 +58,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		Long:                  registerLong,
 		Example:               registerExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRegister(t, store, name)
+			return runRegister(cmd.Context(), t, store, name)
 		},
 	}
 
@@ -63,7 +68,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	return cmd
 }
 
-func runRegister(t *terminal.Terminal, s RegisterStore, name string) error { //nolint:funlen // registration flow
+func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string) error { //nolint:funlen // registration flow
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("brev register is only supported on Linux (DGX Spark)")
 	}
@@ -104,7 +109,8 @@ func runRegister(t *terminal.Terminal, s RegisterStore, name string) error { //n
 	t.Vprint("")
 	t.Vprint("This will perform the following steps:")
 	t.Vprint("  1. Install netbird (network agent)")
-	t.Vprint("  2. Register this machine with Brev")
+	t.Vprint("  2. Collect hardware profile")
+	t.Vprint("  3. Register this machine with Brev")
 	t.Vprint("")
 
 	result := terminal.PromptSelectInput(terminal.PromptSelectContent{
@@ -117,14 +123,14 @@ func runRegister(t *terminal.Terminal, s RegisterStore, name string) error { //n
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 1/2] Installing netbird..."))
+	t.Vprint(t.Yellow("[Step 1/3] Installing netbird..."))
 	if err := InstallNetbird(t); err != nil {
 		return fmt.Errorf("netbird installation failed: %w", err)
 	}
 	t.Vprint(t.Green("  Netbird installed successfully."))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 2/2] Collecting hardware profile..."))
+	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
 	t.Vprint("")
 
 	runner := ExecCommandRunner{}
@@ -138,13 +144,45 @@ func runRegister(t *terminal.Terminal, s RegisterStore, name string) error { //n
 	t.Vprint(FormatNodeSpec(nodeSpec))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[TODO] Registration API call not yet implemented."))
-	t.Vprint("       Once implemented, the backend will return an external_node_id")
-	t.Vprintf("       that will be persisted to %s/spark_registration.json.\n", brevHome)
+	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
+
+	deviceID := uuid.New().String()
+	client := NewConnectNodeClient(s, DevPlaneBaseURL)
+	addResp, err := client.AddNode(ctx, &AddNodeRequest{
+		OrganizationID: org.ID,
+		Name:           name,
+		DeviceID:       deviceID,
+		NodeSpec:       nodeSpec,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to register node: %w", err)
+	}
+
+	reg := &SparkRegistration{
+		ExternalNodeID: addResp.ExternalNode.ExternalNodeID,
+		DisplayName:    name,
+		OrgID:          org.ID,
+		DeviceID:       deviceID,
+		RegisteredAt:   time.Now().UTC().Format(time.RFC3339),
+		NodeSpec:       *nodeSpec,
+	}
+	if err := SaveRegistration(brevHome, reg); err != nil {
+		return fmt.Errorf("node registered but failed to save locally: %w", err)
+	}
+
+	t.Vprint(t.Green("  Registration complete."))
+	t.Vprintf("  Node ID: %s\n", addResp.ExternalNode.ExternalNodeID)
+
+	if len(addResp.SetupCommands) > 0 {
+		t.Vprint("")
+		t.Vprint("  Running network setup commands...")
+		if err := runSetupCommands(addResp.SetupCommands); err != nil {
+			t.Vprintf("  Warning: setup command failed: %v\n", err)
+		} else {
+			t.Vprint(t.Green("  Network setup complete."))
+		}
+	}
+
 	t.Vprint("")
-
-	_ = org.ID // will be used in AddNodeRequest.organization_id
-	_ = name   // will be sent as AddNodeRequest.name
-
 	return nil
 }

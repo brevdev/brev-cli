@@ -22,6 +22,20 @@ func InstallNetbird(t *terminal.Terminal) error {
 	return nil
 }
 
+// runSetupCommands executes the setup commands returned by the AddNode RPC.
+// The commands are keyed by name; values are shell commands to execute.
+func runSetupCommands(commands map[string]string) error {
+	for name, script := range commands {
+		cmd := exec.Command("bash", "-c", script) // #nosec G204
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("setup command %q failed: %w", name, err)
+		}
+	}
+	return nil
+}
+
 // UninstallNetbird stops, uninstalls, and removes netbird.
 func UninstallNetbird(t *terminal.Terminal) error {
 	script := `netbird service stop && netbird service uninstall && sudo apt-get remove -y netbird`

@@ -2,6 +2,7 @@
 package deregister
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 
@@ -17,6 +18,7 @@ import (
 type DeregisterStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetBrevHomePath() (string, error)
+	GetAccessToken() (string, error)
 }
 
 var (
@@ -37,14 +39,14 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 		Long:                  deregisterLong,
 		Example:               deregisterExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDeregister(t, store)
+			return runDeregister(cmd.Context(), t, store)
 		},
 	}
 
 	return cmd
 }
 
-func runDeregister(t *terminal.Terminal, s DeregisterStore) error {
+func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore) error { //nolint:funlen // deregistration flow
 	if runtime.GOOS != "linux" {
 		return fmt.Errorf("brev deregister is only supported on Linux (DGX Spark)")
 	}
@@ -85,7 +87,15 @@ func runDeregister(t *terminal.Terminal, s DeregisterStore) error {
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[TODO] Deregistration API call not yet implemented."))
+	t.Vprint(t.Yellow("Removing node from Brev..."))
+	client := register.NewConnectNodeClient(s, register.DevPlaneBaseURL)
+	if err := client.RemoveNode(ctx, &register.RemoveNodeRequest{
+		ExternalNodeID: reg.ExternalNodeID,
+		OrganizationID: reg.OrgID,
+	}); err != nil {
+		return fmt.Errorf("failed to deregister node: %w", err)
+	}
+	t.Vprint(t.Green("  Node removed from Brev."))
 	t.Vprint("")
 
 	if removeNetbird == "Yes, uninstall netbird" {
@@ -98,7 +108,7 @@ func runDeregister(t *terminal.Terminal, s DeregisterStore) error {
 		t.Vprint("")
 	}
 
-	t.Vprint("Removing local registration data...")
+	t.Vprint("Removing registration data...")
 	if err := register.DeleteRegistration(brevHome); err != nil {
 		return fmt.Errorf("failed to remove registration data: %w", err)
 	}
