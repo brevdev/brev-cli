@@ -2,6 +2,7 @@ package register
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -33,7 +34,7 @@ func SaveRegistration(brevHome string, reg *DeviceRegistration) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if err := files.AppFs.MkdirAll(filepath.Dir(path), 0o770); err != nil {
+	if err := files.AppFs.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if err := afero.WriteFile(files.AppFs, path, data, 0o600); err != nil {
@@ -64,8 +65,15 @@ func DeleteRegistration(brevHome string) error {
 }
 
 // RegistrationExists checks if a registration file exists.
-func RegistrationExists(brevHome string) bool {
+// Returns (exists, error) so callers can distinguish "not found" from real errors.
+func RegistrationExists(brevHome string) (bool, error) {
 	path := registrationPath(brevHome)
-	exists, _ := files.AppFs.Stat(path)
-	return exists != nil
+	_, err := files.AppFs.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, breverrors.WrapAndTrace(err)
 }

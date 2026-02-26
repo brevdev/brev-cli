@@ -264,8 +264,6 @@ func parseStorageOutput(output string) (int64, string) {
 		if storageType == "" {
 			if strings.HasPrefix(fields[0], "nvme") {
 				storageType = "NVMe"
-			} else {
-				storageType = "SSD"
 			}
 		}
 	}

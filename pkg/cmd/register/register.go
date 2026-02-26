@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"time"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
@@ -40,6 +41,36 @@ func (r OSFileReader) ReadFile(path string) ([]byte, error) {
 	return data, nil
 }
 
+// registerDeps bundles the side-effecting dependencies of runRegister so they
+// can be replaced in tests.
+type registerDeps struct {
+	goos            string
+	promptYesNo     func(label string) bool
+	installNetbird  func(t *terminal.Terminal) error
+	runSetupCommand func(script string) error
+	newNodeClient   func(provider TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient
+	commandRunner   CommandRunner
+	fileReader      FileReader
+}
+
+func prodRegisterDeps() registerDeps {
+	return registerDeps{
+		goos: runtime.GOOS,
+		promptYesNo: func(label string) bool {
+			result := terminal.PromptSelectInput(terminal.PromptSelectContent{
+				Label: label,
+				Items: []string{"Yes, proceed", "No, cancel"},
+			})
+			return result == "Yes, proceed"
+		},
+		installNetbird:  InstallNetbird,
+		runSetupCommand: runSetupCommand,
+		newNodeClient:   NewNodeServiceClient,
+		commandRunner:   ExecCommandRunner{},
+		fileReader:      OSFileReader{},
+	}
+}
+
 var (
 	registerLong = `Register your DGX Spark with NVIDIA Brev
 
@@ -60,7 +91,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		Long:                  registerLong,
 		Example:               registerExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRegister(cmd.Context(), t, store, name)
+			return runRegister(cmd.Context(), t, store, name, prodRegisterDeps())
 		},
 	}
 
@@ -70,12 +101,12 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	return cmd
 }
 
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string) error { //nolint:funlen // registration flow
-	if runtime.GOOS != "linux" {
+func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error { //nolint:funlen // registration flow
+	if deps.goos != "linux" {
 		return fmt.Errorf("brev register is only supported on Linux (DGX Spark)")
 	}
 
-	currentUser, err := s.GetCurrentUser()
+	_, err := s.GetCurrentUser() // ensure active token
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -93,14 +124,16 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		return breverrors.WrapAndTrace(err)
 	}
 
-	if RegistrationExists(brevHome) {
+	alreadyRegistered, err := RegistrationExists(brevHome)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if alreadyRegistered {
 		return fmt.Errorf("this machine is already registered; run 'brev deregister' first to re-register")
 	}
 
-	linuxUser := currentUser.Username
-	if u, err := user.Current(); err == nil {
-		linuxUser = u.Username
-	}
+	u, _ := user.Current()
+	linuxUser := u.Username
 
 	t.Vprint("")
 	t.Vprint(t.Green("Registering your DGX Spark with Brev"))
@@ -110,23 +143,19 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprintf("  Linux user:   %s\n", linuxUser)
 	t.Vprint("")
 	t.Vprint("This will perform the following steps:")
-	t.Vprint("  1. Install NetBird (network agent)")
+	t.Vprint("  1. Install NetBird")
 	t.Vprint("  2. Collect hardware profile")
 	t.Vprint("  3. Register this machine with Brev")
 	t.Vprint("")
 
-	result := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label: "Proceed with registration?",
-		Items: []string{"Yes, proceed", "No, cancel"},
-	})
-	if result != "Yes, proceed" {
+	if !deps.promptYesNo("Proceed with registration?") {
 		t.Vprint("Registration canceled.")
 		return nil
 	}
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 1/3] Installing NetBird..."))
-	if err := InstallNetbird(t); err != nil {
+	if err := deps.installNetbird(t); err != nil {
 		return fmt.Errorf("NetBird installation failed: %w", err)
 	}
 	t.Vprint(t.Green("  NetBird installed successfully."))
@@ -135,9 +164,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
 	t.Vprint("")
 
-	runner := ExecCommandRunner{}
-	reader := OSFileReader{}
-	nodeSpec, err := CollectHardwareProfile(runner, reader)
+	nodeSpec, err := CollectHardwareProfile(deps.commandRunner, deps.fileReader)
 	if err != nil {
 		return fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
@@ -149,7 +176,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
 
 	deviceID := uuid.New().String()
-	client := NewNodeServiceClient(s, config.GlobalConfig.GetBrevAPIURl())
+	client := deps.newNodeClient(s, config.GlobalConfig.GetBrevAPIURl())
 	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
 		OrganizationId: org.ID,
 		Name:           name,
@@ -176,7 +203,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(t.Green("  Registration complete."))
 
 	if cmd := addResp.Msg.GetSetupCommand(); cmd != "" {
-		if err := runSetupCommand(cmd); err != nil {
+		if err := deps.runSetupCommand(cmd); err != nil {
 			t.Vprintf("  Warning: setup command failed: %v\n", err)
 		}
 	}

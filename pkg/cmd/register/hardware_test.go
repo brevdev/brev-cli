@@ -153,9 +153,12 @@ sda  2048 rom
 func Test_parseStorageOutput_SDA(t *testing.T) {
 	output := `sda  500107862016 disk
 `
-	_, storageType := parseStorageOutput(output)
-	if storageType != "SSD" {
-		t.Errorf("expected SSD, got %s", storageType)
+	totalBytes, storageType := parseStorageOutput(output)
+	if totalBytes != 500107862016 {
+		t.Errorf("expected 500107862016 bytes, got %d", totalBytes)
+	}
+	if storageType != "" {
+		t.Errorf("expected empty storage type for non-nvme disk, got %s", storageType)
 	}
 }
 

@@ -70,7 +70,11 @@ func Test_RegistrationExists_ReturnsFalseWhenMissing(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
-	if RegistrationExists(brevHome) {
+	exists, err := RegistrationExists(brevHome)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
 		t.Error("expected RegistrationExists to return false")
 	}
 }
@@ -87,7 +91,11 @@ func Test_RegistrationExists_ReturnsTrueAfterSave(t *testing.T) {
 		t.Fatalf("SaveRegistration failed: %v", err)
 	}
 
-	if !RegistrationExists(brevHome) {
+	exists, err := RegistrationExists(brevHome)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !exists {
 		t.Error("expected RegistrationExists to return true")
 	}
 }
@@ -108,7 +116,11 @@ func Test_DeleteRegistration_RemovesFile(t *testing.T) {
 		t.Fatalf("DeleteRegistration failed: %v", err)
 	}
 
-	if RegistrationExists(brevHome) {
+	exists, err := RegistrationExists(brevHome)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if exists {
 		t.Error("expected RegistrationExists to return false after delete")
 	}
 }

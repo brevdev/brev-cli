@@ -9,14 +9,14 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-// tokenProvider abstracts access token retrieval for the HTTP transport.
-type tokenProvider interface {
+// TokenProvider abstracts access token retrieval for the HTTP transport.
+type TokenProvider interface {
 	GetAccessToken() (string, error)
 }
 
 // bearerTokenTransport injects a Bearer token into every request.
 type bearerTokenTransport struct {
-	provider tokenProvider
+	provider TokenProvider
 	base     http.RoundTripper
 }
 
@@ -36,7 +36,7 @@ func (t *bearerTokenTransport) RoundTrip(req *http.Request) (*http.Response, err
 
 // newAuthenticatedHTTPClient creates an http.Client that injects the bearer token
 // from the given provider on every request.
-func newAuthenticatedHTTPClient(provider tokenProvider) *http.Client {
+func newAuthenticatedHTTPClient(provider TokenProvider) *http.Client {
 	return &http.Client{
 		Transport: &bearerTokenTransport{
 			provider: provider,
@@ -47,7 +47,7 @@ func newAuthenticatedHTTPClient(provider tokenProvider) *http.Client {
 
 // NewNodeServiceClient creates a ConnectRPC ExternalNodeServiceClient using the
 // given token provider for authentication.
-func NewNodeServiceClient(provider tokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
+func NewNodeServiceClient(provider TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
 	return nodev1connect.NewExternalNodeServiceClient(
 		newAuthenticatedHTTPClient(provider),
 		baseURL,
