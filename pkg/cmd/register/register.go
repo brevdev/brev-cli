@@ -17,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -25,6 +26,7 @@ import (
 // RegisterStore defines the store methods needed by the register command.
 type RegisterStore interface {
 	GetCurrentUser() (*entity.User, error)
+	GetCurrentUserKeys() (*entity.UserKeys, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetBrevHomePath() (string, error)
 	GetAccessToken() (string, error)
@@ -181,6 +183,18 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	}
 
 	t.Vprint(t.Green("  Registration complete."))
+
+	// Add user's public key to authorized_keys for SSH access
+	keys, err := s.GetCurrentUserKeys()
+	if err != nil {
+		t.Vprintf("  Warning: failed to get user keys: %v\n", err)
+	} else if keys.PublicKey != "" {
+		if err := files.WriteAuthorizedKey(files.AppFs, keys.PublicKey, u.HomeDir); err != nil {
+			t.Vprintf("  Warning: failed to add public key to authorized_keys: %v\n", err)
+		} else {
+			t.Vprint(t.Green("  Added public key to authorized_keys."))
+		}
+	}
 
 	if cmd := addResp.Msg.GetSetupCommand(); cmd != "" {
 		if err := deps.runSetupCommand(cmd); err != nil {
