@@ -22,6 +22,8 @@ func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
+	store := NewFileRegistrationStore(brevHome)
+
 	cpuCount := int32(12)
 	ramBytes := int64(137438953472)
 	reg := &DeviceRegistration{
@@ -37,13 +39,13 @@ func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
 		},
 	}
 
-	if err := SaveRegistration(brevHome, reg); err != nil {
-		t.Fatalf("SaveRegistration failed: %v", err)
+	if err := store.Save(reg); err != nil {
+		t.Fatalf("Save failed: %v", err)
 	}
 
-	loaded, err := LoadRegistration(brevHome)
+	loaded, err := store.Load()
 	if err != nil {
-		t.Fatalf("LoadRegistration failed: %v", err)
+		t.Fatalf("Load failed: %v", err)
 	}
 
 	if loaded.ExternalNodeID != reg.ExternalNodeID {
@@ -70,12 +72,14 @@ func Test_RegistrationExists_ReturnsFalseWhenMissing(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
-	exists, err := RegistrationExists(brevHome)
+	store := NewFileRegistrationStore(brevHome)
+
+	exists, err := store.Exists()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exists {
-		t.Error("expected RegistrationExists to return false")
+		t.Error("expected Exists to return false")
 	}
 }
 
@@ -83,20 +87,22 @@ func Test_RegistrationExists_ReturnsTrueAfterSave(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
+	store := NewFileRegistrationStore(brevHome)
+
 	reg := &DeviceRegistration{
 		ExternalNodeID: "unode_abc123",
 		DisplayName:    "Test",
 	}
-	if err := SaveRegistration(brevHome, reg); err != nil {
-		t.Fatalf("SaveRegistration failed: %v", err)
+	if err := store.Save(reg); err != nil {
+		t.Fatalf("Save failed: %v", err)
 	}
 
-	exists, err := RegistrationExists(brevHome)
+	exists, err := store.Exists()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !exists {
-		t.Error("expected RegistrationExists to return true")
+		t.Error("expected Exists to return true")
 	}
 }
 
@@ -104,24 +110,26 @@ func Test_DeleteRegistration_RemovesFile(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
+	store := NewFileRegistrationStore(brevHome)
+
 	reg := &DeviceRegistration{
 		ExternalNodeID: "unode_abc123",
 		DisplayName:    "Test",
 	}
-	if err := SaveRegistration(brevHome, reg); err != nil {
-		t.Fatalf("SaveRegistration failed: %v", err)
+	if err := store.Save(reg); err != nil {
+		t.Fatalf("Save failed: %v", err)
 	}
 
-	if err := DeleteRegistration(brevHome); err != nil {
-		t.Fatalf("DeleteRegistration failed: %v", err)
+	if err := store.Delete(); err != nil {
+		t.Fatalf("Delete failed: %v", err)
 	}
 
-	exists, err := RegistrationExists(brevHome)
+	exists, err := store.Exists()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exists {
-		t.Error("expected RegistrationExists to return false after delete")
+		t.Error("expected Exists to return false after delete")
 	}
 }
 
@@ -129,7 +137,9 @@ func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
-	_, err := LoadRegistration(brevHome)
+	store := NewFileRegistrationStore(brevHome)
+
+	_, err := store.Load()
 	if err == nil {
 		t.Error("expected error loading missing registration")
 	}
@@ -139,7 +149,9 @@ func Test_DeleteRegistration_FailsWhenMissing(t *testing.T) {
 	brevHome, cleanup := setupTestFs(t)
 	defer cleanup()
 
-	err := DeleteRegistration(brevHome)
+	store := NewFileRegistrationStore(brevHome)
+
+	err := store.Delete()
 	if err == nil {
 		t.Error("expected error deleting missing registration")
 	}

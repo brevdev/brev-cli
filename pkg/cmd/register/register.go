@@ -1,4 +1,4 @@
-// Package register provides the brev register command for DGX Spark registration
+// Package register provides the brev register command for device registration
 package register
 
 import (
@@ -44,16 +44,17 @@ func (r OSFileReader) ReadFile(path string) ([]byte, error) {
 // registerDeps bundles the side-effecting dependencies of runRegister so they
 // can be replaced in tests.
 type registerDeps struct {
-	goos            string
-	promptYesNo     func(label string) bool
-	installNetbird  func(t *terminal.Terminal) error
-	runSetupCommand func(script string) error
-	newNodeClient   func(provider TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient
-	commandRunner   CommandRunner
-	fileReader      FileReader
+	goos              string
+	promptYesNo       func(label string) bool
+	installNetbird    func() error
+	runSetupCommand   func(script string) error
+	newNodeClient     func(provider TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient
+	commandRunner     CommandRunner
+	fileReader        FileReader
+	registrationStore RegistrationStore
 }
 
-func prodRegisterDeps() registerDeps {
+func prodRegisterDeps(brevHome string) registerDeps {
 	return registerDeps{
 		goos: runtime.GOOS,
 		promptYesNo: func(label string) bool {
@@ -63,16 +64,17 @@ func prodRegisterDeps() registerDeps {
 			})
 			return result == "Yes, proceed"
 		},
-		installNetbird:  InstallNetbird,
-		runSetupCommand: runSetupCommand,
-		newNodeClient:   NewNodeServiceClient,
-		commandRunner:   ExecCommandRunner{},
-		fileReader:      OSFileReader{},
+		installNetbird:    InstallNetbird,
+		runSetupCommand:   runSetupCommand,
+		newNodeClient:     NewNodeServiceClient,
+		commandRunner:     ExecCommandRunner{},
+		fileReader:        OSFileReader{},
+		registrationStore: NewFileRegistrationStore(brevHome),
 	}
 }
 
 var (
-	registerLong = `Register your DGX Spark with NVIDIA Brev
+	registerLong = `Register your device with NVIDIA Brev
 
 This command installs NetBird (network agent), and registers this machine with Brev.`
 
@@ -85,13 +87,16 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "register",
-		Aliases:               []string{"spark"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Register this device with Brev",
 		Long:                  registerLong,
 		Example:               registerExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRegister(cmd.Context(), t, store, name, prodRegisterDeps())
+			brevHome, err := store.GetBrevHomePath()
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			return runRegister(cmd.Context(), t, store, name, prodRegisterDeps(brevHome))
 		},
 	}
 
@@ -102,45 +107,20 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 }
 
 func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error { //nolint:funlen // registration flow
-	if deps.goos != "linux" {
-		return fmt.Errorf("brev register is only supported on Linux (DGX Spark)")
-	}
-
-	_, err := s.GetCurrentUser() // ensure active token
+	org, err := getOrgToRegisterFor(deps, s)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	org, err := s.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return fmt.Errorf("no organization found; please create or join an organization first")
-	}
-
-	brevHome, err := s.GetBrevHomePath()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	alreadyRegistered, err := RegistrationExists(brevHome)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if alreadyRegistered {
-		return fmt.Errorf("this machine is already registered; run 'brev deregister' first to re-register")
+		return err
 	}
 
 	u, _ := user.Current()
 	linuxUser := u.Username
 
 	t.Vprint("")
-	t.Vprint(t.Green("Registering your DGX Spark with Brev"))
+	t.Vprint(t.Green("Registering your device with Brev"))
 	t.Vprint("")
 	t.Vprintf("  Name:         %s\n", t.Yellow(name))
 	t.Vprintf("  Organization: %s\n", org.Name)
-	t.Vprintf("  Linux user:   %s\n", linuxUser)
+	t.Vprintf("  Registering for Linux user:   %s\n", linuxUser)
 	t.Vprint("")
 	t.Vprint("This will perform the following steps:")
 	t.Vprint("  1. Install NetBird")
@@ -155,7 +135,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 1/3] Installing NetBird..."))
-	if err := deps.installNetbird(t); err != nil {
+	if err := deps.installNetbird(); err != nil {
 		return fmt.Errorf("NetBird installation failed: %w", err)
 	}
 	t.Vprint(t.Green("  NetBird installed successfully."))
@@ -196,7 +176,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		RegisteredAt:   time.Now().UTC().Format(time.RFC3339),
 		NodeSpec:       *nodeSpec,
 	}
-	if err := SaveRegistration(brevHome, reg); err != nil {
+	if err := deps.registrationStore.Save(reg); err != nil {
 		return fmt.Errorf("node registered but failed to save locally: %w", err)
 	}
 
@@ -208,4 +188,32 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		}
 	}
 	return nil
+}
+
+func getOrgToRegisterFor(deps registerDeps, s RegisterStore) (*entity.Organization, error) {
+	if deps.goos != "linux" {
+		return nil, fmt.Errorf("brev register is only supported on Linux")
+	}
+
+	_, err := s.GetCurrentUser() // ensure active token
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	org, err := s.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return nil, fmt.Errorf("no organization found; please create or join an organization first")
+	}
+
+	alreadyRegistered, err := deps.registrationStore.Exists()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if alreadyRegistered {
+		return nil, fmt.Errorf("this machine is already registered; run 'brev deregister' first to re-register")
+	}
+	return org, nil
 }

@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-
-	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-// InstallNetbird downloads and installs NetBird using the official install script.
-func InstallNetbird(t *terminal.Terminal) error {
+// InstallNetbird installs NetBird if it is not already present.
+func InstallNetbird() error {
+	if _, err := exec.LookPath("netbird"); err == nil {
+		return nil
+	}
+
 	script := `(curl -fsSL https://pkgs.netbird.io/install.sh | sh) || (curl -fsSL https://pkgs.netbird.io/install.sh | sh -s -- --update)`
 
 	cmd := exec.Command("bash", "-c", script) // #nosec G204
@@ -34,7 +36,7 @@ func runSetupCommand(script string) error {
 }
 
 // UninstallNetbird stops, uninstalls, and removes NetBird.
-func UninstallNetbird(t *terminal.Terminal) error {
+func UninstallNetbird() error {
 	script := `netbird service stop && netbird service uninstall && sudo apt-get remove -y netbird`
 
 	cmd := exec.Command("bash", "-c", script) // #nosec G204

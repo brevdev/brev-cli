@@ -2,6 +2,7 @@ package register
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -10,9 +11,7 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/spf13/afero"
 )
 
 // mockRegisterStore satisfies RegisterStore for orchestration tests.
@@ -38,9 +37,35 @@ func (m *mockRegisterStore) GetActiveOrganizationOrDefault() (*entity.Organizati
 func (m *mockRegisterStore) GetBrevHomePath() (string, error) { return m.home, nil }
 func (m *mockRegisterStore) GetAccessToken() (string, error)  { return m.token, nil }
 
-// testRegisterDeps returns deps with all side-effects stubbed out, and a fake
+// mockRegistrationStore satisfies RegistrationStore for orchestration tests.
+type mockRegistrationStore struct {
+	reg *DeviceRegistration
+}
+
+func (m *mockRegistrationStore) Save(reg *DeviceRegistration) error {
+	m.reg = reg
+	return nil
+}
+
+func (m *mockRegistrationStore) Load() (*DeviceRegistration, error) {
+	if m.reg == nil {
+		return nil, fmt.Errorf("no registration")
+	}
+	return m.reg, nil
+}
+
+func (m *mockRegistrationStore) Delete() error {
+	m.reg = nil
+	return nil
+}
+
+func (m *mockRegistrationStore) Exists() (bool, error) {
+	return m.reg != nil, nil
+}
+
+// testRegisterDeps returns deps with all side effects stubbed out, and a fake
 // ConnectRPC server backed by the provided fakeNodeService.
-func testRegisterDeps(t *testing.T, svc *fakeNodeService) (registerDeps, *httptest.Server) {
+func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationStore) (registerDeps, *httptest.Server) {
 	t.Helper()
 
 	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
@@ -49,7 +74,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService) (registerDeps, *httpte
 	return registerDeps{
 		goos:            "linux",
 		promptYesNo:     func(_ string) bool { return true },
-		installNetbird:  func(_ *terminal.Terminal) error { return nil },
+		installNetbird:  func() error { return nil },
 		runSetupCommand: func(_ string) error { return nil },
 		newNodeClient: func(provider TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
 			return NewNodeServiceClient(provider, server.URL)
@@ -67,28 +92,17 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService) (registerDeps, *httpte
 				"/etc/os-release": []byte("NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\n"),
 			},
 		},
+		registrationStore: regStore,
 	}, server
 }
 
-func setupRegisterTestFs(t *testing.T) (string, func()) {
-	t.Helper()
-	origFs := files.AppFs
-	files.AppFs = afero.NewMemMapFs()
-	brevHome := "/home/testuser/.brev"
-	if err := files.AppFs.MkdirAll(brevHome, 0o700); err != nil {
-		t.Fatalf("failed to create test dir: %v", err)
-	}
-	return brevHome, func() { files.AppFs = origFs }
-}
-
 func Test_runRegister_HappyPath(t *testing.T) {
-	brevHome, cleanup := setupRegisterTestFs(t)
-	defer cleanup()
+	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
@@ -113,7 +127,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 		},
 	}
 
-	deps, server := testRegisterDeps(t, svc)
+	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.runSetupCommand = func(cmd string) error {
@@ -128,17 +142,17 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	}
 
 	// Verify registration was persisted
-	exists, err := RegistrationExists(brevHome)
+	exists, err := regStore.Exists()
 	if err != nil {
-		t.Fatalf("RegistrationExists error: %v", err)
+		t.Fatalf("Exists error: %v", err)
 	}
 	if !exists {
-		t.Fatal("expected registration file to exist after successful register")
+		t.Fatal("expected registration to exist after successful register")
 	}
 
-	reg, err := LoadRegistration(brevHome)
+	reg, err := regStore.Load()
 	if err != nil {
-		t.Fatalf("LoadRegistration failed: %v", err)
+		t.Fatalf("Load failed: %v", err)
 	}
 	if reg.ExternalNodeID != "unode_abc" {
 		t.Errorf("expected ExternalNodeID unode_abc, got %s", reg.ExternalNodeID)
@@ -157,18 +171,17 @@ func Test_runRegister_HappyPath(t *testing.T) {
 }
 
 func Test_runRegister_UserCancels(t *testing.T) {
-	brevHome, cleanup := setupRegisterTestFs(t)
-	defer cleanup()
+	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc)
+	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.promptYesNo = func(_ string) bool { return false }
@@ -179,35 +192,33 @@ func Test_runRegister_UserCancels(t *testing.T) {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
 
-	// Registration file should not exist
-	exists, err := RegistrationExists(brevHome)
+	// Registration should not exist
+	exists, err := regStore.Exists()
 	if err != nil {
-		t.Fatalf("RegistrationExists error: %v", err)
+		t.Fatalf("Exists error: %v", err)
 	}
 	if exists {
-		t.Error("registration file should not exist after cancel")
+		t.Error("registration should not exist after cancel")
 	}
 }
 
 func Test_runRegister_AlreadyRegistered(t *testing.T) {
-	brevHome, cleanup := setupRegisterTestFs(t)
-	defer cleanup()
-
-	// Save an existing registration
-	_ = SaveRegistration(brevHome, &DeviceRegistration{
-		ExternalNodeID: "unode_existing",
-		DisplayName:    "Existing",
-	})
+	regStore := &mockRegistrationStore{
+		reg: &DeviceRegistration{
+			ExternalNodeID: "unode_existing",
+			DisplayName:    "Existing",
+		},
+	}
 
 	store := &mockRegisterStore{
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc)
+	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
@@ -218,18 +229,17 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 }
 
 func Test_runRegister_NoOrganization(t *testing.T) {
-	brevHome, cleanup := setupRegisterTestFs(t)
-	defer cleanup()
+	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
 		user:  &entity.User{ID: "user_1"},
 		org:   nil,
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc)
+	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
@@ -240,13 +250,12 @@ func Test_runRegister_NoOrganization(t *testing.T) {
 }
 
 func Test_runRegister_AddNodeFails(t *testing.T) {
-	brevHome, cleanup := setupRegisterTestFs(t)
-	defer cleanup()
+	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
@@ -256,7 +265,7 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 		},
 	}
 
-	deps, server := testRegisterDeps(t, svc)
+	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
@@ -265,24 +274,23 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 		t.Fatal("expected error when AddNode fails")
 	}
 
-	// Registration file should not exist on failure
-	exists, err := RegistrationExists(brevHome)
+	// Registration should not exist on failure
+	exists, err := regStore.Exists()
 	if err != nil {
-		t.Fatalf("RegistrationExists error: %v", err)
+		t.Fatalf("Exists error: %v", err)
 	}
 	if exists {
-		t.Error("registration file should not exist after AddNode failure")
+		t.Error("registration should not exist after AddNode failure")
 	}
 }
 
 func Test_runRegister_NoSetupCommand(t *testing.T) {
-	brevHome, cleanup := setupRegisterTestFs(t)
-	defer cleanup()
+	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
@@ -301,7 +309,7 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 		},
 	}
 
-	deps, server := testRegisterDeps(t, svc)
+	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.runSetupCommand = func(_ string) error {

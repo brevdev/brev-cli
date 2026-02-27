@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/afero"
 )
 
-const registrationFileName = "spark_registration.json"
+const registrationFileName = "device_registration.json"
 
 // DeviceRegistration is the persistent identity file for a registered device.
 // Fields align with the AddNodeResponse from dev-plane.
@@ -23,13 +23,30 @@ type DeviceRegistration struct {
 	NodeSpec       NodeSpec `json:"node_spec"`
 }
 
-func registrationPath(brevHome string) string {
-	return filepath.Join(brevHome, registrationFileName)
+// RegistrationStore defines the contract for persisting device registration data.
+type RegistrationStore interface {
+	Save(reg *DeviceRegistration) error
+	Load() (*DeviceRegistration, error)
+	Delete() error
+	Exists() (bool, error)
 }
 
-// SaveRegistration writes the registration to ~/.brev/spark_registration.json.
-func SaveRegistration(brevHome string, reg *DeviceRegistration) error {
-	path := registrationPath(brevHome)
+// FileRegistrationStore implements RegistrationStore using the local filesystem.
+type FileRegistrationStore struct {
+	brevHome string
+}
+
+// NewFileRegistrationStore returns a FileRegistrationStore rooted at brevHome.
+func NewFileRegistrationStore(brevHome string) *FileRegistrationStore {
+	return &FileRegistrationStore{brevHome: brevHome}
+}
+
+func (s *FileRegistrationStore) path() string {
+	return filepath.Join(s.brevHome, registrationFileName)
+}
+
+func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
+	path := s.path()
 	data, err := json.MarshalIndent(reg, "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -43,9 +60,8 @@ func SaveRegistration(brevHome string, reg *DeviceRegistration) error {
 	return nil
 }
 
-// LoadRegistration reads the registration from ~/.brev/spark_registration.json.
-func LoadRegistration(brevHome string) (*DeviceRegistration, error) {
-	path := registrationPath(brevHome)
+func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
+	path := s.path()
 	var reg DeviceRegistration
 	err := files.ReadJSON(files.AppFs, path, &reg)
 	if err != nil {
@@ -54,9 +70,8 @@ func LoadRegistration(brevHome string) (*DeviceRegistration, error) {
 	return &reg, nil
 }
 
-// DeleteRegistration removes ~/.brev/spark_registration.json.
-func DeleteRegistration(brevHome string) error {
-	path := registrationPath(brevHome)
+func (s *FileRegistrationStore) Delete() error {
+	path := s.path()
 	err := files.DeleteFile(files.AppFs, path)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -64,10 +79,8 @@ func DeleteRegistration(brevHome string) error {
 	return nil
 }
 
-// RegistrationExists checks if a registration file exists.
-// Returns (exists, error) so callers can distinguish "not found" from real errors.
-func RegistrationExists(brevHome string) (bool, error) {
-	path := registrationPath(brevHome)
+func (s *FileRegistrationStore) Exists() (bool, error) {
+	path := s.path()
 	_, err := files.AppFs.Stat(path)
 	if err == nil {
 		return true, nil

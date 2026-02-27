@@ -91,11 +91,14 @@ func Test_toProtoNodeSpec(t *testing.T) {
 	if proto.GetOsVersion() != "24.04" {
 		t.Errorf("expected 24.04, got %s", proto.GetOsVersion())
 	}
-	if proto.GetStorageBytes() != 500107862016 {
-		t.Errorf("expected StorageBytes, got %d", proto.GetStorageBytes())
+	if len(proto.GetStorage()) != 1 {
+		t.Fatalf("expected 1 storage entry, got %d", len(proto.GetStorage()))
 	}
-	if proto.GetStorageType() != "SSD" {
-		t.Errorf("expected SSD, got %s", proto.GetStorageType())
+	if proto.GetStorage()[0].GetStorageBytes() != 500107862016 {
+		t.Errorf("expected StorageBytes 500107862016, got %d", proto.GetStorage()[0].GetStorageBytes())
+	}
+	if proto.GetStorage()[0].GetStorageType() != "SSD" {
+		t.Errorf("expected SSD, got %s", proto.GetStorage()[0].GetStorageType())
 	}
 	if len(proto.GetGpus()) != 1 {
 		t.Fatalf("expected 1 GPU, got %d", len(proto.GetGpus()))

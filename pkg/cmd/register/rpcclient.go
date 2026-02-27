@@ -66,22 +66,11 @@ func toProtoNodeSpec(s *NodeSpec) *nodev1.NodeSpec {
 		CpuCount: s.CPUCount,
 	}
 
-	// Bridge: sum storage array into the scalar proto fields until the
-	// proto is updated with repeated StorageSpec. Delete this block when
-	// we `go get` the new buf module commit.
-	if len(s.Storage) > 0 {
-		var totalBytes int64
-		var firstType string
-		for _, st := range s.Storage {
-			totalBytes += st.StorageBytes
-			if firstType == "" && st.StorageType != "" {
-				firstType = st.StorageType
-			}
-		}
-		proto.StorageBytes = &totalBytes
-		if firstType != "" {
-			proto.StorageType = &firstType
-		}
+	for _, st := range s.Storage {
+		proto.Storage = append(proto.Storage, &nodev1.StorageSpec{
+			StorageBytes: st.StorageBytes,
+			StorageType:  st.StorageType,
+		})
 	}
 
 	if s.Architecture != "" {

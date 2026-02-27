@@ -2,6 +2,7 @@ package deregister
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -11,9 +12,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/spf13/afero"
 )
 
 type mockDeregisterStore struct {
@@ -47,20 +46,35 @@ func (f *fakeNodeService) RemoveNode(_ context.Context, req *connect.Request[nod
 	return connect.NewResponse(resp), nil
 }
 
-func setupDeregisterTestFs(t *testing.T) (string, func()) {
-	t.Helper()
-	origFs := files.AppFs
-	files.AppFs = afero.NewMemMapFs()
-	brevHome := "/home/testuser/.brev"
-	if err := files.AppFs.MkdirAll(brevHome, 0o700); err != nil {
-		t.Fatalf("failed to create test dir: %v", err)
+// mockRegistrationStore satisfies register.RegistrationStore for deregister tests.
+type mockRegistrationStore struct {
+	reg *register.DeviceRegistration
+}
+
+func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
+	m.reg = reg
+	return nil
+}
+
+func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
+	if m.reg == nil {
+		return nil, fmt.Errorf("no registration")
 	}
-	return brevHome, func() { files.AppFs = origFs }
+	return m.reg, nil
+}
+
+func (m *mockRegistrationStore) Delete() error {
+	m.reg = nil
+	return nil
+}
+
+func (m *mockRegistrationStore) Exists() (bool, error) {
+	return m.reg != nil, nil
 }
 
 // testDeregisterDeps returns deps with all side-effects stubbed. The
 // promptSelect defaults to confirming all prompts.
-func testDeregisterDeps(t *testing.T, svc *fakeNodeService) (deregisterDeps, *httptest.Server) {
+func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.RegistrationStore) (deregisterDeps, *httptest.Server) {
 	t.Helper()
 
 	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
@@ -75,31 +89,27 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService) (deregisterDeps, *ht
 			}
 			return ""
 		},
-		uninstallNetbird: func(_ *terminal.Terminal) error { return nil },
+		uninstallNetbird: func() error { return nil },
 		newNodeClient: func(provider register.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
 			return register.NewNodeServiceClient(provider, server.URL)
 		},
-		registrationExists: register.RegistrationExists,
-		loadRegistration:   register.LoadRegistration,
-		deleteRegistration: register.DeleteRegistration,
+		registrationStore: regStore,
 	}, server
 }
 
 func Test_runDeregister_HappyPath(t *testing.T) {
-	brevHome, cleanup := setupDeregisterTestFs(t)
-	defer cleanup()
-
-	// Pre-save a registration
-	_ = register.SaveRegistration(brevHome, &register.DeviceRegistration{
-		ExternalNodeID: "unode_abc",
-		DisplayName:    "My Spark",
-		OrgID:          "org_123",
-		DeviceID:       "dev-uuid",
-	})
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+			DeviceID:       "dev-uuid",
+		},
+	}
 
 	store := &mockDeregisterStore{
 		user:  &entity.User{ID: "user_1"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
@@ -112,7 +122,7 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc)
+	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
@@ -128,34 +138,33 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 		t.Errorf("expected org ID org_123, got %s", gotOrgID)
 	}
 
-	// Registration file should be deleted
-	exists, err := register.RegistrationExists(brevHome)
+	// Registration should be deleted
+	exists, err := regStore.Exists()
 	if err != nil {
-		t.Fatalf("RegistrationExists error: %v", err)
+		t.Fatalf("Exists error: %v", err)
 	}
 	if exists {
-		t.Error("expected registration file to be deleted after deregister")
+		t.Error("expected registration to be deleted after deregister")
 	}
 }
 
 func Test_runDeregister_UserCancels(t *testing.T) {
-	brevHome, cleanup := setupDeregisterTestFs(t)
-	defer cleanup()
-
-	_ = register.SaveRegistration(brevHome, &register.DeviceRegistration{
-		ExternalNodeID: "unode_abc",
-		DisplayName:    "My Spark",
-		OrgID:          "org_123",
-	})
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+		},
+	}
 
 	store := &mockDeregisterStore{
 		user:  &entity.User{ID: "user_1"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testDeregisterDeps(t, svc)
+	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	callCount := 0
@@ -174,10 +183,10 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
 
-	// Registration file should still exist
-	exists, err := register.RegistrationExists(brevHome)
+	// Registration should still exist
+	exists, err := regStore.Exists()
 	if err != nil {
-		t.Fatalf("RegistrationExists error: %v", err)
+		t.Fatalf("Exists error: %v", err)
 	}
 	if !exists {
 		t.Error("registration should still exist after cancel")
@@ -185,17 +194,16 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 }
 
 func Test_runDeregister_NotRegistered(t *testing.T) {
-	brevHome, cleanup := setupDeregisterTestFs(t)
-	defer cleanup()
+	regStore := &mockRegistrationStore{}
 
 	store := &mockDeregisterStore{
 		user:  &entity.User{ID: "user_1"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testDeregisterDeps(t, svc)
+	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
@@ -206,18 +214,17 @@ func Test_runDeregister_NotRegistered(t *testing.T) {
 }
 
 func Test_runDeregister_RemoveNodeFails(t *testing.T) {
-	brevHome, cleanup := setupDeregisterTestFs(t)
-	defer cleanup()
-
-	_ = register.SaveRegistration(brevHome, &register.DeviceRegistration{
-		ExternalNodeID: "unode_abc",
-		DisplayName:    "My Spark",
-		OrgID:          "org_123",
-	})
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+		},
+	}
 
 	store := &mockDeregisterStore{
 		user:  &entity.User{ID: "user_1"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
@@ -227,7 +234,7 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc)
+	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
@@ -236,10 +243,10 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 		t.Fatal("expected error when RemoveNode fails")
 	}
 
-	// Registration file should still exist (server-side removal failed)
-	exists, err := register.RegistrationExists(brevHome)
+	// Registration should still exist (server-side removal failed)
+	exists, err := regStore.Exists()
 	if err != nil {
-		t.Fatalf("RegistrationExists error: %v", err)
+		t.Fatalf("Exists error: %v", err)
 	}
 	if !exists {
 		t.Error("registration should still exist when RemoveNode fails")
@@ -247,18 +254,17 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 }
 
 func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
-	brevHome, cleanup := setupDeregisterTestFs(t)
-	defer cleanup()
-
-	_ = register.SaveRegistration(brevHome, &register.DeviceRegistration{
-		ExternalNodeID: "unode_abc",
-		DisplayName:    "My Spark",
-		OrgID:          "org_123",
-	})
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+		},
+	}
 
 	store := &mockDeregisterStore{
 		user:  &entity.User{ID: "user_1"},
-		home:  brevHome,
+		home:  "/home/testuser/.brev",
 		token: "tok",
 	}
 
@@ -269,7 +275,7 @@ func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
 	}
 
 	uninstallCalled := false
-	deps, server := testDeregisterDeps(t, svc)
+	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.promptSelect = func(label string, items []string) string {
@@ -278,7 +284,7 @@ func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
 		}
 		return "Yes, proceed"
 	}
-	deps.uninstallNetbird = func(_ *terminal.Terminal) error {
+	deps.uninstallNetbird = func() error {
 		uninstallCalled = true
 		return nil
 	}
