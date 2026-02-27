@@ -22,6 +22,7 @@ type RefreshStore interface {
 	ssh.SSHConfigurerV2Store
 	GetCurrentUser() (*entity.User, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
+	WriteAuthorizedKey(publicKey string) error
 	Chmod(string, fs.FileMode) error
 	MkdirAll(string, fs.FileMode) error
 	GetBrevCloudflaredBinaryPath() (string, error)
@@ -62,12 +63,17 @@ func RunRefreshBetter(store RefreshStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cu, err := GetConfigUpdater(store)
+	cu, keys, err := GetConfigUpdater(store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	err = cu.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = store.WriteAuthorizedKey(keys.PublicKey)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -91,12 +97,17 @@ func RunRefresh(store RefreshStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cu, err := GetConfigUpdater(store)
+	cu, keys, err := GetConfigUpdater(store)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	err = cu.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = store.WriteAuthorizedKey(keys.PublicKey)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -139,20 +150,20 @@ func RunRefreshAsync(rstore RefreshStore) *RefreshRes {
 	return &res
 }
 
-func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
+func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, *entity.UserKeys, error) {
 	configs, err := ssh.GetSSHConfigs(store)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
 	keys, err := store.GetCurrentUserKeys()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
 	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
 
-	return cu, nil
+	return cu, keys, nil
 }
 
 func GetCloudflare(refreshStore RefreshStore) store.Cloudflared {

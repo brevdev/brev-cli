@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"golang.org/x/text/encoding/charmap"
@@ -73,6 +74,10 @@ func GetActiveOrgsPath(home string) string {
 func GetSSHPrivateKeyPath(home string) string {
 	fpath := makeBrevFilePath(GetSSHPrivateKeyFileName(), home)
 	return fpath
+}
+
+func GetAuthorizedKeysPath(home string) string {
+	return filepath.Join(home, ".ssh", "authorized_keys")
 }
 
 func GetUserSSHConfigPath(home string) (string, error) {
@@ -209,6 +214,39 @@ func OverwriteJSON(fs afero.Fs, filepath string, v interface{}) error {
 // clear
 
 // write
+
+// WriteAuthorizedKey ensures the given public key is present in ~/.ssh/authorized_keys.
+// It appends the key only if it's not already there.
+func WriteAuthorizedKey(fs afero.Fs, publicKey string, home string) error {
+	authorizedKeysPath := GetAuthorizedKeysPath(home)
+	err := fs.MkdirAll(filepath.Dir(authorizedKeysPath), 0o700)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	publicKey = strings.TrimSpace(publicKey)
+
+	existing, err := afero.ReadFile(fs, authorizedKeysPath)
+	if err != nil && !os.IsNotExist(err) {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if strings.Contains(string(existing), publicKey) {
+		return nil
+	}
+
+	content := string(existing)
+	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	content += publicKey + "\n"
+
+	err = afero.WriteFile(fs, authorizedKeysPath, []byte(content), 0o600)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
 
 func WriteSSHPrivateKey(fs afero.Fs, data string, home string) error {
 	pkPath := GetSSHPrivateKeyPath(home)

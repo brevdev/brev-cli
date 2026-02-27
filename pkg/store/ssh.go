@@ -235,6 +235,18 @@ func (f FileStore) WritePrivateKey(pem string) error {
 	return nil
 }
 
+func (f FileStore) WriteAuthorizedKey(publicKey string) error {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	err = files.WriteAuthorizedKey(f.fs, publicKey, home)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func (f FileStore) GetPrivateKeyPath() (string, error) {
 	home, err := f.UserHomeDir()
 	if err != nil {
