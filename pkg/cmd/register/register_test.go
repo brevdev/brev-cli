@@ -36,6 +36,9 @@ func (m *mockRegisterStore) GetActiveOrganizationOrDefault() (*entity.Organizati
 
 func (m *mockRegisterStore) GetBrevHomePath() (string, error) { return m.home, nil }
 func (m *mockRegisterStore) GetAccessToken() (string, error)  { return m.token, nil }
+func (m *mockRegisterStore) GetCurrentUserKeys() (*entity.UserKeys, error) {
+	return &entity.UserKeys{PublicKey: "ssh-rsa AAAA test@test", PrivateKey: "fake-private-key"}, nil
+}
 
 // mockRegistrationStore satisfies RegistrationStore for orchestration tests.
 type mockRegistrationStore struct {
