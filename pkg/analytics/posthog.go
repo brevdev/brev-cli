@@ -319,9 +319,24 @@ func getTimezone() string {
 }
 
 func getGPUInfo() string {
+	type result struct {
+		out string
+	}
+	ch := make(chan result, 1)
+	go func() {
+		ch <- result{out: getGPUInfoSync()}
+	}()
+	select {
+	case r := <-ch:
+		return r.out
+	case <-time.After(100 * time.Millisecond):
+		return ""
+	}
+}
+
+func getGPUInfoSync() string {
 	out, err := exec.Command("nvidia-smi", "--query-gpu=name,memory.total,driver_version,count", "--format=csv,noheader,nounits").Output() // #nosec G204
 	if err != nil {
-		// nvidia-smi not available or no NVIDIA GPU
 		if runtime.GOOS == "darwin" {
 			return getAppleGPUInfo()
 		}
@@ -335,7 +350,6 @@ func getAppleGPUInfo() string {
 	if err != nil {
 		return ""
 	}
-	// Extract just the chipset/model lines
 	lines := strings.Split(string(out), "\n")
 	var gpuLines []string
 	for _, line := range lines {
