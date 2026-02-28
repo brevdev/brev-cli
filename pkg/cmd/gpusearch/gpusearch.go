@@ -175,7 +175,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "search",
-		Aliases:               []string{"gpu-search", "gpu", "gpus", "gpu-list"},
+		Aliases:               []string{},
 		DisableFlagsInUseLine: true,
 		Short:                 "Search and filter GPU instance types",
 		Long:                  long,
