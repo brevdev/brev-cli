@@ -318,7 +318,7 @@ func parseStartupScript(value string) (string, error) {
 
 // searchInstances fetches and filters GPU instances using user-provided filters merged with defaults
 func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64, error) {
-	response, err := s.GetInstanceTypes()
+	response, err := s.GetInstanceTypes(false)
 	if err != nil {
 		return nil, 0, breverrors.WrapAndTrace(err)
 	}
@@ -340,8 +340,8 @@ func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.
 	}
 
 	instances := gpusearch.ProcessInstances(response.Items)
-	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, filters.minVRAM,
-		minTotalVRAM, minCapability, minDisk, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts)
+	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, "", filters.minVRAM,
+		minTotalVRAM, minCapability, 0, minDisk, 0, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts, true)
 	gpusearch.SortInstances(filtered, sortBy, filters.descending)
 
 	return filtered, minDisk, nil
@@ -375,7 +375,7 @@ func runDryRun(t *terminal.Terminal, s GPUCreateStore, filters *searchFilterFlag
 	}
 
 	piped := gpusearch.IsStdoutPiped()
-	if err := gpusearch.DisplayResults(t, filtered, false, piped); err != nil {
+	if err := gpusearch.DisplayGPUResults(t, filtered, false, piped, false); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil

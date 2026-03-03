@@ -86,11 +86,11 @@ func GetClassIDString(classID string) string {
 }
 
 func GetInstanceString(w entity.Workspace) string {
-	var instanceString string
-	if w.WorkspaceClassID != "" {
-		instanceString = GetClassIDString(w.WorkspaceClassID)
-	} else {
-		instanceString = w.InstanceType + " (gpu)"
+	if w.InstanceType != "" {
+		return w.InstanceType
 	}
-	return instanceString
+	if w.WorkspaceClassID != "" {
+		return GetClassIDString(w.WorkspaceClassID)
+	}
+	return ""
 }

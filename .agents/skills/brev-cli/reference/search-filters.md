@@ -1,6 +1,13 @@
-# GPU Search Filters Reference
+# Search Filters Reference
 
-Detailed guide to filtering and sorting GPU instance types.
+Detailed guide to filtering and sorting GPU and CPU instance types.
+
+## Command Structure
+
+`brev search` has two subcommands:
+- `brev search` or `brev search gpu` — GPU instances (default, backwards compatible)
+- `brev search gpu --wide` — GPU instances with extra RAM and ARCH columns
+- `brev search cpu` — CPU-only instances (no GPU)
 
 ## Filter Options
 
@@ -187,3 +194,64 @@ brev search --json | jq '.[] | {type, gpu_name, price}'
 | S | Stoppable - can stop/restart without data loss |
 | R | Rebootable - can reboot the instance |
 | P | Flex Ports - can modify firewall rules |
+
+## CPU Search (`brev search cpu`)
+
+CPU search shows instances without GPUs. It uses shared flags (no GPU-specific flags like `--gpu-name`, `--min-vram`, etc.).
+
+### CPU Filter Options
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--provider` | `-p` | Filter by cloud provider |
+| `--arch` | | Filter by architecture (x86_64, arm64) |
+| `--min-ram` | | Minimum RAM in GB |
+| `--min-disk` | | Minimum disk size in GB |
+| `--min-vcpu` | | Minimum number of vCPUs |
+| `--max-boot-time` | | Maximum boot time in minutes |
+| `--stoppable` | | Only stoppable instances |
+| `--rebootable` | | Only rebootable instances |
+| `--flex-ports` | | Only instances with configurable firewall |
+| `--sort` | `-s` | Sort column (price, vcpu, type, provider, disk, boot-time) |
+| `--desc` | `-d` | Sort descending |
+| `--json` | | Output as JSON |
+
+### CPU Output Columns
+
+**Interactive (terminal):**
+```
+TYPE | PROVIDER | VCPUs | RAM | ARCH | DISK | $/GB/MO | BOOT | FEATURES | $/HR
+```
+
+**Piped (stdout):**
+```
+TYPE | TARGET_DISK | PROVIDER | VCPUs | RAM | ARCH | DISK | $/GB/MO | BOOT | FEATURES | $/HR
+```
+
+### CPU Filter Examples
+
+```bash
+# All CPU instances
+brev search cpu
+
+# Cheap ARM instances
+brev search cpu --arch arm64 --sort price
+
+# High-memory instances for data processing
+brev search cpu --min-ram 128 --sort price
+
+# Many-core instances for parallel workloads
+brev search cpu --min-vcpu 32 --sort price
+
+# Fast-booting CPU instances
+brev search cpu --max-boot-time 3 --sort price
+
+# Stoppable CPU instances (save costs)
+brev search cpu --stoppable --sort price
+
+# AWS CPU instances with large disk
+brev search cpu --provider aws --min-disk 500
+
+# Pipe CPU search into create
+brev search cpu --min-ram 64 | brev create my-cpu-box
+```
