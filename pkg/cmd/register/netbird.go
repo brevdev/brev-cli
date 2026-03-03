@@ -1,0 +1,72 @@
+package register
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+)
+
+// InstallNetbird installs NetBird if it is not already present.
+func InstallNetbird() error {
+	if _, err := exec.LookPath("netbird"); err == nil {
+		return nil
+	}
+
+	script := `(curl -fsSL https://pkgs.netbird.io/install.sh | sh) || (curl -fsSL https://pkgs.netbird.io/install.sh | sh -s -- --update)`
+
+	cmd := exec.Command("bash", "-c", script) // #nosec G204
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install NetBird: %w", err)
+	}
+	return nil
+}
+
+// runSetupCommand executes the setup command returned by the AddNode RPC.
+func runSetupCommand(script string) error {
+	cmd := exec.Command("bash", "-c", script) // #nosec G204
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("setup command failed: %w", err)
+	}
+	return nil
+}
+
+// UninstallNetbird stops, uninstalls the service, and removes the NetBird
+// package or binary. It reads /etc/netbird/install.conf (written by the
+// install script) to determine the original installation method.
+// The down/stop steps are best-effort since the service may already be
+// disconnected or stopped after deregistration.
+func UninstallNetbird() error {
+	script := `
+sudo netbird down 2>/dev/null
+sudo netbird service stop 2>/dev/null
+sudo netbird service uninstall 2>/dev/null
+
+PKG_MGR="bin"
+if [ -f /etc/netbird/install.conf ]; then
+  PKG_MGR=$(grep -oP '(?<=package_manager=)\S+' /etc/netbird/install.conf 2>/dev/null || echo "bin")
+fi
+
+case "$PKG_MGR" in
+  apt)  sudo apt-get remove -y netbird ;;
+  dnf)  sudo dnf remove -y netbird ;;
+  yum)  sudo yum remove -y netbird ;;
+  *)    sudo rm -f /usr/bin/netbird /usr/local/bin/netbird ;;
+esac
+
+sudo rm -rf /etc/netbird
+`
+
+	cmd := exec.Command("bash", "-c", script) // #nosec G204
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to uninstall NetBird: %w", err)
+	}
+	return nil
+}

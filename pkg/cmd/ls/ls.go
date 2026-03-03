@@ -2,14 +2,19 @@
 package ls
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -32,6 +37,7 @@ type LsStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetAccessToken() (string, error)
 	hello.HelloStore
 }
 
@@ -99,7 +105,7 @@ with other commands like stop, start, or delete.`,
 			return nil
 		},
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
-		ValidArgs: []string{"orgs", "workspaces"},
+		ValidArgs: []string{"orgs", "workspaces", "nodes"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput)
 			if err != nil {
@@ -226,6 +232,12 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 			return breverrors.WrapAndTrace(err)
 		}
 		return nil
+	} else if util.IsSingularOrPlural(arg, "node") {
+		err := ls.RunNodes(org)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
 	}
 	return nil
 }
@@ -234,13 +246,19 @@ type Ls struct {
 	lsStore    LsStore
 	terminal   *terminal.Terminal
 	jsonOutput bool
+	piped      bool
 }
 
 func NewLs(lsStore LsStore, terminal *terminal.Terminal, jsonOutput bool) *Ls {
+	piped := false
+	if fi, err := os.Stdout.Stat(); err == nil {
+		piped = fi.Mode()&os.ModeCharDevice == 0
+	}
 	return &Ls{
 		lsStore:    lsStore,
 		terminal:   terminal,
 		jsonOutput: jsonOutput,
+		piped:      piped,
 	}
 }
 
@@ -422,6 +440,10 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	} else {
 		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces)
 	}
+
+	// Also show external nodes in the default listing
+	ls.showNodesSection(org)
+
 	return nil
 }
 
@@ -623,4 +645,124 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	default:
 		return status
 	}
+}
+
+// NodeInfo represents external node data for JSON output.
+type NodeInfo struct {
+	Name           string `json:"name"`
+	ExternalNodeID string `json:"external_node_id"`
+	DeviceID       string `json:"device_id"`
+	OrgID          string `json:"org_id"`
+	Status         string `json:"status"`
+}
+
+func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
+	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: org.ID,
+	}))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp.Msg.GetItems(), nil
+}
+
+// RunNodes lists external nodes for the given org.
+func (ls Ls) RunNodes(org *entity.Organization) error {
+	nodes, err := ls.listNodes(org)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if len(nodes) == 0 {
+		if ls.jsonOutput {
+			fmt.Println("[]")
+			return nil
+		}
+		if ls.piped {
+			return nil
+		}
+		ls.terminal.Vprint(ls.terminal.Yellow("No external nodes in this org."))
+		return nil
+	}
+
+	if ls.jsonOutput {
+		return ls.outputNodesJSON(nodes)
+	}
+	if ls.piped {
+		displayNodesTablePlain(nodes)
+		return nil
+	}
+
+	ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+	displayNodesTable(ls.terminal, nodes)
+	return nil
+}
+
+// showNodesSection appends external nodes to the default `brev ls` output.
+// Errors are silently ignored so that a ListNodes failure doesn't break the
+// workspace listing.
+func (ls Ls) showNodesSection(org *entity.Organization) {
+	nodes, err := ls.listNodes(org)
+	if err != nil || len(nodes) == 0 {
+		return
+	}
+
+	if ls.jsonOutput || ls.piped {
+		// JSON and piped modes are already handled per-section; skip here to
+		// avoid duplicating output when the user runs `brev ls nodes` explicitly.
+		return
+	}
+
+	ls.terminal.Vprintf("\nExternal Nodes (%d):\n", len(nodes))
+	displayNodesTable(ls.terminal, nodes)
+}
+
+func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
+	var infos []NodeInfo
+	for _, n := range nodes {
+		infos = append(infos, NodeInfo{
+			Name:           n.GetName(),
+			ExternalNodeID: n.GetExternalNodeId(),
+			DeviceID:       n.GetDeviceId(),
+			OrgID:          n.GetOrganizationId(),
+			Status:         nodeConnectionStatus(n),
+		})
+	}
+	output, err := json.MarshalIndent(infos, "", "  ")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	ta.AppendHeader(table.Row{"NAME", "NODE ID", "DEVICE ID", "STATUS"})
+	for _, n := range nodes {
+		status := nodeConnectionStatus(n)
+		ta.AppendRows([]table.Row{{n.GetName(), n.GetExternalNodeId(), n.GetDeviceId(), getStatusColoredText(t, status)}})
+	}
+	ta.Render()
+}
+
+func displayNodesTablePlain(nodes []*nodev1.ExternalNode) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	ta.AppendHeader(table.Row{"NAME", "NODE ID", "DEVICE ID", "STATUS"})
+	for _, n := range nodes {
+		ta.AppendRows([]table.Row{{n.GetName(), n.GetExternalNodeId(), n.GetDeviceId(), nodeConnectionStatus(n)}})
+	}
+	ta.Render()
+}
+
+func nodeConnectionStatus(n *nodev1.ExternalNode) string {
+	if ci := n.GetConnectivityInfo(); ci != nil && ci.GetRegistrationCommand() != "" {
+		return "REGISTERED"
+	}
+	return "UNKNOWN"
 }
