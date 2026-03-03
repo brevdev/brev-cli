@@ -233,7 +233,7 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 	}
 
 	_, analyticsAsked := analytics.IsAnalyticsEnabled()
-	if !analyticsAsked {
+	if !analyticsAsked && analytics.IsAnalyticsFeatureEnabled() {
 		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "Help us improve Brev by sharing usage data?",
 			ErrorMsg: "Error: must choose an option",
