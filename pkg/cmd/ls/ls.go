@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
@@ -32,6 +34,7 @@ type LsStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error)
 	hello.HelloStore
 }
 
@@ -329,9 +332,9 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
+func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
 
 	projects := virtualproject.NewVirtualProjects(allWorkspaces)
 
@@ -346,13 +349,13 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Orga
 	displayProjects(ls.terminal, org.Name, unjoinedProjects)
 }
 
-func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
+func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
 }
 
-func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
+func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
 		if len(allWorkspaces) > 0 {
@@ -368,7 +371,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		}
 	} else {
 		ls.terminal.Vprintf("You have %d instances in Org %s\n", len(userWorkspaces), ls.terminal.Yellow(org.Name))
-		displayWorkspacesTable(ls.terminal, userWorkspaces)
+		displayWorkspacesTable(ls.terminal, userWorkspaces, gpuLookup)
 
 		fmt.Print("\n")
 
@@ -393,10 +396,44 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 	}
 }
 
+// buildGPULookup builds a map of instance type name to GPU name.
+// Returns nil if the fetch fails (graceful degradation).
+func buildGPULookup(s LsStore) map[string]string {
+	resp, err := s.GetInstanceTypes(true)
+	if err != nil || resp == nil {
+		return nil
+	}
+	lookup := make(map[string]string, len(resp.Items))
+	for _, item := range resp.Items {
+		if len(item.SupportedGPUs) > 0 {
+			lookup[item.Type] = item.SupportedGPUs[0].Name
+		} else {
+			lookup[item.Type] = "-"
+		}
+	}
+	return lookup
+}
+
 func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
-	allWorkspaces, err := ls.lsStore.GetWorkspaces(org.ID, nil)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	// Fetch workspaces and instance types concurrently
+	var allWorkspaces []entity.Workspace
+	var wsErr error
+	var gpuLookup map[string]string
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		allWorkspaces, wsErr = ls.lsStore.GetWorkspaces(org.ID, nil)
+	}()
+	go func() {
+		defer wg.Done()
+		gpuLookup = buildGPULookup(ls.lsStore)
+	}()
+	wg.Wait()
+
+	if wsErr != nil {
+		return breverrors.WrapAndTrace(wsErr)
 	}
 
 	// Determine which workspaces to show
@@ -409,7 +446,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 
 	// Handle JSON output
 	if ls.jsonOutput {
-		return ls.outputWorkspacesJSON(workspacesToShow)
+		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup)
 	}
 
 	// Table output with colors and help text
@@ -418,9 +455,9 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		return breverrors.WrapAndTrace(err)
 	}
 	if showAll {
-		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces)
+		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
 	} else {
-		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces)
+		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
 	}
 	return nil
 }
@@ -435,12 +472,31 @@ type WorkspaceInfo struct {
 	HealthStatus string `json:"health_status"`
 	InstanceType string `json:"instance_type"`
 	InstanceKind string `json:"instance_kind"`
+	GPU          string `json:"gpu"`
+}
+
+// getGPUForInstance returns the GPU name for an instance type using the lookup map.
+// Returns the GPU name (e.g. "A100"), "-" for CPU-only, or "-" if unknown.
+func getGPUForInstance(w entity.Workspace, gpuLookup map[string]string) string {
+	if w.InstanceType != "" && gpuLookup != nil {
+		if gpu, ok := gpuLookup[w.InstanceType]; ok {
+			return gpu
+		}
+	}
+	if w.InstanceType == "" && w.WorkspaceClassID != "" {
+		return "-"
+	}
+	return "-"
 }
 
 // getInstanceTypeAndKind returns the instance type and kind (gpu/cpu)
-func getInstanceTypeAndKind(w entity.Workspace) (string, string) {
+func getInstanceTypeAndKind(w entity.Workspace, gpuLookup map[string]string) (string, string) {
 	if w.InstanceType != "" {
-		return w.InstanceType, "gpu"
+		gpu := getGPUForInstance(w, gpuLookup)
+		if gpu != "-" {
+			return w.InstanceType, "gpu"
+		}
+		return w.InstanceType, "cpu"
 	}
 	if w.WorkspaceClassID != "" {
 		return w.WorkspaceClassID, "cpu"
@@ -448,10 +504,10 @@ func getInstanceTypeAndKind(w entity.Workspace) (string, string) {
 	return "", ""
 }
 
-func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace) error {
+func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string) error {
 	var infos []WorkspaceInfo
 	for _, w := range workspaces {
-		instanceType, instanceKind := getInstanceTypeAndKind(w)
+		instanceType, instanceKind := getInstanceTypeAndKind(w, gpuLookup)
 		infos = append(infos, WorkspaceInfo{
 			Name:         w.Name,
 			ID:           w.ID,
@@ -461,6 +517,7 @@ func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace) error {
 			HealthStatus: w.HealthStatus,
 			InstanceType: instanceType,
 			InstanceKind: instanceKind,
+			GPU:          getGPUForInstance(w, gpuLookup),
 		})
 	}
 	output, err := json.MarshalIndent(infos, "", "  ")
@@ -514,16 +571,17 @@ func getBrevTableOptions() table.Options {
 	return options
 }
 
-func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace) {
+func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace, gpuLookup map[string]string) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"Name", "Status", "Build", "Shell", "ID", "Machine"}
+	header := table.Row{"Name", "Status", "Build", "Shell", "ID", "Machine", "GPU"}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := cmdutil.GetInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
+		gpu := getGPUForInstance(w, gpuLookup)
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString, gpu}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
@@ -550,16 +608,17 @@ func getWorkspaceDisplayStatus(w entity.Workspace) string {
 
 // displayWorkspacesTablePlain outputs a clean table without colors for piping
 // Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
-func displayWorkspacesTablePlain(workspaces []entity.Workspace) { //nolint:unused // see TODO above
+func displayWorkspacesTablePlain(workspaces []entity.Workspace, gpuLookup map[string]string) { //nolint:unused // see TODO above
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE"}
+	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE", "GPU"}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := cmdutil.GetInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString}}
+		gpu := getGPUForInstance(w, gpuLookup)
+		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString, gpu}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
