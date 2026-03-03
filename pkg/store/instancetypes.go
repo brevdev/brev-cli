@@ -17,23 +17,26 @@ const (
 )
 
 // GetInstanceTypes fetches all available instance types from the public API
-func (s NoAuthHTTPStore) GetInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
-	return fetchInstanceTypes()
+func (s NoAuthHTTPStore) GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
+	return fetchInstanceTypes(includeCPU)
 }
 
 // GetInstanceTypes fetches all available instance types from the public API
-func (s AuthHTTPStore) GetInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
-	return fetchInstanceTypes()
+func (s AuthHTTPStore) GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
+	return fetchInstanceTypes(includeCPU)
 }
 
 // fetchInstanceTypes fetches instance types from the public Brev API
-func fetchInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
+func fetchInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
 	cfg := config.NewConstants()
 	client := NewRestyClient(cfg.GetBrevPublicAPIURL())
 
-	res, err := client.R().
-		SetHeader("Accept", "application/json").
-		Get(instanceTypesAPIPath)
+	req := client.R().
+		SetHeader("Accept", "application/json")
+	if includeCPU {
+		req.SetQueryParam("include_cpu", "true")
+	}
+	res, err := req.Get(instanceTypesAPIPath)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

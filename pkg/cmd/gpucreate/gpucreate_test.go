@@ -97,7 +97,7 @@ func (m *MockGPUCreateStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string
 	return nil, nil
 }
 
-func (m *MockGPUCreateStore) GetInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
+func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
 	// Return a default set of instance types for testing
 	return &gpusearch.InstanceTypesResponse{
 		Items: []gpusearch.InstanceType{
@@ -353,6 +353,28 @@ func TestParseTableInput(t *testing.T) {
 	assert.Equal(t, 500.0, specs[1].DiskGB)
 	assert.Equal(t, "p4d.24xlarge", specs[2].Type)
 	assert.Equal(t, 1000.0, specs[2].DiskGB)
+}
+
+func TestParseTableInputCPU(t *testing.T) {
+	// Simulated plain table output from `brev search cpu`
+	tableInput := strings.Join([]string{
+		" TYPE                   TARGET_DISK  PROVIDER  VCPUS  RAM   ARCH    DISK       $/GB/MO  BOOT  FEATURES  $/HR",
+		" n2d-highcpu-2          10           gcp           2  2     x86_64  10GB-16TB  $0.13    7m    SP        $0.05",
+		" n1-standard-1          10           gcp           1  4     x86_64  10GB-16TB  $0.14    7m    SP        $0.06",
+		" m8i-flex.8xlarge       500          aws          32  128   x86_64  10GB-16TB  $0.10    7m    SRP       $1.93",
+		"",
+		"Found 3 CPU instance types",
+	}, "\n")
+
+	specs := parseTableInput(tableInput)
+
+	assert.Len(t, specs, 3)
+	assert.Equal(t, "n2d-highcpu-2", specs[0].Type)
+	assert.Equal(t, 10.0, specs[0].DiskGB)
+	assert.Equal(t, "n1-standard-1", specs[1].Type)
+	assert.Equal(t, 10.0, specs[1].DiskGB)
+	assert.Equal(t, "m8i-flex.8xlarge", specs[2].Type)
+	assert.Equal(t, 500.0, specs[2].DiskGB)
 }
 
 func TestParseJSONInput(t *testing.T) {

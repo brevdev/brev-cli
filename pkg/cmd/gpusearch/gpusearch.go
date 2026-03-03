@@ -60,7 +60,9 @@ type InstanceType struct {
 	Type                   string           `json:"type"`
 	SupportedGPUs          []GPU            `json:"supported_gpus"`
 	SupportedStorage       []Storage        `json:"supported_storage"`
+	SupportedArchitectures []string         `json:"supported_architectures"`
 	Memory                 string           `json:"memory"`
+	InstanceMemoryBytes    MemoryBytes      `json:"memory_bytes"`
 	VCPU                   int              `json:"vcpu"`
 	BasePrice              BasePrice        `json:"base_price"`
 	Location               string           `json:"location"`
@@ -98,110 +100,172 @@ func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) stri
 
 // GPUSearchStore defines the interface for fetching instance types
 type GPUSearchStore interface {
-	GetInstanceTypes() (*InstanceTypesResponse, error)
+	GetInstanceTypes(includeCPU bool) (*InstanceTypesResponse, error)
 }
 
 var (
-	long = `Search and filter GPU instance types available on Brev.
+	searchLong = `Search instance types available on Brev.
 
-Filter instances by GPU name, provider, VRAM, total VRAM, GPU compute capability, disk size, and boot time.
-Sort results by various columns to find the best instance for your needs.
+Use 'brev search gpu' (default) to find GPU instances.
+Use 'brev search cpu' to find CPU-only instances.
 
 Features column shows instance capabilities:
   S = Stoppable (can stop and restart without losing data)
   R = Rebootable (can reboot the instance)
   P = Flex Ports (can modify firewall/port rules)`
 
-	example = `
-  # List all GPU instances
+	gpuExample = `
+  # List all GPU instances (default)
   brev search
+  brev search gpu
 
   # Filter by GPU name (case-insensitive, partial match)
-  brev search --gpu-name A100
-  brev search --gpu-name "L40S"
-
-  # Filter by provider/cloud (case-insensitive, partial match)
-  brev search --provider aws
-  brev search --provider gcp
+  brev search gpu --gpu-name A100
 
   # Filter by minimum VRAM per GPU (in GB)
-  brev search --min-vram 24
+  brev search gpu --min-vram 24
 
-  # Filter by minimum total VRAM (in GB)
-  brev search --min-total-vram 80
+  # Wide output (includes RAM, ARCH columns)
+  brev search gpu --wide
 
-  # Filter by minimum GPU compute capability
-  brev search --min-capability 8.0
+  # Sort and combine filters
+  brev search gpu --gpu-name H100 --sort price
+  brev search gpu --stoppable --min-total-vram 40 --sort price
+`
 
-  # Filter by minimum disk size (in GB)
-  brev search --min-disk 500
+	cpuExample = `
+  # List all CPU instances
+  brev search cpu
 
-  # Filter by maximum boot time (in minutes)
-  brev search --max-boot-time 5
+  # Filter by provider
+  brev search cpu --provider aws
 
-  # Filter by instance features
-  brev search --stoppable              # Only show instances that can be stopped/restarted
-  brev search --rebootable             # Only show instances that can be rebooted
-  brev search --flex-ports             # Only show instances with configurable firewall rules
+  # Filter by minimum RAM
+  brev search cpu --min-ram 64
 
-  # Sort by different columns (price, gpu-count, vram, total-vram, vcpu, provider, disk, boot-time)
-  brev search --sort price
-  brev search --sort boot-time
-  brev search --sort disk --desc
+  # Filter by architecture
+  brev search cpu --arch arm64
 
-  # Combine filters
-  brev search --gpu-name A100 --min-vram 40 --sort price
-  brev search --gpu-name H100 --max-boot-time 3 --sort price
-  brev search --stoppable --min-total-vram 40 --sort price
+  # Sort by price
+  brev search cpu --sort price
 `
 )
 
-// NewCmdGPUSearch creates the search command
+// sharedFlags holds flags shared between gpu and cpu subcommands
+type sharedFlags struct {
+	provider    string
+	arch        string
+	minVCPU     int
+	minRAM      float64
+	minDisk     float64
+	maxBootTime int
+	stoppable   bool
+	rebootable  bool
+	flexPorts   bool
+	sortBy      string
+	descending  bool
+	jsonOutput  bool
+}
+
+// addSharedFlags adds common flags to a command
+func addSharedFlags(cmd *cobra.Command, f *sharedFlags) {
+	cmd.Flags().StringVarP(&f.provider, "provider", "p", "", "Filter by provider/cloud (case-insensitive, partial match)")
+	cmd.Flags().StringVar(&f.arch, "arch", "", "Filter by architecture (e.g., x86_64, arm64)")
+	cmd.Flags().IntVar(&f.minVCPU, "min-vcpu", 0, "Minimum number of vCPUs")
+	cmd.Flags().Float64Var(&f.minRAM, "min-ram", 0, "Minimum RAM in GB")
+	cmd.Flags().Float64Var(&f.minDisk, "min-disk", 0, "Minimum disk size in GB")
+	cmd.Flags().IntVar(&f.maxBootTime, "max-boot-time", 0, "Maximum boot time in minutes")
+	cmd.Flags().BoolVar(&f.stoppable, "stoppable", false, "Only show instances that can be stopped and restarted")
+	cmd.Flags().BoolVar(&f.rebootable, "rebootable", false, "Only show instances that can be rebooted")
+	cmd.Flags().BoolVar(&f.flexPorts, "flex-ports", false, "Only show instances with configurable firewall/port rules")
+	cmd.Flags().StringVarP(&f.sortBy, "sort", "s", "price", "Sort by column (see --help for options)")
+	cmd.Flags().BoolVarP(&f.descending, "desc", "d", false, "Sort in descending order")
+	cmd.Flags().BoolVar(&f.jsonOutput, "json", false, "Output results as JSON")
+}
+
+// NewCmdGPUSearch creates the search command with gpu and cpu subcommands
 func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command {
+	// GPU-specific flags (also used by parent default)
 	var gpuName string
-	var provider string
 	var minVRAM float64
 	var minTotalVRAM float64
 	var minCapability float64
-	var minDisk float64
-	var maxBootTime int
-	var stoppable bool
-	var rebootable bool
-	var flexPorts bool
-	var sortBy string
-	var descending bool
-	var jsonOutput bool
+	var wide bool
+	var shared sharedFlags
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "search",
 		Aliases:               []string{},
 		DisableFlagsInUseLine: true,
-		Short:                 "Search and filter GPU instance types",
-		Long:                  long,
-		Example:               example,
+		Short:                 "Search and filter instance types",
+		Long:                  searchLong,
+		Example:               gpuExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunGPUSearch(t, store, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime, stoppable, rebootable, flexPorts, sortBy, descending, jsonOutput)
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
+			// Default behavior: GPU search
+			return RunGPUSearch(t, store, gpuName, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
+		},
+	}
+
+	// GPU-specific flags on parent (for default gpu behavior)
+	cmd.Flags().StringVarP(&gpuName, "gpu-name", "g", "", "Filter by GPU name (case-insensitive, partial match)")
+	cmd.Flags().Float64VarP(&minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
+	cmd.Flags().Float64VarP(&minTotalVRAM, "min-total-vram", "t", 0, "Minimum total VRAM (GPU count * VRAM) in GB")
+	cmd.Flags().Float64VarP(&minCapability, "min-capability", "c", 0, "Minimum GPU compute capability (e.g., 8.0 for Ampere)")
+	cmd.Flags().BoolVarP(&wide, "wide", "w", false, "Show additional columns (RAM, ARCH)")
+	addSharedFlags(cmd, &shared)
+
+	// Add subcommands
+	cmd.AddCommand(newCmdGPUSubcommand(t, store))
+	cmd.AddCommand(newCmdCPUSubcommand(t, store))
+
+	return cmd
+}
+
+// newCmdGPUSubcommand creates the explicit 'gpu' subcommand
+func newCmdGPUSubcommand(t *terminal.Terminal, store GPUSearchStore) *cobra.Command {
+	var gpuName string
+	var minVRAM float64
+	var minTotalVRAM float64
+	var minCapability float64
+	var wide bool
+	var shared sharedFlags
+
+	cmd := &cobra.Command{
+		Use:                   "gpu",
+		DisableFlagsInUseLine: true,
+		Short:                 "Search GPU instance types",
+		Example:               gpuExample,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return RunGPUSearch(t, store, gpuName, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
 		},
 	}
 
 	cmd.Flags().StringVarP(&gpuName, "gpu-name", "g", "", "Filter by GPU name (case-insensitive, partial match)")
-	cmd.Flags().StringVarP(&provider, "provider", "p", "", "Filter by provider/cloud (case-insensitive, partial match)")
 	cmd.Flags().Float64VarP(&minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
 	cmd.Flags().Float64VarP(&minTotalVRAM, "min-total-vram", "t", 0, "Minimum total VRAM (GPU count * VRAM) in GB")
 	cmd.Flags().Float64VarP(&minCapability, "min-capability", "c", 0, "Minimum GPU compute capability (e.g., 8.0 for Ampere)")
-	cmd.Flags().Float64Var(&minDisk, "min-disk", 0, "Minimum disk size in GB")
-	cmd.Flags().IntVar(&maxBootTime, "max-boot-time", 0, "Maximum boot time in minutes")
-	cmd.Flags().BoolVar(&stoppable, "stoppable", false, "Only show instances that can be stopped and restarted")
-	cmd.Flags().BoolVar(&rebootable, "rebootable", false, "Only show instances that can be rebooted")
-	cmd.Flags().BoolVar(&flexPorts, "flex-ports", false, "Only show instances with configurable firewall/port rules")
-	cmd.Flags().StringVarP(&sortBy, "sort", "s", "price", "Sort by: price, gpu-count, vram, total-vram, vcpu, type, provider, disk, boot-time")
-	cmd.Flags().BoolVarP(&descending, "desc", "d", false, "Sort in descending order")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output results as JSON")
+	cmd.Flags().BoolVarP(&wide, "wide", "w", false, "Show additional columns (RAM, ARCH)")
+	addSharedFlags(cmd, &shared)
+
+	return cmd
+}
+
+// newCmdCPUSubcommand creates the 'cpu' subcommand
+func newCmdCPUSubcommand(t *terminal.Terminal, store GPUSearchStore) *cobra.Command {
+	var shared sharedFlags
+
+	cmd := &cobra.Command{
+		Use:                   "cpu",
+		DisableFlagsInUseLine: true,
+		Short:                 "Search CPU-only instance types",
+		Example:               cpuExample,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return RunCPUSearch(t, store, shared.provider, shared.arch, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput)
+		},
+	}
+
+	addSharedFlags(cmd, &shared)
 
 	return cmd
 }
@@ -218,6 +282,8 @@ type GPUInstanceInfo struct {
 	Capability     float64 `json:"capability"`
 	VCPUs          int     `json:"vcpus"`
 	Memory         string  `json:"memory"`
+	RAMInGB        float64 `json:"ram_gb"`
+	Arch           string  `json:"arch"`
 	DiskMin        float64 `json:"disk_min_gb"`
 	DiskMax        float64 `json:"disk_max_gb"`
 	DiskPricePerMo float64 `json:"disk_price_per_gb_mo,omitempty"` // $/GB/month for flexible storage
@@ -237,15 +303,14 @@ func IsStdoutPiped() bool {
 }
 
 // RunGPUSearch executes the GPU search with filters and sorting
-func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput bool) error {
+func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider, arch string, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput, wide bool) error {
 	if err := validateSortOption(sortBy); err != nil {
 		return err
 	}
 
-	// Detect if stdout is piped (for plain table output)
 	piped := IsStdoutPiped()
 
-	response, err := store.GetInstanceTypes()
+	response, err := store.GetInstanceTypes(false)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -254,24 +319,49 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider 
 		return displayEmptyResults(t, "No instance types found", jsonOutput, piped)
 	}
 
-	// Process and filter instances
 	instances := ProcessInstances(response.Items)
 
-	// Apply filters
-	filtered := FilterInstances(instances, gpuName, provider, minVRAM, minTotalVRAM, minCapability, minDisk, maxBootTime, stoppable, rebootable, flexPorts)
+	// Filter to GPU-only instances
+	filtered := FilterInstances(instances, gpuName, provider, arch, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts, false)
 
 	if len(filtered) == 0 {
 		return displayEmptyResults(t, "No GPU instances match the specified filters", jsonOutput, piped)
 	}
 
-	// Set target disk for each instance
 	setTargetDisks(filtered, minDisk)
-
-	// Sort instances
 	SortInstances(filtered, sortBy, descending)
+	return DisplayGPUResults(t, filtered, jsonOutput, piped, wide)
+}
 
-	// Display results
-	return DisplayResults(t, filtered, jsonOutput, piped)
+// RunCPUSearch executes the CPU search with filters and sorting
+func RunCPUSearch(t *terminal.Terminal, store GPUSearchStore, provider, arch string, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput bool) error {
+	if err := validateSortOption(sortBy); err != nil {
+		return err
+	}
+
+	piped := IsStdoutPiped()
+
+	response, err := store.GetInstanceTypes(true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if response == nil || len(response.Items) == 0 {
+		return displayEmptyResults(t, "No instance types found", jsonOutput, piped)
+	}
+
+	instances := ProcessInstances(response.Items)
+
+	// Filter to CPU-only instances
+	filtered := FilterCPUInstances(instances, provider, arch, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts)
+
+	if len(filtered) == 0 {
+		return displayEmptyResults(t, "No CPU instances match the specified filters", jsonOutput, piped)
+	}
+
+	setTargetDisks(filtered, minDisk)
+	SortInstances(filtered, sortBy, descending)
+	return DisplayCPUResults(t, filtered, jsonOutput, piped)
 }
 
 // validateSortOption returns an error if sortBy is not a valid option
@@ -312,22 +402,44 @@ func setTargetDisks(instances []GPUInstanceInfo, minDisk float64) {
 	}
 }
 
-// displayResults renders the GPU instances in the appropriate format
-func DisplayResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
+// DisplayGPUResults renders GPU instances in the appropriate format
+func DisplayGPUResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped, wide bool) error {
 	if jsonOutput {
-		return displayGPUJSON(instances)
+		return displayJSON(instances)
 	}
 	if piped {
-		displayGPUTablePlain(instances)
+		if wide {
+			displayGPUTablePlainWide(instances)
+		} else {
+			displayGPUTablePlain(instances)
+		}
 		return nil
 	}
-	displayGPUTable(t, instances)
+	if wide {
+		displayGPUTableWide(t, instances)
+	} else {
+		displayGPUTable(t, instances)
+	}
 	t.Vprintf("\n%s\n", t.Green(fmt.Sprintf("Found %d GPU instance types", len(instances))))
 	return nil
 }
 
-// displayGPUJSON outputs the GPU instances as JSON
-func displayGPUJSON(instances []GPUInstanceInfo) error {
+// DisplayCPUResults renders CPU instances in the appropriate format
+func DisplayCPUResults(t *terminal.Terminal, instances []GPUInstanceInfo, jsonOutput, piped bool) error {
+	if jsonOutput {
+		return displayJSON(instances)
+	}
+	if piped {
+		displayCPUTablePlain(instances)
+		return nil
+	}
+	displayCPUTable(instances)
+	t.Vprintf("\n%s\n", t.Green(fmt.Sprintf("Found %d CPU instance types", len(instances))))
+	return nil
+}
+
+// displayJSON outputs instances as JSON
+func displayJSON(instances []GPUInstanceInfo) error {
 	output, err := json.MarshalIndent(instances, "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -369,6 +481,8 @@ var validSortOptions = map[string]bool{
 	"provider":   true,
 	"disk":       true,
 	"boot-time":  true,
+	"ram":        true,
+	"arch":       true,
 }
 
 // parseToGB converts size/memory strings like "22GiB360MiB", "16TiB", "2TiB768GiB" to GB
@@ -390,6 +504,19 @@ func parseMemoryToGB(memory string) float64 {
 // parseSizeToGB parses size strings like "16TiB", "10GiB", "2TiB768GiB" to GB
 func parseSizeToGB(size string) float64 {
 	return parseToGB(size)
+}
+
+// memoryBytesToGB converts a MemoryBytes struct to GB
+func memoryBytesToGB(mb MemoryBytes) float64 {
+	switch mb.Unit {
+	case "MiB", "MB":
+		return float64(mb.Value) / 1024
+	case "GiB", "GB":
+		return float64(mb.Value)
+	case "TiB", "TB":
+		return float64(mb.Value) * 1024
+	}
+	return 0
 }
 
 // parseDurationToSeconds parses Go duration strings like "7m0s", "1m30s" to seconds
@@ -578,35 +705,63 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 	var instances []GPUInstanceInfo
 
 	for _, item := range items {
-		if len(item.SupportedGPUs) == 0 {
-			continue // Skip non-GPU instances
-		}
-
 		// Extract disk size and price info from first storage entry
 		diskMin, diskMax, diskPricePerMo := extractDiskInfo(item.SupportedStorage)
 
 		// Extract boot time
 		bootTime := parseDurationToSeconds(item.EstimatedDeployTime)
 
+		price := 0.0
+		if item.BasePrice.Amount != "" {
+			price, _ = strconv.ParseFloat(item.BasePrice.Amount, 64)
+		}
+
+		// Extract architecture
+		arch := "-"
+		if len(item.SupportedArchitectures) > 0 {
+			arch = item.SupportedArchitectures[0]
+		}
+
+		// Parse instance RAM
+		ramInGB := parseMemoryToGB(item.Memory)
+		if ramInGB == 0 && item.InstanceMemoryBytes.Value > 0 {
+			ramInGB = memoryBytesToGB(item.InstanceMemoryBytes)
+		}
+
+		if len(item.SupportedGPUs) == 0 {
+			// CPU-only instance
+			instances = append(instances, GPUInstanceInfo{
+				Type:           item.Type,
+				Cloud:          extractCloud(item.Type, item.Provider),
+				Provider:       item.Provider,
+				GPUName:        "-",
+				GPUCount:       0,
+				VCPUs:          item.VCPU,
+				Memory:         item.Memory,
+				RAMInGB:        ramInGB,
+				Arch:           arch,
+				DiskMin:        diskMin,
+				DiskMax:        diskMax,
+				DiskPricePerMo: diskPricePerMo,
+				BootTime:       bootTime,
+				Stoppable:      item.Stoppable,
+				Rebootable:     item.Rebootable,
+				FlexPorts:      item.CanModifyFirewallRules,
+				PricePerHour:   price,
+				Manufacturer:   "cpu",
+			})
+			continue
+		}
+
 		for _, gpu := range item.SupportedGPUs {
 			vramPerGPU := parseMemoryToGB(gpu.Memory)
 			// Also check memory_bytes as fallback
 			if vramPerGPU == 0 && gpu.MemoryBytes.Value > 0 {
-				// Convert based on unit
-				if gpu.MemoryBytes.Unit == "MiB" {
-					vramPerGPU = float64(gpu.MemoryBytes.Value) / 1024 // MiB to GiB
-				} else if gpu.MemoryBytes.Unit == "GiB" {
-					vramPerGPU = float64(gpu.MemoryBytes.Value)
-				}
+				vramPerGPU = memoryBytesToGB(gpu.MemoryBytes)
 			}
 
 			totalVRAM := vramPerGPU * float64(gpu.Count)
 			capability := getGPUCapability(gpu.Name)
-
-			price := 0.0
-			if item.BasePrice.Amount != "" {
-				price, _ = strconv.ParseFloat(item.BasePrice.Amount, 64)
-			}
 
 			instances = append(instances, GPUInstanceInfo{
 				Type:           item.Type,
@@ -619,6 +774,8 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 				Capability:     capability,
 				VCPUs:          item.VCPU,
 				Memory:         item.Memory,
+				RAMInGB:        ramInGB,
+				Arch:           arch,
 				DiskMin:        diskMin,
 				DiskMax:        diskMax,
 				DiskPricePerMo: diskPricePerMo,
@@ -635,14 +792,17 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 	return instances
 }
 
-// FilterOptions holds all filter criteria for GPU instances
+// FilterOptions holds all filter criteria for instances
 type FilterOptions struct {
 	GPUName       string
 	Provider      string
+	Arch          string
 	MinVRAM       float64
 	MinTotalVRAM  float64
 	MinCapability float64
+	MinRAM        float64
 	MinDisk       float64
+	MinVCPU       int
 	MaxBootTime   int // in minutes
 	Stoppable     bool
 	Rebootable    bool
@@ -651,8 +811,8 @@ type FilterOptions struct {
 
 // matchesStringFilters checks GPU name and provider filters
 func (f *FilterOptions) matchesStringFilters(inst GPUInstanceInfo) bool {
-	// Filter out non-NVIDIA GPUs (AMD, Intel/Habana, etc.)
-	if !strings.Contains(strings.ToUpper(inst.Manufacturer), "NVIDIA") {
+	// Allow CPU-only instances through; filter out non-NVIDIA GPUs (AMD, Intel/Habana, etc.)
+	if inst.Manufacturer != "cpu" && !strings.Contains(strings.ToUpper(inst.Manufacturer), "NVIDIA") {
 		return false
 	}
 	// Filter by GPU name (case-insensitive partial match)
@@ -663,11 +823,21 @@ func (f *FilterOptions) matchesStringFilters(inst GPUInstanceInfo) bool {
 	if f.Provider != "" && !strings.Contains(strings.ToLower(inst.Provider), strings.ToLower(f.Provider)) {
 		return false
 	}
+	// Filter by architecture (case-insensitive partial match)
+	if f.Arch != "" && !strings.Contains(strings.ToLower(inst.Arch), strings.ToLower(f.Arch)) {
+		return false
+	}
 	return true
 }
 
-// matchesNumericFilters checks VRAM, capability, disk, and boot time filters
+// matchesNumericFilters checks VRAM, capability, disk, vCPU, and boot time filters
 func (f *FilterOptions) matchesNumericFilters(inst GPUInstanceInfo) bool {
+	if f.MinVCPU > 0 && inst.VCPUs < f.MinVCPU {
+		return false
+	}
+	if f.MinRAM > 0 && inst.RAMInGB < f.MinRAM {
+		return false
+	}
 	if f.MinVRAM > 0 && inst.VRAMPerGPU < f.MinVRAM {
 		return false
 	}
@@ -708,15 +878,18 @@ func (f *FilterOptions) matchesFilter(inst GPUInstanceInfo) bool {
 		f.matchesFeatureFilters(inst)
 }
 
-// FilterInstances applies all filters to the instance list
-func FilterInstances(instances []GPUInstanceInfo, gpuName, provider string, minVRAM, minTotalVRAM, minCapability, minDisk float64, maxBootTime int, stoppable, rebootable, flexPorts bool) []GPUInstanceInfo {
+// FilterInstances applies all filters to the instance list. When gpuOnly is true, CPU-only instances are excluded.
+func FilterInstances(instances []GPUInstanceInfo, gpuName, provider, arch string, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts, gpuOnly bool) []GPUInstanceInfo {
 	opts := &FilterOptions{
 		GPUName:       gpuName,
 		Provider:      provider,
+		Arch:          arch,
 		MinVRAM:       minVRAM,
 		MinTotalVRAM:  minTotalVRAM,
 		MinCapability: minCapability,
+		MinRAM:        minRAM,
 		MinDisk:       minDisk,
+		MinVCPU:       minVCPU,
 		MaxBootTime:   maxBootTime,
 		Stoppable:     stoppable,
 		Rebootable:    rebootable,
@@ -725,6 +898,9 @@ func FilterInstances(instances []GPUInstanceInfo, gpuName, provider string, minV
 
 	var filtered []GPUInstanceInfo
 	for _, inst := range instances {
+		if gpuOnly && inst.Manufacturer == "cpu" {
+			continue
+		}
 		if opts.matchesFilter(inst) {
 			filtered = append(filtered, inst)
 		}
@@ -732,7 +908,21 @@ func FilterInstances(instances []GPUInstanceInfo, gpuName, provider string, minV
 	return filtered
 }
 
+// FilterCPUInstances filters to CPU-only instances using shared filter logic
+func FilterCPUInstances(instances []GPUInstanceInfo, provider, arch string, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool) []GPUInstanceInfo {
+	// Filter out GPU instances first, then apply shared filters
+	var cpuOnly []GPUInstanceInfo
+	for _, inst := range instances {
+		if inst.Manufacturer == "cpu" {
+			cpuOnly = append(cpuOnly, inst)
+		}
+	}
+	return FilterInstances(cpuOnly, "", provider, arch, 0, 0, 0, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts, false)
+}
+
 // SortInstances sorts the instance list by the specified column
+//
+//nolint:gocyclo
 func SortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) {
 	sort.Slice(instances, func(i, j int) bool {
 		var less bool
@@ -755,15 +945,18 @@ func SortInstances(instances []GPUInstanceInfo, sortBy string, descending bool) 
 			less = instances[i].Provider < instances[j].Provider
 		case "disk":
 			less = instances[i].DiskMax < instances[j].DiskMax
+		case "ram":
+			less = instances[i].RAMInGB < instances[j].RAMInGB
+		case "arch":
+			less = instances[i].Arch < instances[j].Arch
 		case "boot-time":
-			// Instances with no boot time (0) should always appear last
 			switch {
 			case instances[i].BootTime == 0 && instances[j].BootTime == 0:
-				return false // both unknown, equal
+				return false
 			case instances[i].BootTime == 0:
-				return false // i unknown goes after j
+				return false
 			case instances[j].BootTime == 0:
-				return true // j unknown goes after i
+				return true
 			}
 			less = instances[i].BootTime < instances[j].BootTime
 		default:
@@ -845,6 +1038,7 @@ type formattedInstanceFields struct {
 	VRAM       string
 	TotalVRAM  string
 	Capability string
+	RAM        string
 	Disk       string
 	DiskPrice  string
 	Boot       string
@@ -881,10 +1075,18 @@ func formatInstanceFields(inst GPUInstanceInfo, includeUnits bool) formattedInst
 		providerStr = fmt.Sprintf("%s:%s", inst.Cloud, inst.Provider)
 	}
 
+	var ramStr string
+	if includeUnits {
+		ramStr = fmt.Sprintf("%.0f GB", inst.RAMInGB)
+	} else {
+		ramStr = fmt.Sprintf("%.0f", inst.RAMInGB)
+	}
+
 	return formattedInstanceFields{
 		VRAM:       vramStr,
 		TotalVRAM:  totalVramStr,
 		Capability: capStr,
+		RAM:        ramStr,
 		Disk:       formatDiskSize(inst.DiskMin, inst.DiskMax),
 		DiskPrice:  diskPriceStr,
 		Boot:       formatBootTime(inst.BootTime),
@@ -954,6 +1156,134 @@ func displayGPUTablePlain(instances []GPUInstanceInfo) {
 			f.Boot,
 			f.Features,
 			inst.VCPUs,
+			f.Price,
+		}
+		ta.AppendRow(row)
+	}
+
+	ta.Render()
+}
+
+// displayGPUTableWide renders the GPU instances with additional RAM and ARCH columns
+func displayGPUTableWide(t *terminal.Terminal, instances []GPUInstanceInfo) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+
+	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	ta.AppendHeader(header)
+
+	for _, inst := range instances {
+		f := formatInstanceFields(inst, true)
+		row := table.Row{
+			inst.Type,
+			f.Provider,
+			t.Green(inst.GPUName),
+			inst.GPUCount,
+			f.VRAM,
+			f.TotalVRAM,
+			f.Capability,
+			f.RAM,
+			inst.Arch,
+			f.Disk,
+			f.DiskPrice,
+			f.Boot,
+			f.Features,
+			inst.VCPUs,
+			f.Price,
+		}
+		ta.AppendRow(row)
+	}
+
+	ta.Render()
+}
+
+// displayGPUTablePlainWide renders the wide GPU table for piping
+func displayGPUTablePlainWide(instances []GPUInstanceInfo) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+
+	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL_VRAM", "CAPABILITY", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	ta.AppendHeader(header)
+
+	for _, inst := range instances {
+		f := formatInstanceFields(inst, false)
+		row := table.Row{
+			inst.Type,
+			f.TargetDisk,
+			f.Provider,
+			inst.GPUName,
+			inst.GPUCount,
+			f.VRAM,
+			f.TotalVRAM,
+			f.Capability,
+			f.RAM,
+			inst.Arch,
+			f.Disk,
+			f.DiskPrice,
+			f.Boot,
+			f.Features,
+			inst.VCPUs,
+			f.Price,
+		}
+		ta.AppendRow(row)
+	}
+
+	ta.Render()
+}
+
+// displayCPUTable renders CPU instances as a colored table
+func displayCPUTable(instances []GPUInstanceInfo) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+
+	header := table.Row{"TYPE", "PROVIDER", "VCPUs", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "$/HR"}
+	ta.AppendHeader(header)
+
+	for _, inst := range instances {
+		f := formatInstanceFields(inst, true)
+		row := table.Row{
+			inst.Type,
+			f.Provider,
+			inst.VCPUs,
+			f.RAM,
+			inst.Arch,
+			f.Disk,
+			f.DiskPrice,
+			f.Boot,
+			f.Features,
+			f.Price,
+		}
+		ta.AppendRow(row)
+	}
+
+	ta.Render()
+}
+
+// displayCPUTablePlain renders CPU instances as a plain table for piping
+func displayCPUTablePlain(instances []GPUInstanceInfo) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+
+	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "VCPUs", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "$/HR"}
+	ta.AppendHeader(header)
+
+	for _, inst := range instances {
+		f := formatInstanceFields(inst, false)
+		row := table.Row{
+			inst.Type,
+			f.TargetDisk,
+			f.Provider,
+			inst.VCPUs,
+			f.RAM,
+			inst.Arch,
+			f.Disk,
+			f.DiskPrice,
+			f.Boot,
+			f.Features,
 			f.Price,
 		}
 		ta.AppendRow(row)

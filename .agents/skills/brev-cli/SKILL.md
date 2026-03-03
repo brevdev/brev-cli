@@ -1,6 +1,6 @@
 ---
 name: brev-cli
-description: Manage GPU cloud instances with the Brev CLI. Use when users want to create GPU instances, search for GPUs, SSH into instances, open editors, copy files, port forward, manage organizations, or work with cloud compute. Trigger keywords - brev, gpu, instance, create instance, ssh, vram, A100, H100, cloud gpu, remote machine.
+description: Manage GPU and CPU cloud instances with the Brev CLI. Use when users want to create instances, search for GPUs or CPUs, SSH into instances, open editors, copy files, port forward, manage organizations, or work with cloud compute. Trigger keywords - brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine.
 allowed-tools: Bash, Read, AskUserQuestion
 argument-hint: [create|search|shell|exec|open|ls|delete] [instance-name]
 ---
@@ -13,20 +13,21 @@ Token Budget:
 
 # Brev CLI
 
-Manage GPU cloud instances from the command line. Create, search, connect, and manage remote GPU machines.
+Manage GPU and CPU cloud instances from the command line. Create, search, connect, and manage remote machines.
 
 ## When to Use
 
 Use this skill when users want to:
-- Create GPU instances (with smart defaults or specific types)
+- Create GPU or CPU instances (with smart defaults or specific types)
 - Search for available GPU types (A100, H100, L40S, etc.)
+- Search for CPU-only instance types (no GPU)
 - SSH into instances or run commands remotely
 - Open editors (VS Code, Cursor, Windsurf) on remote instances
 - Copy files to/from instances
 - Port forward from remote to local
 - Manage organizations and instances
 
-**Trigger Keywords:** brev, gpu, instance, create instance, ssh, vram, A100, H100, cloud gpu, remote machine, shell
+**Trigger Keywords:** brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine, shell
 
 ## Quick Start
 
@@ -34,10 +35,13 @@ Use this skill when users want to:
 # Search for GPUs (sorted by price)
 brev search
 
+# Search for CPU-only instances
+brev search cpu
+
 # Create an instance with smart defaults
 brev create my-instance
 
-# Create with specific GPU
+# Create with specific type
 brev create my-instance --type g5.xlarge
 
 # List your instances
@@ -58,8 +62,12 @@ brev open my-instance cursor
 
 ### Search GPUs
 ```bash
-# All available GPUs
+# All available GPUs (default)
 brev search
+brev search gpu
+
+# GPU search with wide mode (shows RAM and ARCH columns)
+brev search gpu --wide
 
 # Filter by GPU name
 brev search --gpu-name A100
@@ -74,6 +82,32 @@ brev search --max-boot-time 5 --sort price
 # Filter by instance features
 brev search --stoppable --min-total-vram 40 --sort price
 ```
+
+### Search CPUs
+```bash
+# All available CPU-only instances
+brev search cpu
+
+# Filter by provider
+brev search cpu --provider aws
+
+# Filter by minimum RAM
+brev search cpu --min-ram 64
+
+# Filter by architecture
+brev search cpu --arch arm64
+
+# Filter by vCPUs
+brev search cpu --min-vcpu 16
+
+# Sort by price
+brev search cpu --sort price
+
+# JSON output
+brev search cpu --json
+```
+
+CPU search shows: TYPE, PROVIDER, VCPUs, RAM, ARCH, DISK, $/GB/MO, BOOT, FEATURES, $/HR
 
 ### Create Instances
 ```bash
@@ -234,6 +268,6 @@ brev invite
 ## References
 
 - **[reference/commands.md](reference/commands.md)** - Full command reference
-- **[reference/search-filters.md](reference/search-filters.md)** - GPU search options
+- **[reference/search-filters.md](reference/search-filters.md)** - GPU and CPU search options
 - **[prompts/](prompts/)** - Workflow guides
 - **[examples/](examples/)** - Common patterns

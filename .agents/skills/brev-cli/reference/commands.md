@@ -131,15 +131,22 @@ brev create my-instance --dry-run
 ```
 
 ### brev search
-Search and filter available GPU instance types.
+Search and filter available instance types. Has two subcommands: `gpu` (default) and `cpu`.
 
 ```bash
-brev search [flags]
+brev search [gpu|cpu] [flags]
 ```
 
 **Aliases:** `gpu-search`, `gpu`, `gpus`, `gpu-list`
 
-**Flags:**
+#### GPU Search (default)
+```bash
+brev search [flags]
+brev search gpu [flags]
+brev search gpu --wide   # shows RAM and ARCH columns
+```
+
+**GPU Flags:**
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--gpu-name` | `-g` | Filter by GPU name (partial match) |
@@ -155,14 +162,49 @@ brev search [flags]
 | `--sort` | `-s` | Sort by: price, gpu-count, vram, total-vram, vcpu, disk, boot-time |
 | `--desc` | `-d` | Sort descending |
 | `--json` | | Output as JSON |
+| `--wide` | `-w` | Show extra columns (RAM, ARCH) — gpu subcommand only |
 
-**Examples:**
+**GPU Examples:**
 ```bash
 brev search
+brev search gpu --wide
 brev search --gpu-name A100
 brev search --min-vram 40 --sort price
 brev search --gpu-name H100 --max-boot-time 3
 brev search --stoppable --min-total-vram 40 --sort price
+```
+
+#### CPU Search
+```bash
+brev search cpu [flags]
+```
+
+Search for CPU-only instance types (no GPU). Uses shared flags only.
+
+**CPU Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--provider` | `-p` | Filter by cloud provider |
+| `--arch` | | Filter by architecture (x86_64, arm64) |
+| `--min-ram` | | Minimum RAM in GB |
+| `--min-disk` | | Minimum disk size (GB) |
+| `--min-vcpu` | | Minimum number of vCPUs |
+| `--max-boot-time` | | Maximum boot time (minutes) |
+| `--stoppable` | | Only stoppable instances |
+| `--rebootable` | | Only rebootable instances |
+| `--flex-ports` | | Only instances with configurable firewall |
+| `--sort` | `-s` | Sort by: price, vcpu, type, provider, disk, boot-time |
+| `--desc` | `-d` | Sort descending |
+| `--json` | | Output as JSON |
+
+**CPU Examples:**
+```bash
+brev search cpu
+brev search cpu --provider aws
+brev search cpu --min-ram 64 --sort price
+brev search cpu --arch arm64
+brev search cpu --min-vcpu 16 --sort price
+brev search cpu | brev create my-cpu-box
 ```
 
 ### brev ls
