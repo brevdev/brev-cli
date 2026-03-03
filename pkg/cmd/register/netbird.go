@@ -2,8 +2,8 @@ package register
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
+	"strings"
 )
 
 // InstallNetbird installs NetBird if it is not already present.
@@ -15,20 +15,20 @@ func InstallNetbird() error {
 	script := `(curl -fsSL https://pkgs.netbird.io/install.sh | sh) || (curl -fsSL https://pkgs.netbird.io/install.sh | sh -s -- --update)`
 
 	cmd := exec.Command("bash", "-c", script) // #nosec G204
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install NetBird: %w", err)
+		return fmt.Errorf("failed to install Brev tunnel: %w", err)
 	}
 	return nil
 }
 
 // runSetupCommand executes the setup command returned by the AddNode RPC.
+// It validates that the command starts with "netbird up" as a basic guard
+// against unexpected server responses.
 func runSetupCommand(script string) error {
+	if !strings.HasPrefix(strings.TrimSpace(script), "netbird up") {
+		return fmt.Errorf("unexpected setup command")
+	}
 	cmd := exec.Command("bash", "-c", script) // #nosec G204
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("setup command failed: %w", err)
 	}
@@ -62,11 +62,8 @@ sudo rm -rf /etc/netbird
 `
 
 	cmd := exec.Command("bash", "-c", script) // #nosec G204
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to uninstall NetBird: %w", err)
+		return fmt.Errorf("failed to uninstall Brev tunnel: %w", err)
 	}
 	return nil
 }

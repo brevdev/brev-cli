@@ -13,6 +13,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -87,32 +88,31 @@ func (m mockSelector) Select(label string, items []string) string {
 	return m.fn(label, items)
 }
 
-type mockNetBirdUninstaller struct {
+type mockNetBirdManager struct {
 	called bool
 	err    error
 }
 
-func (m *mockNetBirdUninstaller) Uninstall() error {
-	m.called = true
-	return m.err
-}
+func (m *mockNetBirdManager) Install() error   { return m.err }
+func (m *mockNetBirdManager) Uninstall() error { m.called = true; return m.err }
 
 type mockNodeClientFactory struct {
 	serverURL string
 }
 
-func (m mockNodeClientFactory) NewNodeClient(provider register.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
+func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
 	return register.NewNodeServiceClient(provider, m.serverURL)
 }
 
 type mockSSHKeyRemover struct {
-	called bool
-	err    error
+	called  bool
+	err     error
+	removed []string
 }
 
-func (m *mockSSHKeyRemover) RemoveBrevKeys(_ *user.User) error {
+func (m *mockSSHKeyRemover) RemoveBrevKeys(_ *user.User) ([]string, error) {
 	m.called = true
-	return m.err
+	return m.removed, m.err
 }
 
 // testDeregisterDeps returns deps with all side-effects stubbed. The
@@ -132,7 +132,7 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 			}
 			return ""
 		}},
-		netbird:           &mockNetBirdUninstaller{},
+		netbird:           &mockNetBirdManager{},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
 		sshKeys:           &mockSSHKeyRemover{},
@@ -306,13 +306,13 @@ func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
 		},
 	}
 
-	netbird := &mockNetBirdUninstaller{}
+	netbird := &mockNetBirdManager{}
 	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.prompter = mockSelector{fn: func(label string, _ []string) string {
-		if label == "Would you also like to uninstall NetBird?" {
-			return "No, keep NetBird installed"
+		if label == "Would you also like to remove the Brev tunnel?" {
+			return "No, keep Brev tunnel installed"
 		}
 		return "Yes, proceed"
 	}}
@@ -325,84 +325,64 @@ func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
 	}
 
 	if netbird.called {
-		t.Error("NetBird uninstall should not be called when user declines")
+		t.Error("Brev tunnel uninstall should not be called when user declines")
 	}
 }
 
-func Test_runDeregister_CallsRemoveBrevKeys(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
+func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
+	tests := []struct {
+		name       string
+		sshKeys    *mockSSHKeyRemover
+		wantCalled bool
+	}{
+		{"CallsRemoveBrevKeys", &mockSSHKeyRemover{}, true},
+		{"FailureIsNonFatal", &mockSSHKeyRemover{err: fmt.Errorf("permission denied")}, true},
 	}
 
-	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
-		token: "tok",
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regStore := &mockRegistrationStore{
+				reg: &register.DeviceRegistration{
+					ExternalNodeID: "unode_abc",
+					DisplayName:    "My Spark",
+					OrgID:          "org_123",
+				},
+			}
 
-	svc := &fakeNodeService{
-		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
-			return &nodev1.RemoveNodeResponse{}, nil
-		},
-	}
+			store := &mockDeregisterStore{
+				user:  &entity.User{ID: "user_1"},
+				home:  "/home/testuser/.brev",
+				token: "tok",
+			}
 
-	sshKeys := &mockSSHKeyRemover{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-	deps.sshKeys = sshKeys
+			svc := &fakeNodeService{
+				removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+					return &nodev1.RemoveNodeResponse{}, nil
+				},
+			}
 
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
-	if err != nil {
-		t.Fatalf("runDeregister failed: %v", err)
-	}
+			deps, server := testDeregisterDeps(t, svc, regStore)
+			defer server.Close()
+			deps.sshKeys = tt.sshKeys
 
-	if !sshKeys.called {
-		t.Error("expected removeBrevKeys to be called during deregistration")
-	}
-}
+			term := terminal.New()
+			err := runDeregister(context.Background(), term, store, deps)
+			if err != nil {
+				t.Fatalf("runDeregister failed: %v", err)
+			}
 
-func Test_runDeregister_RemoveBrevKeysFailureIsNonFatal(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
+			if tt.sshKeys.called != tt.wantCalled {
+				t.Errorf("removeBrevKeys called = %v, want %v", tt.sshKeys.called, tt.wantCalled)
+			}
 
-	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
-		token: "tok",
-	}
-
-	svc := &fakeNodeService{
-		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
-			return &nodev1.RemoveNodeResponse{}, nil
-		},
-	}
-
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-	deps.sshKeys = &mockSSHKeyRemover{err: fmt.Errorf("permission denied")}
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
-	if err != nil {
-		t.Fatalf("expected deregister to succeed despite removeBrevKeys failure, got: %v", err)
-	}
-
-	// Registration should still be cleaned up.
-	exists, err := regStore.Exists()
-	if err != nil {
-		t.Fatalf("Exists error: %v", err)
-	}
-	if exists {
-		t.Error("expected registration to be deleted even when SSH key cleanup fails")
+			// Registration should be cleaned up regardless of SSH key result.
+			exists, err := regStore.Exists()
+			if err != nil {
+				t.Fatalf("Exists error: %v", err)
+			}
+			if exists {
+				t.Error("expected registration to be deleted")
+			}
+		})
 	}
 }

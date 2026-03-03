@@ -5,6 +5,7 @@ import (
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -31,11 +32,11 @@ func (TerminalPrompter) Select(label string, items []string) string {
 	})
 }
 
-// NetBirdManager handles NetBird installation and uninstallation.
-type NetBirdManager struct{}
+// Netbird handles NetBird installation and uninstallation.
+type Netbird struct{}
 
-func (NetBirdManager) Install() error   { return InstallNetbird() }
-func (NetBirdManager) Uninstall() error { return UninstallNetbird() }
+func (Netbird) Install() error   { return InstallNetbird() }
+func (Netbird) Uninstall() error { return UninstallNetbird() }
 
 // ShellSetupRunner runs setup scripts via shell.
 type ShellSetupRunner struct{}
@@ -45,6 +46,6 @@ func (ShellSetupRunner) RunSetup(script string) error { return runSetupCommand(s
 // DefaultNodeClientFactory creates real ConnectRPC clients.
 type DefaultNodeClientFactory struct{}
 
-func (DefaultNodeClientFactory) NewNodeClient(provider TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
+func (DefaultNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
 	return NewNodeServiceClient(provider, baseURL)
 }

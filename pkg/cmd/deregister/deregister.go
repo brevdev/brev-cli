@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os/user"
 
-	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -26,48 +26,29 @@ type DeregisterStore interface {
 	GetAccessToken() (string, error)
 }
 
-// PlatformChecker checks whether the current platform is supported.
-type PlatformChecker interface {
-	IsCompatible() bool
-}
-
-// Selector prompts the user to choose from a list of items.
-type Selector interface {
-	Select(label string, items []string) string
-}
-
-// NetBirdUninstaller uninstalls the NetBird network agent.
-type NetBirdUninstaller interface {
-	Uninstall() error
-}
-
-// NodeClientFactory creates ConnectRPC ExternalNodeService clients.
-type NodeClientFactory interface {
-	NewNodeClient(provider register.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient
-}
-
-// SSHKeyRemover removes Brev-managed SSH keys.
+// SSHKeyRemover removes Brev-managed SSH keys and returns the lines removed.
 type SSHKeyRemover interface {
-	RemoveBrevKeys(u *user.User) error
+	RemoveBrevKeys(u *user.User) ([]string, error)
 }
 
 // brevSSHKeyRemover delegates to register.RemoveBrevAuthorizedKeys.
 type brevSSHKeyRemover struct{}
 
-func (brevSSHKeyRemover) RemoveBrevKeys(u *user.User) error {
-	if err := register.RemoveBrevAuthorizedKeys(u); err != nil {
-		return fmt.Errorf("removing brev authorized keys: %w", err)
+func (brevSSHKeyRemover) RemoveBrevKeys(u *user.User) ([]string, error) {
+	removed, err := register.RemoveBrevAuthorizedKeys(u)
+	if err != nil {
+		return nil, fmt.Errorf("removing brev authorized keys: %w", err)
 	}
-	return nil
+	return removed, nil
 }
 
 // deregisterDeps bundles the side-effecting dependencies of runDeregister so
 // they can be replaced in tests.
 type deregisterDeps struct {
-	platform          PlatformChecker
-	prompter          Selector
-	netbird           NetBirdUninstaller
-	nodeClients       NodeClientFactory
+	platform          externalnode.PlatformChecker
+	prompter          terminal.Selector
+	netbird           register.NetBirdManager
+	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 	sshKeys           SSHKeyRemover
 }
@@ -76,7 +57,7 @@ func defaultDeregisterDeps(brevHome string) deregisterDeps {
 	return deregisterDeps{
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
-		netbird:           register.NetBirdManager{},
+		netbird:           register.Netbird{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(brevHome),
 		sshKeys:           brevSSHKeyRemover{},
@@ -87,7 +68,7 @@ var (
 	deregisterLong = `Deregister your device from NVIDIA Brev
 
 This command removes the local registration data and optionally uninstalls
-NetBird (network agent).`
+the Brev tunnel (network agent).`
 
 	deregisterExample = `  brev deregister`
 )
@@ -158,28 +139,35 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	// Remove Brev SSH keys from authorized_keys.
-	u, err := user.Current()
+	osUser, err := user.Current()
 	if err != nil {
 		t.Vprintf("  Warning: could not determine current user for SSH key cleanup: %v\n", err)
 	} else {
-		if err := deps.sshKeys.RemoveBrevKeys(u); err != nil {
-			t.Vprintf("  Warning: failed to remove Brev SSH keys: %v\n", err)
-		} else {
-			t.Vprint(t.Green("  Brev SSH keys removed from authorized_keys."))
+		removed, kerr := deps.sshKeys.RemoveBrevKeys(osUser)
+		switch {
+		case kerr != nil:
+			t.Vprintf("  Warning: failed to remove Brev SSH keys: %v\n", kerr)
+		case len(removed) > 0:
+			t.Vprint(t.Green("  Brev SSH keys removed from authorized_keys:"))
+			for _, key := range removed {
+				t.Vprintf("    - %s\n", key)
+			}
+		default:
+			t.Vprint("  No Brev SSH keys found in authorized_keys.")
 		}
 	}
 	t.Vprint("")
 
-	removeNetbird := deps.prompter.Select(
-		"Would you also like to uninstall NetBird?",
-		[]string{"Yes, uninstall NetBird", "No, keep NetBird installed"},
+	removeTunnel := deps.prompter.Select(
+		"Would you also like to remove the Brev tunnel?",
+		[]string{"Yes, remove Brev tunnel", "No, keep Brev tunnel installed"},
 	)
-	if removeNetbird == "Yes, uninstall NetBird" {
-		t.Vprint("Removing NetBird...")
+	if removeTunnel == "Yes, remove Brev tunnel" {
+		t.Vprint("Removing Brev tunnel...")
 		if err := deps.netbird.Uninstall(); err != nil {
-			t.Vprintf("  Warning: failed to uninstall NetBird: %v\n", err)
+			t.Vprintf("  Warning: failed to remove Brev tunnel: %v\n", err)
 		} else {
-			t.Vprint(t.Green("  NetBird uninstalled."))
+			t.Vprint(t.Green("  Brev tunnel removed."))
 		}
 		t.Vprint("")
 	}

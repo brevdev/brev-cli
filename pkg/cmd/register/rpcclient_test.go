@@ -145,6 +145,7 @@ type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
 	addNodeFn    func(*nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error)
 	removeNodeFn func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
+	getNodeFn    func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
 }
 
 func (f *fakeNodeService) AddNode(_ context.Context, req *connect.Request[nodev1.AddNodeRequest]) (*connect.Response[nodev1.AddNodeResponse], error) {
@@ -157,6 +158,17 @@ func (f *fakeNodeService) AddNode(_ context.Context, req *connect.Request[nodev1
 
 func (f *fakeNodeService) RemoveNode(_ context.Context, req *connect.Request[nodev1.RemoveNodeRequest]) (*connect.Response[nodev1.RemoveNodeResponse], error) {
 	resp, err := f.removeNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
+	if f.getNodeFn == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, nil)
+	}
+	resp, err := f.getNodeFn(req.Msg)
 	if err != nil {
 		return nil, err
 	}

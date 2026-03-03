@@ -11,6 +11,8 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -763,15 +765,7 @@ func displayNodesTablePlain(nodes []*nodev1.ExternalNode) {
 func nodeConnectionStatus(n *nodev1.ExternalNode) string {
 	ci := n.GetConnectivityInfo()
 	if ci == nil {
-		return "UNKNOWN"
+		return "Unknown"
 	}
-
-	switch ci.GetStatus() {
-	case nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED:
-		return "CONNECTED"
-	case nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_DISCONNECTED:
-		return "DISCONNECTED"
-	default:
-		return "REGISTERED"
-	}
+	return externalnode.FriendlyNetworkStatus(ci.GetStatus())
 }

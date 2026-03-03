@@ -7,19 +7,15 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 )
-
-// TokenProvider abstracts access token retrieval for the HTTP transport.
-type TokenProvider interface {
-	GetAccessToken() (string, error)
-}
 
 // bearerTokenTransport injects a Bearer token into every request.
 // We use a custom RoundTripper instead of setting headers on individual
 // client.Do() calls because ConnectRPC owns the HTTP requests internally —
 // this is the only hook we have to add auth headers.
 type bearerTokenTransport struct {
-	provider TokenProvider
+	provider externalnode.TokenProvider
 	base     http.RoundTripper
 }
 
@@ -39,7 +35,7 @@ func (t *bearerTokenTransport) RoundTrip(req *http.Request) (*http.Response, err
 
 // newAuthenticatedHTTPClient creates an http.Client that injects the bearer token
 // from the given provider on every request.
-func newAuthenticatedHTTPClient(provider TokenProvider) *http.Client {
+func newAuthenticatedHTTPClient(provider externalnode.TokenProvider) *http.Client {
 	return &http.Client{
 		Transport: &bearerTokenTransport{
 			provider: provider,
@@ -50,7 +46,7 @@ func newAuthenticatedHTTPClient(provider TokenProvider) *http.Client {
 
 // NewNodeServiceClient creates a ConnectRPC ExternalNodeServiceClient using the
 // given token provider for authentication.
-func NewNodeServiceClient(provider TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
+func NewNodeServiceClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
 	return nodev1connect.NewExternalNodeServiceClient(
 		newAuthenticatedHTTPClient(provider),
 		baseURL,

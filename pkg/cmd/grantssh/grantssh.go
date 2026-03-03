@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -33,27 +33,12 @@ type GrantSSHStore interface {
 	GetUserByID(userID string) (*entity.User, error)
 }
 
-// PlatformChecker checks whether the current platform is supported.
-type PlatformChecker interface {
-	IsCompatible() bool
-}
-
-// Selector prompts the user to choose from a list of items.
-type Selector interface {
-	Select(label string, items []string) string
-}
-
-// NodeClientFactory creates ConnectRPC ExternalNodeService clients.
-type NodeClientFactory interface {
-	NewNodeClient(provider register.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient
-}
-
 // grantSSHDeps bundles the side-effecting dependencies of runGrantSSH so they
 // can be replaced in tests.
 type grantSSHDeps struct {
-	platform          PlatformChecker
-	prompter          Selector
-	nodeClients       NodeClientFactory
+	platform          externalnode.PlatformChecker
+	prompter          terminal.Selector
+	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 }
 
@@ -96,6 +81,8 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 		return fmt.Errorf("brev grant-ssh is only supported on Linux")
 	}
 
+	removeCredentialsFile(t, s)
+
 	reg, err := getRegistration(deps)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -110,11 +97,11 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 		return err
 	}
 
-	u, err := user.Current()
+	osUser, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
-	linuxUser := u.Username
+	linuxUser := osUser.Username
 
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -131,25 +118,18 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	}
 
 	// Build selection list.
-	items := make([]string, len(orgMembers))
+	usersToSelect := make([]string, len(orgMembers))
 	for i, r := range orgMembers {
-		items[i] = fmt.Sprintf("%s (%s)", r.user.Name, r.user.Email)
+		usersToSelect[i] = fmt.Sprintf("%s (%s)", r.user.Name, r.user.Email)
 	}
 
-	selected := deps.prompter.Select("Select a user to grant SSH access:", items)
+	selected := deps.prompter.Select("Select a user to grant SSH access:", usersToSelect)
 
 	// Find the selected user.
-	selectedIdx := -1
-	for i, item := range items {
-		if item == selected {
-			selectedIdx = i
-			break
-		}
+	selectedUser, err := getSelectedUser(usersToSelect, selected, orgMembers)
+	if err != nil {
+		return err
 	}
-	if selectedIdx < 0 {
-		return fmt.Errorf("selected item %q did not match any org member", selected)
-	}
-	selectedUser := orgMembers[selectedIdx].user
 
 	t.Vprint("")
 	t.Vprint(t.Green("Granting SSH access"))
@@ -160,7 +140,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	t.Vprint("")
 
 	if selectedUser.PublicKey != "" {
-		if err := register.InstallAuthorizedKey(u, selectedUser.PublicKey); err != nil {
+		if err := register.InstallAuthorizedKey(osUser, selectedUser.PublicKey); err != nil {
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
 		} else {
 			t.Vprint("  Brev public key added to authorized_keys.")
@@ -173,11 +153,58 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 		UserId:         selectedUser.ID,
 		LinuxUser:      linuxUser,
 	})); err != nil {
+		if selectedUser.PublicKey != "" {
+			if rerr := register.RemoveAuthorizedKey(osUser, selectedUser.PublicKey); rerr != nil {
+				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
+			}
+		}
 		return fmt.Errorf("failed to grant SSH access: %w", err)
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, reg.DisplayName)))
 	return nil
+}
+
+// checkSSHEnabled verifies that SSH has been enabled on this device by checking
+// if the current user's public key is present in authorized_keys.
+func checkSSHEnabled(currentUserPubKey string) error {
+	currentUserPubKey = strings.TrimSpace(currentUserPubKey)
+	if currentUserPubKey == "" {
+		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+	}
+
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("failed to determine current Linux user: %w", err)
+	}
+
+	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
+	existing, err := os.ReadFile(authKeysPath) // #nosec G304
+	if err != nil {
+		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+	}
+
+	if !strings.Contains(string(existing), currentUserPubKey) {
+		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+	}
+
+	return nil
+}
+
+func getRegistration(deps grantSSHDeps) (*register.DeviceRegistration, error) {
+	registered, err := deps.registrationStore.Exists()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if !registered {
+		return nil, fmt.Errorf("no registration found; this machine does not appear to be registered\nRun 'brev register' to register your device first")
+	}
+
+	reg, err := deps.registrationStore.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read registration file: %w", err)
+	}
+	return reg, nil
 }
 
 func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgId string) ([]resolvedMember, error) {
@@ -214,44 +241,35 @@ func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHSto
 	return resolved, nil
 }
 
-func getRegistration(deps grantSSHDeps) (*register.DeviceRegistration, error) {
-	registered, err := deps.registrationStore.Exists()
+// removeCredentialsFile removes ~/.brev/credentials.json if it exists.
+// When granting SSH access to another user, we don't want them to find
+// the device owner's auth tokens on disk.
+func removeCredentialsFile(t *terminal.Terminal, s GrantSSHStore) {
+	brevHome, err := s.GetBrevHomePath()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return
 	}
-	if !registered {
-		return nil, fmt.Errorf("no registration found; this machine does not appear to be registered\nRun 'brev register' to register your device first")
+	credsPath := filepath.Join(brevHome, "credentials.json")
+	if err := os.Remove(credsPath); err != nil {
+		if !os.IsNotExist(err) {
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove credentials file: %v\n  It is recommended to remove this file yourself so that this user does not see any sensitive tokens:\n    rm %s", err, credsPath)))
+		}
+		return
 	}
-
-	reg, err := deps.registrationStore.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read registration file: %w", err)
-	}
-	return reg, nil
+	t.Vprintf("  Removed %s\n", credsPath)
 }
 
-// checkSSHEnabled verifies that SSH has been enabled on this device by checking
-// if the current user's public key is present in authorized_keys.
-func checkSSHEnabled(currentUserPubKey string) error {
-	currentUserPubKey = strings.TrimSpace(currentUserPubKey)
-	if currentUserPubKey == "" {
-		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+func getSelectedUser(usersToSelect []string, selected string, orgMembers []resolvedMember) (*entity.User, error) {
+	selectedIdx := -1
+	for i, userSelection := range usersToSelect {
+		if userSelection == selected {
+			selectedIdx = i
+			break
+		}
 	}
-
-	u, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("failed to determine current Linux user: %w", err)
+	if selectedIdx < 0 {
+		return nil, fmt.Errorf("selected item %q did not match any org member", selected)
 	}
-
-	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
-	existing, err := os.ReadFile(authKeysPath) // #nosec G304
-	if err != nil {
-		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
-	}
-
-	if !strings.Contains(string(existing), currentUserPubKey) {
-		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
-	}
-
-	return nil
+	selectedUser := orgMembers[selectedIdx].user
+	return selectedUser, nil
 }

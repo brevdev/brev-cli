@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"os/user"
 
-	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -28,21 +28,11 @@ type EnableSSHStore interface {
 	GetAccessToken() (string, error)
 }
 
-// PlatformChecker checks whether the current platform is supported.
-type PlatformChecker interface {
-	IsCompatible() bool
-}
-
-// NodeClientFactory creates ConnectRPC ExternalNodeService clients.
-type NodeClientFactory interface {
-	NewNodeClient(provider register.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient
-}
-
 // enableSSHDeps bundles the side-effecting dependencies of runEnableSSH so they
 // can be replaced in tests.
 type enableSSHDeps struct {
-	platform          PlatformChecker
-	nodeClients       NodeClientFactory
+	platform          externalnode.PlatformChecker
+	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 }
 
@@ -105,8 +95,8 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 func EnableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
-	nodeClients NodeClientFactory,
-	tokenProvider register.TokenProvider,
+	nodeClients externalnode.NodeClientFactory,
+	tokenProvider externalnode.TokenProvider,
 	reg *register.DeviceRegistration,
 	brevUser *entity.User,
 ) error {
@@ -140,6 +130,11 @@ func EnableSSH(
 		UserId:         brevUser.ID,
 		LinuxUser:      linuxUser,
 	})); err != nil {
+		if brevUser.PublicKey != "" {
+			if rerr := register.RemoveAuthorizedKey(u, brevUser.PublicKey); rerr != nil {
+				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
+			}
+		}
 		return fmt.Errorf("failed to enable SSH access: %w", err)
 	}
 

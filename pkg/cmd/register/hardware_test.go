@@ -63,31 +63,34 @@ MemAvailable:   98765432 kB
 }
 
 func Test_parseOSReleaseContent(t *testing.T) {
-	content := `NAME="Ubuntu"
-VERSION="24.04 LTS (Noble Numbat)"
-ID=ubuntu
-VERSION_ID="24.04"
-PRETTY_NAME="Ubuntu 24.04 LTS"
-`
-	name, version := parseOSReleaseContent(content)
-	if name != "Ubuntu" {
-		t.Errorf("expected Ubuntu, got %s", name)
+	tests := []struct {
+		name        string
+		input       string
+		wantName    string
+		wantVersion string
+	}{
+		{
+			"Quoted",
+			"NAME=\"Ubuntu\"\nVERSION=\"24.04 LTS (Noble Numbat)\"\nID=ubuntu\nVERSION_ID=\"24.04\"\nPRETTY_NAME=\"Ubuntu 24.04 LTS\"\n",
+			"Ubuntu", "24.04",
+		},
+		{
+			"Unquoted",
+			"NAME=Fedora\nVERSION_ID=39\n",
+			"Fedora", "39",
+		},
 	}
-	if version != "24.04" {
-		t.Errorf("expected 24.04, got %s", version)
-	}
-}
 
-func Test_parseOSReleaseContent_Unquoted(t *testing.T) {
-	content := `NAME=Fedora
-VERSION_ID=39
-`
-	name, version := parseOSReleaseContent(content)
-	if name != "Fedora" {
-		t.Errorf("expected Fedora, got %s", name)
-	}
-	if version != "39" {
-		t.Errorf("expected 39, got %s", version)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, version := parseOSReleaseContent(tt.input)
+			if name != tt.wantName {
+				t.Errorf("name = %q, want %q", name, tt.wantName)
+			}
+			if version != tt.wantVersion {
+				t.Errorf("version = %q, want %q", version, tt.wantVersion)
+			}
+		})
 	}
 }
 
@@ -280,20 +283,21 @@ NVIDIA A100, not-a-number
 	}
 }
 
-func Test_parseStorageOutput_Empty(t *testing.T) {
-	devices := parseStorageOutput("")
-	if len(devices) != 0 {
-		t.Errorf("expected 0 devices, got %d", len(devices))
+func Test_parseStorageOutput_NoValidDevices(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"Empty", ""},
+		{"NoDiskDevices", "sr0  1073741312 rom 1\nloop0  123456 loop 0\n"},
 	}
-}
-
-func Test_parseStorageOutput_NoDiskDevices(t *testing.T) {
-	output := `sr0  1073741312 rom 1
-loop0  123456 loop 0
-`
-	devices := parseStorageOutput(output)
-	if len(devices) != 0 {
-		t.Errorf("expected 0 devices for non-disk entries, got %d", len(devices))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			devices := parseStorageOutput(tt.input)
+			if len(devices) != 0 {
+				t.Errorf("expected 0 devices, got %d", len(devices))
+			}
+		})
 	}
 }
 

