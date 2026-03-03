@@ -40,6 +40,31 @@ func getClient() (posthog.Client, error) {
 	return client, clientErr
 }
 
+// IsAnalyticsFeatureEnabled checks the PostHog feature flag to determine
+// whether to prompt the user about analytics opt-in.
+func IsAnalyticsFeatureEnabled() bool {
+	anonID := GetOrCreateAnalyticsID()
+	if anonID == "" {
+		return false
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return false
+	}
+
+	result, err := c.IsFeatureEnabled(posthog.FeatureFlagPayload{
+		Key:        "enable-cli-analytics",
+		DistinctId: anonID,
+	})
+	if err != nil {
+		return false
+	}
+
+	enabled, ok := result.(bool)
+	return ok && enabled
+}
+
 // RecordCommandStart should be called from PersistentPreRunE to record the start time
 // and store the command context for potential error-path capture.
 func RecordCommandStart(cmd *cobra.Command, args []string) {
