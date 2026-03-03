@@ -3,6 +3,7 @@ package agentskill
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,9 @@ const (
 	// GitHub raw content base URL template
 	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.agents/skills/brev-cli"
 
+	// GitHub API URL template for resolving branch to commit SHA
+	githubAPICommitTemplate = "https://api.github.com/repos/brevdev/brev-cli/commits/%s"
+
 	// Default branch
 	defaultBranch = "main"
 
@@ -30,16 +34,61 @@ const (
 
 	// Skill name
 	skillName = "brev-cli"
+
+	// Version file name
+	versionFileName = ".version"
 )
 
 // getBaseURL returns the base URL for downloading skill files
 // Uses BREV_SKILL_BRANCH env var if set, otherwise defaults to main
 func getBaseURL() string {
+	return fmt.Sprintf(baseURLTemplate, getBranch())
+}
+
+// getBranch returns the branch used for downloading skill files
+func getBranch() string {
 	branch := os.Getenv(branchEnvVar)
 	if branch == "" {
 		branch = defaultBranch
 	}
-	return fmt.Sprintf(baseURLTemplate, branch)
+	return branch
+}
+
+// resolveCommitSHA uses the GitHub API to resolve a branch/ref to a commit SHA
+func resolveCommitSHA(client *http.Client, ref string) (string, error) {
+	url := fmt.Sprintf(githubAPICommitTemplate, ref)
+	req, err := http.NewRequest("GET", url, nil) //nolint:noctx // simple API call
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req) //nolint:bodyclose // closed below
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", breverrors.NewValidationError(fmt.Sprintf("failed to resolve commit for %s: %s", ref, resp.Status))
+	}
+
+	var result struct {
+		SHA string `json:"sha"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return result.SHA, nil
+}
+
+// writeVersionFile writes a .version file to all skill directories
+func writeVersionFile(skillDirs []string, branch, commitSHA string) {
+	content := fmt.Sprintf("branch=%s\ncommit=%s\n", branch, commitSHA)
+	for _, dir := range skillDirs {
+		_ = os.WriteFile(filepath.Join(dir, versionFileName), []byte(content), 0o644) //nolint:gosec // not sensitive
+	}
 }
 
 // Files to download (relative to skill directory)
@@ -221,6 +270,15 @@ func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 	for _, file := range skillFiles {
 		if !downloadAndInstallFile(client, baseURL, file, skillDirs, t, quiet) {
 			failed++
+		}
+	}
+
+	// Resolve commit SHA and write .version file
+	branch := getBranch()
+	if commitSHA, err := resolveCommitSHA(client, branch); err == nil {
+		writeVersionFile(skillDirs, branch, commitSHA)
+		if !quiet {
+			fmt.Printf("    %s .version (%s)\n", t.Green("✓"), commitSHA[:12])
 		}
 	}
 
