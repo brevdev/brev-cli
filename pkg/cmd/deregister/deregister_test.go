@@ -205,14 +205,8 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
 
-	callCount := 0
 	deps.prompter = mockSelector{fn: func(_ string, _ []string) string {
-		callCount++
-		if callCount == 2 {
-			// Second prompt is the confirmation — cancel it
-			return "No, cancel"
-		}
-		return "No, keep NetBird installed"
+		return "No, cancel"
 	}}
 
 	term := terminal.New()

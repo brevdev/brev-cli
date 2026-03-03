@@ -14,7 +14,6 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -140,12 +139,15 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	selected := deps.prompter.Select("Select a user to grant SSH access:", items)
 
 	// Find the selected user.
-	var selectedIdx int
+	selectedIdx := -1
 	for i, item := range items {
 		if item == selected {
 			selectedIdx = i
 			break
 		}
+	}
+	if selectedIdx < 0 {
+		return fmt.Errorf("selected item %q did not match any org member", selected)
 	}
 	selectedUser := orgMembers[selectedIdx].user
 
@@ -158,7 +160,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	t.Vprint("")
 
 	if selectedUser.PublicKey != "" {
-		if err := enablessh.InstallAuthorizedKey(u, selectedUser.PublicKey); err != nil {
+		if err := register.InstallAuthorizedKey(u, selectedUser.PublicKey); err != nil {
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
 		} else {
 			t.Vprint("  Brev public key added to authorized_keys.")

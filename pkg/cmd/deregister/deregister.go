@@ -10,7 +10,6 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -52,11 +51,11 @@ type SSHKeyRemover interface {
 	RemoveBrevKeys(u *user.User) error
 }
 
-// brevSSHKeyRemover delegates to enablessh.RemoveBrevAuthorizedKeys.
+// brevSSHKeyRemover delegates to register.RemoveBrevAuthorizedKeys.
 type brevSSHKeyRemover struct{}
 
 func (brevSSHKeyRemover) RemoveBrevKeys(u *user.User) error {
-	if err := enablessh.RemoveBrevAuthorizedKeys(u); err != nil {
+	if err := register.RemoveBrevAuthorizedKeys(u); err != nil {
 		return fmt.Errorf("removing brev authorized keys: %w", err)
 	}
 	return nil

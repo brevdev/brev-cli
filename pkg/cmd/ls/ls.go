@@ -761,8 +761,17 @@ func displayNodesTablePlain(nodes []*nodev1.ExternalNode) {
 }
 
 func nodeConnectionStatus(n *nodev1.ExternalNode) string {
-	if ci := n.GetConnectivityInfo(); ci != nil && ci.GetRegistrationCommand() != "" {
+	ci := n.GetConnectivityInfo()
+	if ci == nil {
+		return "UNKNOWN"
+	}
+
+	switch ci.GetStatus() {
+	case nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED:
+		return "CONNECTED"
+	case nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_DISCONNECTED:
+		return "DISCONNECTED"
+	default:
 		return "REGISTERED"
 	}
-	return "UNKNOWN"
 }

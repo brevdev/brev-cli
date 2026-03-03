@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path/filepath"
-	"strings"
 	"time"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -133,7 +131,10 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		return breverrors.WrapAndTrace(err)
 	}
 
-	u, _ := user.Current()
+	u, err := user.Current()
+	if err != nil {
+		return fmt.Errorf("failed to determine current Linux user: %w", err)
+	}
 	linuxUser := u.Username
 
 	t.Vprint("")
@@ -238,7 +239,7 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	}
 
 	if brevUser.PublicKey != "" {
-		if err := installAuthorizedKey(u, brevUser.PublicKey); err != nil {
+		if err := InstallAuthorizedKey(u, brevUser.PublicKey); err != nil {
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
 		} else {
 			t.Vprint("  Brev public key added to authorized_keys.")
@@ -246,48 +247,6 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
-}
-
-const brevKeyComment = "# brev-cli"
-
-// installAuthorizedKey appends the given public key to the user's
-// ~/.ssh/authorized_keys if it isn't already present. The key is tagged with
-// a brev-cli comment so it can be identified and removed during deregistration.
-func installAuthorizedKey(u *user.User, pubKey string) error {
-	pubKey = strings.TrimSpace(pubKey)
-	if pubKey == "" {
-		return nil
-	}
-
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		return fmt.Errorf("creating .ssh directory: %w", err)
-	}
-
-	authKeysPath := filepath.Join(sshDir, "authorized_keys")
-
-	existing, err := os.ReadFile(authKeysPath) // #nosec G304
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("reading authorized_keys: %w", err)
-	}
-
-	if strings.Contains(string(existing), pubKey) {
-		return nil // already present (tagged or not)
-	}
-
-	taggedKey := pubKey + " " + brevKeyComment
-
-	content := string(existing)
-	if len(content) > 0 && !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	content += taggedKey + "\n"
-
-	if err := os.WriteFile(authKeysPath, []byte(content), 0o600); err != nil {
-		return fmt.Errorf("writing authorized_keys: %w", err)
-	}
-
-	return nil
 }
 
 func getOrgToRegisterFor(deps registerDeps, s RegisterStore) (*entity.Organization, error) {
