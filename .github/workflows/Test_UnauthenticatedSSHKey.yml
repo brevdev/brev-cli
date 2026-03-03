@@ -15,7 +15,7 @@ jobs:
     runs-on: [self-hosted]
     if: "contains(github.event.head_commit.message, 'e2etest')"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24.0'
@@ -27,7 +27,7 @@ jobs:
 
       - name: Report Status
         if: always()
-        uses: ravsamhq/notify-slack-action@v1
+        uses: ravsamhq/notify-slack-action@v2
         with:
           status: ${{ job.status }}
           notify_when: 'failure'
