@@ -204,7 +204,7 @@ func TestRemoveAuthorizedKeyLine_NoopForMissingFile(t *testing.T) {
 func TestInstallAuthorizedKey_IncludesUserID(t *testing.T) {
 	u := tempUser(t)
 
-	if err := InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", "user_abc"); err != nil {
+	if _, err := InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", "user_abc"); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -218,7 +218,7 @@ func TestInstallAuthorizedKey_IncludesUserID(t *testing.T) {
 func TestInstallAuthorizedKey_EmptyUserID_UsesPrefix(t *testing.T) {
 	u := tempUser(t)
 
-	if err := InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
