@@ -213,6 +213,12 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 
 	runSetup(node, t, deps)
 
+	t.Vprint("")
+	t.Vprint("SSH access allows you to connect to this device remotely.")
+	t.Vprint("This will:")
+	t.Vprint("  1. Install or upgrade openssh-server")
+	t.Vprint("  2. Set up a secure SSH server on port 2222")
+	t.Vprint("")
 	if deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?") {
 		grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser)
 	}
@@ -343,6 +349,14 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
 	t.Vprintf("  Linux user: %s\n", osUser.Username)
+	t.Vprint("")
+
+	t.Vprint("Setting up managed SSH daemon...")
+	if err := InstallBrevSSHD(); err != nil {
+		t.Vprintf("  Warning: managed sshd setup failed: %v\n", err)
+	} else {
+		t.Vprint(t.Green("  Managed SSH daemon ready (port 2222)."))
+	}
 	t.Vprint("")
 
 	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
