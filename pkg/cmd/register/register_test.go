@@ -20,7 +20,6 @@ import (
 type mockRegisterStore struct {
 	user  *entity.User
 	org   *entity.Organization
-	home  string
 	token string
 	err   error
 }
@@ -36,8 +35,7 @@ func (m *mockRegisterStore) GetActiveOrganizationOrDefault() (*entity.Organizati
 	return m.org, nil
 }
 
-func (m *mockRegisterStore) GetBrevHomePath() (string, error) { return m.home, nil }
-func (m *mockRegisterStore) GetAccessToken() (string, error)  { return m.token, nil }
+func (m *mockRegisterStore) GetAccessToken() (string, error) { return m.token, nil }
 
 // mockRegistrationStore satisfies RegistrationStore for orchestration tests.
 type mockRegistrationStore struct {
@@ -135,9 +133,9 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+		org:  &entity.Organization{ID: "org_123", Name: "TestOrg"},
+
 		token: "tok",
 	}
 
@@ -209,9 +207,9 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+		org:  &entity.Organization{ID: "org_123", Name: "TestOrg"},
+
 		token: "tok",
 	}
 
@@ -297,9 +295,9 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 			}
 
 			store := &mockRegisterStore{
-				user:  &entity.User{ID: "user_1"},
-				org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-				home:  "/home/testuser/.brev",
+				user: &entity.User{ID: "user_1"},
+				org:  &entity.Organization{ID: "org_123", Name: "TestOrg"},
+
 				token: "tok",
 			}
 
@@ -325,9 +323,9 @@ func Test_runRegister_NoOrganization(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   nil,
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+		org:  nil,
+
 		token: "tok",
 	}
 
@@ -346,9 +344,9 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+		org:  &entity.Organization{ID: "org_123", Name: "TestOrg"},
+
 		token: "tok",
 	}
 
@@ -381,9 +379,9 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+		org:  &entity.Organization{ID: "org_123", Name: "TestOrg"},
+
 		token: "tok",
 	}
 
@@ -497,5 +495,72 @@ Peers count: 0/0 Connected`
 				t.Errorf("netbirdManagementConnected() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func Test_runRegister_NoNameNotRegistered(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "", deps)
+	if err == nil {
+		t.Fatal("expected error when no name provided and not registered")
+	}
+	if !strings.Contains(err.Error(), "please provide a name") {
+		t.Errorf("expected 'please provide a name' error, got: %v", err)
+	}
+}
+
+func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &DeviceRegistration{
+			ExternalNodeID: "unode_existing",
+			DisplayName:    "Existing Device",
+			OrgID:          "org_123",
+		},
+	}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{
+		getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return &nodev1.GetNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: req.GetExternalNodeId(),
+					ConnectivityInfo: &nodev1.ConnectivityInfo{
+						Status: nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED,
+					},
+				},
+			}, nil
+		},
+	}
+
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "", deps)
+	if err != nil {
+		t.Fatalf("expected nil error when already registered with no name, got: %v", err)
+	}
+
+	// Registration should still exist
+	exists, _ := regStore.Exists()
+	if !exists {
+		t.Error("expected registration to still exist")
 	}
 }

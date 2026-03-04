@@ -20,7 +20,6 @@ import (
 // EnableSSHStore defines the store methods needed by the enableSSH command.
 type EnableSSHStore interface {
 	GetCurrentUser() (*entity.User, error)
-	GetBrevHomePath() (string, error)
 	GetAccessToken() (string, error)
 }
 
@@ -32,11 +31,11 @@ type enableSSHDeps struct {
 	registrationStore register.RegistrationStore
 }
 
-func defaultEnableSSHDeps(brevHome string) enableSSHDeps {
+func defaultEnableSSHDeps() enableSSHDeps {
 	return enableSSHDeps{
 		platform:          register.LinuxPlatform{},
 		nodeClients:       register.DefaultNodeClientFactory{},
-		registrationStore: register.NewFileRegistrationStore(brevHome),
+		registrationStore: register.NewFileRegistrationStore(),
 	}
 }
 
@@ -49,11 +48,7 @@ func NewCmdEnableSSH(t *terminal.Terminal, store EnableSSHStore) *cobra.Command 
 		Long:                  "Enable SSH access to this registered device for the current Brev user.",
 		Example:               "  brev enable-ssh",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			brevHome, err := store.GetBrevHomePath()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps(brevHome))
+			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps())
 		},
 	}
 

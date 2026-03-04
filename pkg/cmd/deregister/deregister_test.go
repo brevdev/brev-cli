@@ -19,7 +19,6 @@ import (
 
 type mockDeregisterStore struct {
 	user  *entity.User
-	home  string
 	token string
 	err   error
 }
@@ -31,8 +30,7 @@ func (m *mockDeregisterStore) GetCurrentUser() (*entity.User, error) {
 	return m.user, nil
 }
 
-func (m *mockDeregisterStore) GetBrevHomePath() (string, error) { return m.home, nil }
-func (m *mockDeregisterStore) GetAccessToken() (string, error)  { return m.token, nil }
+func (m *mockDeregisterStore) GetAccessToken() (string, error) { return m.token, nil }
 
 // fakeNodeService implements the server side of ExternalNodeService for testing.
 type fakeNodeService struct {
@@ -150,8 +148,8 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 	}
 
 	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+
 		token: "tok",
 	}
 
@@ -196,8 +194,8 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 	}
 
 	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+
 		token: "tok",
 	}
 
@@ -229,8 +227,8 @@ func Test_runDeregister_NotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+
 		token: "tok",
 	}
 
@@ -255,8 +253,8 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 	}
 
 	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+
 		token: "tok",
 	}
 
@@ -295,8 +293,8 @@ func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
 	}
 
 	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
+		user: &entity.User{ID: "user_1"},
+
 		token: "tok",
 	}
 
@@ -343,8 +341,8 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 			}
 
 			store := &mockDeregisterStore{
-				user:  &entity.User{ID: "user_1"},
-				home:  "/home/testuser/.brev",
+				user: &entity.User{ID: "user_1"},
+
 				token: "tok",
 			}
 

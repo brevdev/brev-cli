@@ -43,12 +43,12 @@ type resolvedMember struct {
 	attachment entity.OrgRoleAttachment
 }
 
-func defaultGrantSSHDeps(brevHome string) grantSSHDeps {
+func defaultGrantSSHDeps() grantSSHDeps {
 	return grantSSHDeps{
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		nodeClients:       register.DefaultNodeClientFactory{},
-		registrationStore: register.NewFileRegistrationStore(brevHome),
+		registrationStore: register.NewFileRegistrationStore(),
 	}
 }
 
@@ -61,11 +61,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		Long:                  "Grant SSH access to this registered device for another member of your organization.",
 		Example:               "  brev grant-ssh",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			brevHome, err := store.GetBrevHomePath()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return runGrantSSH(cmd.Context(), t, store, defaultGrantSSHDeps(brevHome))
+			return runGrantSSH(cmd.Context(), t, store, defaultGrantSSHDeps())
 		},
 	}
 
