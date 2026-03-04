@@ -8,11 +8,11 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
@@ -22,7 +22,6 @@ import (
 // DeregisterStore defines the store methods needed by the deregister command.
 type DeregisterStore interface {
 	GetCurrentUser() (*entity.User, error)
-	GetBrevHomePath() (string, error)
 	GetAccessToken() (string, error)
 }
 
@@ -53,13 +52,13 @@ type deregisterDeps struct {
 	sshKeys           SSHKeyRemover
 }
 
-func defaultDeregisterDeps(brevHome string) deregisterDeps {
+func defaultDeregisterDeps() deregisterDeps {
 	return deregisterDeps{
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		netbird:           register.Netbird{},
 		nodeClients:       register.DefaultNodeClientFactory{},
-		registrationStore: register.NewFileRegistrationStore(brevHome),
+		registrationStore: register.NewFileRegistrationStore(),
 		sshKeys:           brevSSHKeyRemover{},
 	}
 }
@@ -82,11 +81,7 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 		Long:                  deregisterLong,
 		Example:               deregisterExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			brevHome, err := store.GetBrevHomePath()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps(brevHome))
+			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps())
 		},
 	}
 
@@ -98,17 +93,9 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		return fmt.Errorf("brev deregister is only supported on Linux")
 	}
 
-	registered, err := deps.registrationStore.Exists()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if !registered {
-		return fmt.Errorf("no registration found; this machine does not appear to be registered\nRun 'brev register' to register your device")
-	}
-
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
-		return fmt.Errorf("failed to read registration file: %w", err)
+		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprint("")
@@ -169,7 +156,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("Removing registration data...")
 	if err := deps.registrationStore.Delete(); err != nil {
 		t.Vprintf("  Warning: failed to remove local registration file: %v\n", err)
-		t.Vprint("  You can manually remove it with: rm ~/.brev/device_registration.json")
+		t.Vprint("  You can manually remove it with: rm /etc/brev/device_registration.json")
 	}
 
 	t.Vprint(t.Green("Deregistration complete."))

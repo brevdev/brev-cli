@@ -27,7 +27,6 @@ import (
 type RegisterStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetBrevHomePath() (string, error)
 	GetAccessToken() (string, error)
 }
 
@@ -66,7 +65,7 @@ type registerDeps struct {
 	registrationStore RegistrationStore
 }
 
-func defaultRegisterDeps(brevHome string) registerDeps {
+func defaultRegisterDeps() registerDeps {
 	return registerDeps{
 		platform:          LinuxPlatform{},
 		prompter:          TerminalPrompter{},
@@ -75,7 +74,7 @@ func defaultRegisterDeps(brevHome string) registerDeps {
 		nodeClients:       DefaultNodeClientFactory{},
 		commandRunner:     ExecCommandRunner{},
 		fileReader:        OSFileReader{},
-		registrationStore: NewFileRegistrationStore(brevHome),
+		registrationStore: NewFileRegistrationStore(),
 	}
 }
 
@@ -90,18 +89,18 @@ This command sets up network connectivity and registers this machine with Brev.`
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "register <name>",
+		Use:                   "register [name]",
 		DisableFlagsInUseLine: true,
 		Short:                 "Register this device with Brev",
 		Long:                  registerLong,
 		Example:               registerExample,
-		Args:                  cobra.ExactArgs(1),
+		Args:                  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			brevHome, err := store.GetBrevHomePath()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
+			var name string
+			if len(args) > 0 {
+				name = args[0]
 			}
-			return runRegister(cmd.Context(), t, store, args[0], defaultRegisterDeps(brevHome))
+			return runRegister(cmd.Context(), t, store, name, defaultRegisterDeps())
 		},
 	}
 
@@ -118,11 +117,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		return breverrors.WrapAndTrace(err)
 	}
 	if alreadyRegistered {
-		reg, loadErr := deps.registrationStore.Load()
-		if loadErr != nil {
-			return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
-		}
-		return checkExistingRegistration(ctx, t, s, deps, reg)
+		return checkExistingRegistration(ctx, t, s, name, deps)
+	}
+
+	if name == "" {
+		return fmt.Errorf("please provide a name for this device\n\nUsage: brev register <name>\nExample: brev register \"my-DGX-Spark\"")
 	}
 
 	brevUser, err := s.GetCurrentUser()
@@ -232,7 +231,20 @@ func getOrgToRegisterFor(s RegisterStore) (*entity.Organization, error) {
 // It calls GetNode to check the server-side NetworkMemberStatus and ensures the
 // local netbird service is running, starting it if necessary. Returns nil if
 // the node is healthy, or an error describing what's wrong.
-func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps, reg *DeviceRegistration) error {
+func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error {
+	reg, loadErr := deps.registrationStore.Load()
+	if loadErr != nil {
+		return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
+	}
+	if name != "" && name != reg.DisplayName {
+		// TODO maybe allow for a name change
+		t.Vprintf("This machine is already registered as %q.\n", reg.DisplayName)
+		t.Vprint("Run 'brev deregister' first if you want to re-register with a different name.")
+		t.Vprint("")
+		t.Vprintf("If you are having tunnel issues, run 'brev register %q' to reconnect.", reg.DisplayName)
+		return nil
+	}
+
 	t.Vprint("")
 	t.Vprintf("  This machine is already registered as %s (%s).\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprint("  Checking connectivity...")

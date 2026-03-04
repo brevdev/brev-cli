@@ -1,8 +1,11 @@
 package register
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -10,7 +13,10 @@ import (
 	"github.com/spf13/afero"
 )
 
-const registrationFileName = "device_registration.json"
+const (
+	registrationFileName  = "device_registration.json"
+	globalRegistrationDir = "/etc/brev"
+)
 
 // DeviceRegistration is the persistent identity file for a registered device.
 // Fields align with the AddNodeResponse from dev-plane.
@@ -31,18 +37,17 @@ type RegistrationStore interface {
 	Exists() (bool, error)
 }
 
-// FileRegistrationStore implements RegistrationStore using the local filesystem.
-type FileRegistrationStore struct {
-	brevHome string
-}
+// FileRegistrationStore implements RegistrationStore using the global /etc/brev/ path.
+type FileRegistrationStore struct{}
 
-// NewFileRegistrationStore returns a FileRegistrationStore rooted at brevHome.
-func NewFileRegistrationStore(brevHome string) *FileRegistrationStore {
-	return &FileRegistrationStore{brevHome: brevHome}
+// NewFileRegistrationStore returns a FileRegistrationStore that reads/writes
+// from /etc/brev/device_registration.json.
+func NewFileRegistrationStore() *FileRegistrationStore {
+	return &FileRegistrationStore{}
 }
 
 func (s *FileRegistrationStore) path() string {
-	return filepath.Join(s.brevHome, registrationFileName)
+	return filepath.Join(globalRegistrationDir, registrationFileName)
 }
 
 func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
@@ -51,20 +56,31 @@ func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if err := files.AppFs.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return breverrors.WrapAndTrace(err)
+
+	// Try direct write first (works in tests with in-memory FS and when running as root).
+	mkdirErr := files.AppFs.MkdirAll(filepath.Dir(path), 0o755)
+	if mkdirErr == nil {
+		if writeErr := afero.WriteFile(files.AppFs, path, data, 0o644); writeErr == nil {
+			return nil
+		}
 	}
-	if err := afero.WriteFile(files.AppFs, path, data, 0o600); err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
+
+	// Fall back to sudo for non-root users writing to /etc/brev/.
+	return sudoWriteFile(path, data)
 }
 
+// Load reads the registration file and returns the parsed DeviceRegistration
 func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 	path := s.path()
+	exists, err := s.Exists()
+	if !exists {
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return nil, breverrors.WrapAndTrace(breverrors.New("device registration not found, run 'brev register' first"))
+	}
 	var reg DeviceRegistration
-	err := files.ReadJSON(files.AppFs, path, &reg)
-	if err != nil {
+	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &reg, nil
@@ -73,10 +89,14 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 func (s *FileRegistrationStore) Delete() error {
 	path := s.path()
 	err := files.DeleteFile(files.AppFs, path)
-	if err != nil {
+	if err == nil {
+		return nil
+	}
+	if !os.IsPermission(err) {
 		return breverrors.WrapAndTrace(err)
 	}
-	return nil
+	// Fall back to sudo for non-root users.
+	return sudoDeleteFile(path)
 }
 
 func (s *FileRegistrationStore) Exists() (bool, error) {
@@ -89,4 +109,27 @@ func (s *FileRegistrationStore) Exists() (bool, error) {
 		return false, nil
 	}
 	return false, breverrors.WrapAndTrace(err)
+}
+
+// sudoWriteFile creates the parent directory and writes data to path using sudo.
+func sudoWriteFile(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	if err := exec.Command("sudo", "mkdir", "-p", dir).Run(); err != nil { //nolint:gosec // fixed base path
+		return fmt.Errorf("sudo mkdir %s failed: %w", dir, err)
+	}
+	cmd := exec.Command("sudo", "tee", path) //nolint:gosec // fixed base path
+	cmd.Stdin = bytes.NewReader(data)
+	cmd.Stdout = nil // suppress tee's stdout echo
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("sudo tee %s failed: %w", path, err)
+	}
+	return nil
+}
+
+// sudoDeleteFile removes a file using sudo.
+func sudoDeleteFile(path string) error {
+	if err := exec.Command("sudo", "rm", "-f", path).Run(); err != nil { //nolint:gosec // fixed base path
+		return fmt.Errorf("sudo rm %s failed: %w", path, err)
+	}
+	return nil
 }

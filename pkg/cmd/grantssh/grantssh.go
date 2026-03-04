@@ -43,12 +43,12 @@ type resolvedMember struct {
 	attachment entity.OrgRoleAttachment
 }
 
-func defaultGrantSSHDeps(brevHome string) grantSSHDeps {
+func defaultGrantSSHDeps() grantSSHDeps {
 	return grantSSHDeps{
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		nodeClients:       register.DefaultNodeClientFactory{},
-		registrationStore: register.NewFileRegistrationStore(brevHome),
+		registrationStore: register.NewFileRegistrationStore(),
 	}
 }
 
@@ -61,11 +61,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		Long:                  "Grant SSH access to this registered device for another member of your organization.",
 		Example:               "  brev grant-ssh",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			brevHome, err := store.GetBrevHomePath()
-			if err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return runGrantSSH(cmd.Context(), t, store, defaultGrantSSHDeps(brevHome))
+			return runGrantSSH(cmd.Context(), t, store, defaultGrantSSHDeps())
 		},
 	}
 
@@ -79,7 +75,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 
 	removeCredentialsFile(t, s)
 
-	reg, err := getRegistration(deps)
+	reg, err := deps.registrationStore.Load()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -148,7 +144,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 func checkSSHEnabled(currentUserPubKey string) error {
 	currentUserPubKey = strings.TrimSpace(currentUserPubKey)
 	if currentUserPubKey == "" {
-		return fmt.Errorf("curren user does not have a Brev public key")
+		return fmt.Errorf("current user does not have a Brev public key")
 	}
 
 	u, err := user.Current()
@@ -167,22 +163,6 @@ func checkSSHEnabled(currentUserPubKey string) error {
 	}
 
 	return nil
-}
-
-func getRegistration(deps grantSSHDeps) (*register.DeviceRegistration, error) {
-	registered, err := deps.registrationStore.Exists()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if !registered {
-		return nil, fmt.Errorf("no registration found; this machine does not appear to be registered\nRun 'brev register' to register your device first")
-	}
-
-	reg, err := deps.registrationStore.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read registration file: %w", err)
-	}
-	return reg, nil
 }
 
 func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgId string) ([]resolvedMember, error) {

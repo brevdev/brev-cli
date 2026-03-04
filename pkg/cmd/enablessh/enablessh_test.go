@@ -31,23 +31,23 @@ func readAuthorizedKeys(t *testing.T, u *user.User) string {
 func Test_InstallAuthorizedKey_TagsKeyWithBrevComment(t *testing.T) {
 	u := tempUser(t)
 
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
 	content := readAuthorizedKeys(t, u)
-	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyComment) {
-		t.Errorf("expected key tagged with %q, got:\n%s", register.BrevKeyComment, content)
+	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyPrefix) {
+		t.Errorf("expected key tagged with %q, got:\n%s", register.BrevKeyPrefix, content)
 	}
 }
 
 func Test_InstallAuthorizedKey_SkipsDuplicate(t *testing.T) {
 	u := tempUser(t)
 
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("first install: %v", err)
 	}
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("second install: %v", err)
 	}
 
@@ -66,11 +66,11 @@ func Test_InstallAuthorizedKey_SkipsDuplicateEvenIfAlreadyTagged(t *testing.T) {
 	if err := os.MkdirAll(sshDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte("ssh-rsa AAAA testkey "+register.BrevKeyComment+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte("ssh-rsa AAAA testkey "+register.BrevKeyPrefix+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -84,10 +84,10 @@ func Test_InstallAuthorizedKey_SkipsDuplicateEvenIfAlreadyTagged(t *testing.T) {
 func Test_InstallAuthorizedKey_EmptyKeyIsNoop(t *testing.T) {
 	u := tempUser(t)
 
-	if _, err := register.InstallAuthorizedKey(u, ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
-	if _, err := register.InstallAuthorizedKey(u, "   "); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "   ", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey (whitespace): %v", err)
 	}
 
@@ -101,7 +101,7 @@ func Test_InstallAuthorizedKey_EmptyKeyIsNoop(t *testing.T) {
 func Test_InstallAuthorizedKey_CreatesSSHDir(t *testing.T) {
 	u := tempUser(t)
 
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func Test_InstallAuthorizedKey_PreservesExistingKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func Test_InstallAuthorizedKey_PreservesExistingKeys(t *testing.T) {
 	if !strings.Contains(content, "ssh-rsa EXISTING user@host") {
 		t.Errorf("existing key was lost:\n%s", content)
 	}
-	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyComment) {
+	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyPrefix) {
 		t.Errorf("new key not found:\n%s", content)
 	}
 }
@@ -152,13 +152,13 @@ func Test_InstallAuthorizedKey_TagsExistingUntaggedKey(t *testing.T) {
 	}
 
 	// InstallAuthorizedKey should tag the existing key rather than adding a duplicate.
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
 	content := readAuthorizedKeys(t, u)
-	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyComment) {
-		t.Errorf("expected existing key to be tagged with %q, got:\n%s", register.BrevKeyComment, content)
+	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyPrefix) {
+		t.Errorf("expected existing key to be tagged with %q, got:\n%s", register.BrevKeyPrefix, content)
 	}
 	count := strings.Count(content, "ssh-rsa AAAA testkey")
 	if count != 1 {
@@ -177,9 +177,9 @@ func Test_RemoveBrevAuthorizedKeys_RemovesTaggedKeys(t *testing.T) {
 
 	content := strings.Join([]string{
 		"ssh-rsa EXISTING user@host",
-		"ssh-rsa BREVKEY1 " + register.BrevKeyComment,
+		"ssh-rsa BREVKEY1 " + register.BrevKeyPrefix,
 		"ssh-ed25519 OTHERKEY admin@server",
-		"ssh-rsa BREVKEY2 " + register.BrevKeyComment,
+		"ssh-rsa BREVKEY2 " + register.BrevKeyPrefix,
 		"",
 	}, "\n")
 	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(content), 0o600); err != nil {
@@ -196,7 +196,7 @@ func Test_RemoveBrevAuthorizedKeys_RemovesTaggedKeys(t *testing.T) {
 	}
 
 	result := readAuthorizedKeys(t, u)
-	if strings.Contains(result, register.BrevKeyComment) {
+	if strings.Contains(result, register.BrevKeyPrefix) {
 		t.Errorf("brev keys still present:\n%s", result)
 	}
 	if !strings.Contains(result, "ssh-rsa EXISTING user@host") {
@@ -256,7 +256,7 @@ func Test_RemoveAuthorizedKey_RemovesOnlyTargetKey(t *testing.T) {
 
 	content := strings.Join([]string{
 		"ssh-rsa KEEP1 user@host",
-		"ssh-rsa TARGET " + register.BrevKeyComment,
+		"ssh-rsa TARGET " + register.BrevKeyPrefix,
 		"ssh-rsa KEEP2 admin@server",
 		"",
 	}, "\n")
@@ -329,8 +329,8 @@ func Test_RemoveAuthorizedKey_DoesNotRemoveOtherBrevKeys(t *testing.T) {
 	}
 
 	content := strings.Join([]string{
-		"ssh-rsa ALICE_KEY " + register.BrevKeyComment,
-		"ssh-rsa BOB_KEY " + register.BrevKeyComment,
+		"ssh-rsa ALICE_KEY " + register.BrevKeyPrefix,
+		"ssh-rsa BOB_KEY " + register.BrevKeyPrefix,
 		"",
 	}, "\n")
 	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(content), 0o600); err != nil {
@@ -366,10 +366,10 @@ func Test_InstallThenRemove_RoundTrip(t *testing.T) {
 	}
 
 	// Install two brev keys.
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY1"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY1", "user_1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY2"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY2", "user_2"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -379,7 +379,7 @@ func Test_InstallThenRemove_RoundTrip(t *testing.T) {
 	}
 
 	result := readAuthorizedKeys(t, u)
-	if strings.Contains(result, register.BrevKeyComment) {
+	if strings.Contains(result, register.BrevKeyPrefix) {
 		t.Errorf("brev keys still present after removal:\n%s", result)
 	}
 	if !strings.Contains(result, "ssh-rsa EXISTING user@host") {
@@ -393,10 +393,10 @@ func Test_InstallThenRemoveSpecificKey_RollbackScenario(t *testing.T) {
 	u := tempUser(t)
 
 	// Install two brev keys (simulating two users granted access).
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa ALICE"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa ALICE", "user_a"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa BOB"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa BOB", "user_b"); err != nil {
 		t.Fatal(err)
 	}
 

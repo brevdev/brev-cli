@@ -28,9 +28,107 @@ const (
 	backoffPrintRound = 500 * time.Millisecond
 )
 
-// BrevKeyComment is the marker appended to every SSH key that Brev installs.
-// It allows RemoveBrevAuthorizedKeys to identify and remove exactly those keys.
-const BrevKeyComment = "# brev-cli"
+// BrevKeyPrefix is the marker prefix appended to every SSH key that Brev
+// installs. Both old-format ("# brev-cli") and new-format
+// ("# brev-cli user_id=xxx") keys start with this prefix.
+const BrevKeyPrefix = "# brev-cli"
+
+// BrevKeyTag returns a comment tag that encodes the Brev user ID.
+// Example: "# brev-cli user_id=user_abc123"
+func BrevKeyTag(userID string) string {
+	if userID == "" {
+		return BrevKeyPrefix
+	}
+	return fmt.Sprintf("%s user_id=%s", BrevKeyPrefix, userID)
+}
+
+// BrevAuthorizedKey represents a single Brev-managed key found in
+// authorized_keys.
+type BrevAuthorizedKey struct {
+	Line       string // full line from authorized_keys
+	KeyContent string // the ssh key portion (without the brev comment)
+	UserID     string // parsed from "user_id=xxx", empty for old-format keys
+}
+
+// ListBrevAuthorizedKeys reads ~/.ssh/authorized_keys and returns all lines
+// containing the BrevKeyPrefix marker.
+func ListBrevAuthorizedKeys(u *user.User) ([]BrevAuthorizedKey, error) {
+	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
+
+	data, err := os.ReadFile(authKeysPath) // #nosec G304
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading authorized_keys: %w", err)
+	}
+
+	var keys []BrevAuthorizedKey
+	for _, line := range strings.Split(string(data), "\n") {
+		if !strings.Contains(line, BrevKeyPrefix) {
+			continue
+		}
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		bk := BrevAuthorizedKey{Line: trimmed}
+
+		// Split on " # brev-cli" to get the key content before the tag.
+		if idx := strings.Index(trimmed, " "+BrevKeyPrefix); idx >= 0 {
+			bk.KeyContent = trimmed[:idx]
+			tag := trimmed[idx+1:] // the "# brev-cli ..." part
+			// Parse user_id if present.
+			if uidIdx := strings.Index(tag, "user_id="); uidIdx >= 0 {
+				rest := tag[uidIdx+len("user_id="):]
+				// user_id value ends at next space or end of string.
+				if spIdx := strings.Index(rest, " "); spIdx >= 0 {
+					bk.UserID = rest[:spIdx]
+				} else {
+					bk.UserID = rest
+				}
+			}
+		} else {
+			bk.KeyContent = trimmed
+		}
+
+		keys = append(keys, bk)
+	}
+
+	return keys, nil
+}
+
+// RemoveAuthorizedKeyLine removes an exact line from authorized_keys.
+func RemoveAuthorizedKeyLine(u *user.User, line string) error {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return nil
+	}
+
+	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
+	existing, err := os.ReadFile(authKeysPath) // #nosec G304
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("reading authorized_keys: %w", err)
+	}
+
+	var kept []string
+	for _, l := range strings.Split(string(existing), "\n") {
+		if strings.TrimSpace(l) == line {
+			continue
+		}
+		kept = append(kept, l)
+	}
+
+	result := strings.Join(kept, "\n")
+	if err := os.WriteFile(authKeysPath, []byte(result), 0o600); err != nil {
+		return fmt.Errorf("writing authorized_keys: %w", err)
+	}
+	return nil
+}
 
 // GrantSSHAccessToNode installs the user's public key in authorized_keys and
 // calls GrantNodeSSHAccess to record access server-side. If the RPC fails,
@@ -45,7 +143,7 @@ func GrantSSHAccessToNode(
 	osUser *user.User,
 ) error {
 	if targetUser.PublicKey != "" {
-		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey); err != nil {
+		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey, targetUser.ID); err != nil {
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
 		} else if added {
 			t.Vprint("  Brev public key added to authorized_keys.")
@@ -96,9 +194,10 @@ func GrantSSHAccessToNode(
 
 // InstallAuthorizedKey appends the given public key to the user's
 // ~/.ssh/authorized_keys if it isn't already present. The key is tagged with
-// a brev-cli comment so it can be removed later by RemoveBrevAuthorizedKeys.
+// a brev-cli comment (including the user ID) so it can be identified and
+// removed later by RemoveBrevAuthorizedKeys or ListBrevAuthorizedKeys.
 // Returns true if the key was newly written, false if it was already present.
-func InstallAuthorizedKey(u *user.User, pubKey string) (bool, error) {
+func InstallAuthorizedKey(u *user.User, pubKey string, brevUserID string) (bool, error) {
 	pubKey = strings.TrimSpace(pubKey)
 	if pubKey == "" {
 		return false, nil
@@ -116,7 +215,7 @@ func InstallAuthorizedKey(u *user.User, pubKey string) (bool, error) {
 		return false, fmt.Errorf("reading authorized_keys: %w", err)
 	}
 
-	taggedKey := pubKey + " " + BrevKeyComment
+	taggedKey := pubKey + " " + BrevKeyTag(brevUserID)
 
 	if strings.Contains(string(existing), taggedKey) {
 		return false, nil // already present with tag
@@ -197,7 +296,7 @@ func RemoveBrevAuthorizedKeys(u *user.User) ([]string, error) {
 	var kept []string
 	var removed []string
 	for _, line := range strings.Split(string(existing), "\n") {
-		if strings.Contains(line, BrevKeyComment) {
+		if strings.Contains(line, BrevKeyPrefix) {
 			if trimmed := strings.TrimSpace(line); trimmed != "" {
 				removed = append(removed, trimmed)
 			}

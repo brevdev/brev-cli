@@ -7,22 +7,21 @@ import (
 	"github.com/spf13/afero"
 )
 
-func setupTestFs(t *testing.T) (string, func()) {
+func setupTestFs(t *testing.T) func() {
 	t.Helper()
 	origFs := files.AppFs
 	files.AppFs = afero.NewMemMapFs()
-	brevHome := "/home/testuser/.brev"
-	if err := files.AppFs.MkdirAll(brevHome, 0o770); err != nil {
+	if err := files.AppFs.MkdirAll(globalRegistrationDir, 0o755); err != nil {
 		t.Fatalf("failed to create test dir: %v", err)
 	}
-	return brevHome, func() { files.AppFs = origFs }
+	return func() { files.AppFs = origFs }
 }
 
 func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
-	brevHome, cleanup := setupTestFs(t)
+	cleanup := setupTestFs(t)
 	defer cleanup()
 
-	store := NewFileRegistrationStore(brevHome)
+	store := NewFileRegistrationStore()
 
 	cpuCount := int32(12)
 	ramBytes := int64(137438953472)
@@ -69,10 +68,10 @@ func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
 }
 
 func Test_RegistrationExists_ReturnsFalseWhenMissing(t *testing.T) {
-	brevHome, cleanup := setupTestFs(t)
+	cleanup := setupTestFs(t)
 	defer cleanup()
 
-	store := NewFileRegistrationStore(brevHome)
+	store := NewFileRegistrationStore()
 
 	exists, err := store.Exists()
 	if err != nil {
@@ -84,10 +83,10 @@ func Test_RegistrationExists_ReturnsFalseWhenMissing(t *testing.T) {
 }
 
 func Test_RegistrationExists_ReturnsTrueAfterSave(t *testing.T) {
-	brevHome, cleanup := setupTestFs(t)
+	cleanup := setupTestFs(t)
 	defer cleanup()
 
-	store := NewFileRegistrationStore(brevHome)
+	store := NewFileRegistrationStore()
 
 	reg := &DeviceRegistration{
 		ExternalNodeID: "unode_abc123",
@@ -107,10 +106,10 @@ func Test_RegistrationExists_ReturnsTrueAfterSave(t *testing.T) {
 }
 
 func Test_DeleteRegistration_RemovesFile(t *testing.T) {
-	brevHome, cleanup := setupTestFs(t)
+	cleanup := setupTestFs(t)
 	defer cleanup()
 
-	store := NewFileRegistrationStore(brevHome)
+	store := NewFileRegistrationStore()
 
 	reg := &DeviceRegistration{
 		ExternalNodeID: "unode_abc123",
@@ -134,10 +133,10 @@ func Test_DeleteRegistration_RemovesFile(t *testing.T) {
 }
 
 func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
-	brevHome, cleanup := setupTestFs(t)
+	cleanup := setupTestFs(t)
 	defer cleanup()
 
-	store := NewFileRegistrationStore(brevHome)
+	store := NewFileRegistrationStore()
 
 	_, err := store.Load()
 	if err == nil {
@@ -146,10 +145,10 @@ func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
 }
 
 func Test_DeleteRegistration_FailsWhenMissing(t *testing.T) {
-	brevHome, cleanup := setupTestFs(t)
+	cleanup := setupTestFs(t)
 	defer cleanup()
 
-	store := NewFileRegistrationStore(brevHome)
+	store := NewFileRegistrationStore()
 
 	err := store.Delete()
 	if err == nil {
