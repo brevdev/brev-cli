@@ -80,6 +80,23 @@ type mockNetBirdManager struct{ err error }
 func (m mockNetBirdManager) Install() error   { return m.err }
 func (m mockNetBirdManager) Uninstall() error { return m.err }
 
+type mockManagedSSHDaemon struct {
+	installCalled   bool
+	uninstallCalled bool
+	installErr      error
+	uninstallErr    error
+}
+
+func (m *mockManagedSSHDaemon) Install() error {
+	m.installCalled = true
+	return m.installErr
+}
+
+func (m *mockManagedSSHDaemon) Uninstall() error {
+	m.uninstallCalled = true
+	return m.uninstallErr
+}
+
 type mockSetupRunner struct {
 	called bool
 	cmd    string
@@ -112,6 +129,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 		platform:    mockPlatform{compatible: true},
 		prompter:    mockConfirmer{confirm: true},
 		netbird:     mockNetBirdManager{},
+		sshd:        &mockManagedSSHDaemon{},
 		setupRunner: &mockSetupRunner{},
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
 		commandRunner: &mockCommandRunner{
@@ -416,6 +434,37 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 
 	if setupRunner.called {
 		t.Error("setup command should not be called when empty")
+	}
+}
+
+func Test_runRegister_SSHDInstallFailAbortsRegistration(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		home:  "/home/testuser/.brev",
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.sshd = &mockManagedSSHDaemon{installErr: fmt.Errorf("permission denied")}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	if err == nil {
+		t.Fatal("expected error when sshd install fails")
+	}
+	if !strings.Contains(err.Error(), "managed sshd setup failed") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+
+	exists, _ := regStore.Exists()
+	if exists {
+		t.Error("registration should not exist after sshd install failure")
 	}
 }
 
