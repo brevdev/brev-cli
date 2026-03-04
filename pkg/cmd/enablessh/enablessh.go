@@ -113,14 +113,10 @@ func enableSSH(
 	t.Vprint("")
 
 	if !brevSSHDRunning() {
-		t.Vprint("This will install and configure a managed SSH daemon on port 2222.")
-		t.Vprint("It will:")
-		t.Vprint("  - Install/upgrade openssh-server if needed")
-		t.Vprint("  - Create a dedicated sshd config at /etc/brev-sshd/sshd_config")
-		t.Vprint("  - Generate a dedicated ed25519 host key")
-		t.Vprint("  - Start a systemd service (brev-sshd) listening on port 2222")
+		t.Vprint("This will:")
+		t.Vprint("  1. Install or upgrade openssh-server")
+		t.Vprint("  2. Set up a secure SSH server on port 2222")
 		t.Vprint("")
-		t.Vprint("Setting up managed SSH daemon...")
 		if err := deps.sshd.Install(); err != nil {
 			return fmt.Errorf("managed sshd setup failed: %w", err)
 		}
