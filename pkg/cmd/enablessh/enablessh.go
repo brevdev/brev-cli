@@ -122,7 +122,7 @@ func enableSSH(
 // checkSSHDaemon prints a warning if neither "ssh" nor "sshd" systemd services
 // appear to be active. It never returns an error — it is best-effort.
 func checkSSHDaemon(t *terminal.Terminal) {
-	for _, svc := range []string{"ssh", "sshd"} {
+	for _, svc := range []string{"ssh", "sshd", "brev-sshd"} {
 		out, err := exec.Command("systemctl", "is-active", svc).Output() //nolint:gosec // fixed service names
 		if err == nil && len(out) > 0 && string(out[:len(out)-1]) == "active" {
 			return

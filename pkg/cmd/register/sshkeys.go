@@ -41,6 +41,18 @@ func GrantSSHAccessToNode(
 		}
 	}
 
+	// Add the Linux user to the brev-sshd AllowUsers directive so the
+	// managed sshd on port 2222 accepts connections for this user.
+	allowUsersAdded := false
+	if err := AddAllowedUser(osUser.Username); err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to add user to AllowUsers: %v", err)))
+	} else {
+		allowUsersAdded = true
+		if err := ReloadBrevSSHD(); err != nil {
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to reload brev-sshd: %v", err)))
+		}
+	}
+
 	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
 	_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
 		ExternalNodeId: reg.ExternalNodeID,
@@ -51,6 +63,13 @@ func GrantSSHAccessToNode(
 		if targetUser.PublicKey != "" {
 			if rerr := RemoveAuthorizedKey(osUser, targetUser.PublicKey); rerr != nil {
 				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
+			}
+		}
+		if allowUsersAdded {
+			if rerr := RemoveAllowedUser(osUser.Username); rerr != nil {
+				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to roll back AllowUsers after failed grant: %v", rerr)))
+			} else {
+				_ = ReloadBrevSSHD()
 			}
 		}
 		return fmt.Errorf("failed to grant SSH access: %w", err)

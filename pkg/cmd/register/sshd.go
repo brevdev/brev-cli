@@ -5,14 +5,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const (
 	brevSSHDDir        = "/etc/brev-sshd"
 	brevSSHDConfigPath = "/etc/brev-sshd/sshd_config"
 	brevSSHDUnitPath   = "/etc/systemd/system/brev-sshd.service"
-	brevSSHDHostKey    = "/etc/brev-sshd/ssh_host_ed25519_key"
-	brevSSHDBinary     = "/usr/sbin/sshd"
+	brevSSHDHostKey = "/etc/brev-sshd/ssh_host_ed25519_key"
 )
 
 // sshdConfig is the hardened sshd_config for the brev-managed sshd on port 2222.
@@ -98,11 +98,18 @@ func InstallBrevSSHD() error {
 		return fmt.Errorf("writing systemd unit: %w", err)
 	}
 
-	// Reload systemd, enable and start the service
-	script := `sudo systemctl daemon-reload && sudo systemctl enable brev-sshd.service && sudo systemctl start brev-sshd.service`
-	cmd := exec.Command("bash", "-c", script) // #nosec G204
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("enabling brev-sshd service: %w", err)
+	// Reload systemd, enable and start the service.
+	// Each step is run separately so failures produce actionable messages.
+	for _, args := range [][]string{
+		{"systemctl", "daemon-reload"},
+		{"systemctl", "enable", "brev-sshd.service"},
+		{"systemctl", "start", "brev-sshd.service"},
+	} {
+		cmd := exec.Command("sudo", args...) // #nosec G204
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("running 'sudo %s': %w", strings.Join(args, " "), err)
+		}
 	}
 
 	return nil
@@ -132,5 +139,88 @@ func UninstallBrevSSHD() error {
 	// Remove PID file if leftover
 	_ = os.Remove(filepath.Join("/run", "brev-sshd.pid"))
 
+	return nil
+}
+
+// AddAllowedUser appends the given username to the AllowUsers directive in the
+// brev-managed sshd_config. If AllowUsers does not yet exist, it is created.
+// Idempotent: if the user is already listed, this is a no-op.
+func AddAllowedUser(username string) error {
+	return addAllowedUser(brevSSHDConfigPath, username)
+}
+
+func addAllowedUser(configPath, username string) error {
+	data, err := os.ReadFile(configPath) // #nosec G304
+	if err != nil {
+		return fmt.Errorf("reading sshd_config: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "AllowUsers ") {
+			continue
+		}
+		// AllowUsers line exists — check if user is already listed.
+		users := strings.Fields(line)[1:]
+		for _, u := range users {
+			if u == username {
+				return nil // already allowed
+			}
+		}
+		lines[i] = line + " " + username
+		return os.WriteFile(configPath, []byte(strings.Join(lines, "\n")), 0o644)
+	}
+
+	// No AllowUsers line — append one.
+	lines = append(lines, "AllowUsers "+username)
+	return os.WriteFile(configPath, []byte(strings.Join(lines, "\n")), 0o644)
+}
+
+// RemoveAllowedUser removes the given username from the AllowUsers directive.
+// If removing the user leaves AllowUsers empty, the directive is removed entirely.
+// No-op if the user is not listed or AllowUsers does not exist.
+func RemoveAllowedUser(username string) error {
+	return removeAllowedUser(brevSSHDConfigPath, username)
+}
+
+func removeAllowedUser(configPath, username string) error {
+	data, err := os.ReadFile(configPath) // #nosec G304
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("reading sshd_config: %w", err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "AllowUsers ") {
+			continue
+		}
+		users := strings.Fields(line)[1:]
+		var kept []string
+		for _, u := range users {
+			if u != username {
+				kept = append(kept, u)
+			}
+		}
+		if len(kept) == 0 {
+			lines = append(lines[:i], lines[i+1:]...)
+		} else {
+			lines[i] = "AllowUsers " + strings.Join(kept, " ")
+		}
+		return os.WriteFile(configPath, []byte(strings.Join(lines, "\n")), 0o644)
+	}
+
+	return nil // no AllowUsers line, nothing to do
+}
+
+// ReloadBrevSSHD sends a reload signal to the brev-sshd service so it picks
+// up config changes without dropping existing connections.
+func ReloadBrevSSHD() error {
+	cmd := exec.Command("bash", "-c", "sudo systemctl reload brev-sshd.service") // #nosec G204
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("reloading brev-sshd: %w", err)
+	}
 	return nil
 }
