@@ -96,6 +96,17 @@ type mockNetBirdManager struct {
 func (m *mockNetBirdManager) Install() error   { return m.err }
 func (m *mockNetBirdManager) Uninstall() error { m.called = true; return m.err }
 
+type mockManagedSSHDaemon struct {
+	uninstallCalled bool
+	uninstallErr    error
+}
+
+func (m *mockManagedSSHDaemon) Install() error { return nil }
+func (m *mockManagedSSHDaemon) Uninstall() error {
+	m.uninstallCalled = true
+	return m.uninstallErr
+}
+
 type mockNodeClientFactory struct {
 	serverURL string
 }
@@ -133,6 +144,7 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 			return ""
 		}},
 		netbird:           &mockNetBirdManager{},
+		sshd:              &mockManagedSSHDaemon{},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
 		sshKeys:           &mockSSHKeyRemover{},
@@ -377,5 +389,48 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 				t.Error("expected registration to be deleted")
 			}
 		})
+	}
+}
+
+func Test_runDeregister_SSHDUninstallFailureIsNonFatal(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+		},
+	}
+
+	store := &mockDeregisterStore{
+		user:  &entity.User{ID: "user_1"},
+		home:  "/home/testuser/.brev",
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+	}
+
+	sshdMock := &mockManagedSSHDaemon{uninstallErr: fmt.Errorf("permission denied")}
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+	deps.sshd = sshdMock
+
+	term := terminal.New()
+	err := runDeregister(context.Background(), term, store, deps)
+	if err != nil {
+		t.Fatalf("expected nil error (sshd failure should be non-fatal), got: %v", err)
+	}
+
+	if !sshdMock.uninstallCalled {
+		t.Error("expected sshd Uninstall to be called")
+	}
+
+	// Registration should still be cleaned up despite sshd failure.
+	exists, _ := regStore.Exists()
+	if exists {
+		t.Error("expected registration to be deleted")
 	}
 }

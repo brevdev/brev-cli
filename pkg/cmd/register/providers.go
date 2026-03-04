@@ -38,6 +38,12 @@ type Netbird struct{}
 func (Netbird) Install() error   { return InstallNetbird() }
 func (Netbird) Uninstall() error { return UninstallNetbird() }
 
+// BrevSSHD manages the brev-managed sshd instance on port 2222.
+type BrevSSHD struct{}
+
+func (BrevSSHD) Install() error   { return InstallBrevSSHD() }
+func (BrevSSHD) Uninstall() error { return UninstallBrevSSHD() }
+
 // ShellSetupRunner runs setup scripts via shell.
 type ShellSetupRunner struct{}
 

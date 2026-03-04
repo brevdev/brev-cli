@@ -48,6 +48,7 @@ type deregisterDeps struct {
 	platform          externalnode.PlatformChecker
 	prompter          terminal.Selector
 	netbird           register.NetBirdManager
+	sshd              register.ManagedSSHDaemon
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 	sshKeys           SSHKeyRemover
@@ -58,6 +59,7 @@ func defaultDeregisterDeps(brevHome string) deregisterDeps {
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		netbird:           register.Netbird{},
+		sshd:              register.BrevSSHD{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(brevHome),
 		sshKeys:           brevSSHKeyRemover{},
@@ -155,6 +157,15 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		default:
 			t.Vprint("  No Brev SSH keys found in authorized_keys.")
 		}
+	}
+	t.Vprint("")
+
+	// Remove brev-managed sshd (non-fatal on failure).
+	t.Vprint("Removing managed SSH daemon...")
+	if err := deps.sshd.Uninstall(); err != nil {
+		t.Vprintf("  Warning: failed to remove managed SSH daemon: %v\n", err)
+	} else {
+		t.Vprint(t.Green("  Managed SSH daemon removed."))
 	}
 	t.Vprint("")
 
