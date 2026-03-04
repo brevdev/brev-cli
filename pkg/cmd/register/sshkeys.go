@@ -18,6 +18,19 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
+// sshConnectionError marks an error as being due to a transient connection/transport failure
+type sshConnectionError struct{ err error }
+
+func (e *sshConnectionError) Error() string { return e.err.Error() }
+func (e *sshConnectionError) Unwrap() error { return e.err }
+
+// IsSSHConnectionError reports whether err indicates a transient connection/transport
+// failure that may be retried. Used by grantSSHAccess to decide whether to backoff-retry.
+func IsSSHConnectionError(err error) bool {
+	var e *sshConnectionError
+	return errors.As(err, &e)
+}
+
 // BrevKeyComment is the marker appended to every SSH key that Brev installs.
 // It allows RemoveBrevAuthorizedKeys to identify and remove exactly those keys.
 const BrevKeyComment = "# brev-cli"
@@ -54,7 +67,7 @@ func GrantSSHAccessToNode(
 		// with a distinct error type.
 		var connectErr *connect.Error
 		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInternal {
-			return fmt.Errorf("failed to grant SSH access (transient): %w", err)
+			return &sshConnectionError{err: fmt.Errorf("failed to grant SSH access (transient): %w", err)}
 		}
 		// Permanent error — roll back the key so we don't leave an unrecorded entry.
 		if targetUser.PublicKey != "" {
@@ -103,7 +116,7 @@ func InstallAuthorizedKey(u *user.User, pubKey string) (bool, error) {
 		if err := os.WriteFile(authKeysPath, []byte(updated), 0o600); err != nil {
 			return false, fmt.Errorf("writing authorized_keys: %w", err)
 		}
-		return false, nil
+		return true, nil
 	}
 
 	// Ensure existing content ends with a newline before appending.

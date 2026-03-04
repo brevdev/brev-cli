@@ -24,6 +24,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	backoffInitialInterval = 1 * time.Second
+	backoffMaxInterval     = 10 * time.Second
+	backoffMaxElapsedTime  = 1 * time.Minute
+
+	backoffPrintRound = 500 * time.Millisecond
+)
+
 // RegisterStore defines the store methods needed by the register command.
 type RegisterStore interface {
 	GetCurrentUser() (*entity.User, error)
@@ -340,34 +348,29 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	t.Vprintf("  Linux user: %s\n", osUser.Username)
 	t.Vprint("")
 
-	op := func() error {
-		return GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	backoffCtx := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(backoffInitialInterval),
+		backoff.WithMaxInterval(backoffMaxInterval),
+		backoff.WithMaxElapsedTime(backoffMaxElapsedTime),
+	), ctx)
+
+	opToTry := func() error {
+		err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+		if err != nil && !IsSSHConnectionError(err) {
+			return backoff.Permanent(err)
+		}
+		return err
 	}
-	b := backoff.WithContext(newBackoff(), ctx)
-	notify := func(err error, d time.Duration) {
+	onOpErr := func(err error, d time.Duration) {
 		t.Vprintf("  SSH access not yet granted; retrying in: %s...\n", d.Round(backoffPrintRound))
 	}
-	err := backoff.RetryNotify(op, b, notify)
+
+	// Retry until the operation succeeds or the context is cancelled.
+	err := backoff.RetryNotify(opToTry, backoffCtx, onOpErr)
 	if err != nil {
 		t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		return
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
-}
-
-const (
-	backoffInitialInterval = 1 * time.Second
-	backoffMaxInterval     = 10 * time.Second
-	backoffMaxElapsedTime  = 1 * time.Minute
-
-	backoffPrintRound = 500 * time.Millisecond
-)
-
-func newBackoff() *backoff.ExponentialBackOff {
-	return backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(backoffInitialInterval),
-		backoff.WithMaxInterval(backoffMaxInterval),
-		backoff.WithMaxElapsedTime(backoffMaxElapsedTime),
-	)
 }
