@@ -64,9 +64,8 @@ type SetupRunner interface {
 type registerDeps struct {
 	platform          externalnode.PlatformChecker
 	prompter          terminal.Confirmer
-	netbird           NetBirdManager
-	sshd              ManagedSSHDaemon
-	setupRunner       SetupRunner
+	netbird       NetBirdManager
+	setupRunner   SetupRunner
 	nodeClients       externalnode.NodeClientFactory
 	commandRunner     CommandRunner
 	fileReader        FileReader
@@ -77,9 +76,8 @@ func defaultRegisterDeps(brevHome string) registerDeps {
 	return registerDeps{
 		platform:          LinuxPlatform{},
 		prompter:          TerminalPrompter{},
-		netbird:           Netbird{},
-		sshd:              BrevSSHD{},
-		setupRunner:       ShellSetupRunner{},
+		netbird:       Netbird{},
+		setupRunner:   ShellSetupRunner{},
 		nodeClients:       DefaultNodeClientFactory{},
 		commandRunner:     ExecCommandRunner{},
 		fileReader:        OSFileReader{},
@@ -155,9 +153,8 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint("")
 	t.Vprint("This will perform the following steps:")
 	t.Vprint("  1. Set up Brev tunnel")
-	t.Vprint("  2. Set up managed SSH daemon (port 2222)")
-	t.Vprint("  3. Collect hardware profile")
-	t.Vprint("  4. Register this machine with Brev")
+	t.Vprint("  2. Collect hardware profile")
+	t.Vprint("  3. Register this machine with Brev")
 	t.Vprint("")
 
 	if !deps.prompter.ConfirmYesNo("Proceed with registration?") {
@@ -166,21 +163,14 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 1/4] Setting up Brev tunnel..."))
+	t.Vprint(t.Yellow("[Step 1/3] Setting up Brev tunnel..."))
 	if err := deps.netbird.Install(); err != nil {
 		return fmt.Errorf("brev tunnel setup failed: %w", err)
 	}
 	t.Vprint(t.Green("  Brev tunnel ready."))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 2/4] Setting up managed SSH daemon..."))
-	if err := deps.sshd.Install(); err != nil {
-		return fmt.Errorf("managed sshd setup failed: %w", err)
-	}
-	t.Vprint(t.Green("  Managed SSH daemon ready (port 2222)."))
-
-	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 3/4] Collecting hardware profile..."))
+	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
 	t.Vprint("")
 
 	nodeSpec, err := CollectHardwareProfile(deps.commandRunner, deps.fileReader)
@@ -192,7 +182,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(FormatNodeSpec(nodeSpec))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 4/4] Registering with Brev..."))
+	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
 
 	deviceID := uuid.New().String()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())

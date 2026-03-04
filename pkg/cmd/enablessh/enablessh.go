@@ -5,7 +5,6 @@ package enablessh
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"os/user"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
@@ -28,6 +27,7 @@ type EnableSSHStore interface {
 // can be replaced in tests.
 type enableSSHDeps struct {
 	platform          externalnode.PlatformChecker
+	sshd              register.ManagedSSHDaemon
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 }
@@ -35,6 +35,7 @@ type enableSSHDeps struct {
 func defaultEnableSSHDeps(brevHome string) enableSSHDeps {
 	return enableSSHDeps{
 		platform:          register.LinuxPlatform{},
+		sshd:              register.BrevSSHD{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(brevHome),
 	}
@@ -83,15 +84,15 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return enableSSH(ctx, t, deps.nodeClients, s, reg, brevUser)
+	return enableSSH(ctx, t, deps, s, reg, brevUser)
 }
 
 // enableSSH grants SSH access to the given node for the current Brev user.
-// This is the "reflexive grant" — granting yourself SSH access to the device.
+// It ensures the managed sshd is installed before granting access.
 func enableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
-	nodeClients externalnode.NodeClientFactory,
+	deps enableSSHDeps,
 	tokenProvider externalnode.TokenProvider,
 	reg *register.DeviceRegistration,
 	brevUser *entity.User,
@@ -101,8 +102,6 @@ func enableSSH(
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
 
-	checkSSHDaemon(t)
-
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
 	t.Vprint("")
@@ -111,22 +110,17 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", u.Username)
 	t.Vprint("")
 
-	if err := register.GrantSSHAccessToNode(ctx, t, nodeClients, tokenProvider, reg, brevUser, u); err != nil {
+	t.Vprint("Setting up managed SSH daemon...")
+	if err := deps.sshd.Install(); err != nil {
+		return fmt.Errorf("managed sshd setup failed: %w", err)
+	}
+	t.Vprint(t.Green("  Managed SSH daemon ready (port 2222)."))
+	t.Vprint("")
+
+	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, u); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 	return nil
-}
-
-// checkSSHDaemon prints a warning if neither "ssh" nor "sshd" systemd services
-// appear to be active. It never returns an error — it is best-effort.
-func checkSSHDaemon(t *terminal.Terminal) {
-	for _, svc := range []string{"ssh", "sshd", "brev-sshd"} {
-		out, err := exec.Command("systemctl", "is-active", svc).Output() //nolint:gosec // fixed service names
-		if err == nil && len(out) > 0 && string(out[:len(out)-1]) == "active" {
-			return
-		}
-	}
-	t.Vprintf("  %s\n", t.Yellow("Warning: SSH daemon does not appear to be running. SSH access may not work until sshd is started."))
 }
