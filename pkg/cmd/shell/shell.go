@@ -126,7 +126,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using the shell
 	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
-	err = runSSH(sshName)
+	err = runSSH(sshName, host)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -193,9 +193,15 @@ func runSSHWithPort(target string, port int32, identityFile string) error {
 	return nil
 }
 
-func runSSH(sshAlias string) error {
+func runSSH(sshAlias string, host bool) error {
 	sshAgentEval := "eval $(ssh-agent -s)"
-	cmd := fmt.Sprintf("%s && ssh %s", sshAgentEval, sshAlias)
+	var cmd string
+	if host {
+		cmd = fmt.Sprintf("%s && ssh %s", sshAgentEval, sshAlias)
+	} else {
+		// SSH into VM and respect container WORKDIR if containerized, otherwise use default directory
+		cmd = fmt.Sprintf("%s && ssh -t %s 'DIR=$(readlink -f /proc/1/cwd 2>/dev/null || pwd); cd \"$DIR\" || echo \"Warning: Could not access container directory\" >&2; exec ${SHELL:-/bin/sh}'", sshAgentEval, sshAlias)
+	}
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
