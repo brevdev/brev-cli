@@ -365,7 +365,7 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 		t.Vprintf("  SSH access not yet granted; retrying in: %s...\n", d.Round(backoffPrintRound))
 	}
 
-	// Retry until the operation succeeds or the context is cancelled.
+	// Retry until the operation succeeds or the context is canceled.
 	err := backoff.RetryNotify(opToTry, backoffCtx, onOpErr)
 	if err != nil {
 		t.Vprintf("  Warning: SSH access not granted: %v\n", err)
