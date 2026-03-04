@@ -285,7 +285,7 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 	}
 }
 
-func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
+func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
 	regStore := &mockRegistrationStore{
 		reg: &register.DeviceRegistration{
 			ExternalNodeID: "unode_abc",
@@ -309,13 +309,6 @@ func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
 	netbird := &mockNetBirdManager{}
 	deps, server := testDeregisterDeps(t, svc, regStore)
 	defer server.Close()
-
-	deps.prompter = mockSelector{fn: func(label string, _ []string) string {
-		if label == "Would you also like to remove the Brev tunnel?" {
-			return "No, keep Brev tunnel installed"
-		}
-		return "Yes, proceed"
-	}}
 	deps.netbird = netbird
 
 	term := terminal.New()
@@ -324,8 +317,8 @@ func Test_runDeregister_SkipsNetbirdUninstall(t *testing.T) {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
 
-	if netbird.called {
-		t.Error("Brev tunnel uninstall should not be called when user declines")
+	if !netbird.called {
+		t.Error("expected Brev tunnel uninstall to always be called during deregistration")
 	}
 }
 

@@ -1,16 +1,63 @@
 package register
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
+	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 // BrevKeyComment is the marker appended to every SSH key that Brev installs.
 // It allows RemoveBrevAuthorizedKeys to identify and remove exactly those keys.
 const BrevKeyComment = "# brev-cli"
+
+// GrantSSHAccessToNode installs the user's public key in authorized_keys and
+// calls GrantNodeSSHAccess to record access server-side. If the RPC fails,
+// the installed key is rolled back.
+func GrantSSHAccessToNode(
+	ctx context.Context,
+	t *terminal.Terminal,
+	nodeClients externalnode.NodeClientFactory,
+	tokenProvider externalnode.TokenProvider,
+	reg *DeviceRegistration,
+	targetUser *entity.User,
+	osUser *user.User,
+) error {
+	if targetUser.PublicKey != "" {
+		if err := InstallAuthorizedKey(osUser, targetUser.PublicKey); err != nil {
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
+		} else {
+			t.Vprint("  Brev public key added to authorized_keys.")
+		}
+	}
+
+	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
+	_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
+		ExternalNodeId: reg.ExternalNodeID,
+		UserId:         targetUser.ID,
+		LinuxUser:      osUser.Username,
+	}))
+	if err != nil {
+		if targetUser.PublicKey != "" {
+			if rerr := RemoveAuthorizedKey(osUser, targetUser.PublicKey); rerr != nil {
+				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
+			}
+		}
+		return fmt.Errorf("failed to grant SSH access: %w", err)
+	}
+
+	return nil
+}
 
 // InstallAuthorizedKey appends the given public key to the user's
 // ~/.ssh/authorized_keys if it isn't already present. The key is tagged with

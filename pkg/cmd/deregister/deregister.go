@@ -67,7 +67,7 @@ func defaultDeregisterDeps(brevHome string) deregisterDeps {
 var (
 	deregisterLong = `Deregister your device from NVIDIA Brev
 
-This command removes the local registration data and optionally uninstalls
+This command removes the local registration data and uninstalls
 the Brev tunnel (network agent).`
 
 	deregisterExample = `  brev deregister`
@@ -158,19 +158,13 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	}
 	t.Vprint("")
 
-	removeTunnel := deps.prompter.Select(
-		"Would you also like to remove the Brev tunnel?",
-		[]string{"Yes, remove Brev tunnel", "No, keep Brev tunnel installed"},
-	)
-	if removeTunnel == "Yes, remove Brev tunnel" {
-		t.Vprint("Removing Brev tunnel...")
-		if err := deps.netbird.Uninstall(); err != nil {
-			t.Vprintf("  Warning: failed to remove Brev tunnel: %v\n", err)
-		} else {
-			t.Vprint(t.Green("  Brev tunnel removed."))
-		}
-		t.Vprint("")
+	t.Vprint("Removing Brev tunnel...")
+	if err := deps.netbird.Uninstall(); err != nil {
+		t.Vprintf("  Warning: failed to remove Brev tunnel: %v\n", err)
+	} else {
+		t.Vprint(t.Green("  Brev tunnel removed."))
 	}
+	t.Vprint("")
 
 	t.Vprint("Removing registration data...")
 	if err := deps.registrationStore.Delete(); err != nil {

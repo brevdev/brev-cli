@@ -109,9 +109,8 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 }
 
 func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error { //nolint:funlen // registration flow
-	org, err := getOrgToRegisterFor(deps, s)
-	if err != nil {
-		return err
+	if !deps.platform.IsCompatible() {
+		return breverrors.New("brev register is only supported on Linux")
 	}
 
 	alreadyRegistered, err := deps.registrationStore.Exists()
@@ -130,7 +129,10 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
+	org, err := getOrgToRegisterFor(s)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	osUser, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
@@ -203,18 +205,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 
 	t.Vprint(t.Green("  Registration complete."))
 
-	ci := node.GetConnectivityInfo()
-	if ci == nil || ci.GetRegistrationCommand() == "" {
-		t.Vprintf("  %s\n", t.Yellow("Warning: Brev tunnel setup failed, please try again."))
-	} else {
-		if err := deps.setupRunner.RunSetup(ci.GetRegistrationCommand()); err != nil {
-			t.Vprintf("  Warning: setup command failed: %v\n", err)
-		} else {
-			// netbird up reconfigures network routes; give them a moment
-			// to settle before making further RPC calls.
-			time.Sleep(2 * time.Second)
-		}
-	}
+	runSetup(node, t, deps)
 
 	if deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?") {
 		grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser)
@@ -223,59 +214,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	return nil
 }
 
-func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) {
-	t.Vprint("")
-	t.Vprint(t.Green("Enabling SSH access on this device"))
-	t.Vprint("")
-	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
-	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
-	t.Vprintf("  Linux user: %s\n", osUser.Username)
-	t.Vprint("")
-
-	if brevUser.PublicKey != "" {
-		if err := InstallAuthorizedKey(osUser, brevUser.PublicKey); err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
-		} else {
-			t.Vprint("  Brev public key added to authorized_keys.")
-		}
-	}
-
-	client := deps.nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	req := connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-		UserId:         brevUser.ID,
-		LinuxUser:      osUser.Username,
-	})
-
-	_, err := client.GrantNodeSSHAccess(ctx, req)
-	if err != nil {
-		t.Vprint("  Retrying in 3 seconds...")
-		time.Sleep(3 * time.Second)
-		_, err = client.GrantNodeSSHAccess(ctx, req)
-	}
-	if err != nil {
-		t.Vprintf("  Warning: failed to enable SSH: %v\n", err)
-		if brevUser.PublicKey != "" {
-			if rerr := RemoveAuthorizedKey(osUser, brevUser.PublicKey); rerr != nil {
-				t.Vprintf("  Warning: failed to remove SSH key after failed grant: %v\n", rerr)
-			}
-		}
-		return
-	}
-
-	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
-}
-
-func getOrgToRegisterFor(deps registerDeps, s RegisterStore) (*entity.Organization, error) {
-	if !deps.platform.IsCompatible() {
-		return nil, fmt.Errorf("brev register is only supported on Linux")
-	}
-
-	_, err := s.GetCurrentUser() // ensure active token
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
+func getOrgToRegisterFor(s RegisterStore) (*entity.Organization, error) {
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -305,8 +244,10 @@ func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s Regi
 	}))
 	if err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not fetch node status: %v", err)))
+	} else if node := resp.Msg.GetExternalNode(); node == nil {
+		t.Vprintf("  %s\n", t.Yellow("Warning: could not fetch node connectivity info"))
 	} else {
-		ci := resp.Msg.GetExternalNode().GetConnectivityInfo()
+		ci := node.GetConnectivityInfo()
 		if ci != nil && ci.GetStatus() == nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED {
 			t.Vprint(t.Green("  Node is connected."))
 			t.Vprint("")
@@ -372,4 +313,42 @@ func netbirdManagementConnected(statusOutput string) bool {
 		}
 	}
 	return false
+}
+
+func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps) {
+	ci := node.GetConnectivityInfo()
+	if ci == nil || ci.GetRegistrationCommand() == "" {
+		t.Vprintf("  %s\n", t.Yellow("Warning: Brev tunnel setup failed, please try again."))
+	} else {
+		if err := deps.setupRunner.RunSetup(ci.GetRegistrationCommand()); err != nil {
+			t.Vprintf("  Warning: setup command failed: %v\n", err)
+		} else {
+			// netbird up reconfigures network routes; give them a moment
+			// to settle before making further RPC calls.
+			time.Sleep(2 * time.Second)
+		}
+	}
+}
+
+func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) {
+	t.Vprint("")
+	t.Vprint(t.Green("Enabling SSH access on this device"))
+	t.Vprint("")
+	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
+	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
+	t.Vprintf("  Linux user: %s\n", osUser.Username)
+	t.Vprint("")
+
+	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	if err != nil {
+		t.Vprint("  Retrying in 3 seconds...")
+		time.Sleep(3 * time.Second)
+		err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	}
+	if err != nil {
+		t.Vprintf("  Warning: %v\n", err)
+		return
+	}
+
+	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 }

@@ -10,11 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
-	"connectrpc.com/connect"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
@@ -139,26 +135,8 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	t.Vprintf("  Linux user: %s\n", linuxUser)
 	t.Vprint("")
 
-	if selectedUser.PublicKey != "" {
-		if err := register.InstallAuthorizedKey(osUser, selectedUser.PublicKey); err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
-		} else {
-			t.Vprint("  Brev public key added to authorized_keys.")
-		}
-	}
-
-	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	if _, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-		UserId:         selectedUser.ID,
-		LinuxUser:      linuxUser,
-	})); err != nil {
-		if selectedUser.PublicKey != "" {
-			if rerr := register.RemoveAuthorizedKey(osUser, selectedUser.PublicKey); rerr != nil {
-				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
-			}
-		}
-		return fmt.Errorf("failed to grant SSH access: %w", err)
+	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, s, reg, selectedUser, osUser); err != nil {
+		return fmt.Errorf("grant SSH failed: %w", err)
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, reg.DisplayName)))
@@ -170,7 +148,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 func checkSSHEnabled(currentUserPubKey string) error {
 	currentUserPubKey = strings.TrimSpace(currentUserPubKey)
 	if currentUserPubKey == "" {
-		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+		return fmt.Errorf("curren user does not have a Brev public key")
 	}
 
 	u, err := user.Current()
@@ -181,11 +159,11 @@ func checkSSHEnabled(currentUserPubKey string) error {
 	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
 	existing, err := os.ReadFile(authKeysPath) // #nosec G304
 	if err != nil {
-		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+		return fmt.Errorf("failed to read authorized_keys, %w", err)
 	}
 
 	if !strings.Contains(string(existing), currentUserPubKey) {
-		return fmt.Errorf("SSH has not been enabled on this device. Run 'brev enable-ssh' first.")
+		return fmt.Errorf("run 'brev enable-ssh' first")
 	}
 
 	return nil

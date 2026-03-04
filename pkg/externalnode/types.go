@@ -29,7 +29,7 @@ func FriendlyNetworkStatus(s nodev1.NetworkMemberStatus) string {
 	case nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_DISCONNECTED:
 		return "Disconnected"
 	case nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_UNSPECIFIED:
-		return "Registered"
+		return "Unknown"
 	default:
 		return "Unknown"
 	}

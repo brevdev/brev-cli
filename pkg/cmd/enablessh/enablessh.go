@@ -8,11 +8,7 @@ import (
 	"os/exec"
 	"os/user"
 
-	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
-	"connectrpc.com/connect"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
@@ -87,12 +83,12 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return EnableSSH(ctx, t, deps.nodeClients, s, reg, brevUser)
+	return enableSSH(ctx, t, deps.nodeClients, s, reg, brevUser)
 }
 
-// EnableSSH grants SSH access to the given node for the specified Brev user.
-// It is exported so that the register command can reuse it after registration.
-func EnableSSH(
+// enableSSH grants SSH access to the given node for the current Brev user.
+// This is the "reflexive grant" — granting yourself SSH access to the device.
+func enableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
 	nodeClients externalnode.NodeClientFactory,
@@ -104,7 +100,6 @@ func EnableSSH(
 	if err != nil {
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
-	linuxUser := u.Username
 
 	checkSSHDaemon(t)
 
@@ -113,29 +108,11 @@ func EnableSSH(
 	t.Vprint("")
 	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
-	t.Vprintf("  Linux user: %s\n", linuxUser)
+	t.Vprintf("  Linux user: %s\n", u.Username)
 	t.Vprint("")
 
-	if brevUser.PublicKey != "" {
-		if err := register.InstallAuthorizedKey(u, brevUser.PublicKey); err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
-		} else {
-			t.Vprint("  Brev public key added to authorized_keys.")
-		}
-	}
-
-	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	if _, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-		UserId:         brevUser.ID,
-		LinuxUser:      linuxUser,
-	})); err != nil {
-		if brevUser.PublicKey != "" {
-			if rerr := register.RemoveAuthorizedKey(u, brevUser.PublicKey); rerr != nil {
-				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
-			}
-		}
-		return fmt.Errorf("failed to enable SSH access: %w", err)
+	if err := register.GrantSSHAccessToNode(ctx, t, nodeClients, tokenProvider, reg, brevUser, u); err != nil {
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
