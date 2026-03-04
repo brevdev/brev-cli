@@ -500,31 +500,6 @@ Peers count: 0/0 Connected`
 	}
 }
 
-func TestIsSSHConnectionError(t *testing.T) {
-	t.Run("nil", func(t *testing.T) {
-		if IsSSHConnectionError(nil) {
-			t.Error("IsSSHConnectionError(nil) should be false")
-		}
-	})
-	t.Run("plain_error", func(t *testing.T) {
-		if IsSSHConnectionError(fmt.Errorf("some error")) {
-			t.Error("IsSSHConnectionError(plain error) should be false")
-		}
-	})
-	t.Run("connection_error_type", func(t *testing.T) {
-		err := &sshConnectionError{err: fmt.Errorf("transient")}
-		if !IsSSHConnectionError(err) {
-			t.Error("IsSSHConnectionError(sshConnectionError) should be true")
-		}
-	})
-	t.Run("wrapped_connection_error", func(t *testing.T) {
-		err := fmt.Errorf("wrapped: %w", &sshConnectionError{err: fmt.Errorf("transient")})
-		if !IsSSHConnectionError(err) {
-			t.Error("IsSSHConnectionError(wrapped sshConnectionError) should be true")
-		}
-	})
-}
-
 func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 

@@ -12,7 +12,6 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
-	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -22,14 +21,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	backoffInitialInterval = 1 * time.Second
-	backoffMaxInterval     = 10 * time.Second
-	backoffMaxElapsedTime  = 1 * time.Minute
-
-	backoffPrintRound = 500 * time.Millisecond
 )
 
 // RegisterStore defines the store methods needed by the register command.
@@ -217,7 +208,9 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	runSetup(node, t, deps)
 
 	if deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?") {
-		grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser)
+		if err := grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser); err != nil {
+			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
+		}
 	}
 
 	return nil
@@ -339,7 +332,7 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 	}
 }
 
-func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) {
+func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) error {
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
 	t.Vprint("")
@@ -348,29 +341,11 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	t.Vprintf("  Linux user: %s\n", osUser.Username)
 	t.Vprint("")
 
-	backoffCtx := backoff.WithContext(backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(backoffInitialInterval),
-		backoff.WithMaxInterval(backoffMaxInterval),
-		backoff.WithMaxElapsedTime(backoffMaxElapsedTime),
-	), ctx)
-
-	opToTry := func() error {
-		err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
-		if err != nil && !IsSSHConnectionError(err) {
-			return backoff.Permanent(err)
-		}
-		return err
-	}
-	onOpErr := func(err error, d time.Duration) {
-		t.Vprintf("  SSH access not yet granted; retrying in: %s...\n", d.Round(backoffPrintRound))
-	}
-
-	// Retry until the operation succeeds or the context is canceled.
-	err := backoff.RetryNotify(opToTry, backoffCtx, onOpErr)
+	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
 	if err != nil {
-		t.Vprintf("  Warning: SSH access not granted: %v\n", err)
-		return
+		return fmt.Errorf("grant SSH failed: %w", err)
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
+	return nil
 }

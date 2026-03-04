@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
@@ -16,20 +17,16 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/cenkalti/backoff/v4"
 )
 
-// sshConnectionError marks an error as being due to a transient connection/transport failure
-type sshConnectionError struct{ err error }
+const (
+	backoffInitialInterval = 1 * time.Second
+	backoffMaxInterval     = 10 * time.Second
+	backoffMaxElapsedTime  = 1 * time.Minute
 
-func (e *sshConnectionError) Error() string { return e.err.Error() }
-func (e *sshConnectionError) Unwrap() error { return e.err }
-
-// IsSSHConnectionError reports whether err indicates a transient connection/transport
-// failure that may be retried. Used by grantSSHAccess to decide whether to backoff-retry.
-func IsSSHConnectionError(err error) bool {
-	var e *sshConnectionError
-	return errors.As(err, &e)
-}
+	backoffPrintRound = 500 * time.Millisecond
+)
 
 // BrevKeyComment is the marker appended to every SSH key that Brev installs.
 // It allows RemoveBrevAuthorizedKeys to identify and remove exactly those keys.
@@ -56,28 +53,44 @@ func GrantSSHAccessToNode(
 	}
 
 	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-		UserId:         targetUser.ID,
-		LinuxUser:      osUser.Username,
-	}))
-	if err != nil {
-		// Transport errors (connection reset, EOF) are transient — leave the key
-		// installed so retries don't need to reinstall it, and signal the caller
-		// with a distinct error type.
-		var connectErr *connect.Error
-		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInternal {
-			return &sshConnectionError{err: fmt.Errorf("failed to grant SSH access (transient): %w", err)}
-		}
-		// Permanent error — roll back the key so we don't leave an unrecorded entry.
-		if targetUser.PublicKey != "" {
-			if rerr := RemoveAuthorizedKey(osUser, targetUser.PublicKey); rerr != nil {
-				t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
+
+	backoffCtx := backoff.WithContext(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(backoffInitialInterval),
+		backoff.WithMaxInterval(backoffMaxInterval),
+		backoff.WithMaxElapsedTime(backoffMaxElapsedTime),
+	), ctx)
+
+	opToTry := func() error {
+		_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
+			ExternalNodeId: reg.ExternalNodeID,
+			UserId:         targetUser.ID,
+			LinuxUser:      osUser.Username,
+		}))
+		if err != nil {
+			// Retryable error
+			var connectErr *connect.Error
+			if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeInternal {
+				return fmt.Errorf("failed to grant SSH access (transient): %w", err)
 			}
+
+			// Permanent error — roll back the key so we don't leave an unrecorded entry and abort the backoff retry
+			if targetUser.PublicKey != "" {
+				if rerr := RemoveAuthorizedKey(osUser, targetUser.PublicKey); rerr != nil {
+					t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
+				}
+			}
+			return backoff.Permanent(fmt.Errorf("failed to grant SSH access: %w", err))
 		}
+
+		return nil
+	}
+	onOpErr := func(err error, d time.Duration) {
+		t.Vprintf("  SSH access not yet granted; retrying in: %s...\n", d.Round(backoffPrintRound))
+	}
+	err := backoff.RetryNotify(opToTry, backoffCtx, onOpErr)
+	if err != nil {
 		return fmt.Errorf("failed to grant SSH access: %w", err)
 	}
-
 	return nil
 }
 
