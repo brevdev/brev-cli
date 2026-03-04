@@ -5,7 +5,9 @@ package enablessh
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"os/user"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -110,12 +112,21 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", u.Username)
 	t.Vprint("")
 
-	t.Vprint("Setting up managed SSH daemon...")
-	if err := deps.sshd.Install(); err != nil {
-		return fmt.Errorf("managed sshd setup failed: %w", err)
+	if !brevSSHDRunning() {
+		t.Vprint("This will install and configure a managed SSH daemon on port 2222.")
+		t.Vprint("It will:")
+		t.Vprint("  - Install/upgrade openssh-server if needed")
+		t.Vprint("  - Create a dedicated sshd config at /etc/brev-sshd/sshd_config")
+		t.Vprint("  - Generate a dedicated ed25519 host key")
+		t.Vprint("  - Start a systemd service (brev-sshd) listening on port 2222")
+		t.Vprint("")
+		t.Vprint("Setting up managed SSH daemon...")
+		if err := deps.sshd.Install(); err != nil {
+			return fmt.Errorf("managed sshd setup failed: %w", err)
+		}
+		t.Vprint(t.Green("  Managed SSH daemon ready (port 2222)."))
+		t.Vprint("")
 	}
-	t.Vprint(t.Green("  Managed SSH daemon ready (port 2222)."))
-	t.Vprint("")
 
 	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, u); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
@@ -123,4 +134,10 @@ func enableSSH(
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 	return nil
+}
+
+// brevSSHDRunning returns true if the brev-sshd systemd service is active.
+func brevSSHDRunning() bool {
+	out, err := exec.Command("systemctl", "is-active", "brev-sshd").Output() //nolint:gosec // fixed service name
+	return err == nil && strings.TrimSpace(string(out)) == "active"
 }
