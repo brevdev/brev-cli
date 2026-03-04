@@ -208,7 +208,9 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	runSetup(node, t, deps)
 
 	if deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?") {
-		grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser)
+		if err := grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser); err != nil {
+			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
+		}
 	}
 
 	return nil
@@ -330,7 +332,7 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 	}
 }
 
-func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) {
+func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) error {
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
 	t.Vprint("")
@@ -341,14 +343,9 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 
 	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
 	if err != nil {
-		t.Vprint("  Retrying in 3 seconds...")
-		time.Sleep(3 * time.Second)
-		err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
-	}
-	if err != nil {
-		t.Vprintf("  Warning: %v\n", err)
-		return
+		return fmt.Errorf("grant SSH failed: %w", err)
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
+	return nil
 }
