@@ -75,6 +75,11 @@ WantedBy=multi-user.target
 // It creates the config directory, generates a host key (idempotent),
 // writes the sshd_config and systemd unit, then enables and starts the service.
 func InstallBrevSSHD() error {
+	// Install openssh-server if sshd binary is not present.
+	if err := ensureSSHDInstalled(); err != nil {
+		return fmt.Errorf("installing openssh-server: %w", err)
+	}
+
 	// Create config directory
 	if err := os.MkdirAll(brevSSHDDir, 0o755); err != nil {
 		return fmt.Errorf("creating brev-sshd directory: %w", err)
@@ -213,6 +218,17 @@ func removeAllowedUser(configPath, username string) error {
 	}
 
 	return nil // no AllowUsers line, nothing to do
+}
+
+// ensureSSHDInstalled installs openssh-server if missing, or upgrades it if
+// a newer version is available.
+func ensureSSHDInstalled() error {
+	cmd := exec.Command("sudo", "apt-get", "install", "-y", "openssh-server") // #nosec G204
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("apt-get install openssh-server: %w", err)
+	}
+	return nil
 }
 
 // ReloadBrevSSHD sends a reload signal to the brev-sshd service so it picks
