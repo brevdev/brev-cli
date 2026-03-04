@@ -69,7 +69,7 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, d
 		return fmt.Errorf("brev revoke-ssh is only supported on Linux")
 	}
 
-	reg, err := getRegistration(deps)
+	reg, err := deps.registrationStore.Load()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -150,22 +150,6 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, d
 	t.Vprint("")
 	t.Vprint(t.Green("SSH key revoked."))
 	return nil
-}
-
-func getRegistration(deps revokeSSHDeps) (*register.DeviceRegistration, error) {
-	registered, err := deps.registrationStore.Exists()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if !registered {
-		return nil, fmt.Errorf("no registration found; this machine does not appear to be registered\nRun 'brev register' to register your device first")
-	}
-
-	reg, err := deps.registrationStore.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read registration file: %w", err)
-	}
-	return reg, nil
 }
 
 // truncateKey shortens a key string for display, showing the first maxLen

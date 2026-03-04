@@ -60,14 +60,6 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return fmt.Errorf("brev enable-ssh is only supported on Linux")
 	}
 
-	registered, err := deps.registrationStore.Exists()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if !registered {
-		return fmt.Errorf("no registration found; this machine does not appear to be registered\nRun 'brev register' to register your device first")
-	}
-
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
 		return fmt.Errorf("failed to read registration file: %w", err)

@@ -69,11 +69,18 @@ func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
 	return sudoWriteFile(path, data)
 }
 
+// Load reads the registration file and returns the parsed DeviceRegistration
 func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 	path := s.path()
+	exists, err := s.Exists()
+	if !exists {
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return nil, breverrors.WrapAndTrace(breverrors.New("device registration not found, run 'brev register' first"))
+	}
 	var reg DeviceRegistration
-	err := files.ReadJSON(files.AppFs, path, &reg)
-	if err != nil {
+	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return &reg, nil

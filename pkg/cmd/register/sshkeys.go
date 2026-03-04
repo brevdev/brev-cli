@@ -22,10 +22,6 @@ import (
 // ("# brev-cli user_id=xxx") keys start with this prefix.
 const BrevKeyPrefix = "# brev-cli"
 
-// BrevKeyComment is kept as an alias for backward compatibility with tests
-// and callers that reference the old constant name.
-const BrevKeyComment = BrevKeyPrefix
-
 // BrevKeyTag returns a comment tag that encodes the Brev user ID.
 // Example: "# brev-cli user_id=user_abc123"
 func BrevKeyTag(userID string) string {
@@ -156,39 +152,6 @@ func GrantSSHAccessToNode(
 			}
 		}
 		return fmt.Errorf("failed to grant SSH access: %w", err)
-	}
-
-	return nil
-}
-
-// RevokeSSHAccessFromNode removes the user's public key from authorized_keys
-// and calls RevokeNodeSSHAccess to record the revocation server-side.
-// No rollback is performed if the RPC fails — the key stays removed for safety.
-func RevokeSSHAccessFromNode(
-	ctx context.Context,
-	t *terminal.Terminal,
-	nodeClients externalnode.NodeClientFactory,
-	tokenProvider externalnode.TokenProvider,
-	reg *DeviceRegistration,
-	targetUser *entity.User,
-	osUser *user.User,
-) error {
-	if targetUser.PublicKey != "" {
-		if err := RemoveAuthorizedKey(osUser, targetUser.PublicKey); err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH public key: %v", err)))
-		} else {
-			t.Vprint("  Brev public key removed from authorized_keys.")
-		}
-	}
-
-	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	_, err := client.RevokeNodeSSHAccess(ctx, connect.NewRequest(&nodev1.RevokeNodeSSHAccessRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-		UserId:         targetUser.ID,
-		LinuxUser:      osUser.Username,
-	}))
-	if err != nil {
-		return fmt.Errorf("failed to revoke SSH access: %w", err)
 	}
 
 	return nil
