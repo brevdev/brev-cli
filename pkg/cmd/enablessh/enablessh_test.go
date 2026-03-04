@@ -31,7 +31,7 @@ func readAuthorizedKeys(t *testing.T, u *user.User) string {
 func Test_InstallAuthorizedKey_TagsKeyWithBrevComment(t *testing.T) {
 	u := tempUser(t)
 
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -44,10 +44,10 @@ func Test_InstallAuthorizedKey_TagsKeyWithBrevComment(t *testing.T) {
 func Test_InstallAuthorizedKey_SkipsDuplicate(t *testing.T) {
 	u := tempUser(t)
 
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("first install: %v", err)
 	}
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("second install: %v", err)
 	}
 
@@ -70,7 +70,7 @@ func Test_InstallAuthorizedKey_SkipsDuplicateEvenIfAlreadyTagged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -84,10 +84,10 @@ func Test_InstallAuthorizedKey_SkipsDuplicateEvenIfAlreadyTagged(t *testing.T) {
 func Test_InstallAuthorizedKey_EmptyKeyIsNoop(t *testing.T) {
 	u := tempUser(t)
 
-	if err := register.InstallAuthorizedKey(u, "", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
-	if err := register.InstallAuthorizedKey(u, "   ", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "   ", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey (whitespace): %v", err)
 	}
 
@@ -101,7 +101,7 @@ func Test_InstallAuthorizedKey_EmptyKeyIsNoop(t *testing.T) {
 func Test_InstallAuthorizedKey_CreatesSSHDir(t *testing.T) {
 	u := tempUser(t)
 
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -126,7 +126,7 @@ func Test_InstallAuthorizedKey_PreservesExistingKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -152,7 +152,7 @@ func Test_InstallAuthorizedKey_TagsExistingUntaggedKey(t *testing.T) {
 	}
 
 	// InstallAuthorizedKey should tag the existing key rather than adding a duplicate.
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
 		t.Fatalf("InstallAuthorizedKey: %v", err)
 	}
 
@@ -366,10 +366,10 @@ func Test_InstallThenRemove_RoundTrip(t *testing.T) {
 	}
 
 	// Install two brev keys.
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa KEY1", "user_1"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY1", "user_1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa KEY2", "user_2"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY2", "user_2"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -393,10 +393,10 @@ func Test_InstallThenRemoveSpecificKey_RollbackScenario(t *testing.T) {
 	u := tempUser(t)
 
 	// Install two brev keys (simulating two users granted access).
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa ALICE", "user_a"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa ALICE", "user_a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := register.InstallAuthorizedKey(u, "ssh-rsa BOB", "user_b"); err != nil {
+	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa BOB", "user_b"); err != nil {
 		t.Fatal(err)
 	}
 

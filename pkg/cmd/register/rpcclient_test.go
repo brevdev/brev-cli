@@ -143,9 +143,10 @@ func Test_toProtoNodeSpec_MinimalFields(t *testing.T) {
 // fakeNodeService implements the server side of ExternalNodeService for testing.
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
-	addNodeFn    func(*nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error)
-	removeNodeFn func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
-	getNodeFn    func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+	addNodeFn            func(*nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error)
+	removeNodeFn         func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
+	getNodeFn            func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+	grantNodeSSHAccessFn func(*nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error)
 }
 
 func (f *fakeNodeService) AddNode(_ context.Context, req *connect.Request[nodev1.AddNodeRequest]) (*connect.Response[nodev1.AddNodeResponse], error) {
@@ -169,6 +170,17 @@ func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1
 		return nil, connect.NewError(connect.CodeUnimplemented, nil)
 	}
 	resp, err := f.getNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (f *fakeNodeService) GrantNodeSSHAccess(_ context.Context, req *connect.Request[nodev1.GrantNodeSSHAccessRequest]) (*connect.Response[nodev1.GrantNodeSSHAccessResponse], error) {
+	if f.grantNodeSSHAccessFn == nil {
+		return nil, connect.NewError(connect.CodeUnimplemented, nil)
+	}
+	resp, err := f.grantNodeSSHAccessFn(req.Msg)
 	if err != nil {
 		return nil, err
 	}

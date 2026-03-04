@@ -9,6 +9,7 @@ require (
 	github.com/alessio/shellescape v1.4.1
 	github.com/brevdev/parse v0.0.11
 	github.com/briandowns/spinner v1.16.0
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/fatih/color v1.13.0
 	github.com/getsentry/sentry-go v0.14.0
 	github.com/gin-gonic/gin v1.10.0

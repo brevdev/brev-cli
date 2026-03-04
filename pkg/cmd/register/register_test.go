@@ -500,6 +500,101 @@ Peers count: 0/0 Connected`
 	}
 }
 
+func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	var grantCalls int
+	svc := &fakeNodeService{
+		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+			return &nodev1.AddNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: "unode_abc",
+					OrganizationId: "org_123",
+					Name:           req.GetName(),
+					DeviceId:       req.GetDeviceId(),
+					ConnectivityInfo: &nodev1.ConnectivityInfo{
+						RegistrationCommand: "netbird up --key abc",
+					},
+				},
+			}, nil
+		},
+		grantNodeSSHAccessFn: func(_ *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			grantCalls++
+			if grantCalls < 2 {
+				return nil, connect.NewError(connect.CodeInternal, nil)
+			}
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
+
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.prompter = mockConfirmer{confirm: true}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	if err != nil {
+		t.Fatalf("runRegister failed: %v", err)
+	}
+
+	if grantCalls != 2 {
+		t.Errorf("expected GrantNodeSSHAccess to be called 2 times (retry once), got %d", grantCalls)
+	}
+}
+
+func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	var grantCalls int
+	svc := &fakeNodeService{
+		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+			return &nodev1.AddNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: "unode_abc",
+					OrganizationId: "org_123",
+					Name:           req.GetName(),
+					DeviceId:       req.GetDeviceId(),
+					ConnectivityInfo: &nodev1.ConnectivityInfo{
+						RegistrationCommand: "netbird up --key abc",
+					},
+				},
+			}, nil
+		},
+		grantNodeSSHAccessFn: func(_ *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			grantCalls++
+			return nil, connect.NewError(connect.CodePermissionDenied, nil)
+		},
+	}
+
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.prompter = mockConfirmer{confirm: true}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	if err != nil {
+		t.Fatalf("runRegister should not fail the overall flow when SSH grant fails: %v", err)
+	}
+
+	if grantCalls != 1 {
+		t.Errorf("expected GrantNodeSSHAccess to be called once (no retry on permanent error), got %d", grantCalls)
+	}
+}
+
 func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
