@@ -306,7 +306,9 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 			defer server.Close()
 
 			term := terminal.New()
-			err := runRegister(context.Background(), term, store, "My Spark", deps)
+			// Pass the same name as the existing registration so we go through
+			// the checkExistingRegistration path (not the different-name path).
+			err := runRegister(context.Background(), term, store, "Existing", deps)
 			if err != nil {
 				t.Fatalf("expected nil error, got: %v", err)
 			}

@@ -117,19 +117,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		return breverrors.WrapAndTrace(err)
 	}
 	if alreadyRegistered {
-		reg, loadErr := deps.registrationStore.Load()
-		if loadErr != nil {
-			return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
-		}
-		if name == "" {
-			name = reg.DisplayName
-			t.Vprintf("Using name from existing registration: %s\n", name)
-		}
-		return checkExistingRegistration(ctx, t, s, deps, reg)
+		return checkExistingRegistration(ctx, t, s, name, deps)
 	}
 
 	if name == "" {
-		return fmt.Errorf("please provide a name for this device\n\nUsage: brev register <name>\nExample: brev register \"My DGX Spark\"")
+		return fmt.Errorf("please provide a name for this device\n\nUsage: brev register <name>\nExample: brev register \"my-DGX-Spark\"")
 	}
 
 	brevUser, err := s.GetCurrentUser()
@@ -237,7 +229,20 @@ func getOrgToRegisterFor(s RegisterStore) (*entity.Organization, error) {
 // It calls GetNode to check the server-side NetworkMemberStatus and ensures the
 // local netbird service is running, starting it if necessary. Returns nil if
 // the node is healthy, or an error describing what's wrong.
-func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps, reg *DeviceRegistration) error {
+func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error {
+	reg, loadErr := deps.registrationStore.Load()
+	if loadErr != nil {
+		return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
+	}
+	if name != "" && name != reg.DisplayName {
+		// TODO maybe allow for a name change
+		t.Vprintf("This machine is already registered as %q.\n", reg.DisplayName)
+		t.Vprint("Run 'brev deregister' first if you want to re-register with a different name.")
+		t.Vprint("")
+		t.Vprintf("If you are having tunnel issues, run 'brev register %q' to reconnect.", reg.DisplayName)
+		return nil
+	}
+
 	t.Vprint("")
 	t.Vprintf("  This machine is already registered as %s (%s).\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprint("  Checking connectivity...")
