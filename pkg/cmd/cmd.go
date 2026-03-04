@@ -13,11 +13,14 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
+	"github.com/brevdev/brev-cli/pkg/cmd/deregister"
+	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/exec"
 	"github.com/brevdev/brev-cli/pkg/cmd/fu"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpucreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/cmd/grantssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
@@ -252,12 +255,33 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	cmds.SetUsageTemplate(usageTemplate)
 
-	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth)
+	// In-memory auth for external node commands — never touches credentials.json.
+	memAuthStore := store.NewMemoryAuthStore()
+	memAuthenticator := auth.StandardLogin("", "", nil)
+	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
+	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
+
+	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
+
+	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
+		_, err1 := memLoginAuth.GetAccessToken()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+
+	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)
 
 	return cmds
 }
 
-func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) { //nolint:funlen // define brev command
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth, externalNodeCmdStore *store.AuthHTTPStore) { //nolint:funlen // define brev command
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
@@ -305,7 +329,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(refresh.NewCmdRefresh(t, loginCmdStore))
-	cmd.AddCommand(register.NewCmdRegister(t))
+	cmd.AddCommand(register.NewCmdRegister(t, externalNodeCmdStore))
+	cmd.AddCommand(deregister.NewCmdDeregister(t, externalNodeCmdStore))
+	cmd.AddCommand(enablessh.NewCmdEnableSSH(t, externalNodeCmdStore))
+	cmd.AddCommand(grantssh.NewCmdGrantSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
@@ -525,4 +552,5 @@ var (
 	_ store.Auth     = auth.LoginAuth{}
 	_ store.Auth     = auth.NoLoginAuth{}
 	_ auth.AuthStore = store.FileStore{}
+	_ auth.AuthStore = &store.MemoryAuthStore{}
 )

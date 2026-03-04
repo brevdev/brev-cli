@@ -114,6 +114,11 @@ func (t *Auth) WithAccessTokenValidator(val func(string) (bool, error)) *Auth {
 	return t
 }
 
+func (t *Auth) WithShouldLogin(fn func() (bool, error)) *Auth {
+	t.shouldLogin = fn
+	return t
+}
+
 // Gets fresh access token and prompts for login and saves to store
 func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 	token, err := t.GetFreshAccessTokenOrNil()

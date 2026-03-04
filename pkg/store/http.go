@@ -61,6 +61,15 @@ func (s *AuthHTTPStore) GetWindowsDir() (string, error) {
 	return s.GetWSLHostHomeDir()
 }
 
+// GetAccessToken returns a fresh access token, refreshing if needed.
+func (s *AuthHTTPStore) GetAccessToken() (string, error) {
+	token, err := s.authHTTPClient.auth.GetAccessToken()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return token, nil
+}
+
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	// err never returned from GetCurrentWorkspaceID
 	id, _ := f.GetCurrentWorkspaceID()

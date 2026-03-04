@@ -3,6 +3,9 @@ module github.com/brevdev/brev-cli
 go 1.24.0
 
 require (
+	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20260228021043-887d38e1b474.2
+	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260228021043-887d38e1b474.1
+	connectrpc.com/connect v1.19.1
 	github.com/alessio/shellescape v1.4.1
 	github.com/brevdev/parse v0.0.11
 	github.com/briandowns/spinner v1.16.0
@@ -12,7 +15,7 @@ require (
 	github.com/go-git/go-git/v5 v5.13.2
 	github.com/go-resty/resty/v2 v2.17.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 	github.com/google/huproxy v0.0.0-20210816191033-a131ee126ce3
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
@@ -45,6 +48,7 @@ require (
 )
 
 require (
+	buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.11-20220906235457-8b4922735da5.1 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -148,7 +152,7 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.34.2
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

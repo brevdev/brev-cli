@@ -214,6 +214,22 @@ func GetDefaultOrNilOrg(orgs []entity.Organization) *entity.Organization {
 	}
 }
 
+func (s AuthHTTPStore) GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error) {
+	var result []entity.OrgRoleAttachment
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(fmt.Sprintf("api/organizations/%s/role_attachments", orgID))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return result, nil
+}
+
 type RedeemCouponCodeRequest struct {
 	Code string `json:"Code"`
 }
