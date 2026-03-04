@@ -151,7 +151,7 @@ func runSSH(sshAlias string, host bool) error {
 		cmd = fmt.Sprintf("%s && ssh %s", sshAgentEval, sshAlias)
 	} else {
 		// SSH into VM and respect container WORKDIR if containerized, otherwise use default directory
-		cmd = fmt.Sprintf("%s && ssh -t %s 'DIR=$(readlink -f /proc/1/cwd 2>/dev/null || pwd); cd \"$DIR\" || echo \"Warning: Could not access container directory\" >&2; exec ${SHELL:-/bin/sh}'", sshAgentEval, sshAlias)
+		cmd = fmt.Sprintf("%s && ssh -t %s 'DIR=$(readlink -f /proc/1/cwd 2>/dev/null || pwd); cd \"$DIR\" || echo \"Warning: Could not access container directory\" >&2; exec -l ${SHELL:-/bin/sh}'", sshAgentEval, sshAlias)
 	}
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
