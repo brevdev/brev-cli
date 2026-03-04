@@ -330,6 +330,20 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 	}
 }
 
+// waitForNetbirdConnected polls "netbird status" until the management server
+// reports Connected or the timeout expires. Returns true if connected.
+func waitForNetbirdConnected(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		out, err := exec.Command("netbird", "status").Output() //nolint:gosec // fixed command
+		if err == nil && netbirdManagementConnected(string(out)) {
+			return true
+		}
+		time.Sleep(2 * time.Second)
+	}
+	return false
+}
+
 func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) {
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
@@ -339,14 +353,36 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	t.Vprintf("  Linux user: %s\n", osUser.Username)
 	t.Vprint("")
 
-	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
-	if err != nil {
-		t.Vprint("  Retrying in 3 seconds...")
-		time.Sleep(3 * time.Second)
+	t.Vprint("  Waiting for Brev tunnel to connect...")
+	if !waitForNetbirdConnected(60 * time.Second) {
+		t.Vprint(t.Yellow("  Tunnel did not connect within 60s."))
+		t.Vprint(t.Yellow("  Run 'brev enable-ssh' once the tunnel is established."))
+		return
+	}
+	t.Vprint(t.Green("  Tunnel connected."))
+	t.Vprint("")
+
+	// Peer routes finish propagating after the management handshake. Retry
+	// with increasing delays to give the routing up to ~90s to settle.
+	retryDelays := []time.Duration{10 * time.Second, 20 * time.Second, 30 * time.Second}
+	var err error
+	for i, delay := range append([]time.Duration{0}, retryDelays...) {
+		if delay > 0 {
+			t.Vprintf("  Retrying in %s...\n", delay)
+			time.Sleep(delay)
+		}
 		err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+		if err == nil {
+			break
+		}
+		if i < len(retryDelays) {
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("(%d/%d) %v", i+1, len(retryDelays)+1, err)))
+		}
 	}
 	if err != nil {
-		t.Vprintf("  Warning: %v\n", err)
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: %v", err)))
+		t.Vprint(t.Yellow("  Your SSH public key is already installed locally on this device."))
+		t.Vprint(t.Yellow("  Run 'brev enable-ssh' in ~1 minute to complete the server-side record."))
 		return
 	}
 
