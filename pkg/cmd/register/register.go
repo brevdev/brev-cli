@@ -12,6 +12,7 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -339,16 +340,34 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	t.Vprintf("  Linux user: %s\n", osUser.Username)
 	t.Vprint("")
 
-	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
-	if err != nil {
-		t.Vprint("  Retrying in 3 seconds...")
-		time.Sleep(3 * time.Second)
-		err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	op := func() error {
+		return GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
 	}
+	b := backoff.WithContext(newBackoff(), ctx)
+	notify := func(err error, d time.Duration) {
+		t.Vprintf("  SSH access not yet granted; retrying in: %s...\n", d.Round(backoffPrintRound))
+	}
+	err := backoff.RetryNotify(op, b, notify)
 	if err != nil {
-		t.Vprintf("  Warning: %v\n", err)
+		t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		return
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
+}
+
+const (
+	backoffInitialInterval = 1 * time.Second
+	backoffMaxInterval     = 10 * time.Second
+	backoffMaxElapsedTime  = 1 * time.Minute
+
+	backoffPrintRound = 500 * time.Millisecond
+)
+
+func newBackoff() *backoff.ExponentialBackOff {
+	return backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(backoffInitialInterval),
+		backoff.WithMaxInterval(backoffMaxInterval),
+		backoff.WithMaxElapsedTime(backoffMaxElapsedTime),
+	)
 }
