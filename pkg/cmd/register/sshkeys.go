@@ -216,7 +216,6 @@ func PromptSSHPort(t *terminal.Terminal) (int32, error) {
 	}
 	portStr := terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "  SSH port (default 22): ",
-		Default:    "22",
 		AllowEmpty: true,
 	})
 	portStr = strings.TrimSpace(portStr)
