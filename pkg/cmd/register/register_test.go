@@ -75,8 +75,9 @@ func (m mockConfirmer) ConfirmYesNo(_ string) bool { return m.confirm }
 
 type mockNetBirdManager struct{ err error }
 
-func (m mockNetBirdManager) Install() error   { return m.err }
-func (m mockNetBirdManager) Uninstall() error { return m.err }
+func (m mockNetBirdManager) Install() error       { return m.err }
+func (m mockNetBirdManager) Uninstall() error     { return m.err }
+func (m mockNetBirdManager) EnsureRunning() error { return m.err }
 
 type mockSetupRunner struct {
 	called bool
@@ -144,7 +145,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 			if req.GetOrganizationId() != "org_123" {
 				t.Errorf("unexpected org: %s", req.GetOrganizationId())
 			}
-			if req.GetName() != "My Spark" {
+			if req.GetName() != "my-spark" {
 				t.Errorf("unexpected name: %s", req.GetName())
 			}
 			return &nodev1.AddNodeResponse{
@@ -172,7 +173,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -193,8 +194,8 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	if reg.ExternalNodeID != "unode_abc" {
 		t.Errorf("expected ExternalNodeID unode_abc, got %s", reg.ExternalNodeID)
 	}
-	if reg.DisplayName != "My Spark" {
-		t.Errorf("expected display name 'My Spark', got %s", reg.DisplayName)
+	if reg.DisplayName != "my-spark" {
+		t.Errorf("expected display name 'my-spark', got %s", reg.DisplayName)
 	}
 	if reg.OrgID != "org_123" {
 		t.Errorf("expected org org_123, got %s", reg.OrgID)
@@ -223,7 +224,7 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	deps.prompter = mockConfirmer{confirm: false}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err != nil {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
@@ -339,7 +340,7 @@ func Test_runRegister_NoOrganization(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err == nil {
 		t.Fatal("expected error when no org exists")
 	}
@@ -365,7 +366,7 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err == nil {
 		t.Fatal("expected error when AddNode fails")
 	}
@@ -415,7 +416,7 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -548,7 +549,7 @@ func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *test
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -597,13 +598,78 @@ func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", deps)
 	if err != nil {
 		t.Fatalf("runRegister should not fail the overall flow when SSH grant fails: %v", err)
 	}
 
 	if grantCalls != 1 {
 		t.Errorf("expected GrantNodeSSHAccess to be called once (no retry on permanent error), got %d", grantCalls)
+	}
+}
+
+func Test_runRegister_NameValidation(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantErr   bool
+		errSubstr string
+	}{
+		{"Valid", "my-dgx-spark", false, ""},
+		{"WithDots", "node.local.1", false, ""},
+		{"WithUnderscore", "my_node", false, ""},
+		{"Spaces", "My Spark", true, "letters, digits"},
+		{"ShellInjection", "$(whoami)", true, "letters, digits"},
+		{"PathTraversal", "../etc/passwd", true, "letters, digits"},
+		{"Backticks", "`rm -rf`", true, "letters, digits"},
+		{"Semicolon", "a;rm -rf /", true, "letters, digits"},
+		{"LeadingHyphen", "-node", true, "start with"},
+		{"LeadingDot", ".hidden", true, "start with"},
+		{"TooLong", strings.Repeat("a", 64), true, "63 characters"},
+		{"Empty", "", true, "name is required"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regStore := &mockRegistrationStore{}
+			store := &mockRegisterStore{
+				user:  &entity.User{ID: "user_1"},
+				org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+				token: "tok",
+			}
+
+			svc := &fakeNodeService{
+				addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+					return &nodev1.AddNodeResponse{
+						ExternalNode: &nodev1.ExternalNode{
+							ExternalNodeId: "unode_abc",
+							OrganizationId: "org_123",
+							Name:           req.GetName(),
+							DeviceId:       req.GetDeviceId(),
+						},
+					}, nil
+				},
+			}
+
+			deps, server := testRegisterDeps(t, svc, regStore)
+			defer server.Close()
+
+			SetTestSSHPort(22)
+			defer ClearTestSSHPort()
+
+			term := terminal.New()
+			err := runRegister(context.Background(), term, store, tt.input, deps)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errSubstr) {
+					t.Errorf("expected error containing %q, got: %v", tt.errSubstr, err)
+				}
+			} else if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 
@@ -625,8 +691,8 @@ func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when no name provided and not registered")
 	}
-	if !strings.Contains(err.Error(), "please provide a name") {
-		t.Errorf("expected 'please provide a name' error, got: %v", err)
+	if !strings.Contains(err.Error(), "name is required") {
+		t.Errorf("expected 'name is required' error, got: %v", err)
 	}
 }
 

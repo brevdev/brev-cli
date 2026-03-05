@@ -18,6 +18,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/names"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -194,8 +195,8 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				}
 			}
 
-			if name == "" {
-				return breverrors.NewValidationError("name is required (as argument or --name flag)")
+			if err := names.ValidateNodeName(name); err != nil {
+				return breverrors.WrapAndTrace(err)
 			}
 
 			if count < 1 {

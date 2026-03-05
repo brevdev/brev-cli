@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/user"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/names"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -41,10 +41,14 @@ func (r OSFileReader) ReadFile(path string) ([]byte, error) {
 	return data, nil
 }
 
-// NetBirdManager installs and uninstalls the NetBird network agent.
+// NetBirdManager installs, uninstalls, and monitors the NetBird network agent.
 type NetBirdManager interface {
 	Install() error
 	Uninstall() error
+	// EnsureRunning checks whether the NetBird service is active and
+	// connected, starting or reconnecting it if needed. Returns nil when
+	// the tunnel is healthy.
+	EnsureRunning() error
 }
 
 // SetupRunner runs a setup script on the local machine.
@@ -120,8 +124,8 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		return checkExistingRegistration(ctx, t, s, name, deps)
 	}
 
-	if name == "" {
-		return fmt.Errorf("please provide a name for this device\n\nUsage: brev register <name>\nExample: brev register \"my-DGX-Spark\"")
+	if err := names.ValidateNodeName(name); err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	brevUser, err := s.GetCurrentUser()
@@ -273,48 +277,15 @@ func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s Regi
 
 	// Check local netbird service and start it if down.
 	t.Vprint("  Checking local Brev tunnel...")
-	if ensureNetbirdRunning(t) {
+	if err := deps.netbird.EnsureRunning(); err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: %v", err)))
+	} else {
 		t.Vprint(t.Green("  Brev tunnel is running."))
 	}
 
 	t.Vprint("")
 	t.Vprint("  Run 'brev deregister' first if you want to re-register.")
 	return nil
-}
-
-// ensureNetbirdRunning checks if the netbird systemd service is active and
-// attempts to start it if it is not. It also checks the netbird peer
-// connection status and runs "netbird up" if the peer is disconnected.
-// Returns true if the service is running and connected after the check.
-func ensureNetbirdRunning(t *terminal.Terminal) bool {
-	out, err := exec.Command("systemctl", "is-active", "netbird").Output() //nolint:gosec // fixed service name
-	if err != nil || strings.TrimSpace(string(out)) != "active" {
-		t.Vprintf("  %s\n", t.Yellow("Brev tunnel service is not running. Attempting to start..."))
-		if startErr := exec.Command("sudo", "systemctl", "start", "netbird").Run(); startErr != nil { //nolint:gosec // fixed service name
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to start Brev tunnel service: %v", startErr)))
-			return false
-		}
-		t.Vprint(t.Green("  Brev tunnel service started."))
-	}
-
-	// Service is running — now check peer connection status.
-	statusOut, err := exec.Command("netbird", "status").Output() //nolint:gosec // fixed command
-	if err != nil {
-		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not check Brev tunnel status: %v", err)))
-		return true // service is running, just can't confirm peer status
-	}
-
-	if netbirdManagementConnected(string(statusOut)) {
-		return true
-	}
-
-	t.Vprintf("  %s\n", t.Yellow("Brev tunnel peer is disconnected. Reconnecting..."))
-	if upErr := exec.Command("sudo", "netbird", "up").Run(); upErr != nil { //nolint:gosec // fixed command
-		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to reconnect Brev tunnel: %v", upErr)))
-		return false
-	}
-	t.Vprint(t.Green("  Brev tunnel reconnected."))
-	return true
 }
 
 // netbirdManagementConnected parses "netbird status" output and returns true

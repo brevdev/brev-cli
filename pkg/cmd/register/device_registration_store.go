@@ -85,6 +85,9 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if reg.ExternalNodeID == "" || reg.OrgID == "" {
+		return nil, breverrors.New("corrupt registration file: missing external_node_id or org_id")
+	}
 	return &reg, nil
 }
 
@@ -124,6 +127,9 @@ func sudoWriteFile(path string, data []byte) error {
 	cmd.Stdout = nil // suppress tee's stdout echo
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("sudo tee %s failed: %w", path, err)
+	}
+	if err := exec.Command("sudo", "chmod", "644", path).Run(); err != nil { //nolint:gosec // fixed base path
+		return fmt.Errorf("sudo chmod %s failed: %w", path, err)
 	}
 	return nil
 }
