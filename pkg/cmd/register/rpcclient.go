@@ -70,10 +70,9 @@ func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {
 			StorageBytes: st.StorageBytes,
 			StorageType:  st.StorageType,
 		}
-		// TODO(BRE2-801): uncomment when proto dep is updated
-		// if st.Name != "" {
-		// 	storageSpec.Device = &st.Name
-		// }
+		if st.Name != "" {
+			storageSpec.Device = &st.Name
+		}
 		proto.Storage = append(proto.Storage, storageSpec)
 	}
 
@@ -87,10 +86,9 @@ func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {
 		proto.OsVersion = &hw.OSVersion
 	}
 
-	// TODO(BRE2-801): uncomment when proto dep is updated
-	// if hw.ProductName != "" {
-	// 	proto.ProductName = &hw.ProductName
-	// }
+	if hw.ProductName != "" {
+		proto.ProductName = &hw.ProductName
+	}
 
 	for _, g := range hw.GPUs {
 		pg := &nodev1.GPUSpec{
@@ -98,35 +96,32 @@ func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {
 			Count:       g.Count,
 			MemoryBytes: g.MemoryBytes,
 		}
-		// TODO(BRE2-801): uncomment when proto dep is updated
-		// if g.Architecture != "" {
-		// 	pg.GpuArchitecture = &g.Architecture
-		// }
+		if g.Architecture != "" {
+			pg.GpuArchitecture = &g.Architecture
+		}
 		proto.Gpus = append(proto.Gpus, pg)
 	}
 
-	// TODO(BRE2-801): uncomment when proto dep is updated
-	// InterconnectSpec uses oneof: NVLinkDetails or PCIeDetails
-	// for _, ic := range hw.Interconnects {
-	// 	spec := &nodev1.InterconnectSpec{Device: ic.Device}
-	// 	switch ic.Type {
-	// 	case "NVLink":
-	// 		spec.Details = &nodev1.InterconnectSpec_Nvlink{
-	// 			Nvlink: &nodev1.NVLinkDetails{
-	// 				ActiveLinks: int32(ic.ActiveLinks),
-	// 				Version:     ic.Version,
-	// 			},
-	// 		}
-	// 	case "PCIe":
-	// 		spec.Details = &nodev1.InterconnectSpec_Pcie{
-	// 			Pcie: &nodev1.PCIeDetails{
-	// 				Generation: int32(ic.Generation),
-	// 				Width:      int32(ic.Width),
-	// 			},
-	// 		}
-	// 	}
-	// 	proto.Interconnects = append(proto.Interconnects, spec)
-	// }
+	for _, ic := range hw.Interconnects {
+		spec := &nodev1.InterconnectSpec{Device: ic.Device}
+		switch ic.Type {
+		case "NVLink":
+			spec.Details = &nodev1.InterconnectSpec_Nvlink{
+				Nvlink: &nodev1.NVLinkDetails{
+					ActiveLinks: int32(ic.ActiveLinks),
+					Version:     ic.Version,
+				},
+			}
+		case "PCIe":
+			spec.Details = &nodev1.InterconnectSpec_Pcie{
+				Pcie: &nodev1.PCIeDetails{
+					Generation: int32(ic.Generation),
+					Width:      int32(ic.Width),
+				},
+			}
+		}
+		proto.Interconnects = append(proto.Interconnects, spec)
+	}
 
 	return proto
 }

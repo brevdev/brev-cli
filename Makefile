@@ -1,11 +1,31 @@
 .DEFAULT_GOAL := fast-build
 VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 
+# Cross-compilation via Docker (golang:1.24 native Linux container).
+# When arch=<GOOS>/<GOARCH> is provided, spin up a container that matches
+# the target platform so CGO uses the native Linux gcc/GNU ld toolchain
+_GOMODCACHE := $(shell go env GOMODCACHE)
+ifdef arch
+  _CROSS_GOOS   := $(word 1,$(subst /, ,$(arch)))
+  _CROSS_GOARCH := $(word 2,$(subst /, ,$(arch)))
+  _BUILD_PREFIX := docker run --rm \
+    --platform $(_CROSS_GOOS)/$(_CROSS_GOARCH) \
+    -v $(CURDIR):/app \
+    -v $(_GOMODCACHE):/go/pkg/mod \
+    -e CGO_ENABLED=1 \
+    -e GOPRIVATE=github.com/brevdev/* \
+    -e GONOSUMDB=github.com/brevdev/* \
+    -w /app \
+    golang:1.24
+else
+  _BUILD_PREFIX := CGO_ENABLED=1
+endif
+
 .PHONY: fast-build
 fast-build: ## go build -o brev
 	$(call print-target)
 	echo ${VERSION}
-	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	CGO_ENABLED=1 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: local
 local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg arch=linux/amd64, or make local for defaults)
@@ -13,7 +33,7 @@ local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg arch=li
 ifdef env
 	@echo "Building with env=$(env) wrapper..."
 	@echo ${VERSION}
-	$(if $(arch),GOOS=$(word 1,$(subst /, ,$(arch))) GOARCH=$(word 2,$(subst /, ,$(arch))),) CGO_ENABLED=0 go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(_BUILD_PREFIX) go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 	@echo '#!/bin/sh' > brev
 	@echo '# Auto-generated wrapper with environment overrides' >> brev
 	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
@@ -26,7 +46,7 @@ ifdef env
 	@chmod +x brev
 else
 	@echo "Building without environment overrides (using config.go defaults)..."
-	$(if $(arch),GOOS=$(word 1,$(subst /, ,$(arch))) GOARCH=$(word 2,$(subst /, ,$(arch))),) CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 endif
 
 .PHONY: install-dev
@@ -305,8 +325,8 @@ develop-with-nix:
 update-devplane-deps: ## update devplane dependencies (use: make update-devplane-deps commit=<hash-or-tag>, defaults to latest)
 	@COMMIT=$${commit:-latest}; \
 	echo "Updating devplane dependencies to: $$COMMIT"; \
-	go get -u github.com/brevdev/dev-plane@$$COMMIT; \
+	GOPRIVATE=github.com/brevdev/* go get -u github.com/brevdev/dev-plane@$$COMMIT; \
 	go get buf.build/gen/go/brevdev/devplane/grpc/go@$$COMMIT; \
 	go get buf.build/gen/go/brevdev/devplane/protocolbuffers/go@$$COMMIT; \
-	go mod tidy; \
+	GOPRIVATE=github.com/brevdev/* go mod tidy; \
 	echo "Successfully updated to $$COMMIT"
