@@ -6,7 +6,6 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
@@ -34,8 +33,7 @@ type VersionStore interface {
 func BuildVersionString(t *terminal.Terminal, versionStore VersionStore) (string, error) {
 	githubRelease, err := versionStore.GetLatestReleaseMetadata()
 	if err != nil {
-		t.Errprint(err, "Failed to retrieve latest version")
-		return "", breverrors.WrapAndTrace(err)
+		return fmt.Sprintf(upToDateString, version.Version), nil
 	}
 
 	var versionString string
@@ -57,8 +55,7 @@ func BuildVersionString(t *terminal.Terminal, versionStore VersionStore) (string
 func BuildCheckLatestVersionString(t *terminal.Terminal, versionStore VersionStore) (string, error) {
 	githubRelease, err := versionStore.GetLatestReleaseMetadata()
 	if err != nil {
-		t.Errprint(err, "Failed to retrieve latest version")
-		return "", breverrors.WrapAndTrace(err)
+		return "", nil
 	}
 
 	versionString := ""
