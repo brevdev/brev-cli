@@ -3,7 +3,9 @@ package register
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -92,8 +94,8 @@ func (s *FileRegistrationStore) Delete() error {
 	if err == nil {
 		return nil
 	}
-	if os.IsNotExist(err) {
-		return nil // already removed
+	if !errors.Is(err, fs.ErrPermission) {
+		return breverrors.WrapAndTrace(err)
 	}
 	// Fall back to sudo for non-root users.
 	return sudoDeleteFile(path)
