@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -132,7 +133,7 @@ func RemoveAuthorizedKeyLine(u *user.User, line string) error {
 
 // GrantSSHAccessToNode installs the user's public key in authorized_keys and
 // calls GrantNodeSSHAccess to record access server-side. If the RPC fails,
-// the installed key is rolled back.
+// the installed key is rolled back. port is the target SSH port (e.g. 22).
 func GrantSSHAccessToNode(
 	ctx context.Context,
 	t *terminal.Terminal,
@@ -141,6 +142,7 @@ func GrantSSHAccessToNode(
 	reg *DeviceRegistration,
 	targetUser *entity.User,
 	osUser *user.User,
+	port int32,
 ) error {
 	if targetUser.PublicKey != "" {
 		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey, targetUser.ID); err != nil {
@@ -163,6 +165,7 @@ func GrantSSHAccessToNode(
 			ExternalNodeId: reg.ExternalNodeID,
 			UserId:         targetUser.ID,
 			LinuxUser:      osUser.Username,
+			Port:           port,
 		}))
 		if err != nil {
 			// Retryable error
@@ -190,6 +193,43 @@ func GrantSSHAccessToNode(
 		return fmt.Errorf("failed to grant SSH access: %w", err)
 	}
 	return nil
+}
+
+const defaultSSHPort = 22
+
+// testSSHPort is set by tests to avoid blocking on stdin. When non-nil,
+// PromptSSHPort returns this value without prompting.
+var testSSHPort *int32
+
+// SetTestSSHPort sets the port returned by PromptSSHPort without prompting.
+// Only for use in tests; call ClearTestSSHPort when done.
+func SetTestSSHPort(port int32) { testSSHPort = &port }
+
+// ClearTestSSHPort clears the test port override.
+func ClearTestSSHPort() { testSSHPort = nil }
+
+// PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
+// they press Enter or leave it empty. Returns an error for invalid port numbers.
+func PromptSSHPort(t *terminal.Terminal) (int32, error) {
+	if testSSHPort != nil {
+		return *testSSHPort, nil
+	}
+	portStr := terminal.PromptGetInput(terminal.PromptContent{
+		Label:      "  SSH port (default 22): ",
+		AllowEmpty: true,
+	})
+	portStr = strings.TrimSpace(portStr)
+	if portStr == "" {
+		return defaultSSHPort, nil
+	}
+	n, err := strconv.ParseUint(portStr, 10, 16)
+	if err != nil {
+		return 0, fmt.Errorf("invalid port %q: %w", portStr, err)
+	}
+	if n < 1 || n > 65535 {
+		return 0, fmt.Errorf("port must be between 1 and 65535, got %d", n)
+	}
+	return int32(n), nil
 }
 
 // InstallAuthorizedKey appends the given public key to the user's

@@ -168,6 +168,9 @@ func Test_runRegister_HappyPath(t *testing.T) {
 
 	deps.setupRunner = setupRunner
 
+	SetTestSSHPort(22)
+	defer ClearTestSSHPort()
+
 	term := terminal.New()
 	err := runRegister(context.Background(), term, store, "My Spark", deps)
 	if err != nil {
@@ -408,6 +411,9 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 
 	deps.setupRunner = setupRunner
 
+	SetTestSSHPort(22)
+	defer ClearTestSSHPort()
+
 	term := terminal.New()
 	err := runRegister(context.Background(), term, store, "My Spark", deps)
 	if err != nil {
@@ -538,6 +544,9 @@ func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *test
 
 	deps.prompter = mockConfirmer{confirm: true}
 
+	SetTestSSHPort(22)
+	defer ClearTestSSHPort()
+
 	term := terminal.New()
 	err := runRegister(context.Background(), term, store, "My Spark", deps)
 	if err != nil {
@@ -583,6 +592,9 @@ func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
 	defer server.Close()
 
 	deps.prompter = mockConfirmer{confirm: true}
+
+	SetTestSSHPort(22)
+	defer ClearTestSSHPort()
 
 	term := terminal.New()
 	err := runRegister(context.Background(), term, store, "My Spark", deps)

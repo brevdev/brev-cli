@@ -70,7 +70,7 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return enableSSH(ctx, t, deps.nodeClients, s, reg, brevUser)
+	return enableSSH(ctx, t, deps, s, reg, brevUser)
 }
 
 // enableSSH grants SSH access to the given node for the current Brev user.
@@ -78,7 +78,7 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 func enableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
-	nodeClients externalnode.NodeClientFactory,
+	deps enableSSHDeps,
 	tokenProvider externalnode.TokenProvider,
 	reg *register.DeviceRegistration,
 	brevUser *entity.User,
@@ -98,7 +98,12 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", u.Username)
 	t.Vprint("")
 
-	if err := register.GrantSSHAccessToNode(ctx, t, nodeClients, tokenProvider, reg, brevUser, u); err != nil {
+	port, err := register.PromptSSHPort(t)
+	if err != nil {
+		return fmt.Errorf("SSH port: %w", err)
+	}
+
+	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, u, port); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
