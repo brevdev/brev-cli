@@ -92,8 +92,8 @@ func (s *FileRegistrationStore) Delete() error {
 	if err == nil {
 		return nil
 	}
-	if !os.IsPermission(err) {
-		return breverrors.WrapAndTrace(err)
+	if os.IsNotExist(err) {
+		return nil // already removed
 	}
 	// Fall back to sudo for non-root users.
 	return sudoDeleteFile(path)
