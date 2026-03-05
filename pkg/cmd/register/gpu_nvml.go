@@ -121,7 +121,7 @@ func probeNVLink(device nvml.Device, deviceIdx int) []Interconnect {
 			if nvlinkVersion == 0 {
 				ver, ret := device.GetNvLinkVersion(link)
 				if ret == nvml.SUCCESS {
-					nvlinkVersion = uint32(ver)
+					nvlinkVersion = ver
 				}
 			}
 		}

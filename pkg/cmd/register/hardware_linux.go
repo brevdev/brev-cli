@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	errors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 // SystemHardwareProfiler probes hardware on Linux using NVML, sysfs, and procfs.
@@ -49,7 +51,7 @@ func readProductName() string {
 func readCPUCount() (int, error) {
 	data, err := os.ReadFile("/proc/cpuinfo")
 	if err != nil {
-		return 0, err
+		return 0, errors.WrapAndTrace(err)
 	}
 	return parseCPUCountContent(string(data))
 }
@@ -58,7 +60,7 @@ func readCPUCount() (int, error) {
 func readRAMBytes() (int64, error) {
 	var info syscall.Sysinfo_t
 	if err := syscall.Sysinfo(&info); err != nil {
-		return 0, err
+		return 0, errors.WrapAndTrace(err)
 	}
 	return int64(info.Totalram) * int64(info.Unit), nil
 }
@@ -128,7 +130,11 @@ func probeStorageSysfs() []StorageDevice {
 func readSysfsInt(path string) (int64, error) {
 	data, err := os.ReadFile(path) // #nosec G304
 	if err != nil {
-		return 0, fmt.Errorf("read %s: %w", path, err)
+		return 0, errors.WrapAndTrace(fmt.Errorf("read %s: %w", path, err))
 	}
-	return strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	n, err := strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return 0, errors.WrapAndTrace(err)
+	}
+	return n, nil
 }
