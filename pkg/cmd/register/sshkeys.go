@@ -142,7 +142,7 @@ func GrantSSHAccessToNode(
 	reg *DeviceRegistration,
 	targetUser *entity.User,
 	osUser *user.User,
-	port uint32,
+	port int32,
 ) error {
 	if targetUser.PublicKey != "" {
 		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey, targetUser.ID); err != nil {
@@ -165,7 +165,7 @@ func GrantSSHAccessToNode(
 			ExternalNodeId: reg.ExternalNodeID,
 			UserId:         targetUser.ID,
 			LinuxUser:      osUser.Username,
-			Port:           int32(port),
+			Port:           port,
 		}))
 		if err != nil {
 			// Retryable error
@@ -199,18 +199,18 @@ const defaultSSHPort = 22
 
 // testSSHPort is set by tests to avoid blocking on stdin. When non-nil,
 // PromptSSHPort returns this value without prompting.
-var testSSHPort *uint32
+var testSSHPort *int32
 
 // SetTestSSHPort sets the port returned by PromptSSHPort without prompting.
 // Only for use in tests; call ClearTestSSHPort when done.
-func SetTestSSHPort(port uint32) { testSSHPort = &port }
+func SetTestSSHPort(port int32) { testSSHPort = &port }
 
 // ClearTestSSHPort clears the test port override.
 func ClearTestSSHPort() { testSSHPort = nil }
 
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
 // they press Enter or leave it empty. Returns an error for invalid port numbers.
-func PromptSSHPort(t *terminal.Terminal) (uint32, error) {
+func PromptSSHPort(t *terminal.Terminal) (int32, error) {
 	if testSSHPort != nil {
 		return *testSSHPort, nil
 	}
@@ -230,7 +230,7 @@ func PromptSSHPort(t *terminal.Terminal) (uint32, error) {
 	if n < 1 || n > 65535 {
 		return 0, fmt.Errorf("port must be between 1 and 65535, got %d", n)
 	}
-	return uint32(n), nil
+	return int32(n), nil
 }
 
 // InstallAuthorizedKey appends the given public key to the user's
