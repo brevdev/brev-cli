@@ -353,7 +353,12 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 	t.Vprintf("  Linux user: %s\n", osUser.Username)
 	t.Vprint("")
 
-	err := GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	port, err := PromptSSHPort(t)
+	if err != nil {
+		return fmt.Errorf("SSH port: %w", err)
+	}
+
+	err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser, port)
 	if err != nil {
 		return fmt.Errorf("grant SSH failed: %w", err)
 	}

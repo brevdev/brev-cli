@@ -271,6 +271,9 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
 
+	register.SetTestSSHPort(22)
+	defer register.ClearTestSSHPort()
+
 	term := terminal.New()
 	err := runGrantSSH(context.Background(), term, store, deps)
 	if err != nil {
@@ -322,6 +325,9 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
+
+	register.SetTestSSHPort(22)
+	defer register.ClearTestSSHPort()
 
 	term := terminal.New()
 	err := runGrantSSH(context.Background(), term, store, deps)

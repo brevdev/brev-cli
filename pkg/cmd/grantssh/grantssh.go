@@ -131,7 +131,12 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	t.Vprintf("  Linux user: %s\n", linuxUser)
 	t.Vprint("")
 
-	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, s, reg, selectedUser, osUser); err != nil {
+	port, err := register.PromptSSHPort(t)
+	if err != nil {
+		return fmt.Errorf("SSH port: %w", err)
+	}
+
+	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, s, reg, selectedUser, osUser, port); err != nil {
 		return fmt.Errorf("grant SSH failed: %w", err)
 	}
 
