@@ -53,43 +53,80 @@ func NewNodeServiceClient(provider externalnode.TokenProvider, baseURL string) n
 	)
 }
 
-// toProtoNodeSpec converts the local NodeSpec (used for collection, display, persistence)
-// to the generated proto NodeSpec for RPC calls.
-func toProtoNodeSpec(s *NodeSpec) *nodev1.NodeSpec {
-	if s == nil {
+// toProtoNodeSpec converts the local HardwareProfile (used for collection, display,
+// persistence) to the generated proto NodeSpec for RPC calls.
+func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {
+	if hw == nil {
 		return nil
 	}
 
 	proto := &nodev1.NodeSpec{
-		RamBytes: s.RAMBytes,
-		CpuCount: s.CPUCount,
+		RamBytes: hw.RAMBytes,
+		CpuCount: hw.CPUCount,
 	}
 
-	for _, st := range s.Storage {
-		proto.Storage = append(proto.Storage, &nodev1.StorageSpec{
+	for _, st := range hw.Storage {
+		storageSpec := &nodev1.StorageSpec{
 			StorageBytes: st.StorageBytes,
 			StorageType:  st.StorageType,
-		})
+		}
+		// TODO(BRE2-801): uncomment when proto dep is updated
+		// if st.Name != "" {
+		// 	storageSpec.Device = &st.Name
+		// }
+		proto.Storage = append(proto.Storage, storageSpec)
 	}
 
-	if s.Architecture != "" {
-		proto.Architecture = &s.Architecture
+	if hw.Architecture != "" {
+		proto.Architecture = &hw.Architecture
 	}
-	if s.OS != "" {
-		proto.Os = &s.OS
+	if hw.OS != "" {
+		proto.Os = &hw.OS
 	}
-	if s.OSVersion != "" {
-		proto.OsVersion = &s.OSVersion
+	if hw.OSVersion != "" {
+		proto.OsVersion = &hw.OSVersion
 	}
 
-	for _, g := range s.GPUs {
+	// TODO(BRE2-801): uncomment when proto dep is updated
+	// if hw.ProductName != "" {
+	// 	proto.ProductName = &hw.ProductName
+	// }
+
+	for _, g := range hw.GPUs {
 		pg := &nodev1.GPUSpec{
 			Model:       g.Model,
 			Count:       g.Count,
 			MemoryBytes: g.MemoryBytes,
 		}
+		// TODO(BRE2-801): uncomment when proto dep is updated
+		// if g.Architecture != "" {
+		// 	pg.GpuArchitecture = &g.Architecture
+		// }
 		proto.Gpus = append(proto.Gpus, pg)
 	}
+
+	// TODO(BRE2-801): uncomment when proto dep is updated
+	// InterconnectSpec uses oneof: NVLinkDetails or PCIeDetails
+	// for _, ic := range hw.Interconnects {
+	// 	spec := &nodev1.InterconnectSpec{Device: ic.Device}
+	// 	switch ic.Type {
+	// 	case "NVLink":
+	// 		spec.Details = &nodev1.InterconnectSpec_Nvlink{
+	// 			Nvlink: &nodev1.NVLinkDetails{
+	// 				ActiveLinks: int32(ic.ActiveLinks),
+	// 				Version:     ic.Version,
+	// 			},
+	// 		}
+	// 	case "PCIe":
+	// 		spec.Details = &nodev1.InterconnectSpec_Pcie{
+	// 			Pcie: &nodev1.PCIeDetails{
+	// 				Generation: int32(ic.Generation),
+	// 				Width:      int32(ic.Width),
+	// 			},
+	// 		}
+	// 	}
+	// 	proto.Interconnects = append(proto.Interconnects, spec)
+	// }
 
 	return proto
 }

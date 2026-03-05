@@ -60,18 +60,22 @@ func Test_toProtoNodeSpec(t *testing.T) {
 	ramBytes := int64(137438953472)
 	memBytes := int64(137438953472)
 
-	local := &NodeSpec{
-		GPUs: []NodeGPU{
-			{Model: "NVIDIA GB10", Count: 2, MemoryBytes: &memBytes},
+	local := &HardwareProfile{
+		GPUs: []GPU{
+			{Model: "NVIDIA GB10", Architecture: "Blackwell", Count: 2, MemoryBytes: &memBytes},
 		},
 		RAMBytes:     &ramBytes,
 		CPUCount:     &cpuCount,
 		Architecture: "arm64",
-		Storage: []NodeStorage{
-			{StorageBytes: 500107862016, StorageType: "SSD"},
+		Storage: []StorageDevice{
+			{Name: "nvme0n1", StorageBytes: 500107862016, StorageType: "SSD"},
 		},
-		OS:        "Ubuntu",
-		OSVersion: "24.04",
+		OS:          "Ubuntu",
+		OSVersion:   "24.04",
+		ProductName: "DGX Spark",
+		Interconnects: []Interconnect{
+			{Type: "NVLink", Device: "GPU 0", ActiveLinks: 4, Version: 4},
+		},
 	}
 
 	proto := toProtoNodeSpec(local)
@@ -122,7 +126,7 @@ func Test_toProtoNodeSpec_Nil(t *testing.T) {
 }
 
 func Test_toProtoNodeSpec_MinimalFields(t *testing.T) {
-	local := &NodeSpec{
+	local := &HardwareProfile{
 		Architecture: "amd64",
 	}
 	proto := toProtoNodeSpec(local)

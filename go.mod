@@ -6,6 +6,7 @@ require (
 	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20260228021043-887d38e1b474.2
 	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260305005117-3cacb6388cd4.1
 	connectrpc.com/connect v1.19.1
+	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/alessio/shellescape v1.4.1
 	github.com/brevdev/parse v0.0.11
 	github.com/briandowns/spinner v1.16.0
@@ -150,7 +151,7 @@ require (
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/sys v0.40.0
 	golang.org/x/term v0.39.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
 	google.golang.org/protobuf v1.36.11

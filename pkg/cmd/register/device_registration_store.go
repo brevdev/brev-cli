@@ -23,12 +23,12 @@ const (
 // DeviceRegistration is the persistent identity file for a registered device.
 // Fields align with the AddNodeResponse from dev-plane.
 type DeviceRegistration struct {
-	ExternalNodeID string   `json:"external_node_id"`
-	DisplayName    string   `json:"display_name"`
-	OrgID          string   `json:"org_id"`
-	DeviceID       string   `json:"device_id"`
-	RegisteredAt   string   `json:"registered_at"`
-	NodeSpec       NodeSpec `json:"node_spec"`
+	ExternalNodeID  string          `json:"external_node_id"`
+	DisplayName     string          `json:"display_name"`
+	OrgID           string          `json:"org_id"`
+	DeviceID        string          `json:"device_id"`
+	RegisteredAt    string          `json:"registered_at"`
+	HardwareProfile HardwareProfile `json:"hardware_profile"`
 }
 
 // RegistrationStore defines the contract for persisting device registration data.
