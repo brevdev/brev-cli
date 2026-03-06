@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"time"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
@@ -76,10 +78,14 @@ const pollTimeout = 10 * time.Minute
 
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool) error {
 	s := t.NewSpinner()
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
+	target, err := util.ResolveWorkspaceOrNode(sstore, workspaceNameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if target.Node != nil {
+		return shellIntoExternalNode(t, sstore, target.Node)
+	}
+	workspace := target.Workspace
 
 	if workspace.Status == "STOPPED" { // we start the env for the user
 		err = util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
@@ -141,6 +147,42 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	}
 	_ = analytics.TrackEvent(data)
 
+	return nil
+}
+
+func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1.ExternalNode) error {
+	info, err := util.ResolveExternalNodeSSH(sstore, node)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	privateKeyPath, err := sstore.GetPrivateKeyPath()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	t.Vprintf("Connecting to external node %q as %s on port %d (key: %s)...\n", node.GetName(), info.LinuxUser, info.Port, privateKeyPath)
+	return runSSHWithPort(info.SSHTarget(), info.Port, privateKeyPath)
+}
+
+func runSSHWithPort(target string, port int32, identityFile string) error {
+	sshAgentEval := "eval $(ssh-agent -s)"
+	cmd := fmt.Sprintf("%s && ssh -i %q -o StrictHostKeyChecking=no -p %d %s", sshAgentEval, identityFile, port, target)
+
+	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is constructed from API data
+	sshCmd.Stderr = os.Stderr
+	sshCmd.Stdout = os.Stdout
+	sshCmd.Stdin = os.Stdin
+
+	err := hello.SetHasRunShell(true)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	err = sshCmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }
 

@@ -6,7 +6,10 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -20,7 +23,7 @@ import (
 
 var (
 	sshLinkLong    = "Port forward your Brev machine's port to your local port"
-	sshLinkExample = "brev port-forward <ws_name> -p local_port:remote_port"
+	sshLinkExample = "brev port-forward <name> -p local_port:remote_port"
 )
 
 type PortforwardStore interface {
@@ -46,14 +49,14 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if port == "" {
 				port = startInput(t)
 			}
-			err := RunPortforward(pfStore, args[0], port, useHost)
+			err := RunPortforward(t, pfStore, args[0], port, useHost)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().StringVarP(&port, "port", "p", "", "port forward flag describe me better")
+	cmd.Flags().StringVarP(&port, "port", "p", "", "port forward string, local_port:remote_port")
 	cmd.Flags().BoolVar(&useHost, "host", false, "Use the -host version of the instance")
 	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoSpace
@@ -66,22 +69,41 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	return cmd
 }
 
-func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string, useHost bool) error {
-	var portSplit []string
-	if strings.Contains(portString, ":") {
-		portSplit = strings.Split(portString, ":")
-		if len(portSplit) != 2 {
-			return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
-		}
-	} else {
-		return breverrors.NewValidationError("port format invalid, use local_port:remote_port")
+// parsePortString validates and splits a "local:remote" port string.
+func parsePortString(portString string) (localPort, remotePort string, err error) {
+	if !strings.Contains(portString, ":") {
+		return "", "", breverrors.NewValidationError("port format invalid, use local_port:remote_port")
+	}
+	parts := strings.Split(portString, ":")
+	if len(parts) != 2 {
+		return "", "", breverrors.NewValidationError("port format invalid, use local_port:remote_port")
+	}
+	return parts[0], parts[1], nil
+}
+
+// isPortAlreadyAllocatedError returns true if the error indicates the port is already open.
+func isPortAlreadyAllocatedError(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "already allocated")
+}
+
+func RunPortforward(t *terminal.Terminal, pfStore PortforwardStore, nameOrID string, portString string, useHost bool) error {
+	localPort, remotePort, err := parsePortString(portString)
+	if err != nil {
+		return err
 	}
 
 	res := refresh.RunRefreshAsync(pfStore)
 
-	sshName, err := ConvertNametoSSHName(pfStore, nameOrID, useHost)
+	target, err := util.ResolveWorkspaceOrNode(pfStore, nameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	if target.Node != nil {
+		return portForwardExternalNode(t, pfStore, res, target.Node, localPort, remotePort)
+	}
+	sshName := string(target.Workspace.GetLocalIdentifier())
+	if useHost {
+		sshName += "-host"
 	}
 
 	err = res.Await()
@@ -89,23 +111,55 @@ func RunPortforward(pfStore PortforwardStore, nameOrID string, portString string
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err = RunSSHPortForward("-L", portSplit[0], portSplit[1], sshName)
+	t.Vprintf("Port forwarding...\n")
+	t.Vprintf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
+	_, err = RunSSHPortForward("-L", localPort, remotePort, sshName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func ConvertNametoSSHName(store PortforwardStore, workspaceNameOrID string, useHost bool) (string, error) {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(store, workspaceNameOrID)
+func portForwardExternalNode(t *terminal.Terminal, pfStore PortforwardStore, res *refresh.RefreshRes, node *nodev1.ExternalNode, localPort, remotePort string) error {
+	info, err := util.ResolveExternalNodeSSH(pfStore, node)
 	if err != nil {
-		return "", breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(err)
 	}
-	sshName := string(workspace.GetLocalIdentifier())
-	if useHost {
-		sshName += "-host"
+
+	// Parse the remote port so we can open it via the OpenPort RPC.
+	remotePortNum, err := strconv.ParseInt(remotePort, 10, 32)
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf("invalid remote port %q: %w", remotePort, err))
 	}
-	return sshName, nil
+
+	// Open the port on the netbird side so it's accessible.
+	// This binding persists after the CLI exits — it won't be closed on Ctrl+C.
+	t.Vprintf("Opening port %s on node %q...\n", remotePort, node.GetName())
+	_, err = util.OpenPort(pfStore, node.GetExternalNodeId(), int32(remotePortNum), nodev1.PortProtocol_PORT_PROTOCOL_TCP)
+	if err != nil {
+		// Port already allocated is not a real error — it's already open.
+		if isPortAlreadyAllocatedError(err) {
+			t.Vprintf("Port %s is already open on the remote node.\n", remotePort)
+		} else {
+			return breverrors.WrapAndTrace(err)
+		}
+	} else {
+		t.Vprintf("Port %s is now bound on the remote node. Note: this binding persists after this command exits.\n", remotePort)
+	}
+
+	if err := res.Await(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// The SSH tunnel forwards local traffic through the SSH connection to the actual port on the box.
+	// TODO there isn't support for killing the port forward in either case, and no ClosePort for external node
+	alias := info.SSHAlias()
+	t.Vprintf("Setting up local forward: localhost:%s -> %s:%s\n", localPort, alias, remotePort)
+	_, err = RunSSHPortForward("-L", localPort, remotePort, alias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func RunSSHPortForward(forwardType string, localPort string, remotePort string, sshName string) (*os.Process, error) {
@@ -130,9 +184,6 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 	cmdSHH.Stdin = os.Stdin
 	cmdSHH.Stdout = os.Stdout
 	cmdSHH.Stderr = os.Stderr
-
-	fmt.Println("Port forwarding...")
-	fmt.Printf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
 
 	err = cmdSHH.Start()
 	if err != nil {

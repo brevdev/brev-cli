@@ -129,7 +129,7 @@ func (d DummySSHConfigurerV2Store) GetBrevCloudflaredBinaryPath() (string, error
 
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
-	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
+	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces, nil)
 
 	assert.Nil(t, err)
 	// sometimes vs code is not happy with the formatting
@@ -199,7 +199,7 @@ Host %s-host
 	)
 	assert.Equal(t, correct, cStr)
 
-	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})
+	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{}, nil)
 	assert.Nil(t, err)
 	correct = `# included in /my/user/config
 `
@@ -559,6 +559,115 @@ Host testName2-host
 	}
 }
 
+func TestSanitizeNodeName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"My GPU Box", "my-gpu-box"},
+		{"pratik-ec2", "pratik-ec2"},
+		{"already-clean", "already-clean"},
+		{"UPPER CASE", "upper-case"},
+		{"special!@#chars", "special-chars"},
+		{"  leading/trailing  ", "leading-trailing"},
+		{"multiple   spaces", "multiple-spaces"},
+		{"", "node"},
+		{"!!!!", "node"},
+		{"a", "a"},
+		{"node-with--double-dash", "node-with-double-dash"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := SanitizeNodeName(tt.input)
+			if got != tt.want {
+				t.Errorf("SanitizeNodeName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMakeSSHConfigEntryForNode(t *testing.T) {
+	entry := ExternalNodeSSHEntry{
+		Alias:    "my-gpu-box",
+		Hostname: "10.0.0.5",
+		Port:     41920,
+		User:     "ec2-user",
+	}
+
+	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := `Host my-gpu-box
+  HostName 10.0.0.5
+  User ec2-user
+  Port 41920
+  IdentityFile "/home/test/.brev/brev.pem"
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+	if got != want {
+		t.Errorf("makeSSHConfigEntryForNode() mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestCreateNewSSHConfig_WithNodes(t *testing.T) {
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+
+	nodes := []ExternalNodeSSHEntry{
+		{Alias: "gpu-box", Hostname: "10.0.0.5", Port: 41920, User: "ec2-user"},
+	}
+
+	cStr, err := c.CreateNewSSHConfig([]entity.Workspace{}, nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := `# included in /my/user/config
+Host gpu-box
+  HostName 10.0.0.5
+  User ec2-user
+  Port 41920
+  IdentityFile "/my/priv/key.pem"
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+	if cStr != want {
+		t.Errorf("CreateNewSSHConfig with nodes mismatch:\ngot:\n%s\nwant:\n%s", cStr, want)
+	}
+}
+
+func TestCreateNewSSHConfig_WorkspacesAndNodes(t *testing.T) {
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+
+	nodes := []ExternalNodeSSHEntry{
+		{Alias: "my-node", Hostname: "192.168.1.100", Port: 33000, User: "ubuntu"},
+	}
+
+	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces[:1], nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should contain both workspace entry and node entry
+	if !assert.Contains(t, cStr, "Host testName1\n") {
+		return
+	}
+	if !assert.Contains(t, cStr, "Host my-node\n") {
+		return
+	}
+	if !assert.Contains(t, cStr, "Port 33000\n") {
+		return
+	}
+}
+
 func makeMockFS() SSHConfigurerV2Store {
 	bs := store.NewBasicStore().WithEnvGetter(
 		func(s string) string {
@@ -775,7 +884,7 @@ Host testName1-host
 			s := SSHConfigurerV2{
 				store: tt.fields.store,
 			}
-			if err := s.Update(tt.args.workspaces); (err != nil) != tt.wantErr {
+			if err := s.Update(tt.args.workspaces, nil); (err != nil) != tt.wantErr {
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			// make sure the linux config is correct

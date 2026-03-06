@@ -58,6 +58,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/remoteversion"
@@ -257,8 +258,20 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cmds.SetUsageTemplate(usageTemplate)
 
 	// In-memory auth for external node commands — never touches credentials.json.
-	memAuthStore := store.NewMemoryAuthStore()
-	memAuthenticator := auth.StandardLogin("", "", nil)
+	// Pre-fill the cached email so the user sees a confirmation prompt instead of
+	// having to type it from scratch every time.
+	cachedEmail, _ := fsStore.GetCachedEmail()
+	memAuthenticator := auth.StandardLogin("", cachedEmail, nil)
+	if cachedEmail != "" {
+		if kas, ok := memAuthenticator.(auth.KasAuthenticator); ok {
+			kas.ShouldPromptEmail = true
+			memAuthenticator = kas
+		}
+	}
+	memAuthStore := &emailCachingAuthStore{
+		MemoryAuthStore: store.NewMemoryAuthStore(),
+		fileStore:       fsStore,
+	}
 	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
 	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
 
@@ -555,4 +568,22 @@ var (
 	_ store.Auth     = auth.NoLoginAuth{}
 	_ auth.AuthStore = store.FileStore{}
 	_ auth.AuthStore = &store.MemoryAuthStore{}
+	_ auth.AuthStore = &emailCachingAuthStore{}
 )
+
+// emailCachingAuthStore wraps MemoryAuthStore and persists the login email
+// to ~/.brev/cached-email after each successful authentication.
+type emailCachingAuthStore struct {
+	*store.MemoryAuthStore
+	fileStore *store.FileStore
+}
+
+func (e *emailCachingAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
+	if err := e.MemoryAuthStore.SaveAuthTokens(tokens); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if email := auth.GetEmailFromToken(tokens.AccessToken); email != "" {
+		_ = e.fileStore.SaveCachedEmail(email)
+	}
+	return nil
+}

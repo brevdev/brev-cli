@@ -1,8 +1,8 @@
 ---
 name: brev-cli
-description: Manage GPU and CPU cloud instances with the Brev CLI. Use when users want to create instances, search for GPUs or CPUs, SSH into instances, open editors, copy files, port forward, manage organizations, or work with cloud compute. Trigger keywords - brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine.
+description: Manage GPU and CPU cloud instances with the Brev CLI for ML workloads and general compute. Use when users want to create instances, search for GPUs or CPUs, SSH into instances, open editors, copy files, port forward, manage organizations, or work with cloud compute. Supports fine-tuning, reinforcement learning, training, inference, batch processing, and other ML/AI workloads. Trigger keywords - brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine, finetune, fine-tune, RL, RLHF, training, inference, deploy model, serve model, batch job.
 allowed-tools: Bash, Read, AskUserQuestion
-argument-hint: [create|search|shell|exec|open|ls|delete] [instance-name]
+argument-hint: "[create|search|shell|exec|open|ls|delete] [instance-name]"
 ---
 <!--
 Token Budget:
