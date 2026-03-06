@@ -1,23 +1,49 @@
+version: 2
 before:
   hooks:
     - go mod download
+# Separate builds per target so CC/CXX are correct in goreleaser-cross (avoids aarch64-gcc being used for linux/amd64).
 builds:
-  - env:
-      - CGO_ENABLED=0
-    goos:
-      - darwin
-      - linux
-      # - windows
-    goarch:
-      - amd64
-      - arm64
+  - id: darwin-amd64
+    env:
+      - CGO_ENABLED=1
+    goos: [darwin]
+    goarch: [amd64]
+    binary: brev
+    ldflags:
+      - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
+  - id: darwin-arm64
+    env:
+      - CGO_ENABLED=1
+    goos: [darwin]
+    goarch: [arm64]
+    binary: brev
+    ldflags:
+      - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
+  - id: linux-amd64
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-linux-gnu-gcc
+      - CXX=x86_64-linux-gnu-g++
+    goos: [linux]
+    goarch: [amd64]
+    binary: brev
+    ldflags:
+      - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
+  - id: linux-arm64
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+      - CXX=aarch64-linux-gnu-g++
+    goos: [linux]
+    goarch: [arm64]
     binary: brev
     ldflags:
       - -X github.com/brevdev/brev-cli/pkg/cmd/version.Version={{.Tag}}
 
 brews:
   - name: brev
-    folder: Formula
+    directory: Formula
     # GitHub/GitLab repository to push the formula to
     repository:
       owner: brevdev
@@ -37,9 +63,11 @@ brews:
 archives:
   - format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 release:
   github:
+    owner: brevdev
+    name: brev-cli
   prerelease: auto
 # dockers:
 #   - image_templates:

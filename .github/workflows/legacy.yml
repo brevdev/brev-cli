@@ -65,4 +65,4 @@ jobs:
           go-version: '1.24.0'
           cache: true
       - name: Release test
-        run: make build
+        run: make build-cross

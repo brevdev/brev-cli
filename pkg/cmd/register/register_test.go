@@ -110,6 +110,26 @@ func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider
 	return NewNodeServiceClient(provider, m.serverURL)
 }
 
+// testHardwareProfile returns a realistic HardwareProfile for use in tests.
+func testHardwareProfile() *HardwareProfile {
+	cpuCount := int32(2)
+	ramBytes := int64(131886028) * 1024
+	memBytes := int64(131072) * 1024 * 1024
+	return &HardwareProfile{
+		Architecture: "arm64",
+		OS:           "Ubuntu",
+		OSVersion:    "24.04",
+		GPUs: []GPU{
+			{Model: "NVIDIA GB10", Count: 1, MemoryBytes: &memBytes},
+		},
+		CPUCount: &cpuCount,
+		RAMBytes: &ramBytes,
+		Storage: []StorageDevice{
+			{Name: "nvme0n1", StorageBytes: 500107862016, StorageType: "SSD"},
+		},
+	}
+}
+
 // testRegisterDeps returns deps with all side effects stubbed out, and a fake
 // ConnectRPC server backed by the provided fakeNodeService.
 func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationStore) (registerDeps, *httptest.Server) {
@@ -124,18 +144,8 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 		netbird:     mockNetBirdManager{},
 		setupRunner: &mockSetupRunner{},
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
-		commandRunner: &mockCommandRunner{
-			outputs: map[string][]byte{
-				"nvidia-smi": []byte("NVIDIA GB10, 131072\n"),
-				"lsblk":      []byte("nvme0n1  500107862016 disk 0\n"),
-			},
-		},
-		fileReader: &mockFileReader{
-			files: map[string][]byte{
-				"/proc/cpuinfo":   []byte("processor\t: 0\nprocessor\t: 1\n"),
-				"/proc/meminfo":   []byte("MemTotal:       131886028 kB\n"),
-				"/etc/os-release": []byte("NAME=\"Ubuntu\"\nVERSION_ID=\"24.04\"\n"),
-			},
+		hardwareProfiler: &mockHardwareProfiler{
+			profile: testHardwareProfile(),
 		},
 		registrationStore: regStore,
 	}, server
@@ -759,6 +769,81 @@ func Test_runRegister_NameValidation(t *testing.T) {
 				t.Errorf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func Test_runRegister_PlatformIncompatible(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.platform = mockPlatform{compatible: false}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	if err == nil {
+		t.Fatal("expected error when platform is incompatible")
+	}
+	if !strings.Contains(err.Error(), "only supported on Linux") {
+		t.Errorf("expected platform incompatibility error, got: %v", err)
+	}
+}
+
+func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.hardwareProfiler = &mockHardwareProfiler{err: fmt.Errorf("nvml init failed")}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	if err == nil {
+		t.Fatal("expected error when hardware profiler fails")
+	}
+	if !strings.Contains(err.Error(), "hardware profile") {
+		t.Errorf("expected hardware profile error, got: %v", err)
+	}
+}
+
+func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.netbird = mockNetBirdManager{err: fmt.Errorf("install failed")}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	if err == nil {
+		t.Fatal("expected error when NetBird install fails")
+	}
+	if !strings.Contains(err.Error(), "tunnel setup failed") {
+		t.Errorf("expected tunnel setup error, got: %v", err)
 	}
 }
 

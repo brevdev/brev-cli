@@ -60,18 +60,22 @@ func Test_toProtoNodeSpec(t *testing.T) {
 	ramBytes := int64(137438953472)
 	memBytes := int64(137438953472)
 
-	local := &NodeSpec{
-		GPUs: []NodeGPU{
-			{Model: "NVIDIA GB10", Count: 2, MemoryBytes: &memBytes},
+	local := &HardwareProfile{
+		GPUs: []GPU{
+			{Model: "NVIDIA GB10", Architecture: "Blackwell", Count: 2, MemoryBytes: &memBytes},
 		},
 		RAMBytes:     &ramBytes,
 		CPUCount:     &cpuCount,
 		Architecture: "arm64",
-		Storage: []NodeStorage{
-			{StorageBytes: 500107862016, StorageType: "SSD"},
+		Storage: []StorageDevice{
+			{Name: "nvme0n1", StorageBytes: 500107862016, StorageType: "SSD"},
 		},
-		OS:        "Ubuntu",
-		OSVersion: "24.04",
+		OS:          "Ubuntu",
+		OSVersion:   "24.04",
+		ProductName: "DGX Spark",
+		Interconnects: []Interconnect{
+			{Type: "NVLink", Device: "GPU 0", ActiveLinks: 4, Version: 4},
+		},
 	}
 
 	proto := toProtoNodeSpec(local)
@@ -115,6 +119,35 @@ func Test_toProtoNodeSpec(t *testing.T) {
 	}
 }
 
+func Test_toProtoNodeSpec_PCIeInterconnect(t *testing.T) {
+	local := &HardwareProfile{
+		Architecture: "amd64",
+		Interconnects: []Interconnect{
+			{Type: "PCIe", Device: "GPU 0", Generation: 4, Width: 16},
+		},
+	}
+
+	proto := toProtoNodeSpec(local)
+
+	if len(proto.GetInterconnects()) != 1 {
+		t.Fatalf("expected 1 interconnect, got %d", len(proto.GetInterconnects()))
+	}
+	ic := proto.GetInterconnects()[0]
+	if ic.GetDevice() != "GPU 0" {
+		t.Errorf("expected device 'GPU 0', got %s", ic.GetDevice())
+	}
+	pcie := ic.GetPcie()
+	if pcie == nil {
+		t.Fatal("expected PCIe details, got nil")
+	}
+	if pcie.GetGeneration() != 4 {
+		t.Errorf("expected PCIe Gen 4, got %d", pcie.GetGeneration())
+	}
+	if pcie.GetWidth() != 16 {
+		t.Errorf("expected PCIe Width 16, got %d", pcie.GetWidth())
+	}
+}
+
 func Test_toProtoNodeSpec_Nil(t *testing.T) {
 	if toProtoNodeSpec(nil) != nil {
 		t.Error("expected nil for nil input")
@@ -122,7 +155,7 @@ func Test_toProtoNodeSpec_Nil(t *testing.T) {
 }
 
 func Test_toProtoNodeSpec_MinimalFields(t *testing.T) {
-	local := &NodeSpec{
+	local := &HardwareProfile{
 		Architecture: "amd64",
 	}
 	proto := toProtoNodeSpec(local)

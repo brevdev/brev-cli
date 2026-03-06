@@ -31,7 +31,7 @@ func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
 		OrgID:          "org_xyz",
 		DeviceID:       "device-uuid-123",
 		RegisteredAt:   "2026-02-25T00:00:00Z",
-		NodeSpec: NodeSpec{
+		HardwareProfile: HardwareProfile{
 			CPUCount:     &cpuCount,
 			RAMBytes:     &ramBytes,
 			Architecture: "arm64",
@@ -59,11 +59,11 @@ func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
 	if loaded.DeviceID != reg.DeviceID {
 		t.Errorf("DeviceID mismatch: got %s, want %s", loaded.DeviceID, reg.DeviceID)
 	}
-	if loaded.NodeSpec.Architecture != "arm64" {
-		t.Errorf("Architecture mismatch: got %s", loaded.NodeSpec.Architecture)
+	if loaded.HardwareProfile.Architecture != "arm64" {
+		t.Errorf("Architecture mismatch: got %s", loaded.HardwareProfile.Architecture)
 	}
-	if loaded.NodeSpec.CPUCount == nil || *loaded.NodeSpec.CPUCount != 12 {
-		t.Errorf("CPUCount mismatch: got %v", loaded.NodeSpec.CPUCount)
+	if loaded.HardwareProfile.CPUCount == nil || *loaded.HardwareProfile.CPUCount != 12 {
+		t.Errorf("CPUCount mismatch: got %v", loaded.HardwareProfile.CPUCount)
 	}
 }
 

@@ -4,7 +4,6 @@ package register
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/user"
 	"strings"
 	"time"
@@ -31,17 +30,6 @@ type RegisterStore interface {
 	GetAccessToken() (string, error)
 }
 
-// OSFileReader reads files from the real OS filesystem.
-type OSFileReader struct{}
-
-func (r OSFileReader) ReadFile(path string) ([]byte, error) {
-	data, err := os.ReadFile(path) // #nosec G304
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return data, nil
-}
-
 // NetBirdManager installs, uninstalls, and monitors the NetBird network agent.
 type NetBirdManager interface {
 	Install() error
@@ -65,8 +53,7 @@ type registerDeps struct {
 	netbird           NetBirdManager
 	setupRunner       SetupRunner
 	nodeClients       externalnode.NodeClientFactory
-	commandRunner     CommandRunner
-	fileReader        FileReader
+	hardwareProfiler  HardwareProfiler
 	registrationStore RegistrationStore
 }
 
@@ -77,8 +64,7 @@ func defaultRegisterDeps() registerDeps {
 		netbird:           Netbird{},
 		setupRunner:       ShellSetupRunner{},
 		nodeClients:       DefaultNodeClientFactory{},
-		commandRunner:     ExecCommandRunner{},
-		fileReader:        OSFileReader{},
+		hardwareProfiler:  &SystemHardwareProfiler{},
 		registrationStore: NewFileRegistrationStore(),
 	}
 }
@@ -175,13 +161,13 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
 	t.Vprint("")
 
-	nodeSpec, err := CollectHardwareProfile(deps.commandRunner, deps.fileReader)
+	hwProfile, err := deps.hardwareProfiler.Profile()
 	if err != nil {
 		return fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
 
 	t.Vprint("  Hardware profile:")
-	t.Vprint(FormatNodeSpec(nodeSpec))
+	t.Vprint(FormatHardwareProfile(hwProfile))
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
@@ -192,7 +178,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 		OrganizationId: org.ID,
 		Name:           name,
 		DeviceId:       deviceID,
-		NodeSpec:       toProtoNodeSpec(nodeSpec),
+		NodeSpec:       toProtoNodeSpec(hwProfile),
 	}))
 	if err != nil {
 		return fmt.Errorf("failed to register node: %w", err)
@@ -200,12 +186,12 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 
 	node := addResp.Msg.GetExternalNode()
 	reg := &DeviceRegistration{
-		ExternalNodeID: node.GetExternalNodeId(),
-		DisplayName:    name,
-		OrgID:          org.ID,
-		DeviceID:       deviceID,
-		RegisteredAt:   time.Now().UTC().Format(time.RFC3339),
-		NodeSpec:       *nodeSpec,
+		ExternalNodeID:  node.GetExternalNodeId(),
+		DisplayName:     name,
+		OrgID:           org.ID,
+		DeviceID:        deviceID,
+		RegisteredAt:    time.Now().UTC().Format(time.RFC3339),
+		HardwareProfile: *hwProfile,
 	}
 	if err := deps.registrationStore.Save(reg); err != nil {
 		return fmt.Errorf("node registered but failed to save locally: %w", err)
