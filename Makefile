@@ -154,14 +154,11 @@ release-cross:
 	$(call print-target)
 	docker run --rm \
 		-e CGO_ENABLED=1 \
-		-e GOPRIVATE=github.com/brevdev/* \
-		-e GONOSUMDB=github.com/brevdev/* \
 		-e "GITHUB_TOKEN=$$GITHUB_TOKEN" \
-		-v "$$HOME/.gitconfig:/root/.gitconfig:ro" \
 		-v "$$(pwd):/go/src/$(BREV_MODULE)" \
 		-w "/go/src/$(BREV_MODULE)" \
 		ghcr.io/goreleaser/goreleaser-cross:$(GOLANG_CROSS_VERSION) \
-		release --clean; \
+		release --clean
 
 .PHONY: run
 run: ## go run
