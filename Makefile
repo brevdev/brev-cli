@@ -124,12 +124,6 @@ diff: ## git diff
 	git diff --exit-code
 	RES=$$(git status --porcelain) ; if [ -n "$$RES" ]; then echo $$RES && exit 1 ; fi
 
-.PHONY: build
-build: ## goreleaser --snapshot --skip-publish --rm-dist
-build: install-tools
-	$(call print-target)
-	goreleaser --snapshot --skip=publish --clean
-
 .PHONY: release
 release: ## goreleaser --rm-dist
 release: install-tools
