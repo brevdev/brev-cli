@@ -42,6 +42,7 @@ dist/
 # .env
 .env
 .envrc
+.release-env
 
 # binary
 brev-cli
