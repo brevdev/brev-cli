@@ -66,12 +66,12 @@ func FormatHardwareProfile(s *HardwareProfile) string {
 	if s.RAMBytes != nil {
 		_, _ = fmt.Fprintf(&b, "    RAM:     %.1f GB\n", float64(*s.RAMBytes)/(1024*1024*1024))
 	}
-	parseGPUs(s, b)
+	parseGPUs(s, &b)
 	_, _ = fmt.Fprintf(&b, "    Arch:    %s\n", s.Architecture)
 	if s.OS != "" || s.OSVersion != "" {
 		_, _ = fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
 	}
-	parseInterconnects(s, b)
+	parseInterconnects(s, &b)
 	for _, st := range s.Storage {
 		_, _ = fmt.Fprintf(&b, "    Storage: %.1f GB", float64(st.StorageBytes)/(1024*1024*1024))
 		if st.StorageType != "" {
@@ -85,37 +85,37 @@ func FormatHardwareProfile(s *HardwareProfile) string {
 	return b.String()
 }
 
-func parseGPUs(s *HardwareProfile, b strings.Builder) {
+func parseGPUs(s *HardwareProfile, b *strings.Builder) {
 	for _, gpu := range s.GPUs {
 		if gpu.MemoryBytes != nil {
 			memGB := float64(*gpu.MemoryBytes) / (1024 * 1024 * 1024)
-			_, _ = fmt.Fprintf(&b, "    GPUs:    %d x %s (%.1f GB)", gpu.Count, gpu.Model, memGB)
+			_, _ = fmt.Fprintf(b, "    GPUs:    %d x %s (%.1f GB)", gpu.Count, gpu.Model, memGB)
 		} else {
-			_, _ = fmt.Fprintf(&b, "    GPUs:    %d x %s", gpu.Count, gpu.Model)
+			_, _ = fmt.Fprintf(b, "    GPUs:    %d x %s", gpu.Count, gpu.Model)
 		}
 		if gpu.Architecture != "" {
-			_, _ = fmt.Fprintf(&b, " [%s]", gpu.Architecture)
+			_, _ = fmt.Fprintf(b, " [%s]", gpu.Architecture)
 		}
 		b.WriteString("\n")
 	}
 }
 
-func parseInterconnects(s *HardwareProfile, b strings.Builder) {
+func parseInterconnects(s *HardwareProfile, b *strings.Builder) {
 	for _, ic := range s.Interconnects {
-		_, _ = fmt.Fprintf(&b, "    Link:    %s", ic.Type)
+		_, _ = fmt.Fprintf(b, "    Link:    %s", ic.Type)
 		if ic.Generation > 0 || ic.Width > 0 {
 			if ic.Generation > 0 {
-				_, _ = fmt.Fprintf(&b, " Gen%d", ic.Generation)
+				_, _ = fmt.Fprintf(b, " Gen%d", ic.Generation)
 			}
 			if ic.Width > 0 {
-				_, _ = fmt.Fprintf(&b, " x%d", ic.Width)
+				_, _ = fmt.Fprintf(b, " x%d", ic.Width)
 			}
 		}
 		if ic.Device != "" {
-			_, _ = fmt.Fprintf(&b, " (%s)", ic.Device)
+			_, _ = fmt.Fprintf(b, " (%s)", ic.Device)
 		}
 		if ic.ActiveLinks > 0 {
-			_, _ = fmt.Fprintf(&b, " x%d", ic.ActiveLinks)
+			_, _ = fmt.Fprintf(b, " x%d", ic.ActiveLinks)
 		}
 		b.WriteString("\n")
 	}

@@ -788,7 +788,7 @@ func Test_runRegister_PlatformIncompatible(t *testing.T) {
 	deps.platform = mockPlatform{compatible: false}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My-Spark","TestOrg", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err == nil {
 		t.Fatal("expected error when platform is incompatible")
 	}
@@ -813,7 +813,7 @@ func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
 	deps.hardwareProfiler = &mockHardwareProfiler{err: fmt.Errorf("nvml init failed")}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", "TestOrg",deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err == nil {
 		t.Fatal("expected error when hardware profiler fails")
 	}
@@ -838,7 +838,7 @@ func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
 	deps.netbird = mockNetBirdManager{err: fmt.Errorf("install failed")}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "My Spark", "TestOrg", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err == nil {
 		t.Fatal("expected error when NetBird install fails")
 	}

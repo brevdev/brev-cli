@@ -136,13 +136,23 @@ func isWholeDisk(name string) bool {
 }
 
 func parseDiskutilSize(val string, dev *StorageDevice) {
+	// Prefer the parenthesized "(N Bytes)" form — most reliable.
 	if m := diskutilBytesRe.FindStringSubmatch(val); len(m) == 2 {
 		cleaned := strings.ReplaceAll(m[1], ",", "")
 		if size, err := strconv.ParseInt(cleaned, 10, 64); err == nil {
 			dev.StorageBytes = size
+			return
 		}
 	}
-	// If the regex doesn't match, leave StorageBytes as 0 (unknown).
+	// Fallback: try parsing the first whitespace-delimited token as a
+	// plain integer (handles "500107862016 Bytes ..." without parens).
+	parts := strings.Fields(val)
+	if len(parts) >= 1 {
+		if size, err := strconv.ParseInt(parts[0], 10, 64); err == nil {
+			dev.StorageBytes = size
+		}
+	}
+	// If neither matches, leave StorageBytes as 0 (unknown).
 }
 
 func parseDiskutilSolidState(val string, dev *StorageDevice) {
