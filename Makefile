@@ -128,13 +128,46 @@ diff: ## git diff
 build: ## goreleaser --snapshot --skip-publish --rm-dist
 build: install-tools
 	$(call print-target)
-	goreleaser --snapshot --skip-publish --rm-dist
+	goreleaser --snapshot --skip=publish --clean
 
 .PHONY: release
 release: ## goreleaser --rm-dist
 release: install-tools
 	$(call print-target)
 	goreleaser --rm-dist
+
+# Docker-based build/release using goreleaser-cross.
+# See: https://goreleaser.com/limitations/cgo (goreleaser needs explicit instructions for CGO builds)
+# See: https://github.com/goreleaser/goreleaser-cross (docker image with cross-compilers for CGO builds)
+# See: https://github.com/goreleaser/example-cross (example of using goreleaser-cross)
+GOLANG_CROSS_VERSION ?= v1.25.7
+BREV_MODULE ?= github.com/brevdev/brev-cli
+
+# Dry-run build using goreleaser-cross
+.PHONY: build-cross
+build-cross:
+	$(call print-target)
+	docker run --rm \
+		-e CGO_ENABLED=1 \
+		-v "$$(pwd):/go/src/$(BREV_MODULE)" \
+		-w "/go/src/$(BREV_MODULE)" \
+		ghcr.io/goreleaser/goreleaser-cross:$(GOLANG_CROSS_VERSION) \
+		--clean --skip=validate --skip=publish
+
+# Release using goreleaser-cross. Requires GITHUB_TOKEN to be set.
+.PHONY: release-cross
+release-cross:
+	$(call print-target)
+	docker run --rm \
+		-e CGO_ENABLED=1 \
+		-e GOPRIVATE=github.com/brevdev/* \
+		-e GONOSUMDB=github.com/brevdev/* \
+		-e "GITHUB_TOKEN=$$GITHUB_TOKEN" \
+		-v "$$HOME/.gitconfig:/root/.gitconfig:ro" \
+		-v "$$(pwd):/go/src/$(BREV_MODULE)" \
+		-w "/go/src/$(BREV_MODULE)" \
+		ghcr.io/goreleaser/goreleaser-cross:$(GOLANG_CROSS_VERSION) \
+		release --clean; \
 
 .PHONY: run
 run: ## go run
