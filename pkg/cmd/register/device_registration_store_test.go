@@ -144,6 +144,48 @@ func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
 	}
 }
 
+func Test_LoadRegistration_RejectsMissingExternalNodeID(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	reg := &DeviceRegistration{
+		ExternalNodeID: "",
+		DisplayName:    "Test",
+		OrgID:          "org_xyz",
+	}
+	if err := store.Save(reg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	_, err := store.Load()
+	if err == nil {
+		t.Fatal("expected error loading registration with empty ExternalNodeID")
+	}
+}
+
+func Test_LoadRegistration_RejectsMissingOrgID(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	reg := &DeviceRegistration{
+		ExternalNodeID: "unode_abc",
+		DisplayName:    "Test",
+		OrgID:          "",
+	}
+	if err := store.Save(reg); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	_, err := store.Load()
+	if err == nil {
+		t.Fatal("expected error loading registration with empty OrgID")
+	}
+}
+
 func Test_DeleteRegistration_FailsWhenMissing(t *testing.T) {
 	cleanup := setupTestFs(t)
 	defer cleanup()
