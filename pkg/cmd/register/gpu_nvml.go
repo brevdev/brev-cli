@@ -85,8 +85,8 @@ func probeGPUsNVML() ([]GPU, []Interconnect) {
 		arch := ""
 		major, minor, ret := device.GetCudaComputeCapability()
 		if ret == nvml.SUCCESS {
-			if name := archName(major, minor); name != "" {
-				arch = name
+			if archStr := archName(major, minor); archStr != "" {
+				arch = archStr
 			} else {
 				arch = fmt.Sprintf("sm_%d%d", major, minor)
 			}
@@ -124,14 +124,17 @@ func probeGPUsNVML() ([]GPU, []Interconnect) {
 	return gpus, interconnects
 }
 
+// maxNVLinks is the maximum number of NVLink links to probe per device.
+// Blackwell supports up to 18.
+const maxNVLinks = 18
+
 // probeNVLink checks NVLink connections for a device.
 func probeNVLink(device nvml.Device, deviceIdx int) []Interconnect {
 	var ics []Interconnect
 	activeLinks := 0
 
-	// NVLink link count varies by architecture; try up to 18 links.
 	var nvlinkVersion uint32
-	for link := 0; link < 18; link++ {
+	for link := 0; link < maxNVLinks; link++ {
 		state, ret := device.GetNvLinkState(link)
 		if ret != nvml.SUCCESS {
 			break

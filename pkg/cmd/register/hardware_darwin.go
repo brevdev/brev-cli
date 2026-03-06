@@ -3,6 +3,7 @@
 package register
 
 import (
+	"log"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -28,6 +29,8 @@ func (p *SystemHardwareProfiler) Profile() (*HardwareProfile, error) {
 	if memSize, err := unix.SysctlUint64("hw.memsize"); err == nil {
 		ramBytes := int64(memSize)
 		hw.RAMBytes = &ramBytes
+	} else {
+		log.Printf("hardware profiler: failed to read memory size: %v", err)
 	}
 
 	hw.OS = readDarwinCommand("sw_vers", "-productName")
@@ -137,21 +140,9 @@ func parseDiskutilSize(val string, dev *StorageDevice) {
 		cleaned := strings.ReplaceAll(m[1], ",", "")
 		if size, err := strconv.ParseInt(cleaned, 10, 64); err == nil {
 			dev.StorageBytes = size
-			return
 		}
 	}
-	// Fallback: extract digits from first token.
-	parts := strings.Fields(val)
-	if len(parts) < 1 {
-		return
-	}
-	var size int64
-	for _, c := range parts[0] {
-		if c >= '0' && c <= '9' {
-			size = size*10 + int64(c-'0')
-		}
-	}
-	dev.StorageBytes = size
+	// If the regex doesn't match, leave StorageBytes as 0 (unknown).
 }
 
 func parseDiskutilSolidState(val string, dev *StorageDevice) {

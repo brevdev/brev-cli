@@ -53,6 +53,9 @@ type HardwareProfile struct {
 
 // FormatHardwareProfile returns a human-readable summary of the hardware profile.
 func FormatHardwareProfile(s *HardwareProfile) string {
+	if s == nil {
+		return ""
+	}
 	var b strings.Builder
 	if s.ProductName != "" {
 		_, _ = fmt.Fprintf(&b, "    Product: %s\n", s.ProductName)
@@ -63,6 +66,26 @@ func FormatHardwareProfile(s *HardwareProfile) string {
 	if s.RAMBytes != nil {
 		_, _ = fmt.Fprintf(&b, "    RAM:     %.1f GB\n", float64(*s.RAMBytes)/(1024*1024*1024))
 	}
+	parseGPUs(s, b)
+	_, _ = fmt.Fprintf(&b, "    Arch:    %s\n", s.Architecture)
+	if s.OS != "" || s.OSVersion != "" {
+		_, _ = fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
+	}
+	parseInterconnects(s, b)
+	for _, st := range s.Storage {
+		_, _ = fmt.Fprintf(&b, "    Storage: %.1f GB", float64(st.StorageBytes)/(1024*1024*1024))
+		if st.StorageType != "" {
+			_, _ = fmt.Fprintf(&b, " (%s)", st.StorageType)
+		}
+		if st.Name != "" {
+			_, _ = fmt.Fprintf(&b, " [%s]", st.Name)
+		}
+		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+func parseGPUs(s *HardwareProfile, b strings.Builder) {
 	for _, gpu := range s.GPUs {
 		if gpu.MemoryBytes != nil {
 			memGB := float64(*gpu.MemoryBytes) / (1024 * 1024 * 1024)
@@ -75,12 +98,19 @@ func FormatHardwareProfile(s *HardwareProfile) string {
 		}
 		b.WriteString("\n")
 	}
-	_, _ = fmt.Fprintf(&b, "    Arch:    %s\n", s.Architecture)
-	if s.OS != "" || s.OSVersion != "" {
-		_, _ = fmt.Fprintf(&b, "    OS:      %s %s\n", s.OS, s.OSVersion)
-	}
+}
+
+func parseInterconnects(s *HardwareProfile, b strings.Builder) {
 	for _, ic := range s.Interconnects {
 		_, _ = fmt.Fprintf(&b, "    Link:    %s", ic.Type)
+		if ic.Generation > 0 || ic.Width > 0 {
+			if ic.Generation > 0 {
+				_, _ = fmt.Fprintf(&b, " Gen%d", ic.Generation)
+			}
+			if ic.Width > 0 {
+				_, _ = fmt.Fprintf(&b, " x%d", ic.Width)
+			}
+		}
 		if ic.Device != "" {
 			_, _ = fmt.Fprintf(&b, " (%s)", ic.Device)
 		}
@@ -89,17 +119,6 @@ func FormatHardwareProfile(s *HardwareProfile) string {
 		}
 		b.WriteString("\n")
 	}
-	for _, st := range s.Storage {
-		_, _ = fmt.Fprintf(&b, "    Storage: %.1f GB", float64(st.StorageBytes)/(1024*1024*1024))
-		if st.StorageType != "" {
-			_, _ = fmt.Fprintf(&b, " (%s)", st.StorageType)
-		}
-		if st.Name != "" {
-			_, _ = fmt.Fprintf(&b, " [%s]", st.Name)
-		}
-		b.WriteString("\n")
-	}
-	return b.String()
 }
 
 // --- Content-parsing helpers (pure functions, used by Linux adapter and tests) ---
@@ -120,6 +139,8 @@ func parseCPUCountContent(content string) (int, error) {
 }
 
 // parseMemInfoContent parses the content of /proc/meminfo.
+// Not used by the current Linux profiler (which uses syscall.Sysinfo), but
+// retained as a tested pure-function fallback for environments without sysinfo.
 func parseMemInfoContent(content string) (int64, error) {
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	for scanner.Scan() {
@@ -163,6 +184,8 @@ func unquote(s string) string {
 
 // parseStorageOutput parses lsblk output (NAME,SIZE,TYPE,ROTA columns),
 // returning one StorageDevice entry per disk device. ROTA=0 → SSD, ROTA=1 → HDD.
+// Not used by the current Linux profiler (which uses probeStorageSysfs), but
+// retained as a tested pure-function fallback for environments without sysfs.
 func parseStorageOutput(output string) []StorageDevice {
 	var devices []StorageDevice
 	scanner := bufio.NewScanner(strings.NewReader(output))

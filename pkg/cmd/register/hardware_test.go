@@ -196,6 +196,29 @@ func Test_FormatHardwareProfile(t *testing.T) {
 	}
 }
 
+func Test_FormatHardwareProfile_Nil(t *testing.T) {
+	output := FormatHardwareProfile(nil)
+	if output != "" {
+		t.Errorf("expected empty string for nil input, got: %q", output)
+	}
+}
+
+func Test_FormatHardwareProfile_PCIeInterconnect(t *testing.T) {
+	s := &HardwareProfile{
+		Architecture: "amd64",
+		Interconnects: []Interconnect{
+			{Type: "PCIe", Device: "GPU 0", Generation: 4, Width: 16},
+		},
+	}
+	output := FormatHardwareProfile(s)
+	if !strings.Contains(output, "PCIe Gen4 x16") {
+		t.Errorf("expected 'PCIe Gen4 x16' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "(GPU 0)") {
+		t.Errorf("expected '(GPU 0)' in output, got: %s", output)
+	}
+}
+
 func Test_FormatHardwareProfile_MinimalFields(t *testing.T) {
 	s := &HardwareProfile{
 		GPUs: []GPU{

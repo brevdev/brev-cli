@@ -213,7 +213,7 @@ full-smoke-test: ci fast-build
 build-linux-amd:
 	$(call print-target)
 	echo ${VERSION}
-	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: build-darwin-amd
 build-darwin-amd:

@@ -4,6 +4,7 @@ package register
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,10 +27,14 @@ func (p *SystemHardwareProfiler) Profile() (*HardwareProfile, error) {
 	if cpuCount, err := readCPUCount(); err == nil {
 		count32 := int32(cpuCount)
 		hw.CPUCount = &count32
+	} else {
+		log.Printf("hardware profiler: failed to read CPU count: %v", err)
 	}
 
 	if ramBytes, err := readRAMBytes(); err == nil {
 		hw.RAMBytes = &ramBytes
+	} else {
+		log.Printf("hardware profiler: failed to read RAM: %v", err)
 	}
 
 	hw.OS, hw.OSVersion = readOSRelease()

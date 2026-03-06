@@ -617,6 +617,81 @@ func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
 	}
 }
 
+func Test_runRegister_PlatformIncompatible(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.platform = mockPlatform{compatible: false}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	if err == nil {
+		t.Fatal("expected error when platform is incompatible")
+	}
+	if !strings.Contains(err.Error(), "only supported on Linux") {
+		t.Errorf("expected platform incompatibility error, got: %v", err)
+	}
+}
+
+func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.hardwareProfiler = &mockHardwareProfiler{err: fmt.Errorf("nvml init failed")}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	if err == nil {
+		t.Fatal("expected error when hardware profiler fails")
+	}
+	if !strings.Contains(err.Error(), "hardware profile") {
+		t.Errorf("expected hardware profile error, got: %v", err)
+	}
+}
+
+func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	deps.netbird = mockNetBirdManager{err: fmt.Errorf("install failed")}
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "My Spark", deps)
+	if err == nil {
+		t.Fatal("expected error when NetBird install fails")
+	}
+	if !strings.Contains(err.Error(), "tunnel setup failed") {
+		t.Errorf("expected tunnel setup error, got: %v", err)
+	}
+}
+
 func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
