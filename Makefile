@@ -134,7 +134,7 @@ release: install-tools
 # See: https://goreleaser.com/limitations/cgo (goreleaser needs explicit instructions for CGO builds)
 # See: https://github.com/goreleaser/goreleaser-cross (docker image with cross-compilers for CGO builds)
 # See: https://github.com/goreleaser/example-cross (example of using goreleaser-cross)
-GOLANG_CROSS_VERSION ?= v1.25.7
+GOLANG_CROSS_VERSION ?= v1.24.5
 BREV_MODULE ?= github.com/brevdev/brev-cli
 
 # Dry-run build using goreleaser-cross
