@@ -241,7 +241,7 @@ func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s Regi
 		t.Vprintf("This machine is already registered as %q.\n", reg.DisplayName)
 		t.Vprint("Run 'brev deregister' first if you want to re-register with a different name.")
 		t.Vprint("")
-		t.Vprintf("If you are having tunnel issues, run 'brev register %q' to reconnect.", reg.DisplayName)
+		t.Vprintf("If you are having tunnel issues, run 'brev register %q' to reconnect.\n", reg.DisplayName)
 		return nil
 	}
 

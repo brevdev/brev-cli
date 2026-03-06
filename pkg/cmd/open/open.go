@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/alessio/shellescape"
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
@@ -281,10 +283,18 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	target, err := util.ResolveWorkspaceOrNode(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if target.Node != nil {
+		// Await refresh so SSH config entries are written for the node.
+		if awaitErr := res.Await(); awaitErr != nil {
+			return breverrors.WrapAndTrace(awaitErr)
+		}
+		return openExternalNode(t, tstore, target.Node, directory, editorType)
+	}
+	workspace := target.Workspace
 	if workspace.Status == "STOPPED" { // we start the env for the user
 		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
 		if err != nil {
@@ -354,6 +364,36 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	// Call analytics for open
 	_ = pushOpenAnalytics(tstore, workspace)
 	return nil
+}
+
+func openExternalNode(t *terminal.Terminal, tstore OpenStore, node *nodev1.ExternalNode, directory string, editorType string) error {
+	info, err := util.ResolveExternalNodeSSH(tstore, node)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	alias := info.SSHAlias()
+	path := info.HomePath()
+	if directory != "" {
+		path = directory
+	}
+
+	_ = hello.SetHasRunOpen(true)
+
+	s := t.NewSpinner()
+	s.Start()
+	s.Suffix = "  checking if your node is ready..."
+	err = waitForSSHToBeAvailable(t, s, alias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	editorName := getEditorName(editorType)
+	s.Suffix = fmt.Sprintf(" Node is ready. Opening %s", editorName)
+	time.Sleep(250 * time.Millisecond)
+	s.Stop()
+	t.Vprintf("\n")
+
+	return openEditorByType(t, editorType, alias, path, tstore)
 }
 
 func pushOpenAnalytics(tstore OpenStore, workspace *entity.Workspace) error {

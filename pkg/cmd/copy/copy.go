@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
@@ -75,7 +77,15 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 		}
 	}
 
-	workspace, err := prepareWorkspace(t, cstore, workspaceNameOrID)
+	target, err := util.ResolveWorkspaceOrNode(cstore, workspaceNameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if target.Node != nil {
+		return copyExternalNode(t, cstore, target.Node, localPath, remotePath, isUpload)
+	}
+
+	workspace, err := prepareWorkspace(t, cstore, target.Workspace)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -116,26 +126,22 @@ func parseCopyArguments(source, dest string) (workspaceNameOrID, remotePath, loc
 	return destWorkspace, destPath, source, true, nil
 }
 
-func prepareWorkspace(t *terminal.Terminal, cstore CopyStore, workspaceNameOrID string) (*entity.Workspace, error) {
+func prepareWorkspace(t *terminal.Terminal, cstore CopyStore, workspace *entity.Workspace) (*entity.Workspace, error) {
 	s := t.NewSpinner()
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(cstore, workspaceNameOrID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
 
 	if workspace.Status == "STOPPED" {
-		err = startWorkspaceIfStopped(t, s, cstore, workspaceNameOrID, workspace)
+		err := startWorkspaceIfStopped(t, s, cstore, workspace.Name, workspace)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
 	}
 
-	err = pollUntil(s, workspace.ID, "RUNNING", cstore, " waiting for instance to be ready...")
+	err := pollUntil(s, workspace.ID, "RUNNING", cstore, " waiting for instance to be ready...")
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(cstore, workspaceNameOrID)
+	workspace, err = util.GetUserWorkspaceByNameOrIDErr(cstore, workspace.Name)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -285,6 +291,28 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Co
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func copyExternalNode(t *terminal.Terminal, cstore CopyStore, node *nodev1.ExternalNode, localPath, remotePath string, isUpload bool) error {
+	info, err := util.ResolveExternalNodeSSH(cstore, node)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	alias := info.SSHAlias()
+
+	// Ensure SSH config is up to date so the alias resolves.
+	refreshRes := refresh.RunRefreshAsync(cstore)
+	if err := refreshRes.Await(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	s := t.NewSpinner()
+	err = waitForSSHToBeAvailable(alias, s)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	return runSCP(t, alias, localPath, remotePath, isUpload)
 }
 
 func pollUntil(s *spinner.Spinner, wsid string, state string, copyStore CopyStore, waitMsg string) error {

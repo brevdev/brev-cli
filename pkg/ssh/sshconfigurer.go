@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -16,6 +17,66 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// ExternalNodeSSHEntry holds pre-resolved SSH details for an external node.
+type ExternalNodeSSHEntry struct {
+	Alias    string
+	Hostname string
+	Port     int32
+	User     string
+}
+
+var (
+	sanitizeNodeNameRe = regexp.MustCompile(`[^a-z0-9-]+`)
+	collapseHyphensRe  = regexp.MustCompile(`-{2,}`)
+)
+
+// SanitizeNodeName converts a node display name into a valid SSH Host alias.
+func SanitizeNodeName(name string) string {
+	s := strings.ToLower(name)
+	s = sanitizeNodeNameRe.ReplaceAllString(s, "-")
+	s = collapseHyphensRe.ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	if s == "" {
+		s = "node"
+	}
+	return s
+}
+
+const SSHConfigEntryTemplateNode = `Host {{ .Alias }}
+  HostName {{ .Hostname }}
+  User {{ .User }}
+  Port {{ .Port }}
+  IdentityFile {{ .IdentityFile }}
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+
+type externalNodeSSHConfigEntry struct {
+	Alias        string
+	Hostname     string
+	User         string
+	Port         int32
+	IdentityFile string
+}
+
+func makeSSHConfigEntryForNode(node ExternalNodeSSHEntry, privateKeyPath string) (string, error) {
+	entry := externalNodeSSHConfigEntry{
+		Alias:        node.Alias,
+		Hostname:     node.Hostname,
+		User:         node.User,
+		Port:         node.Port,
+		IdentityFile: "\"" + privateKeyPath + "\"",
+	}
+	tmpl, err := template.New(node.Alias).Parse(SSHConfigEntryTemplateNode)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return tmplAndValToString(tmpl, entry)
+}
+
 type ConfigUpdaterStore interface {
 	autostartconf.AutoStartStore
 	GetContextWorkspaces() ([]entity.Workspace, error)
@@ -23,13 +84,14 @@ type ConfigUpdaterStore interface {
 }
 
 type Config interface {
-	Update(workspaces []entity.Workspace) error
+	Update(workspaces []entity.Workspace, nodes []ExternalNodeSSHEntry) error
 }
 
 type ConfigUpdater struct {
-	Store      ConfigUpdaterStore
-	Configs    []Config
-	PrivateKey string
+	Store         ConfigUpdaterStore
+	Configs       []Config
+	PrivateKey    string
+	ExternalNodes []ExternalNodeSSHEntry
 }
 
 func NewConfigUpdater(store ConfigUpdaterStore, configs []Config, privateKey string) *ConfigUpdater {
@@ -59,8 +121,8 @@ func (c ConfigUpdater) Run() error {
 	}
 
 	var res error
-	for _, c := range c.Configs {
-		err := c.Update(runningWorkspaces)
+	for _, cfg := range c.Configs {
+		err := cfg.Update(runningWorkspaces, c.ExternalNodes)
 		if err != nil {
 			res = multierror.Append(res, err)
 		}
@@ -121,8 +183,8 @@ func NewSSHConfigurerV2(store SSHConfigurerV2Store) *SSHConfigurerV2 {
 	}
 }
 
-func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
-	newConfig, err := s.CreateNewSSHConfig(workspaces)
+func (s SSHConfigurerV2) Update(workspaces []entity.Workspace, nodes []ExternalNodeSSHEntry) error {
+	newConfig, err := s.CreateNewSSHConfig(workspaces, nodes)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -183,7 +245,7 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 	return sshConfig, nil
 }
 
-func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace, nodes []ExternalNodeSSHEntry) (string, error) {
 	configPath, err := s.store.GetUserSSHConfigPath()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -203,6 +265,15 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
+
+	for _, node := range nodes {
+		entry, err := makeSSHConfigEntryForNode(node, pkPath)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		sshConfig += entry
+	}
+
 	return sshConfig, nil
 }
 
@@ -570,7 +641,7 @@ func NewSSHConfigurerJetBrains(store SSHConfigurerV2Store) (*SSHConfigurerJetBra
 	}, nil
 }
 
-func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
+func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace, _ []ExternalNodeSSHEntry) error {
 	doesJbPathExist, err := s.store.DoesJetbrainsFilePathExist()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
