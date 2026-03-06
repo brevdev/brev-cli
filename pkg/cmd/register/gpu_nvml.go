@@ -8,18 +8,38 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 )
 
-// archNames maps NVML compute capability (major version) to GPU architecture name.
-var archNames = map[int]string{
-	1:  "Tesla",
-	2:  "Fermi",
-	3:  "Kepler",
-	5:  "Maxwell",
-	6:  "Pascal",
-	7:  "Volta/Turing",
-	8:  "Ampere",
-	9:  "Hopper/Ada Lovelace",
-	10: "Blackwell",
-	12: "Vera Rubin",
+// archName returns the GPU architecture name for the given CUDA compute capability.
+func archName(major, minor int) string {
+	switch major {
+	case 1:
+		return "Tesla"
+	case 2:
+		return "Fermi"
+	case 3:
+		return "Kepler"
+	case 5:
+		return "Maxwell"
+	case 6:
+		return "Pascal"
+	case 7:
+		if minor >= 5 {
+			return "Turing"
+		}
+		return "Volta"
+	case 8:
+		if minor >= 9 {
+			return "Ada Lovelace"
+		}
+		return "Ampere"
+	case 9:
+		return "Hopper"
+	case 10:
+		return "Blackwell"
+	case 12:
+		return "Vera Rubin"
+	default:
+		return ""
+	}
 }
 
 // probeGPUsNVML uses NVML to detect GPUs and interconnects.
@@ -65,8 +85,8 @@ func probeGPUsNVML() ([]GPU, []Interconnect) {
 		arch := ""
 		major, minor, ret := device.GetCudaComputeCapability()
 		if ret == nvml.SUCCESS {
-			if archName, ok := archNames[major]; ok {
-				arch = archName
+			if name := archName(major, minor); name != "" {
+				arch = name
 			} else {
 				arch = fmt.Sprintf("sm_%d%d", major, minor)
 			}

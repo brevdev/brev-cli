@@ -4,11 +4,15 @@ package register
 
 import (
 	"os/exec"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"golang.org/x/sys/unix"
 )
+
+var diskutilBytesRe = regexp.MustCompile(`\((\d[\d,]*)\s+Bytes\)`)
 
 // SystemHardwareProfiler probes hardware on macOS using sysctl and system_profiler.
 type SystemHardwareProfiler struct{}
@@ -129,6 +133,14 @@ func isWholeDisk(name string) bool {
 }
 
 func parseDiskutilSize(val string, dev *StorageDevice) {
+	if m := diskutilBytesRe.FindStringSubmatch(val); len(m) == 2 {
+		cleaned := strings.ReplaceAll(m[1], ",", "")
+		if size, err := strconv.ParseInt(cleaned, 10, 64); err == nil {
+			dev.StorageBytes = size
+			return
+		}
+	}
+	// Fallback: extract digits from first token.
 	parts := strings.Fields(val)
 	if len(parts) < 1 {
 		return
@@ -143,6 +155,10 @@ func parseDiskutilSize(val string, dev *StorageDevice) {
 }
 
 func parseDiskutilSolidState(val string, dev *StorageDevice) {
+	// Don't overwrite a more specific type (e.g. NVMe from Protocol line).
+	if dev.StorageType != "" {
+		return
+	}
 	if strings.EqualFold(val, "yes") {
 		dev.StorageType = "SSD"
 	} else {

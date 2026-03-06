@@ -35,7 +35,7 @@ type Interconnect struct {
 type StorageDevice struct {
 	Name         string `json:"name,omitempty"`
 	StorageBytes int64  `json:"storage_bytes"`
-	StorageType  string `json:"storage_type,omitempty"` // "SSD" or "HDD"
+	StorageType  string `json:"storage_type,omitempty"` // "SSD", "HDD", or "NVMe"
 }
 
 // HardwareProfile is the full hardware snapshot collected by a HardwareProfiler.
