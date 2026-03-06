@@ -27,6 +27,7 @@ import (
 type RegisterStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetOrganizationsByName(name string) ([]entity.Organization, error)
 	GetAccessToken() (string, error)
 }
 
@@ -91,6 +92,8 @@ This command sets up network connectivity and registers this machine with Brev.`
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
+	var orgFlag string
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "register [name]",
@@ -104,14 +107,16 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 			if len(args) > 0 {
 				name = args[0]
 			}
-			return runRegister(cmd.Context(), t, store, name, defaultRegisterDeps())
+			return runRegister(cmd.Context(), t, store, name, orgFlag, defaultRegisterDeps())
 		},
 	}
+
+	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (overrides active org)")
 
 	return cmd
 }
 
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error { //nolint:funlen // registration flow
+func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, orgName string, deps registerDeps) error { //nolint:funlen // registration flow
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
 	}
@@ -132,7 +137,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	org, err := getOrgToRegisterFor(s)
+	org, err := getOrgToRegisterFor(s, orgName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -219,7 +224,21 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	return nil
 }
 
-func getOrgToRegisterFor(s RegisterStore) (*entity.Organization, error) {
+func getOrgToRegisterFor(s RegisterStore, orgName string) (*entity.Organization, error) {
+	if orgName != "" {
+		orgs, err := s.GetOrganizationsByName(orgName)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return nil, fmt.Errorf("no organization found with name %q", orgName)
+		}
+		if len(orgs) > 1 {
+			return nil, fmt.Errorf("multiple organizations found with name %q", orgName)
+		}
+		return &orgs[0], nil
+	}
+
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -227,7 +246,6 @@ func getOrgToRegisterFor(s RegisterStore) (*entity.Organization, error) {
 	if org == nil {
 		return nil, fmt.Errorf("no organization found; please create or join an organization first")
 	}
-
 	return org, nil
 }
 

@@ -86,7 +86,7 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if reg.ExternalNodeID == "" || reg.OrgID == "" {
-		return nil, breverrors.New("corrupt registration file: missing external_node_id or org_id")
+		return nil, breverrors.New("malformed registration")
 	}
 	return &reg, nil
 }

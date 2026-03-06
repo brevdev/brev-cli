@@ -20,6 +20,7 @@ import (
 type mockRegisterStore struct {
 	user  *entity.User
 	org   *entity.Organization
+	orgs  []entity.Organization
 	token string
 	err   error
 }
@@ -33,6 +34,16 @@ func (m *mockRegisterStore) GetCurrentUser() (*entity.User, error) {
 
 func (m *mockRegisterStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
 	return m.org, nil
+}
+
+func (m *mockRegisterStore) GetOrganizationsByName(name string) ([]entity.Organization, error) {
+	var matched []entity.Organization
+	for _, o := range m.orgs {
+		if o.Name == name {
+			matched = append(matched, o)
+		}
+	}
+	return matched, nil
 }
 
 func (m *mockRegisterStore) GetAccessToken() (string, error) { return m.token, nil }
@@ -173,7 +184,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -224,7 +235,7 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	deps.prompter = mockConfirmer{confirm: false}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err != nil {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
@@ -312,7 +323,7 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 			term := terminal.New()
 			// Pass the same name as the existing registration so we go through
 			// the checkExistingRegistration path (not the different-name path).
-			err := runRegister(context.Background(), term, store, "Existing", deps)
+			err := runRegister(context.Background(), term, store, "Existing", "", deps)
 			if err != nil {
 				t.Fatalf("expected nil error, got: %v", err)
 			}
@@ -340,9 +351,87 @@ func Test_runRegister_NoOrganization(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err == nil {
 		t.Fatal("expected error when no org exists")
+	}
+}
+
+func Test_runRegister_WithOrgFlag(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user: &entity.User{ID: "user_1"},
+		org:  &entity.Organization{ID: "org_default", Name: "DefaultOrg"},
+		orgs: []entity.Organization{
+			{ID: "org_456", Name: "SpecificOrg"},
+		},
+		token: "tok",
+	}
+
+	var capturedOrgID string
+	svc := &fakeNodeService{
+		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+			capturedOrgID = req.GetOrganizationId()
+			return &nodev1.AddNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: "unode_abc",
+					OrganizationId: req.GetOrganizationId(),
+					Name:           req.GetName(),
+					DeviceId:       req.GetDeviceId(),
+				},
+			}, nil
+		},
+	}
+
+	setupRunner := &mockSetupRunner{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+	deps.setupRunner = setupRunner
+
+	SetTestSSHPort(22)
+	defer ClearTestSSHPort()
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "my-spark", "SpecificOrg", deps)
+	if err != nil {
+		t.Fatalf("runRegister with --org failed: %v", err)
+	}
+
+	if capturedOrgID != "org_456" {
+		t.Errorf("expected org_456, got %s", capturedOrgID)
+	}
+
+	reg, err := regStore.Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if reg.OrgID != "org_456" {
+		t.Errorf("expected registration org org_456, got %s", reg.OrgID)
+	}
+}
+
+func Test_runRegister_WithOrgFlag_NotFound(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_default", Name: "DefaultOrg"},
+		orgs:  []entity.Organization{},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	err := runRegister(context.Background(), term, store, "my-spark", "NonexistentOrg", deps)
+	if err == nil {
+		t.Fatal("expected error when org not found")
+	}
+	if !strings.Contains(err.Error(), "no organization found") {
+		t.Errorf("expected 'no organization found' error, got: %v", err)
 	}
 }
 
@@ -366,7 +455,7 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err == nil {
 		t.Fatal("expected error when AddNode fails")
 	}
@@ -416,7 +505,7 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -549,7 +638,7 @@ func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *test
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -598,7 +687,7 @@ func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", deps)
+	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
 	if err != nil {
 		t.Fatalf("runRegister should not fail the overall flow when SSH grant fails: %v", err)
 	}
@@ -658,7 +747,7 @@ func Test_runRegister_NameValidation(t *testing.T) {
 			defer ClearTestSSHPort()
 
 			term := terminal.New()
-			err := runRegister(context.Background(), term, store, tt.input, deps)
+			err := runRegister(context.Background(), term, store, tt.input, "", deps)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -687,7 +776,7 @@ func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "", deps)
+	err := runRegister(context.Background(), term, store, "", "", deps)
 	if err == nil {
 		t.Fatal("expected error when no name provided and not registered")
 	}
@@ -728,7 +817,7 @@ func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "", deps)
+	err := runRegister(context.Background(), term, store, "", "", deps)
 	if err != nil {
 		t.Fatalf("expected nil error when already registered with no name, got: %v", err)
 	}

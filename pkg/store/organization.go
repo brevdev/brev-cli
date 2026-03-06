@@ -130,6 +130,11 @@ func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]ent
 	return filteredOrgs, nil
 }
 
+// GetOrganizationsByName returns organizations matching the given name.
+func (s AuthHTTPStore) GetOrganizationsByName(name string) ([]entity.Organization, error) {
+	return s.GetOrganizations(&GetOrganizationsOptions{Name: name})
+}
+
 func (s AuthHTTPStore) getOrganizations() ([]entity.Organization, error) {
 	var result []entity.Organization
 	res, err := s.authHTTPClient.restyClient.R().
