@@ -59,6 +59,8 @@ case "$PKG_MGR" in
 esac
 
 sudo rm -rf /etc/netbird
+sudo rm -rf /var/lib/netbird
+sudo rm /usr/local/bin/netbird  # should be redundant with uninstalls, but for safety
 `
 
 	cmd := exec.Command("bash", "-c", script) // #nosec G204
