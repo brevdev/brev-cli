@@ -356,7 +356,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			return handlePathError(tstore, workspace, errMsg)
 		}
 		if strings.Contains(err.Error(), `tmux: command not found`) {
-			errMsg := "tmux not found on remote instance. This will be installed automatically."
+			errMsg := "tmux not found on remote instance. Please install it and try again."
 			return handlePathError(tstore, workspace, errMsg)
 		}
 		return breverrors.WrapAndTrace(err)
@@ -809,16 +809,6 @@ func ensureTmuxInstalled(sshAlias string) error {
 	checkCmd := fmt.Sprintf("ssh %s 'which tmux >/dev/null 2>&1'", sshAlias)
 	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
 	err := checkExec.Run()
-	if err == nil {
-		return nil
-	}
-
-	installCmd := fmt.Sprintf("ssh %s 'sudo apt-get update && sudo apt-get install -y tmux'", sshAlias)
-	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
-	installExec.Stderr = os.Stderr
-	installExec.Stdout = os.Stdout
-
-	err = installExec.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

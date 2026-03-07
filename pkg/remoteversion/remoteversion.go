@@ -17,13 +17,9 @@ var (
 	outOfDateString = green("A new version of brev has been released!\n") +
 		`Current version: %s
 New Version: %s
-To update to latest version on mac os run:
+To update to latest version run:
 
-brev upgrade
-
-and on linux run:
-
-sudo brev upgrade`
+brev upgrade`
 )
 
 type VersionStore interface {
