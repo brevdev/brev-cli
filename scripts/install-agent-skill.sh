@@ -115,6 +115,15 @@ for file in "${FILES[@]}"; do
 done
 rm -rf "$TMPDIR"
 
+# Resolve commit SHA and write .version file
+COMMIT_SHA=$(curl -fsSL "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null | grep '"sha"' | head -1 | sed 's/.*"sha": *"\([^"]*\)".*/\1/')
+if [[ -n "$COMMIT_SHA" ]]; then
+    for dir in "${INSTALL_DIRS[@]}"; do
+        printf 'branch=%s\ncommit=%s\n' "$BRANCH" "$COMMIT_SHA" > "$dir/.version"
+    done
+    echo -e "  ${GREEN}✓${NC} .version (${COMMIT_SHA:0:12})"
+fi
+
 echo ""
 
 if [[ $FAILED -gt 0 ]]; then
