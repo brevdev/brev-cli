@@ -176,61 +176,110 @@ func parseCommand(command string) (string, error) {
 const pollTimeout = 10 * time.Minute
 
 func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID string, host bool, command string) error {
-	s := t.NewSpinner()
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	// Determine SSH alias: use the workspace name directly (with -host suffix if needed)
+	sshName := workspaceNameOrID
+	if host {
+		sshName = workspaceNameOrID + "-host"
 	}
 
-	if workspace.Status == "STOPPED" { // we start the env for the user
-		err = util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
+	// Fire SSH immediately with a short timeout — skip all status checks for speed.
+	// SSH multiplexing (ControlMaster) in the config means subsequent
+	// calls reuse an existing connection and are near-instant.
+	// Use a 5-second connect timeout so we fail fast if the instance is down.
+	err := runSSHWithTimeout(sshName, command, 5)
+	if err == nil {
+		// Success — fire analytics in background and return
+		go trackExecAnalytics(sstore, workspaceNameOrID)
+		return nil
+	}
+
+	// SSH failed — now check what's going on with the instance
+	fmt.Fprintf(os.Stderr, "Connection failed, checking instance status...\n")
+
+	workspace, lookupErr := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
+	if lookupErr != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf(
+			"ssh connection failed and could not look up instance %q: %w\nPlease check your instances with: brev ls",
+			workspaceNameOrID, err))
+	}
+
+	if workspace.Status == "STOPPED" {
+		s := t.NewSpinner()
+		startErr := util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
+		if startErr != nil {
+			return breverrors.WrapAndTrace(startErr)
+		}
+		err = util.PollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...", pollTimeout)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-	}
-	err = util.PollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...", pollTimeout)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	refreshRes := refresh.RunRefreshAsync(sstore)
+		// Refresh SSH config so the host entry is up to date
+		refreshRes := refresh.RunRefreshAsync(sstore)
+		if err = refreshRes.Await(); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		localIdentifier := workspace.GetLocalIdentifier()
+		if host {
+			localIdentifier = workspace.GetHostIdentifier()
+		}
+		sshName = string(localIdentifier)
+
+		err = util.WaitForSSHToBeAvailable(sshName, s)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
+		err = runSSH(sshName, command)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		go trackExecAnalytics(sstore, workspaceNameOrID)
+		return nil
 	}
+
 	if workspace.Status != "RUNNING" {
-		return breverrors.New("Instance is not running")
+		return breverrors.WrapAndTrace(fmt.Errorf(
+			"instance %q is in state %q — please check with: brev ls",
+			workspaceNameOrID, workspace.Status))
+	}
+
+	// Instance is RUNNING but SSH failed — maybe still booting, do the wait
+	s := t.NewSpinner()
+	refreshRes := refresh.RunRefreshAsync(sstore)
+	if err = refreshRes.Await(); err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	localIdentifier := workspace.GetLocalIdentifier()
 	if host {
 		localIdentifier = workspace.GetHostIdentifier()
 	}
+	sshName = string(localIdentifier)
 
-	sshName := string(localIdentifier)
-
-	err = refreshRes.Await()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 	err = util.WaitForSSHToBeAvailable(sshName, s)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(fmt.Errorf(
+			"could not connect to instance %q: %w\nPlease check with: brev ls",
+			workspaceNameOrID, err))
 	}
-	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors,
-	// but we don't want to block the user from using the shell
 	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
 	err = runSSH(sshName, command)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// Call analytics for exec
-	userID := ""
-	user, err := sstore.GetCurrentUser()
+	go trackExecAnalytics(sstore, workspaceNameOrID)
+	return nil
+}
+
+func trackExecAnalytics(sstore ExecStore, workspaceNameOrID string) {
+	workspace, err := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if err != nil {
-		userID = workspace.CreatedByUserID
-	} else {
+		return
+	}
+	userID := workspace.CreatedByUserID
+	user, err := sstore.GetCurrentUser()
+	if err == nil {
 		userID = user.ID
 	}
 	data := analytics.EventData{
@@ -241,19 +290,16 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		},
 	}
 	_ = analytics.TrackEvent(data)
-
-	return nil
 }
 
-func runSSH(sshAlias string, command string) error {
-	sshAgentEval := "eval $(ssh-agent -s)"
-
+func runSSHWithTimeout(sshAlias string, command string, connectTimeoutSecs int) error {
 	// Non-interactive: run command and pipe stdout/stderr
 	// Escape the command for passing to SSH
 	escapedCmd := strings.ReplaceAll(command, "'", "'\\''")
-	cmd := fmt.Sprintf("ssh %s '%s'", sshAlias, escapedCmd)
+	// -T disables pseudo-terminal allocation (no "Pseudo-terminal will not be allocated" warning)
+	// ssh-agent stdout is suppressed to /dev/null to hide "Agent pid NNNNN"
+	cmd := fmt.Sprintf("eval $(ssh-agent -s) > /dev/null && ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", connectTimeoutSecs, sshAlias, escapedCmd)
 
-	cmd = fmt.Sprintf("%s && %s", sshAgentEval, cmd)
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
@@ -264,4 +310,8 @@ func runSSH(sshAlias string, command string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func runSSH(sshAlias string, command string) error {
+	return runSSHWithTimeout(sshAlias, command, 10)
 }

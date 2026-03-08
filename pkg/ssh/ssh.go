@@ -38,6 +38,9 @@ const workspaceSSHConfigTemplate = `Host {{ .Host }}
   RequestTTY yes
   ForwardAgent yes
   AddKeysToAgent yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h:%p
+  ControlPersist 10m
   RemoteCommand cd {{ .Dir }}; $SHELL
 
 `

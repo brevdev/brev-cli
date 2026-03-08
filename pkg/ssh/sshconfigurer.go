@@ -233,6 +233,9 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h:%p
+  ControlPersist 10m
 {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
 {{ end }}
@@ -250,6 +253,9 @@ const SSHConfigEntryTemplateV3 = `Host {{ .Alias }}
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h:%p
+  ControlPersist 10m
   Port {{ .Port }}
 {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
