@@ -255,9 +255,9 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	}
 
 	// Registration should not exist
-	exists, eerr := regStore.Exists()
-	if eerr != nil {
-		t.Fatalf("Exists error: %v", eerr)
+	exists, err := regStore.Exists()
+	if err != nil {
+		t.Fatalf("Exists error: %v", err)
 	}
 	if exists {
 		t.Error("registration should not exist after cancel")

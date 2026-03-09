@@ -7,9 +7,9 @@ type InstallMethod int
 
 const (
 	// InstallMethodDirect means brev was installed via direct binary download.
-	InstallMethodDirect InstallMethod = iota
+	InstallMethodDirect InstallMethod = 0
 	// InstallMethodBrew means brev was installed via Homebrew.
-	InstallMethodBrew
+	InstallMethodBrew InstallMethod = 1
 )
 
 // Detector determines how brev was installed.

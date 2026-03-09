@@ -14,11 +14,11 @@ type Status int
 
 const (
 	// StatusRoot means the process is already running as root.
-	StatusRoot Status = iota
+	StatusRoot Status = 0
 	// StatusCached means the user has a valid sudo timestamp (no password needed).
-	StatusCached
+	StatusCached Status = 1
 	// StatusUncached means sudo will require a password prompt.
-	StatusUncached
+	StatusUncached Status = 2
 )
 
 // Check returns the current sudo status.
