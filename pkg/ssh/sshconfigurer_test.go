@@ -150,6 +150,9 @@ Host %s
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%r@%%h-%%p
+  ControlPersist 10m
   Port 22
 
 Host %s-host
@@ -164,6 +167,9 @@ Host %s-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%r@%%h-%%p
+  ControlPersist 10m
   Port 22
 
 Host %s
@@ -178,6 +184,9 @@ Host %s
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%r@%%h-%%p
+  ControlPersist 10m
   Port 22
 
 Host %s-host
@@ -192,6 +201,9 @@ Host %s-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%r@%%h-%%p
+  ControlPersist 10m
   Port 22
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(), somePlainWorkspaces[0].GetLocalIdentifier(),
@@ -310,6 +322,9 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 20
 
 Host testName2-host
@@ -324,6 +339,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 2022
 
 `,
@@ -359,6 +377,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 Host testName2-host
@@ -373,6 +394,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 `,
@@ -409,6 +433,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 2022
 
 Host testName2-host
@@ -423,6 +450,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 `,
@@ -457,6 +487,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
 
 `,
 		},
@@ -490,6 +523,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
 
 `,
 		},
@@ -527,6 +563,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
 
 Host testName2-host
   IdentityFile "/my/priv/key.pem"
@@ -540,6 +579,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
 
 `,
 		},
@@ -765,6 +807,9 @@ Host testName1
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 Host testName1-host
@@ -779,6 +824,9 @@ Host testName1-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 `,
@@ -825,6 +873,9 @@ Host testName1
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 Host testName1-host
@@ -839,6 +890,9 @@ Host testName1-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 `,
@@ -856,6 +910,9 @@ Host testName1
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 Host testName1-host
@@ -870,6 +927,9 @@ Host testName1-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%r@%h-%p
+  ControlPersist 10m
   Port 22
 
 `,
