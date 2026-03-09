@@ -1024,7 +1024,8 @@ func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen // test
 						Port: &nodev1.Port{PortId: "port_ssh", Protocol: req.GetProtocol(), PortNumber: req.GetPortNumber()},
 					}, nil
 				},
-				grantNodeSSHAccessFn: func(_ *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+				grantNodeSSHAccessFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+					gotGrantReq = req
 					return &nodev1.GrantNodeSSHAccessResponse{}, nil
 				},
 			}
