@@ -21,6 +21,69 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
+// NodeSelection holds the result of resolving a target node.
+type NodeSelection struct {
+	ExternalNodeID string
+	DisplayName    string
+}
+
+// ResolveNode determines the target node. If a local registration file exists,
+// it uses that node. Otherwise, it lists nodes from the organization and
+// prompts the user to select one.
+func ResolveNode(
+	ctx context.Context,
+	prompter terminal.Selector,
+	nodeClients externalnode.NodeClientFactory,
+	tokenProvider externalnode.TokenProvider,
+	registrationStore RegistrationStore,
+	orgID string,
+) (*NodeSelection, error) {
+	reg, err := registrationStore.Load()
+	if err == nil {
+		return &NodeSelection{
+			ExternalNodeID: reg.ExternalNodeID,
+			DisplayName:    reg.DisplayName,
+		}, nil
+	}
+
+	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: orgID,
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+
+	nodes := resp.Msg.GetItems()
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no nodes found in organization")
+	}
+
+	if len(nodes) == 1 {
+		return &NodeSelection{
+			ExternalNodeID: nodes[0].GetExternalNodeId(),
+			DisplayName:    nodes[0].GetName(),
+		}, nil
+	}
+
+	labels := make([]string, len(nodes))
+	for i, n := range nodes {
+		labels[i] = fmt.Sprintf("%s (%s)", n.GetName(), n.GetExternalNodeId())
+	}
+
+	selected := prompter.Select("Select a node:", labels)
+	for i, label := range labels {
+		if label == selected {
+			return &NodeSelection{
+				ExternalNodeID: nodes[i].GetExternalNodeId(),
+				DisplayName:    nodes[i].GetName(),
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("selected item did not match any node")
+}
+
 const (
 	backoffInitialInterval = 1 * time.Second
 	backoffMaxInterval     = 10 * time.Second
@@ -132,9 +195,9 @@ func RemoveAuthorizedKeyLine(u *user.User, line string) error {
 }
 
 // OpenSSHPort calls the OpenPort RPC to allocate an SSH port on the node.
-// This must be called before GrantSSHAccessToNode when enabling SSH for the
-// first time on a device. The call is idempotent — if the port is already
-// open, the server returns the existing allocation.
+// This must be called prior to any GrantNodeSSHAccess calls against dev-plane
+// The call is idempotent — if the port is already open,
+// the server returns the existing allocation.
 func OpenSSHPort(
 	ctx context.Context,
 	t *terminal.Terminal,
@@ -156,19 +219,28 @@ func OpenSSHPort(
 	return nil
 }
 
-// GrantSSHAccessToNode installs the user's public key in authorized_keys and
+// SetupAndRegisterNodeSSHAccess installs the user's public key in authorized_keys and
 // calls GrantNodeSSHAccess to record access server-side. If the RPC fails,
-// the installed key is rolled back.
-func GrantSSHAccessToNode(
+// the installed key is rolled back. linuxUser is the target username on the
+// remote device (e.g. "ubuntu"), used both in the RPC and to locate the
+// correct ~/.ssh/authorized_keys for local key installation.
+func SetupAndRegisterNodeSSHAccess(
 	ctx context.Context,
 	t *terminal.Terminal,
 	nodeClients externalnode.NodeClientFactory,
 	tokenProvider externalnode.TokenProvider,
 	reg *DeviceRegistration,
 	targetUser *entity.User,
-	osUser *user.User,
+	linuxUser string,
 ) error {
-	if targetUser.PublicKey != "" {
+	// Look up the local OS user for key installation. This may differ from
+	// the caller (e.g. running as root, installing keys for "ubuntu").
+	osUser, lookupErr := user.Lookup(linuxUser)
+	if lookupErr != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not look up local user %q — skipping local key installation", linuxUser)))
+	}
+
+	if osUser != nil && targetUser.PublicKey != "" {
 		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey, targetUser.ID); err != nil {
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
 		} else if added {
@@ -188,7 +260,7 @@ func GrantSSHAccessToNode(
 		_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
 			ExternalNodeId: reg.ExternalNodeID,
 			UserId:         targetUser.ID,
-			LinuxUser:      osUser.Username,
+			LinuxUser:      linuxUser,
 		}))
 		if err != nil {
 			// Retryable error
@@ -198,7 +270,7 @@ func GrantSSHAccessToNode(
 			}
 
 			// Permanent error — roll back the key so we don't leave an unrecorded entry and abort the backoff retry
-			if targetUser.PublicKey != "" {
+			if osUser != nil && targetUser.PublicKey != "" {
 				if rerr := RemoveAuthorizedKey(osUser, targetUser.PublicKey); rerr != nil {
 					t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
 				}
@@ -220,23 +292,9 @@ func GrantSSHAccessToNode(
 
 const defaultSSHPort = 22
 
-// testSSHPort is set by tests to avoid blocking on stdin. When non-nil,
-// PromptSSHPort returns this value without prompting.
-var testSSHPort *int32
-
-// SetTestSSHPort sets the port returned by PromptSSHPort without prompting.
-// Only for use in tests; call ClearTestSSHPort when done.
-func SetTestSSHPort(port int32) { testSSHPort = &port }
-
-// ClearTestSSHPort clears the test port override.
-func ClearTestSSHPort() { testSSHPort = nil }
-
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
 // they press Enter or leave it empty. Returns an error for invalid port numbers.
-func PromptSSHPort(t *terminal.Terminal) (int32, error) {
-	if testSSHPort != nil {
-		return *testSSHPort, nil
-	}
+func PromptSSHPort() (int32, error) {
 	portStr := terminal.PromptGetInput(terminal.PromptContent{
 		Label:      "  SSH port (default 22): ",
 		AllowEmpty: true,

@@ -136,13 +136,14 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	if err != nil {
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
+	linuxUsername := osUser.Username
 
 	t.Vprint("")
 	t.Vprint(t.Green("Registering your device with Brev"))
 	t.Vprint("")
 	t.Vprintf("  Name:         %s\n", t.Yellow(name))
 	t.Vprintf("  Organization: %s\n", org.Name)
-	t.Vprintf("  Registering for Linux user:   %s\n", osUser.Username)
+	t.Vprintf("  Registering for Linux user:   %s\n", linuxUsername)
 	t.Vprint("")
 	t.Vprint("This will perform the following steps:")
 	t.Vprint("  1. Set up Brev tunnel")
@@ -207,7 +208,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 	runSetup(node, t, deps)
 
 	if deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?") {
-		if err := grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser); err != nil {
+		if err := grantSSHAccess(ctx, t, deps, s, reg, brevUser, linuxUsername); err != nil {
 			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		}
 	}
@@ -324,16 +325,16 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 	}
 }
 
-func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) error {
+func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, linuxUser string) error {
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
 	t.Vprint("")
 	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
-	t.Vprintf("  Linux user: %s\n", osUser.Username)
+	t.Vprintf("  Linux user: %s\n", linuxUser)
 	t.Vprint("")
 
-	port, err := PromptSSHPort(t)
+	port, err := PromptSSHPort()
 	if err != nil {
 		return fmt.Errorf("SSH port: %w", err)
 	}
@@ -342,7 +343,7 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 		return fmt.Errorf("allocate SSH port failed: %w", err)
 	}
 
-	err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	err = SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUser)
 	if err != nil {
 		return fmt.Errorf("grant SSH failed: %w", err)
 	}

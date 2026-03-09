@@ -4,10 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
-	"os"
-	"os/user"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -21,10 +17,6 @@ import (
 )
 
 // mock types for grantSSHDeps interfaces
-
-type mockPlatform struct{ compatible bool }
-
-func (m mockPlatform) IsCompatible() bool { return m.compatible }
 
 type mockSelector struct {
 	fn func(label string, items []string) string
@@ -72,7 +64,6 @@ func (m *mockRegistrationStore) Exists() (bool, error) {
 type mockGrantSSHStore struct {
 	user        *entity.User
 	org         *entity.Organization
-	home        string
 	token       string
 	attachments []entity.OrgRoleAttachment
 	users       map[string]*entity.User
@@ -90,8 +81,7 @@ func (m *mockGrantSSHStore) GetActiveOrganizationOrDefault() (*entity.Organizati
 	return m.org, nil
 }
 
-func (m *mockGrantSSHStore) GetBrevHomePath() (string, error) { return m.home, nil }
-func (m *mockGrantSSHStore) GetAccessToken() (string, error)  { return m.token, nil }
+func (m *mockGrantSSHStore) GetAccessToken() (string, error) { return m.token, nil }
 
 func (m *mockGrantSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAttachment, error) {
 	return m.attachments, nil
@@ -130,52 +120,6 @@ func (f *fakeNodeService) GrantNodeSSHAccess(_ context.Context, req *connect.Req
 	return connect.NewResponse(resp), nil
 }
 
-// authorizedKeysPath returns the path to the current user's authorized_keys file.
-func authorizedKeysPath(t *testing.T) string {
-	t.Helper()
-	u, err := user.Current()
-	if err != nil {
-		t.Fatalf("user.Current: %v", err)
-	}
-	return filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
-}
-
-// installTestAuthorizedKey writes a pubkey to the current user's
-// ~/.ssh/authorized_keys so that checkSSHEnabled passes.
-func installTestAuthorizedKey(t *testing.T, pubKey string) {
-	t.Helper()
-	authKeysPath := authorizedKeysPath(t)
-	sshDir := filepath.Dir(authKeysPath)
-
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		t.Fatalf("mkdir .ssh: %v", err)
-	}
-
-	existing, _ := os.ReadFile(authKeysPath) // #nosec G304
-	content := string(existing) + pubKey + "\n"
-	if err := os.WriteFile(authKeysPath, []byte(content), 0o600); err != nil {
-		t.Fatalf("write authorized_keys: %v", err)
-	}
-}
-
-// cleanupSSHKey removes the given pubkey from authorized_keys, restoring the
-// file to its previous state.
-func cleanupSSHKey(t *testing.T, pubKey string) {
-	t.Helper()
-	path := authorizedKeysPath(t)
-	data, err := os.ReadFile(path) // #nosec G304
-	if err != nil {
-		return // nothing to clean up
-	}
-	var kept []string
-	for _, line := range strings.Split(string(data), "\n") {
-		if line != pubKey {
-			kept = append(kept, line)
-		}
-	}
-	os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600) //nolint:errcheck // best-effort cleanup
-}
-
 func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.RegistrationStore) (grantSSHDeps, *httptest.Server) {
 	t.Helper()
 
@@ -183,7 +127,6 @@ func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.Regi
 	server := httptest.NewServer(handler)
 
 	return grantSSHDeps{
-		platform: mockPlatform{compatible: true},
 		prompter: mockSelector{fn: func(_ string, items []string) string {
 			if len(items) > 0 {
 				return items[0]
@@ -195,33 +138,12 @@ func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.Regi
 	}, server
 }
 
-func Test_runGrantSSH_NotCompatible(t *testing.T) {
-	regStore := &mockRegistrationStore{}
-	store := &mockGrantSSHStore{
-		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
-		token: "tok",
-	}
-
-	svc := &fakeNodeService{}
-	deps, server := testGrantSSHDeps(t, svc, regStore)
-	defer server.Close()
-
-	deps.platform = mockPlatform{compatible: false}
-
-	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps)
-	if err == nil {
-		t.Fatal("expected error for incompatible platform")
-	}
-}
-
 func Test_runGrantSSH_NotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{} // no registration
 
 	store := &mockGrantSSHStore{
 		user:  &entity.User{ID: "user_1"},
-		home:  "/home/testuser/.brev",
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
 	}
 
@@ -230,17 +152,14 @@ func Test_runGrantSSH_NotRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps)
+	// No registration and no nodes from ListNodes → should fail
+	err := runGrantSSH(context.Background(), term, store, deps, "testuser")
 	if err == nil {
-		t.Fatal("expected error when not registered")
+		t.Fatal("expected error when not registered and no nodes available")
 	}
 }
 
 func Test_runGrantSSH_HappyPath(t *testing.T) {
-	pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test@brev"
-	installTestAuthorizedKey(t, pubKey)
-	defer cleanupSSHKey(t, pubKey)
-
 	regStore := &mockRegistrationStore{
 		reg: &register.DeviceRegistration{
 			ExternalNodeID: "unode_abc",
@@ -258,9 +177,8 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	}
 
 	store := &mockGrantSSHStore{
-		user:  &entity.User{ID: "user_1", PublicKey: pubKey},
+		user:  &entity.User{ID: "user_1", PublicKey: "ssh-ed25519 testkey"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
 		token: "tok",
 		attachments: []entity.OrgRoleAttachment{
 			{Subject: "user_1"}, // current user, should be filtered
@@ -283,7 +201,7 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps)
+	err := runGrantSSH(context.Background(), term, store, deps, "ubuntu")
 	if err != nil {
 		t.Fatalf("runGrantSSH failed: %v", err)
 	}
@@ -297,13 +215,12 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	if gotReq.GetUserId() != "user_2" {
 		t.Errorf("expected user ID user_2, got %s", gotReq.GetUserId())
 	}
+	if gotReq.GetLinuxUser() != "ubuntu" {
+		t.Errorf("expected linux user ubuntu, got %s", gotReq.GetLinuxUser())
+	}
 }
 
 func Test_runGrantSSH_RPCFailure(t *testing.T) {
-	pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey2 test@brev"
-	installTestAuthorizedKey(t, pubKey)
-	defer cleanupSSHKey(t, pubKey)
-
 	regStore := &mockRegistrationStore{
 		reg: &register.DeviceRegistration{
 			ExternalNodeID: "unode_abc",
@@ -313,9 +230,8 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 	}
 
 	store := &mockGrantSSHStore{
-		user:  &entity.User{ID: "user_1", PublicKey: pubKey},
+		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
 		token: "tok",
 		attachments: []entity.OrgRoleAttachment{
 			{Subject: "user_2"},
@@ -335,17 +251,13 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps)
+	err := runGrantSSH(context.Background(), term, store, deps, "testuser")
 	if err == nil {
 		t.Fatal("expected error when GrantNodeSSHAccess fails")
 	}
 }
 
 func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
-	pubKey := "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey3 test@brev"
-	installTestAuthorizedKey(t, pubKey)
-	defer cleanupSSHKey(t, pubKey)
-
 	regStore := &mockRegistrationStore{
 		reg: &register.DeviceRegistration{
 			ExternalNodeID: "unode_abc",
@@ -355,9 +267,8 @@ func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
 	}
 
 	store := &mockGrantSSHStore{
-		user:  &entity.User{ID: "user_1", PublicKey: pubKey},
+		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		home:  "/home/testuser/.brev",
 		token: "tok",
 		attachments: []entity.OrgRoleAttachment{
 			{Subject: "user_1"}, // only current user, no others
@@ -370,7 +281,7 @@ func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps)
+	err := runGrantSSH(context.Background(), term, store, deps, "testuser")
 	if err == nil {
 		t.Fatal("expected error when no other members exist")
 	}
