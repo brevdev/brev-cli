@@ -17,6 +17,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/names"
+	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -105,6 +106,10 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, orgName string, deps registerDeps) error { //nolint:funlen // registration flow
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
+	}
+
+	if err := sudo.Gate(t, deps.prompter, "Device registration"); err != nil {
+		return fmt.Errorf("sudo issue: %w", err)
 	}
 
 	alreadyRegistered, err := deps.registrationStore.Exists()

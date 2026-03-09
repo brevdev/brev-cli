@@ -86,6 +86,10 @@ func (m mockSelector) Select(label string, items []string) string {
 	return m.fn(label, items)
 }
 
+type mockConfirmer struct{ confirm bool }
+
+func (m mockConfirmer) ConfirmYesNo(_ string) bool { return m.confirm }
+
 type mockNetBirdManager struct {
 	called bool
 	err    error
@@ -131,6 +135,7 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 			}
 			return ""
 		}},
+		confirmer:         mockConfirmer{confirm: true},
 		netbird:           &mockNetBirdManager{},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,

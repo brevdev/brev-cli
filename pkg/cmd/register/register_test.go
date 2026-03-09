@@ -246,8 +246,12 @@ func Test_runRegister_UserCancels(t *testing.T) {
 
 	term := terminal.New()
 	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
-	if err != nil {
-		t.Fatalf("expected nil error on cancel, got: %v", err)
+	// sudo.Gate returns a wrapped error when the user declines
+	if err == nil {
+		t.Fatal("expected error when user declines sudo gate")
+	}
+	if !strings.Contains(err.Error(), "canceled by user") {
+		t.Errorf("expected 'canceled by user' error, got: %v", err)
 	}
 
 	// Registration should not exist

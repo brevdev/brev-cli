@@ -14,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -46,6 +47,7 @@ func (brevSSHKeyRemover) RemoveBrevKeys(u *user.User) ([]string, error) {
 type deregisterDeps struct {
 	platform          externalnode.PlatformChecker
 	prompter          terminal.Selector
+	confirmer         terminal.Confirmer
 	netbird           register.NetBirdManager
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
@@ -56,6 +58,7 @@ func defaultDeregisterDeps() deregisterDeps {
 	return deregisterDeps{
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
+		confirmer:         register.TerminalPrompter{},
 		netbird:           register.Netbird{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
@@ -91,6 +94,10 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps) error { //nolint:funlen // deregistration flow
 	if !deps.platform.IsCompatible() {
 		return fmt.Errorf("brev deregister is only supported on Linux")
+	}
+
+	if err := sudo.Gate(t, deps.confirmer, "Device deregistration"); err != nil {
+		return fmt.Errorf("sudo issue: %w", err)
 	}
 
 	reg, err := deps.registrationStore.Load()
