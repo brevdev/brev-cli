@@ -297,8 +297,9 @@ func runSSHWithTimeout(sshAlias string, command string, connectTimeoutSecs int) 
 	// Escape the command for passing to SSH
 	escapedCmd := strings.ReplaceAll(command, "'", "'\\''")
 	// -T disables pseudo-terminal allocation (no "Pseudo-terminal will not be allocated" warning)
-	// ssh-agent stdout is suppressed to /dev/null to hide "Agent pid NNNNN"
-	cmd := fmt.Sprintf("eval $(ssh-agent -s) > /dev/null && ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", connectTimeoutSecs, sshAlias, escapedCmd)
+	// Only start ssh-agent if one isn't already running (avoids orphaned agent processes)
+	agentCmd := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
+	cmd := fmt.Sprintf("%s && ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", agentCmd, connectTimeoutSecs, sshAlias, escapedCmd)
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
