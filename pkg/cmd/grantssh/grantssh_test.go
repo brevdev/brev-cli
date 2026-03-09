@@ -111,6 +111,17 @@ type fakeNodeService struct {
 	grantSSHFn func(*nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error)
 }
 
+func (f *fakeNodeService) OpenPort(_ context.Context, req *connect.Request[nodev1.OpenPortRequest]) (*connect.Response[nodev1.OpenPortResponse], error) {
+	return connect.NewResponse(&nodev1.OpenPortResponse{
+		Port: &nodev1.Port{
+			PortId:     "port_ssh",
+			Protocol:   req.Msg.GetProtocol(),
+			PortNumber: req.Msg.GetPortNumber(),
+			ServerPort: req.Msg.GetPortNumber(),
+		},
+	}), nil
+}
+
 func (f *fakeNodeService) GrantNodeSSHAccess(_ context.Context, req *connect.Request[nodev1.GrantNodeSSHAccessRequest]) (*connect.Response[nodev1.GrantNodeSSHAccessResponse], error) {
 	resp, err := f.grantSSHFn(req.Msg)
 	if err != nil {
@@ -271,9 +282,6 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
 
-	register.SetTestSSHPort(22)
-	defer register.ClearTestSSHPort()
-
 	term := terminal.New()
 	err := runGrantSSH(context.Background(), term, store, deps)
 	if err != nil {
@@ -325,9 +333,6 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
-
-	register.SetTestSSHPort(22)
-	defer register.ClearTestSSHPort()
 
 	term := terminal.New()
 	err := runGrantSSH(context.Background(), term, store, deps)

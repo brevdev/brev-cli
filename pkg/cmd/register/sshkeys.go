@@ -131,9 +131,34 @@ func RemoveAuthorizedKeyLine(u *user.User, line string) error {
 	return nil
 }
 
+// OpenSSHPort calls the OpenPort RPC to allocate an SSH port on the node.
+// This must be called before GrantSSHAccessToNode when enabling SSH for the
+// first time on a device. The call is idempotent — if the port is already
+// open, the server returns the existing allocation.
+func OpenSSHPort(
+	ctx context.Context,
+	t *terminal.Terminal,
+	nodeClients externalnode.NodeClientFactory,
+	tokenProvider externalnode.TokenProvider,
+	reg *DeviceRegistration,
+	port int32,
+) error {
+	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
+	_, err := client.OpenPort(ctx, connect.NewRequest(&nodev1.OpenPortRequest{
+		ExternalNodeId: reg.ExternalNodeID,
+		Protocol:       nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+		PortNumber:     port,
+	}))
+	if err != nil {
+		return fmt.Errorf("failed to allocate SSH port: %w", err)
+	}
+	t.Vprintf("  SSH port %d allocated.\n", port)
+	return nil
+}
+
 // GrantSSHAccessToNode installs the user's public key in authorized_keys and
 // calls GrantNodeSSHAccess to record access server-side. If the RPC fails,
-// the installed key is rolled back. port is the target SSH port (e.g. 22).
+// the installed key is rolled back.
 func GrantSSHAccessToNode(
 	ctx context.Context,
 	t *terminal.Terminal,
@@ -142,7 +167,6 @@ func GrantSSHAccessToNode(
 	reg *DeviceRegistration,
 	targetUser *entity.User,
 	osUser *user.User,
-	port int32,
 ) error {
 	if targetUser.PublicKey != "" {
 		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey, targetUser.ID); err != nil {
@@ -165,7 +189,6 @@ func GrantSSHAccessToNode(
 			ExternalNodeId: reg.ExternalNodeID,
 			UserId:         targetUser.ID,
 			LinuxUser:      osUser.Username,
-			Port:           port,
 		}))
 		if err != nil {
 			// Retryable error

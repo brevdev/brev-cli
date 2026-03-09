@@ -913,3 +913,134 @@ func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
 		t.Error("expected registration to still exist")
 	}
 }
+
+func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen // test
+	tests := []struct {
+		name   string
+		port   int32
+		openFn func(*nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error)
+		verify func(t *testing.T, openReq *nodev1.OpenPortRequest, grantReq *nodev1.GrantNodeSSHAccessRequest, reg *mockRegistrationStore, err error)
+	}{
+		{
+			name: "SendsCorrectArgs",
+			port: 2222,
+			openFn: func(req *nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
+				return &nodev1.OpenPortResponse{
+					Port: &nodev1.Port{
+						PortId:     "port_ssh",
+						Protocol:   req.GetProtocol(),
+						PortNumber: req.GetPortNumber(),
+					},
+				}, nil
+			},
+			verify: func(t *testing.T, openReq *nodev1.OpenPortRequest, _ *nodev1.GrantNodeSSHAccessRequest, _ *mockRegistrationStore, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("runRegister failed: %v", err)
+				}
+				if openReq == nil {
+					t.Fatal("expected OpenPort to be called")
+				}
+				if openReq.GetExternalNodeId() != "unode_abc" {
+					t.Errorf("expected node ID unode_abc, got %s", openReq.GetExternalNodeId())
+				}
+				if openReq.GetProtocol() != nodev1.PortProtocol_PORT_PROTOCOL_SSH {
+					t.Errorf("expected PORT_PROTOCOL_SSH, got %s", openReq.GetProtocol())
+				}
+				if openReq.GetPortNumber() != 2222 {
+					t.Errorf("expected port 2222, got %d", openReq.GetPortNumber())
+				}
+			},
+		},
+		{
+			name: "FailureIsSoftError",
+			port: 22,
+			openFn: func(_ *nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
+				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("skybridge unavailable"))
+			},
+			verify: func(t *testing.T, _ *nodev1.OpenPortRequest, _ *nodev1.GrantNodeSSHAccessRequest, regStore *mockRegistrationStore, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("registration should succeed even when OpenSSHPort fails (soft error), got: %v", err)
+				}
+				exists, _ := regStore.Exists()
+				if !exists {
+					t.Error("expected registration to still exist after OpenSSHPort failure")
+				}
+			},
+		},
+		{
+			name: "GrantRequestHasNoPort",
+			port: 22,
+			verify: func(t *testing.T, _ *nodev1.OpenPortRequest, grantReq *nodev1.GrantNodeSSHAccessRequest, _ *mockRegistrationStore, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("runRegister failed: %v", err)
+				}
+				if grantReq == nil {
+					t.Fatal("expected GrantNodeSSHAccess to be called")
+				}
+				if grantReq.GetExternalNodeId() != "unode_abc" {
+					t.Errorf("expected node ID unode_abc, got %s", grantReq.GetExternalNodeId())
+				}
+				if grantReq.GetUserId() != "user_1" {
+					t.Errorf("expected user ID user_1, got %s", grantReq.GetUserId())
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regStore := &mockRegistrationStore{}
+			store := &mockRegisterStore{
+				user:  &entity.User{ID: "user_1"},
+				org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+				token: "tok",
+			}
+
+			var gotOpenReq *nodev1.OpenPortRequest
+			var gotGrantReq *nodev1.GrantNodeSSHAccessRequest
+			svc := &fakeNodeService{
+				addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+					return &nodev1.AddNodeResponse{
+						ExternalNode: &nodev1.ExternalNode{
+							ExternalNodeId: "unode_abc",
+							OrganizationId: "org_123",
+							Name:           req.GetName(),
+							DeviceId:       req.GetDeviceId(),
+							ConnectivityInfo: &nodev1.ConnectivityInfo{
+								RegistrationCommand: "netbird up --key abc",
+							},
+						},
+					}, nil
+				},
+				openPortFn: func(req *nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
+					gotOpenReq = req
+					if tt.openFn != nil {
+						return tt.openFn(req)
+					}
+					return &nodev1.OpenPortResponse{
+						Port: &nodev1.Port{PortId: "port_ssh", Protocol: req.GetProtocol(), PortNumber: req.GetPortNumber()},
+					}, nil
+				},
+				grantNodeSSHAccessFn: func(_ *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+					return &nodev1.GrantNodeSSHAccessResponse{}, nil
+				},
+			}
+
+			deps, server := testRegisterDeps(t, svc, regStore)
+			defer server.Close()
+
+			deps.prompter = mockConfirmer{confirm: true}
+
+			SetTestSSHPort(tt.port)
+			defer ClearTestSSHPort()
+
+			term := terminal.New()
+			err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+
+			tt.verify(t, gotOpenReq, gotGrantReq, regStore, err)
+		})
+	}
+}

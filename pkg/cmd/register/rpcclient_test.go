@@ -179,6 +179,7 @@ type fakeNodeService struct {
 	addNodeFn            func(*nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error)
 	removeNodeFn         func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
 	getNodeFn            func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+	openPortFn           func(*nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error)
 	grantNodeSSHAccessFn func(*nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error)
 }
 
@@ -203,6 +204,24 @@ func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1
 		return nil, connect.NewError(connect.CodeUnimplemented, nil)
 	}
 	resp, err := f.getNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (f *fakeNodeService) OpenPort(_ context.Context, req *connect.Request[nodev1.OpenPortRequest]) (*connect.Response[nodev1.OpenPortResponse], error) {
+	if f.openPortFn == nil {
+		return connect.NewResponse(&nodev1.OpenPortResponse{
+			Port: &nodev1.Port{
+				PortId:     "port_ssh",
+				Protocol:   req.Msg.GetProtocol(),
+				PortNumber: req.Msg.GetPortNumber(),
+				ServerPort: req.Msg.GetPortNumber(),
+			},
+		}), nil
+	}
+	resp, err := f.openPortFn(req.Msg)
 	if err != nil {
 		return nil, err
 	}
