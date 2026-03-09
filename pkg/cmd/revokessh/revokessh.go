@@ -1,17 +1,17 @@
 // Package revokessh provides the brev revoke-ssh command for revoking SSH access
-// to a registered device by removing a Brev-managed key from authorized_keys.
+// to a registered device by calling the backend API.
 package revokessh
 
 import (
 	"context"
 	"fmt"
-	"os/user"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -22,29 +22,23 @@ import (
 // RevokeSSHStore defines the store methods needed by the revoke-ssh command.
 type RevokeSSHStore interface {
 	GetAccessToken() (string, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetUserByID(userID string) (*entity.User, error)
 }
 
 // revokeSSHDeps bundles the side-effecting dependencies of runRevokeSSH so they
 // can be replaced in tests.
 type revokeSSHDeps struct {
-	platform          externalnode.PlatformChecker
 	prompter          terminal.Selector
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
-	currentUser       func() (*user.User, error)
-	listBrevKeys      func(u *user.User) ([]register.BrevAuthorizedKey, error)
-	removeKeyLine     func(u *user.User, line string) error
 }
 
 func defaultRevokeSSHDeps() revokeSSHDeps {
 	return revokeSSHDeps{
-		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
-		currentUser:       user.Current,
-		listBrevKeys:      register.ListBrevAuthorizedKeys,
-		removeKeyLine:     register.RemoveAuthorizedKeyLine,
 	}
 }
 
@@ -53,8 +47,8 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "revoke-ssh",
 		DisableFlagsInUseLine: true,
-		Short:                 "Revoke SSH access to this device for an org member",
-		Long:                  "Revoke SSH access to this registered device for another member of your organization.",
+		Short:                 "Revoke SSH access to a node for an org member",
+		Long:                  "Revoke SSH access to a node for a member of your organization. Can be run from any machine.",
 		Example:               "  brev revoke-ssh",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runRevokeSSH(cmd.Context(), t, store, defaultRevokeSSHDeps())
@@ -64,43 +58,47 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	return cmd
 }
 
-func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, deps revokeSSHDeps) error {
-	if !deps.platform.IsCompatible() {
-		return fmt.Errorf("brev revoke-ssh is only supported on Linux")
+func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, deps revokeSSHDeps) error { //nolint:funlen // revoke-ssh flow
+	org, err := s.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return fmt.Errorf("no organization found; please create or join an organization first")
 	}
 
-	reg, err := deps.registrationStore.Load()
+	node, err := register.ResolveNode(ctx, deps.prompter, deps.nodeClients, s, deps.registrationStore, org.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	osUser, err := deps.currentUser()
+	// Fetch node details to get the SSH access list.
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	nodeResp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
+		ExternalNodeId: node.ExternalNodeID,
+		OrganizationId: org.ID,
+	}))
 	if err != nil {
-		return fmt.Errorf("failed to determine current Linux user: %w", err)
+		return fmt.Errorf("failed to fetch node details: %w", err)
 	}
 
-	brevKeys, err := deps.listBrevKeys(osUser)
-	if err != nil {
-		return fmt.Errorf("failed to read authorized keys: %w", err)
-	}
-
-	if len(brevKeys) == 0 {
-		t.Vprint("No Brev SSH keys found to revoke.")
+	sshAccess := nodeResp.Msg.GetExternalNode().GetSshAccess()
+	if len(sshAccess) == 0 {
+		t.Vprint("No SSH access entries found on this node.")
 		return nil
 	}
 
-	// Build selector labels from the installed keys.
-	labels := make([]string, len(brevKeys))
-	for i, bk := range brevKeys {
-		keyPreview := truncateKey(bk.KeyContent, 60)
-		if bk.UserID != "" {
-			labels[i] = fmt.Sprintf("%s (user: %s)", keyPreview, bk.UserID)
-		} else {
-			labels[i] = keyPreview
+	// Build selection labels, resolving user names where possible.
+	labels := make([]string, len(sshAccess))
+	for i, sa := range sshAccess {
+		userName := sa.GetUserId()
+		if u, err := s.GetUserByID(sa.GetUserId()); err == nil {
+			userName = fmt.Sprintf("%s (%s)", u.Name, sa.GetUserId())
 		}
+		labels[i] = fmt.Sprintf("%s, linux_user: %s", userName, sa.GetLinuxUser())
 	}
 
-	selected := deps.prompter.Select("Select a Brev SSH key to revoke:", labels)
+	selected := deps.prompter.Select("Select SSH access to revoke:", labels)
 
 	selectedIdx := -1
 	for i, label := range labels {
@@ -110,53 +108,28 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, d
 		}
 	}
 	if selectedIdx < 0 {
-		return fmt.Errorf("selected item %q did not match any key", selected)
+		return fmt.Errorf("selected item %q did not match any access entry", selected)
 	}
 
-	selectedKey := brevKeys[selectedIdx]
+	selectedAccess := sshAccess[selectedIdx]
 
 	t.Vprint("")
 	t.Vprint(t.Green("Revoking SSH access"))
 	t.Vprint("")
-	t.Vprintf("  Node: %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
-	t.Vprintf("  Key:  %s\n", truncateKey(selectedKey.KeyContent, 80))
-	if selectedKey.UserID != "" {
-		t.Vprintf("  User: %s\n", selectedKey.UserID)
-	}
+	t.Vprintf("  Node:       %s (%s)\n", node.DisplayName, node.ExternalNodeID)
+	t.Vprintf("  User:       %s\n", selectedAccess.GetUserId())
+	t.Vprintf("  Linux user: %s\n", selectedAccess.GetLinuxUser())
 	t.Vprint("")
 
-	// Remove the key from authorized_keys first.
-	if err := deps.removeKeyLine(osUser, selectedKey.Line); err != nil {
-		return fmt.Errorf("failed to remove key from authorized_keys: %w", err)
-	}
-	t.Vprint("  Brev public key removed from authorized_keys.")
-
-	// If we know the user ID, also revoke server-side.
-	if selectedKey.UserID != "" {
-		client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-		_, err := client.RevokeNodeSSHAccess(ctx, connect.NewRequest(&nodev1.RevokeNodeSSHAccessRequest{
-			ExternalNodeId: reg.ExternalNodeID,
-			UserId:         selectedKey.UserID,
-			LinuxUser:      osUser.Username,
-		}))
-		if err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: server-side revocation failed: %v", err)))
-			t.Vprint("  The key was removed locally but the server may still show access.")
-		}
-	} else {
-		t.Vprint("  Key was old-format (no user ID); skipping server-side revocation.")
+	_, err = client.RevokeNodeSSHAccess(ctx, connect.NewRequest(&nodev1.RevokeNodeSSHAccessRequest{
+		ExternalNodeId: node.ExternalNodeID,
+		UserId:         selectedAccess.GetUserId(),
+		LinuxUser:      selectedAccess.GetLinuxUser(),
+	}))
+	if err != nil {
+		return fmt.Errorf("failed to revoke SSH access: %w", err)
 	}
 
-	t.Vprint("")
-	t.Vprint(t.Green("SSH key revoked."))
+	t.Vprint(t.Green("SSH access revoked."))
 	return nil
-}
-
-// truncateKey shortens a key string for display, showing the first maxLen
-// characters followed by "..." if it's longer.
-func truncateKey(key string, maxLen int) string {
-	if len(key) <= maxLen {
-		return key
-	}
-	return key[:maxLen] + "..."
 }

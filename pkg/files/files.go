@@ -24,9 +24,8 @@ type PersonalSettings struct {
 const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
-	activeOrgFile      = "active_org.json"
-	orgCacheFile       = "org_cache.json"
-	workspaceCacheFile = "workspace_cache.json"
+	activeOrgFile     = "active_org.json"
+	userCacheFileName = "user_cache.json"
 	// WIP: This will be used to let people "brev open" with editors other than VS Code
 	personalSettingsCache         = "personal_settings.json"
 	kubeCertFileName              = "brev.crt"

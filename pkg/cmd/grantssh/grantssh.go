@@ -5,12 +5,12 @@ package grantssh
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/user"
-	"path/filepath"
-	"strings"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
@@ -23,7 +23,6 @@ import (
 type GrantSSHStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetBrevHomePath() (string, error)
 	GetAccessToken() (string, error)
 	GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error)
 	GetUserByID(userID string) (*entity.User, error)
@@ -32,7 +31,6 @@ type GrantSSHStore interface {
 // grantSSHDeps bundles the side-effecting dependencies of runGrantSSH so they
 // can be replaced in tests.
 type grantSSHDeps struct {
-	platform          externalnode.PlatformChecker
 	prompter          terminal.Selector
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
@@ -45,7 +43,6 @@ type resolvedMember struct {
 
 func defaultGrantSSHDeps() grantSSHDeps {
 	return grantSSHDeps{
-		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
@@ -53,47 +50,38 @@ func defaultGrantSSHDeps() grantSSHDeps {
 }
 
 func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
+	var linuxUser string
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "grant-ssh",
 		DisableFlagsInUseLine: true,
-		Short:                 "Grant SSH access to this device for another org member",
-		Long:                  "Grant SSH access to this registered device for another member of your organization.",
-		Example:               "  brev grant-ssh",
+		Short:                 "Grant SSH access to a node for another org member",
+		Long:                  "Grant SSH access to a node for another member of your organization",
+		Example:               "  brev grant-ssh --linux-user ubuntu",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGrantSSH(cmd.Context(), t, store, defaultGrantSSHDeps())
+			deps := defaultGrantSSHDeps()
+			if linuxUser == "" {
+				linuxUser = register.GetCachedLinuxUser()
+			}
+			if linuxUser == "" {
+				return fmt.Errorf("--linux-user is required (no cached value found)")
+			}
+			register.SaveCachedLinuxUser(linuxUser)
+			return runGrantSSH(cmd.Context(), t, store, deps, linuxUser)
 		},
 	}
+
+	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node")
 
 	return cmd
 }
 
-func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, deps grantSSHDeps) error { //nolint:funlen // grant-ssh flow
-	if !deps.platform.IsCompatible() {
-		return fmt.Errorf("brev grant-ssh is only supported on Linux")
-	}
-
-	removeCredentialsFile(t, s)
-
-	reg, err := deps.registrationStore.Load()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
+func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, deps grantSSHDeps, linuxUser string) error { //nolint:funlen // grant-ssh flow
 	currentUser, err := s.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	if err := checkSSHEnabled(currentUser.PublicKey); err != nil {
-		return err
-	}
-
-	osUser, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("failed to determine current Linux user: %w", err)
-	}
-	linuxUser := osUser.Username
 
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -103,8 +91,12 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 		return fmt.Errorf("no organization found; please create or join an organization first")
 	}
 
+	node, err := register.ResolveNode(ctx, deps.prompter, deps.nodeClients, s, deps.registrationStore, org.ID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	orgMembers, err := getOrgMembers(currentUser, t, s, org.ID)
-	// Resolve user details for each member.
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -117,7 +109,6 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 
 	selected := deps.prompter.Select("Select a user to grant SSH access:", usersToSelect)
 
-	// Find the selected user.
 	selectedUser, err := getSelectedUser(usersToSelect, selected, orgMembers)
 	if err != nil {
 		return err
@@ -126,47 +117,27 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 	t.Vprint("")
 	t.Vprint(t.Green("Granting SSH access"))
 	t.Vprint("")
-	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
+	t.Vprintf("  Node:       %s (%s)\n", node.DisplayName, node.ExternalNodeID)
 	t.Vprintf("  Brev user:  %s (%s)\n", selectedUser.Name, selectedUser.ID)
 	t.Vprintf("  Linux user: %s\n", linuxUser)
 	t.Vprint("")
 
-	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, s, reg, selectedUser, osUser); err != nil {
-		return fmt.Errorf("grant SSH failed: %w", err)
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	_, err = client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
+		ExternalNodeId: node.ExternalNodeID,
+		UserId:         selectedUser.ID,
+		LinuxUser:      linuxUser,
+	}))
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, reg.DisplayName)))
+	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, node.DisplayName)))
 	return nil
 }
 
-// checkSSHEnabled verifies that SSH has been enabled on this device by checking
-// if the current user's public key is present in authorized_keys.
-func checkSSHEnabled(currentUserPubKey string) error {
-	currentUserPubKey = strings.TrimSpace(currentUserPubKey)
-	if currentUserPubKey == "" {
-		return fmt.Errorf("current user does not have a Brev public key")
-	}
-
-	u, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("failed to determine current Linux user: %w", err)
-	}
-
-	authKeysPath := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
-	existing, err := os.ReadFile(authKeysPath) // #nosec G304
-	if err != nil {
-		return fmt.Errorf("failed to read authorized_keys, %w", err)
-	}
-
-	if !strings.Contains(string(existing), currentUserPubKey) {
-		return fmt.Errorf("run 'brev enable-ssh' first")
-	}
-
-	return nil
-}
-
-func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgId string) ([]resolvedMember, error) {
-	attachments, err := s.GetOrgRoleAttachments(orgId)
+func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgID string) ([]resolvedMember, error) {
+	attachments, err := s.GetOrgRoleAttachments(orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch org members: %w", err)
 	}
@@ -197,24 +168,6 @@ func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHSto
 	}
 
 	return resolved, nil
-}
-
-// removeCredentialsFile removes ~/.brev/credentials.json if it exists.
-// When granting SSH access to another user, we don't want them to find
-// the device owner's auth tokens on disk.
-func removeCredentialsFile(t *terminal.Terminal, s GrantSSHStore) {
-	brevHome, err := s.GetBrevHomePath()
-	if err != nil {
-		return
-	}
-	credsPath := filepath.Join(brevHome, "credentials.json")
-	if err := os.Remove(credsPath); err != nil {
-		if !os.IsNotExist(err) {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove credentials file: %v\n  It is recommended to remove this file yourself so that this user does not see any sensitive tokens:\n    rm %s", err, credsPath)))
-		}
-		return
-	}
-	t.Vprintf("  Removed %s\n", credsPath)
 }
 
 func getSelectedUser(usersToSelect []string, selected string, orgMembers []resolvedMember) (*entity.User, error) {

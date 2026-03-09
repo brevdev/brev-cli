@@ -83,10 +83,11 @@ func enableSSH(
 	reg *register.DeviceRegistration,
 	brevUser *entity.User,
 ) error {
-	u, err := user.Current()
+	linuxUser, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
+	linuxUsername := linuxUser.Username
 
 	checkSSHDaemon(t)
 
@@ -95,7 +96,7 @@ func enableSSH(
 	t.Vprint("")
 	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
-	t.Vprintf("  Linux user: %s\n", u.Username)
+	t.Vprintf("  Linux user: %s\n", linuxUsername)
 	t.Vprint("")
 
 	t.Vprint("")
@@ -108,7 +109,7 @@ func enableSSH(
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
-	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, u); err != nil {
+	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUsername); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 

@@ -495,7 +495,7 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 		return fmt.Errorf("allocate SSH port failed: %w", err)
 	}
 
-	err = GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser)
+	err = SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser.Username)
 	if err != nil {
 		return fmt.Errorf("grant SSH failed: %w", err)
 	}
