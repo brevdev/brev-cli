@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.1-20260228021043-887d38e1b474.2
-	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260305201249-af5106090c8a.1
+	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260309172248-8105d701fdce.1
 	connectrpc.com/connect v1.19.1
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/alessio/shellescape v1.4.1

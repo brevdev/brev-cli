@@ -103,7 +103,11 @@ func enableSSH(
 		return fmt.Errorf("SSH port: %w", err)
 	}
 
-	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, u, port); err != nil {
+	if err := register.OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {
+		return fmt.Errorf("enable SSH failed: %w", err)
+	}
+
+	if err := register.GrantSSHAccessToNode(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, u); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
