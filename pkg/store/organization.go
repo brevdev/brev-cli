@@ -135,6 +135,11 @@ func (s AuthHTTPStore) GetOrganizationsByName(name string) ([]entity.Organizatio
 	return s.GetOrganizations(&GetOrganizationsOptions{Name: name})
 }
 
+// ListOrganizations returns all organizations (for prompt-driven register flow).
+func (s AuthHTTPStore) ListOrganizations() ([]entity.Organization, error) {
+	return s.GetOrganizations(nil)
+}
+
 func (s AuthHTTPStore) getOrganizations() ([]entity.Organization, error) {
 	var result []entity.Organization
 	res, err := s.authHTTPClient.restyClient.R().

@@ -46,6 +46,16 @@ func (m *mockRegisterStore) GetOrganizationsByName(name string) ([]entity.Organi
 	return matched, nil
 }
 
+func (m *mockRegisterStore) ListOrganizations() ([]entity.Organization, error) {
+	if len(m.orgs) > 0 {
+		return m.orgs, nil
+	}
+	if m.org != nil {
+		return []entity.Organization{*m.org}, nil
+	}
+	return nil, nil
+}
+
 func (m *mockRegisterStore) GetAccessToken() (string, error) { return m.token, nil }
 
 // mockRegistrationStore satisfies RegistrationStore for orchestration tests.
@@ -83,6 +93,23 @@ func (m mockPlatform) IsCompatible() bool { return m.compatible }
 type mockConfirmer struct{ confirm bool }
 
 func (m mockConfirmer) ConfirmYesNo(_ string) bool { return m.confirm }
+
+// mockSelector implements terminal.Selector by returning the first item (for tests that need org selection).
+type mockSelector struct{ choice string }
+
+func (m mockSelector) Select(_ string, items []string) string {
+	if m.choice != "" {
+		for _, s := range items {
+			if s == m.choice {
+				return s
+			}
+		}
+	}
+	if len(items) > 0 {
+		return items[0]
+	}
+	return ""
+}
 
 type mockNetBirdManager struct{ err error }
 
@@ -141,6 +168,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 	return registerDeps{
 		platform:    mockPlatform{compatible: true},
 		prompter:    mockConfirmer{confirm: true},
+		selector:    mockSelector{},
 		netbird:     mockNetBirdManager{},
 		setupRunner: &mockSetupRunner{},
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
@@ -729,7 +757,7 @@ func Test_runRegister_NameValidation(t *testing.T) {
 		{"LeadingHyphen", "-node", true, "start with"},
 		{"LeadingDot", ".hidden", true, "start with"},
 		{"TooLong", strings.Repeat("a", 64), true, "63 characters"},
-		{"Empty", "", true, "name is required"},
+		{"Empty", "", true, "--name"}, // flag-driven rejects empty name with this message
 	}
 
 	for _, tt := range tests {
@@ -761,7 +789,13 @@ func Test_runRegister_NameValidation(t *testing.T) {
 			defer ClearTestSSHPort()
 
 			term := terminal.New()
-			err := runRegister(context.Background(), term, store, tt.input, "", deps)
+			var err error
+			if tt.name == "Empty" {
+				// In prompt-driven mode empty name triggers a prompt; test flag-driven rejection instead.
+				err = runRegisterFlagDriven(context.Background(), term, store, tt.input, "TestOrg", false, 22, deps)
+			} else {
+				err = runRegister(context.Background(), term, store, tt.input, "", deps)
+			}
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -852,6 +886,7 @@ func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
 }
 
 func Test_runRegister_NoNameNotRegistered(t *testing.T) {
+	// In flag-driven mode, missing --name and --org must error (no prompts).
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -865,12 +900,12 @@ func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "", "", deps)
+	err := runRegisterFlagDriven(context.Background(), term, store, "", "", false, 22, deps)
 	if err == nil {
-		t.Fatal("expected error when no name provided and not registered")
+		t.Fatal("expected error when no name/org in non-interactive mode")
 	}
-	if !strings.Contains(err.Error(), "name is required") {
-		t.Errorf("expected 'name is required' error, got: %v", err)
+	if !strings.Contains(err.Error(), "non-interactive") || !strings.Contains(err.Error(), "--name") {
+		t.Errorf("expected non-interactive/--name error, got: %v", err)
 	}
 }
 
