@@ -796,14 +796,8 @@ func Test_runRegister_NameValidation(t *testing.T) {
 
 			term := terminal.New()
 			var err error
-			if tt.name == "Empty" {
-				// In prompt-driven mode empty name triggers a prompt; test flag-driven rejection instead.
-				opts := registerOpts{interactive: false, name: tt.input, orgName: "TestOrg", sshPort: 22}
-				err = runRegister(context.Background(), term, store, opts, deps)
-			} else {
-				opts := registerOpts{interactive: false, name: tt.input, orgName: "TestOrg", sshPort: 22}
-				err = runRegister(context.Background(), term, store, opts, deps)
-			}
+			opts := registerOpts{interactive: false, name: tt.input, orgName: "TestOrg", sshPort: 22}
+			err = runRegister(context.Background(), term, store, opts, deps)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

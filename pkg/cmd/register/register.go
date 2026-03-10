@@ -133,7 +133,7 @@ type registerOpts struct {
 }
 
 // runRegister runs a single registration flow; the only difference by mode is whether we prompt or use opts.
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error {
+func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit // ok
 	// Basic validation
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
@@ -177,7 +177,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		name = opts.name
 	}
 	if err := names.ValidateNodeName(name); err != nil {
-		return err
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	// Capture the target organization
@@ -231,11 +231,9 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		if enableSSH {
 			sshPortForGrant = 0 // prompt for port
 		}
-	} else {
-		if opts.sshPort != 0 {
-			enableSSH = true
-			sshPortForGrant = opts.sshPort
-		}
+	} else if opts.sshPort != 0 {
+		enableSSH = true
+		sshPortForGrant = opts.sshPort
 	}
 
 	// Grant SSH access if requested
