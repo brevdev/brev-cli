@@ -81,12 +81,11 @@ var (
 This command sets up network connectivity and registers this machine with Brev.
 
 Two modes are supported:
-  • Interactive (default): run 'brev register' (or 'brev register <name>') and follow prompts for org and options.
-  • Non-interactive: use any of --name, --org, --enable-ssh, or --ssh-port (or --non-interactive). No prompts; --name and --org are required. Use for scripts/CI.`
+  • Interactive (default): run 'brev register' with no flags and follow prompts for device name, org, and options.
+  • Non-interactive: use any of --name, --org, --enable-ssh, or --ssh-port. No prompts; --name and --org are required. Use for scripts/CI.`
 
-	registerExample = `  # Interactive (prompts for org, confirmations)
+	registerExample = `  # Interactive (prompts for device name, org, confirmations)
   brev register
-  brev register "My DGX Spark"
 
   # Non-interactive (any flag implies no prompts; --name and --org required)
   brev register --name my-node --org my-org
@@ -95,48 +94,32 @@ Two modes are supported:
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	var orgFlag string
-	var nonInteractive bool
 	var nameFlag string
-	var enableSSH bool
 	var sshPort int
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "register [name]",
+		Use:                   "register",
 		DisableFlagsInUseLine: true,
 		Short:                 "Register this device with Brev",
 		Long:                  registerLong,
 		Example:               registerExample,
-		Args:                  cobra.MaximumNArgs(1),
+		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := nameFlag
-			if name == "" && len(args) > 0 {
-				name = args[0]
-			}
-			// Non-interactive if explicit flag or any register-specific flag is set (implies script/CI).
-			flagDriven := nonInteractive ||
-				nameFlag != "" ||
-				orgFlag != "" ||
-				enableSSH ||
-				cmd.Flags().Changed("ssh-port")
+			// Flag-driven (non-interactive) if any of these flags is set.
+			flagDriven := nameFlag != "" || orgFlag != "" || sshPort != 0
 			if flagDriven {
-				return runRegisterFlagDriven(cmd.Context(), t, store, name, orgFlag, enableSSH, int32(sshPort), defaultRegisterDeps())
+				return runRegisterFlagDriven(cmd.Context(), t, store, nameFlag, orgFlag, int32(sshPort), defaultRegisterDeps())
 			}
-			return runRegisterPromptDriven(cmd.Context(), t, store, name, orgFlag, defaultRegisterDeps())
+			return runRegisterInteractive(cmd.Context(), t, store, defaultRegisterDeps())
 		},
 	}
 
 	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required when using non-interactive mode)")
-	cmd.Flags().BoolVar(&nonInteractive, "non-interactive", false, "non-interactive mode (also implied by --name, --org, --enable-ssh, or --ssh-port)")
-	cmd.Flags().StringVar(&nameFlag, "name", "", "device name (required when using non-interactive mode)")
-	cmd.Flags().BoolVar(&enableSSH, "enable-ssh", false, "enable SSH access after registration (non-interactive mode)")
-	cmd.Flags().IntVar(&sshPort, "ssh-port", 22, "SSH port when using --enable-ssh")
+	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
+	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 
 	return cmd
-}
-
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, orgName string, deps registerDeps) error {
-	return runRegisterPromptDriven(ctx, t, s, name, orgName, deps)
 }
 
 // runRegisterSteps performs netbird install, hardware profile, AddNode, save registration, and runSetup.
@@ -222,45 +205,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	return reg, nil
 }
 
-// resolveOrgPromptDriven resolves organization for prompt-driven flow: by name if --org given, else always list and select with arrow keys.
-func resolveOrgPromptDriven(t *terminal.Terminal, s RegisterStore, orgName string, deps registerDeps) (*entity.Organization, error) {
-	if orgName != "" {
-		orgs, err := s.GetOrganizationsByName(orgName)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return nil, fmt.Errorf("no organization found with name %q", orgName)
-		}
-		if len(orgs) > 1 {
-			return nil, fmt.Errorf("multiple organizations found with name %q", orgName)
-		}
-		return &orgs[0], nil
-	}
-
-	list, err := s.ListOrganizations()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if len(list) == 0 {
-		return nil, fmt.Errorf("no organization found; please create or join an organization first")
-	}
-
-	t.Vprint("")
-	names := make([]string, len(list))
-	for i := range list {
-		names[i] = list[i].Name
-	}
-	chosen := deps.selector.Select("Select organization", names)
-	for i := range list {
-		if list[i].Name == chosen {
-			return &list[i], nil
-		}
-	}
-	return nil, fmt.Errorf("selected organization not found")
-}
-
-func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, orgName string, deps registerDeps) error {
+func runRegisterInteractive(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps) error {
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
 	}
@@ -269,7 +214,6 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
-	// Ensure user is logged in before any other prompts (email/login happens here if needed).
 	if _, err := s.GetCurrentUser(); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -279,24 +223,23 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 		return breverrors.WrapAndTrace(err)
 	}
 	if alreadyRegistered {
-		return checkExistingRegistration(ctx, t, s, name, deps)
+		return checkExistingRegistration(ctx, t, s, deps)
 	}
 
-	if name == "" {
-		t.Vprint("")
-		name = terminal.PromptGetInput(terminal.PromptContent{
-			Label:      "Device name",
-			ErrorMsg:   "name is required",
-			AllowEmpty: false,
-		})
-		name = strings.TrimSpace(name)
-	}
+	t.Vprint("")
+	name := terminal.PromptGetInput(terminal.PromptContent{
+		Label:      "Device name",
+		ErrorMsg:   "name is required",
+		AllowEmpty: false,
+	})
+	name = strings.TrimSpace(name)
+
 	if err := names.ValidateNodeName(name); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	t.Vprint("")
-	org, err := resolveOrgPromptDriven(t, s, orgName, deps)
+	org, err := resolveOrgInteractive(t, s, deps)
 	if err != nil {
 		return err
 	}
@@ -337,7 +280,7 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 		if err != nil {
 			return fmt.Errorf("failed to determine current Linux user: %w", err)
 		}
-		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, 0); err != nil {
+		if err := grantSSHAccessInteractive(ctx, t, deps, s, reg, brevUser, osUser); err != nil {
 			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		}
 	}
@@ -345,7 +288,30 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 	return nil
 }
 
-func runRegisterFlagDriven(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, orgName string, enableSSH bool, sshPort int32, deps registerDeps) error {
+func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerDeps) (*entity.Organization, error) {
+	list, err := s.ListOrganizations()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if len(list) == 0 {
+		return nil, fmt.Errorf("no organization found; please create or join an organization first")
+	}
+
+	t.Vprint("")
+	names := make([]string, len(list))
+	for i := range list {
+		names[i] = list[i].Name
+	}
+	chosen := deps.selector.Select("Select organization", names)
+	for i := range list {
+		if list[i].Name == chosen {
+			return &list[i], nil
+		}
+	}
+	return nil, fmt.Errorf("selected organization not found")
+}
+
+func runRegisterFlagDriven(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, orgName string, sshPort int32, deps registerDeps) error {
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
 	}
@@ -359,14 +325,14 @@ func runRegisterFlagDriven(ctx context.Context, t *terminal.Terminal, s Register
 		return breverrors.WrapAndTrace(err)
 	}
 	if alreadyRegistered {
-		return checkExistingRegistration(ctx, t, s, name, deps)
+		return checkExistingRegistration(ctx, t, s, deps)
 	}
 
 	if err := names.ValidateNodeName(name); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	org, err := getOrgToRegisterFor(s, orgName)
+	org, err := resolveOrg(s, orgName)
 	if err != nil {
 		return err
 	}
@@ -376,7 +342,7 @@ func runRegisterFlagDriven(ctx context.Context, t *terminal.Terminal, s Register
 		return err
 	}
 
-	if enableSSH {
+	if sshPort != 0 {
 		brevUser, err := s.GetCurrentUser()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -385,7 +351,7 @@ func runRegisterFlagDriven(ctx context.Context, t *terminal.Terminal, s Register
 		if err != nil {
 			return fmt.Errorf("failed to determine current Linux user: %w", err)
 		}
-		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPort); err != nil {
+		if err := grantSSHAccess(ctx, t, deps, s, reg, brevUser, osUser, sshPort); err != nil {
 			return err
 		}
 	}
@@ -393,47 +359,28 @@ func runRegisterFlagDriven(ctx context.Context, t *terminal.Terminal, s Register
 	return nil
 }
 
-func getOrgToRegisterFor(s RegisterStore, orgName string) (*entity.Organization, error) {
-	if orgName != "" {
-		orgs, err := s.GetOrganizationsByName(orgName)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return nil, fmt.Errorf("no organization found with name %q", orgName)
-		}
-		if len(orgs) > 1 {
-			return nil, fmt.Errorf("multiple organizations found with name %q", orgName)
-		}
-		return &orgs[0], nil
-	}
-
-	org, err := s.GetActiveOrganizationOrDefault()
+func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
+	orgs, err := s.GetOrganizationsByName(orgName)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if org == nil {
-		return nil, fmt.Errorf("no organization found; please create or join an organization first")
+	if len(orgs) == 0 {
+		return nil, fmt.Errorf("no organization found with name %q", orgName)
 	}
-	return org, nil
+	if len(orgs) > 1 {
+		return nil, fmt.Errorf("multiple organizations found with name %q", orgName)
+	}
+	return &orgs[0], nil
 }
 
 // checkExistingRegistration verifies connectivity for an already-registered node.
 // It calls GetNode to check the server-side NetworkMemberStatus and ensures the
 // local netbird service is running, starting it if necessary. Returns nil if
 // the node is healthy, or an error describing what's wrong.
-func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, deps registerDeps) error {
+func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps) error {
 	reg, loadErr := deps.registrationStore.Load()
 	if loadErr != nil {
 		return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
-	}
-	if name != "" && name != reg.DisplayName {
-		// TODO maybe allow for a name change
-		t.Vprintf("This machine is already registered as %q.\n", reg.DisplayName)
-		t.Vprint("Run 'brev deregister' first if you want to re-register with a different name.")
-		t.Vprint("")
-		t.Vprintf("If you are having tunnel issues, run 'brev register %q' to reconnect.\n", reg.DisplayName)
-		return nil
 	}
 
 	t.Vprint("")
@@ -503,7 +450,7 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 }
 
 // grantSSHAccessWithPort enables SSH; if port is 0, prompts for port (prompt-driven). Otherwise uses the given port (flag-driven).
-func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
+func grantSSHAccessInteractive(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User) error {
 	t.Vprint("")
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint(t.White("  Enabling SSH access on this device"))
@@ -516,19 +463,24 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUser.Username+" ("+brevUser.ID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
 
-	var err error
-	if port == 0 {
-		t.Vprint("")
-		port, err = PromptSSHPort(t)
-		if err != nil {
-			return fmt.Errorf("SSH port: %w", err)
-		}
-	} else {
-		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "SSH port:")), t.BoldBlue(fmt.Sprintf("%d", port)))
+	t.Vprint("")
+	port, err := PromptSSHPort(t)
+	if err != nil {
+		return fmt.Errorf("SSH port: %w", err)
 	}
 	t.Vprint("")
 
-	if err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {
+	err = grantSSHAccess(ctx, t, deps, tokenProvider, reg, brevUser, osUser, port)
+	if err != nil {
+		return fmt.Errorf("grant SSH failed: %w", err)
+	}
+
+	return nil
+}
+
+func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
+	err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port)
+	if err != nil {
 		return fmt.Errorf("allocate SSH port failed: %w", err)
 	}
 
