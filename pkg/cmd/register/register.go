@@ -192,24 +192,25 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		return err
 	}
 
-	// Confirm the registration, interactive mode only
+	t.Vprint("")
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint(t.White("  Registering your device with Brev"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint("")
 	if opts.interactive {
-		t.Vprint("")
-		t.Vprint(t.White("══════════════════════════════════════════════════"))
-		t.Vprint(t.White("  Registering your device with Brev"))
-		t.Vprint(t.White("══════════════════════════════════════════════════"))
-		t.Vprint("")
 		t.Vprint(t.Green("  Please confirm before continuing:"))
 		t.Vprint("")
-		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(name))
-		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name+" ("+org.ID+")"))
-		t.Vprint("")
-		t.Vprint(t.Yellow("  This will:"))
-		t.Vprint("    1. Set up Brev tunnel")
-		t.Vprint("    2. Collect hardware profile")
-		t.Vprint("    3. Register this machine with Brev")
-		t.Vprint("")
+	}
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(name))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name+" ("+org.ID+")"))
+	t.Vprint("")
+	t.Vprint(t.Yellow("  This will:"))
+	t.Vprint("    1. Set up Brev tunnel")
+	t.Vprint("    2. Collect hardware profile")
+	t.Vprint("    3. Register this machine with Brev")
+	t.Vprint("")
 
+	if opts.interactive {
 		if !deps.prompter.ConfirmYesNo("Proceed with registration?") {
 			t.Vprint("Registration canceled.")
 			return nil
@@ -243,7 +244,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		if err != nil {
 			return fmt.Errorf("failed to determine current Linux user: %w", err)
 		}
-		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant); err != nil {
+		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant, opts.interactive); err != nil {
 			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		}
 	}
@@ -448,7 +449,7 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 }
 
 // grantSSHAccessWithPort enables SSH: shows confirm table, uses port or prompts if port is 0, then allocates port and grants access.
-func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
+func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32, interactive bool) error {
 	brevUserName := brevUser.Username
 	if brevUserName == "" {
 		brevUserName = brevUser.Email
@@ -462,8 +463,10 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 	t.Vprint(t.White("  Enabling SSH access on this device"))
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	t.Vprint(t.Green("  Please confirm before continuing:"))
-	t.Vprint("")
+	if interactive {
+		t.Vprint(t.Green("  Please confirm before continuing:"))
+		t.Vprint("")
+	}
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(reg.OrgName+" ("+reg.OrgID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUserName+" ("+brevUser.ID+")"))
