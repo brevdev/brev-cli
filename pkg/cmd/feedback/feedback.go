@@ -31,7 +31,7 @@ func NewCmdFeedback(t *terminal.Terminal) *cobra.Command {
 
 			analytics.CaptureFeedback(message)
 
-			t.Vprintf(t.Green("Thanks for your feedback! We really appreciate it.\n"))
+			t.Vprintf("%s", t.Green("Thanks for your feedback! We really appreciate it.\n"))
 			return nil
 		},
 	}
