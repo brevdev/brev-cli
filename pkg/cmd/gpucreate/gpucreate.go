@@ -179,12 +179,12 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return breverrors.WrapAndTrace(err)
 			}
 
+			if dryRun {
+				return runDryRun(t, gpuCreateStore, types, &filters)
+			}
+
 			// If no types provided, use search filters (or defaults) to find suitable GPUs
 			if len(types) == 0 {
-				if dryRun {
-					return runDryRun(t, gpuCreateStore, &filters)
-				}
-
 				types, err = getFilteredInstanceTypes(gpuCreateStore, &filters)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
@@ -369,7 +369,12 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 }
 
 // runDryRun shows the instance types that would be used without creating anything
-func runDryRun(t *terminal.Terminal, s GPUCreateStore, filters *searchFilterFlags) error {
+func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, filters *searchFilterFlags) error {
+	if len(specs) > 0 {
+		t.Print(formatInstanceSpecs(specs))
+		return nil
+	}
+
 	filtered, _, err := searchInstances(s, filters)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
