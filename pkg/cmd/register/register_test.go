@@ -225,7 +225,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	opts := registerOpts{interactive: true, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
 	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
