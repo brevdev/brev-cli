@@ -261,7 +261,7 @@ func SetupAndRegisterNodeSSHAccess(
 		_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
 			ExternalNodeId: reg.ExternalNodeID,
 			UserId:         targetUser.ID,
-			LinuxUser:      osUser.Username,
+			LinuxUser:      linuxUsername,
 		}))
 		if err != nil {
 			// Retryable error
