@@ -7,6 +7,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -298,6 +299,18 @@ func TestMockGPUCreateStoreTypeSpecificError(t *testing.T) {
 	ws, err := mock.CreateWorkspace("org-123", options2)
 	assert.NoError(t, err)
 	assert.NotNil(t, ws)
+}
+
+func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	term := terminal.New()
+
+	cmd := NewCmdGPUCreate(term, mock)
+	cmd.SetArgs([]string{"dry-run-test", "--type", "g5.xlarge", "--dry-run"})
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+	assert.Empty(t, mock.CreatedWorkspaces)
 }
 
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
