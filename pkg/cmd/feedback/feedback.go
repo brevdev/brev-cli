@@ -21,7 +21,7 @@ func NewCmdFeedback(t *terminal.Terminal, store FeedbackStore) *cobra.Command {
 		Use:                   "feedback [message]",
 		DisableFlagsInUseLine: true,
 		Short:                 "Send feedback to the Brev team",
-		Long:                  "Send feedback, bug reports, or feature requests to the Brev team.\nPlease do not include secrets, passwords, or sensitive information in your feedback.",
+		Long:                  "Send feedback, bug reports, or feature requests to the Brev team.",
 		Example:               "brev feedback \"I love this tool!\"\nbrev feedback",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if message == "" && len(args) > 0 {
