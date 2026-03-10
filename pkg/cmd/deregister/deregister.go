@@ -100,14 +100,14 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
-	// Ensure user is logged in before any steps (login/email prompt happens here if needed).
-	if _, err := s.GetCurrentUser(); err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
 		return err
+	}
+
+	// Only prompt for login when there is a device to deregister.
+	if _, err := s.GetCurrentUser(); err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	orgName := reg.OrgName
