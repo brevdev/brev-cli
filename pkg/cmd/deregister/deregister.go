@@ -76,6 +76,8 @@ the Brev tunnel (network agent).`
 )
 
 func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Command {
+	var approveFlag bool
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "deregister",
@@ -84,19 +86,21 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 		Long:                  deregisterLong,
 		Example:               deregisterExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps())
+			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps(), approveFlag)
 		},
 	}
+
+	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
 	return cmd
 }
 
-func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps) error { //nolint:funlen // deregistration flow
+func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen // deregistration flow
 	if !deps.platform.IsCompatible() {
 		return fmt.Errorf("brev deregister is only supported on Linux")
 	}
 
-	if err := sudo.Gate(t, deps.confirmer, "Device deregistration"); err != nil {
+	if err := sudo.Gate(t, deps.confirmer, "Device deregistration", skipConfirm); err != nil {
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
@@ -125,8 +129,10 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint(t.White("  Deregistering your device from Brev"))
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	t.Vprint(t.Green("  Please confirm before continuing:"))
-	t.Vprint("")
+	if !skipConfirm {
+		t.Vprint(t.Green("  Please confirm before continuing:"))
+		t.Vprint("")
+	}
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(orgName+" ("+reg.OrgID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(linuxUser))
@@ -138,13 +144,15 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("    4. Delete local registration data")
 	t.Vprint("")
 
-	confirm := deps.prompter.Select(
-		"Proceed with deregistration?",
-		[]string{"Yes, proceed", "No, cancel"},
-	)
-	if confirm != "Yes, proceed" {
-		t.Vprint("Deregistration canceled.")
-		return nil
+	if !skipConfirm {
+		confirm := deps.prompter.Select(
+			"Proceed with deregistration?",
+			[]string{"Yes, proceed", "No, cancel"},
+		)
+		if confirm != "Yes, proceed" {
+			t.Vprint("Deregistration canceled.")
+			return nil
+		}
 	}
 
 	const clearLine = "\033[2K\n"

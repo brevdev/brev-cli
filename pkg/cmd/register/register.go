@@ -96,6 +96,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	var orgFlag string
 	var nameFlag string
 	var sshPort int
+	var approveFlag bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
@@ -112,6 +113,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 				name:        nameFlag,
 				orgName:     orgFlag,
 				sshPort:     int32(sshPort),
+				skipConfirm: approveFlag,
 			}
 			return runRegister(cmd.Context(), t, store, opts, defaultRegisterDeps())
 		},
@@ -120,6 +122,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required when using non-interactive mode)")
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
+	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")
 
 	return cmd
 }
@@ -130,16 +133,17 @@ type registerOpts struct {
 	name        string
 	orgName     string
 	sshPort     int32
+	skipConfirm bool
 }
 
 // runRegister runs a single registration flow; the only difference by mode is whether we prompt or use opts.
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit,gocyclo // ok
+func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit,gocyclo,funlen // ok
 	// Basic validation
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
 	}
 	if opts.interactive {
-		if err := sudo.Gate(t, deps.prompter, "Device registration"); err != nil {
+		if err := sudo.Gate(t, deps.prompter, "Device registration", opts.skipConfirm); err != nil {
 			return fmt.Errorf("sudo issue: %w", err)
 		}
 	} else {
@@ -197,7 +201,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	t.Vprint(t.White("  Registering your device with Brev"))
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	if opts.interactive {
+	if opts.interactive && !opts.skipConfirm {
 		t.Vprint(t.Green("  Please confirm before continuing:"))
 		t.Vprint("")
 	}
@@ -211,7 +215,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	t.Vprint("")
 
 	if opts.interactive {
-		if !deps.prompter.ConfirmYesNo("Proceed with registration?") {
+		if !opts.skipConfirm && !deps.prompter.ConfirmYesNo("Proceed with registration?") {
 			t.Vprint("Registration canceled.")
 			return nil
 		}
@@ -227,9 +231,14 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	enableSSH := false
 	sshPortForGrant := int32(0)
 	if opts.interactive {
-		enableSSH = deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?")
-		if enableSSH {
-			sshPortForGrant = 0 // prompt for port
+		if opts.skipConfirm {
+			enableSSH = true
+			sshPortForGrant = 0 // will prompt for port in grantSSHAccessWithPort
+		} else {
+			enableSSH = deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?")
+			if enableSSH {
+				sshPortForGrant = 0 // prompt for port
+			}
 		}
 	} else if opts.sshPort != 0 {
 		enableSSH = true
@@ -242,7 +251,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		if err != nil {
 			return fmt.Errorf("failed to determine current Linux user: %w", err)
 		}
-		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant, opts.interactive); err != nil {
+		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant, opts.interactive, opts.skipConfirm); err != nil {
 			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		}
 	}
@@ -447,7 +456,7 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 }
 
 // grantSSHAccessWithPort enables SSH: shows confirm table, uses port or prompts if port is 0, then allocates port and grants access.
-func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32, interactive bool) error {
+func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32, interactive bool, skipConfirm bool) error {
 	brevUserName := brevUser.Username
 	if brevUserName == "" {
 		brevUserName = brevUser.Email
@@ -461,7 +470,7 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 	t.Vprint(t.White("  Enabling SSH access on this device"))
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	if interactive {
+	if interactive && !skipConfirm {
 		t.Vprint(t.Green("  Please confirm before continuing:"))
 		t.Vprint("")
 	}

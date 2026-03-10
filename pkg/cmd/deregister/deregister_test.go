@@ -171,7 +171,7 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
+	err := runDeregister(context.Background(), term, store, deps, false)
 	if err != nil {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
@@ -214,7 +214,7 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 	}}
 
 	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
+	err := runDeregister(context.Background(), term, store, deps, false)
 	if err != nil {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
@@ -243,7 +243,7 @@ func Test_runDeregister_NotRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
+	err := runDeregister(context.Background(), term, store, deps, false)
 	if err == nil {
 		t.Fatal("expected error when not registered")
 	}
@@ -274,7 +274,7 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
+	err := runDeregister(context.Background(), term, store, deps, false)
 	if err == nil {
 		t.Fatal("expected error when RemoveNode fails")
 	}
@@ -316,7 +316,7 @@ func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
 	deps.netbird = netbird
 
 	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps)
+	err := runDeregister(context.Background(), term, store, deps, false)
 	if err != nil {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
@@ -363,7 +363,7 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 			deps.sshKeys = tt.sshKeys
 
 			term := terminal.New()
-			err := runDeregister(context.Background(), term, store, deps)
+			err := runDeregister(context.Background(), term, store, deps, false)
 			if err != nil {
 				t.Fatalf("runDeregister failed: %v", err)
 			}

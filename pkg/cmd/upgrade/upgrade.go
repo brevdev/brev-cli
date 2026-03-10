@@ -147,7 +147,7 @@ func upgradeViaDirect(t *terminal.Terminal, deps upgradeDeps) (bool, error) {
 	t.Vprint("This will download the latest release and install it to /usr/local/bin/brev")
 	t.Vprint("")
 
-	if err := sudo.Gate(t, deps.confirmer, "Upgrade"); err != nil {
+	if err := sudo.Gate(t, deps.confirmer, "Upgrade", false); err != nil {
 		return false, fmt.Errorf("sudo issue: %w", err)
 	}
 

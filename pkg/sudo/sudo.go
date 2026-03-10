@@ -34,10 +34,14 @@ func Check() Status {
 
 // Gate checks sudo status, informs the user, and asks for confirmation before
 // proceeding. Returns nil if the user confirms (or is already root). Returns
-// an error if the user declines.
-func Gate(t *terminal.Terminal, confirmer terminal.Confirmer, reason string) error {
+// an error if the user declines. When assumeYes is true, the confirmation prompt is skipped.
+func Gate(t *terminal.Terminal, confirmer terminal.Confirmer, reason string, assumeYes bool) error {
 	status := Check()
 	if status == StatusRoot {
+		return nil
+	}
+
+	if assumeYes {
 		return nil
 	}
 
