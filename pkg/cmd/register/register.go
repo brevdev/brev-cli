@@ -231,14 +231,9 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	enableSSH := false
 	sshPortForGrant := int32(0)
 	if opts.interactive {
-		if opts.skipConfirm {
-			enableSSH = true
-			sshPortForGrant = 0 // will prompt for port in grantSSHAccessWithPort
-		} else {
-			enableSSH = deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?")
-			if enableSSH {
-				sshPortForGrant = 0 // prompt for port
-			}
+		enableSSH = deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?")
+		if enableSSH {
+			sshPortForGrant = 0 // prompt for port
 		}
 	} else if opts.sshPort != 0 {
 		enableSSH = true

@@ -95,7 +95,7 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 	return cmd
 }
 
-func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen // deregistration flow
+func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen,gocyclo // deregistration flow
 	if !deps.platform.IsCompatible() {
 		return fmt.Errorf("brev deregister is only supported on Linux")
 	}
