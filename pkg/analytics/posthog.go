@@ -281,9 +281,11 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 
 // CaptureFeedback sends a brev-cli-feedback event to PostHog.
 // This is sent regardless of analytics opt-in since the user explicitly chose to send feedback.
-func CaptureFeedback(message string) {
-	anonID := GetOrCreateAnalyticsID()
-	if anonID == "" {
+func CaptureFeedback(userID, message string) {
+	if userID == "" {
+		userID = GetOrCreateAnalyticsID()
+	}
+	if userID == "" {
 		return
 	}
 
@@ -293,7 +295,7 @@ func CaptureFeedback(message string) {
 	}
 
 	_ = c.Enqueue(posthog.Capture{
-		DistinctId: anonID,
+		DistinctId: userID,
 		Event:      "brev-cli-feedback",
 		Properties: posthog.NewProperties().
 			Set("message", message).

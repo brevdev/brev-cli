@@ -4,11 +4,16 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
-func NewCmdFeedback(t *terminal.Terminal) *cobra.Command {
+type FeedbackStore interface {
+	GetCurrentUser() (*entity.User, error)
+}
+
+func NewCmdFeedback(t *terminal.Terminal, store FeedbackStore) *cobra.Command {
 	var message string
 
 	cmd := &cobra.Command{
@@ -29,7 +34,12 @@ func NewCmdFeedback(t *terminal.Terminal) *cobra.Command {
 				})
 			}
 
-			analytics.CaptureFeedback(message)
+			userID := analytics.GetOrCreateAnalyticsID()
+			if user, err := store.GetCurrentUser(); err == nil && user != nil {
+				userID = user.ID
+			}
+
+			analytics.CaptureFeedback(userID, message)
 
 			t.Vprintf("%s", t.Green("Thanks for your feedback! We really appreciate it.\n"))
 			return nil
