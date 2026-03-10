@@ -133,7 +133,7 @@ type registerOpts struct {
 }
 
 // runRegister runs a single registration flow; the only difference by mode is whether we prompt or use opts.
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit // ok
+func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit,gocyclo // ok
 	// Basic validation
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
