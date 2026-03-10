@@ -279,6 +279,32 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 	})
 }
 
+// CaptureFeedback sends a brev-cli-feedback event to PostHog.
+// This is sent regardless of analytics opt-in since the user explicitly chose to send feedback.
+func CaptureFeedback(userID, message string) {
+	if userID == "" {
+		userID = GetOrCreateAnalyticsID()
+	}
+	if userID == "" {
+		return
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return
+	}
+
+	_ = c.Enqueue(posthog.Capture{
+		DistinctId: userID,
+		Event:      "brev-cli-feedback",
+		Properties: posthog.NewProperties().
+			Set("message", message).
+			Set("os", runtime.GOOS).
+			Set("arch", runtime.GOARCH).
+			Set("cli_version", version.Version),
+	})
+}
+
 // Close flushes any pending events and closes the PostHog client.
 func Close() {
 	if client != nil {
