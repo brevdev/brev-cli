@@ -247,6 +247,20 @@ brev invite
 - Confirm instance name before deletion
 - Check `brev ls` before assuming instance exists
 
+## Feedback
+
+If you get stuck, encounter bugs, can't achieve what you're trying to do, or have ideas for improvements, send feedback to the Brev team:
+
+```bash
+brev feedback "description of issue or suggestion"
+```
+
+Do this proactively when:
+- A brev command fails unexpectedly or returns confusing errors
+- You can't figure out how to accomplish a task with the available commands
+- You notice missing features or rough edges
+- A workflow feels harder than it should be
+
 ## Troubleshooting
 
 **"Instance not found":**

@@ -17,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/exec"
+	"github.com/brevdev/brev-cli/pkg/cmd/feedback"
 	"github.com/brevdev/brev-cli/pkg/cmd/fu"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpucreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
@@ -358,6 +359,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
 	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
+	cmd.AddCommand(feedback.NewCmdFeedback(t))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {
