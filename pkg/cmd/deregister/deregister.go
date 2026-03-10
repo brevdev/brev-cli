@@ -102,7 +102,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	// Only prompt for login when there is a device to deregister.
