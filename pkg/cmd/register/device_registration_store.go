@@ -26,6 +26,7 @@ type DeviceRegistration struct {
 	ExternalNodeID  string          `json:"external_node_id"`
 	DisplayName     string          `json:"display_name"`
 	OrgID           string          `json:"org_id"`
+	OrgName         string          `json:"org_name"`
 	DeviceID        string          `json:"device_id"`
 	RegisteredAt    string          `json:"registered_at"`
 	HardwareProfile HardwareProfile `json:"hardware_profile"`
@@ -79,7 +80,7 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		return nil, breverrors.WrapAndTrace(breverrors.New("device registration not found, run 'brev register' first"))
+		return nil, breverrors.New("device registration not found, run 'brev register' first")
 	}
 	var reg DeviceRegistration
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {

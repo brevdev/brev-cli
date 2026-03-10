@@ -98,6 +98,7 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", u.Username)
 	t.Vprint("")
 
+	t.Vprint("")
 	port, err := register.PromptSSHPort(t)
 	if err != nil {
 		return fmt.Errorf("SSH port: %w", err)

@@ -10,6 +10,7 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	"github.com/briandowns/spinner"
 	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -141,28 +142,51 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, nam
 // runRegisterSteps performs netbird install, hardware profile, AddNode, save registration, and runSetup.
 // It does not prompt or enable SSH. Used by both flag-driven and prompt-driven flows.
 func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps) (*DeviceRegistration, error) {
+	const clearLine = "\033[2K\n"
 	t.Vprint("")
+
+	// Stop spinner (and clear its line) before any of our prints so stdout and stderr don't interleave.
+	var sp *spinner.Spinner
+	stopSpinner := func() {
+		if sp != nil {
+			sp.FinalMSG = clearLine
+			sp.Stop()
+			sp = nil
+		}
+	}
+	defer stopSpinner()
+
 	t.Vprint(t.Yellow("[Step 1/3] Setting up Brev tunnel..."))
-	if err := deps.netbird.Install(); err != nil {
+	sp = t.NewSpinner()
+	sp.Suffix = " Registering device..."
+	sp.Start()
+	err := deps.netbird.Install()
+	stopSpinner()
+	if err != nil {
 		return nil, fmt.Errorf("brev tunnel setup failed: %w", err)
 	}
-	t.Vprint(t.Green("  Brev tunnel ready."))
+	t.Vprintf("%s  Brev tunnel ready.\n", t.Green("  ✓"))
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
-	t.Vprint("")
-
+	sp = t.NewSpinner()
+	sp.Suffix = " Registering device..."
+	sp.Start()
 	hwProfile, err := deps.hardwareProfiler.Profile()
+	stopSpinner()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
-
+	t.Vprintf("%s  Hardware profile collected.\n", t.Green("  ✓"))
+	t.Vprint("")
 	t.Vprint("  Hardware profile:")
 	t.Vprint(FormatHardwareProfile(hwProfile))
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
-
+	sp = t.NewSpinner()
+	sp.Suffix = " Registering device..."
+	sp.Start()
 	deviceID := uuid.New().String()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
@@ -172,6 +196,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		NodeSpec:       toProtoNodeSpec(hwProfile),
 	}))
 	if err != nil {
+		stopSpinner()
 		return nil, fmt.Errorf("failed to register node: %w", err)
 	}
 
@@ -180,21 +205,25 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		ExternalNodeID:  node.GetExternalNodeId(),
 		DisplayName:     name,
 		OrgID:           org.ID,
+		OrgName:         org.Name,
 		DeviceID:        deviceID,
 		RegisteredAt:    time.Now().UTC().Format(time.RFC3339),
 		HardwareProfile: *hwProfile,
 	}
 	if err := deps.registrationStore.Save(reg); err != nil {
+		stopSpinner()
 		return nil, fmt.Errorf("node registered but failed to save locally: %w", err)
 	}
 
-	t.Vprint(t.Green("  Registration complete."))
 	runSetup(node, t, deps)
+	stopSpinner()
+	t.Vprintf("%s  Node registered.\n", t.Green("  ✓"))
+	t.Vprintf("%s  Registration complete.\n", t.Green("  ✓"))
 	return reg, nil
 }
 
 // resolveOrgPromptDriven resolves organization for prompt-driven flow: by name if --org given, else always list and select with arrow keys.
-func resolveOrgPromptDriven(s RegisterStore, orgName string, deps registerDeps) (*entity.Organization, error) {
+func resolveOrgPromptDriven(t *terminal.Terminal, s RegisterStore, orgName string, deps registerDeps) (*entity.Organization, error) {
 	if orgName != "" {
 		orgs, err := s.GetOrganizationsByName(orgName)
 		if err != nil {
@@ -217,6 +246,7 @@ func resolveOrgPromptDriven(s RegisterStore, orgName string, deps registerDeps) 
 		return nil, fmt.Errorf("no organization found; please create or join an organization first")
 	}
 
+	t.Vprint("")
 	names := make([]string, len(list))
 	for i := range list {
 		names[i] = list[i].Name
@@ -239,6 +269,11 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
+	// Ensure user is logged in before any other prompts (email/login happens here if needed).
+	if _, err := s.GetCurrentUser(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
 	alreadyRegistered, err := deps.registrationStore.Exists()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -248,6 +283,7 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 	}
 
 	if name == "" {
+		t.Vprint("")
 		name = terminal.PromptGetInput(terminal.PromptContent{
 			Label:      "Device name",
 			ErrorMsg:   "name is required",
@@ -259,7 +295,8 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 		return breverrors.WrapAndTrace(err)
 	}
 
-	org, err := resolveOrgPromptDriven(s, orgName, deps)
+	t.Vprint("")
+	org, err := resolveOrgPromptDriven(t, s, orgName, deps)
 	if err != nil {
 		return err
 	}
@@ -274,16 +311,20 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Green("Registering your device with Brev"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint(t.White("  Registering your device with Brev"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	t.Vprintf("  Name:         %s\n", t.Yellow(name))
-	t.Vprintf("  Organization: %s\n", org.Name)
-	t.Vprintf("  Registering for Linux user:   %s\n", osUser.Username)
+	t.Vprint(t.Green("  Please confirm before continuing:"))
 	t.Vprint("")
-	t.Vprint("This will perform the following steps:")
-	t.Vprint("  1. Set up Brev tunnel")
-	t.Vprint("  2. Collect hardware profile")
-	t.Vprint("  3. Register this machine with Brev")
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device name:")), t.BoldBlue(name))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
+	t.Vprint("")
+	t.Vprint(t.Yellow("  This will:"))
+	t.Vprint("    1. Set up Brev tunnel")
+	t.Vprint("    2. Collect hardware profile")
+	t.Vprint("    3. Register this machine with Brev")
 	t.Vprint("")
 
 	if !deps.prompter.ConfirmYesNo("Proceed with registration?") {
@@ -465,22 +506,28 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 // grantSSHAccessWithPort enables SSH; if port is 0, prompts for port (prompt-driven). Otherwise uses the given port (flag-driven).
 func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
 	t.Vprint("")
-	t.Vprint(t.Green("Enabling SSH access on this device"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint(t.White("  Enabling SSH access on this device"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
-	t.Vprintf("  Brev user:  %s\n", brevUser.ID)
-	t.Vprintf("  Linux user: %s\n", osUser.Username)
+	t.Vprint(t.Green("  Please confirm before continuing:"))
 	t.Vprint("")
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device name:")), t.BoldBlue(reg.DisplayName))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node ID:")), t.BoldBlue(reg.ExternalNodeID))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUser.ID))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
 
 	var err error
 	if port == 0 {
+		t.Vprint("")
 		port, err = PromptSSHPort(t)
 		if err != nil {
 			return fmt.Errorf("SSH port: %w", err)
 		}
 	} else {
-		t.Vprintf("  SSH port:   %d\n", port)
+		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "SSH port:")), t.BoldBlue(fmt.Sprintf("%d", port)))
 	}
+	t.Vprint("")
 
 	if err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {
 		return fmt.Errorf("allocate SSH port failed: %w", err)
@@ -491,6 +538,7 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 		return fmt.Errorf("grant SSH failed: %w", err)
 	}
 
+	t.Vprint("")
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 	return nil
 }

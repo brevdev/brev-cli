@@ -1,6 +1,7 @@
 package register
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -233,15 +234,18 @@ func ClearTestSSHPort() { testSSHPort = nil }
 
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
 // they press Enter or leave it empty. Returns an error for invalid port numbers.
+// Uses a single print + stdin read to avoid promptui rendering the label twice.
 func PromptSSHPort(t *terminal.Terminal) (int32, error) {
 	if testSSHPort != nil {
 		return *testSSHPort, nil
 	}
-	portStr := terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "  SSH port (default 22): ",
-		AllowEmpty: true,
-	})
-	portStr = strings.TrimSpace(portStr)
+	t.Vprintf("  %s ", t.Green("SSH port (default 22):"))
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return 0, fmt.Errorf("reading input: %w", err)
+	}
+	portStr := strings.TrimSpace(line)
 	if portStr == "" {
 		return defaultSSHPort, nil
 	}
