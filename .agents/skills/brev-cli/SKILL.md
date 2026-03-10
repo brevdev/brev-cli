@@ -255,6 +255,8 @@ If you get stuck, encounter bugs, can't achieve what you're trying to do, or hav
 brev feedback "description of issue or suggestion"
 ```
 
+**IMPORTANT: Never include secrets, passwords, API keys, or sensitive information in feedback.**
+
 Do this proactively when:
 - A brev command fails unexpectedly or returns confusing errors
 - You can't figure out how to accomplish a task with the available commands

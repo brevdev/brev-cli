@@ -29,7 +29,7 @@ func NewCmdFeedback(t *terminal.Terminal, store FeedbackStore) *cobra.Command {
 			}
 			if message == "" {
 				message = terminal.PromptGetInput(terminal.PromptContent{
-					Label:    "What feedback do you have for us? (please don't include secrets)",
+					Label:    "What feedback do you have for us?",
 					ErrorMsg: "Please enter some feedback",
 				})
 			}
