@@ -305,10 +305,6 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	osUser, err := user.Current()
-	if err != nil {
-		return fmt.Errorf("failed to determine current Linux user: %w", err)
-	}
 
 	t.Vprint("")
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
@@ -317,9 +313,8 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 	t.Vprint("")
 	t.Vprint(t.Green("  Please confirm before continuing:"))
 	t.Vprint("")
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device name:")), t.BoldBlue(name))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(name))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name+" ("+org.ID+")"))
 	t.Vprint("")
 	t.Vprint(t.Yellow("  This will:"))
 	t.Vprint("    1. Set up Brev tunnel")
@@ -338,6 +333,10 @@ func runRegisterPromptDriven(ctx context.Context, t *terminal.Terminal, s Regist
 	}
 
 	if deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?") {
+		osUser, err := user.Current()
+		if err != nil {
+			return fmt.Errorf("failed to determine current Linux user: %w", err)
+		}
 		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, 0); err != nil {
 			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
 		}
@@ -512,9 +511,9 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 	t.Vprint("")
 	t.Vprint(t.Green("  Please confirm before continuing:"))
 	t.Vprint("")
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device name:")), t.BoldBlue(reg.DisplayName))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node ID:")), t.BoldBlue(reg.ExternalNodeID))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUser.ID))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(reg.OrgName+" ("+reg.OrgID+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUser.Username+" ("+brevUser.ID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
 
 	var err error
