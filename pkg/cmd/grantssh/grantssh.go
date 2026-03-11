@@ -103,7 +103,7 @@ type grantSSHOpts struct {
 }
 
 // runGrantSSH runs the grant-ssh flow; the only difference by mode is whether we prompt or use opts.
-func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opts grantSSHOpts, deps grantSSHDeps) error {
+func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opts grantSSHOpts, deps grantSSHDeps) error { //nolint:gocognit,gocyclo,funlen // ok
 	// Run through the login flow
 	currentUser, err := s.GetCurrentUser()
 	if err != nil {
@@ -131,7 +131,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		org, err = helpers.ResolveOrgByName(s, opts.orgName)
 	}
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())

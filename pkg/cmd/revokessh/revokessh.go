@@ -95,7 +95,7 @@ type revokeSSHOpts struct {
 }
 
 // runRevokeSSH runs the revoke-ssh flow; the only difference by mode is whether we prompt or use opts.
-func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, opts revokeSSHOpts, deps revokeSSHDeps) error {
+func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, opts revokeSSHOpts, deps revokeSSHDeps) error { //nolint:gocognit,gocyclo,funlen // ok
 	// Basic validation
 	if !opts.interactive {
 		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" || opts.linuxUser == "" {
@@ -112,13 +112,13 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		}
 		org, err := helpers.SelectOrganizationInteractive(t, list, deps.prompter)
 		if err != nil {
-			return err
+			return err //nolint:wrapcheck // do not present stack trace for this error
 		}
 		selectedOrg = org
 	} else {
 		org, err := helpers.ResolveOrgByName(s, opts.orgName)
 		if err != nil {
-			return err
+			return err //nolint:wrapcheck // do not present stack trace for this error
 		}
 		selectedOrg = org
 	}
@@ -140,13 +140,13 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		}
 		node, err := register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
 		if err != nil {
-			return err
+			return err //nolint:wrapcheck // do not present stack trace for this error
 		}
 		selectedNode = node
 	} else {
 		node, err := helpers.ResolveNodeByName(ctx, client, selectedOrg.ID, opts.nodeName)
 		if err != nil {
-			return err
+			return err //nolint:wrapcheck // do not present stack trace for this error
 		}
 		selectedNode = node
 	}

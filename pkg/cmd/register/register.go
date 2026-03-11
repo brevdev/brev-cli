@@ -343,11 +343,19 @@ func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerD
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	return helpers.SelectOrganizationInteractive(t, list, deps.selector)
+	org, err := helpers.SelectOrganizationInteractive(t, list, deps.selector)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return org, nil
 }
 
 func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
-	return helpers.ResolveOrgByName(s, orgName)
+	org, err := helpers.ResolveOrgByName(s, orgName)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return org, nil
 }
 
 // checkExistingRegistration verifies connectivity for an already-registered node.
