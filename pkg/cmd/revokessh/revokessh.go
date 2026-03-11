@@ -185,21 +185,23 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		targetUserID = selectedAccess.GetUserId()
 		targetLinuxUser = selectedAccess.GetLinuxUser()
 	} else {
-		targetUserID, err := resolveUserID(s, selectedOrg.ID, opts.userIDOrEmail)
+		resolvedUserID, err := resolveUserID(s, selectedOrg.ID, opts.userIDOrEmail)
 		if err != nil {
 			return err
 		}
-		targetLinuxUser = opts.linuxUser
 		var found bool
 		for _, sa := range nodeSshAccesses {
-			if sa.GetUserId() == targetUserID && sa.GetLinuxUser() == targetLinuxUser {
+			if sa.GetUserId() == resolvedUserID && sa.GetLinuxUser() == opts.linuxUser {
 				found = true
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("no SSH access entry found for user %q and linux_user %q on this node", targetUserID, targetLinuxUser)
+			return fmt.Errorf("no SSH access entry found for user %q and linux_user %q on node %q", targetUserID, targetLinuxUser, selectedNode.GetName())
 		}
+
+		targetUserID = resolvedUserID
+		targetLinuxUser = opts.linuxUser
 	}
 
 	userDisplay := targetUserID
@@ -244,10 +246,11 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 
 // resolveUserID resolves idOrEmail to a Brev user ID using org members when it looks like an email.
 func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, error) {
-	idOrEmail = strings.TrimSpace(strings.ToLower(idOrEmail))
 	if idOrEmail == "" {
 		return "", fmt.Errorf("user is required")
 	}
+
+	// Search by ID
 	if !strings.Contains(idOrEmail, "@") {
 		u, err := s.GetUserByID(idOrEmail)
 		if err == nil && u != nil {
@@ -255,6 +258,8 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 		}
 		return idOrEmail, nil
 	}
+
+	// Search by email
 	attachments, err := s.GetOrgRoleAttachments(orgID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list org members: %w", err)
@@ -262,11 +267,14 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 	for _, a := range attachments {
 		u, err := s.GetUserByID(a.Subject)
 		if err != nil {
+			// Ignore error and continue
 			continue
 		}
-		if u != nil && strings.ToLower(u.Email) == idOrEmail {
+		if u != nil && strings.EqualFold(u.Email, idOrEmail) {
 			return u.ID, nil
 		}
 	}
+
+	// No match found
 	return "", fmt.Errorf("no org member found with email %q", idOrEmail)
 }
