@@ -14,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -136,6 +137,7 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 			return ""
 		}},
 		confirmer:         mockConfirmer{confirm: true},
+		gater:             sudo.CachedGater{},
 		netbird:           &mockNetBirdManager{},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,

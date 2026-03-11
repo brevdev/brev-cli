@@ -48,6 +48,7 @@ type deregisterDeps struct {
 	platform          externalnode.PlatformChecker
 	prompter          terminal.Selector
 	confirmer         terminal.Confirmer
+	gater             sudo.Gater
 	netbird           register.NetBirdManager
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
@@ -59,6 +60,7 @@ func defaultDeregisterDeps() deregisterDeps {
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		confirmer:         register.TerminalPrompter{},
+		gater:             sudo.Default,
 		netbird:           register.Netbird{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
@@ -100,7 +102,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		return fmt.Errorf("brev deregister is only supported on Linux")
 	}
 
-	if err := sudo.Gate(t, deps.confirmer, "Device deregistration", skipConfirm); err != nil {
+	if err := deps.gater.Gate(t, deps.confirmer, "Device deregistration", skipConfirm); err != nil {
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 

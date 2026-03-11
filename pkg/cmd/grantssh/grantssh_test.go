@@ -237,6 +237,18 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 
 	var gotReq *nodev1.GrantNodeSSHAccessRequest
 	svc := &fakeNodeService{
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			// Return node with SshAccess so interactive flow gets Linux user options.
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{
+					{
+						ExternalNodeId: "unode_abc",
+						Name:           "My Spark",
+						SshAccess:      []*nodev1.SSHAccess{{UserId: "user_1", LinuxUser: "ubuntu"}},
+					},
+				},
+			}, nil
+		},
 		grantSSHFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
 			gotReq = req
 			return &nodev1.GrantNodeSSHAccessResponse{}, nil

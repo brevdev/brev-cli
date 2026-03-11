@@ -55,6 +55,7 @@ type registerDeps struct {
 	platform          externalnode.PlatformChecker
 	prompter          terminal.Confirmer
 	selector          terminal.Selector
+	gater             sudo.Gater
 	netbird           NetBirdManager
 	setupRunner       SetupRunner
 	nodeClients       externalnode.NodeClientFactory
@@ -68,6 +69,7 @@ func defaultRegisterDeps() registerDeps {
 		platform:          LinuxPlatform{},
 		prompter:          p,
 		selector:          p,
+		gater:             sudo.Default,
 		netbird:           Netbird{},
 		setupRunner:       ShellSetupRunner{},
 		nodeClients:       DefaultNodeClientFactory{},
@@ -143,11 +145,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
 	}
-	if opts.interactive {
-		if err := sudo.Gate(t, deps.prompter, "Device registration", opts.skipConfirm); err != nil {
-			return fmt.Errorf("sudo issue: %w", err)
-		}
-	} else {
+	// Always gate on sudo; skip confirmation prompt when non-interactive or --approve.
+	if err := deps.gater.Gate(t, deps.prompter, "Device registration", !opts.interactive || opts.skipConfirm); err != nil {
+		return fmt.Errorf("sudo issue: %w", err)
+	}
+	if !opts.interactive {
 		if opts.name == "" || opts.orgName == "" {
 			return fmt.Errorf("in non-interactive mode --name and --org are required")
 		}

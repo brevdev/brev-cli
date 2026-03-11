@@ -13,6 +13,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -172,6 +173,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 		platform:    mockPlatform{compatible: true},
 		prompter:    mockConfirmer{confirm: true},
 		selector:    mockSelector{},
+		gater:       sudo.CachedGater{},
 		netbird:     mockNetBirdManager{},
 		setupRunner: &mockSetupRunner{},
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
