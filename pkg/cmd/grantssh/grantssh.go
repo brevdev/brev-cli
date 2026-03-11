@@ -5,6 +5,7 @@ package grantssh
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
@@ -14,6 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/externalnode/helpers"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -23,6 +25,8 @@ import (
 type GrantSSHStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetOrganizationsByName(name string) ([]entity.Organization, error)
+	ListOrganizations() ([]entity.Organization, error)
 	GetAccessToken() (string, error)
 	GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error)
 	GetUserByID(userID string) (*entity.User, error)
@@ -50,81 +54,158 @@ func defaultGrantSSHDeps() grantSSHDeps {
 }
 
 func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
+	var orgFlag string
+	var nodeFlag string
+	var userFlag string
 	var linuxUser string
+	var approveFlag bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "grant-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Grant SSH access to a node for another org member",
-		Long:                  "Grant SSH access to a node for another member of your organization",
-		Example:               "  brev grant-ssh --linux-user ubuntu",
+		Long:                  "Grant SSH access to a node for another member of your organization. Interactive: no flags, prompts for org and user. Non-interactive: --org, --user, --linux-user required.",
+		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --approve",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			deps := defaultGrantSSHDeps()
+			interactive := orgFlag == "" && nodeFlag == "" && userFlag == ""
 			if linuxUser == "" {
 				linuxUser = register.GetCachedLinuxUser()
 			}
-			if linuxUser == "" {
-				return fmt.Errorf("--linux-user is required (no cached value found)")
+			opts := grantSSHOpts{
+				interactive:   interactive,
+				orgName:       orgFlag,
+				nodeName:      nodeFlag,
+				userIDOrEmail: userFlag,
+				linuxUser:     linuxUser,
+				skipConfirm:   approveFlag,
 			}
-			register.SaveCachedLinuxUser(linuxUser)
-			return runGrantSSH(cmd.Context(), t, store, deps, linuxUser)
+			return runGrantSSH(cmd.Context(), t, store, opts, defaultGrantSSHDeps())
 		},
 	}
 
-	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node")
+	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode)")
+	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
+	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to grant (required in non-interactive mode)")
+	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (required in non-interactive mode or use cached value)")
+	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
 	return cmd
 }
 
-func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, deps grantSSHDeps, linuxUser string) error { //nolint:funlen // grant-ssh flow
+// grantSSHOpts carries mode and inputs: when interactive, org/user/linuxUser from prompts; otherwise from flags.
+type grantSSHOpts struct {
+	interactive   bool
+	orgName       string
+	nodeName      string
+	userIDOrEmail string
+	linuxUser     string
+	skipConfirm   bool
+}
+
+// runGrantSSH runs the grant-ssh flow; the only difference by mode is whether we prompt or use opts.
+func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opts grantSSHOpts, deps grantSSHDeps) error {
+	// Run through the login flow
 	currentUser, err := s.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	org, err := s.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return fmt.Errorf("no organization found; please create or join an organization first")
+	if !opts.interactive {
+		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" {
+			return fmt.Errorf("in non-interactive mode --org, --node, and --user are required")
+		}
+		if opts.linuxUser == "" {
+			return fmt.Errorf("--linux-user is required in non-interactive mode (no cached value found)")
+		}
 	}
 
-	node, err := register.ResolveNode(ctx, deps.prompter, deps.nodeClients, s, deps.registrationStore, org.ID)
+	// Capture the target organization
+	var org *entity.Organization
+	if opts.interactive {
+		allOrgs, listErr := s.ListOrganizations()
+		if listErr != nil {
+			return breverrors.WrapAndTrace(listErr)
+		}
+		org, err = helpers.SelectOrganizationInteractive(t, allOrgs, deps.prompter)
+	} else {
+		org, err = helpers.ResolveOrgByName(s, opts.orgName)
+	}
+	if err != nil {
+		return err
+	}
+	
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+
+	// Resolve the target node
+	node, err := register.ResolveNode(ctx, t, deps.prompter, deps.nodeClients, s, deps.registrationStore, org.ID, opts.interactive)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	orgMembers, err := getOrgMembers(currentUser, t, s, org.ID)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	// Build selection list.
-	usersToSelect := make([]string, len(orgMembers))
-	for i, r := range orgMembers {
-		usersToSelect[i] = fmt.Sprintf("%s (%s)", r.user.Name, r.user.Email)
-	}
-
-	selected := deps.prompter.Select("Select a user to grant SSH access:", usersToSelect)
-
-	selectedUser, err := getSelectedUser(usersToSelect, selected, orgMembers)
-	if err != nil {
 		return err
 	}
 
+	var selectedUser *entity.User
+	var linuxUser string
+	if opts.interactive {
+		usersToSelect := make([]string, len(orgMembers))
+		for i, r := range orgMembers {
+			usersToSelect[i] = fmt.Sprintf("%s (%s)", r.user.Name, r.user.Email)
+		}
+		selected := deps.prompter.Select("Select a user to grant SSH access:", usersToSelect)
+		selectedUser, err = getSelectedUser(usersToSelect, selected, orgMembers)
+		if err != nil {
+			return err
+		}
+		linuxUserOptions := linuxUsersFromNode(node)
+		if len(linuxUserOptions) > 0 {
+			t.Vprint("")
+			linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
+		} else {
+			linuxUser = opts.linuxUser
+			if linuxUser == "" {
+				linuxUser = register.GetCachedLinuxUser()
+			}
+			if linuxUser == "" {
+				return fmt.Errorf("no Linux users on this node yet; run with --linux-user to specify one (e.g. after enable-ssh on the node)")
+			}
+		}
+		register.SaveCachedLinuxUser(linuxUser)
+	} else {
+		selectedUser, err = findUserByIDOrEmail(orgMembers, opts.userIDOrEmail)
+		if err != nil {
+			return err
+		}
+		linuxUser = opts.linuxUser
+	}
+
 	t.Vprint("")
-	t.Vprint(t.Green("Granting SSH access"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint(t.White("  Granting SSH access"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	t.Vprintf("  Node:       %s (%s)\n", node.DisplayName, node.ExternalNodeID)
-	t.Vprintf("  Brev user:  %s (%s)\n", selectedUser.Name, selectedUser.ID)
-	t.Vprintf("  Linux user: %s\n", linuxUser)
+	if opts.interactive && !opts.skipConfirm {
+		t.Vprint(t.Green("  Please confirm before continuing:"))
+		t.Vprint("")
+	}
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node:")), t.BoldBlue(node.GetName()+" ("+node.GetExternalNodeId()+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(selectedUser.Name+" ("+selectedUser.ID+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(linuxUser))
 	t.Vprint("")
 
-	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	if !opts.skipConfirm {
+		confirm := deps.prompter.Select("Proceed?", []string{"Yes, proceed", "No, cancel"})
+		if confirm != "Yes, proceed" {
+			t.Vprint("Grant canceled.")
+			return nil
+		}
+	}
+
 	_, err = client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
-		ExternalNodeId: node.ExternalNodeID,
+		ExternalNodeId: node.GetExternalNodeId(),
 		UserId:         selectedUser.ID,
 		LinuxUser:      linuxUser,
 	}))
@@ -132,8 +213,35 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, dep
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, node.DisplayName)))
+	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, node.GetName())))
 	return nil
+}
+
+// linuxUsersFromNode returns distinct Linux users from the node's existing SSH access (for picker).
+func linuxUsersFromNode(node *nodev1.ExternalNode) []string {
+	if node == nil {
+		return nil
+	}
+	seen := make(map[string]bool)
+	var out []string
+	for _, sa := range node.GetSshAccess() {
+		u := sa.GetLinuxUser()
+		if u != "" && !seen[u] {
+			seen[u] = true
+			out = append(out, u)
+		}
+	}
+	return out
+}
+
+func findUserByIDOrEmail(members []resolvedMember, idOrEmail string) (*entity.User, error) {
+	idOrEmail = strings.TrimSpace(strings.ToLower(idOrEmail))
+	for _, r := range members {
+		if strings.ToLower(r.user.ID) == idOrEmail || strings.ToLower(r.user.Email) == idOrEmail {
+			return r.user, nil
+		}
+	}
+	return nil, fmt.Errorf("no org member found matching %q", idOrEmail)
 }
 
 func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgID string) ([]resolvedMember, error) {
@@ -142,7 +250,6 @@ func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHSto
 		return nil, fmt.Errorf("failed to fetch org members: %w", err)
 	}
 
-	// Filter out current user.
 	var otherMembers []entity.OrgRoleAttachment
 	for _, a := range attachments {
 		if a.Subject != currentUser.ID {
@@ -181,6 +288,5 @@ func getSelectedUser(usersToSelect []string, selected string, orgMembers []resol
 	if selectedIdx < 0 {
 		return nil, fmt.Errorf("selected item %q did not match any org member", selected)
 	}
-	selectedUser := orgMembers[selectedIdx].user
-	return selectedUser, nil
+	return orgMembers[selectedIdx].user, nil
 }

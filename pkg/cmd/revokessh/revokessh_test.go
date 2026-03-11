@@ -80,6 +80,24 @@ func (m *mockRevokeSSHStore) GetUserByID(userID string) (*entity.User, error) {
 	return nil, fmt.Errorf("user %s not found", userID)
 }
 
+func (m *mockRevokeSSHStore) ListOrganizations() ([]entity.Organization, error) {
+	if m.org == nil {
+		return nil, nil
+	}
+	return []entity.Organization{*m.org}, nil
+}
+
+func (m *mockRevokeSSHStore) GetOrganizationsByName(name string) ([]entity.Organization, error) {
+	if m.org != nil && m.org.Name == name {
+		return []entity.Organization{*m.org}, nil
+	}
+	return nil, nil
+}
+
+func (m *mockRevokeSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAttachment, error) {
+	return nil, nil
+}
+
 // fakeNodeService implements the server side of ExternalNodeService for testing.
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
@@ -137,8 +155,8 @@ func Test_runRevokeSSH_NotRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	// No registration and no nodes from ListNodes → should fail
-	err := runRevokeSSH(context.Background(), term, store, deps)
+	opts := revokeSSHOpts{interactive: true, skipConfirm: true}
+	err := runRevokeSSH(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when not registered and no nodes available")
 	}
@@ -171,7 +189,8 @@ func Test_runRevokeSSH_NoSSHAccess(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRevokeSSH(context.Background(), term, store, deps)
+	opts := revokeSSHOpts{interactive: true, skipConfirm: true}
+	err := runRevokeSSH(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("expected nil error for no SSH access, got: %v", err)
 	}
@@ -214,7 +233,8 @@ func Test_runRevokeSSH_RevokeAccess(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRevokeSSH(context.Background(), term, store, deps)
+	opts := revokeSSHOpts{interactive: true, skipConfirm: true}
+	err := runRevokeSSH(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRevokeSSH failed: %v", err)
 	}
@@ -266,7 +286,8 @@ func Test_runRevokeSSH_RPCFailure(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRevokeSSH(context.Background(), term, store, deps)
+	opts := revokeSSHOpts{interactive: true, skipConfirm: true}
+	err := runRevokeSSH(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when RevokeNodeSSHAccess fails")
 	}

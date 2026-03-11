@@ -95,10 +95,52 @@ func (m *mockGrantSSHStore) GetUserByID(userID string) (*entity.User, error) {
 	return u, nil
 }
 
+func (m *mockGrantSSHStore) ListOrganizations() ([]entity.Organization, error) {
+	if m.org == nil {
+		return nil, nil
+	}
+	return []entity.Organization{*m.org}, nil
+}
+
+func (m *mockGrantSSHStore) GetOrganizationsByName(name string) ([]entity.Organization, error) {
+	if m.org != nil && m.org.Name == name {
+		return []entity.Organization{*m.org}, nil
+	}
+	return nil, nil
+}
+
 // fakeNodeService implements the server side of ExternalNodeService for testing.
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
-	grantSSHFn func(*nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error)
+	listNodesFn func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
+	grantSSHFn  func(*nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error)
+}
+
+func (f *fakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+	if f.listNodesFn != nil {
+		resp, err := f.listNodesFn(req.Msg)
+		if err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(resp), nil
+	}
+	// Default: return one node so interactive node picker has something to select.
+	return connect.NewResponse(&nodev1.ListNodesResponse{
+		Items: []*nodev1.ExternalNode{
+			{ExternalNodeId: "unode_abc", Name: "My Spark"},
+		},
+	}), nil
+}
+
+func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
+	// Return node with SSHAccess so getNodeLinuxUserOptions has linux user options for the picker.
+	return connect.NewResponse(&nodev1.GetNodeResponse{
+		ExternalNode: &nodev1.ExternalNode{
+			ExternalNodeId: req.Msg.GetExternalNodeId(),
+			Name:           "My Spark",
+			SshAccess:      []*nodev1.SSHAccess{{UserId: "user_1", LinuxUser: "ubuntu"}},
+		},
+	}), nil
 }
 
 func (f *fakeNodeService) OpenPort(_ context.Context, req *connect.Request[nodev1.OpenPortRequest]) (*connect.Response[nodev1.OpenPortResponse], error) {
@@ -147,13 +189,17 @@ func Test_runGrantSSH_NotRegistered(t *testing.T) {
 		token: "tok",
 	}
 
-	svc := &fakeNodeService{}
+	svc := &fakeNodeService{
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{Items: nil}, nil // no nodes so node picker fails
+		},
+	}
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	// No registration and no nodes from ListNodes → should fail
-	err := runGrantSSH(context.Background(), term, store, deps, "testuser")
+	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser"}
+	err := runGrantSSH(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when not registered and no nodes available")
 	}
@@ -201,7 +247,8 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps, "ubuntu")
+	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "ubuntu"}
+	err := runGrantSSH(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runGrantSSH failed: %v", err)
 	}
@@ -251,7 +298,8 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps, "testuser")
+	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser"}
+	err := runGrantSSH(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when GrantNodeSSHAccess fails")
 	}
@@ -281,7 +329,8 @@ func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runGrantSSH(context.Background(), term, store, deps, "testuser")
+	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser"}
+	err := runGrantSSH(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when no other members exist")
 	}

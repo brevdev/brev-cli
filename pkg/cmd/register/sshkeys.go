@@ -22,29 +22,33 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
-// NodeSelection holds the result of resolving a target node.
-type NodeSelection struct {
-	ExternalNodeID string
-	DisplayName    string
-}
-
-// ResolveNode determines the target node. If a local registration file exists,
-// it uses that node. Otherwise, it lists nodes from the organization and
-// prompts the user to select one.
+// ResolveNode determines the target node and returns the full node (so callers get SSHAccess etc. without another round trip).
+//
+// Behavior:
+//   - If alwaysShowPicker is false (default): when local registration exists, that node is returned. Otherwise nodes are listed; if exactly one, it is returned; if multiple, user is prompted to select one.
+//   - If alwaysShowPicker is true (e.g. grant-ssh interactive): registration is not used as the result; nodes are always listed and the user is always prompted. When this machine is registered, that node is marked " — this node" in the list. t must be non-nil for the optional blank line before the picker.
 func ResolveNode(
 	ctx context.Context,
+	t *terminal.Terminal,
 	prompter terminal.Selector,
 	nodeClients externalnode.NodeClientFactory,
 	tokenProvider externalnode.TokenProvider,
 	registrationStore RegistrationStore,
 	orgID string,
-) (*NodeSelection, error) {
-	reg, err := registrationStore.Load()
-	if err == nil {
-		return &NodeSelection{
-			ExternalNodeID: reg.ExternalNodeID,
-			DisplayName:    reg.DisplayName,
-		}, nil
+	alwaysShowPicker bool,
+) (*nodev1.ExternalNode, error) {
+	reg, regErr := registrationStore.Load()
+
+	if !alwaysShowPicker && regErr == nil && reg != nil {
+		client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
+		resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
+			ExternalNodeId: reg.ExternalNodeID,
+			OrganizationId: reg.OrgID,
+		}))
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch node: %w", err)
+		}
+		return resp.Msg.GetExternalNode(), nil
 	}
 
 	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
@@ -54,35 +58,44 @@ func ResolveNode(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list nodes: %w", err)
 	}
-
 	nodes := resp.Msg.GetItems()
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("no nodes found in organization")
 	}
 
-	if len(nodes) == 1 {
-		return &NodeSelection{
-			ExternalNodeID: nodes[0].GetExternalNodeId(),
-			DisplayName:    nodes[0].GetName(),
-		}, nil
+	var thisNodeID string
+	if regErr == nil && reg != nil {
+		thisNodeID = reg.ExternalNodeID
+	}
+	if alwaysShowPicker && t != nil {
+		t.Vprint("")
 	}
 
 	labels := make([]string, len(nodes))
 	for i, n := range nodes {
 		labels[i] = fmt.Sprintf("%s (%s)", n.GetName(), n.GetExternalNodeId())
-	}
-
-	selected := prompter.Select("Select a node:", labels)
-	for i, label := range labels {
-		if label == selected {
-			return &NodeSelection{
-				ExternalNodeID: nodes[i].GetExternalNodeId(),
-				DisplayName:    nodes[i].GetName(),
-			}, nil
+		if thisNodeID != "" && n.GetExternalNodeId() == thisNodeID {
+			labels[i] = fmt.Sprintf("%s (%s) — this node", n.GetName(), n.GetExternalNodeId())
 		}
 	}
 
-	return nil, fmt.Errorf("selected item did not match any node")
+	var selected *nodev1.ExternalNode
+	if len(nodes) == 1 && !alwaysShowPicker {
+		selected = nodes[0]
+	} else {
+		chosen := prompter.Select("Select node", labels)
+		for i, label := range labels {
+			if label == chosen {
+				selected = nodes[i]
+				break
+			}
+		}
+		if selected == nil {
+			return nil, fmt.Errorf("selected item did not match any node")
+		}
+	}
+
+	return selected, nil
 }
 
 const (

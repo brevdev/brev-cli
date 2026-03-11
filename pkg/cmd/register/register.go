@@ -17,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/externalnode/helpers"
 	"github.com/brevdev/brev-cli/pkg/names"
 	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -82,14 +83,14 @@ This command sets up network connectivity and registers this machine with Brev.
 
 Two modes are supported:
   • Interactive (default): run 'brev register' with no flags and follow prompts for device name, org, and options.
-  • Non-interactive: use any of --name, --org, --enable-ssh, or --ssh-port. No prompts; --name and --org are required. Use for scripts/CI.`
+  • Non-interactive: use any of --name, --org, or --ssh-port. No prompts; --name and --org are required. Use for scripts/CI.`
 
 	registerExample = `  # Interactive (prompts for device name, org, confirmations)
   brev register
 
   # Non-interactive (any flag implies no prompts; --name and --org required)
   brev register --name my-node --org my-org
-  brev register --name my-node --org my-org --enable-ssh --ssh-port 22`
+  brev register --name my-node --org my-org --ssh-port 22`
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
@@ -342,36 +343,11 @@ func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerD
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if len(list) == 0 {
-		return nil, fmt.Errorf("no organization found; please create or join an organization first")
-	}
-
-	t.Vprint("")
-	names := make([]string, len(list))
-	for i := range list {
-		names[i] = list[i].Name
-	}
-	chosen := deps.selector.Select("Select organization", names)
-	for i := range list {
-		if list[i].Name == chosen {
-			return &list[i], nil
-		}
-	}
-	return nil, fmt.Errorf("selected organization not found")
+	return helpers.SelectOrganizationInteractive(t, list, deps.selector)
 }
 
 func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
-	orgs, err := s.GetOrganizationsByName(orgName)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if len(orgs) == 0 {
-		return nil, fmt.Errorf("no organization found with name %q", orgName)
-	}
-	if len(orgs) > 1 {
-		return nil, fmt.Errorf("multiple organizations found with name %q", orgName)
-	}
-	return &orgs[0], nil
+	return helpers.ResolveOrgByName(s, orgName)
 }
 
 // checkExistingRegistration verifies connectivity for an already-registered node.
