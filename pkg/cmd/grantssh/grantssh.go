@@ -134,11 +134,26 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	if err != nil {
 		return err
 	}
-	
+
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 
-	// Resolve the target node
-	node, err := register.ResolveNode(ctx, t, deps.prompter, deps.nodeClients, s, deps.registrationStore, org.ID, opts.interactive)
+	// Capture the target node
+	var node *nodev1.ExternalNode
+	if opts.interactive {
+		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+			OrganizationId: org.ID,
+		}))
+		if listErr != nil {
+			return breverrors.WrapAndTrace(listErr)
+		}
+		nodes := resp.Msg.GetItems()
+		if len(nodes) == 0 {
+			return fmt.Errorf("no nodes found in organization")
+		}
+		node, err = register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
+	} else {
+		node, err = register.ResolveNodeByName(ctx, deps.nodeClients, s, org.ID, opts.nodeName)
+	}
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

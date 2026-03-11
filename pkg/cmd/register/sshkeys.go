@@ -22,55 +22,18 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
-// ResolveNode determines the target node and returns the full node (so callers get SSHAccess etc. without another round trip).
-//
-// Behavior:
-//   - If alwaysShowPicker is false (default): when local registration exists, that node is returned. Otherwise nodes are listed; if exactly one, it is returned; if multiple, user is prompted to select one.
-//   - If alwaysShowPicker is true (e.g. grant-ssh interactive): registration is not used as the result; nodes are always listed and the user is always prompted. When this machine is registered, that node is marked " — this node" in the list. t must be non-nil for the optional blank line before the picker.
-func ResolveNode(
-	ctx context.Context,
-	t *terminal.Terminal,
-	prompter terminal.Selector,
-	nodeClients externalnode.NodeClientFactory,
-	tokenProvider externalnode.TokenProvider,
-	registrationStore RegistrationStore,
-	orgID string,
-	alwaysShowPicker bool,
-) (*nodev1.ExternalNode, error) {
-	reg, regErr := registrationStore.Load()
-
-	if !alwaysShowPicker && regErr == nil && reg != nil {
-		client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-		resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
-			ExternalNodeId: reg.ExternalNodeID,
-			OrganizationId: reg.OrgID,
-		}))
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch node: %w", err)
-		}
-		return resp.Msg.GetExternalNode(), nil
-	}
-
-	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
-		OrganizationId: orgID,
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list nodes: %w", err)
-	}
-	nodes := resp.Msg.GetItems()
+// SelectNodeFromList prompts the user to select a node from the list, then fetches and returns the full node.
+// When this machine is registered, that node is marked " — this node" in the list.
+// Call this after ListNodes when in interactive mode (same pattern as SelectOrganizationInteractive).
+func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter terminal.Selector, registrationStore RegistrationStore, nodes []*nodev1.ExternalNode) (*nodev1.ExternalNode, error) {
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("no nodes found in organization")
 	}
-
 	var thisNodeID string
-	if regErr == nil && reg != nil {
+	if reg, err := registrationStore.Load(); err == nil && reg != nil {
 		thisNodeID = reg.ExternalNodeID
 	}
-	if alwaysShowPicker && t != nil {
-		t.Vprint("")
-	}
-
+	t.Vprint("")
 	labels := make([]string, len(nodes))
 	for i, n := range nodes {
 		labels[i] = fmt.Sprintf("%s (%s)", n.GetName(), n.GetExternalNodeId())
@@ -78,24 +41,44 @@ func ResolveNode(
 			labels[i] = fmt.Sprintf("%s (%s) — this node", n.GetName(), n.GetExternalNodeId())
 		}
 	}
-
+	chosen := prompter.Select("Select node", labels)
 	var selected *nodev1.ExternalNode
-	if len(nodes) == 1 && !alwaysShowPicker {
-		selected = nodes[0]
-	} else {
-		chosen := prompter.Select("Select node", labels)
-		for i, label := range labels {
-			if label == chosen {
-				selected = nodes[i]
-				break
-			}
-		}
-		if selected == nil {
-			return nil, fmt.Errorf("selected item did not match any node")
+	for i, label := range labels {
+		if label == chosen {
+			selected = nodes[i]
+			break
 		}
 	}
-
+	if selected == nil {
+		return nil, fmt.Errorf("selected item did not match any node")
+	}
 	return selected, nil
+}
+
+// ResolveNodeByName returns the full node for the organization that matches the given name (case-insensitive).
+// Use in non-interactive flows when the node is specified by name (e.g. --node my-node).
+func ResolveNodeByName(ctx context.Context, nodeClients externalnode.NodeClientFactory, tokenProvider externalnode.TokenProvider, orgID string, nodeName string) (*nodev1.ExternalNode, error) {
+	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: orgID,
+	}))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
+	}
+	nodeName = strings.TrimSpace(nodeName)
+	for _, n := range resp.Msg.GetItems() {
+		if strings.EqualFold(n.GetName(), nodeName) {
+			nodeResp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
+				ExternalNodeId: n.GetExternalNodeId(),
+				OrganizationId: orgID,
+			}))
+			if err != nil {
+				return nil, fmt.Errorf("failed to fetch node: %w", err)
+			}
+			return nodeResp.Msg.GetExternalNode(), nil
+		}
+	}
+	return nil, fmt.Errorf("no node found with name %q", nodeName)
 }
 
 const (

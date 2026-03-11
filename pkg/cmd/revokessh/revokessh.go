@@ -39,15 +39,6 @@ type revokeSSHDeps struct {
 	registrationStore register.RegistrationStore
 }
 
-// revokeSSHOpts carries mode and inputs: when interactive, org/user/linuxUser from prompts; otherwise from flags.
-type revokeSSHOpts struct {
-	interactive   bool
-	orgName       string
-	userIDOrEmail string
-	linuxUser     string
-	skipConfirm   bool
-}
-
 func defaultRevokeSSHDeps() revokeSSHDeps {
 	return revokeSSHDeps{
 		prompter:          register.TerminalPrompter{},
@@ -58,6 +49,7 @@ func defaultRevokeSSHDeps() revokeSSHDeps {
 
 func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command {
 	var orgFlag string
+	var nodeFlag string
 	var userFlag string
 	var linuxUserFlag string
 	var approveFlag bool
@@ -68,12 +60,13 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 		DisableFlagsInUseLine: true,
 		Short:                 "Revoke SSH access to a node for an org member",
 		Long:                  "Revoke SSH access to a node for a member of your organization. Interactive: no flags, prompts for org and which access to revoke. Non-interactive: --org, --user, --linux-user required.",
-		Example:               "  brev revoke-ssh\n  brev revoke-ssh --org my-org --user user@example.com --linux-user ubuntu --approve",
+		Example:               "  brev revoke-ssh\n  brev revoke-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --approve",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			interactive := orgFlag == "" && userFlag == "" && linuxUserFlag == ""
+			interactive := orgFlag == "" && nodeFlag == "" && userFlag == "" && linuxUserFlag == ""
 			opts := revokeSSHOpts{
 				interactive:   interactive,
 				orgName:       orgFlag,
+				nodeName:      nodeFlag,
 				userIDOrEmail: userFlag,
 				linuxUser:     linuxUserFlag,
 				skipConfirm:   approveFlag,
@@ -83,6 +76,7 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	}
 
 	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode)")
+	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to revoke (required in non-interactive mode)")
 	cmd.Flags().StringVar(&linuxUserFlag, "linux-user", "", "Linux username on the target node (required in non-interactive mode)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
@@ -90,11 +84,21 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	return cmd
 }
 
+// revokeSSHOpts carries mode and inputs: when interactive, org/user/linuxUser from prompts; otherwise from flags.
+type revokeSSHOpts struct {
+	interactive   bool
+	orgName       string
+	nodeName      string
+	userIDOrEmail string
+	linuxUser     string
+	skipConfirm   bool
+}
+
 // runRevokeSSH runs the revoke-ssh flow; the only difference by mode is whether we prompt or use opts.
 func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, opts revokeSSHOpts, deps revokeSSHDeps) error {
 	if !opts.interactive {
-		if opts.orgName == "" || opts.userIDOrEmail == "" || opts.linuxUser == "" {
-			return fmt.Errorf("in non-interactive mode --org, --user, and --linux-user are required")
+		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" || opts.linuxUser == "" {
+			return fmt.Errorf("in non-interactive mode --org, --node, --user, and --linux-user are required")
 		}
 	}
 
@@ -113,18 +117,33 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		return err
 	}
 
-	node, err := register.ResolveNode(ctx, t, deps.prompter, deps.nodeClients, s, deps.registrationStore, org.ID, false)
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+
+	// Capture the target node
+	var node *nodev1.ExternalNode
+	if opts.interactive {
+		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+			OrganizationId: org.ID,
+		}))
+		if listErr != nil {
+			return breverrors.WrapAndTrace(listErr)
+		}
+		nodes := resp.Msg.GetItems()
+		if len(nodes) == 0 {
+			return fmt.Errorf("no nodes found in organization")
+		}
+		node, err = register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
+	} else {
+		node, err = register.ResolveNodeByName(ctx, deps.nodeClients, s, org.ID, opts.nodeName)
+	} 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
 	sshAccess := node.GetSshAccess()
 	if len(sshAccess) == 0 {
 		t.Vprint("No SSH access entries found on this node.")
 		return nil
 	}
-
-	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 
 	var targetUserID, targetLinuxUser string
 	var selectedAccess *nodev1.SSHAccess
