@@ -55,32 +55,6 @@ func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter term
 	return selected, nil
 }
 
-// ResolveNodeByName returns the full node for the organization that matches the given name (case-insensitive).
-// Use in non-interactive flows when the node is specified by name (e.g. --node my-node).
-func ResolveNodeByName(ctx context.Context, nodeClients externalnode.NodeClientFactory, tokenProvider externalnode.TokenProvider, orgID string, nodeName string) (*nodev1.ExternalNode, error) {
-	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
-		OrganizationId: orgID,
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("failed to list nodes: %w", err)
-	}
-	nodeName = strings.TrimSpace(nodeName)
-	for _, n := range resp.Msg.GetItems() {
-		if strings.EqualFold(n.GetName(), nodeName) {
-			nodeResp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
-				ExternalNodeId: n.GetExternalNodeId(),
-				OrganizationId: orgID,
-			}))
-			if err != nil {
-				return nil, fmt.Errorf("failed to fetch node: %w", err)
-			}
-			return nodeResp.Msg.GetExternalNode(), nil
-		}
-	}
-	return nil, fmt.Errorf("no node found with name %q", nodeName)
-}
-
 const (
 	backoffInitialInterval = 1 * time.Second
 	backoffMaxInterval     = 10 * time.Second

@@ -5,6 +5,8 @@ package grantssh
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -149,7 +151,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		}
 		node, err = register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
 	} else {
-		node, err = register.ResolveNodeByName(ctx, deps.nodeClients, s, org.ID, opts.nodeName)
+		node, err = helpers.ResolveNodeByName(ctx, client, org.ID, opts.nodeName)
 	}
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -172,7 +174,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		if err != nil {
 			return err
 		}
-		linuxUserOptions := linuxUsersFromNode(node)
+		linuxUserOptions := uniqueLinuxUsersFromNodeSSHAccess(node)
 		if len(linuxUserOptions) > 0 {
 			t.Vprint("")
 			linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
@@ -222,21 +224,18 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	return nil
 }
 
-// linuxUsersFromNode returns distinct Linux users from the node's existing SSH access (for picker).
-func linuxUsersFromNode(node *nodev1.ExternalNode) []string {
+// uniqueLinuxUsersFromNodeSSHAccess returns distinct Linux users from the node's existing SSH access (for picker).
+func uniqueLinuxUsersFromNodeSSHAccess(node *nodev1.ExternalNode) []string {
 	if node == nil {
 		return nil
 	}
-	seen := make(map[string]bool)
-	var out []string
+	linuxUsers := make(map[string]struct{})
 	for _, sa := range node.GetSshAccess() {
-		u := sa.GetLinuxUser()
-		if u != "" && !seen[u] {
-			seen[u] = true
-			out = append(out, u)
+		if u := sa.GetLinuxUser(); u != "" {
+			linuxUsers[u] = struct{}{}
 		}
 	}
-	return out
+	return slices.Collect(maps.Keys(linuxUsers))
 }
 
 func findUserByIDOrEmail(members []resolvedMember, idOrEmail string) (*entity.User, error) {

@@ -96,34 +96,40 @@ type revokeSSHOpts struct {
 
 // runRevokeSSH runs the revoke-ssh flow; the only difference by mode is whether we prompt or use opts.
 func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, opts revokeSSHOpts, deps revokeSSHDeps) error {
+	// Basic validation
 	if !opts.interactive {
 		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" || opts.linuxUser == "" {
 			return fmt.Errorf("in non-interactive mode --org, --node, --user, and --linux-user are required")
 		}
 	}
 
-	var org *entity.Organization
-	var err error
+	// Capture the target organization
+	var selectedOrg *entity.Organization
 	if opts.interactive {
 		list, listErr := s.ListOrganizations()
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)
 		}
-		org, err = helpers.SelectOrganizationInteractive(t, list, deps.prompter)
+		org, err := helpers.SelectOrganizationInteractive(t, list, deps.prompter)
+		if err != nil {
+			return err
+		}
+		selectedOrg = org
 	} else {
-		org, err = helpers.ResolveOrgByName(s, opts.orgName)
-	}
-	if err != nil {
-		return err
+		org, err := helpers.ResolveOrgByName(s, opts.orgName)
+		if err != nil {
+			return err
+		}
+		selectedOrg = org
 	}
 
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 
 	// Capture the target node
-	var node *nodev1.ExternalNode
+	var selectedNode *nodev1.ExternalNode
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
-			OrganizationId: org.ID,
+			OrganizationId: selectedOrg.ID,
 		}))
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)
@@ -132,25 +138,30 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		if len(nodes) == 0 {
 			return fmt.Errorf("no nodes found in organization")
 		}
-		node, err = register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
+		node, err := register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
+		if err != nil {
+			return err
+		}
+		selectedNode = node
 	} else {
-		node, err = register.ResolveNodeByName(ctx, deps.nodeClients, s, org.ID, opts.nodeName)
-	} 
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		node, err := helpers.ResolveNodeByName(ctx, client, selectedOrg.ID, opts.nodeName)
+		if err != nil {
+			return err
+		}
+		selectedNode = node
 	}
-	sshAccess := node.GetSshAccess()
-	if len(sshAccess) == 0 {
+
+	nodeSshAccesses := selectedNode.GetSshAccess()
+	if len(nodeSshAccesses) == 0 {
 		t.Vprint("No SSH access entries found on this node.")
 		return nil
 	}
 
+	// Capture the target SSH access
 	var targetUserID, targetLinuxUser string
-	var selectedAccess *nodev1.SSHAccess
-
 	if opts.interactive {
-		labels := make([]string, len(sshAccess))
-		for i, sa := range sshAccess {
+		labels := make([]string, len(nodeSshAccesses))
+		for i, sa := range nodeSshAccesses {
 			userName := sa.GetUserId()
 			if u, err := s.GetUserByID(sa.GetUserId()); err == nil && u != nil {
 				userName = fmt.Sprintf("%s (%s)", u.Name, sa.GetUserId())
@@ -169,19 +180,19 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		if selectedIdx < 0 {
 			return fmt.Errorf("selected item %q did not match any access entry", selected)
 		}
-		selectedAccess = sshAccess[selectedIdx]
+		selectedAccess := nodeSshAccesses[selectedIdx]
+
 		targetUserID = selectedAccess.GetUserId()
 		targetLinuxUser = selectedAccess.GetLinuxUser()
 	} else {
-		targetUserID, err = resolveUserID(s, org.ID, opts.userIDOrEmail)
+		targetUserID, err := resolveUserID(s, selectedOrg.ID, opts.userIDOrEmail)
 		if err != nil {
 			return err
 		}
 		targetLinuxUser = opts.linuxUser
 		var found bool
-		for _, sa := range sshAccess {
+		for _, sa := range nodeSshAccesses {
 			if sa.GetUserId() == targetUserID && sa.GetLinuxUser() == targetLinuxUser {
-				selectedAccess = sa
 				found = true
 				break
 			}
@@ -205,9 +216,9 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		t.Vprint(t.Green("  Please confirm before continuing:"))
 		t.Vprint("")
 	}
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node:")), t.BoldBlue(node.GetName()+" ("+node.GetExternalNodeId()+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node:")), t.BoldBlue(selectedNode.GetName()+" ("+selectedNode.GetExternalNodeId()+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "User:")), t.BoldBlue(userDisplay))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(selectedAccess.GetLinuxUser()))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(targetLinuxUser))
 	t.Vprint("")
 
 	if !opts.skipConfirm {
@@ -218,8 +229,8 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		}
 	}
 
-	_, err = client.RevokeNodeSSHAccess(ctx, connect.NewRequest(&nodev1.RevokeNodeSSHAccessRequest{
-		ExternalNodeId: node.GetExternalNodeId(),
+	_, err := client.RevokeNodeSSHAccess(ctx, connect.NewRequest(&nodev1.RevokeNodeSSHAccessRequest{
+		ExternalNodeId: selectedNode.GetExternalNodeId(),
 		UserId:         targetUserID,
 		LinuxUser:      targetLinuxUser,
 	}))
