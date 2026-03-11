@@ -220,7 +220,9 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		return breverrors.WrapAndTrace(err)
 	}
 
+	t.Vprint("")
 	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, node.GetName())))
+	t.Vprint("")
 	return nil
 }
 

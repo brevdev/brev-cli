@@ -486,5 +486,6 @@ func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps
 
 	t.Vprint("")
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
+	t.Vprint("")
 	return nil
 }

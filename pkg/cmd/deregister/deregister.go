@@ -157,9 +157,8 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 
 	const clearLine = "\033[2K\n"
 
-	t.Vprint("")
 	sp := t.NewSpinner()
-	sp.Suffix = " [Step 1/4] Removing node from Brev..."
+	sp.Suffix = " " + t.Yellow("[Step 1/4] Removing node from Brev...")
 	sp.Start()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	_, err = client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
@@ -174,7 +173,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	sp = t.NewSpinner()
-	sp.Suffix = " [Step 2/4] Removing Brev SSH keys..."
+	sp.Suffix = " " + t.Yellow("[Step 2/4] Removing Brev SSH keys...")
 	sp.Start()
 	if osUser == nil {
 		sp.FinalMSG = clearLine
@@ -199,7 +198,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	sp = t.NewSpinner()
-	sp.Suffix = " [Step 3/4] Removing Brev tunnel..."
+	sp.Suffix = " " + t.Yellow("[Step 3/4] Removing Brev tunnel...")
 	sp.Start()
 	err = deps.netbird.Uninstall()
 	sp.FinalMSG = clearLine
@@ -212,7 +211,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	sp = t.NewSpinner()
-	sp.Suffix = " [Step 4/4] Removing registration data..."
+	sp.Suffix = " " + t.Yellow("[Step 4/4] Removing registration data...")
 	sp.Start()
 	err = deps.registrationStore.Delete()
 	sp.FinalMSG = clearLine
@@ -223,7 +222,6 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	} else {
 		t.Vprintf("%s  Registration data removed.\n", t.Green("  ✓"))
 	}
-	t.Vprint("")
 	t.Vprintf("%s  Deregistration complete.\n", t.Green("  ✓"))
 	t.Vprint("")
 
