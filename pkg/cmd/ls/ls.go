@@ -58,10 +58,17 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Short:       "List instances within active org",
 		Long: `List instances within your active org. List all instances if no active org is set.
 
+Subcommands:
+  instances  List cloud instances
+  nodes      List external nodes only
+  orgs       List organizations
+
 When stdout is piped, outputs instance names only (one per line) for easy chaining
 with other commands like stop, start, or delete.`,
 		Example: `
   brev ls
+  brev ls instances
+  brev ls nodes
   brev ls --json
   brev ls | grep running | brev stop
   brev ls orgs
@@ -110,7 +117,7 @@ with other commands like stop, start, or delete.`,
 			return nil
 		},
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
-		ValidArgs: []string{"orgs", "workspaces", "nodes"},
+		ValidArgs: []string{"orgs", "workspaces", "nodes", "instances"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput)
 			if err != nil {
@@ -239,6 +246,12 @@ func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization
 		return nil
 	} else if util.IsSingularOrPlural(arg, "node") {
 		err := ls.RunNodes(org)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return nil
+	} else if util.IsSingularOrPlural(arg, "instance") {
+		err := ls.RunInstances(org, user, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -480,9 +493,14 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
 	}
 
-	// Also show external nodes in the default listing
-	ls.showNodesSection(org)
+	return nil
+}
 
+// RunInstances lists
+func (ls Ls) RunInstances(org *entity.Organization, user *entity.User, showAll bool) error {
+	if err := ls.RunWorkspaces(org, user, showAll); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -758,25 +776,6 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 	ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 	displayNodesTable(ls.terminal, nodes)
 	return nil
-}
-
-// showNodesSection appends external nodes to the default `brev ls` output.
-// Errors are silently ignored so that a ListNodes failure doesn't break the
-// workspace listing.
-func (ls Ls) showNodesSection(org *entity.Organization) {
-	nodes, err := ls.listNodes(org)
-	if err != nil || len(nodes) == 0 {
-		return
-	}
-
-	if ls.jsonOutput || ls.piped {
-		// JSON and piped modes are already handled per-section; skip here to
-		// avoid duplicating output when the user runs `brev ls nodes` explicitly.
-		return
-	}
-
-	ls.terminal.Vprintf("\nExternal Nodes (%d):\n", len(nodes))
-	displayNodesTable(ls.terminal, nodes)
 }
 
 func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
