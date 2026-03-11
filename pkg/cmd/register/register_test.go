@@ -262,6 +262,13 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	}
 }
 
+// gaterFromFunc adapts a function to sudo.Gater; used only by Test_runRegister_UserCancels.
+type gaterFromFunc func(*terminal.Terminal, terminal.Confirmer, string, bool) error
+
+func (f gaterFromFunc) Gate(t *terminal.Terminal, c terminal.Confirmer, reason string, assumeYes bool) error {
+	return f(t, c, reason, assumeYes)
+}
+
 func Test_runRegister_UserCancels(t *testing.T) {
 	// User cancel happens in interactive mode (sudo or confirm). Flag-driven has no prompts.
 	regStore := &mockRegistrationStore{}
@@ -275,6 +282,17 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	defer server.Close()
 
 	deps.prompter = mockConfirmer{confirm: false}
+	// Use a gater that actually runs the confirmer so the test cancels at the gate
+	// instead of proceeding to the device name prompt (CachedGater always passes).
+	deps.gater = gaterFromFunc(func(_ *terminal.Terminal, c terminal.Confirmer, reason string, assumeYes bool) error {
+		if assumeYes {
+			return nil
+		}
+		if !c.ConfirmYesNo(fmt.Sprintf("%s requires sudo. Continue?", reason)) {
+			return fmt.Errorf("%s canceled by user", reason)
+		}
+		return nil
+	})
 
 	term := terminal.New()
 	opts := registerOpts{interactive: true, name: "", orgName: "", sshPort: 0}
