@@ -69,9 +69,6 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --approve",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			interactive := orgFlag == "" && nodeFlag == "" && userFlag == ""
-			if linuxUser == "" {
-				linuxUser = register.GetCachedLinuxUser()
-			}
 			opts := grantSSHOpts{
 				interactive:   interactive,
 				orgName:       orgFlag,
@@ -87,7 +84,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to grant (required in non-interactive mode)")
-	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (required in non-interactive mode or use cached value)")
+	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (required in non-interactive mode)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
 	return cmd
@@ -180,15 +177,8 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 			t.Vprint("")
 			linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
 		} else {
-			linuxUser = opts.linuxUser
-			if linuxUser == "" {
-				linuxUser = register.GetCachedLinuxUser()
-			}
-			if linuxUser == "" {
-				return fmt.Errorf("no Linux users on this node yet; run with --linux-user to specify one (e.g. after enable-ssh on the node)")
-			}
+			return fmt.Errorf("no Linux users on this node yet; run with --linux-user to specify one (e.g. after enable-ssh on the node)")
 		}
-		register.SaveCachedLinuxUser(linuxUser)
 	} else {
 		selectedUser, err = findUserByIDOrEmail(orgMembers, opts.userIDOrEmail)
 		if err != nil {
