@@ -8,7 +8,11 @@ import (
 	"os/exec"
 	"os/user"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
@@ -99,14 +103,24 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", linuxUsername)
 	t.Vprint("")
 
-	t.Vprint("")
-	port, err := register.PromptSSHPort(t)
+	// Check if the node already has an SSH port allocated (e.g. for another linux user)
+	port, err := existingSSHPort(ctx, deps, tokenProvider, reg)
 	if err != nil {
-		return fmt.Errorf("SSH port: %w", err)
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not check for existing ports: %v", err)))
 	}
 
-	if err := register.OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {
-		return fmt.Errorf("enable SSH failed: %w", err)
+	if port != 0 {
+		t.Vprintf("  Using existing SSH port %d.\n", port)
+	} else {
+		t.Vprint("")
+		port, err = register.PromptSSHPort(t)
+		if err != nil {
+			return fmt.Errorf("SSH port: %w", err)
+		}
+
+		if err := register.OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {
+			return fmt.Errorf("enable SSH failed: %w", err)
+		}
 	}
 
 	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUsername); err != nil {
@@ -115,6 +129,27 @@ func enableSSH(
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 	return nil
+}
+
+// existingSSHPort calls GetNode and returns the PortNumber of an already-allocated
+// SSH port, or 0 if none exists
+func existingSSHPort(ctx context.Context, deps enableSSHDeps, tokenProvider externalnode.TokenProvider, reg *register.DeviceRegistration) (int32, error) {
+	client := deps.nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
+		ExternalNodeId: reg.ExternalNodeID,
+		OrganizationId: reg.OrgID,
+	}))
+	if err != nil {
+		return 0, fmt.Errorf("error retrieving node: %w", err)
+	}
+
+	for _, p := range resp.Msg.GetExternalNode().GetPorts() {
+		// TODO if we ever allow more than one SSH port, this should be modified
+		if p.GetProtocol() == nodev1.PortProtocol_PORT_PROTOCOL_SSH {
+			return p.GetPortNumber(), nil
+		}
+	}
+	return 0, nil
 }
 
 // checkSSHDaemon prints a warning if neither "ssh" nor "sshd" systemd services
