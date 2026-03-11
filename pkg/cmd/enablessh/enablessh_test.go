@@ -1,13 +1,21 @@
 package enablessh
 
 import (
+	"context"
+	"fmt"
+	"net/http/httptest"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
 )
 
 // tempUser returns a *user.User whose HomeDir points to a temporary directory.
@@ -411,5 +419,106 @@ func Test_InstallThenRemoveSpecificKey_RollbackScenario(t *testing.T) {
 	}
 	if !strings.Contains(result, "ssh-rsa ALICE") {
 		t.Errorf("Alice's key was removed during Bob's rollback:\n%s", result)
+	}
+}
+
+// --- existingSSHPort ---
+
+type mockNodeClientFactory struct{ serverURL string }
+
+func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
+	return register.NewNodeServiceClient(provider, m.serverURL)
+}
+
+type mockEnableSSHStore struct {
+	token string
+}
+
+func (m *mockEnableSSHStore) GetCurrentUser() (interface{}, error) { return nil, nil }
+func (m *mockEnableSSHStore) GetAccessToken() (string, error)      { return m.token, nil }
+
+// fakeNodeService implements the server side of ExternalNodeService for testing.
+type fakeNodeService struct {
+	nodev1connect.UnimplementedExternalNodeServiceHandler
+	getNodeFn func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+}
+
+func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
+	resp, err := f.getNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func startFakeServer(t *testing.T, svc *fakeNodeService) (enableSSHDeps, *httptest.Server) {
+	t.Helper()
+	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	return enableSSHDeps{
+		nodeClients: mockNodeClientFactory{serverURL: server.URL},
+	}, server
+}
+
+func Test_existingSSHPort(t *testing.T) {
+	ssh := nodev1.PortProtocol_PORT_PROTOCOL_SSH
+	tcp := nodev1.PortProtocol_PORT_PROTOCOL_TCP
+
+	tests := []struct {
+		name     string
+		resp     *nodev1.GetNodeResponse
+		rpcErr   error
+		wantPort int32
+		wantErr  bool
+	}{
+		{
+			name: "ReturnsExistingPort",
+			resp: &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
+				Ports: []*nodev1.Port{{Protocol: ssh, PortNumber: 2222}},
+			}},
+			wantPort: 2222,
+		},
+		{
+			name:     "ReturnsZeroWhenNoPorts",
+			resp:     &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{}},
+			wantPort: 0,
+		},
+		{
+			name:    "ReturnsErrorOnRPCFailure",
+			rpcErr:  connect.NewError(connect.CodeInternal, fmt.Errorf("server error")),
+			wantErr: true,
+		},
+		{
+			name: "IgnoresNonSSHPorts",
+			resp: &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
+				Ports: []*nodev1.Port{
+					{Protocol: tcp, PortNumber: 8080},
+					{Protocol: ssh, PortNumber: 3333},
+				},
+			}},
+			wantPort: 3333,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &fakeNodeService{
+				getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+					return tt.resp, tt.rpcErr
+				},
+			}
+			deps, _ := startFakeServer(t, svc)
+			store := &mockEnableSSHStore{token: "tok"}
+			reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc"}
+
+			port, err := existingSSHPort(context.Background(), deps, store, reg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if port != tt.wantPort {
+				t.Errorf("port = %d, want %d", port, tt.wantPort)
+			}
+		})
 	}
 }

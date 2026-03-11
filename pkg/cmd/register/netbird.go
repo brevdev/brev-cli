@@ -52,15 +52,15 @@ if [ -f /etc/netbird/install.conf ]; then
 fi
 
 case "$PKG_MGR" in
-  apt)  sudo apt-get remove -y netbird ;;
-  dnf)  sudo dnf remove -y netbird ;;
-  yum)  sudo yum remove -y netbird ;;
+  apt)  sudo apt-get remove -y netbird || true ;;
+  dnf)  sudo dnf remove -y netbird || true ;;
+  yum)  sudo yum remove -y netbird || true ;;
   *)    sudo rm -f /usr/bin/netbird /usr/local/bin/netbird ;;
 esac
 
 sudo rm -rf /etc/netbird
 sudo rm -rf /var/lib/netbird
-sudo rm /usr/local/bin/netbird  # should be redundant with uninstalls, but for safety
+sudo rm -f /usr/bin/netbird /usr/local/bin/netbird
 `
 
 	cmd := exec.Command("bash", "-c", script) // #nosec G204

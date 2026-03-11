@@ -1,6 +1,7 @@
 package register
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -20,6 +21,39 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/cenkalti/backoff/v4"
 )
+
+// SelectNodeFromList prompts the user to select a node from the list, then fetches and returns the full node.
+// When this machine is registered, that node is marked " — this node" in the list.
+// Call this after ListNodes when in interactive mode (same pattern as SelectOrganizationInteractive).
+func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter terminal.Selector, registrationStore RegistrationStore, nodes []*nodev1.ExternalNode) (*nodev1.ExternalNode, error) {
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no nodes found in organization")
+	}
+	var thisNodeID string
+	if reg, err := registrationStore.Load(); err == nil && reg != nil {
+		thisNodeID = reg.ExternalNodeID
+	}
+	t.Vprint("")
+	labels := make([]string, len(nodes))
+	for i, n := range nodes {
+		labels[i] = fmt.Sprintf("%s (%s)", n.GetName(), n.GetExternalNodeId())
+		if thisNodeID != "" && n.GetExternalNodeId() == thisNodeID {
+			labels[i] = fmt.Sprintf("%s (%s) — this node", n.GetName(), n.GetExternalNodeId())
+		}
+	}
+	chosen := prompter.Select("Select node", labels)
+	var selected *nodev1.ExternalNode
+	for i, label := range labels {
+		if label == chosen {
+			selected = nodes[i]
+			break
+		}
+	}
+	if selected == nil {
+		return nil, fmt.Errorf("selected item did not match any node")
+	}
+	return selected, nil
+}
 
 const (
 	backoffInitialInterval = 1 * time.Second
@@ -156,19 +190,28 @@ func OpenSSHPort(
 	return nil
 }
 
-// GrantSSHAccessToNode installs the user's public key in authorized_keys and
+// SetupAndRegisterNodeSSHAccess installs the user's public key in authorized_keys and
 // calls GrantNodeSSHAccess to record access server-side. If the RPC fails,
-// the installed key is rolled back.
-func GrantSSHAccessToNode(
+// the installed key is rolled back. osUser is the target username on the
+// remote device (e.g. "ubuntu"), used both in the RPC and to locate the
+// correct ~/.ssh/authorized_keys for local key installation.
+func SetupAndRegisterNodeSSHAccess(
 	ctx context.Context,
 	t *terminal.Terminal,
 	nodeClients externalnode.NodeClientFactory,
 	tokenProvider externalnode.TokenProvider,
 	reg *DeviceRegistration,
 	targetUser *entity.User,
-	osUser *user.User,
+	linuxUsername string,
 ) error {
-	if targetUser.PublicKey != "" {
+	// Look up the local OS user for key installation. This may differ from
+	// the caller (e.g. running as root, installing keys for "ubuntu").
+	osUser, lookupErr := user.Lookup(linuxUsername)
+	if lookupErr != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not look up local user %q — skipping local key installation", linuxUsername)))
+	}
+
+	if osUser != nil && targetUser.PublicKey != "" {
 		if added, err := InstallAuthorizedKey(osUser, targetUser.PublicKey, targetUser.ID); err != nil {
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to install SSH public key: %v", err)))
 		} else if added {
@@ -188,7 +231,7 @@ func GrantSSHAccessToNode(
 		_, err := client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
 			ExternalNodeId: reg.ExternalNodeID,
 			UserId:         targetUser.ID,
-			LinuxUser:      osUser.Username,
+			LinuxUser:      linuxUsername,
 		}))
 		if err != nil {
 			// Retryable error
@@ -198,7 +241,7 @@ func GrantSSHAccessToNode(
 			}
 
 			// Permanent error — roll back the key so we don't leave an unrecorded entry and abort the backoff retry
-			if targetUser.PublicKey != "" {
+			if osUser != nil && targetUser.PublicKey != "" {
 				if rerr := RemoveAuthorizedKey(osUser, targetUser.PublicKey); rerr != nil {
 					t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove SSH key after failed grant: %v", rerr)))
 				}
@@ -233,15 +276,18 @@ func ClearTestSSHPort() { testSSHPort = nil }
 
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
 // they press Enter or leave it empty. Returns an error for invalid port numbers.
+// Uses a single print + stdin read to avoid promptui rendering the label twice.
 func PromptSSHPort(t *terminal.Terminal) (int32, error) {
 	if testSSHPort != nil {
 		return *testSSHPort, nil
 	}
-	portStr := terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "  SSH port (default 22): ",
-		AllowEmpty: true,
-	})
-	portStr = strings.TrimSpace(portStr)
+	t.Vprintf("  %s ", t.Green("SSH port (default 22):"))
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return 0, fmt.Errorf("reading input: %w", err)
+	}
+	portStr := strings.TrimSpace(line)
 	if portStr == "" {
 		return defaultSSHPort, nil
 	}

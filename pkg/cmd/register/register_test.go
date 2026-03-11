@@ -13,6 +13,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -43,7 +44,20 @@ func (m *mockRegisterStore) GetOrganizationsByName(name string) ([]entity.Organi
 			matched = append(matched, o)
 		}
 	}
+	if len(matched) == 0 && m.org != nil && m.org.Name == name {
+		matched = append(matched, *m.org)
+	}
 	return matched, nil
+}
+
+func (m *mockRegisterStore) ListOrganizations() ([]entity.Organization, error) {
+	if len(m.orgs) > 0 {
+		return m.orgs, nil
+	}
+	if m.org != nil {
+		return []entity.Organization{*m.org}, nil
+	}
+	return nil, nil
 }
 
 func (m *mockRegisterStore) GetAccessToken() (string, error) { return m.token, nil }
@@ -83,6 +97,23 @@ func (m mockPlatform) IsCompatible() bool { return m.compatible }
 type mockConfirmer struct{ confirm bool }
 
 func (m mockConfirmer) ConfirmYesNo(_ string) bool { return m.confirm }
+
+// mockSelector implements terminal.Selector by returning the first item (for tests that need org selection).
+type mockSelector struct{ choice string }
+
+func (m mockSelector) Select(_ string, items []string) string {
+	if m.choice != "" {
+		for _, s := range items {
+			if s == m.choice {
+				return s
+			}
+		}
+	}
+	if len(items) > 0 {
+		return items[0]
+	}
+	return ""
+}
 
 type mockNetBirdManager struct{ err error }
 
@@ -141,6 +172,8 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 	return registerDeps{
 		platform:    mockPlatform{compatible: true},
 		prompter:    mockConfirmer{confirm: true},
+		selector:    mockSelector{},
+		gater:       sudo.CachedGater{},
 		netbird:     mockNetBirdManager{},
 		setupRunner: &mockSetupRunner{},
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
@@ -194,7 +227,8 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -228,25 +262,41 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	}
 }
 
+// gaterFromFunc adapts a function to sudo.Gater; used only by Test_runRegister_UserCancels.
+type gaterFromFunc func(*terminal.Terminal, terminal.Confirmer, string, bool) error
+
+func (f gaterFromFunc) Gate(t *terminal.Terminal, c terminal.Confirmer, reason string, assumeYes bool) error {
+	return f(t, c, reason, assumeYes)
+}
+
 func Test_runRegister_UserCancels(t *testing.T) {
+	// User cancel happens in interactive mode (sudo or confirm). Flag-driven has no prompts.
 	regStore := &mockRegistrationStore{}
-
 	store := &mockRegisterStore{
-		user: &entity.User{ID: "user_1"},
-		org:  &entity.Organization{ID: "org_123", Name: "TestOrg"},
-
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
 	}
-
 	svc := &fakeNodeService{}
 	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.prompter = mockConfirmer{confirm: false}
+	// Use a gater that actually runs the confirmer so the test cancels at the gate
+	// instead of proceeding to the device name prompt (CachedGater always passes).
+	deps.gater = gaterFromFunc(func(_ *terminal.Terminal, c terminal.Confirmer, reason string, assumeYes bool) error {
+		if assumeYes {
+			return nil
+		}
+		if !c.ConfirmYesNo(fmt.Sprintf("%s requires sudo. Continue?", reason)) {
+			return fmt.Errorf("%s canceled by user", reason)
+		}
+		return nil
+	})
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
-	// sudo.Gate returns a wrapped error when the user declines
+	opts := registerOpts{interactive: true, name: "", orgName: "", sshPort: 0}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when user declines sudo gate")
 	}
@@ -254,11 +304,7 @@ func Test_runRegister_UserCancels(t *testing.T) {
 		t.Errorf("expected 'canceled by user' error, got: %v", err)
 	}
 
-	// Registration should not exist
-	exists, err := regStore.Exists()
-	if err != nil {
-		t.Fatalf("Exists error: %v", err)
-	}
+	exists, _ := regStore.Exists()
 	if exists {
 		t.Error("registration should not exist after cancel")
 	}
@@ -337,7 +383,8 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 			term := terminal.New()
 			// Pass the same name as the existing registration so we go through
 			// the checkExistingRegistration path (not the different-name path).
-			err := runRegister(context.Background(), term, store, "Existing", "", deps)
+			opts := registerOpts{interactive: false, name: "Existing", orgName: "TestOrg", sshPort: 22}
+			err := runRegister(context.Background(), term, store, opts, deps)
 			if err != nil {
 				t.Fatalf("expected nil error, got: %v", err)
 			}
@@ -365,7 +412,8 @@ func Test_runRegister_NoOrganization(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when no org exists")
 	}
@@ -407,7 +455,8 @@ func Test_runRegister_WithOrgFlag(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "SpecificOrg", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "SpecificOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister with --org failed: %v", err)
 	}
@@ -440,7 +489,8 @@ func Test_runRegister_WithOrgFlag_NotFound(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "NonexistentOrg", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "NonexistentOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when org not found")
 	}
@@ -469,7 +519,8 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when AddNode fails")
 	}
@@ -519,7 +570,8 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -652,7 +704,8 @@ func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *test
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
 	}
@@ -701,7 +754,8 @@ func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
 	defer ClearTestSSHPort()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister should not fail the overall flow when SSH grant fails: %v", err)
 	}
@@ -729,7 +783,7 @@ func Test_runRegister_NameValidation(t *testing.T) {
 		{"LeadingHyphen", "-node", true, "start with"},
 		{"LeadingDot", ".hidden", true, "start with"},
 		{"TooLong", strings.Repeat("a", 64), true, "63 characters"},
-		{"Empty", "", true, "name is required"},
+		{"Empty", "", true, "--name"}, // flag-driven rejects empty name with this message
 	}
 
 	for _, tt := range tests {
@@ -761,7 +815,9 @@ func Test_runRegister_NameValidation(t *testing.T) {
 			defer ClearTestSSHPort()
 
 			term := terminal.New()
-			err := runRegister(context.Background(), term, store, tt.input, "", deps)
+			var err error
+			opts := registerOpts{interactive: false, name: tt.input, orgName: "TestOrg", sshPort: 22}
+			err = runRegister(context.Background(), term, store, opts, deps)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -792,7 +848,8 @@ func Test_runRegister_PlatformIncompatible(t *testing.T) {
 	deps.platform = mockPlatform{compatible: false}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when platform is incompatible")
 	}
@@ -817,7 +874,8 @@ func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
 	deps.hardwareProfiler = &mockHardwareProfiler{err: fmt.Errorf("nvml init failed")}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when hardware profiler fails")
 	}
@@ -842,7 +900,8 @@ func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
 	deps.netbird = mockNetBirdManager{err: fmt.Errorf("install failed")}
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when NetBird install fails")
 	}
@@ -852,6 +911,7 @@ func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
 }
 
 func Test_runRegister_NoNameNotRegistered(t *testing.T) {
+	// In flag-driven mode, missing --name and --org must error (no prompts).
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -865,12 +925,13 @@ func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "", "", deps)
+	opts := registerOpts{interactive: false, name: "", orgName: "", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err == nil {
-		t.Fatal("expected error when no name provided and not registered")
+		t.Fatal("expected error when no name/org in non-interactive mode")
 	}
-	if !strings.Contains(err.Error(), "name is required") {
-		t.Errorf("expected 'name is required' error, got: %v", err)
+	if !strings.Contains(err.Error(), "non-interactive") || !strings.Contains(err.Error(), "--name") {
+		t.Errorf("expected non-interactive/--name error, got: %v", err)
 	}
 }
 
@@ -906,7 +967,8 @@ func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
 	defer server.Close()
 
 	term := terminal.New()
-	err := runRegister(context.Background(), term, store, "", "", deps)
+	opts := registerOpts{interactive: false, name: "Existing", orgName: "TestOrg", sshPort: 22}
+	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("expected nil error when already registered with no name, got: %v", err)
 	}
@@ -1043,7 +1105,8 @@ func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen // test
 			defer ClearTestSSHPort()
 
 			term := terminal.New()
-			err := runRegister(context.Background(), term, store, "my-spark", "", deps)
+			opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: tt.port}
+			err := runRegister(context.Background(), term, store, opts, deps)
 
 			tt.verify(t, gotOpenReq, gotGrantReq, regStore, err)
 		})

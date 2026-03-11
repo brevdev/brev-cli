@@ -48,6 +48,7 @@ type deregisterDeps struct {
 	platform          externalnode.PlatformChecker
 	prompter          terminal.Selector
 	confirmer         terminal.Confirmer
+	gater             sudo.Gater
 	netbird           register.NetBirdManager
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
@@ -59,6 +60,7 @@ func defaultDeregisterDeps() deregisterDeps {
 		platform:          register.LinuxPlatform{},
 		prompter:          register.TerminalPrompter{},
 		confirmer:         register.TerminalPrompter{},
+		gater:             sudo.Default,
 		netbird:           register.Netbird{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
@@ -76,6 +78,8 @@ the Brev tunnel (network agent).`
 )
 
 func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Command {
+	var approveFlag bool
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "deregister",
@@ -84,65 +88,110 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 		Long:                  deregisterLong,
 		Example:               deregisterExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps())
+			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps(), approveFlag)
 		},
 	}
+
+	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
 	return cmd
 }
 
-func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps) error { //nolint:funlen // deregistration flow
+func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen,gocyclo // deregistration flow
 	if !deps.platform.IsCompatible() {
 		return fmt.Errorf("brev deregister is only supported on Linux")
 	}
 
-	if err := sudo.Gate(t, deps.confirmer, "Device deregistration"); err != nil {
+	if err := deps.gater.Gate(t, deps.confirmer, "Device deregistration", skipConfirm); err != nil {
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
+	}
+
+	// Only prompt for login when there is a device to deregister.
+	if _, err := s.GetCurrentUser(); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	t.Vprint("")
-	t.Vprint(t.Green("Deregistering device"))
-	t.Vprint("")
-	t.Vprintf("  Node ID: %s\n", reg.ExternalNodeID)
-	t.Vprintf("  Name:    %s\n", reg.DisplayName)
-	t.Vprint("")
-
-	confirm := deps.prompter.Select(
-		"Proceed with deregistration?",
-		[]string{"Yes, proceed", "No, cancel"},
-	)
-	if confirm != "Yes, proceed" {
-		t.Vprint("Deregistration canceled.")
-		return nil
+	orgName := reg.OrgName
+	if orgName == "" {
+		orgName = "(unknown)"
+	}
+	osUser, _ := user.Current()
+	linuxUser := "(unknown)"
+	if osUser != nil {
+		linuxUser = osUser.Username
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("Removing node from Brev..."))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint(t.White("  Deregistering your device from Brev"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint("")
+	if !skipConfirm {
+		t.Vprint(t.Green("  Please confirm before continuing:"))
+		t.Vprint("")
+	}
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(orgName+" ("+reg.OrgID+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(linuxUser))
+	t.Vprint("")
+	t.Vprint(t.Yellow("  This will:"))
+	t.Vprint("    1. Remove this node from Brev")
+	t.Vprint("    2. Remove Brev SSH keys from this machine (if any)")
+	t.Vprint("    3. Uninstall the Brev tunnel")
+	t.Vprint("    4. Delete local registration data")
+	t.Vprint("")
+
+	if !skipConfirm {
+		confirm := deps.prompter.Select(
+			"Proceed with deregistration?",
+			[]string{"Yes, proceed", "No, cancel"},
+		)
+		if confirm != "Yes, proceed" {
+			t.Vprint("Deregistration canceled.")
+			return nil
+		}
+	}
+
+	const clearLine = "\033[2K\n"
+
+	t.Vprint(t.Yellow("[Step 1/4] Removing node from Brev..."))
+	sp := t.NewSpinner()
+	sp.Suffix = " Deregistering device..."
+	sp.Start()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	if _, err := client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
+	_, err = client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
 		ExternalNodeId: reg.ExternalNodeID,
-	})); err != nil {
+	}))
+	sp.FinalMSG = clearLine
+	sp.Stop()
+	if err != nil {
 		return fmt.Errorf("failed to deregister node: %w", err)
 	}
-	t.Vprint(t.Green("  Node removed from Brev."))
+	t.Vprintf("%s  Node removed from Brev.\n", t.Green("  ✓"))
 	t.Vprint("")
 
-	// Remove Brev SSH keys from authorized_keys.
-	osUser, err := user.Current()
-	if err != nil {
-		t.Vprintf("  Warning: could not determine current user for SSH key cleanup: %v\n", err)
+	t.Vprint(t.Yellow("[Step 2/4] Removing Brev SSH keys..."))
+	sp = t.NewSpinner()
+	sp.Suffix = " Deregistering device..."
+	sp.Start()
+	if osUser == nil {
+		sp.FinalMSG = clearLine
+		sp.Stop()
+		t.Vprintf("  %s\n", t.Yellow("Skipped: could not determine current user"))
 	} else {
 		removed, kerr := deps.sshKeys.RemoveBrevKeys(osUser)
+		sp.FinalMSG = clearLine
+		sp.Stop()
 		switch {
 		case kerr != nil:
-			t.Vprintf("  Warning: failed to remove Brev SSH keys: %v\n", kerr)
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove Brev SSH keys: %v", kerr)))
 		case len(removed) > 0:
-			t.Vprint(t.Green("  Brev SSH keys removed from authorized_keys:"))
+			t.Vprintf("%s  Brev SSH keys removed from authorized_keys:\n", t.Green("  ✓"))
 			for _, key := range removed {
 				t.Vprintf("    - %s\n", key)
 			}
@@ -152,21 +201,34 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	}
 	t.Vprint("")
 
-	t.Vprint("Removing Brev tunnel...")
-	if err := deps.netbird.Uninstall(); err != nil {
-		t.Vprintf("  Warning: failed to remove Brev tunnel: %v\n", err)
+	t.Vprint(t.Yellow("[Step 3/4] Removing Brev tunnel..."))
+	sp = t.NewSpinner()
+	sp.Suffix = " Deregistering device..."
+	sp.Start()
+	err = deps.netbird.Uninstall()
+	sp.FinalMSG = clearLine
+	sp.Stop()
+	if err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove Brev tunnel: %v", err)))
 	} else {
-		t.Vprint(t.Green("  Brev tunnel removed."))
+		t.Vprintf("%s  Brev tunnel removed.\n", t.Green("  ✓"))
 	}
 	t.Vprint("")
 
-	t.Vprint("Removing registration data...")
-	if err := deps.registrationStore.Delete(); err != nil {
-		t.Vprintf("  Warning: failed to remove local registration file: %v\n", err)
+	t.Vprint(t.Yellow("[Step 4/4] Removing registration data..."))
+	sp = t.NewSpinner()
+	sp.Suffix = " Deregistering device..."
+	sp.Start()
+	err = deps.registrationStore.Delete()
+	sp.FinalMSG = clearLine
+	sp.Stop()
+	if err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove local registration file: %v", err)))
 		t.Vprint("  You can manually remove it with: rm /etc/brev/device_registration.json")
+	} else {
+		t.Vprintf("%s  Registration data removed.\n", t.Green("  ✓"))
 	}
-
-	t.Vprint(t.Green("Deregistration complete."))
+	t.Vprintf("%s  Deregistration complete.\n", t.Green("  ✓"))
 	t.Vprint("")
 
 	return nil

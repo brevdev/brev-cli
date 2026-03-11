@@ -26,11 +26,12 @@ type Terminal struct {
 	verbose io.Writer
 	err     io.Writer
 
-	Green  func(format string, a ...interface{}) string
-	Yellow func(format string, a ...interface{}) string
-	Red    func(format string, a ...interface{}) string
-	Blue   func(format string, a ...interface{}) string
-	White  func(format string, a ...interface{}) string
+	Green    func(format string, a ...interface{}) string
+	Yellow   func(format string, a ...interface{}) string
+	Red      func(format string, a ...interface{}) string
+	Blue     func(format string, a ...interface{}) string
+	White    func(format string, a ...interface{}) string
+	BoldBlue func(format string, a ...interface{}) string
 
 	Bar ProgressBar
 
@@ -39,14 +40,15 @@ type Terminal struct {
 
 func New() (t *Terminal) {
 	return &Terminal{
-		out:     os.Stdout,
-		verbose: os.Stdout,
-		err:     os.Stderr,
-		Green:   color.New(color.FgGreen).SprintfFunc(),
-		Yellow:  color.New(color.FgYellow).SprintfFunc(),
-		Red:     color.New(color.FgRed).SprintfFunc(),
-		Blue:    color.New(color.FgBlue).SprintfFunc(),
-		White:   color.New(color.FgWhite, color.Bold).SprintfFunc(),
+		out:      os.Stdout,
+		verbose:  os.Stdout,
+		err:      os.Stderr,
+		Green:    color.New(color.FgGreen).SprintfFunc(),
+		Yellow:   color.New(color.FgYellow).SprintfFunc(),
+		Red:      color.New(color.FgRed).SprintfFunc(),
+		Blue:     color.New(color.FgBlue).SprintfFunc(),
+		White:    color.New(color.FgWhite, color.Bold).SprintfFunc(),
+		BoldBlue: color.New(color.FgBlue, color.Bold).SprintfFunc(),
 	}
 }
 

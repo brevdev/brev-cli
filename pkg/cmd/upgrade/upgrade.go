@@ -43,6 +43,7 @@ type upgradeDeps struct {
 	detector       Detector
 	upgrader       Upgrader
 	confirmer      terminal.Confirmer
+	gater          sudo.Gater
 	skillInstaller SkillInstaller
 }
 
@@ -51,6 +52,7 @@ func defaultUpgradeDeps() upgradeDeps {
 		detector:       SystemDetector{},
 		upgrader:       SystemUpgrader{},
 		confirmer:      register.TerminalPrompter{},
+		gater:          sudo.Default,
 		skillInstaller: defaultSkillInstaller{},
 	}
 }
@@ -147,7 +149,7 @@ func upgradeViaDirect(t *terminal.Terminal, deps upgradeDeps) (bool, error) {
 	t.Vprint("This will download the latest release and install it to /usr/local/bin/brev")
 	t.Vprint("")
 
-	if err := sudo.Gate(t, deps.confirmer, "Upgrade"); err != nil {
+	if err := deps.gater.Gate(t, deps.confirmer, "Upgrade", false); err != nil {
 		return false, fmt.Errorf("sudo issue: %w", err)
 	}
 
