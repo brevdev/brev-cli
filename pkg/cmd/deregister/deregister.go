@@ -157,8 +157,9 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 
 	const clearLine = "\033[2K\n"
 
+	t.Vprint(t.Yellow("[Step 1/4] Removing node from Brev..."))
 	sp := t.NewSpinner()
-	sp.Suffix = " " + t.Yellow("[Step 1/4] Removing node from Brev...")
+	sp.Suffix = " Deregistering device..."
 	sp.Start()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	_, err = client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
@@ -172,8 +173,9 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprintf("%s  Node removed from Brev.\n", t.Green("  ✓"))
 	t.Vprint("")
 
+	t.Vprint(t.Yellow("[Step 2/4] Removing Brev SSH keys..."))
 	sp = t.NewSpinner()
-	sp.Suffix = " " + t.Yellow("[Step 2/4] Removing Brev SSH keys...")
+	sp.Suffix = " Deregistering device..."
 	sp.Start()
 	if osUser == nil {
 		sp.FinalMSG = clearLine
@@ -197,8 +199,9 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	}
 	t.Vprint("")
 
+	t.Vprint(t.Yellow("[Step 3/4] Removing Brev tunnel..."))
 	sp = t.NewSpinner()
-	sp.Suffix = " " + t.Yellow("[Step 3/4] Removing Brev tunnel...")
+	sp.Suffix = " Deregistering device..."
 	sp.Start()
 	err = deps.netbird.Uninstall()
 	sp.FinalMSG = clearLine
@@ -210,8 +213,9 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	}
 	t.Vprint("")
 
+	t.Vprint(t.Yellow("[Step 4/4] Removing registration data..."))
 	sp = t.NewSpinner()
-	sp.Suffix = " " + t.Yellow("[Step 4/4] Removing registration data...")
+	sp.Suffix = " Deregistering device..."
 	sp.Start()
 	err = deps.registrationStore.Delete()
 	sp.FinalMSG = clearLine
