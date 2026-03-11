@@ -496,7 +496,6 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	return nil
 }
 
-// RunInstances lists
 func (ls Ls) RunInstances(org *entity.Organization, user *entity.User, showAll bool) error {
 	if err := ls.RunWorkspaces(org, user, showAll); err != nil {
 		return err
@@ -730,7 +729,6 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 type NodeInfo struct {
 	Name           string `json:"name"`
 	ExternalNodeID string `json:"external_node_id"`
-	DeviceID       string `json:"device_id"`
 	OrgID          string `json:"org_id"`
 	Status         string `json:"status"`
 }
@@ -784,7 +782,6 @@ func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
 		infos = append(infos, NodeInfo{
 			Name:           n.GetName(),
 			ExternalNodeID: n.GetExternalNodeId(),
-			DeviceID:       n.GetDeviceId(),
 			OrgID:          n.GetOrganizationId(),
 			Status:         nodeConnectionStatus(n),
 		})
