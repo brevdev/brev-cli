@@ -101,8 +101,20 @@ func (m *mockRevokeSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAt
 // fakeNodeService implements the server side of ExternalNodeService for testing.
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
+	listNodesFn func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
 	getNodeFn   func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
 	revokeSSHFn func(*nodev1.RevokeNodeSSHAccessRequest) (*nodev1.RevokeNodeSSHAccessResponse, error)
+}
+
+func (f *fakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+	if f.listNodesFn != nil {
+		resp, err := f.listNodesFn(req.Msg)
+		if err != nil {
+			return nil, err
+		}
+		return connect.NewResponse(resp), nil
+	}
+	return nil, connect.NewError(connect.CodeUnimplemented, fmt.Errorf("listNodesFn not set"))
 }
 
 func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
@@ -149,7 +161,11 @@ func Test_runRevokeSSH_NotRegistered(t *testing.T) {
 		token: "tok",
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 	}
-	svc := &fakeNodeService{}
+	svc := &fakeNodeService{
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{Items: nil}, nil // no nodes
+		},
+	}
 
 	deps, server := baseDeps(t, svc, regStore)
 	defer server.Close()
@@ -175,11 +191,14 @@ func Test_runRevokeSSH_NoSSHAccess(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{
-		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-			return &nodev1.GetNodeResponse{
-				ExternalNode: &nodev1.ExternalNode{
-					ExternalNodeId: "unode_abc",
-					SshAccess:      nil, // no SSH access
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{
+					{
+						ExternalNodeId: "unode_abc",
+						Name:           "My Spark",
+						SshAccess:      nil, // no SSH access
+					},
 				},
 			}, nil
 		},
@@ -213,12 +232,15 @@ func Test_runRevokeSSH_RevokeAccess(t *testing.T) {
 
 	var gotReq *nodev1.RevokeNodeSSHAccessRequest
 	svc := &fakeNodeService{
-		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-			return &nodev1.GetNodeResponse{
-				ExternalNode: &nodev1.ExternalNode{
-					ExternalNodeId: "unode_abc",
-					SshAccess: []*nodev1.SSHAccess{
-						{UserId: "user_2", LinuxUser: "ubuntu"},
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{
+					{
+						ExternalNodeId: "unode_abc",
+						Name:           "My Spark",
+						SshAccess: []*nodev1.SSHAccess{
+							{UserId: "user_2", LinuxUser: "ubuntu"},
+						},
 					},
 				},
 			}, nil
@@ -267,12 +289,15 @@ func Test_runRevokeSSH_RPCFailure(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{
-		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-			return &nodev1.GetNodeResponse{
-				ExternalNode: &nodev1.ExternalNode{
-					ExternalNodeId: "unode_abc",
-					SshAccess: []*nodev1.SSHAccess{
-						{UserId: "user_3", LinuxUser: "testuser"},
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{
+					{
+						ExternalNodeId: "unode_abc",
+						Name:           "My Spark",
+						SshAccess: []*nodev1.SSHAccess{
+							{UserId: "user_3", LinuxUser: "testuser"},
+						},
 					},
 				},
 			}, nil

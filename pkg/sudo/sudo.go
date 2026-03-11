@@ -89,9 +89,7 @@ func isTTY(f *os.File) bool {
 	return (info.Mode() & os.ModeCharDevice) != 0
 }
 
-
 // CachedGater is a Gater that always acts as if sudo is cached (no prompt, no refresh). For tests.
 type CachedGater struct{}
 
 func (CachedGater) Gate(*terminal.Terminal, terminal.Confirmer, string, bool) error { return nil }
-
