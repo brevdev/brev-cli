@@ -115,7 +115,7 @@ func enableSSH(
 		t.Vprint("")
 		port, err = register.PromptSSHPort(t)
 		if err != nil {
-			return fmt.Errorf("SSH port: %w", err)
+			return fmt.Errorf("invalid SSH port: %w", err)
 		}
 
 		if err := register.OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {

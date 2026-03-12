@@ -980,7 +980,7 @@ func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
 	}
 }
 
-func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen // test
+func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen, gocyclo, gocognit // test
 	tests := []struct {
 		name   string
 		port   int32
@@ -1032,6 +1032,23 @@ func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen // test
 				exists, _ := regStore.Exists()
 				if !exists {
 					t.Error("expected registration to still exist after OpenSSHPort failure")
+				}
+			},
+		},
+		{
+			name: "InvalidPortNoAPICall",
+			port: 99999,
+			verify: func(t *testing.T, openReq *nodev1.OpenPortRequest, _ *nodev1.GrantNodeSSHAccessRequest, regStore *mockRegistrationStore, err error) {
+				t.Helper()
+				if err != nil {
+					t.Fatalf("registration should succeed even when SSH port is invalid (soft error), got: %v", err)
+				}
+				if openReq != nil {
+					t.Error("expected OpenPort NOT to be called for invalid port")
+				}
+				exists, _ := regStore.Exists()
+				if !exists {
+					t.Error("expected registration to still exist after invalid port")
 				}
 			},
 		},

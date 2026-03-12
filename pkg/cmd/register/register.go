@@ -250,7 +250,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 			return fmt.Errorf("failed to determine current Linux user: %w", err)
 		}
 		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant, opts.interactive, opts.skipConfirm); err != nil {
-			t.Vprintf("  Warning: SSH access not granted: %v\n", err)
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: %v", err)))
 		}
 	}
 
@@ -465,7 +465,7 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 		t.Vprint("")
 		port, err = PromptSSHPort(t)
 		if err != nil {
-			return fmt.Errorf("SSH port: %w", err)
+			return fmt.Errorf("invalid SSH port: %w", err)
 		}
 	} else {
 		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "SSH port:")), t.BoldBlue(fmt.Sprintf("%d", port)))
