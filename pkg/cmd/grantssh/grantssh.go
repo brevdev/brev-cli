@@ -139,17 +139,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	// Capture the target node
 	var node *nodev1.ExternalNode
 	if opts.interactive {
-		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
-			OrganizationId: org.ID,
-		}))
-		if listErr != nil {
-			return breverrors.WrapAndTrace(listErr)
-		}
-		nodes := resp.Msg.GetItems()
-		if len(nodes) == 0 {
-			return fmt.Errorf("no nodes found in organization")
-		}
-		node, err = register.SelectNodeFromList(ctx, t, deps.prompter, deps.registrationStore, nodes)
+		node, err = register.SelectNodeFromList(ctx, org.ID, t, deps.prompter, deps.registrationStore, client)
 	} else {
 		node, err = helpers.ResolveNodeByName(ctx, client, org.ID, opts.nodeName)
 	}

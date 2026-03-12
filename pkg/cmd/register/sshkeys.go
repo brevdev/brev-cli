@@ -12,8 +12,10 @@ import (
 	"strings"
 	"time"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -25,7 +27,14 @@ import (
 // SelectNodeFromList prompts the user to select a node from the list, then fetches and returns the full node.
 // When this machine is registered, that node is marked " — this node" in the list.
 // Call this after ListNodes when in interactive mode (same pattern as SelectOrganizationInteractive).
-func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter terminal.Selector, registrationStore RegistrationStore, nodes []*nodev1.ExternalNode) (*nodev1.ExternalNode, error) {
+func SelectNodeFromList(ctx context.Context, orgID string, t *terminal.Terminal, prompter terminal.Selector, registrationStore RegistrationStore, client nodev1connect.ExternalNodeServiceClient) (*nodev1.ExternalNode, error) {
+	resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: orgID,
+	}))
+	if listErr != nil {
+		return nil, breverrors.WrapAndTrace(listErr)
+	}
+	nodes := resp.Msg.GetItems()
 	if len(nodes) == 0 {
 		return nil, fmt.Errorf("no nodes found in organization")
 	}

@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
@@ -249,6 +251,17 @@ func (s *captureSelector) Select(_ string, items []string) string {
 	return items[s.returnIdx]
 }
 
+// fakeNodeClient implements nodev1connect.ExternalNodeServiceClient, returning
+// canned nodes from ListNodes
+type fakeNodeClient struct {
+	nodev1connect.ExternalNodeServiceClient
+	nodes []*nodev1.ExternalNode
+}
+
+func (f *fakeNodeClient) ListNodes(_ context.Context, _ *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+	return connect.NewResponse(&nodev1.ListNodesResponse{Items: f.nodes}), nil
+}
+
 func makeNodes(ids ...string) []*nodev1.ExternalNode {
 	nodes := make([]*nodev1.ExternalNode, len(ids))
 	for i, id := range ids {
@@ -265,9 +278,9 @@ func TestSelectNodeFromList_ThisNodeMovedToFront(t *testing.T) {
 	regStore := &mockRegistrationStore{
 		reg: &DeviceRegistration{ExternalNodeID: "c"},
 	}
-	nodes := makeNodes("a", "b", "c", "d")
+	client := &fakeNodeClient{nodes: makeNodes("a", "b", "c", "d")}
 
-	got, err := SelectNodeFromList(context.Background(), terminal.New(), sel, regStore, nodes)
+	got, err := SelectNodeFromList(context.Background(), "org1", terminal.New(), sel, regStore, client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -293,9 +306,9 @@ func TestSelectNodeFromList_ThisNodeAlreadyFirst(t *testing.T) {
 	regStore := &mockRegistrationStore{
 		reg: &DeviceRegistration{ExternalNodeID: "a"},
 	}
-	nodes := makeNodes("a", "b", "c")
+	client := &fakeNodeClient{nodes: makeNodes("a", "b", "c")}
 
-	got, err := SelectNodeFromList(context.Background(), terminal.New(), sel, regStore, nodes)
+	got, err := SelectNodeFromList(context.Background(), "org1", terminal.New(), sel, regStore, client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -311,10 +324,9 @@ func TestSelectNodeFromList_ThisNodeAlreadyFirst(t *testing.T) {
 func TestSelectNodeFromList_NoRegistration(t *testing.T) {
 	sel := &captureSelector{returnIdx: 1}
 	regStore := &mockRegistrationStore{} // no registration
+	client := &fakeNodeClient{nodes: makeNodes("a", "b", "c")}
 
-	nodes := makeNodes("a", "b", "c")
-
-	got, err := SelectNodeFromList(context.Background(), terminal.New(), sel, regStore, nodes)
+	got, err := SelectNodeFromList(context.Background(), "org1", terminal.New(), sel, regStore, client)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
