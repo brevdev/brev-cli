@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 func tempUser(t *testing.T) *user.User {
@@ -212,6 +214,61 @@ func TestInstallAuthorizedKey_IncludesUserID(t *testing.T) {
 	expected := "ssh-rsa AAAA testkey # brev-cli user_id=user_abc"
 	if !strings.Contains(content, expected) {
 		t.Errorf("expected %q in authorized_keys, got:\n%s", expected, content)
+	}
+}
+
+// --- PromptSSHPort ---
+
+func promptSSHPortWithInput(t *testing.T, input string) (int32, error) {
+	t.Helper()
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("creating pipe: %v", err)
+	}
+	defer r.Close()
+
+	// Write input and close writer so ReadString sees EOF after newline.
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatalf("writing to pipe: %v", err)
+	}
+	w.Close()
+
+	origStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = origStdin }()
+
+	ClearTestSSHPort() // ensure we go through the real path
+	term := terminal.New()
+	return PromptSSHPort(term)
+}
+
+func TestPromptSSHPort(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  int32
+	}{
+		{"Default", "\n", 22},
+		{"CustomPort", "2222\n", 2222},
+		{"MinPort", "1\n", 1},
+		{"MaxPort", "65535\n", 65535},
+		{"RetryAfterOutOfRange", "99999\n22\n", 22},
+		{"RetryAfterZero", "0\n443\n", 443},
+		{"RetryAfterNonNumeric", "abc\n8080\n", 8080},
+		{"RetryAfterNegative", "-1\n22\n", 22},
+		{"RetryMultipleThenValid", "foo\n99999\n22\n", 22},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			port, err := promptSSHPortWithInput(t, tt.input)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if port != tt.want {
+				t.Errorf("expected port %d, got %d", tt.want, port)
+			}
+		})
 	}
 }
 

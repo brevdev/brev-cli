@@ -177,6 +177,9 @@ func OpenSSHPort(
 	reg *DeviceRegistration,
 	port int32,
 ) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("invalid SSH port %d: port must be between 1 and 65535", port)
+	}
 	client := nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
 	_, err := client.OpenPort(ctx, connect.NewRequest(&nodev1.OpenPortRequest{
 		ExternalNodeId: reg.ExternalNodeID,
@@ -275,30 +278,34 @@ func SetTestSSHPort(port int32) { testSSHPort = &port }
 func ClearTestSSHPort() { testSSHPort = nil }
 
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
-// they press Enter or leave it empty. Returns an error for invalid port numbers.
-// Uses a single print + stdin read to avoid promptui rendering the label twice.
+// they press Enter or leave it empty. Re-prompts on invalid input until a valid
+// port is provided. Only returns an error for unrecoverable I/O failures.
 func PromptSSHPort(t *terminal.Terminal) (int32, error) {
 	if testSSHPort != nil {
 		return *testSSHPort, nil
 	}
-	t.Vprintf("  %s ", t.Green("SSH port (default 22):"))
 	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return 0, fmt.Errorf("reading input: %w", err)
+	for {
+		t.Vprintf("  %s ", t.Green("SSH port (default 22):"))
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return 0, fmt.Errorf("reading input: %w", err)
+		}
+		portStr := strings.TrimSpace(line)
+		if portStr == "" {
+			return defaultSSHPort, nil
+		}
+		n, err := strconv.ParseUint(portStr, 10, 16)
+		if err != nil {
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Invalid port %q: port must be a number between 1 and 65535", portStr)))
+			continue
+		}
+		if n < 1 || n > 65535 { // explicit gate even though ParseUint will already fail values out of range
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Invalid port %q: port must be between 1 and 65535", portStr)))
+			continue
+		}
+		return int32(n), nil
 	}
-	portStr := strings.TrimSpace(line)
-	if portStr == "" {
-		return defaultSSHPort, nil
-	}
-	n, err := strconv.ParseUint(portStr, 10, 16)
-	if err != nil {
-		return 0, fmt.Errorf("invalid port %q: %w", portStr, err)
-	}
-	if n < 1 || n > 65535 {
-		return 0, fmt.Errorf("port must be between 1 and 65535, got %d", n)
-	}
-	return int32(n), nil
 }
 
 // InstallAuthorizedKey appends the given public key to the user's
