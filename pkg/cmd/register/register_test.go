@@ -441,6 +441,9 @@ func Test_runRegister_WithOrgFlag(t *testing.T) {
 					OrganizationId: req.GetOrganizationId(),
 					Name:           req.GetName(),
 					DeviceId:       req.GetDeviceId(),
+					ConnectivityInfo: &nodev1.ConnectivityInfo{
+						RegistrationCommand: "netbird up --key abc",
+					},
 				},
 			}, nil
 		},
@@ -572,8 +575,8 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 	term := terminal.New()
 	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
 	err := runRegister(context.Background(), term, store, opts, deps)
-	if err != nil {
-		t.Fatalf("runRegister failed: %v", err)
+	if err == nil {
+		t.Fatal("expected error when no setup command")
 	}
 
 	if setupRunner.called {
@@ -803,6 +806,9 @@ func Test_runRegister_NameValidation(t *testing.T) {
 							OrganizationId: "org_123",
 							Name:           req.GetName(),
 							DeviceId:       req.GetDeviceId(),
+							ConnectivityInfo: &nodev1.ConnectivityInfo{
+								RegistrationCommand: "netbird up --key abc",
+							},
 						},
 					}, nil
 				},

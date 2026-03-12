@@ -333,8 +333,12 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		return nil, fmt.Errorf("node registered but failed to save locally: %w", err)
 	}
 
-	runSetup(node, t, deps)
+	err = runSetup(node, deps)
 	stopSpinner()
+	if err != nil {
+		return nil, fmt.Errorf("setup command failed: %w", err)
+	}
+
 	t.Vprintf("%s  Node registered.\n", t.Green("  ✓"))
 	t.Vprintf("%s  Registration complete.\n", t.Green("  ✓"))
 	return reg, nil
@@ -421,19 +425,18 @@ func netbirdManagementConnected(statusOutput string) bool {
 	return false
 }
 
-func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps) {
+func runSetup(node *nodev1.ExternalNode, deps registerDeps) error {
 	ci := node.GetConnectivityInfo()
 	if ci == nil || ci.GetRegistrationCommand() == "" {
-		t.Vprintf("  %s\n", t.Yellow("Warning: Brev tunnel setup failed, please try again."))
-	} else {
-		if err := deps.setupRunner.RunSetup(ci.GetRegistrationCommand()); err != nil {
-			t.Vprintf("  Warning: setup command failed: %v\n", err)
-		} else {
-			// netbird up reconfigures network routes; give them a moment
-			// to settle before making further RPC calls.
-			time.Sleep(2 * time.Second)
-		}
+		return fmt.Errorf("brev tunnel setup failed, please try again")
 	}
+
+	err := deps.setupRunner.RunSetup(ci.GetRegistrationCommand())
+	if err != nil {
+		return fmt.Errorf("setup command failed: %w", err)
+	}
+
+	return nil
 }
 
 // grantSSHAccessWithPort enables SSH: shows confirm table, uses port or prompts if port is 0, then allocates port and grants access.
