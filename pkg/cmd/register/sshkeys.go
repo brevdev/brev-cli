@@ -34,12 +34,19 @@ func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter term
 		thisNodeID = reg.ExternalNodeID
 	}
 	t.Vprint("")
+	thisIdx := -1
 	labels := make([]string, len(nodes))
 	for i, n := range nodes {
-		labels[i] = fmt.Sprintf("%s (%s)", n.GetName(), n.GetExternalNodeId())
 		if thisNodeID != "" && n.GetExternalNodeId() == thisNodeID {
 			labels[i] = fmt.Sprintf("%s (%s) — this node", n.GetName(), n.GetExternalNodeId())
+			thisIdx = i
+		} else {
+			labels[i] = fmt.Sprintf("%s (%s)", n.GetName(), n.GetExternalNodeId())
 		}
+	}
+	if thisIdx > 0 {
+		nodes[0], nodes[thisIdx] = nodes[thisIdx], nodes[0]
+		labels[0], labels[thisIdx] = labels[thisIdx], labels[0]
 	}
 	chosen := prompter.Select("Select node", labels)
 	var selected *nodev1.ExternalNode

@@ -1,11 +1,16 @@
 package register
 
 import (
+	"context"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
+	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 func tempUser(t *testing.T) *user.User {
@@ -228,5 +233,100 @@ func TestInstallAuthorizedKey_EmptyUserID_UsesPrefix(t *testing.T) {
 	}
 	if strings.Contains(content, "user_id=") {
 		t.Errorf("should not contain user_id when empty, got:\n%s", content)
+	}
+}
+
+// --- SelectNodeFromList ---
+
+// captureSelector records the items passed to Select and returns the item at returnIdx.
+type captureSelector struct {
+	items     []string
+	returnIdx int
+}
+
+func (s *captureSelector) Select(_ string, items []string) string {
+	s.items = items
+	return items[s.returnIdx]
+}
+
+func makeNodes(ids ...string) []*nodev1.ExternalNode {
+	nodes := make([]*nodev1.ExternalNode, len(ids))
+	for i, id := range ids {
+		nodes[i] = &nodev1.ExternalNode{
+			ExternalNodeId: id,
+			Name:           "node-" + id,
+		}
+	}
+	return nodes
+}
+
+func TestSelectNodeFromList_ThisNodeMovedToFront(t *testing.T) {
+	sel := &captureSelector{returnIdx: 0}
+	regStore := &mockRegistrationStore{
+		reg: &DeviceRegistration{ExternalNodeID: "c"},
+	}
+	nodes := makeNodes("a", "b", "c", "d")
+
+	got, err := SelectNodeFromList(context.Background(), terminal.New(), sel, regStore, nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// "this node" label should be first in the list.
+	if !strings.Contains(sel.items[0], "— this node") {
+		t.Errorf("expected first item to be 'this node', got %q", sel.items[0])
+	}
+	// No other item should have the label.
+	for _, item := range sel.items[1:] {
+		if strings.Contains(item, "— this node") {
+			t.Errorf("unexpected 'this node' label on non-first item: %q", item)
+		}
+	}
+	// Selecting index 0 should return node "c".
+	if got.GetExternalNodeId() != "c" {
+		t.Errorf("expected selected node 'c', got %q", got.GetExternalNodeId())
+	}
+}
+
+func TestSelectNodeFromList_ThisNodeAlreadyFirst(t *testing.T) {
+	sel := &captureSelector{returnIdx: 0}
+	regStore := &mockRegistrationStore{
+		reg: &DeviceRegistration{ExternalNodeID: "a"},
+	}
+	nodes := makeNodes("a", "b", "c")
+
+	got, err := SelectNodeFromList(context.Background(), terminal.New(), sel, regStore, nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(sel.items[0], "— this node") {
+		t.Errorf("expected first item to be 'this node', got %q", sel.items[0])
+	}
+	if got.GetExternalNodeId() != "a" {
+		t.Errorf("expected selected node 'a', got %q", got.GetExternalNodeId())
+	}
+}
+
+func TestSelectNodeFromList_NoRegistration(t *testing.T) {
+	sel := &captureSelector{returnIdx: 1}
+	regStore := &mockRegistrationStore{} // no registration
+
+	nodes := makeNodes("a", "b", "c")
+
+	got, err := SelectNodeFromList(context.Background(), terminal.New(), sel, regStore, nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// No item should have the "this node" label.
+	for _, item := range sel.items {
+		if strings.Contains(item, "— this node") {
+			t.Errorf("unexpected 'this node' label: %q", item)
+		}
+	}
+	// Order should be unchanged; selecting index 1 returns "b".
+	if got.GetExternalNodeId() != "b" {
+		t.Errorf("expected selected node 'b', got %q", got.GetExternalNodeId())
 	}
 }
