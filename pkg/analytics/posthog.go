@@ -100,7 +100,8 @@ func SetAnalyticsPreference(enabled bool) error {
 	return nil
 }
 
-// GetOrCreateAnalyticsID returns a stable anonymous UUID for tracking, creating one if needed.
+// GetOrCreateAnalyticsID returns the user's distinct ID for tracking.
+// It prefers the real user ID if available, falling back to a stable anonymous UUID.
 func GetOrCreateAnalyticsID() string {
 	fs := files.AppFs
 	home, err := getHomeDir()
@@ -111,12 +112,37 @@ func GetOrCreateAnalyticsID() string {
 	if err != nil {
 		return ""
 	}
+	if settings.UserID != "" {
+		return settings.UserID
+	}
 	if settings.AnalyticsID != "" {
 		return settings.AnalyticsID
 	}
 	settings.AnalyticsID = uuid.New().String()
 	_ = files.WritePersonalSettings(fs, home, settings)
 	return settings.AnalyticsID
+}
+
+// SetUserID persists the real user ID into personal settings so that
+// future analytics events use it as the distinct ID.
+func SetUserID(userID string) {
+	if userID == "" {
+		return
+	}
+	fs := files.AppFs
+	home, err := getHomeDir()
+	if err != nil {
+		return
+	}
+	settings, err := files.ReadPersonalSettings(fs, home)
+	if err != nil {
+		return
+	}
+	if settings.UserID == userID {
+		return
+	}
+	settings.UserID = userID
+	_ = files.WritePersonalSettings(fs, home, settings)
 }
 
 // CaptureAnalyticsOptIn sends an event recording the user's analytics consent choice.

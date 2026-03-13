@@ -169,6 +169,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			user, err := noLoginCmdStore.GetCurrentUser()
 			if err == nil && user != nil {
 				userID = user.ID
+				analytics.SetUserID(userID)
 			}
 			if userID == "" {
 				userID = analytics.GetOrCreateAnalyticsID()
