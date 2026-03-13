@@ -211,9 +211,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name+" ("+org.ID+")"))
 	t.Vprint("")
 	t.Vprint(t.Yellow("  This will:"))
-	t.Vprint("    1. Set up Brev tunnel")
+	t.Vprint("    1. Download and install Brev tunnel")
 	t.Vprint("    2. Collect hardware profile")
 	t.Vprint("    3. Register this machine with Brev")
+	t.Vprint("    4. Store registration data")
+	t.Vprint("    5. Connect device to Brev")
 	t.Vprint("")
 
 	if opts.interactive {
