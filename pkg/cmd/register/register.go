@@ -10,7 +10,6 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
-	"github.com/briandowns/spinner"
 	"github.com/google/uuid"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -212,9 +211,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(org.Name+" ("+org.ID+")"))
 	t.Vprint("")
 	t.Vprint(t.Yellow("  This will:"))
-	t.Vprint("    1. Set up Brev tunnel")
+	t.Vprint("    1. Download and install Brev tunnel")
 	t.Vprint("    2. Collect hardware profile")
 	t.Vprint("    3. Register this machine with Brev")
+	t.Vprint("    4. Store registration data")
+	t.Vprint("    5. Connect device to Brev")
 	t.Vprint("")
 
 	if opts.interactive {
@@ -260,38 +261,18 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 // runRegisterSteps performs netbird install, hardware profile, AddNode, save registration, and runSetup.
 // It does not prompt or enable SSH. Used by both flag-driven and prompt-driven flows.
 func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps) (*DeviceRegistration, error) {
-	const clearLine = "\033[2K\n"
 	t.Vprint("")
 
-	// Stop spinner (and clear its line) before any of our prints so stdout and stderr don't interleave.
-	var sp *spinner.Spinner
-	stopSpinner := func() {
-		if sp != nil {
-			sp.FinalMSG = clearLine
-			sp.Stop()
-			sp = nil
-		}
-	}
-	defer stopSpinner()
-
-	t.Vprint(t.Yellow("[Step 1/3] Setting up Brev tunnel..."))
-	sp = t.NewSpinner()
-	sp.Suffix = " Registering device..."
-	sp.Start()
+	t.Vprint(t.Yellow("[Step 1/5] Downloading and installing Brev tunnel..."))
 	err := deps.netbird.Install()
-	stopSpinner()
 	if err != nil {
 		return nil, fmt.Errorf("brev tunnel setup failed: %w", err)
 	}
 	t.Vprintf("%s  Brev tunnel ready.\n", t.Green("  ✓"))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 2/3] Collecting hardware profile..."))
-	sp = t.NewSpinner()
-	sp.Suffix = " Registering device..."
-	sp.Start()
+	t.Vprint(t.Yellow("[Step 2/5] Collecting hardware profile..."))
 	hwProfile, err := deps.hardwareProfiler.Profile()
-	stopSpinner()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
@@ -301,10 +282,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	t.Vprint(FormatHardwareProfile(hwProfile))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 3/3] Registering with Brev..."))
-	sp = t.NewSpinner()
-	sp.Suffix = " Registering device..."
-	sp.Start()
+	t.Vprint(t.Yellow("[Step 3/5] Registering device with Brev..."))
 	deviceID := uuid.New().String()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
@@ -314,7 +292,6 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		NodeSpec:       toProtoNodeSpec(hwProfile),
 	}))
 	if err != nil {
-		stopSpinner()
 		return nil, fmt.Errorf("failed to register node: %w", err)
 	}
 
@@ -328,13 +305,17 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		RegisteredAt:    time.Now().UTC().Format(time.RFC3339),
 		HardwareProfile: *hwProfile,
 	}
+
+	t.Vprint("")
+	t.Vprint(t.Yellow("[Step 4/5] Storing registration data..."))
 	if err := deps.registrationStore.Save(reg); err != nil {
-		stopSpinner()
 		return nil, fmt.Errorf("node registered but failed to save locally: %w", err)
 	}
 
+	t.Vprint("")
+	t.Vprint(t.Yellow("[Step 5/5] Connecting device to Brev..."))
 	runSetup(node, t, deps)
-	stopSpinner()
+
 	t.Vprintf("%s  Node registered.\n", t.Green("  ✓"))
 	t.Vprintf("%s  Registration complete.\n", t.Green("  ✓"))
 	return reg, nil

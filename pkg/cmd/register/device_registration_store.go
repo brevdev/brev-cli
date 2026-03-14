@@ -120,17 +120,12 @@ func (s *FileRegistrationStore) Exists() (bool, error) {
 // sudoWriteFile creates the parent directory and writes data to path using sudo.
 func sudoWriteFile(path string, data []byte) error {
 	dir := filepath.Dir(path)
-	if err := exec.Command("sudo", "mkdir", "-p", dir).Run(); err != nil { //nolint:gosec // fixed base path
-		return fmt.Errorf("sudo mkdir %s failed: %w", dir, err)
-	}
-	cmd := exec.Command("sudo", "tee", path) //nolint:gosec // fixed base path
+	script := fmt.Sprintf("mkdir -p '%s' && tee '%s' > /dev/null && chmod 644 '%s'", dir, path, path)
+	cmd := exec.Command("sudo", "bash", "-c", script) //nolint:gosec // fixed base path
 	cmd.Stdin = bytes.NewReader(data)
-	cmd.Stdout = nil // suppress tee's stdout echo
+	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("sudo tee %s failed: %w", path, err)
-	}
-	if err := exec.Command("sudo", "chmod", "644", path).Run(); err != nil { //nolint:gosec // fixed base path
-		return fmt.Errorf("sudo chmod %s failed: %w", path, err)
+		return fmt.Errorf("failed to write %s: %w", path, err)
 	}
 	return nil
 }

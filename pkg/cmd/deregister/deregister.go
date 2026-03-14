@@ -157,18 +157,11 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		}
 	}
 
-	const clearLine = "\033[2K\n"
-
 	t.Vprint(t.Yellow("[Step 1/4] Removing node from Brev..."))
-	sp := t.NewSpinner()
-	sp.Suffix = " Deregistering device..."
-	sp.Start()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	_, err = client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
 		ExternalNodeId: reg.ExternalNodeID,
 	}))
-	sp.FinalMSG = clearLine
-	sp.Stop()
 	if err != nil {
 		return fmt.Errorf("failed to deregister node: %w", err)
 	}
@@ -176,17 +169,10 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 2/4] Removing Brev SSH keys..."))
-	sp = t.NewSpinner()
-	sp.Suffix = " Deregistering device..."
-	sp.Start()
 	if osUser == nil {
-		sp.FinalMSG = clearLine
-		sp.Stop()
 		t.Vprintf("  %s\n", t.Yellow("Skipped: could not determine current user"))
 	} else {
 		removed, kerr := deps.sshKeys.RemoveBrevKeys(osUser)
-		sp.FinalMSG = clearLine
-		sp.Stop()
 		switch {
 		case kerr != nil:
 			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove Brev SSH keys: %v", kerr)))
@@ -202,12 +188,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 3/4] Removing Brev tunnel..."))
-	sp = t.NewSpinner()
-	sp.Suffix = " Deregistering device..."
-	sp.Start()
 	err = deps.netbird.Uninstall()
-	sp.FinalMSG = clearLine
-	sp.Stop()
 	if err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove Brev tunnel: %v", err)))
 	} else {
@@ -216,12 +197,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 4/4] Removing registration data..."))
-	sp = t.NewSpinner()
-	sp.Suffix = " Deregistering device..."
-	sp.Start()
 	err = deps.registrationStore.Delete()
-	sp.FinalMSG = clearLine
-	sp.Stop()
 	if err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove local registration file: %v", err)))
 		t.Vprint("  You can manually remove it with: rm /etc/brev/device_registration.json")

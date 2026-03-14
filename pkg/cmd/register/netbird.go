@@ -14,7 +14,7 @@ func InstallNetbird() error {
 
 	script := `(curl -fsSL https://pkgs.netbird.io/install.sh | sh) || (curl -fsSL https://pkgs.netbird.io/install.sh | sh -s -- --update)`
 
-	cmd := exec.Command("bash", "-c", script) // #nosec G204
+	cmd := exec.Command("sudo", "bash", "-c", script) // #nosec G204
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install Brev tunnel: %w", err)
 	}
@@ -28,7 +28,7 @@ func runSetupCommand(script string) error {
 	if !strings.HasPrefix(strings.TrimSpace(script), "netbird up") {
 		return fmt.Errorf("unexpected setup command")
 	}
-	cmd := exec.Command("bash", "-c", script) // #nosec G204
+	cmd := exec.Command("sudo", "bash", "-c", script) // #nosec G204
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("setup command failed: %w", err)
 	}
@@ -42,9 +42,9 @@ func runSetupCommand(script string) error {
 // disconnected or stopped after deregistration.
 func UninstallNetbird() error {
 	script := `
-sudo netbird down 2>/dev/null
-sudo netbird service stop 2>/dev/null
-sudo netbird service uninstall 2>/dev/null
+netbird down 2>/dev/null || true
+netbird service stop 2>/dev/null || true
+netbird service uninstall 2>/dev/null || true
 
 PKG_MGR="bin"
 if [ -f /etc/netbird/install.conf ]; then
@@ -52,18 +52,18 @@ if [ -f /etc/netbird/install.conf ]; then
 fi
 
 case "$PKG_MGR" in
-  apt)  sudo apt-get remove -y netbird || true ;;
-  dnf)  sudo dnf remove -y netbird || true ;;
-  yum)  sudo yum remove -y netbird || true ;;
-  *)    sudo rm -f /usr/bin/netbird /usr/local/bin/netbird ;;
+  apt)  apt-get remove -y netbird || true ;;
+  dnf)  dnf remove -y netbird || true ;;
+  yum)  yum remove -y netbird || true ;;
+  *)    rm -f /usr/bin/netbird /usr/local/bin/netbird ;;
 esac
 
-sudo rm -rf /etc/netbird
-sudo rm -rf /var/lib/netbird
-sudo rm -f /usr/bin/netbird /usr/local/bin/netbird
+rm -rf /etc/netbird
+rm -rf /var/lib/netbird
+rm -f /usr/bin/netbird /usr/local/bin/netbird
 `
 
-	cmd := exec.Command("bash", "-c", script) // #nosec G204
+	cmd := exec.Command("sudo", "bash", "-c", script) // #nosec G204
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to uninstall Brev tunnel: %w", err)
 	}
