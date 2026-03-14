@@ -161,6 +161,13 @@ func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1
 		return breverrors.WrapAndTrace(err)
 	}
 
+	if _, err := os.Stat(privateKeyPath); os.IsNotExist(err) {
+		t.Vprintf("fetching keys...\n")
+		if refreshErr := refresh.RunRefreshAsync(sstore).Await(); refreshErr != nil {
+			return breverrors.WrapAndTrace(refreshErr)
+		}
+	}
+
 	t.Vprintf("Connecting to external node %q as %s on port %d (key: %s)...\n", node.GetName(), info.LinuxUser, info.Port, privateKeyPath)
 	return runSSHWithPort(info.SSHTarget(), info.Port, privateKeyPath)
 }
