@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/browser"
@@ -221,38 +222,47 @@ func (t Auth) LoginWithToken(token string) error {
 	return nil
 }
 
+// showLoginURL displays the login link and CLI alternative for manual navigation.
+func showLoginURL(url string) {
+	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
+	fmt.Println("Login here: " + urlType(url))
+}
+
 func defaultAuthFunc(url, code string) {
 	codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
 	if code != "" {
 		fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 		fmt.Print("\n")
 	}
-	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("Browser link: " + urlType(url) + "\n")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleURL())))
-	fmt.Print("\n")
-	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "   " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
-		ErrorMsg:   "error",
-		AllowEmpty: true,
-	})
 
-	fmt.Print("\n")
-
-	err := browser.OpenURL(url)
-	if err != nil {
-		fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")
+	if hasBrowser() {
+		if err := browser.OpenURL(url); err == nil {
+			fmt.Println("Waiting for login to complete in browser...")
+			return
+		}
 	}
-	fmt.Println("Waiting for login to complete in browser... ")
+	showLoginURL(url)
+	fmt.Println("\nWaiting for login to complete...")
 }
 
 func skipBrowserAuthFunc(url, _ string) {
-	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleURL())))
-	fmt.Println("Waiting for login to complete in browser... Ctrl+C to use CLI command instead.")
+	showLoginURL(url)
+	fmt.Println("\nWaiting for login to complete...")
+}
+
+// hasBrowser reports whether a browser can be opened on the current platform.
+func hasBrowser() bool {
+	if runtime.GOOS == "darwin" {
+		// macOS always has "open".
+		return true
+	}
+	// Linux: check for a known browser launcher.
+	for _, name := range []string{"xdg-open", "x-www-browser", "www-browser"} {
+		if _, err := exec.LookPath(name); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
