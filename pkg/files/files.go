@@ -19,6 +19,7 @@ type PersonalSettings struct {
 	DefaultEditor    string `json:"default_editor"`
 	AnalyticsEnabled *bool  `json:"analytics_enabled,omitempty"` // nil = never asked, true = opted in, false = opted out
 	AnalyticsID      string `json:"analytics_id,omitempty"`      // stable anonymous ID for analytics
+	UserID           string `json:"user_id,omitempty"`           // real user ID from the API, cached locally
 }
 
 const (
