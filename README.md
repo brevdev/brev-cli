@@ -4,26 +4,17 @@
 
 ## Install the cli
 
-### From conda-forge
-
-To globally install `brev` [from conda-forge](https://github.com/conda-forge/brev-feedstock/) in an isolated environment with [`Pixi`](https://pixi.sh/), run
-
-```
-pixi global install brev
-```
-
 ### MacOS 
 Assumes [Homebrew](https://brew.sh/) (or Workbrew equivalent) are installed. 
 
 ```zsh
-brew install brevdev/homebrew-brev/brev && brev login
+brew install brevdev/homebrew-brev/brev
 ```
 
 ### Linux
 
 ```bash
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)"
-brev login
 ```
 
 ### Windows
@@ -34,32 +25,46 @@ Brev is supported on windows currently through the Windows Subsystem for Linux (
 **Prerequisites**
 - WSL installed and configured
 - Virtualization enabled in your BIOS
-- Ubuntu 20.04 installed from the Microsoft Store
+- Ubuntu >=22.04 installed from the Microsoft Store
 
 Once you have WSL installed and configured, you can install Brev by running the following command in your terminal:
 
 ```bash 
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)"
 ```
-**Next Steps**
+
+### From conda-forge
+
+To globally install `brev` [from conda-forge](https://github.com/conda-forge/brev-feedstock/) in an isolated environment with [`Pixi`](https://pixi.sh/), run
+
+```
+pixi global install brev
+```
+## Get Started
 
 Log in to your Brev account:
 
-```bash 
+```bash
 brev login
 ```
 
-## Get Started
+Create a new GPU instance:
 
-https://brev.nvidia.com/
+```bash
+brev create awesome-gpu-name
+```
+
+See the instance:
+
+```bash
+brev ls
+```
 
 ## Docs
 
 https://docs.nvidia.com/brev/latest/
 
 ---
-
-https://user-images.githubusercontent.com/14320477/170176621-6b871798-baef-4d42-affe-063a76eca9da.mp4
 
 ## AI Agent Integration
 
