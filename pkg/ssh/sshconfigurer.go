@@ -611,7 +611,13 @@ func makeIncludeBrevStr(brevSSHConfigPath string) string {
 }
 
 func doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
-	return strings.Contains(conf, makeIncludeBrevStr(brevConfigPath))
+	if strings.Contains(conf, makeIncludeBrevStr(brevConfigPath)) {
+		return true
+	}
+	if strings.Contains(conf, makeIncludeBrevStr(toWindowsPath(brevConfigPath))) {
+		return true
+	}
+	return false
 }
 
 // Deprecated: var _ Config = SSHConfigurerServiceMesh{}
