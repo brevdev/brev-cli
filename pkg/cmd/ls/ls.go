@@ -137,7 +137,7 @@ with other commands like stop, start, or delete.`,
 		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
+	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and external nodes in org")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
@@ -452,9 +452,13 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	var allWorkspaces []entity.Workspace
 	var wsErr error
 	var gpuLookup map[string]string
+	var nodes []*nodev1.ExternalNode
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	if showAll {
+		wg.Add(1)
+	}
 	go func() {
 		defer wg.Done()
 		allWorkspaces, wsErr = ls.lsStore.GetWorkspaces(org.ID, nil)
@@ -463,6 +467,18 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		defer wg.Done()
 		gpuLookup = buildGPULookup(ls.lsStore)
 	}()
+	if showAll {
+		go func() {
+			defer wg.Done()
+			var err error
+			nodes, err = ls.listNodes(org)
+			if err != nil {
+				if featureflag.Debug() {
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list external nodes: %v\n", err)
+				}
+			}
+		}()
+	}
 	wg.Wait()
 
 	if wsErr != nil {
@@ -479,7 +495,7 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 
 	// Handle JSON output
 	if ls.jsonOutput {
-		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup)
+		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup, nodes)
 	}
 
 	// Table output with colors and help text
@@ -489,6 +505,10 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	}
 	if showAll {
 		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
+		if len(nodes) > 0 {
+			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+			displayNodesTable(ls.terminal, nodes, ls.piped)
+		}
 	} else {
 		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
 	}
@@ -545,11 +565,23 @@ func getInstanceTypeAndKind(w entity.Workspace, gpuLookup map[string]string) (st
 	return "", ""
 }
 
-func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string) error {
-	var infos []WorkspaceInfo
+func toNodeInfos(nodes []*nodev1.ExternalNode) []NodeInfo {
+	var infos []NodeInfo
+	for _, n := range nodes {
+		infos = append(infos, NodeInfo{
+			Name:   n.GetName(),
+			OrgID:  n.GetOrganizationId(),
+			Status: nodeConnectionStatus(n),
+		})
+	}
+	return infos
+}
+
+func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string, nodes []*nodev1.ExternalNode) error {
+	var wsInfos []WorkspaceInfo
 	for _, w := range workspaces {
 		instanceType, instanceKind := getInstanceTypeAndKind(w, gpuLookup)
-		infos = append(infos, WorkspaceInfo{
+		wsInfos = append(wsInfos, WorkspaceInfo{
 			Name:         w.Name,
 			ID:           w.ID,
 			Status:       getWorkspaceDisplayStatus(w),
@@ -561,7 +593,25 @@ func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[s
 			GPU:          getGPUForInstance(w, gpuLookup),
 		})
 	}
-	output, err := json.MarshalIndent(infos, "", "  ")
+
+	var result any
+	if nodes != nil {
+		result = struct {
+			Workspaces []WorkspaceInfo `json:"workspaces"`
+			Nodes      []NodeInfo      `json:"nodes"`
+		}{
+			Workspaces: wsInfos,
+			Nodes:      toNodeInfos(nodes),
+		}
+	} else {
+		result = struct {
+			Workspaces []WorkspaceInfo `json:"workspaces"`
+		}{
+			Workspaces: wsInfos,
+		}
+	}
+
+	output, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -727,10 +777,9 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 
 // NodeInfo represents external node data for JSON output.
 type NodeInfo struct {
-	Name           string `json:"name"`
-	ExternalNodeID string `json:"external_node_id"`
-	OrgID          string `json:"org_id"`
-	Status         string `json:"status"`
+	Name   string `json:"name"`
+	OrgID  string `json:"org_id"`
+	Status string `json:"status"`
 }
 
 func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
@@ -766,27 +815,15 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 	if ls.jsonOutput {
 		return ls.outputNodesJSON(nodes)
 	}
-	if ls.piped {
-		displayNodesTablePlain(nodes)
-		return nil
+	if !ls.piped {
+		ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 	}
-
-	ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
-	displayNodesTable(ls.terminal, nodes)
+	displayNodesTable(ls.terminal, nodes, ls.piped)
 	return nil
 }
 
 func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
-	var infos []NodeInfo
-	for _, n := range nodes {
-		infos = append(infos, NodeInfo{
-			Name:           n.GetName(),
-			ExternalNodeID: n.GetExternalNodeId(),
-			OrgID:          n.GetOrganizationId(),
-			Status:         nodeConnectionStatus(n),
-		})
-	}
-	output, err := json.MarshalIndent(infos, "", "  ")
+	output, err := json.MarshalIndent(toNodeInfos(nodes), "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -794,25 +831,17 @@ func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
 	return nil
 }
 
-func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode) {
+func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode, isPiped bool) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	ta.AppendHeader(table.Row{"NAME", "NODE ID", "DEVICE ID", "STATUS"})
+	ta.AppendHeader(table.Row{"NAME", "STATUS"})
 	for _, n := range nodes {
 		status := nodeConnectionStatus(n)
-		ta.AppendRows([]table.Row{{n.GetName(), n.GetExternalNodeId(), n.GetDeviceId(), getStatusColoredText(t, status)}})
-	}
-	ta.Render()
-}
-
-func displayNodesTablePlain(nodes []*nodev1.ExternalNode) {
-	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options = getBrevTableOptions()
-	ta.AppendHeader(table.Row{"NAME", "NODE ID", "DEVICE ID", "STATUS"})
-	for _, n := range nodes {
-		ta.AppendRows([]table.Row{{n.GetName(), n.GetExternalNodeId(), n.GetDeviceId(), nodeConnectionStatus(n)}})
+		if !isPiped {
+			status = getStatusColoredText(t, status)
+		}
+		ta.AppendRows([]table.Row{{n.GetName(), status}})
 	}
 	ta.Render()
 }

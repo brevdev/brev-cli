@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -120,10 +122,13 @@ func TestRunLs_DefaultJSON(t *testing.T) {
 		}
 	})
 
-	var results []WorkspaceInfo
-	if err := json.Unmarshal([]byte(out), &results); err != nil {
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("failed to parse JSON output: %v\nraw output: %s", err, out)
 	}
+	results := parsed.Workspaces
 
 	if len(results) != 2 {
 		t.Fatalf("expected 2 workspaces, got %d", len(results))
@@ -150,11 +155,6 @@ func TestRunLs_DefaultJSON(t *testing.T) {
 	if results[1].Status != entity.Stopped {
 		t.Errorf("expected status %q, got %q", entity.Stopped, results[1].Status)
 	}
-
-	// Verify no node-related fields leak into workspace JSON
-	if strings.Contains(out, "external_node_id") {
-		t.Error("workspace JSON should not contain node fields")
-	}
 }
 
 // TestRunLs_DefaultJSON_Empty verifies that `brev ls --json` with no
@@ -170,16 +170,14 @@ func TestRunLs_DefaultJSON_Empty(t *testing.T) {
 		}
 	})
 
-	trimmed := strings.TrimSpace(out)
-	if trimmed != "null" && trimmed != "[]" {
-		// Empty workspace list produces "null" from json.MarshalIndent(nil slice).
-		var results []WorkspaceInfo
-		if err := json.Unmarshal([]byte(trimmed), &results); err != nil {
-			t.Fatalf("failed to parse JSON: %v\nraw: %s", err, out)
-		}
-		if len(results) != 0 {
-			t.Fatalf("expected 0 workspaces, got %d", len(results))
-		}
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("failed to parse JSON: %v\nraw: %s", err, out)
+	}
+	if len(parsed.Workspaces) != 0 {
+		t.Fatalf("expected 0 workspaces, got %d", len(parsed.Workspaces))
 	}
 }
 
@@ -205,15 +203,17 @@ func TestRunLs_InstancesJSON(t *testing.T) {
 		}
 	})
 
-	var results []WorkspaceInfo
-	if err := json.Unmarshal([]byte(out), &results); err != nil {
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("failed to parse JSON: %v\nraw: %s", err, out)
 	}
-	if len(results) != 1 {
-		t.Fatalf("expected 1 workspace, got %d", len(results))
+	if len(parsed.Workspaces) != 1 {
+		t.Fatalf("expected 1 workspace, got %d", len(parsed.Workspaces))
 	}
-	if results[0].Name != "my-instance" {
-		t.Errorf("expected name 'my-instance', got %q", results[0].Name)
+	if parsed.Workspaces[0].Name != "my-instance" {
+		t.Errorf("expected name 'my-instance', got %q", parsed.Workspaces[0].Name)
 	}
 }
 
@@ -280,30 +280,39 @@ func TestRunLs_ShowAllJSON(t *testing.T) {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
 	})
-	var mine []WorkspaceInfo
-	if err := json.Unmarshal([]byte(outMine), &mine); err != nil {
+	var mineParsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(outMine), &mineParsed); err != nil {
 		t.Fatalf("failed to parse JSON: %v", err)
 	}
-	if len(mine) != 1 {
-		t.Fatalf("expected 1 workspace without --all, got %d", len(mine))
+	if len(mineParsed.Workspaces) != 1 {
+		t.Fatalf("expected 1 workspace without --all, got %d", len(mineParsed.Workspaces))
 	}
-	if mine[0].Name != "my-ws" {
-		t.Errorf("expected 'my-ws', got %q", mine[0].Name)
+	if mineParsed.Workspaces[0].Name != "my-ws" {
+		t.Errorf("expected 'my-ws', got %q", mineParsed.Workspaces[0].Name)
 	}
 
-	// With --all: both workspaces
+	// With --all: output is always {workspaces, nodes} object.
+	// Nodes fetch fails gracefully (no gRPC server), so nodes will be empty.
 	outAll := captureStdout(t, func() {
 		err := RunLs(term, s, nil, "", true, true)
 		if err != nil {
 			t.Fatalf("RunLs --all returned error: %v", err)
 		}
 	})
-	var all []WorkspaceInfo
-	if err := json.Unmarshal([]byte(outAll), &all); err != nil {
+	var allRes struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+		Nodes      []NodeInfo      `json:"nodes"`
+	}
+	if err := json.Unmarshal([]byte(outAll), &allRes); err != nil {
 		t.Fatalf("failed to parse JSON: %v", err)
 	}
-	if len(all) != 2 {
-		t.Fatalf("expected 2 workspaces with --all, got %d", len(all))
+	if len(allRes.Workspaces) != 2 {
+		t.Fatalf("expected 2 workspaces with --all, got %d", len(allRes.Workspaces))
+	}
+	if len(allRes.Nodes) != 0 {
+		t.Fatalf("expected 0 nodes (no gRPC server), got %d", len(allRes.Nodes))
 	}
 }
 
@@ -342,15 +351,17 @@ func TestRunLs_WorkspaceGPULookup(t *testing.T) {
 		}
 	})
 
-	var results []WorkspaceInfo
-	if err := json.Unmarshal([]byte(out), &results); err != nil {
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("failed to parse JSON: %v\nraw: %s", err, out)
 	}
-	if results[0].GPU != "-" {
-		t.Errorf("expected GPU '-' for unknown instance type, got %q", results[0].GPU)
+	if parsed.Workspaces[0].GPU != "-" {
+		t.Errorf("expected GPU '-' for unknown instance type, got %q", parsed.Workspaces[0].GPU)
 	}
-	if results[0].InstanceType != "g5.xlarge" {
-		t.Errorf("expected instance_type 'g5.xlarge', got %q", results[0].InstanceType)
+	if parsed.Workspaces[0].InstanceType != "g5.xlarge" {
+		t.Errorf("expected instance_type 'g5.xlarge', got %q", parsed.Workspaces[0].InstanceType)
 	}
 }
 
@@ -377,12 +388,14 @@ func TestRunLs_UnhealthyStatus(t *testing.T) {
 		}
 	})
 
-	var results []WorkspaceInfo
-	if err := json.Unmarshal([]byte(out), &results); err != nil {
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
 		t.Fatalf("failed to parse JSON: %v", err)
 	}
-	if results[0].Status != entity.Unhealthy {
-		t.Errorf("expected status %q, got %q", entity.Unhealthy, results[0].Status)
+	if parsed.Workspaces[0].Status != entity.Unhealthy {
+		t.Errorf("expected status %q, got %q", entity.Unhealthy, parsed.Workspaces[0].Status)
 	}
 }
 
@@ -409,5 +422,105 @@ func TestHandleLsArg_Routing(t *testing.T) {
 	// it attempts the path (error expected due to no real client).
 	for _, arg := range []string{"node", "nodes"} {
 		_ = handleLsArg(ls, arg, s.user, s.org, false)
+	}
+}
+
+// TestOutputWorkspacesJSON_WithNodes verifies that when nodes are present,
+// the JSON output is a {workspaces, nodes} object.
+func TestOutputWorkspacesJSON_WithNodes(t *testing.T) {
+	s := newTestStore()
+	term := terminal.New()
+	ls := NewLs(s, term, true)
+
+	workspaces := []entity.Workspace{
+		{
+			ID:              "ws1",
+			Name:            "dev-box",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u1",
+		},
+	}
+	nodes := []*nodev1.ExternalNode{
+		{
+			Name:           "gpu-node-1",
+			ExternalNodeId: "en-123",
+			OrganizationId: "org1",
+		},
+		{
+			Name:           "gpu-node-2",
+			ExternalNodeId: "en-456",
+			OrganizationId: "org1",
+		},
+	}
+
+	out := captureStdout(t, func() {
+		err := ls.outputWorkspacesJSON(workspaces, nil, nodes)
+		if err != nil {
+			t.Fatalf("outputWorkspacesJSON returned error: %v", err)
+		}
+	})
+
+	var result struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+		Nodes      []NodeInfo      `json:"nodes"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("failed to parse JSON: %v\nraw: %s", err, out)
+	}
+	if len(result.Workspaces) != 1 {
+		t.Fatalf("expected 1 workspace, got %d", len(result.Workspaces))
+	}
+	if result.Workspaces[0].Name != "dev-box" {
+		t.Errorf("expected workspace name 'dev-box', got %q", result.Workspaces[0].Name)
+	}
+	if len(result.Nodes) != 2 {
+		t.Fatalf("expected 2 nodes, got %d", len(result.Nodes))
+	}
+	if result.Nodes[0].Name != "gpu-node-1" {
+		t.Errorf("expected node name 'gpu-node-1', got %q", result.Nodes[0].Name)
+	}
+	if result.Nodes[1].Name != "gpu-node-2" {
+		t.Errorf("expected node name 'gpu-node-2', got %q", result.Nodes[1].Name)
+	}
+}
+
+// TestOutputWorkspacesJSON_NoNodes verifies that when nodes is nil (--all not used),
+// the JSON output is still an object with a "workspaces" key.
+func TestOutputWorkspacesJSON_NoNodes(t *testing.T) {
+	s := newTestStore()
+	term := terminal.New()
+	ls := NewLs(s, term, true)
+
+	workspaces := []entity.Workspace{
+		{
+			ID:              "ws1",
+			Name:            "dev-box",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u1",
+		},
+	}
+
+	out := captureStdout(t, func() {
+		err := ls.outputWorkspacesJSON(workspaces, nil, nil)
+		if err != nil {
+			t.Fatalf("outputWorkspacesJSON returned error: %v", err)
+		}
+	})
+
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("failed to parse JSON: %v\nraw: %s", err, out)
+	}
+	if len(parsed.Workspaces) != 1 {
+		t.Fatalf("expected 1 workspace, got %d", len(parsed.Workspaces))
+	}
+
+	// Should not contain "nodes" key when nodes is nil
+	if strings.Contains(out, `"nodes"`) {
+		t.Error("nil nodes should not produce a nodes key in the output")
 	}
 }
