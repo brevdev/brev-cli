@@ -76,7 +76,12 @@ func GetAnyWorkspaceByIDOrNameInActiveOrgErr(storeQ GetWorkspaceByNameOrIDErrSto
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	workspaces, err := storeQ.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
+	return GetAnyWorkspaceByIDOrNameInOrgErr(storeQ, workspaceNameOrID, org.ID)
+}
+
+// GetAnyWorkspaceByIDOrNameInOrgErr looks up any workspace (not just the user's) by name or ID in a specific org.
+func GetAnyWorkspaceByIDOrNameInOrgErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string, orgID string) (*entity.Workspace, error) {
+	workspaces, err := storeQ.GetWorkspaceByNameOrID(orgID, workspaceNameOrID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

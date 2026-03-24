@@ -94,6 +94,7 @@ type GPUCreateStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	gpusearch.GPUSearchStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
@@ -154,6 +155,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var containerImage string
 	var composeFile string
 	var filters searchFilterFlags
+	var org string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
@@ -230,7 +232,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				ComposeFile:    composeFile,
 			}
 
-			err = RunGPUCreate(t, gpuCreateStore, opts)
+			err = RunGPUCreate(t, gpuCreateStore, opts, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -239,6 +241,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	}
 
 	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &filters)
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 
 	return cmd
 }
@@ -551,7 +554,7 @@ type createContext struct {
 }
 
 // newCreateContext initializes the context for instance creation
-func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreateOptions) (*createContext, error) {
+func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreateOptions, orgFlag string) (*createContext, error) {
 	piped := gpusearch.IsStdoutPiped()
 
 	ctx := &createContext{
@@ -578,12 +581,9 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 	ctx.user = user
 
 	// Get organization
-	org, err := store.GetActiveOrganizationOrDefault()
+	org, err := util.ResolveOrgFromFlag(store, orgFlag)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
-	}
-	if org == nil {
-		return nil, breverrors.NewValidationError("no organization found")
 	}
 	ctx.org = org
 
@@ -754,8 +754,8 @@ func (c *createContext) printSummary(workspaces []*entity.Workspace) {
 }
 
 // RunGPUCreate executes the GPU create with retry logic
-func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUCreateOptions) error {
-	ctx, err := newCreateContext(t, gpuCreateStore, opts)
+func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUCreateOptions, orgFlag string) error {
+	ctx, err := newCreateContext(t, gpuCreateStore, opts, orgFlag)
 	if err != nil {
 		return err
 	}

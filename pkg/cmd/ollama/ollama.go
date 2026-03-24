@@ -39,6 +39,7 @@ type OllamaStore interface {
 	refresh.RefreshStore
 	util.GetWorkspaceByNameOrIDErrStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
@@ -71,6 +72,7 @@ func validateModelType(input string) (bool, error) {
 func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command {
 	var model string
 	var gpu string
+	var org string
 
 	cmd := &cobra.Command{
 		Use:                   "ollama",
@@ -106,7 +108,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 				err := runOllamaWorkspace(t, RunOptions{
 					Model:   model,
 					GPUType: gpu,
-				}, ollamaStore)
+				}, ollamaStore, org)
 				if err != nil {
 					return nil, breverrors.WrapAndTrace(err)
 				}
@@ -127,6 +129,7 @@ func NewCmdOllama(t *terminal.Terminal, ollamaStore OllamaStore) *cobra.Command 
 	}
 	cmd.Flags().StringVarP(&model, "model", "m", "", "AI/ML model type (e.g., llama2, llama3, mistral7b)")
 	cmd.Flags().StringVarP(&gpu, "gpu", "g", "g5.xlarge", "GPU instance type. See https://brev.dev/docs/reference/gpu for details")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	return cmd
 }
 
@@ -135,13 +138,13 @@ type RunOptions struct {
 	GPUType string
 }
 
-func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore OllamaStore) error { //nolint:funlen, gocyclo // todo
+func runOllamaWorkspace(t *terminal.Terminal, opts RunOptions, ollamaStore OllamaStore, orgFlag string) error { //nolint:funlen, gocyclo // todo
 	_, err := ollamaStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	org, err := ollamaStore.GetActiveOrganizationOrDefault()
+	org, err := util.ResolveOrgFromFlag(ollamaStore, orgFlag)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

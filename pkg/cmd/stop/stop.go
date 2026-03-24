@@ -32,6 +32,7 @@ type StopStore interface {
 
 func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore StopStore) *cobra.Command {
 	var all bool
+	var org string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"provider-dependent": ""},
@@ -44,8 +45,12 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		ValidArgsFunction: completions.GetAllWorkspaceNameCompletionHandler(noLoginStopStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			piped := util.IsStdoutPiped()
+			resolvedOrg, err := util.ResolveOrgFromFlag(loginStopStore, org)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			if all {
-				return stopAllWorkspaces(t, loginStopStore, piped)
+				return stopAllWorkspaces(t, loginStopStore, piped, resolvedOrg.ID)
 			} else {
 				names, err := util.GetInstanceNames(args)
 				if err != nil {
@@ -54,7 +59,7 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 				var allErr error
 				var stoppedNames []string
 				for _, name := range names {
-					err := stopWorkspace(name, t, loginStopStore, piped)
+					err := stopWorkspace(name, t, loginStopStore, piped, resolvedOrg.ID)
 					if err != nil {
 						allErr = multierror.Append(allErr, err)
 					} else {
@@ -75,20 +80,22 @@ func NewCmdStop(t *terminal.Terminal, loginStopStore StopStore, noLoginStopStore
 		},
 	}
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "stop all instances")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStopStore, t))
+	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
+	}
 
 	return cmd
 }
 
-func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool) error {
+func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool, orgID string) error {
 	user, err := stopStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	org, err := stopStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaces, err := stopStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+	workspaces, err := stopStore.GetWorkspaces(orgID, &store.GetWorkspacesOptions{UserID: user.ID})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -118,7 +125,7 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool) er
 	return nil
 }
 
-func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, piped bool) error {
+func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, piped bool, orgID string) error {
 	user, err := stopStore.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -136,7 +143,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		}
 		workspaceID = wsID
 	} else {
-		workspace, err3 := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
+		workspace, err3 := util.GetUserWorkspaceByNameOrIDErrInOrg(stopStore, workspaceName, orgID)
 		if err3 != nil {
 			if !strings.Contains(err3.Error(), "not found") {
 				return breverrors.WrapAndTrace(err3)
@@ -145,7 +152,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 					if !piped {
 						fmt.Println("admin trying to stop any instance")
 					}
-					workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
+					workspace, err = util.GetAnyWorkspaceByIDOrNameInOrgErr(stopStore, workspaceName, orgID)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
 					}

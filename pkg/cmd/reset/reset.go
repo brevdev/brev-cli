@@ -2,6 +2,7 @@ package reset
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 	"time"
 
@@ -37,6 +38,7 @@ type ResetStore interface {
 
 func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetStore ResetStore) *cobra.Command {
 	var hardreset bool
+	var org string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"provider-dependent": ""},
@@ -47,14 +49,18 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 		Example:               startExample,
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginResetStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			resolvedOrg, err := util.ResolveOrgFromFlag(loginResetStore, org)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			for _, arg := range args {
 				if hardreset {
-					err := hardResetProcess(arg, t, loginResetStore)
+					err := hardResetProcess(arg, t, loginResetStore, resolvedOrg.ID)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
 					}
 				} else {
-					err := resetWorkspace(arg, t, loginResetStore)
+					err := resetWorkspace(arg, t, loginResetStore, resolvedOrg.ID)
 					if err != nil {
 						return breverrors.WrapAndTrace(err)
 					}
@@ -65,13 +71,19 @@ func NewCmdReset(t *terminal.Terminal, loginResetStore ResetStore, noLoginResetS
 	}
 
 	cmd.Flags().BoolVarP(&hardreset, "hard", "", false, "DEPRECATED: use brev recreate")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	errRegComp := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginResetStore, t))
+	if errRegComp != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(errRegComp))
+		fmt.Print(breverrors.WrapAndTrace(errRegComp))
+	}
 	return cmd
 }
 
 // hardResetProcess deletes an existing workspace and creates a new one
-func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
+func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore ResetStore, orgID string) error {
 	t.Vprint(t.Green("Starting hard reset 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(resetStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErrInOrg(resetStore, workspaceName, orgID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -85,12 +97,12 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
-		err := hardResetCreateWorkspaceFromRepo(t, resetStore, deletedWorkspace)
+		err := hardResetCreateWorkspaceFromRepo(t, resetStore, deletedWorkspace, orgID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		err := hardResetCreateEmptyWorkspace(t, resetStore, deletedWorkspace)
+		err := hardResetCreateEmptyWorkspace(t, resetStore, deletedWorkspace, orgID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -101,17 +113,8 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, resetStore Res
 }
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
-func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
+func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace, orgID string) error {
 	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
-	var orgID string
-	activeorg, err := resetStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if activeorg == nil {
-		return breverrors.NewValidationError("no org exist")
-	}
-	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 
@@ -143,7 +146,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, resetStore ResetStor
 }
 
 // hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
-func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace) error {
+func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, workspace *entity.Workspace, orgID string) error {
 	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name
@@ -151,16 +154,6 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, resetStore ResetStore, 
 		return breverrors.NewValidationError("name field is required for empty instances")
 	}
 
-	// ensure org
-	var orgID string
-	activeorg, err := resetStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if activeorg == nil {
-		return breverrors.NewValidationError("no org exist")
-	}
-	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name)
 
@@ -234,8 +227,8 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 	return options
 }
 
-func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore) error {
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(resetStore, workspaceName)
+func resetWorkspace(workspaceName string, t *terminal.Terminal, resetStore ResetStore, orgID string) error {
+	workspace, err := util.GetUserWorkspaceByNameOrIDErrInOrg(resetStore, workspaceName, orgID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

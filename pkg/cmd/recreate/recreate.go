@@ -3,6 +3,7 @@ package recreate
 
 import (
 	_ "embed"
+	"fmt"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ type recreateStore interface {
 }
 
 func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
+	var org string
 	cmd := &cobra.Command{
 		Use:                   "recreate",
 		DisableFlagsInUseLine: true,
@@ -41,19 +43,29 @@ func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
 		Long:                  stripmd.Strip(long),
 		Example:               "TODO",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunRecreate(t, args, store)
+			err := RunRecreate(t, args, store, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	errRegComp := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(store, t))
+	if errRegComp != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(errRegComp))
+		fmt.Print(breverrors.WrapAndTrace(errRegComp))
+	}
 	return cmd
 }
 
-func RunRecreate(t *terminal.Terminal, args []string, recreateStore recreateStore) error {
+func RunRecreate(t *terminal.Terminal, args []string, recreateStore recreateStore, orgFlag string) error {
+	resolvedOrg, err := util.ResolveOrgFromFlag(recreateStore, orgFlag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	for _, arg := range args {
-		err := hardResetProcess(arg, t, recreateStore)
+		err := hardResetProcess(arg, t, recreateStore, resolvedOrg.ID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -62,9 +74,9 @@ func RunRecreate(t *terminal.Terminal, args []string, recreateStore recreateStor
 }
 
 // hardResetProcess deletes an existing workspace and creates a new one
-func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore recreateStore) error {
+func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore recreateStore, orgID string) error {
 	t.Vprint(t.Green("recreating 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(recreateStore, workspaceName)
+	workspace, err := util.GetUserWorkspaceByNameOrIDErrInOrg(recreateStore, workspaceName, orgID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -78,12 +90,12 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
-		err := hardResetCreateWorkspaceFromRepo(t, recreateStore, deletedWorkspace)
+		err := hardResetCreateWorkspaceFromRepo(t, recreateStore, deletedWorkspace, orgID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		err := hardResetCreateEmptyWorkspace(t, recreateStore, deletedWorkspace)
+		err := hardResetCreateEmptyWorkspace(t, recreateStore, deletedWorkspace, orgID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -92,17 +104,8 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 }
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
-func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
+func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace, orgID string) error {
 	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
-	var orgID string
-	activeorg, err := recreateStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if activeorg == nil {
-		return breverrors.NewValidationError("no org exist")
-	}
-	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
 
@@ -134,7 +137,7 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 }
 
 // hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
-func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
+func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace, orgID string) error {
 	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name
@@ -142,16 +145,6 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 		return breverrors.NewValidationError("name field is required for empty instances")
 	}
 
-	// ensure org
-	var orgID string
-	activeorg, err := recreateStore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if activeorg == nil {
-		return breverrors.NewValidationError("no org exist")
-	}
-	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name)
 

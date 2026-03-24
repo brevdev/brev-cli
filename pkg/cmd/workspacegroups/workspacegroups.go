@@ -6,17 +6,21 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 type WorkspaceGroupsStore interface {
 	GetWorkspaceGroups(organizationID string) ([]entity.WorkspaceGroup, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 }
 
 func NewCmdWorkspaceGroups(t *terminal.Terminal, store WorkspaceGroupsStore) *cobra.Command {
+	var org string
 	cmd := &cobra.Command{
 		Use:                   "workspacegroups",
 		DisableFlagsInUseLine: true,
@@ -24,18 +28,19 @@ func NewCmdWorkspaceGroups(t *terminal.Terminal, store WorkspaceGroupsStore) *co
 		Long:                  "TODO",
 		Example:               "TODO",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunWorkspaceGroups(t, args, store)
+			err := RunWorkspaceGroups(t, args, store, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
 	return cmd
 }
 
-func RunWorkspaceGroups(_ *terminal.Terminal, _ []string, store WorkspaceGroupsStore) error {
-	org, err := store.GetActiveOrganizationOrDefault()
+func RunWorkspaceGroups(_ *terminal.Terminal, _ []string, store WorkspaceGroupsStore, orgFlag string) error {
+	org, err := util.ResolveOrgFromFlag(store, orgFlag)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
