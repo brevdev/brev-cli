@@ -19,6 +19,11 @@ import (
 
 const posthogAPIKey = "phc_PWWXIQgQ31lXWMGI2dnTY3FyjBh7gPcMhlno1RLapLm"
 
+// UserStore provides the current user ID for analytics tracking.
+type UserStore interface {
+	GetCurrentUserID() (string, error)
+}
+
 var (
 	client     posthog.Client
 	clientOnce sync.Once
@@ -31,6 +36,9 @@ var (
 	storedCmd  *cobra.Command
 	storedArgs []string
 	storedUser string
+
+	// userStore is set via SetUserStore so GetOrCreateAnalyticsID can resolve the real user ID.
+	userStore UserStore
 )
 
 func getClient() (posthog.Client, error) {
@@ -100,8 +108,20 @@ func SetAnalyticsPreference(enabled bool) error {
 	return nil
 }
 
-// GetOrCreateAnalyticsID returns a stable anonymous UUID for tracking, creating one if needed.
+// SetUserStore configures the store used to resolve the current user ID.
+func SetUserStore(s UserStore) {
+	userStore = s
+}
+
+// GetOrCreateAnalyticsID returns the user's distinct ID for tracking.
+// It prefers the real user ID from the store if available, falling back to a stable anonymous UUID.
 func GetOrCreateAnalyticsID() string {
+	if userStore != nil {
+		if uid, err := userStore.GetCurrentUserID(); err == nil && uid != "" {
+			return uid
+		}
+	}
+
 	fs := files.AppFs
 	home, err := getHomeDir()
 	if err != nil {
