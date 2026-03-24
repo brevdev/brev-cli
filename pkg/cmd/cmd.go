@@ -132,6 +132,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	)
 	noLoginCmdStore := noAuthCmdStore.WithAuth(noLoginAuth)
 
+	analytics.SetUserStore(noLoginCmdStore)
+
 	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
 	if err != nil {
 		fmt.Printf("%v\n", err)
@@ -165,15 +167,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			}
 		},
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			userID := ""
-			user, err := noLoginCmdStore.GetCurrentUser()
-			if err == nil && user != nil {
-				userID = user.ID
-			}
-			if userID == "" {
-				userID = analytics.GetOrCreateAnalyticsID()
-			}
-			analytics.CaptureCommand(userID, cmd, args)
+			analytics.CaptureCommand(analytics.GetOrCreateAnalyticsID(), cmd, args)
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
