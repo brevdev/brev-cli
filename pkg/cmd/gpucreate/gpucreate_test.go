@@ -48,6 +48,13 @@ func (m *MockGPUCreateStore) GetActiveOrganizationOrDefault() (*entity.Organizat
 	return m.Org, nil
 }
 
+func (m *MockGPUCreateStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]entity.Organization, error) {
+	if m.Org != nil {
+		return []entity.Organization{*m.Org}, nil
+	}
+	return []entity.Organization{}, nil
+}
+
 func (m *MockGPUCreateStore) GetWorkspace(workspaceID string) (*entity.Workspace, error) {
 	if ws, ok := m.Workspaces[workspaceID]; ok {
 		return ws, nil
