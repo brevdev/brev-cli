@@ -50,6 +50,7 @@ type ShellStore interface {
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
 	var host bool
+	var org string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "shell <instance>",
@@ -62,7 +63,7 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			instanceName := args[0]
-			err := runShellCommand(t, store, instanceName, host)
+			err := runShellCommand(t, store, instanceName, host, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -70,15 +71,25 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 		},
 	}
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
+	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
+	}
 
 	return cmd
 }
 
 const pollTimeout = 10 * time.Minute
 
-func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool) error {
+func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool, orgFlag string) error {
 	s := t.NewSpinner()
-	target, err := util.ResolveWorkspaceOrNode(sstore, workspaceNameOrID)
+	resolvedOrg, err := util.ResolveOrgFromFlag(sstore, orgFlag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	target, err := util.ResolveWorkspaceOrNodeInOrg(sstore, workspaceNameOrID, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -99,7 +110,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	}
 	refreshRes := refresh.RunRefreshAsync(sstore)
 
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
+	workspace, err = util.GetUserWorkspaceByNameOrIDErrInOrg(sstore, workspaceNameOrID, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
