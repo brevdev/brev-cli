@@ -123,6 +123,10 @@ type OnboardingObject struct {
 	HasRunBrevOpen  bool `json:"hasRunBrevOpen"`
 }
 
+func shellOnboardingPollDone(res *OnboardingObject) bool {
+	return res != nil && res.HasRunBrevShell
+}
+
 func SetupDefaultOnboardingFile() error {
 	// get path
 	path, err := GetOnboardingFilePath()
