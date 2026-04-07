@@ -242,7 +242,7 @@ func doBrevShellOnboarding(
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
-		if res.HasRunBrevShell {
+		if shellOnboardingPollDone(res) {
 			spinner.Suffix = spinnerSuffix
 			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
@@ -298,7 +298,7 @@ func doVsCodeOnboarding(
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
-		if shellOnboardingPollDone(res) {
+		if res.HasRunBrevOpen {
 			spinner.Suffix = spinnerSuffix
 			time.Sleep(250 * time.Millisecond)
 			spinner.Stop()
