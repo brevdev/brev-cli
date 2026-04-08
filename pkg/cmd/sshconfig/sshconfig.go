@@ -1,4 +1,4 @@
-package printconfig
+package sshconfig
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdPrintConfig(t *terminal.Terminal, store refresh.RefreshStore) *cobra.Command {
+func NewCmdSSHConfig(t *terminal.Terminal, store refresh.RefreshStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"configuration": ""},
 		Use:         "ssh-config",

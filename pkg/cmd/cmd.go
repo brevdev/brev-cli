@@ -35,7 +35,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
-	"github.com/brevdev/brev-cli/pkg/cmd/printconfig"
+	"github.com/brevdev/brev-cli/pkg/cmd/sshconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
 	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
@@ -340,7 +340,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(refresh.NewCmdRefresh(t, loginCmdStore))
-	cmd.AddCommand(printconfig.NewCmdPrintConfig(t, loginCmdStore))
+	cmd.AddCommand(sshconfig.NewCmdSSHConfig(t, loginCmdStore))
 	cmd.AddCommand(register.NewCmdRegister(t, externalNodeCmdStore))
 	cmd.AddCommand(deregister.NewCmdDeregister(t, externalNodeCmdStore))
 	cmd.AddCommand(upgrade.NewCmdUpgrade(t, noLoginCmdStore))

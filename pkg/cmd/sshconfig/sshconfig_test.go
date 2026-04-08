@@ -1,4 +1,4 @@
-package printconfig
+package sshconfig
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 )
 
-func TestPrintConfigOutputFormatting(t *testing.T) {
+func TestSSHConfigOutputFormatting(t *testing.T) {
 	preview := refresh.SSHConfigPreview{
 		IncludeDirective: `Include "/home/test/.brev/ssh/config"`,
 		BrevConfigPath:   "/home/test/.brev/ssh/config",
