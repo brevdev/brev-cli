@@ -33,7 +33,7 @@ func (SystemUpgrader) UpgradeViaBrew(t *terminal.Terminal) error {
 	return nil
 }
 
-// UpgradeViaInstallScript runs the upstream install-latest.sh script via sudo.
+// UpgradeViaInstallScript runs the upstream install-latest.sh script.
 func (SystemUpgrader) UpgradeViaInstallScript(t *terminal.Terminal) error {
 	t.Vprintf("Running: bash -c \"$(curl -fsSL %s)\"\n", installScriptURL)
 	t.Vprint("")
