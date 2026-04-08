@@ -48,6 +48,20 @@ func ResolveWorkspaceOrNode(store WorkspaceOrNodeResolver, nameOrID string,
 	return &WorkspaceOrNode{Node: node}, nil
 }
 
+// ResolveWorkspaceOrNodeInOrg is like ResolveWorkspaceOrNode but looks up workspaces in a specific org.
+func ResolveWorkspaceOrNodeInOrg(store WorkspaceOrNodeResolver, nameOrID string, orgID string,
+) (*WorkspaceOrNode, error) {
+	workspace, wsErr := GetUserWorkspaceByNameOrIDErrInOrg(store, nameOrID, orgID)
+	if wsErr == nil {
+		return &WorkspaceOrNode{Workspace: workspace}, nil
+	}
+	node, nodeErr := FindExternalNode(store, nameOrID)
+	if nodeErr != nil || node == nil {
+		return nil, wsErr // return original workspace error
+	}
+	return &WorkspaceOrNode{Node: node}, nil
+}
+
 // ExternalNodeSSHInfo holds resolved SSH connection details for an external node.
 type ExternalNodeSSHInfo struct {
 	Node      *nodev1.ExternalNode

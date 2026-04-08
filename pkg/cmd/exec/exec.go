@@ -57,6 +57,7 @@ type ExecStore interface {
 
 func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecStore) *cobra.Command {
 	var host bool
+	var org string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "exec [instance...] <command>",
@@ -87,13 +88,18 @@ func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecSto
 				return breverrors.NewValidationError("command is required")
 			}
 
+			resolvedOrg, err := util.ResolveOrgFromFlag(store, org)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+
 			// Run on each instance
 			var errors error
 			for _, instanceName := range instanceNames {
 				if len(instanceNames) > 1 {
 					fmt.Fprintf(os.Stderr, "\n=== %s ===\n", instanceName)
 				}
-				err = runExecCommand(t, store, instanceName, host, cmdToRun)
+				err = runExecCommand(t, store, instanceName, host, cmdToRun, resolvedOrg.ID)
 				if err != nil {
 					if len(instanceNames) > 1 {
 						fmt.Fprintf(os.Stderr, "Error on %s: %v\n", instanceName, err)
@@ -114,6 +120,12 @@ func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecSto
 		},
 	}
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	errRegComp := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
+	if errRegComp != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(errRegComp))
+		fmt.Print(breverrors.WrapAndTrace(errRegComp))
+	}
 
 	return cmd
 }
@@ -175,7 +187,7 @@ func parseCommand(command string) (string, error) {
 
 const pollTimeout = 10 * time.Minute
 
-func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID string, host bool, command string) error {
+func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID string, host bool, command string, orgID string) error {
 	// Determine SSH alias: use the workspace name directly (with -host suffix if needed)
 	sshName := workspaceNameOrID
 	if host {
@@ -196,7 +208,7 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	// SSH failed — now check what's going on with the instance
 	fmt.Fprintf(os.Stderr, "Connection failed, checking instance status...\n")
 
-	workspace, lookupErr := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
+	workspace, lookupErr := util.GetUserWorkspaceByNameOrIDErrInOrg(sstore, workspaceNameOrID, orgID)
 	if lookupErr != nil {
 		return breverrors.WrapAndTrace(fmt.Errorf(
 			"ssh connection failed and could not look up instance %q: %w\nPlease check your instances with: brev ls",

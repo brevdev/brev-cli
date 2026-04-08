@@ -41,6 +41,7 @@ type CopyStore interface {
 
 func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopyStore) *cobra.Command {
 	var host bool
+	var org string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "copy",
@@ -52,7 +53,7 @@ func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopySto
 		Args:                  cmderrors.TransformToValidationError(cobra.ExactArgs(2)),
 		ValidArgsFunction:     completions.GetAllWorkspaceNameCompletionHandler(noLoginStartStore, t),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := runCopyCommand(t, store, args[0], args[1], host)
+			err := runCopyCommand(t, store, args[0], args[1], host, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -60,11 +61,17 @@ func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopySto
 		},
 	}
 	cmd.Flags().BoolVarP(&host, "host", "", false, "copy to/from the host machine instead of the container")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	errRegComp := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
+	if errRegComp != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(errRegComp))
+		fmt.Print(breverrors.WrapAndTrace(errRegComp))
+	}
 
 	return cmd
 }
 
-func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string, host bool) error {
+func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string, host bool, orgFlag string) error {
 	workspaceNameOrID, remotePath, localPath, isUpload, err := parseCopyArguments(source, dest)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -77,7 +84,11 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 		}
 	}
 
-	target, err := util.ResolveWorkspaceOrNode(cstore, workspaceNameOrID)
+	resolvedOrg, err := util.ResolveOrgFromFlag(cstore, orgFlag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	target, err := util.ResolveWorkspaceOrNodeInOrg(cstore, workspaceNameOrID, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -85,7 +96,7 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 		return copyExternalNode(t, cstore, target.Node, localPath, remotePath, isUpload)
 	}
 
-	workspace, err := prepareWorkspace(t, cstore, target.Workspace)
+	workspace, err := prepareWorkspace(t, cstore, target.Workspace, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -126,11 +137,11 @@ func parseCopyArguments(source, dest string) (workspaceNameOrID, remotePath, loc
 	return destWorkspace, destPath, source, true, nil
 }
 
-func prepareWorkspace(t *terminal.Terminal, cstore CopyStore, workspace *entity.Workspace) (*entity.Workspace, error) {
+func prepareWorkspace(t *terminal.Terminal, cstore CopyStore, workspace *entity.Workspace, orgID string) (*entity.Workspace, error) {
 	s := t.NewSpinner()
 
 	if workspace.Status == "STOPPED" {
-		err := startWorkspaceIfStopped(t, s, cstore, workspace.Name, workspace)
+		err := startWorkspaceIfStopped(t, s, cstore, workspace.Name, workspace, orgID)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -141,7 +152,7 @@ func prepareWorkspace(t *terminal.Terminal, cstore CopyStore, workspace *entity.
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(cstore, workspace.Name)
+	workspace, err = util.GetUserWorkspaceByNameOrIDErrInOrg(cstore, workspace.Name, orgID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -268,12 +279,8 @@ func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	}
 }
 
-func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore CopyStore, wsIDOrName string, workspace *entity.Workspace) error {
-	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
+func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore CopyStore, wsIDOrName string, workspace *entity.Workspace, orgID string) error {
+	workspaces, err := tstore.GetWorkspaceByNameOrID(orgID, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -286,7 +293,7 @@ func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore Co
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	workspace, err = util.GetUserWorkspaceByNameOrIDErrInOrg(tstore, wsIDOrName, orgID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

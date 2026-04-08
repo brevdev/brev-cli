@@ -36,6 +36,7 @@ type PortforwardStore interface {
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
 	var port string
 	var useHost bool
+	var org string
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "port-forward",
@@ -49,7 +50,7 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 			if port == "" {
 				port = startInput(t)
 			}
-			err := RunPortforward(t, pfStore, args[0], port, useHost)
+			err := RunPortforward(t, pfStore, args[0], port, useHost, org)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -58,6 +59,12 @@ func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra
 	}
 	cmd.Flags().StringVarP(&port, "port", "p", "", "port forward string, local_port:remote_port")
 	cmd.Flags().BoolVar(&useHost, "host", false, "Use the -host version of the instance")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	errOrgComp := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(pfStore, t))
+	if errOrgComp != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(errOrgComp))
+		fmt.Print(breverrors.WrapAndTrace(errOrgComp))
+	}
 	err := cmd.RegisterFlagCompletionFunc("port", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveNoSpace
 	})
@@ -86,7 +93,7 @@ func isPortAlreadyAllocatedError(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "already allocated")
 }
 
-func RunPortforward(t *terminal.Terminal, pfStore PortforwardStore, nameOrID string, portString string, useHost bool) error {
+func RunPortforward(t *terminal.Terminal, pfStore PortforwardStore, nameOrID string, portString string, useHost bool, orgFlag string) error {
 	localPort, remotePort, err := parsePortString(portString)
 	if err != nil {
 		return err
@@ -94,7 +101,11 @@ func RunPortforward(t *terminal.Terminal, pfStore PortforwardStore, nameOrID str
 
 	res := refresh.RunRefreshAsync(pfStore)
 
-	target, err := util.ResolveWorkspaceOrNode(pfStore, nameOrID)
+	resolvedOrg, err := util.ResolveOrgFromFlag(pfStore, orgFlag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	target, err := util.ResolveWorkspaceOrNodeInOrg(pfStore, nameOrID, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

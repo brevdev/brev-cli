@@ -118,6 +118,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	var host bool
 	var setDefault string
 	var editor string
+	var org string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
@@ -162,7 +163,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				if len(instanceNames) > 1 {
 					fmt.Fprintf(os.Stderr, "Opening %s...\n", instanceName)
 				}
-				err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType)
+				err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType, org)
 				if err != nil {
 					if len(instanceNames) > 1 {
 						fmt.Fprintf(os.Stderr, "Error opening %s: %v\n", instanceName, err)
@@ -187,6 +188,12 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
 	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, terminal, or tmux)")
 	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, terminal, or tmux)")
+	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
+	errRegComp := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
+	if errRegComp != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(errRegComp))
+		fmt.Print(breverrors.WrapAndTrace(errRegComp))
+	}
 
 	return cmd
 }
@@ -279,11 +286,15 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string) error { //nolint:funlen,gocyclo // define brev command
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string, orgFlag string) error { //nolint:funlen,gocyclo // define brev command
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
-	target, err := util.ResolveWorkspaceOrNode(tstore, wsIDOrName)
+	resolvedOrg, err := util.ResolveOrgFromFlag(tstore, orgFlag)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	target, err := util.ResolveWorkspaceOrNodeInOrg(tstore, wsIDOrName, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -306,7 +317,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		return breverrors.WrapAndTrace(err)
 	}
 
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	workspace, err = util.GetUserWorkspaceByNameOrIDErrInOrg(tstore, wsIDOrName, resolvedOrg.ID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

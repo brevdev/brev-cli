@@ -66,7 +66,7 @@ func NewCmdNotebook(store NotebookStore, t *terminal.Terminal) *cobra.Command {
 			hello.TypeItToMeUnskippable27("\nClick here to go to your Jupyter notebook:\n\t 👉" + urlType("http://localhost:8888") + "👈\n\n\n")
 
 			// Port forward on 8888
-			err2 := portforward.RunPortforward(t, store, args[0], "8888:8888", false)
+			err2 := portforward.RunPortforward(t, store, args[0], "8888:8888", false, "")
 			if err2 != nil {
 				return breverrors.WrapAndTrace(err2)
 			}
