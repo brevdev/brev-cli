@@ -9,10 +9,15 @@ case "${ARCH}" in
     aarch64) ARCH="arm64" ;;
 esac
 
-# Get the appropriate download URL for this platform
-DOWNLOAD_URL="$(curl -s https://api.github.com/repos/brevdev/brev-cli/releases/latest | grep "browser_download_url.*${OS}.*${ARCH}" | cut -d '"' -f 4)"
+# Fetch release metadata from GitHub API
+API_RESPONSE="$(curl -sf https://api.github.com/repos/brevdev/brev-cli/releases/latest 2>&1)" || {
+    echo "Error: Failed to fetch release info from GitHub API." >&2
+    echo "This may be caused by rate limiting. Try again later or set a GITHUB_TOKEN." >&2
+    exit 1
+}
 
-# Verify we found a suitable release
+# Extract the download URL for this platform
+DOWNLOAD_URL="$(echo "${API_RESPONSE}" | grep "browser_download_url.*${OS}.*${ARCH}" | cut -d '"' -f 4)"
 if [ -z "${DOWNLOAD_URL}" ]; then
     echo "Error: Could not find release for ${OS} ${ARCH}" >&2
     exit 1
