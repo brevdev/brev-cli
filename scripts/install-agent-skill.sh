@@ -116,12 +116,21 @@ done
 rm -rf "$TMPDIR"
 
 # Resolve commit SHA and write .version file
-COMMIT_SHA=$(curl -fsSL "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>/dev/null | grep '"sha"' | head -1 | sed 's/.*"sha": *"\([^"]*\)".*/\1/')
-if [[ -n "$COMMIT_SHA" ]]; then
-    for dir in "${INSTALL_DIRS[@]}"; do
-        printf 'branch=%s\ncommit=%s\n' "$BRANCH" "$COMMIT_SHA" > "$dir/.version"
-    done
-    echo -e "  ${GREEN}✓${NC} .version (${COMMIT_SHA:0:12})"
+VERSION_RESPONSE=$(curl -fsSL "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>&1) || true
+if echo "$VERSION_RESPONSE" | grep -q "API rate limit exceeded"; then
+    echo -e "  ${YELLOW}⚠${NC} .version (skipped — GitHub API rate limit exceeded)"
+    echo -e "  ${YELLOW}If you are using a VPN, try turning it off and running this script again.${NC}"
+    echo -e "  ${YELLOW}See: https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting${NC}"
+else
+    COMMIT_SHA=$(echo "$VERSION_RESPONSE" | grep '"sha"' | head -1 | sed 's/.*"sha": *"\([^"]*\)".*/\1/')
+    if [[ -n "$COMMIT_SHA" ]]; then
+        for dir in "${INSTALL_DIRS[@]}"; do
+            printf 'branch=%s\ncommit=%s\n' "$BRANCH" "$COMMIT_SHA" > "$dir/.version"
+        done
+        echo -e "  ${GREEN}✓${NC} .version (${COMMIT_SHA:0:12})"
+    else
+        echo -e "  ${YELLOW}⚠${NC} .version (could not resolve commit SHA)"
+    fi
 fi
 
 echo ""
