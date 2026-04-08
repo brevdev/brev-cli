@@ -108,8 +108,8 @@ func TestWrapSSHConfigRefreshError(t *testing.T) {
 
 	err := wrapSSHConfigRefreshError(rootErr)
 
-	if !strings.Contains(err.Error(), "brev print-config") {
-		t.Fatalf("expected error to mention brev print-config, got %q", err.Error())
+	if !strings.Contains(err.Error(), "brev ssh-config") {
+		t.Fatalf("expected error to mention brev ssh-config, got %q", err.Error())
 	}
 
 	if !strings.Contains(err.Error(), "failed to refresh SSH config automatically") {

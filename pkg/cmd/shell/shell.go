@@ -152,7 +152,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 
 func wrapSSHConfigRefreshError(err error) error {
 	return fmt.Errorf(
-		"failed to refresh SSH config automatically: %w\nrun `brev print-config` to print the SSH config Brev expected to install manually",
+		"failed to refresh SSH config automatically: %w\nrun `brev ssh-config` to print the SSH config Brev expected to install manually",
 		err,
 	)
 }

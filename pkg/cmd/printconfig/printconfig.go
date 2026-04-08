@@ -14,10 +14,10 @@ import (
 func NewCmdPrintConfig(t *terminal.Terminal, store refresh.RefreshStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"configuration": ""},
-		Use:         "print-config",
+		Use:         "ssh-config",
 		Short:       "Print the SSH config Brev expects you to add manually",
 		Long:        "Print the Include directive and generated Brev SSH config without modifying any files.",
-		Example:     "brev print-config",
+		Example:     "brev ssh-config",
 		Args:        cobra.NoArgs,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
