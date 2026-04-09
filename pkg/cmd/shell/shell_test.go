@@ -1,6 +1,8 @@
 package shell
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -98,5 +100,23 @@ func TestResolveExternalNodeSSH_NoSSHPort(t *testing.T) {
 	entry := util.ResolveNodeSSHEntry("user_1", node)
 	if entry != nil {
 		t.Errorf("expected nil for node without SSH port, got %+v", entry)
+	}
+}
+
+func TestWrapSSHConfigRefreshError(t *testing.T) {
+	rootErr := errors.New("permission denied")
+
+	err := wrapSSHConfigRefreshError(rootErr)
+
+	if !strings.Contains(err.Error(), "brev ssh-config") {
+		t.Fatalf("expected error to mention brev ssh-config, got %q", err.Error())
+	}
+
+	if !strings.Contains(err.Error(), "failed to refresh SSH config automatically") {
+		t.Fatalf("expected refresh guidance in error, got %q", err.Error())
+	}
+
+	if !errors.Is(err, rootErr) {
+		t.Fatalf("expected wrapped error to preserve original error")
 	}
 }

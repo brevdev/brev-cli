@@ -116,7 +116,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 
 	err = refreshRes.Await()
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return breverrors.WrapAndTrace(wrapSSHConfigRefreshError(err))
 	}
 	err = util.WaitForSSHToBeAvailable(sshName, s)
 	if err != nil {
@@ -148,6 +148,13 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	_ = analytics.TrackEvent(data)
 
 	return nil
+}
+
+func wrapSSHConfigRefreshError(err error) error {
+	return fmt.Errorf(
+		"failed to refresh SSH config automatically: %w\nrun `brev ssh-config` to print the SSH config Brev expected to install manually",
+		err,
+	)
 }
 
 func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1.ExternalNode) error {

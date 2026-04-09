@@ -149,6 +149,43 @@ func RunRefreshAsync(rstore RefreshStore) *RefreshRes {
 	return &res
 }
 
+type SSHConfigPreview struct {
+	IncludeDirective string
+	BrevConfigPath   string
+	BrevConfig       string
+}
+
+func BuildSSHConfigPreview(store RefreshStore) (*SSHConfigPreview, error) {
+	workspaces, err := store.GetContextWorkspaces()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	var runningWorkspaces []entity.Workspace
+	for _, workspace := range workspaces {
+		if workspace.Status == entity.Running {
+			runningWorkspaces = append(runningWorkspaces, workspace)
+		}
+	}
+
+	brevConfigPath, err := store.GetBrevSSHConfigPath()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	configurer := ssh.NewSSHConfigurerV2(store)
+	config, err := configurer.CreateNewSSHConfig(runningWorkspaces, getExternalNodeSSHEntries(store))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	return &SSHConfigPreview{
+		IncludeDirective: fmt.Sprintf("Include %q", brevConfigPath),
+		BrevConfigPath:   brevConfigPath,
+		BrevConfig:       config,
+	}, nil
+}
+
 func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 	configs, err := ssh.GetSSHConfigs(store)
 	if err != nil {
