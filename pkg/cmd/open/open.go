@@ -1099,8 +1099,12 @@ func openCodex(t *terminal.Terminal, sshAlias string, path string, codexArgs []s
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Auto-authenticate: only forward a key if the remote is not already logged in
+	// Auto-authenticate: try API key first, then OAuth token transfer
 	apiKey := resolveCodexAPIKey(t, sshAlias)
+	if apiKey == "" {
+		// No API key found; try transferring OAuth session from local auth.json
+		tryTransferCodexOAuthSession(t, sshAlias)
+	}
 
 	sessionName := "codex"
 
@@ -1152,13 +1156,66 @@ func resolveCodexAPIKey(t *terminal.Terminal, sshAlias string) string {
 }
 
 // isRemoteCodexAuthenticated checks whether the remote already has
-// OPENAI_API_KEY set in the shell.
+// OPENAI_API_KEY set in the shell or an OAuth session in ~/.codex/auth.json.
 func isRemoteCodexAuthenticated(sshAlias string) bool {
 	checkCmd := exec.Command(
 		"ssh", sshAlias,
-		`printenv OPENAI_API_KEY >/dev/null 2>&1`,
+		`printenv OPENAI_API_KEY >/dev/null 2>&1 || test -f "$HOME/.codex/auth.json"`,
 	) // #nosec G204
 	return checkCmd.Run() == nil
+}
+
+// tryTransferCodexOAuthSession checks for a local ~/.codex/auth.json and
+// offers to transfer it to the remote instance. This is a session transfer:
+// the local file is removed after copying so the token is only active on
+// the remote machine.
+func tryTransferCodexOAuthSession(t *terminal.Terminal, sshAlias string) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	localAuthPath := homeDir + "/.codex/auth.json"
+
+	// Check if local auth.json exists
+	if _, err := os.Stat(localAuthPath); os.IsNotExist(err) {
+		return
+	}
+
+	t.Vprintf("%s", t.Yellow("\nFound Codex OAuth session in ~/.codex/auth.json\n"))
+	t.Vprintf("%s", t.Yellow("Transferring this session will move your auth to the remote instance\n"))
+	t.Vprintf("%s", t.Yellow("and log you out locally (the token can only be active in one place).\n\n"))
+
+	result := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		Label: "Transfer your Codex OAuth session to the remote instance?",
+		Items: []string{"Yes, transfer and log out locally", "No, skip"},
+	})
+
+	if result != "Yes, transfer and log out locally" {
+		return
+	}
+
+	// Ensure remote ~/.codex directory exists
+	mkdirCmd := exec.Command("ssh", sshAlias, `mkdir -p "$HOME/.codex"`) // #nosec G204
+	if err := mkdirCmd.Run(); err != nil {
+		t.Vprintf(t.Red("Failed to create remote ~/.codex directory: %v\n"), err)
+		return
+	}
+
+	// SCP the auth.json to remote
+	scpCmd := exec.Command("scp", localAuthPath, sshAlias+":~/.codex/auth.json") // #nosec G204
+	output, err := scpCmd.CombinedOutput()
+	if err != nil {
+		t.Vprintf(t.Red("Failed to transfer auth.json: %s\n%s\n"), err, string(output))
+		return
+	}
+
+	// Remove local auth.json
+	if err := os.Remove(localAuthPath); err != nil {
+		t.Vprintf(t.Red("Transferred to remote but failed to remove local auth.json: %v\n"), err)
+		return
+	}
+
+	t.Vprintf("%s", t.Green("OAuth session transferred to remote instance. You are now logged out locally.\n"))
 }
 
 func ensureCodexInstalled(t *terminal.Terminal, sshAlias string) error {
