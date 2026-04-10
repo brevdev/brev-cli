@@ -1101,8 +1101,7 @@ func openCodex(t *terminal.Terminal, sshAlias string, path string, codexArgs []s
 
 	// Auto-authenticate: try API key first, then OAuth token transfer
 	apiKey := resolveCodexAPIKey(t, sshAlias)
-	if apiKey == "" {
-		// No API key found; try transferring OAuth session from local auth.json
+	if apiKey == "" && !isRemoteCodexAuthenticated(sshAlias) {
 		tryTransferCodexOAuthSession(t, sshAlias)
 	}
 
