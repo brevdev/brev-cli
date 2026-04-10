@@ -40,6 +40,7 @@ const (
 	EditorTerminal = "terminal"
 	EditorTmux     = "tmux"
 	EditorClaude   = "claude"
+	EditorCodex    = "codex"
 )
 
 var (
@@ -52,6 +53,7 @@ Supported editors:
   terminal  - Opens a new terminal window with SSH
   tmux      - Opens a new terminal window with SSH + tmux session
   claude    - Claude Code in a tmux session (auto-installs, auto-authenticates)
+  codex     - Codex CLI in a tmux session (auto-installs, auto-authenticates)
 
 Terminal support by platform:
   macOS:   Terminal.app
@@ -105,7 +107,11 @@ You must have the editor installed in your path.`
 
   # Pass flags through to Claude Code (use -- to separate brev flags from claude flags)
   brev open my-instance claude -- --model opus --allowedTools computer
-  brev open my-instance claude -- -p "fix the tests"`
+  brev open my-instance claude -- -p "fix the tests"
+
+  # Open Codex CLI on a remote instance (installs if needed, auto-authenticates with OPENAI_API_KEY)
+  brev open my-instance codex
+  brev open my-instance codex -- --model o3`
 )
 
 type OpenStore interface {
@@ -151,7 +157,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 
 			// Validate editor flag if provided
 			if editor != "" && !isEditorType(editor) {
-				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', 'tmux', or 'claude'", editor))
+				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', 'tmux', 'claude', or 'codex'", editor))
 			}
 
 			// Get instance names and editor type from args or stdin
@@ -194,15 +200,15 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
-	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, terminal, tmux, or claude)")
-	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, terminal, tmux, or claude)")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, terminal, tmux, claude, or codex)")
+	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, terminal, tmux, claude, or codex)")
 
 	return cmd
 }
 
 // isEditorType checks if a string is a valid editor type
 func isEditorType(s string) bool {
-	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTerminal || s == EditorTmux || s == EditorClaude
+	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTerminal || s == EditorTmux || s == EditorClaude || s == EditorCodex
 }
 
 // isPiped returns true if stdout is piped to another command
@@ -277,7 +283,7 @@ func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, stri
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
 	if !isEditorType(editorType) {
-		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', 'tmux', or 'claude'", editorType)
+		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', 'tmux', 'claude', or 'codex'", editorType)
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -380,6 +386,9 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			return handlePathError(tstore, workspace, errMsg)
 		}
 		if strings.Contains(err.Error(), "failed to install Claude Code") {
+			return breverrors.WrapAndTrace(err)
+		}
+		if strings.Contains(err.Error(), "failed to install Codex") {
 			return breverrors.WrapAndTrace(err)
 		}
 		return breverrors.WrapAndTrace(err)
@@ -555,6 +564,8 @@ func getEditorName(editorType string) string {
 		return "tmux"
 	case EditorClaude:
 		return "Claude Code"
+	case EditorCodex:
+		return "Codex"
 	default:
 		return "VSCode"
 	}
@@ -589,6 +600,8 @@ func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, 
 		return openTerminalWithTmux(sshAlias, path, tstore)
 	case EditorClaude:
 		return openClaude(t, sshAlias, path, editorArgs)
+	case EditorCodex:
+		return openCodex(t, sshAlias, path, editorArgs)
 	default:
 		tryToInstallExtensions(t, extensions)
 		return openVsCode(sshAlias, path, tstore)
@@ -1070,5 +1083,177 @@ func ensureClaudeInstalled(t *terminal.Terminal, sshAlias string) error {
 	}
 
 	t.Vprintf("%s", t.Green("Claude Code installed successfully\n"))
+	return nil
+}
+
+func openCodex(t *terminal.Terminal, sshAlias string, path string, codexArgs []string) error {
+	// Ensure tmux is available on remote
+	err := ensureTmuxInstalled(sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf("tmux: command not found"))
+	}
+
+	// Install Codex remotely if not present
+	err = ensureCodexInstalled(t, sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// Auto-authenticate: try API key first, then OAuth token transfer
+	apiKey := resolveCodexAPIKey(t, sshAlias)
+	if apiKey == "" && !isRemoteCodexAuthenticated(sshAlias) {
+		tryTransferCodexOAuthSession(t, sshAlias)
+	}
+
+	sessionName := "codex"
+
+	var envExport string
+	if apiKey != "" {
+		envExport = fmt.Sprintf("export OPENAI_API_KEY=%s; ", shellescape.Quote(apiKey))
+	}
+
+	// Build the codex command with any extra flags
+	codexCmd := "codex"
+	if len(codexArgs) > 0 {
+		codexCmd = "codex " + strings.Join(codexArgs, " ")
+	}
+
+	// Source nvm, prepend installer paths, set env if needed, then attach-or-create tmux session
+	remoteScript := fmt.Sprintf(
+		`export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"; %stmux has-session -t %s 2>/dev/null && tmux attach-session -t %s || (cd %s && tmux new-session -s %s %s)`,
+		envExport, sessionName, sessionName, shellescape.Quote(path), sessionName, shellescape.Quote(codexCmd),
+	)
+
+	// Run SSH inline in the current terminal (interactive, with TTY)
+	sshCmd := exec.Command("ssh", "-t", sshAlias, remoteScript) // #nosec G204
+	sshCmd.Stdin = os.Stdin
+	sshCmd.Stdout = os.Stdout
+	sshCmd.Stderr = os.Stderr
+
+	err = sshCmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+// resolveCodexAPIKey returns an API key to forward to the remote, or "" if
+// the remote is already authenticated or no local key can be found.
+func resolveCodexAPIKey(t *terminal.Terminal, sshAlias string) string {
+	// Check if remote already has OPENAI_API_KEY set
+	if isRemoteCodexAuthenticated(sshAlias) {
+		return ""
+	}
+
+	// Check local OPENAI_API_KEY env var
+	if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+		t.Vprintf("%s", t.Green("Forwarding OPENAI_API_KEY to remote instance\n"))
+		return key
+	}
+
+	return ""
+}
+
+// isRemoteCodexAuthenticated checks whether the remote already has
+// OPENAI_API_KEY set in the shell or an OAuth session in ~/.codex/auth.json.
+func isRemoteCodexAuthenticated(sshAlias string) bool {
+	checkCmd := exec.Command(
+		"ssh", sshAlias,
+		`printenv OPENAI_API_KEY >/dev/null 2>&1 || test -f "$HOME/.codex/auth.json"`,
+	) // #nosec G204
+	return checkCmd.Run() == nil
+}
+
+// tryTransferCodexOAuthSession checks for a local ~/.codex/auth.json and
+// offers to transfer it to the remote instance. This is a session transfer:
+// the local file is removed after copying so the token is only active on
+// the remote machine.
+func tryTransferCodexOAuthSession(t *terminal.Terminal, sshAlias string) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	localAuthPath := homeDir + "/.codex/auth.json"
+
+	// Check if local auth.json exists
+	if _, err := os.Stat(localAuthPath); os.IsNotExist(err) {
+		return
+	}
+
+	t.Vprintf("%s", t.Yellow("\nFound Codex OAuth session in ~/.codex/auth.json\n"))
+	t.Vprintf("%s", t.Yellow("Transferring this session will move your auth to the remote instance\n"))
+	t.Vprintf("%s", t.Yellow("and log you out locally (the token can only be active in one place).\n\n"))
+
+	result := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		Label: "Transfer your Codex OAuth session to the remote instance?",
+		Items: []string{"Yes, transfer and log out locally", "No, skip"},
+	})
+
+	if result != "Yes, transfer and log out locally" {
+		return
+	}
+
+	// Ensure remote ~/.codex directory exists
+	mkdirCmd := exec.Command("ssh", sshAlias, `mkdir -p "$HOME/.codex"`) // #nosec G204
+	if err := mkdirCmd.Run(); err != nil {
+		t.Vprintf(t.Red("Failed to create remote ~/.codex directory: %v\n"), err)
+		return
+	}
+
+	// SCP the auth.json to remote
+	scpCmd := exec.Command("scp", localAuthPath, sshAlias+":~/.codex/auth.json") // #nosec G204
+	output, err := scpCmd.CombinedOutput()
+	if err != nil {
+		t.Vprintf(t.Red("Failed to transfer auth.json: %s\n%s\n"), err, string(output))
+		return
+	}
+
+	// Remove local auth.json
+	if err := os.Remove(localAuthPath); err != nil {
+		t.Vprintf(t.Red("Transferred to remote but failed to remove local auth.json: %v\n"), err)
+		return
+	}
+
+	t.Vprintf("%s", t.Green("OAuth session transferred to remote instance. You are now logged out locally.\n"))
+}
+
+func ensureCodexInstalled(t *terminal.Terminal, sshAlias string) error {
+	checkCmd := fmt.Sprintf(
+		"ssh %s 'export NVM_DIR=\"$HOME/.nvm\"; [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; export PATH=\"$HOME/.local/bin:$HOME/.npm-global/bin:$PATH\"; which codex >/dev/null 2>&1'",
+		sshAlias,
+	)
+	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
+	err := checkExec.Run()
+	if err == nil {
+		return nil // already installed
+	}
+
+	// Ensure npm is available on remote, install Node.js via nvm if needed
+	npmCheck := fmt.Sprintf("ssh %s 'which npm >/dev/null 2>&1'", sshAlias)
+	npmExec := exec.Command("bash", "-c", npmCheck) // #nosec G204
+	if npmErr := npmExec.Run(); npmErr != nil {
+		t.Vprintf("npm not found on remote instance, installing Node.js via nvm...\n")
+		nvmInstall := fmt.Sprintf(
+			"ssh %s 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install --lts'",
+			sshAlias,
+		)
+		nvmExec := exec.Command("bash", "-c", nvmInstall) // #nosec G204
+		output, err := nvmExec.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to install Node.js via nvm: %s\n%s", err, string(output))
+		}
+		t.Vprintf("%s", t.Green("Node.js installed successfully\n"))
+	}
+
+	t.Vprintf("Installing Codex CLI on remote instance...\n")
+
+	installCmd := fmt.Sprintf("ssh %s 'export NVM_DIR=\"$HOME/.nvm\"; [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; npm install -g @openai/codex 2>/dev/null || sudo npm install -g @openai/codex'", sshAlias)
+	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
+	output, err := installExec.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to install Codex: %s\n%s", err, string(output))
+	}
+
+	t.Vprintf("%s", t.Green("Codex CLI installed successfully\n"))
 	return nil
 }
