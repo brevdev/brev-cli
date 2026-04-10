@@ -1115,9 +1115,9 @@ func openCodex(t *terminal.Terminal, sshAlias string, path string, codexArgs []s
 		codexCmd = "codex " + strings.Join(codexArgs, " ")
 	}
 
-	// Prepend installer paths, set env if needed, then attach-or-create tmux session
+	// Source nvm, prepend installer paths, set env if needed, then attach-or-create tmux session
 	remoteScript := fmt.Sprintf(
-		`export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"; %stmux has-session -t %s 2>/dev/null && tmux attach-session -t %s || (cd %s && tmux new-session -s %s %s)`,
+		`export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$PATH"; %stmux has-session -t %s 2>/dev/null && tmux attach-session -t %s || (cd %s && tmux new-session -s %s %s)`,
 		envExport, sessionName, sessionName, shellescape.Quote(path), sessionName, shellescape.Quote(codexCmd),
 	)
 
@@ -1163,7 +1163,7 @@ func isRemoteCodexAuthenticated(sshAlias string) bool {
 
 func ensureCodexInstalled(t *terminal.Terminal, sshAlias string) error {
 	checkCmd := fmt.Sprintf(
-		"ssh %s 'export PATH=\"$HOME/.local/bin:$HOME/.npm-global/bin:$PATH\"; which codex >/dev/null 2>&1'",
+		"ssh %s 'export NVM_DIR=\"$HOME/.nvm\"; [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; export PATH=\"$HOME/.local/bin:$HOME/.npm-global/bin:$PATH\"; which codex >/dev/null 2>&1'",
 		sshAlias,
 	)
 	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
@@ -1172,16 +1172,26 @@ func ensureCodexInstalled(t *terminal.Terminal, sshAlias string) error {
 		return nil // already installed
 	}
 
-	// Verify npm is available on remote before attempting install
+	// Ensure npm is available on remote, install Node.js via nvm if needed
 	npmCheck := fmt.Sprintf("ssh %s 'which npm >/dev/null 2>&1'", sshAlias)
 	npmExec := exec.Command("bash", "-c", npmCheck) // #nosec G204
 	if npmErr := npmExec.Run(); npmErr != nil {
-		return fmt.Errorf("failed to install Codex: npm is not installed on the remote instance. Please install Node.js/npm first")
+		t.Vprintf("npm not found on remote instance, installing Node.js via nvm...\n")
+		nvmInstall := fmt.Sprintf(
+			"ssh %s 'curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash && export NVM_DIR=\"$HOME/.nvm\" && . \"$NVM_DIR/nvm.sh\" && nvm install --lts'",
+			sshAlias,
+		)
+		nvmExec := exec.Command("bash", "-c", nvmInstall) // #nosec G204
+		output, err := nvmExec.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to install Node.js via nvm: %s\n%s", err, string(output))
+		}
+		t.Vprintf("%s", t.Green("Node.js installed successfully\n"))
 	}
 
 	t.Vprintf("Installing Codex CLI on remote instance...\n")
 
-	installCmd := fmt.Sprintf("ssh %s 'npm install -g @openai/codex 2>/dev/null || sudo npm install -g @openai/codex'", sshAlias)
+	installCmd := fmt.Sprintf("ssh %s 'export NVM_DIR=\"$HOME/.nvm\"; [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\"; npm install -g @openai/codex 2>/dev/null || sudo npm install -g @openai/codex'", sshAlias)
 	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
 	output, err := installExec.CombinedOutput()
 	if err != nil {
