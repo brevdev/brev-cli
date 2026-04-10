@@ -932,10 +932,13 @@ func isRemoteClaudeAuthenticated(sshAlias string) bool {
 	return checkCmd.Run() == nil
 }
 
-// tryTransferClaudeOAuthSession checks for a local ~/.claude/.credentials.json
-// and offers to transfer it to the remote instance. This is a session transfer:
-// the local file is removed after copying so the token is only active on
-// the remote machine.
+// tryTransferClaudeOAuthSession checks for Claude Code OAuth credentials
+// locally and offers to transfer them to the remote instance. It checks:
+//  1. ~/.claude/.credentials.json (file on disk)
+//  2. macOS Keychain entry "Claude Code-credentials" (Max subscription OAuth)
+//
+// This is a session transfer: the local credentials are removed after copying
+// so the token is only active on the remote machine.
 func tryTransferClaudeOAuthSession(t *terminal.Terminal, sshAlias string) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -943,12 +946,33 @@ func tryTransferClaudeOAuthSession(t *terminal.Terminal, sshAlias string) {
 	}
 	localCredPath := homeDir + "/.claude/.credentials.json"
 
-	// Check if local credentials file exists
-	if _, err := os.Stat(localCredPath); os.IsNotExist(err) {
+	// Determine credential source: file on disk or macOS Keychain
+	hasFile := false
+	hasKeychain := false
+	var keychainCreds string
+
+	if _, err := os.Stat(localCredPath); err == nil {
+		hasFile = true
+	}
+
+	if runtime.GOOS == "darwin" && !hasFile {
+		creds, err := getClaudeCredentialsFromKeychain()
+		if err == nil && creds != "" {
+			hasKeychain = true
+			keychainCreds = creds
+		}
+	}
+
+	if !hasFile && !hasKeychain {
 		return
 	}
 
-	t.Vprintf("%s", t.Yellow("\nFound Claude Code OAuth session in ~/.claude/.credentials.json\n"))
+	source := "~/.claude/.credentials.json"
+	if hasKeychain {
+		source = "macOS Keychain (Claude Code-credentials)"
+	}
+
+	t.Vprintf("%s", t.Yellow(fmt.Sprintf("\nFound Claude Code OAuth session in %s\n", source)))
 	t.Vprintf("%s", t.Yellow("Transferring this session will move your auth to the remote instance\n"))
 	t.Vprintf("%s", t.Yellow("and log you out locally (the token can only be active in one place).\n\n"))
 
@@ -968,21 +992,51 @@ func tryTransferClaudeOAuthSession(t *terminal.Terminal, sshAlias string) {
 		return
 	}
 
-	// SCP the credentials file to remote
-	scpCmd := exec.Command("scp", localCredPath, sshAlias+":~/.claude/.credentials.json") // #nosec G204
-	output, err := scpCmd.CombinedOutput()
-	if err != nil {
-		t.Vprintf(t.Red("Failed to transfer credentials: %s\n%s\n"), err, string(output))
-		return
-	}
-
-	// Remove local credentials file
-	if err := os.Remove(localCredPath); err != nil {
-		t.Vprintf(t.Red("Transferred to remote but failed to remove local credentials: %v\n"), err)
-		return
+	if hasFile {
+		// SCP the credentials file to remote
+		scpCmd := exec.Command("scp", localCredPath, sshAlias+":~/.claude/.credentials.json") // #nosec G204
+		output, err := scpCmd.CombinedOutput()
+		if err != nil {
+			t.Vprintf(t.Red("Failed to transfer credentials: %s\n%s\n"), err, string(output))
+			return
+		}
+		// Remove local credentials file
+		if err := os.Remove(localCredPath); err != nil {
+			t.Vprintf(t.Red("Transferred to remote but failed to remove local credentials: %v\n"), err)
+			return
+		}
+	} else {
+		// Write keychain credentials to remote via SSH
+		writeCmd := exec.Command(
+			"ssh", sshAlias,
+			fmt.Sprintf(`cat > "$HOME/.claude/.credentials.json" << 'BREV_EOF'
+%s
+BREV_EOF`, keychainCreds),
+		) // #nosec G204
+		output, err := writeCmd.CombinedOutput()
+		if err != nil {
+			t.Vprintf(t.Red("Failed to transfer credentials: %s\n%s\n"), err, string(output))
+			return
+		}
+		// Delete the keychain entry locally
+		deleteCmd := exec.Command("security", "delete-generic-password", "-s", "Claude Code-credentials") // #nosec G204
+		if err := deleteCmd.Run(); err != nil {
+			t.Vprintf(t.Red("Transferred to remote but failed to remove local Keychain entry: %v\n"), err)
+			return
+		}
 	}
 
 	t.Vprintf("%s", t.Green("OAuth session transferred to remote instance. You are now logged out locally.\n"))
+}
+
+// getClaudeCredentialsFromKeychain reads the OAuth credentials stored by
+// Claude Code in the macOS Keychain under "Claude Code-credentials".
+func getClaudeCredentialsFromKeychain() (string, error) {
+	out, err := exec.Command("security", "find-generic-password", "-s", "Claude Code-credentials", "-w").Output() // #nosec G204
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // getClaudeKeyFromKeychain reads the API key stored by Claude Code in the
