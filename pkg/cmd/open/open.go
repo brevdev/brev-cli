@@ -858,8 +858,7 @@ func openClaude(t *terminal.Terminal, sshAlias string, path string, claudeArgs [
 
 	// Auto-authenticate: try API key first, then OAuth token transfer
 	apiKey := resolveClaudeAPIKey(t, sshAlias)
-	if apiKey == "" {
-		// No API key found; try transferring OAuth session from local credentials
+	if apiKey == "" && !isRemoteClaudeAuthenticated(sshAlias) {
 		tryTransferClaudeOAuthSession(t, sshAlias)
 	}
 
