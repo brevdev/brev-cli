@@ -856,8 +856,12 @@ func openClaude(t *terminal.Terminal, sshAlias string, path string, claudeArgs [
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Auto-authenticate: only forward a key if the remote is not already logged in
+	// Auto-authenticate: try API key first, then OAuth token transfer
 	apiKey := resolveClaudeAPIKey(t, sshAlias)
+	if apiKey == "" {
+		// No API key found; try transferring OAuth session from local credentials
+		tryTransferClaudeOAuthSession(t, sshAlias)
+	}
 
 	sessionName := "claude"
 
@@ -926,6 +930,59 @@ func isRemoteClaudeAuthenticated(sshAlias string) bool {
 		`test -f "$HOME/.claude/.credentials.json" || printenv ANTHROPIC_API_KEY >/dev/null 2>&1`,
 	) // #nosec G204
 	return checkCmd.Run() == nil
+}
+
+// tryTransferClaudeOAuthSession checks for a local ~/.claude/.credentials.json
+// and offers to transfer it to the remote instance. This is a session transfer:
+// the local file is removed after copying so the token is only active on
+// the remote machine.
+func tryTransferClaudeOAuthSession(t *terminal.Terminal, sshAlias string) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	localCredPath := homeDir + "/.claude/.credentials.json"
+
+	// Check if local credentials file exists
+	if _, err := os.Stat(localCredPath); os.IsNotExist(err) {
+		return
+	}
+
+	t.Vprintf("%s", t.Yellow("\nFound Claude Code OAuth session in ~/.claude/.credentials.json\n"))
+	t.Vprintf("%s", t.Yellow("Transferring this session will move your auth to the remote instance\n"))
+	t.Vprintf("%s", t.Yellow("and log you out locally (the token can only be active in one place).\n\n"))
+
+	result := terminal.PromptSelectInput(terminal.PromptSelectContent{
+		Label: "Transfer your Claude Code OAuth session to the remote instance?",
+		Items: []string{"Yes, transfer and log out locally", "No, skip"},
+	})
+
+	if result != "Yes, transfer and log out locally" {
+		return
+	}
+
+	// Ensure remote ~/.claude directory exists
+	mkdirCmd := exec.Command("ssh", sshAlias, `mkdir -p "$HOME/.claude"`) // #nosec G204
+	if err := mkdirCmd.Run(); err != nil {
+		t.Vprintf(t.Red("Failed to create remote ~/.claude directory: %v\n"), err)
+		return
+	}
+
+	// SCP the credentials file to remote
+	scpCmd := exec.Command("scp", localCredPath, sshAlias+":~/.claude/.credentials.json") // #nosec G204
+	output, err := scpCmd.CombinedOutput()
+	if err != nil {
+		t.Vprintf(t.Red("Failed to transfer credentials: %s\n%s\n"), err, string(output))
+		return
+	}
+
+	// Remove local credentials file
+	if err := os.Remove(localCredPath); err != nil {
+		t.Vprintf(t.Red("Transferred to remote but failed to remove local credentials: %v\n"), err)
+		return
+	}
+
+	t.Vprintf("%s", t.Green("OAuth session transferred to remote instance. You are now logged out locally.\n"))
 }
 
 // getClaudeKeyFromKeychain reads the API key stored by Claude Code in the
