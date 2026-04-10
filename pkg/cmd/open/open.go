@@ -1172,6 +1172,13 @@ func ensureCodexInstalled(t *terminal.Terminal, sshAlias string) error {
 		return nil // already installed
 	}
 
+	// Verify npm is available on remote before attempting install
+	npmCheck := fmt.Sprintf("ssh %s 'which npm >/dev/null 2>&1'", sshAlias)
+	npmExec := exec.Command("bash", "-c", npmCheck) // #nosec G204
+	if npmErr := npmExec.Run(); npmErr != nil {
+		return fmt.Errorf("failed to install Codex: npm is not installed on the remote instance. Please install Node.js/npm first")
+	}
+
 	t.Vprintf("Installing Codex CLI on remote instance...\n")
 
 	installCmd := fmt.Sprintf("ssh %s 'npm install -g @openai/codex 2>/dev/null || sudo npm install -g @openai/codex'", sshAlias)
