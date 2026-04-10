@@ -39,6 +39,7 @@ const (
 	EditorWindsurf = "windsurf"
 	EditorTerminal = "terminal"
 	EditorTmux     = "tmux"
+	EditorClaude   = "claude"
 )
 
 var (
@@ -50,6 +51,7 @@ Supported editors:
   windsurf  - Windsurf
   terminal  - Opens a new terminal window with SSH
   tmux      - Opens a new terminal window with SSH + tmux session
+  claude    - Claude Code in a tmux session (auto-installs, auto-authenticates)
 
 Terminal support by platform:
   macOS:   Terminal.app
@@ -96,7 +98,14 @@ You must have the editor installed in your path.`
   brev create my-instance | brev open terminal
 
   # Open in a new terminal window with tmux (supports multiple instances)
-  brev create my-cluster --count 3 | brev open tmux`
+  brev create my-cluster --count 3 | brev open tmux
+
+  # Open Claude Code on a remote instance (installs if needed, auto-authenticates with ANTHROPIC_API_KEY)
+  brev open my-instance claude
+
+  # Pass flags through to Claude Code (use -- to separate brev flags from claude flags)
+  brev open my-instance claude -- --model opus --allowedTools computer
+  brev open my-instance claude -- -p "fix the tests"`
 )
 
 type OpenStore interface {
@@ -142,11 +151,11 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 
 			// Validate editor flag if provided
 			if editor != "" && !isEditorType(editor) {
-				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', or 'tmux'", editor))
+				return breverrors.NewValidationError(fmt.Sprintf("invalid editor: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', 'tmux', or 'claude'", editor))
 			}
 
 			// Get instance names and editor type from args or stdin
-			instanceNames, editorType, err := getInstanceNamesAndEditor(args, editor)
+			instanceNames, editorType, editorArgs, err := getInstanceNamesAndEditor(args, editor)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -162,7 +171,7 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 				if len(instanceNames) > 1 {
 					fmt.Fprintf(os.Stderr, "Opening %s...\n", instanceName)
 				}
-				err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType)
+				err = runOpenCommand(t, store, instanceName, setupDoneString, directory, host, editorType, editorArgs)
 				if err != nil {
 					if len(instanceNames) > 1 {
 						fmt.Fprintf(os.Stderr, "Error opening %s: %v\n", instanceName, err)
@@ -185,15 +194,15 @@ func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenSto
 	cmd.Flags().BoolVarP(&host, "host", "", false, "ssh into the host machine instead of the container")
 	cmd.Flags().BoolVarP(&waitForSetupToFinish, "wait", "w", false, "wait for setup to finish")
 	cmd.Flags().StringVarP(&directory, "dir", "d", "", "directory to open")
-	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, terminal, or tmux)")
-	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, terminal, or tmux)")
+	cmd.Flags().StringVar(&setDefault, "set-default", "", "set default editor (code, cursor, windsurf, terminal, tmux, or claude)")
+	cmd.Flags().StringVarP(&editor, "editor", "e", "", "editor to use (code, cursor, windsurf, terminal, tmux, or claude)")
 
 	return cmd
 }
 
 // isEditorType checks if a string is a valid editor type
 func isEditorType(s string) bool {
-	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTerminal || s == EditorTmux
+	return s == EditorVSCode || s == EditorCursor || s == EditorWindsurf || s == EditorTerminal || s == EditorTmux || s == EditorClaude
 }
 
 // isPiped returns true if stdout is piped to another command
@@ -202,16 +211,27 @@ func isPiped() bool {
 	return (stat.Mode() & os.ModeCharDevice) == 0
 }
 
-// getInstanceNamesAndEditor gets instance names from args/stdin and determines editor type
-// editorFlag takes precedence, otherwise last arg may be an editor type (code, cursor, windsurf, tmux)
-func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, string, error) {
+// getInstanceNamesAndEditor gets instance names from args/stdin and determines editor type.
+// Any args that appear after the editor type are returned as editorArgs (e.g. claude flags).
+// editorFlag takes precedence, otherwise last arg may be an editor type (code, cursor, windsurf, tmux, claude)
+func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, string, []string, error) {
 	var names []string
+	var editorArgs []string
 	editorType := editorFlag
 
-	// If no editor flag, check if last arg is an editor type
-	if editorType == "" && len(args) > 0 && isEditorType(args[len(args)-1]) {
-		editorType = args[len(args)-1]
-		args = args[:len(args)-1]
+	// Find the editor type in the args list; everything after it becomes editorArgs
+	if editorType == "" {
+		for i, arg := range args {
+			if isEditorType(arg) {
+				editorType = arg
+				editorArgs = args[i+1:]
+				args = args[:i]
+				break
+			}
+		}
+	} else {
+		// Editor was set via --editor flag; all positional args after instance names
+		// that start with "-" are treated as editor args (use -- separator)
 	}
 
 	// Add names from remaining args
@@ -229,12 +249,12 @@ func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, stri
 			}
 		}
 		if err := scanner.Err(); err != nil {
-			return nil, "", breverrors.WrapAndTrace(err)
+			return nil, "", nil, breverrors.WrapAndTrace(err)
 		}
 	}
 
 	if len(names) == 0 {
-		return nil, "", breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
+		return nil, "", nil, breverrors.NewValidationError("instance name required: provide as argument or pipe from another command")
 	}
 
 	// If no editor specified, get default
@@ -252,12 +272,12 @@ func getInstanceNamesAndEditor(args []string, editorFlag string) ([]string, stri
 		}
 	}
 
-	return names, editorType, nil
+	return names, editorType, editorArgs, nil
 }
 
 func handleSetDefault(t *terminal.Terminal, editorType string) error {
 	if !isEditorType(editorType) {
-		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', or 'tmux'", editorType)
+		return fmt.Errorf("invalid editor type: %s. Must be 'code', 'cursor', 'windsurf', 'terminal', 'tmux', or 'claude'", editorType)
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -279,7 +299,7 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 }
 
 // Fetch workspace info, then open code editor
-func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string) error { //nolint:funlen,gocyclo // define brev command
+func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string, editorArgs []string) error { //nolint:funlen,gocyclo // define brev command
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
@@ -292,7 +312,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 		if awaitErr := res.Await(); awaitErr != nil {
 			return breverrors.WrapAndTrace(awaitErr)
 		}
-		return openExternalNode(t, tstore, target.Node, directory, editorType)
+		return openExternalNode(t, tstore, target.Node, directory, editorType, editorArgs)
 	}
 	workspace := target.Workspace
 	if workspace.Status == "STOPPED" { // we start the env for the user
@@ -341,7 +361,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	// legacy environments wont support this and cause errrors,
 	// but we don't want to block the user from using vscode
 	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
-	err = openEditorWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString, editorType)
+	err = openEditorWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString, editorType, editorArgs)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
 			errMsg := "code\": executable file not found in $PATH\n\nadd 'code' to your $PATH to open VS Code from the terminal\n\texport PATH=\"/Applications/Visual Studio Code.app/Contents/Resources/app/bin:$PATH\""
@@ -359,6 +379,9 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			errMsg := "tmux not found on remote instance. Please install it and try again."
 			return handlePathError(tstore, workspace, errMsg)
 		}
+		if strings.Contains(err.Error(), "failed to install Claude Code") {
+			return breverrors.WrapAndTrace(err)
+		}
 		return breverrors.WrapAndTrace(err)
 	}
 	// Call analytics for open
@@ -366,7 +389,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	return nil
 }
 
-func openExternalNode(t *terminal.Terminal, tstore OpenStore, node *nodev1.ExternalNode, directory string, editorType string) error {
+func openExternalNode(t *terminal.Terminal, tstore OpenStore, node *nodev1.ExternalNode, directory string, editorType string, editorArgs []string) error {
 	info, err := util.ResolveExternalNodeSSH(tstore, node)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -393,7 +416,7 @@ func openExternalNode(t *terminal.Terminal, tstore OpenStore, node *nodev1.Exter
 	s.Stop()
 	t.Vprintf("\n")
 
-	return openEditorByType(t, editorType, alias, path, tstore)
+	return openEditorByType(t, editorType, alias, path, tstore, editorArgs)
 }
 
 func pushOpenAnalytics(tstore OpenStore, workspace *entity.Workspace) error {
@@ -530,6 +553,8 @@ func getEditorName(editorType string) string {
 		return "Terminal"
 	case EditorTmux:
 		return "tmux"
+	case EditorClaude:
+		return "Claude Code"
 	default:
 		return "VSCode"
 	}
@@ -549,7 +574,7 @@ func handlePathError(tstore OpenStore, workspace *entity.Workspace, errMsg strin
 	return errors.New(errMsg)
 }
 
-func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, path string, tstore OpenStore) error {
+func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, path string, tstore OpenStore, editorArgs []string) error {
 	extensions := []string{"ms-vscode-remote.remote-ssh", "ms-toolsai.jupyter-keymap", "ms-python.python"}
 	switch editorType {
 	case EditorCursor:
@@ -562,6 +587,8 @@ func openEditorByType(t *terminal.Terminal, editorType string, sshAlias string, 
 		return openTerminal(sshAlias, path, tstore)
 	case EditorTmux:
 		return openTerminalWithTmux(sshAlias, path, tstore)
+	case EditorClaude:
+		return openClaude(t, sshAlias, path, editorArgs)
 	default:
 		tryToInstallExtensions(t, extensions)
 		return openVsCode(sshAlias, path, tstore)
@@ -597,6 +624,7 @@ func openEditorWithSSH(
 	tstore OpenStore,
 	_ string,
 	editorType string,
+	editorArgs []string,
 ) error {
 	res := refresh.RunRefreshAsync(tstore)
 	err := res.Await()
@@ -618,7 +646,7 @@ func openEditorWithSSH(
 	s.Stop()
 	t.Vprintf("\n")
 
-	err = openEditorByType(t, editorType, sshAlias, path, tstore)
+	err = openEditorByType(t, editorType, sshAlias, path, tstore, editorArgs)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -812,5 +840,125 @@ func ensureTmuxInstalled(sshAlias string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	return nil
+}
+
+func openClaude(t *terminal.Terminal, sshAlias string, path string, claudeArgs []string) error {
+	// Ensure tmux is available on remote
+	err := ensureTmuxInstalled(sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(fmt.Errorf("tmux: command not found"))
+	}
+
+	// Install Claude Code remotely if not present
+	err = ensureClaudeInstalled(t, sshAlias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	// Auto-authenticate: only forward a key if the remote is not already logged in
+	apiKey := resolveClaudeAPIKey(t, sshAlias)
+
+	sessionName := "claude"
+
+	var envExport string
+	if apiKey != "" {
+		envExport = fmt.Sprintf("export ANTHROPIC_API_KEY=%s; ", shellescape.Quote(apiKey))
+	}
+
+	// Build the claude command with any extra flags
+	claudeCmd := "claude"
+	if len(claudeArgs) > 0 {
+		claudeCmd = "claude " + strings.Join(claudeArgs, " ")
+	}
+
+	// Prepend installer paths, set env if needed, then attach-or-create tmux session
+	remoteScript := fmt.Sprintf(
+		`export PATH="$HOME/.claude/local/bin:$HOME/.local/bin:$PATH"; %stmux has-session -t %s 2>/dev/null && tmux attach-session -t %s || (cd %s && tmux new-session -s %s %s)`,
+		envExport, sessionName, sessionName, shellescape.Quote(path), sessionName, shellescape.Quote(claudeCmd),
+	)
+
+	// Run SSH inline in the current terminal (interactive, with TTY)
+	sshCmd := exec.Command("ssh", "-t", sshAlias, remoteScript) // #nosec G204
+	sshCmd.Stdin = os.Stdin
+	sshCmd.Stdout = os.Stdout
+	sshCmd.Stderr = os.Stderr
+
+	err = sshCmd.Run()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+// resolveClaudeAPIKey returns an API key to forward to the remote, or "" if
+// the remote is already authenticated or no local key can be found.
+func resolveClaudeAPIKey(t *terminal.Terminal, sshAlias string) string {
+	// Check if remote already has auth (credentials file or ANTHROPIC_API_KEY in env)
+	if isRemoteClaudeAuthenticated(sshAlias) {
+		return ""
+	}
+
+	// 1. Check local ANTHROPIC_API_KEY env var
+	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+		t.Vprintf("%s", t.Green("Forwarding ANTHROPIC_API_KEY to remote instance\n"))
+		return key
+	}
+
+	// 2. Try macOS Keychain
+	if runtime.GOOS == "darwin" {
+		key, err := getClaudeKeyFromKeychain()
+		if err == nil && key != "" {
+			t.Vprintf("%s", t.Green("Forwarding API key from macOS Keychain to remote instance\n"))
+			return key
+		}
+	}
+
+	return ""
+}
+
+// isRemoteClaudeAuthenticated checks whether the remote already has Claude
+// credentials (OAuth credentials file or ANTHROPIC_API_KEY set in the shell).
+func isRemoteClaudeAuthenticated(sshAlias string) bool {
+	// Check for credentials file or env var in one SSH round-trip
+	checkCmd := exec.Command(
+		"ssh", sshAlias,
+		`test -f "$HOME/.claude/.credentials.json" || printenv ANTHROPIC_API_KEY >/dev/null 2>&1`,
+	) // #nosec G204
+	return checkCmd.Run() == nil
+}
+
+// getClaudeKeyFromKeychain reads the API key stored by Claude Code in the
+// macOS Keychain (security framework).
+func getClaudeKeyFromKeychain() (string, error) {
+	out, err := exec.Command("security", "find-generic-password", "-s", "Claude Code", "-w").Output() // #nosec G204
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func ensureClaudeInstalled(t *terminal.Terminal, sshAlias string) error {
+	// Check PATH and common install locations
+	checkCmd := fmt.Sprintf(
+		"ssh %s 'export PATH=\"$HOME/.claude/local/bin:$HOME/.local/bin:$PATH\"; which claude >/dev/null 2>&1'",
+		sshAlias,
+	)
+	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
+	err := checkExec.Run()
+	if err == nil {
+		return nil // already installed
+	}
+
+	t.Vprintf("Installing Claude Code on remote instance...\n")
+
+	installCmd := fmt.Sprintf("ssh %s 'curl -fsSL https://claude.ai/install.sh | bash'", sshAlias)
+	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
+	output, err := installExec.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to install Claude Code: %s\n%s", err, string(output))
+	}
+
+	t.Vprintf("%s", t.Green("Claude Code installed successfully\n"))
 	return nil
 }
