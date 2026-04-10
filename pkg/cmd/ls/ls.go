@@ -347,7 +347,6 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Orga
 
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, false, gpuLookup)
 }
 
@@ -369,7 +368,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf("%s", ls.terminal.Green("See teammates' instances:\n"))
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
-			ls.terminal.Vprintf("%s", ls.terminal.Green("Start a new instance:\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Green("Create a new instance:\n"))
 		}
 		if len(otherOrgs) > 1 {
 			ls.terminal.Vprintf("%s", ls.terminal.Green("Switch to another org:\n"))
