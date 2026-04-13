@@ -10,9 +10,12 @@ case "${ARCH}" in
 esac
 
 # Fetch release metadata from GitHub API
-API_RESPONSE="$(curl -sf https://api.github.com/repos/brevdev/brev-cli/releases/latest 2>&1)" || {
+API_RESPONSE="$(curl -sf ${GITHUB_TOKEN:+-H "Authorization: token ${GITHUB_TOKEN}"} https://api.github.com/repos/brevdev/brev-cli/releases/latest)" || {
     echo "Error: Failed to fetch release info from GitHub API." >&2
-    echo "This may be caused by rate limiting. Try again later or set a GITHUB_TOKEN." >&2
+    echo "This is often caused by rate limiting when many requests come from the same IP." >&2
+    echo "If you are using a VPN, try turning it off and running this script again." >&2
+    echo "You can also set GITHUB_TOKEN to avoid rate limits." >&2
+    echo "For more details, see: https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting" >&2
     exit 1
 }
 
@@ -20,6 +23,7 @@ API_RESPONSE="$(curl -sf https://api.github.com/repos/brevdev/brev-cli/releases/
 DOWNLOAD_URL="$(echo "${API_RESPONSE}" | grep "browser_download_url.*${OS}.*${ARCH}" | cut -d '"' -f 4)"
 if [ -z "${DOWNLOAD_URL}" ]; then
     echo "Error: Could not find release for ${OS} ${ARCH}" >&2
+    echo "GitHub API response (truncated): ${API_RESPONSE:0:200}" >&2
     exit 1
 fi
 
