@@ -23,7 +23,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/entity/virtualproject"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -368,18 +367,6 @@ func (ls Ls) RunUser(_ bool) error {
 func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
-
-	projects := virtualproject.NewVirtualProjects(allWorkspaces)
-
-	var unjoinedProjects []virtualproject.VirtualProject
-	for _, p := range projects {
-		wks := p.GetUserWorkspaces(user.ID)
-		if len(wks) == 0 {
-			unjoinedProjects = append(unjoinedProjects, p)
-		}
-	}
-
-	displayProjects(ls.terminal, org.Name, unjoinedProjects)
 }
 
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
@@ -409,7 +396,6 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		fmt.Print("\n")
 
 		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
-		// displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 	}
 }
 
@@ -636,23 +622,6 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 	return nil
 }
 
-func displayProjects(t *terminal.Terminal, orgName string, projects []virtualproject.VirtualProject) {
-	if len(projects) > 0 {
-		fmt.Print("\n")
-		t.Vprintf("%d other projects in Org %s\n", len(projects), t.Yellow(orgName))
-		displayProjectsTable(projects)
-
-		fmt.Print("\n")
-		t.Vprintf("%s", t.Green("Join a project:\n")+
-			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
-	} else {
-		t.Vprintf("no other projects in Org %s\n", t.Yellow(orgName))
-		fmt.Print("\n")
-		t.Vprintf("%s", t.Green("Invite a teamate:\n")+
-			t.Yellow("\tbrev invite"))
-	}
-}
-
 func getBrevTableOptions() table.Options {
 	options := table.OptionsDefault
 	options.DrawBorder = false
@@ -744,19 +713,6 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 		if o.ID == currentOrg.ID {
 			workspaceRow = []table.Row{{t.Green("* " + o.Name), t.Green(o.ID)}}
 		}
-		ta.AppendRows(workspaceRow)
-	}
-	ta.Render()
-}
-
-func displayProjectsTable(projects []virtualproject.VirtualProject) {
-	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "MEMBERS"}
-	ta.AppendHeader(header)
-	for _, p := range projects {
-		workspaceRow := []table.Row{{p.Name, p.GetUniqueUserCount()}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
