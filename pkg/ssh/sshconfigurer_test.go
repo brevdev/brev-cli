@@ -947,7 +947,6 @@ Host testName1-host
 			if err := s.Update(tt.args.workspaces, nil); (err != nil) != tt.wantErr {
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
-			// make sure the linux config is correct
 			linuxConfig, err := s.store.GetFileAsString("/home/test/.ssh/config")
 			if err != nil {
 				t.Fatal(err)

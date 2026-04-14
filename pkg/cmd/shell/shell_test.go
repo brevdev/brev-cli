@@ -120,3 +120,21 @@ func TestWrapSSHConfigRefreshError(t *testing.T) {
 		t.Fatalf("expected wrapped error to preserve original error")
 	}
 }
+
+func TestFormatSSHConfigRefreshWarning(t *testing.T) {
+	rootErr := errors.New("permission denied")
+
+	got := formatSSHConfigRefreshWarning(rootErr)
+
+	if !strings.Contains(got, "warning: failed to refresh SSH config automatically") {
+		t.Fatalf("expected warning text, got %q", got)
+	}
+
+	if !strings.Contains(got, "continuing with existing SSH config") {
+		t.Fatalf("expected continue guidance, got %q", got)
+	}
+
+	if !strings.Contains(got, "brev ssh-config") {
+		t.Fatalf("expected ssh-config guidance, got %q", got)
+	}
+}
