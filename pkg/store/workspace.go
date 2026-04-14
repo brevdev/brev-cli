@@ -37,6 +37,8 @@ type ModifyWorkspaceRequest struct {
 // LifeCycleScriptAttr holds the lifecycle script configuration
 type LifeCycleScriptAttr struct {
 	Script string `json:"script,omitempty"`
+	ID     string `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
 }
 
 // VMBuild holds VM-specific build configuration
@@ -95,6 +97,7 @@ type CreateWorkspacesOptions struct {
 	ReposV1              *entity.ReposV1      `json:"reposV1"`
 	ExecsV1              *entity.ExecsV1      `json:"execsV1"`
 	InstanceType         string               `json:"instanceType"`
+	Location             string               `json:"location,omitempty"`
 	DiskStorage          string               `json:"diskStorage"`
 	BaseImage            string               `json:"baseImage"`
 	VMOnlyMode           bool                 `json:"vmOnlyMode"`
@@ -107,6 +110,49 @@ type CreateWorkspacesOptions struct {
 	Labels               interface{}          `json:"labels"`
 	WorkspaceVersion     string               `json:"workspaceVersion"`
 	LaunchJupyterOnStart bool                 `json:"launchJupyterOnStart"`
+	LaunchableConfig     *LaunchableConfig    `json:"launchableConfig,omitempty"`
+}
+
+type LaunchableConfig struct {
+	ID string `json:"id"`
+}
+
+type LaunchableResponse struct {
+	ID                     string                     `json:"id"`
+	Name                   string                     `json:"name"`
+	Description            string                     `json:"description"`
+	CreateWorkspaceRequest LaunchableWorkspaceRequest `json:"createWorkspaceRequest"`
+	BuildRequest           LaunchableBuildRequest     `json:"buildRequest"`
+	CreatedByUserID        string                     `json:"createdByUserId"`
+	CreatedByOrgID         string                     `json:"createdByOrgId"`
+	File                   *LaunchableFile            `json:"file,omitempty"`
+	CouponCode             string                     `json:"couponCode,omitempty"`
+}
+
+type LaunchableWorkspaceRequest struct {
+	WorkspaceGroupID string `json:"workspaceGroupId,omitempty"`
+	InstanceType     string `json:"instanceType"`
+	Storage          string `json:"storage,omitempty"`
+	Location         string `json:"location,omitempty"`
+	ImageID          string `json:"imageId,omitempty"`
+}
+
+type LaunchableBuildRequest struct {
+	VMBuild         *VMBuild         `json:"vmBuild,omitempty"`
+	CustomContainer *CustomContainer `json:"containerBuild,omitempty"`
+	DockerCompose   *DockerCompose   `json:"dockerCompose,omitempty"`
+	Ports           []LaunchablePort `json:"ports"`
+}
+
+type LaunchablePort struct {
+	Port   string            `json:"port"`
+	Name   string            `json:"name"`
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type LaunchableFile struct {
+	URL  string `json:"url"`
+	Path string `json:"path"`
 }
 
 var (
@@ -218,6 +264,21 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 		return nil, NewHTTPResponseError(res)
 	}
 
+	return &result, nil
+}
+
+func (s AuthHTTPStore) GetLaunchable(launchableID string) (*LaunchableResponse, error) {
+	var result LaunchableResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(fmt.Sprintf("api/launchables/%s/now", launchableID))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
 	return &result, nil
 }
 
