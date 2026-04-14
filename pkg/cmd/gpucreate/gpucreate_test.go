@@ -105,6 +105,10 @@ func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.Launchab
 	}, nil
 }
 
+func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error) {
+	return &store.RedeemCouponCodeResponse{}, nil
+}
+
 func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
 	// Return a default set of instance types for testing
 	return &gpusearch.InstanceTypesResponse{

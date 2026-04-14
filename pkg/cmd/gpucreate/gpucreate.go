@@ -103,6 +103,7 @@ type GPUCreateStore interface {
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
 	GetLaunchable(launchableID string) (*store.LaunchableResponse, error)
+	RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error)
 }
 
 // Default filter values for automatic GPU selection
@@ -907,6 +908,13 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	ctx, err := newCreateContext(t, gpuCreateStore, opts)
 	if err != nil {
 		return err
+	}
+
+	// Auto-redeem coupon code if the launchable has one attached.
+	// This is silent — the UI doesn't surface coupon redemption to the user either.
+	// Failures are ignored; the coupon may already be redeemed.
+	if opts.LaunchableInfo != nil && opts.LaunchableInfo.CouponCode != "" {
+		_, _ = gpuCreateStore.RedeemCouponCode(ctx.org.ID, opts.LaunchableInfo.CouponCode)
 	}
 
 	ctx.logf("Attempting to create %d instance(s) with %d parallel attempts\n", opts.Count, opts.Parallel)

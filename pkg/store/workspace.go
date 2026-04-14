@@ -126,6 +126,7 @@ type LaunchableResponse struct {
 	CreatedByUserID        string                     `json:"createdByUserId"`
 	CreatedByOrgID         string                     `json:"createdByOrgId"`
 	File                   *LaunchableFile            `json:"file,omitempty"`
+	CouponCode             string                     `json:"couponCode,omitempty"`
 }
 
 type LaunchableWorkspaceRequest struct {
