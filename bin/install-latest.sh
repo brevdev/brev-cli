@@ -20,7 +20,7 @@ API_RESPONSE="$(curl -sf ${GITHUB_TOKEN:+-H "Authorization: token ${GITHUB_TOKEN
 }
 
 # Extract the download URL for this platform
-DOWNLOAD_URL="$(echo "${API_RESPONSE}" | grep "browser_download_url.*${OS}.*${ARCH}" | cut -d '"' -f 4)"
+DOWNLOAD_URL="$(echo "${API_RESPONSE}" | grep "browser_download_url.*${OS}.*${ARCH}" | cut -d '"' -f 4 || true)"
 if [ -z "${DOWNLOAD_URL}" ]; then
     echo "Error: Could not find release for ${OS} ${ARCH}" >&2
     echo "GitHub API response (truncated): ${API_RESPONSE:0:200}" >&2

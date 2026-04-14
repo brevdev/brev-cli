@@ -122,7 +122,7 @@ if echo "$VERSION_RESPONSE" | grep -q "API rate limit exceeded"; then
     echo -e "  ${YELLOW}If you are using a VPN, try turning it off and running this script again.${NC}"
     echo -e "  ${YELLOW}See: https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting${NC}"
 else
-    COMMIT_SHA=$(echo "$VERSION_RESPONSE" | grep '"sha"' | head -1 | sed 's/.*"sha": *"\([^"]*\)".*/\1/')
+    COMMIT_SHA=$(echo "$VERSION_RESPONSE" | grep '"sha"' | head -1 | sed 's/.*"sha": *"\([^"]*\)".*/\1/' || true)
     if [[ -n "$COMMIT_SHA" ]]; then
         for dir in "${INSTALL_DIRS[@]}"; do
             printf 'branch=%s\ncommit=%s\n' "$BRANCH" "$COMMIT_SHA" > "$dir/.version"
