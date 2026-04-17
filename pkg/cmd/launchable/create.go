@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultLaunchableViewAccess = "public"
+	defaultLaunchableViewAccess = "organization"
 	defaultLaunchableMode       = "vm"
 	defaultFlexibleStorageGiB   = 256
 	maxLifecycleScriptBytes     = 16 * 1024
@@ -271,55 +271,100 @@ func getSelectedInstanceType(allInstanceTypes *gpusearch.AllInstanceTypesRespons
 }
 
 func resolveStorageValue(instanceType gpusearch.InstanceType, requested string) (string, error) {
+	requested = strings.TrimSpace(requested)
+
 	if len(instanceType.SupportedStorage) == 0 {
-		if requested != "" {
-			return "", breverrors.NewValidationError(fmt.Sprintf("instance type %q does not expose configurable storage; omit --storage", instanceType.Type))
-		}
-		return "", nil
+		return resolveStorageWithoutSupportedStorage(instanceType.Type, requested)
 	}
 
 	storage := instanceType.SupportedStorage[0]
 	if storage.MinSize != "" && storage.MaxSize != "" {
-		minGiB, err := parseSizeToGiB(storage.MinSize)
-		if err != nil {
-			return "", err
-		}
-		maxGiB, err := parseSizeToGiB(storage.MaxSize)
-		if err != nil {
-			return "", err
-		}
-
-		value := strings.TrimSpace(requested)
-		if value == "" {
-			defaultGiB := defaultFlexibleStorageGiB
-			if minGiB > 0 && defaultGiB < minGiB {
-				defaultGiB = minGiB
-			}
-			if maxGiB > 0 && defaultGiB > maxGiB {
-				defaultGiB = maxGiB
-			}
-			value = strconv.Itoa(defaultGiB)
-		}
-
-		sizeGiB, err := strconv.Atoi(value)
-		if err != nil || sizeGiB <= 0 {
-			return "", breverrors.NewValidationError("--storage must be a positive integer number of GiB")
-		}
-		if minGiB > 0 && sizeGiB < minGiB {
-			return "", breverrors.NewValidationError(fmt.Sprintf("--storage must be at least %d GiB for instance type %q", minGiB, instanceType.Type))
-		}
-		if maxGiB > 0 && sizeGiB > maxGiB {
-			return "", breverrors.NewValidationError(fmt.Sprintf("--storage must be at most %d GiB for instance type %q", maxGiB, instanceType.Type))
-		}
-
-		return strconv.Itoa(sizeGiB), nil
+		return resolveFlexibleStorageValue(instanceType.Type, storage, requested)
 	}
 
+	return resolveFixedStorageValue(instanceType.Type, requested)
+}
+
+func resolveStorageWithoutSupportedStorage(instanceType string, requested string) (string, error) {
 	if requested != "" {
-		return "", breverrors.NewValidationError(fmt.Sprintf("instance type %q uses fixed storage; omit --storage", instanceType.Type))
+		return "", breverrors.NewValidationError(fmt.Sprintf("instance type %q does not expose configurable storage; omit --storage", instanceType))
 	}
 
 	return "", nil
+}
+
+func resolveFlexibleStorageValue(instanceType string, storage gpusearch.Storage, requested string) (string, error) {
+	minGiB, maxGiB, err := parseFlexibleStorageBounds(storage)
+	if err != nil {
+		return "", err
+	}
+
+	if requested == "" {
+		return strconv.Itoa(clampDefaultFlexibleStorage(minGiB, maxGiB)), nil
+	}
+
+	sizeGiB, err := parseRequestedStorageGiB(requested)
+	if err != nil {
+		return "", err
+	}
+	if err := validateFlexibleStorageBounds(instanceType, sizeGiB, minGiB, maxGiB); err != nil {
+		return "", err
+	}
+
+	return strconv.Itoa(sizeGiB), nil
+}
+
+func resolveFixedStorageValue(instanceType string, requested string) (string, error) {
+	if requested != "" {
+		return "", breverrors.NewValidationError(fmt.Sprintf("instance type %q uses fixed storage; omit --storage", instanceType))
+	}
+
+	return "", nil
+}
+
+func parseFlexibleStorageBounds(storage gpusearch.Storage) (int, int, error) {
+	minGiB, err := parseSizeToGiB(storage.MinSize)
+	if err != nil {
+		return 0, 0, err
+	}
+	maxGiB, err := parseSizeToGiB(storage.MaxSize)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return minGiB, maxGiB, nil
+}
+
+func clampDefaultFlexibleStorage(minGiB int, maxGiB int) int {
+	defaultGiB := defaultFlexibleStorageGiB
+	if minGiB > 0 && defaultGiB < minGiB {
+		defaultGiB = minGiB
+	}
+	if maxGiB > 0 && defaultGiB > maxGiB {
+		defaultGiB = maxGiB
+	}
+
+	return defaultGiB
+}
+
+func parseRequestedStorageGiB(requested string) (int, error) {
+	sizeGiB, err := strconv.Atoi(requested)
+	if err != nil || sizeGiB <= 0 {
+		return 0, breverrors.NewValidationError("--storage must be a positive integer number of GiB")
+	}
+
+	return sizeGiB, nil
+}
+
+func validateFlexibleStorageBounds(instanceType string, sizeGiB int, minGiB int, maxGiB int) error {
+	if minGiB > 0 && sizeGiB < minGiB {
+		return breverrors.NewValidationError(fmt.Sprintf("--storage must be at least %d GiB for instance type %q", minGiB, instanceType))
+	}
+	if maxGiB > 0 && sizeGiB > maxGiB {
+		return breverrors.NewValidationError(fmt.Sprintf("--storage must be at most %d GiB for instance type %q", maxGiB, instanceType))
+	}
+
+	return nil
 }
 
 func resolveLifecycleScript(opts launchableCreateOptions) (string, error) {
@@ -408,31 +453,57 @@ func parseSecureLinks(rawLinks []string) ([]secureLinkSpec, error) {
 	}
 
 	links := make([]secureLinkSpec, 0, len(rawLinks))
-	nameSet := map[string]struct{}{}
-	ctaCount := 0
+	state := newSecureLinkValidationState()
 
 	for _, raw := range rawLinks {
 		link, err := parseSecureLink(raw)
 		if err != nil {
 			return nil, err
 		}
-		if _, exists := nameSet[link.Name]; exists {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("duplicate secure link name %q", link.Name))
-		}
-
-		nameSet[link.Name] = struct{}{}
-		if link.CTA {
-			ctaCount++
+		if err := state.add(link); err != nil {
+			return nil, err
 		}
 
 		links = append(links, link)
 	}
 
-	if ctaCount > maxCTAServiceCount {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("at most %d secure links can have cta=true", maxCTAServiceCount))
+	if err := state.validate(); err != nil {
+		return nil, err
 	}
 
 	return links, nil
+}
+
+type secureLinkValidationState struct {
+	nameSet  map[string]struct{}
+	ctaCount int
+}
+
+func newSecureLinkValidationState() secureLinkValidationState {
+	return secureLinkValidationState{
+		nameSet: map[string]struct{}{},
+	}
+}
+
+func (s *secureLinkValidationState) add(link secureLinkSpec) error {
+	if _, exists := s.nameSet[link.Name]; exists {
+		return breverrors.NewValidationError(fmt.Sprintf("duplicate secure link name %q", link.Name))
+	}
+
+	s.nameSet[link.Name] = struct{}{}
+	if link.CTA {
+		s.ctaCount++
+	}
+
+	return nil
+}
+
+func (s secureLinkValidationState) validate() error {
+	if s.ctaCount > maxCTAServiceCount {
+		return breverrors.NewValidationError(fmt.Sprintf("at most %d secure links can have cta=true", maxCTAServiceCount))
+	}
+
+	return nil
 }
 
 func parseSecureLink(raw string) (secureLinkSpec, error) {

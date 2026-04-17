@@ -131,7 +131,7 @@ Allowed values:
 Default:
 
 ```bash
---view-access public
+--view-access organization
 ```
 
 Examples:
@@ -499,7 +499,7 @@ brev launchable create my-vm \
 What this does:
 
 - creates a VM launchable
-- uses default `public` visibility
+- uses default `organization` visibility
 - enables Jupyter by default
 - uses default storage behavior for the instance type
 - sends no preload file URL
