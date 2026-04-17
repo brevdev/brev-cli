@@ -330,6 +330,14 @@ func resolveLifecycleScript(opts launchableCreateOptions) (string, error) {
 	var script string
 	switch {
 	case opts.LifecycleFilePath != "":
+		info, err := os.Stat(opts.LifecycleFilePath)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		if info.Size() > int64(maxLifecycleScriptBytes) {
+			return "", breverrors.NewValidationError("--lifecycle-script exceeds the 16 KiB limit")
+		}
+
 		content, err := os.ReadFile(opts.LifecycleFilePath)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
@@ -404,58 +412,20 @@ func parseSecureLinks(rawLinks []string) ([]secureLinkSpec, error) {
 	ctaCount := 0
 
 	for _, raw := range rawLinks {
-		values, err := parseFlagAssignments(raw)
+		link, err := parseSecureLink(raw)
 		if err != nil {
 			return nil, err
 		}
-
-		name := strings.TrimSpace(values["name"])
-		if name == "" {
-			return nil, breverrors.NewValidationError("each --secure-link must include name=<value>")
-		}
-		if msg := validateTunnelName(name); msg != "" {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("invalid secure link name %q: %s", name, msg))
-		}
-		if _, exists := nameSet[name]; exists {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("duplicate secure link name %q", name))
-		}
-		nameSet[name] = struct{}{}
-
-		portText := strings.TrimSpace(values["port"])
-		if portText == "" {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("secure link %q is missing port=<value>", name))
-		}
-		if strings.Contains(portText, "-") {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("secure link %q must use a single port, not a port range", name))
+		if _, exists := nameSet[link.Name]; exists {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("duplicate secure link name %q", link.Name))
 		}
 
-		port, err := strconv.Atoi(portText)
-		if err != nil || port < 1 || port > 65535 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("secure link %q must use a port between 1 and 65535", name))
-		}
-
-		cta := false
-		if rawCTA, ok := values["cta"]; ok && strings.TrimSpace(rawCTA) != "" {
-			cta, err = strconv.ParseBool(strings.TrimSpace(rawCTA))
-			if err != nil {
-				return nil, breverrors.NewValidationError(fmt.Sprintf("secure link %q has invalid cta value %q; use true or false", name, rawCTA))
-			}
-		}
-
-		ctaLabel := strings.TrimSpace(values["cta-label"])
-		if ctaLabel != "" && !cta {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("secure link %q cannot set cta-label without cta=true", name))
-		}
-		if cta {
+		nameSet[link.Name] = struct{}{}
+		if link.CTA {
 			ctaCount++
 		}
 
-		links = append(links, secureLinkSpec{
-			Name:     name,
-			Port:     port,
-			CTA:      cta,
-			CTALabel: ctaLabel,
-		})
+		links = append(links, link)
 	}
 
 	if ctaCount > maxCTAServiceCount {
@@ -463,6 +433,92 @@ func parseSecureLinks(rawLinks []string) ([]secureLinkSpec, error) {
 	}
 
 	return links, nil
+}
+
+func parseSecureLink(raw string) (secureLinkSpec, error) {
+	values, err := parseFlagAssignments(raw)
+	if err != nil {
+		return secureLinkSpec{}, err
+	}
+
+	name, err := parseSecureLinkName(values)
+	if err != nil {
+		return secureLinkSpec{}, err
+	}
+
+	port, err := parseSecureLinkPort(name, values)
+	if err != nil {
+		return secureLinkSpec{}, err
+	}
+
+	cta, err := parseSecureLinkCTA(name, values)
+	if err != nil {
+		return secureLinkSpec{}, err
+	}
+
+	ctaLabel, err := parseSecureLinkCTALabel(name, cta, values)
+	if err != nil {
+		return secureLinkSpec{}, err
+	}
+
+	return secureLinkSpec{
+		Name:     name,
+		Port:     port,
+		CTA:      cta,
+		CTALabel: ctaLabel,
+	}, nil
+}
+
+func parseSecureLinkName(values map[string]string) (string, error) {
+	name := strings.TrimSpace(values["name"])
+	if name == "" {
+		return "", breverrors.NewValidationError("each --secure-link must include name=<value>")
+	}
+	if msg := validateTunnelName(name); msg != "" {
+		return "", breverrors.NewValidationError(fmt.Sprintf("invalid secure link name %q: %s", name, msg))
+	}
+
+	return name, nil
+}
+
+func parseSecureLinkPort(name string, values map[string]string) (int, error) {
+	portText := strings.TrimSpace(values["port"])
+	if portText == "" {
+		return 0, breverrors.NewValidationError(fmt.Sprintf("secure link %q is missing port=<value>", name))
+	}
+	if strings.Contains(portText, "-") {
+		return 0, breverrors.NewValidationError(fmt.Sprintf("secure link %q must use a single port, not a port range", name))
+	}
+
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return 0, breverrors.NewValidationError(fmt.Sprintf("secure link %q must use a port between 1 and 65535", name))
+	}
+
+	return port, nil
+}
+
+func parseSecureLinkCTA(name string, values map[string]string) (bool, error) {
+	rawCTA, ok := values["cta"]
+	if !ok || strings.TrimSpace(rawCTA) == "" {
+		return false, nil
+	}
+
+	cta, err := strconv.ParseBool(strings.TrimSpace(rawCTA))
+	if err != nil {
+		return false, breverrors.NewValidationError(fmt.Sprintf("secure link %q has invalid cta value %q; use true or false", name, rawCTA))
+	}
+
+	return cta, nil
+}
+
+func parseSecureLinkCTALabel(name string, cta bool, values map[string]string) (string, error) {
+	ctaLabel := strings.TrimSpace(values["cta-label"])
+	if ctaLabel != "" && !cta {
+		return "", breverrors.NewValidationError(fmt.Sprintf("secure link %q cannot set cta-label without cta=true", name))
+	}
+
+	return ctaLabel, nil
 }
 
 func parseFirewallRules(rawRules []string) ([]firewallRuleSpec, error) {

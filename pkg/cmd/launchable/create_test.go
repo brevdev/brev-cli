@@ -1,6 +1,9 @@
 package launchable
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
@@ -45,6 +48,22 @@ func TestValidateLifecycleScript(t *testing.T) {
 
 	err = validateLifecycleScript("#!/bin/bash\necho hello")
 	require.NoError(t, err)
+}
+
+func TestResolveLifecycleScriptRejectsOversizedFile(t *testing.T) {
+	tempDir := t.TempDir()
+	scriptPath := filepath.Join(tempDir, "setup.sh")
+	content := "#!/bin/bash\n" + strings.Repeat("a", maxLifecycleScriptBytes)
+
+	err := os.WriteFile(scriptPath, []byte(content), 0o644)
+	require.NoError(t, err)
+
+	_, err = resolveLifecycleScript(launchableCreateOptions{
+		Mode:              "vm",
+		LifecycleFilePath: scriptPath,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "16 KiB")
 }
 
 func TestParseSecureLinks(t *testing.T) {
