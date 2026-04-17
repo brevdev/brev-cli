@@ -6,7 +6,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-const (
+var (
 	createEnvironmentLaunchablePathPattern = "api/organizations/%s/v2/launchables"
 	createEnvironmentLaunchablePath        = fmt.Sprintf(createEnvironmentLaunchablePathPattern, fmt.Sprintf("{%s}", orgIDParamName))
 	validateDockerComposePath              = "api/file-validation/docker-compose"
