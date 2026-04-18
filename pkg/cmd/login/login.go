@@ -60,6 +60,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 	var skipBrowser bool
 	var emailFlag string
 	var authProviderFlag string
+	var noInteractive bool
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
@@ -69,6 +70,9 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Long:                  "Log into brev",
 		Example:               "brev login",
 		PostRunE: func(cmd *cobra.Command, args []string) error {
+			if noInteractive {
+				return nil
+			}
 			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
 			if shouldWe {
 				user, err := loginStore.GetCurrentUser()
@@ -84,7 +88,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		},
 		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag)
+			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag, noInteractive)
 			if err != nil {
 				// if err is ImportIDEConfigError, log err with sentry but continue
 				if _, ok := err.(*importideconfig.ImportIDEConfigError); !ok {
@@ -96,6 +100,9 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 					err = multierror.Append(err, err2)
 				}
 				return err //nolint:wrapcheck // we want to return the error from the login
+			}
+			if noInteractive {
+				return nil
 			}
 			// Offer Claude Code skill installation after successful login
 			homeDir, homeErr := opts.LoginStore.UserHomeDir()
@@ -109,6 +116,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 	cmd.Flags().BoolVar(&skipBrowser, "skip-browser", false, "print url instead of auto opening browser")
 	cmd.Flags().StringVar(&emailFlag, "email", "", "email to use for authentication")
 	cmd.Flags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is nvidia)")
+	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "disable all interactive prompts (tutorial, analytics opt-in, agent-skill install); required for agentic/scripted use")
 	return cmd
 }
 
@@ -157,11 +165,15 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 	return org, nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
+func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrowser bool, emailFlag string, authProviderFlag string, noInteractive bool) error {
 	tokens, _ := o.LoginStore.GetAuthTokens()
 
 	if authProviderFlag != "" && authProviderFlag != "nvidia" && authProviderFlag != "legacy" {
 		return breverrors.NewValidationError("auth provider must be nvidia or legacy")
+	}
+
+	if noInteractive && loginToken == "" {
+		return breverrors.NewValidationError("--no-interactive requires --token; browser-based login is interactive")
 	}
 
 	authenticator := auth.StandardLogin(authProviderFlag, emailFlag, tokens)
@@ -187,7 +199,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = o.handleOnboarding(user, t)
+	err = o.handleOnboarding(user, t, noInteractive)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -200,7 +212,7 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 	return nil
 }
 
-func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) error {
+func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal, noInteractive bool) error {
 	// figure out if we should onboard the user
 	currentOnboardingStatus, err := user.GetOnboardingData()
 	if err != nil {
@@ -233,7 +245,7 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 	}
 
 	_, analyticsAsked := analytics.IsAnalyticsEnabled()
-	if !analyticsAsked && analytics.IsAnalyticsFeatureEnabled() {
+	if !analyticsAsked && analytics.IsAnalyticsFeatureEnabled() && !noInteractive {
 		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
 			Label:    "Help us improve Brev by sharing usage data?",
 			ErrorMsg: "Error: must choose an option",
