@@ -65,6 +65,7 @@ func NewCmdLaunchable(t *terminal.Terminal, s LaunchableStore) *cobra.Command {
 		Long: `Manage launchables — reusable, shareable instance + build templates.
 
 To deploy an existing launchable, use ` + "`brev create --launchable <id>`" + `.`,
+		Annotations: map[string]string{"workspace": ""},
 	}
 	cmd.AddCommand(newCmdCreate(t, s))
 
@@ -116,7 +117,10 @@ respective fields in the spec.`,
 	}
 
 	cmd.Flags().StringVarP(&specPath, "from-file", "f", "", "Path to a JSON launchable spec (required)")
-	_ = cmd.MarkFlagRequired("from-file")
+	if err := cmd.MarkFlagRequired("from-file"); err != nil {
+		// Unreachable: MarkFlagRequired only fails when the flag name doesn't exist.
+		panic(fmt.Errorf("marking --from-file required: %w", err))
+	}
 	cmd.Flags().StringVar(&nameFlag, "name", "", "Launchable name (overrides spec)")
 	cmd.Flags().StringVar(&description, "description", "", "Launchable description (overrides spec)")
 	cmd.Flags().StringVar(&viewAccess, "view-access", "", `"public" or "private" (overrides spec)`)
@@ -131,26 +135,16 @@ func runCreate(t *terminal.Terminal, s LaunchableStore, specPath, positionalName
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Apply overrides. Positional wins over --name because the positional is
-	// the more conventional `brev <verb> <noun>` form.
-	if positionalName != "" {
-		req.Name = positionalName
-	} else if nameFlag != "" {
-		req.Name = nameFlag
-	}
-	if description != "" {
-		req.Description = description
-	}
-	if viewAccess != "" {
-		va := strings.ToLower(viewAccess)
-		if va != viewAccessPublic && va != viewAccessPrivate {
-			return fmt.Errorf("--view-access must be %q or %q, got %q", viewAccessPublic, viewAccessPrivate, viewAccess)
-		}
-		req.ViewAccess = va
-	}
+	applyOverrides(req, positionalName, nameFlag, description, viewAccess)
 
 	if err := validateRequest(req); err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+
+	// The API returns `"ports": null` as a validation error; the Console always
+	// sends an array. Normalize here so callers don't have to think about it.
+	if req.BuildRequest.Ports == nil {
+		req.BuildRequest.Ports = []store.LaunchablePort{}
 	}
 
 	if orgID == "" {
@@ -189,6 +183,23 @@ func loadSpec(path string) (*store.CreateLaunchableRequest, error) {
 	return &req, nil
 }
 
+// applyOverrides layers CLI flag/positional values on top of the spec. The
+// positional name wins over --name because `brev <verb> <noun>` is the more
+// conventional CLI form.
+func applyOverrides(req *store.CreateLaunchableRequest, positionalName, nameFlag, description, viewAccess string) {
+	if positionalName != "" {
+		req.Name = positionalName
+	} else if nameFlag != "" {
+		req.Name = nameFlag
+	}
+	if description != "" {
+		req.Description = description
+	}
+	if viewAccess != "" {
+		req.ViewAccess = viewAccess
+	}
+}
+
 func validateRequest(req *store.CreateLaunchableRequest) error {
 	if req.Name == "" {
 		return fmt.Errorf("name is required (set in spec, via --name, or as positional arg)")
@@ -202,6 +213,13 @@ func validateRequest(req *store.CreateLaunchableRequest) error {
 	build := req.BuildRequest
 	if build.DockerCompose == nil && build.CustomContainer == nil && build.VMBuild == nil {
 		return fmt.Errorf("buildRequest must set one of dockerCompose, containerBuild, or vmBuild")
+	}
+	if req.ViewAccess != "" {
+		va := strings.ToLower(req.ViewAccess)
+		if va != viewAccessPublic && va != viewAccessPrivate {
+			return fmt.Errorf("viewAccess must be %q or %q, got %q", viewAccessPublic, viewAccessPrivate, req.ViewAccess)
+		}
+		req.ViewAccess = va
 	}
 	return nil
 }
