@@ -27,6 +27,14 @@ var LegacyWorkspaceGroups = map[string]bool{
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	// AccessTokenExp and IssuedAt are populated from the access JWT's `exp`
+	// and `iat` claims when available. They let the CLI refresh proactively
+	// before the access token expires, and let UX surfaces like `brev
+	// status` display session lifetime without re-parsing the JWT. Both are
+	// optional: files written by older CLI versions lack these fields, and
+	// tokens whose JWTs do not carry the claims will leave them nil.
+	AccessTokenExp *time.Time `json:"access_token_exp,omitempty"`
+	IssuedAt       *time.Time `json:"issued_at,omitempty"`
 }
 
 type IDEConfig struct {
