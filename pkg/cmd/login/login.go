@@ -9,7 +9,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
-	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 
@@ -68,21 +67,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Short:                 "Log into Brev",
 		Long:                  "Log into brev",
 		Example:               "brev login",
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
-			if shouldWe {
-				user, err := loginStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				err = hello.CanWeOnboard(t, user, loginStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
-			return nil
-		},
-		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
@@ -97,11 +82,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 				}
 				return err //nolint:wrapcheck // we want to return the error from the login
 			}
-			// Offer Claude Code skill installation after successful login
-			homeDir, homeErr := opts.LoginStore.UserHomeDir()
-			if homeErr == nil {
-				agentskill.RunInstallSkillIfWanted(t, homeDir)
-			}
+			printOptInHints(t)
 			return nil
 		},
 	}
@@ -232,18 +213,6 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 		newOnboardingStatus["usedCLI"] = true
 	}
 
-	_, analyticsAsked := analytics.IsAnalyticsEnabled()
-	if !analyticsAsked && analytics.IsAnalyticsFeatureEnabled() {
-		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
-			Label:    "Help us improve Brev by sharing usage data?",
-			ErrorMsg: "Error: must choose an option",
-			Items:    []string{"Yes, share usage data", "No, opt out"},
-		})
-		optIn := strings.HasPrefix(choice, "Yes")
-		_ = analytics.SetAnalyticsPreference(optIn)
-		analytics.CaptureAnalyticsOptIn(optIn)
-	}
-
 	analytics.IdentifyUser(user.ID)
 
 	user, err = o.LoginStore.UpdateUser(user.ID, &entity.UpdateUser{
@@ -370,4 +339,17 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 
 func makeFirstOrgName(username string) string {
 	return fmt.Sprintf("%s-hq", username)
+}
+
+// printOptInHints advertises the opt-in entry points for features that used
+// to run as interactive prompts during login (the guided tour, the AI
+// coding-agent skill, and usage analytics). Keeping these as one-liners at
+// the end of `brev login` gives users who want them a discoverable path
+// without forcing a prompt on users (humans or agents) who don't.
+func printOptInHints(t *terminal.Terminal) {
+	fmt.Println()
+	t.Vprintf("%s\n", t.Green("Optional next steps:"))
+	t.Vprintf("  interactive tour:          %s\n", t.Yellow("brev hello"))
+	t.Vprintf("  install AI agent skill:    %s\n", t.Yellow("brev agent-skill install"))
+	t.Vprintf("  share anonymous usage:     %s\n", t.Yellow("brev analytics enable"))
 }
