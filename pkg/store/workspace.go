@@ -155,6 +155,27 @@ type LaunchableFile struct {
 	Path string `json:"path"`
 }
 
+type CreateLaunchableRequest struct {
+	Name                   string                           `json:"name"`
+	Description            string                           `json:"description,omitempty"`
+	ViewAccess             string                           `json:"viewAccess,omitempty"`
+	CreateWorkspaceRequest CreateLaunchableWorkspaceRequest `json:"createWorkspaceRequest"`
+	BuildRequest           LaunchableBuildRequest           `json:"buildRequest"`
+	File                   *LaunchableFile                  `json:"file,omitempty"`
+}
+
+type CreateLaunchableWorkspaceRequest struct {
+	WorkspaceGroupID string                   `json:"workspaceGroupId,omitempty"`
+	InstanceType     string                   `json:"instanceType"`
+	Storage          string                   `json:"storage,omitempty"`
+	FirewallRules    []LaunchableFirewallRule `json:"firewallRules,omitempty"`
+}
+
+type LaunchableFirewallRule struct {
+	Port       string `json:"port"`
+	AllowedIPs string `json:"allowedIPs"`
+}
+
 var (
 	DefaultWorkspaceClassID = config.GlobalConfig.GetDefaultWorkspaceClass()
 	UserWorkspaceClassID    = "2x8"
@@ -264,6 +285,28 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 		return nil, NewHTTPResponseError(res)
 	}
 
+	return &result, nil
+}
+
+var launchableOrgPath = fmt.Sprintf("api/organizations/{%s}/v2/launchables", orgIDParamName)
+
+func (s AuthHTTPStore) CreateLaunchable(organizationID string, req *CreateLaunchableRequest) (*LaunchableResponse, error) {
+	if req == nil {
+		return nil, fmt.Errorf("request can not be nil")
+	}
+	var result LaunchableResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetPathParam(orgIDParamName, organizationID).
+		SetBody(req).
+		SetResult(&result).
+		Post(launchableOrgPath)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
 	return &result, nil
 }
 
