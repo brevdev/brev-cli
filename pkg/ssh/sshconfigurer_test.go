@@ -151,7 +151,7 @@ Host %s
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%%C
+  ControlPath ~/.ssh/brev-control-%%C
   ControlPersist 10m
   Port 22
 
@@ -168,7 +168,7 @@ Host %s-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%%C
+  ControlPath ~/.ssh/brev-control-%%C
   ControlPersist 10m
   Port 22
 
@@ -185,7 +185,7 @@ Host %s
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%%C
+  ControlPath ~/.ssh/brev-control-%%C
   ControlPersist 10m
   Port 22
 
@@ -202,7 +202,7 @@ Host %s-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%%C
+  ControlPath ~/.ssh/brev-control-%%C
   ControlPersist 10m
   Port 22
 
@@ -323,7 +323,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 20
 
@@ -340,7 +340,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 2022
 
@@ -378,7 +378,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -395,7 +395,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -434,7 +434,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 2022
 
@@ -451,7 +451,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -488,7 +488,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
 
 `,
@@ -524,7 +524,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
 
 `,
@@ -564,7 +564,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
 
 Host testName2-host
@@ -580,7 +580,7 @@ Host testName2-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
 
 `,
@@ -808,7 +808,7 @@ Host testName1
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -825,7 +825,7 @@ Host testName1-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -874,7 +874,7 @@ Host testName1
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -891,7 +891,7 @@ Host testName1-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -911,7 +911,7 @@ Host testName1
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
@@ -928,7 +928,7 @@ Host testName1-host
   ForwardAgent yes
   RequestTTY yes
   ControlMaster auto
-  ControlPath ~/.ssh/brev-%C
+  ControlPath ~/.ssh/brev-control-%C
   ControlPersist 10m
   Port 22
 
