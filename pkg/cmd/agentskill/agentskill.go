@@ -2,20 +2,16 @@
 package agentskill
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/fatih/color"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -199,45 +195,6 @@ func IsSkillInstalled(homeDir string) bool {
 	return false
 }
 
-// PromptInstallSkill asks the user if they want to install the agent skill
-// Returns true if they want to install, false otherwise
-func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
-	// Skip if skill is already installed
-	if IsSkillInstalled(homeDir) {
-		return false
-	}
-
-	// Check if Claude Code appears to be installed
-	if !IsClaudeInstalled(homeDir) {
-		return false
-	}
-
-	fmt.Println()
-	caretType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("  ", caretType("▸"), "    AI Agent Integration")
-	fmt.Println()
-	fmt.Println("       We detected an AI coding agent on your system.")
-	fmt.Println("       Would you like to install the Brev CLI skill?")
-	fmt.Println()
-	fmt.Println("       This enables natural language commands like:")
-	fmt.Println(t.Yellow("         \"Create an A100 instance for ML training\""))
-	fmt.Println(t.Yellow("         \"Search for GPUs with 40GB VRAM\""))
-	fmt.Println(t.Yellow("         \"Stop all my running instances\""))
-	fmt.Println()
-
-	prompt := promptui.Select{
-		Label: "Install agent skill",
-		Items: []string{"Yes, install it", "No, skip for now"},
-	}
-
-	idx, _, err := prompt.Run()
-	if err != nil {
-		return false
-	}
-
-	return idx == 0
-}
-
 // InstallSkill downloads and installs the agent skill to all install paths
 func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 	skillDirs := GetSkillDirs(homeDir)
@@ -322,18 +279,6 @@ func UninstallSkill(t *terminal.Terminal, homeDir string) error {
 	return nil
 }
 
-// RunInstallSkillIfWanted prompts and installs if user wants it
-// This is called from the login flow
-func RunInstallSkillIfWanted(t *terminal.Terminal, homeDir string) {
-	if PromptInstallSkill(t, homeDir) {
-		err := InstallSkill(t, homeDir, false)
-		if err != nil {
-			// Don't fail login for skill install errors
-			fmt.Printf("  %s Failed to install skill: %v\n", t.Yellow("Warning:"), err)
-		}
-	}
-}
-
 // downloadAndInstallFile downloads a single file and writes it to all skill dirs.
 // Returns true on success, false if the download or any write failed.
 func downloadAndInstallFile(client *http.Client, baseURL, file string, skillDirs []string, t *terminal.Terminal, quiet bool) bool {
@@ -387,11 +332,3 @@ func downloadBytes(client *http.Client, url string) ([]byte, error) {
 	return body, nil
 }
 
-// PromptInstallSkillSimple is a simpler yes/no prompt for the login flow
-func PromptInstallSkillSimple() bool {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Install agent skill? [y/N]: ")
-	response, _ := reader.ReadString('\n')
-	response = strings.ToLower(strings.TrimSpace(response))
-	return response == "y" || response == "yes"
-}
