@@ -146,6 +146,13 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		return "", nil
 	}
 
+	// Older CLI versions stored the literal string "auto-login" when
+	// `brev login --token` had no real refresh token to save. Treat it as
+	// absent so we do not attempt to exchange it with the IdP and fail.
+	if tokens.RefreshToken == autoLoginSentinel {
+		tokens.RefreshToken = ""
+	}
+
 	// should always at least have access token?
 	if tokens.AccessToken == "" {
 		breverrors.GetDefaultErrorReporter().ReportMessage("access token is an empty string but shouldn't be")
@@ -154,7 +161,13 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	if !isAccessTokenValid && tokens.RefreshToken != "" {
+	if !isAccessTokenValid {
+		if tokens.RefreshToken == "" {
+			// Access token is expired and we have no refresh token. Returning
+			// the expired token here would just cause a 401 on the next API
+			// call; return empty so callers can prompt for re-login instead.
+			return "", nil
+		}
 		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
@@ -162,8 +175,6 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		if tokens == nil {
 			return "", nil
 		}
-	} else if tokens.RefreshToken == "" && tokens.AccessToken == "" {
-		return "", nil
 	}
 	return tokens.AccessToken, nil
 }
@@ -197,22 +208,39 @@ func shouldLogin() (bool, error) {
 	return trimmed == "y" || trimmed == "", nil
 }
 
+// autoLoginSentinel is a legacy value older CLI versions stored in place of
+// a real token when `brev login --token` was used. It is not a valid token of
+// any kind; treat it as "absent" on read.
+const autoLoginSentinel = "auto-login"
+
 func (t Auth) LoginWithToken(token string) error {
 	valid, err := isAccessTokenValid(token)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if valid {
+		// The token is a self-contained JWT access token with no accompanying
+		// refresh token. Previously we stored the string "auto-login" in the
+		// RefreshToken slot; when the access token expired the refresh path
+		// then attempted to exchange that sentinel with the IdP, which always
+		// failed, logging the user out every time the short-lived access
+		// token aged out. Store an empty RefreshToken instead so the refresh
+		// path correctly recognizes there is nothing to refresh and prompts
+		// for a fresh login exactly once.
+		fmt.Fprintln(os.Stderr, "Note: tokens from --token cannot be refreshed; re-run `brev login` when the session expires.")
 		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
 			AccessToken:  token,
-			RefreshToken: "auto-login",
+			RefreshToken: "",
 		})
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
+		// The token is not a JWT, assume it is a refresh token. The access
+		// token slot is filled with the sentinel so the first API call
+		// triggers a refresh to populate a real access token.
 		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
-			AccessToken:  "auto-login",
+			AccessToken:  autoLoginSentinel,
 			RefreshToken: token,
 		})
 		if err != nil {
