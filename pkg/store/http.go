@@ -37,6 +37,17 @@ func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
 	return &NoAuthHTTPClient{restyClient}
 }
 
+// silentRestyLogger discards all log output from resty. We use it so that
+// transient request errors (e.g. network outages while resolving an access
+// token) don't dump multi-line stack traces to stderr alongside the
+// friendly error rendered by cmderrors. Enable BREV_DEBUG_HTTP to
+// re-enable verbose tracing.
+type silentRestyLogger struct{}
+
+func (silentRestyLogger) Errorf(string, ...interface{}) {}
+func (silentRestyLogger) Warnf(string, ...interface{})  {}
+func (silentRestyLogger) Debugf(string, ...interface{}) {}
+
 func NewRestyClient(brevAPIURL string) *resty.Client {
 	restyClient := resty.New()
 	restyClient.SetBaseURL(brevAPIURL)
@@ -158,6 +169,12 @@ func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTT
 	}
 	restyClient := NewRestyClient(brevAPIURL)
 	restyClient.Debug = opts.Debug
+	if !opts.Debug {
+		// Silence resty's stderr WARN/ERROR lines for OnBeforeRequest
+		// failures. The cmderrors layer already renders a friendly,
+		// user-facing message; the multi-line resty trace is just noise.
+		restyClient.SetLogger(silentRestyLogger{})
+	}
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		token, err := auth.GetAccessToken()
 		if err != nil {

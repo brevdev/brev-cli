@@ -1,7 +1,12 @@
 package errors
 
 import (
+	stderrors "errors"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	pkgerrors "github.com/pkg/errors"
@@ -233,4 +238,132 @@ func Test_combine(t *testing.T) {
 	cerr := CombineByString(errs)
 
 	assert.Equal(t, "my error 1", cerr.Error())
+}
+
+func Test_IsNetworkError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"plain error", New("oops"), false},
+		{"dns error", &net.DNSError{Name: "example.invalid", Err: "no such host"}, true},
+		{"op error", &net.OpError{Op: "dial", Net: "tcp", Err: stderrors.New("connection refused")}, true},
+		{"url error wrapping op error", &url.Error{
+			Op:  "Get",
+			URL: "https://api.ngc.nvidia.com/token",
+			Err: &net.OpError{Op: "dial", Net: "tcp", Err: stderrors.New("connection refused")},
+		}, true},
+		{"wrapped dns error", fmt.Errorf("outer: %w", &net.DNSError{Name: "example.invalid", Err: "no such host"}), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, IsNetworkError(tc.err))
+		})
+	}
+}
+
+func Test_HostFromURLError(t *testing.T) {
+	urlErr := &url.Error{Op: "Get", URL: "https://api.ngc.nvidia.com/token", Err: stderrors.New("boom")}
+	assert.Equal(t, "api.ngc.nvidia.com", HostFromURLError(urlErr))
+
+	// Wrapped url.Error is also handled.
+	wrapped := fmt.Errorf("outer: %w", urlErr)
+	assert.Equal(t, "api.ngc.nvidia.com", HostFromURLError(wrapped))
+
+	// Non-url.Error returns empty.
+	assert.Equal(t, "", HostFromURLError(stderrors.New("plain")))
+	assert.Equal(t, "", HostFromURLError(nil))
+}
+
+func Test_WrapNetworkError(t *testing.T) {
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, WrapNetworkError(nil, "host"))
+	})
+
+	t.Run("non-network error passes through", func(t *testing.T) {
+		orig := New("not a network error")
+		result := WrapNetworkError(orig, "host")
+		assert.Equal(t, orig, result)
+		var netErr *NetworkError
+		assert.False(t, stderrors.As(result, &netErr), "non-network error should not be wrapped")
+	})
+
+	t.Run("network error gets wrapped with host from url.Error", func(t *testing.T) {
+		inner := &url.Error{
+			Op:  "Get",
+			URL: "https://api.ngc.nvidia.com/token",
+			Err: &net.OpError{Op: "dial", Net: "tcp", Err: stderrors.New("connection refused")},
+		}
+		wrapped := WrapNetworkError(inner, "fallback.example.com")
+
+		var netErr *NetworkError
+		if assert.True(t, stderrors.As(wrapped, &netErr)) {
+			assert.Equal(t, "api.ngc.nvidia.com", netErr.Host)
+			assert.Same(t, inner, netErr.Cause)
+		}
+	})
+
+	t.Run("network error uses fallback host when no url.Error in chain", func(t *testing.T) {
+		inner := &net.OpError{Op: "dial", Net: "tcp", Err: stderrors.New("connection refused")}
+		wrapped := WrapNetworkError(inner, "fallback.example.com")
+
+		var netErr *NetworkError
+		if assert.True(t, stderrors.As(wrapped, &netErr)) {
+			assert.Equal(t, "fallback.example.com", netErr.Host)
+		}
+	})
+}
+
+func Test_NetworkError_Messages(t *testing.T) {
+	withHost := &NetworkError{Host: "api.ngc.nvidia.com"}
+	assert.Contains(t, withHost.Error(), "api.ngc.nvidia.com")
+	assert.Contains(t, withHost.Error(), "internet connection")
+	assert.Contains(t, withHost.Directive(), "api.ngc.nvidia.com")
+
+	withoutHost := &NetworkError{}
+	assert.Contains(t, withoutHost.Error(), "internet connection")
+	assert.NotEmpty(t, withoutHost.Directive())
+}
+
+func Test_NetworkError_UnwrapToCause(t *testing.T) {
+	cause := stderrors.New("boom")
+	netErr := &NetworkError{Host: "h", Cause: cause}
+	assert.Same(t, cause, netErr.Unwrap())
+	assert.True(t, stderrors.Is(netErr, cause))
+}
+
+// Verifies the integration path the CLI exercises: a real http.Client.Do
+// against a closed listener returns an error that IsNetworkError detects
+// and WrapNetworkError converts into a *NetworkError with the right host.
+func Test_WrapNetworkError_RealHTTPClient(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.Close()
+
+	resp, err := http.Get(server.URL) //nolint:noctx,bodyclose // test
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if !assert.Error(t, err) {
+		return
+	}
+	assert.True(t, IsNetworkError(err), "expected closed-server error to be classified as network error: %v", err)
+
+	wrapped := WrapNetworkError(err, "")
+	var netErr *NetworkError
+	if assert.True(t, stderrors.As(wrapped, &netErr)) {
+		// Host should be derived from the url.Error embedded in err.
+		expectedHost, _ := url.Parse(server.URL)
+		assert.Equal(t, expectedHost.Host, netErr.Host)
+	}
+}
+
+// pkgerrors.Cause must walk through WrapAndTrace layers and stop at the
+// NetworkError so the cmd-level error renderer can detect it.
+func Test_NetworkError_SurvivesWrapAndTrace(t *testing.T) {
+	netErr := &NetworkError{Host: "api.ngc.nvidia.com", Cause: stderrors.New("boom")}
+	wrapped := WrapAndTrace(WrapAndTrace(netErr))
+	cause := pkgerrors.Cause(wrapped)
+	assert.IsType(t, &NetworkError{}, cause)
 }

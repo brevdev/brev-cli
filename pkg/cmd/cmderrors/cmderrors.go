@@ -33,6 +33,11 @@ func DisplayAndHandleError(err error) {
 		case breverrors.ValidationError:
 			// do not report error
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
+		case *breverrors.NetworkError:
+			// network failure is a user-facing condition, not a bug — show
+			// a friendly message and skip Sentry reporting.
+			netErr, _ := errors.Cause(err).(*breverrors.NetworkError)
+			prettyErr = t.Yellow(netErr.Error()) + "\n" + t.Yellow(netErr.Directive())
 		case breverrors.WorkspaceNotRunning: // report error to track when this occurs, but don't print stacktrace to user unless in dev mode
 			er.ReportError(err)
 			prettyErr = (t.Yellow(errors.Cause(err).Error()))
