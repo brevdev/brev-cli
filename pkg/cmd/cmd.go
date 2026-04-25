@@ -331,7 +331,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
 	cmd.AddCommand(agentskill.NewCmdAgentSkill(t, noLoginCmdStore))
 	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
-	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
+	cmd.AddCommand(status.NewCmdStatus(t, noLoginCmdStore))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(stop.NewCmdStop(t, loginCmdStore, noLoginCmdStore))
