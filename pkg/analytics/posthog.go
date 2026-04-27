@@ -48,8 +48,9 @@ func getClient() (posthog.Client, error) {
 	return client, clientErr
 }
 
-// IsAnalyticsFeatureEnabled checks the PostHog feature flag to determine
-// whether to prompt the user about analytics opt-in.
+// IsAnalyticsFeatureEnabled checks the PostHog feature flag that acts as a
+// remote kill switch for CLI telemetry. Lets us globally disable capture
+// without shipping a CLI release.
 func IsAnalyticsFeatureEnabled() bool {
 	anonID := GetOrCreateAnalyticsID()
 	if anonID == "" {
@@ -81,13 +82,37 @@ func RecordCommandStart(cmd *cobra.Command, args []string) {
 	storedArgs = args
 }
 
-// IsAnalyticsEnabled returns whether analytics is enabled and whether the user has been asked.
-func IsAnalyticsEnabled() (enabled bool, hasBeenAsked bool) {
+// IsAnalyticsEnabled returns whether analytics capture is currently enabled.
+// Default is on (opt-out model). Honors DO_NOT_TRACK and BREV_NO_ANALYTICS env
+// vars as a kill switch for CI / scripted use.
+func IsAnalyticsEnabled() bool {
+	if os.Getenv("DO_NOT_TRACK") == "1" || os.Getenv("BREV_NO_ANALYTICS") == "1" {
+		return false
+	}
 	settings := readSettings()
 	if settings.AnalyticsEnabled == nil {
-		return false, false
+		return true
 	}
-	return *settings.AnalyticsEnabled, true
+	return *settings.AnalyticsEnabled
+}
+
+// IsDisabledByEnv reports whether analytics is currently disabled by an
+// environment-variable kill switch (vs. the user's persisted preference).
+func IsDisabledByEnv() (disabled bool, varName string) {
+	if os.Getenv("DO_NOT_TRACK") == "1" {
+		return true, "DO_NOT_TRACK"
+	}
+	if os.Getenv("BREV_NO_ANALYTICS") == "1" {
+		return true, "BREV_NO_ANALYTICS"
+	}
+	return false, ""
+}
+
+// IsAnalyticsExplicitlySet reports whether the user has explicitly chosen a
+// preference (true/false), as opposed to leaving it at the default.
+func IsAnalyticsExplicitlySet() bool {
+	settings := readSettings()
+	return settings.AnalyticsEnabled != nil
 }
 
 // SetAnalyticsPreference persists the user's analytics preference.
@@ -139,34 +164,9 @@ func GetOrCreateAnalyticsID() string {
 	return settings.AnalyticsID
 }
 
-// CaptureAnalyticsOptIn sends an event recording the user's analytics consent choice.
-// This is sent regardless of the user's choice so we can measure opt-in rates.
-func CaptureAnalyticsOptIn(optedIn bool) {
-	anonID := GetOrCreateAnalyticsID()
-	if anonID == "" {
-		return
-	}
-
-	c, err := getClient()
-	if err != nil {
-		return
-	}
-
-	_ = c.Enqueue(posthog.Capture{
-		DistinctId: anonID,
-		Event:      "analytics_opt_in",
-		Properties: posthog.NewProperties().
-			Set("opted_in", optedIn).
-			Set("os", runtime.GOOS).
-			Set("arch", runtime.GOARCH).
-			Set("cli_version", version.Version),
-	})
-}
-
 // IdentifyUser links the anonymous analytics ID to a real user ID using PostHog Alias.
 func IdentifyUser(userID string) {
-	enabled, asked := IsAnalyticsEnabled()
-	if !asked || !enabled {
+	if !IsAnalyticsEnabled() {
 		return
 	}
 
@@ -213,8 +213,10 @@ func CaptureCommandError() {
 }
 
 func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bool) {
-	enabled, asked := IsAnalyticsEnabled()
-	if !asked || !enabled {
+	if !IsAnalyticsEnabled() {
+		return
+	}
+	if !IsAnalyticsFeatureEnabled() {
 		return
 	}
 

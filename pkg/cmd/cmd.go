@@ -7,6 +7,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
+	analyticscmd "github.com/brevdev/brev-cli/pkg/cmd/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
@@ -153,19 +154,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
       Find more information at:
             https://brev.nvidia.com`,
-		PostRun: func(cmd *cobra.Command, args []string) {
-			shouldWe := hello.ShouldWeRunOnboarding(noLoginCmdStore)
-			if shouldWe {
-				user, err := loginCmdStore.GetCurrentUser()
-				if err != nil {
-					return
-				}
-				err = hello.CanWeOnboard(t, user, loginCmdStore)
-				if err != nil {
-					return
-				}
-			}
-		},
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 			analytics.CaptureCommand(analytics.GetOrCreateAnalyticsID(), cmd, args)
 			return nil
@@ -231,6 +219,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				err := cmd.Usage()
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
+				}
+				if hello.ShouldWeRunOnboarding(noLoginCmdStore) {
+					t.Vprintf("\n👋 New to Brev? Run %s for a guided walkthrough.\n", t.Yellow("brev hello"))
 				}
 				return nil
 			}
@@ -330,6 +321,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
 	cmd.AddCommand(agentskill.NewCmdAgentSkill(t, noLoginCmdStore))
+	cmd.AddCommand(analyticscmd.NewCmdAnalytics(t, nil))
 	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
 	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
@@ -499,6 +491,13 @@ Aliases:
 Examples:
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
 
+{{- if hasQuickstartCommands . }}
+
+Quick Start:
+{{- range quickstartCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
 {{- if or (hasWorkspaceCommands .) (hasProviderDependentCommands .) }}
 
 Instance Commands:
@@ -530,13 +529,6 @@ Organization Management:
 
 Configuration:
 {{- range configurationCommands . }}
-  {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}{{- end}}
-
-{{- if hasQuickstartCommands . }}
-
-Quick Start:
-{{- range quickstartCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
