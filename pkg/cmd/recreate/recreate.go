@@ -33,6 +33,11 @@ type recreateStore interface {
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 }
 
+const (
+	createRetryWindow = 5 * time.Minute
+	createRetryDelay  = 10 * time.Second
+)
+
 func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "recreate",
@@ -75,20 +80,49 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 	}
 
 	t.Vprint(t.Yellow("Deleting instance - %s.", deletedWorkspace.Name))
+
+	t.Vprint(t.Yellow("Waiting for delete to complete before creating new instance...\n"))
 	time.Sleep(10 * time.Second)
 
-	if len(deletedWorkspace.GitRepo) != 0 {
-		err := hardResetCreateWorkspaceFromRepo(t, recreateStore, deletedWorkspace)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
-		err := hardResetCreateEmptyWorkspace(t, recreateStore, deletedWorkspace)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	createErr := runCreateWithRetry(t, recreateStore, deletedWorkspace)
+	if createErr != nil {
+		return createErr
 	}
 	return nil
+}
+
+// isRetriableCreateError returns true for errors that may succeed on retry.
+func isRetriableCreateError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "unexpected EOF") || strings.Contains(msg, "duplicate workspace") {
+		return true
+	}
+	return false
+}
+
+func runCreateWithRetry(t *terminal.Terminal, recreateStore recreateStore, deletedWorkspace *entity.Workspace) error {
+	deadline := time.Now().Add(createRetryWindow)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		if lastErr != nil {
+			time.Sleep(createRetryDelay)
+		}
+		if len(deletedWorkspace.GitRepo) != 0 {
+			lastErr = hardResetCreateWorkspaceFromRepo(t, recreateStore, deletedWorkspace)
+		} else {
+			lastErr = hardResetCreateEmptyWorkspace(t, recreateStore, deletedWorkspace)
+		}
+		if lastErr == nil {
+			return nil
+		}
+		if !isRetriableCreateError(lastErr) {
+			return lastErr
+		}
+	}
+	return lastErr
 }
 
 // hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
@@ -105,6 +139,12 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
+	if workspace.WorkspaceGroupID != "" {
+		options = options.WithWorkspaceGroupID(workspace.WorkspaceGroupID)
+	}
+	if workspace.InstanceType != "" {
+		options = options.WithInstanceType(workspace.InstanceType)
+	}
 
 	user, err := recreateStore.GetCurrentUser()
 	if err != nil {
@@ -154,6 +194,12 @@ func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateS
 	orgID = activeorg.ID
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name)
+	if workspace.WorkspaceGroupID != "" {
+		options = options.WithWorkspaceGroupID(workspace.WorkspaceGroupID)
+	}
+	if workspace.InstanceType != "" {
+		options = options.WithInstanceType(workspace.InstanceType)
+	}
 
 	user, err := recreateStore.GetCurrentUser()
 	if err != nil {
