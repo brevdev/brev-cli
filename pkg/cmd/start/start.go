@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -36,6 +37,7 @@ var (
 
 type StartStore interface {
 	cmdutil.GetWorkspaceByNameOrIDErrStore
+	GetAccessToken() (string, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
@@ -119,9 +121,13 @@ type StartOptions struct {
 }
 
 func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
-	user, err := startStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	user := &entity.User{}
+	if !auth.IsAPIKeyAuthStore(startStore) {
+		var err error
+		user, err = startStore.GetCurrentUser()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
 	didStart, err := maybeStartEmpty(t, user, options, startStore)
@@ -181,7 +187,10 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, options St
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	userWorkspaces := store.FilterForUserWorkspaces(workspaces, user.ID)
+	userWorkspaces := workspaces
+	if !auth.IsAPIKeyAuthStore(startStore) {
+		userWorkspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
+	}
 	if len(userWorkspaces) > 0 {
 		if len(userWorkspaces) > 1 {
 			userWorkspaces = store.FilterNonFailedWorkspaces(userWorkspaces)

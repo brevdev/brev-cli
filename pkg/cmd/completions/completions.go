@@ -1,6 +1,7 @@
 package completions
 
 import (
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -18,12 +19,6 @@ type CompletionHandler func(cmd *cobra.Command, args []string, toComplete string
 
 func GetAllWorkspaceNameCompletionHandler(completionStore CompletionStore, t *terminal.Terminal) CompletionHandler {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		user, err := completionStore.GetCurrentUser()
-		if err != nil {
-			t.Errprint(err, "")
-			return nil, cobra.ShellCompDirectiveError
-		}
-
 		org, err := completionStore.GetActiveOrganizationOrDefault()
 		if err != nil {
 			t.Errprint(err, "")
@@ -33,7 +28,17 @@ func GetAllWorkspaceNameCompletionHandler(completionStore CompletionStore, t *te
 			return []string{}, cobra.ShellCompDirectiveDefault
 		}
 
-		workspaces, err := completionStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
+		var options *store.GetWorkspacesOptions
+		if tokenProvider, ok := completionStore.(auth.TokenProvider); !ok || !auth.IsAPIKeyAuthStore(tokenProvider) {
+			user, err := completionStore.GetCurrentUser()
+			if err != nil {
+				t.Errprint(err, "")
+				return nil, cobra.ShellCompDirectiveError
+			}
+			options = &store.GetWorkspacesOptions{UserID: user.ID}
+		}
+
+		workspaces, err := completionStore.GetWorkspaces(org.ID, options)
 		if err != nil {
 			t.Errprint(err, "")
 			return nil, cobra.ShellCompDirectiveError

@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -97,6 +98,7 @@ type GPUCreateStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	gpusearch.GPUSearchStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetAccessToken() (string, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
@@ -720,10 +722,13 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 		}
 	}
 
-	// Get user
-	user, err := store.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	user := &entity.User{}
+	if !auth.IsAPIKeyAuthStore(store) {
+		var err error
+		user, err = store.GetCurrentUser()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 	}
 	ctx.user = user
 
@@ -877,7 +882,11 @@ func (c *createContext) waitForInstances(workspaces []*entity.Workspace) {
 	for _, ws := range workspaces {
 		err := c.pollUntilReady(ws.ID)
 		if err != nil {
-			c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
+			if strings.Contains(err.Error(), "timeout waiting") {
+				c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
+			} else {
+				c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
+			}
 		}
 	}
 }
@@ -1220,6 +1229,9 @@ func (c *createContext) pollUntilReady(wsID string) error {
 		}
 
 		if ws.Status == entity.Failure {
+			if ws.StatusMessage != "" {
+				return breverrors.NewValidationError(fmt.Sprintf("instance %s failed: %s", ws.Name, ws.StatusMessage))
+			}
 			return breverrors.NewValidationError(fmt.Sprintf("instance %s failed", ws.Name))
 		}
 

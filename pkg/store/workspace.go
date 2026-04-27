@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -343,6 +344,10 @@ func FilterNonFailedWorkspaces(workspaces []entity.Workspace) []entity.Workspace
 }
 
 func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
+	if auth.IsAPIKeyAuthStore(&s) {
+		return s.GetWorkspaces(orgID, &GetWorkspacesOptions{Name: nameOrID})
+	}
+
 	// pretty srue we always want to filter for workspaces owned by the user
 	user, err := s.GetCurrentUser()
 	if err != nil {
@@ -365,6 +370,10 @@ func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if auth.IsAPIKeyAuthStore(&s) {
+		return s.GetWorkspaces(org.ID, nil)
+	}
+
 	user, err := s.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

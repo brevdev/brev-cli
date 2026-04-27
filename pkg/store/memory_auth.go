@@ -18,8 +18,8 @@ func NewMemoryAuthStore() *MemoryAuthStore {
 }
 
 func (m *MemoryAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
-	if tokens.AccessToken == "" {
-		return fmt.Errorf("access token is empty")
+	if tokens.AccessToken == "" && tokens.APIKey == "" {
+		return fmt.Errorf("access token and api key are empty")
 	}
 	m.tokens = &tokens
 	return nil
