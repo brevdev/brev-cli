@@ -101,6 +101,44 @@ type Auth struct {
 	shouldLogin          func() (bool, error)
 }
 
+const BrevAPIKeyPrefix = "bak-"
+
+const MissingAPIKeyOrgIDMessage = "api key auth requires an org id; run brev login --api-key <api-key> --org-id <org-id>"
+
+type APIKeyAuthStore interface {
+	GetAuthTokens() (*entity.AuthTokens, error)
+}
+
+func IsBrevAPIKey(token string) bool {
+	return strings.HasPrefix(strings.TrimSpace(token), BrevAPIKeyPrefix)
+}
+
+func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
+	tokens, err := authTokensProvider.GetAuthTokens()
+	if err != nil {
+		return false
+	}
+	if tokens == nil {
+		return false
+	}
+	return IsBrevAPIKey(tokens.APIKey)
+}
+
+func GetAPIKeyOrgID(authTokensProvider APIKeyAuthStore) (string, error) {
+	tokens, err := authTokensProvider.GetAuthTokens()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		return "", breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+	}
+	orgID := strings.TrimSpace(tokens.APIKeyOrgID)
+	if orgID == "" {
+		return "", breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+	}
+	return orgID, nil
+}
+
 func NewAuth(authStore AuthStore, oauth OAuth) *Auth {
 	return &Auth{
 		authStore:            authStore,
@@ -144,6 +182,11 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	}
 	if tokens == nil {
 		return "", nil
+	}
+
+	apiKey := strings.TrimSpace(tokens.APIKey)
+	if apiKey != "" {
+		return apiKey, nil
 	}
 
 	// should always at least have access token?
@@ -218,6 +261,36 @@ func (t Auth) LoginWithToken(token string) error {
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
+	}
+	return nil
+}
+
+func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return breverrors.NewValidationError("api key is empty")
+	}
+	if !IsBrevAPIKey(apiKey) {
+		return breverrors.NewValidationError(fmt.Sprintf("api key must start with %s", BrevAPIKeyPrefix))
+	}
+	orgID = strings.TrimSpace(orgID)
+	if orgID == "" {
+		return breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+	}
+
+	tokens, err := t.getSavedTokensOrNil()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		tokens = &entity.AuthTokens{}
+	}
+	tokens.APIKey = apiKey
+	tokens.APIKeyOrgID = orgID
+
+	err = t.authStore.SaveAuthTokens(*tokens)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -313,7 +386,7 @@ func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 		}
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if tokens != nil && tokens.AccessToken == "" && tokens.RefreshToken == "" {
+	if tokens != nil && tokens.AccessToken == "" && tokens.RefreshToken == "" && tokens.APIKey == "" {
 		return nil, nil
 	}
 	return tokens, nil
@@ -415,7 +488,7 @@ func AuthProviderFlagToCredentialProvider(authProviderFlag string) entity.Creden
 func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens) OAuth {
 	// Set KAS as the default authenticator
 	shouldPromptEmail := false
-	if email == "" && tokens != nil && tokens.AccessToken != "" {
+	if email == "" && tokens != nil && tokens.AccessToken != "" && tokens.APIKey == "" {
 		email = GetEmailFromToken(tokens.AccessToken)
 		shouldPromptEmail = true
 	}
@@ -445,7 +518,7 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 		kasAuthenticator,
 	})
 
-	if tokens != nil && tokens.AccessToken != "" {
+	if tokens != nil && tokens.AccessToken != "" && tokens.APIKey == "" {
 		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
 		if errr != nil {
 			fmt.Printf("%v\n", errr)

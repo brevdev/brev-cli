@@ -8,36 +8,64 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
+	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
+const testAPIKey = authpkg.BrevAPIKeyPrefix + "test-key"
+
 // mockLsStore implements LsStore (including the embedded hello.HelloStore) for
 // testing the ls command routing without real API calls.
 type mockLsStore struct {
-	user       *entity.User
-	org        *entity.Organization
-	orgs       []entity.Organization
-	workspaces []entity.Workspace
+	user                 *entity.User
+	org                  *entity.Organization
+	orgs                 []entity.Organization
+	workspaces           []entity.Workspace
+	authTokens           *entity.AuthTokens
+	workspaceOrgID       string
+	currentUserCalls     int
+	getOrganizationsCall int
 }
 
-func (m *mockLsStore) GetCurrentUser() (*entity.User, error) { return m.user, nil }
-func (m *mockLsStore) GetAccessToken() (string, error)       { return "tok", nil }
+func (m *mockLsStore) GetCurrentUser() (*entity.User, error) {
+	m.currentUserCalls++
+	return m.user, nil
+}
+
+func (m *mockLsStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	return m.authTokens, nil
+}
+
+func (m *mockLsStore) GetAccessToken() (string, error) {
+	return "tok", nil
+}
+
 func (m *mockLsStore) GetWorkspace(_ string) (*entity.Workspace, error) {
 	return nil, nil
 }
 
 func (m *mockLsStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	if m.authTokens != nil && authpkg.IsBrevAPIKey(m.authTokens.APIKey) {
+		orgID, err := authpkg.GetAPIKeyOrgID(m)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return &entity.Organization{ID: orgID, Name: m.org.Name}, nil
+	}
 	return m.org, nil
 }
 
-func (m *mockLsStore) GetWorkspaces(_ string, _ *store.GetWorkspacesOptions) ([]entity.Workspace, error) {
+func (m *mockLsStore) GetWorkspaces(orgID string, _ *store.GetWorkspacesOptions) ([]entity.Workspace, error) {
+	m.workspaceOrgID = orgID
 	return m.workspaces, nil
 }
 
 func (m *mockLsStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]entity.Organization, error) {
+	m.getOrganizationsCall++
 	return m.orgs, nil
 }
 
@@ -66,6 +94,113 @@ func newTestStore() *mockLsStore {
 		user: user,
 		org:  org,
 		orgs: []entity.Organization{*org},
+	}
+}
+
+func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
+	s := newTestStore()
+	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org1"}
+	s.workspaces = []entity.Workspace{
+		{
+			ID:              "ws1",
+			Name:            "owned-by-someone",
+			Status:          entity.Running,
+			CreatedByUserID: "other-user",
+		},
+		{
+			ID:              "ws2",
+			Name:            "owned-by-user",
+			Status:          entity.Stopped,
+			CreatedByUserID: "u1",
+		},
+	}
+	term := terminal.New()
+
+	out := captureStdout(t, func() {
+		err := RunLs(term, s, nil, "", false, true)
+		if err != nil {
+			t.Fatalf("RunLs returned error: %v", err)
+		}
+	})
+
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("failed to parse JSON output: %v\nraw output: %s", err, out)
+	}
+	if len(parsed.Workspaces) != 2 {
+		t.Fatalf("expected API key ls to show all org workspaces, got %d", len(parsed.Workspaces))
+	}
+	if s.currentUserCalls != 0 {
+		t.Fatalf("expected no GetCurrentUser calls, got %d", s.currentUserCalls)
+	}
+	if s.getOrganizationsCall != 0 {
+		t.Fatalf("expected no GetOrganizations calls, got %d", s.getOrganizationsCall)
+	}
+}
+
+func TestRunLs_APIKeyUsesCredentialOrgNotCachedActiveOrg(t *testing.T) {
+	s := newTestStore()
+	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-login"}
+	s.org = &entity.Organization{ID: "org-set", Name: "set-org"}
+	s.workspaces = []entity.Workspace{
+		{
+			ID:              "ws1",
+			Name:            "api-key-instance",
+			Status:          entity.Running,
+			CreatedByUserID: "other-user",
+		},
+	}
+	term := terminal.New()
+
+	out := captureStdout(t, func() {
+		err := RunLs(term, s, nil, "", false, true)
+		if err != nil {
+			t.Fatalf("RunLs returned error: %v", err)
+		}
+	})
+
+	if !strings.Contains(out, "api-key-instance") {
+		t.Fatalf("expected workspace output, got %s", out)
+	}
+	if s.workspaceOrgID != "org-login" {
+		t.Fatalf("expected API key credential org org-login, got %s", s.workspaceOrgID)
+	}
+}
+
+func TestGetOrgForRunLs_APIKeyUsesActiveOrgDisplayName(t *testing.T) {
+	s := newTestStore()
+	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-login"}
+	s.org = &entity.Organization{ID: "org-login", Name: "friendly-org"}
+
+	org, err := getOrgForRunLs(s, "", true)
+	if err != nil {
+		t.Fatalf("getOrgForRunLs returned error: %v", err)
+	}
+	if org.ID != "org-login" {
+		t.Fatalf("expected org-login, got %s", org.ID)
+	}
+	if org.Name != "friendly-org" {
+		t.Fatalf("expected friendly org name, got %s", org.Name)
+	}
+}
+
+func TestRunLs_APIKeyRequiresCredentialOrg(t *testing.T) {
+	s := newTestStore()
+	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey}
+	term := terminal.New()
+
+	err := RunLs(term, s, nil, "", false, true)
+
+	if err == nil {
+		t.Fatal("expected missing API key org error, got nil")
+	}
+	if !strings.Contains(err.Error(), "api key auth requires an org id") {
+		t.Fatalf("expected API key org validation error, got %v", err)
+	}
+	if s.workspaceOrgID != "" {
+		t.Fatalf("expected no workspace call, got org %s", s.workspaceOrgID)
 	}
 }
 
@@ -413,7 +548,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 		"workspace", "workspaces",
 	}
 	for _, arg := range successArgs {
-		if err := handleLsArg(ls, arg, s.user, s.org, false); err != nil {
+		if err := handleLsArg(ls, arg, s.user, s.org, false, false); err != nil {
 			t.Errorf("handleLsArg(%q) returned unexpected error: %v", arg, err)
 		}
 	}
@@ -421,7 +556,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 	// "node"/"nodes" route to RunNodes which calls the gRPC client — verify
 	// it attempts the path (error expected due to no real client).
 	for _, arg := range []string{"node", "nodes"} {
-		_ = handleLsArg(ls, arg, s.user, s.org, false)
+		_ = handleLsArg(ls, arg, s.user, s.org, false, false)
 	}
 }
 
