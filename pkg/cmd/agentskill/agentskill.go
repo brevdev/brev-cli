@@ -177,9 +177,7 @@ func GetSkillDir(homeDir string) string {
 	return filepath.Join(homeDir, ".claude", "skills", skillName)
 }
 
-// IsAnyAgentInstalled checks whether any supported AI coding agent appears to be
-// installed locally (Claude Code, Codex, or any tool that uses the shared
-// ~/.agents directory).
+// IsAnyAgentInstalled returns true if any of installDirs exists under homeDir.
 func IsAnyAgentInstalled(homeDir string) bool {
 	for _, dir := range installDirs {
 		if _, err := os.Stat(filepath.Join(homeDir, dir)); err == nil {
