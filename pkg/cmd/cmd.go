@@ -155,7 +155,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
       Find more information at:
             https://brev.nvidia.com`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			analytics.CaptureCommand(analytics.GetOrCreateAnalyticsID(), cmd, args)
+			analytics.CaptureCommand("", cmd, args)
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -321,7 +321,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
 	cmd.AddCommand(agentskill.NewCmdAgentSkill(t, noLoginCmdStore))
-	cmd.AddCommand(analyticscmd.NewCmdAnalytics(t, nil))
+	cmd.AddCommand(analyticscmd.NewCmdAnalytics(t))
 	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
 	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))

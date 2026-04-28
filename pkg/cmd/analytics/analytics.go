@@ -1,17 +1,14 @@
-// Package analytics provides the `brev analytics` command for managing usage analytics preferences.
 package analytics
 
 import (
 	"github.com/brevdev/brev-cli/pkg/analytics"
+	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
 
-// AnalyticsStore is provided for parity with other commands; no store calls are required today.
-type AnalyticsStore interface{}
-
-func NewCmdAnalytics(t *terminal.Terminal, _ AnalyticsStore) *cobra.Command {
+func NewCmdAnalytics(t *terminal.Terminal) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "analytics",
@@ -19,6 +16,7 @@ func NewCmdAnalytics(t *terminal.Terminal, _ AnalyticsStore) *cobra.Command {
 		Short:                 "Manage usage analytics",
 		Long:                  "Show or change whether the Brev CLI sends usage analytics.",
 		Example:               "brev analytics\nbrev analytics on\nbrev analytics off",
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			printStatus(t)
 			return nil
@@ -36,11 +34,15 @@ func newCmdOn(t *terminal.Terminal) *cobra.Command {
 		Use:                   "on",
 		DisableFlagsInUseLine: true,
 		Short:                 "Enable usage analytics",
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := analytics.SetAnalyticsPreference(true); err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			t.Vprintf("%s\n", t.Green("Analytics enabled."))
+			if disabled, varName := analytics.IsDisabledByEnv(); disabled {
+				t.Vprintf("Note: still disabled at runtime by %s=1.\n", varName)
+			}
 			return nil
 		},
 	}
@@ -51,6 +53,7 @@ func newCmdOff(t *terminal.Terminal) *cobra.Command {
 		Use:                   "off",
 		DisableFlagsInUseLine: true,
 		Short:                 "Disable usage analytics",
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := analytics.SetAnalyticsPreference(false); err != nil {
 				return breverrors.WrapAndTrace(err)

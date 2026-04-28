@@ -48,9 +48,7 @@ func getClient() (posthog.Client, error) {
 	return client, clientErr
 }
 
-// IsAnalyticsFeatureEnabled checks the PostHog feature flag that acts as a
-// remote kill switch for CLI telemetry. Lets us globally disable capture
-// without shipping a CLI release.
+// IsAnalyticsFeatureEnabled is the remote kill switch for CLI telemetry; gating capture lets us turn it off without a release.
 func IsAnalyticsFeatureEnabled() bool {
 	anonID := GetOrCreateAnalyticsID()
 	if anonID == "" {
@@ -82,11 +80,9 @@ func RecordCommandStart(cmd *cobra.Command, args []string) {
 	storedArgs = args
 }
 
-// IsAnalyticsEnabled returns whether analytics capture is currently enabled.
-// Default is on (opt-out model). Honors DO_NOT_TRACK and BREV_NO_ANALYTICS env
-// vars as a kill switch for CI / scripted use.
+// IsAnalyticsEnabled defaults to true; DO_NOT_TRACK and BREV_NO_ANALYTICS override.
 func IsAnalyticsEnabled() bool {
-	if os.Getenv("DO_NOT_TRACK") == "1" || os.Getenv("BREV_NO_ANALYTICS") == "1" {
+	if disabled, _ := IsDisabledByEnv(); disabled {
 		return false
 	}
 	settings := readSettings()
@@ -96,8 +92,6 @@ func IsAnalyticsEnabled() bool {
 	return *settings.AnalyticsEnabled
 }
 
-// IsDisabledByEnv reports whether analytics is currently disabled by an
-// environment-variable kill switch (vs. the user's persisted preference).
 func IsDisabledByEnv() (disabled bool, varName string) {
 	if os.Getenv("DO_NOT_TRACK") == "1" {
 		return true, "DO_NOT_TRACK"
@@ -106,13 +100,6 @@ func IsDisabledByEnv() (disabled bool, varName string) {
 		return true, "BREV_NO_ANALYTICS"
 	}
 	return false, ""
-}
-
-// IsAnalyticsExplicitlySet reports whether the user has explicitly chosen a
-// preference (true/false), as opposed to leaving it at the default.
-func IsAnalyticsExplicitlySet() bool {
-	settings := readSettings()
-	return settings.AnalyticsEnabled != nil
 }
 
 // SetAnalyticsPreference persists the user's analytics preference.
@@ -202,14 +189,7 @@ func CaptureCommandError() {
 	if storedCmd == nil {
 		return
 	}
-	// If CaptureCommand already ran (success path), don't double-capture.
-	// storedUser being set means PersistentPostRunE ran.
-	// We only get here on error, so PersistentPostRunE didn't run.
-	userID := storedUser
-	if userID == "" {
-		userID = GetOrCreateAnalyticsID()
-	}
-	captureEvent(userID, storedCmd, storedArgs, false)
+	captureEvent(storedUser, storedCmd, storedArgs, false)
 }
 
 func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bool) {
@@ -220,6 +200,11 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		return
 	}
 
+	// Resolve the analytics ID lazily, only after gates pass — avoids writing a
+	// persistent UUID to ~/.brev/personal_settings.json for opted-out users.
+	if userID == "" {
+		userID = GetOrCreateAnalyticsID()
+	}
 	if userID == "" {
 		return
 	}
