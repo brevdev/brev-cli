@@ -334,4 +334,3 @@ func downloadBytes(client *http.Client, url string) ([]byte, error) {
 
 	return body, nil
 }
-

@@ -74,9 +74,7 @@ with other commands like stop, start, or delete.`,
   brev ls orgs
   brev ls orgs --json
 		`,
-		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			return cmdcontext.InvokeParentPersistentPostRun(cmd, args)
-		},
+		PersistentPostRunE: cmdcontext.InvokeParentPersistentPostRun,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
