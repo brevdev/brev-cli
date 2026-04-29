@@ -24,7 +24,7 @@ with a fresh copy of the remote source and run the workspace setupscript.
 recreate a workspace with the name `naive-pubsub`
 
 ```
-$ brev recreate payments-frontend
+$ brev recreate naive-pubsub
 recreating 🤙 This can take a couple of minutes.
 
 Deleting instance - naive-pubsub.
