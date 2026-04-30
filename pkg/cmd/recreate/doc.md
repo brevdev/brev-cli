@@ -24,11 +24,11 @@ with a fresh copy of the remote source and run the workspace setupscript.
 recreate a workspace with the name `naive-pubsub`
 
 ```
-$ brev recreate payments-frontend
-Starting hard reset 🤙 This can take a couple of minutes.
+$ brev recreate naive-pubsub
+recreating 🤙 This can take a couple of minutes.
 
-Deleting workspace - naive-pubsub.
-Workspace is starting. This can take up to 2 minutes the first time.
+Deleting instance - naive-pubsub.
+Instance is starting. This can take up to 2 minutes the first time.
 name naive-pubsub
 template v7nd45zsc Admin
 resource class 4x16

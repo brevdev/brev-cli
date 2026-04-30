@@ -424,9 +424,6 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 			foundAResettableWorkspace = true
 		}
 	}
-	if foundAResettableWorkspace {
-		t.Vprintf("%s", t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
-	}
 }
 
 // buildGPULookup builds a map of instance type name to GPU name.
