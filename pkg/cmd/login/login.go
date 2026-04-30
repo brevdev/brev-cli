@@ -68,21 +68,7 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Short:                 "Log into Brev",
 		Long:                  "Log into brev",
 		Example:               "brev login",
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
-			if shouldWe {
-				user, err := loginStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				err = hello.CanWeOnboard(t, user, loginStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
-			return nil
-		},
-		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
@@ -97,10 +83,12 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 				}
 				return err //nolint:wrapcheck // we want to return the error from the login
 			}
-			// Offer Claude Code skill installation after successful login
 			homeDir, homeErr := opts.LoginStore.UserHomeDir()
-			if homeErr == nil {
-				agentskill.RunInstallSkillIfWanted(t, homeDir)
+			if homeErr == nil && agentskill.IsAnyAgentInstalled(homeDir) && !agentskill.IsSkillInstalled(homeDir) {
+				t.Vprintf("\n💡 Detected an AI coding agent. Run %s to enable natural-language commands.\n", t.Yellow("brev agent-skill install"))
+			}
+			if hello.ShouldWeRunOnboarding(loginStore) {
+				t.Vprintf("\n👋 New to Brev? Run %s for a guided walkthrough.\n", t.Yellow("brev hello"))
 			}
 			return nil
 		},
@@ -230,18 +218,6 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 	if !currentOnboardingStatus.UsedCLI {
 		// by getting this far, we know they have set up the cli
 		newOnboardingStatus["usedCLI"] = true
-	}
-
-	_, analyticsAsked := analytics.IsAnalyticsEnabled()
-	if !analyticsAsked && analytics.IsAnalyticsFeatureEnabled() {
-		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
-			Label:    "Help us improve Brev by sharing usage data?",
-			ErrorMsg: "Error: must choose an option",
-			Items:    []string{"Yes, share usage data", "No, opt out"},
-		})
-		optIn := strings.HasPrefix(choice, "Yes")
-		_ = analytics.SetAnalyticsPreference(optIn)
-		analytics.CaptureAnalyticsOptIn(optIn)
 	}
 
 	analytics.IdentifyUser(user.ID)
