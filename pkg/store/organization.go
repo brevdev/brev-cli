@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -38,6 +39,29 @@ func (f FileStore) ClearDefaultOrganization() error {
 	return nil
 }
 
+func (f FileStore) GetCachedActiveOrganizationOrNil() (*entity.Organization, error) {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	brevActiveOrgsFile := files.GetActiveOrgsPath(home)
+
+	exists, err := afero.Exists(f.fs, brevActiveOrgsFile)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	var activeOrg entity.Organization
+	err = files.ReadJSON(f.fs, brevActiveOrgsFile, &activeOrg)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &activeOrg, nil
+}
+
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
 	workspaceID, err := s.GetCurrentWorkspaceID()
@@ -58,24 +82,15 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		return org, nil
 	}
 
-	home, err := s.UserHomeDir()
+	activeOrg, err := s.GetCachedActiveOrganizationOrNil()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	brevActiveOrgsFile := files.GetActiveOrgsPath(home)
-
-	exists, err := afero.Exists(s.fs, brevActiveOrgsFile)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if !exists {
+	if activeOrg == nil {
 		return nil, nil
 	}
-
-	var activeOrg entity.Organization
-	err = files.ReadJSON(s.fs, brevActiveOrgsFile, &activeOrg)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	if auth.IsAPIKeyAuthStore(&s) {
+		return activeOrg, nil
 	}
 
 	freshOrg, err := s.GetOrganization(activeOrg.ID)

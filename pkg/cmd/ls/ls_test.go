@@ -17,14 +17,27 @@ import (
 // mockLsStore implements LsStore (including the embedded hello.HelloStore) for
 // testing the ls command routing without real API calls.
 type mockLsStore struct {
-	user       *entity.User
-	org        *entity.Organization
-	orgs       []entity.Organization
-	workspaces []entity.Workspace
+	user                 *entity.User
+	org                  *entity.Organization
+	orgs                 []entity.Organization
+	workspaces           []entity.Workspace
+	accessToken          string
+	currentUserCalls     int
+	getOrganizationsCall int
 }
 
-func (m *mockLsStore) GetCurrentUser() (*entity.User, error) { return m.user, nil }
-func (m *mockLsStore) GetAccessToken() (string, error)       { return "tok", nil }
+func (m *mockLsStore) GetCurrentUser() (*entity.User, error) {
+	m.currentUserCalls++
+	return m.user, nil
+}
+
+func (m *mockLsStore) GetAccessToken() (string, error) {
+	if m.accessToken != "" {
+		return m.accessToken, nil
+	}
+	return "tok", nil
+}
+
 func (m *mockLsStore) GetWorkspace(_ string) (*entity.Workspace, error) {
 	return nil, nil
 }
@@ -33,11 +46,16 @@ func (m *mockLsStore) GetActiveOrganizationOrDefault() (*entity.Organization, er
 	return m.org, nil
 }
 
+func (m *mockLsStore) GetCachedActiveOrganizationOrNil() (*entity.Organization, error) {
+	return m.org, nil
+}
+
 func (m *mockLsStore) GetWorkspaces(_ string, _ *store.GetWorkspacesOptions) ([]entity.Workspace, error) {
 	return m.workspaces, nil
 }
 
 func (m *mockLsStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]entity.Organization, error) {
+	m.getOrganizationsCall++
 	return m.orgs, nil
 }
 
@@ -66,6 +84,49 @@ func newTestStore() *mockLsStore {
 		user: user,
 		org:  org,
 		orgs: []entity.Organization{*org},
+	}
+}
+
+func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
+	s := newTestStore()
+	s.accessToken = "brev_api_test-key"
+	s.workspaces = []entity.Workspace{
+		{
+			ID:              "ws1",
+			Name:            "owned-by-someone",
+			Status:          entity.Running,
+			CreatedByUserID: "other-user",
+		},
+		{
+			ID:              "ws2",
+			Name:            "owned-by-user",
+			Status:          entity.Stopped,
+			CreatedByUserID: "u1",
+		},
+	}
+	term := terminal.New()
+
+	out := captureStdout(t, func() {
+		err := RunLs(term, s, nil, "", false, true)
+		if err != nil {
+			t.Fatalf("RunLs returned error: %v", err)
+		}
+	})
+
+	var parsed struct {
+		Workspaces []WorkspaceInfo `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("failed to parse JSON output: %v\nraw output: %s", err, out)
+	}
+	if len(parsed.Workspaces) != 2 {
+		t.Fatalf("expected API key ls to show all org workspaces, got %d", len(parsed.Workspaces))
+	}
+	if s.currentUserCalls != 0 {
+		t.Fatalf("expected no GetCurrentUser calls, got %d", s.currentUserCalls)
+	}
+	if s.getOrganizationsCall != 0 {
+		t.Fatalf("expected no GetOrganizations calls, got %d", s.getOrganizationsCall)
 	}
 }
 
@@ -413,7 +474,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 		"workspace", "workspaces",
 	}
 	for _, arg := range successArgs {
-		if err := handleLsArg(ls, arg, s.user, s.org, false); err != nil {
+		if err := handleLsArg(ls, arg, s.user, s.org, false, false); err != nil {
 			t.Errorf("handleLsArg(%q) returned unexpected error: %v", arg, err)
 		}
 	}
@@ -421,7 +482,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 	// "node"/"nodes" route to RunNodes which calls the gRPC client — verify
 	// it attempts the path (error expected due to no real client).
 	for _, arg := range []string{"node", "nodes"} {
-		_ = handleLsArg(ls, arg, s.user, s.org, false)
+		_ = handleLsArg(ls, arg, s.user, s.org, false, false)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -99,6 +100,9 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 
 func handleAdminUser(err error, deleteStore DeleteStore, piped bool) error {
 	if strings.Contains(err.Error(), "not found") {
+		if tokenProvider, ok := deleteStore.(auth.TokenProvider); ok && auth.IsAPIKeyAuthStore(tokenProvider) {
+			return breverrors.WrapAndTrace(err)
+		}
 		user, err1 := deleteStore.GetCurrentUser()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)

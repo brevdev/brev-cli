@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -15,6 +16,21 @@ type GetWorkspaceByNameOrIDErrStore interface {
 }
 
 func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
+	if tokenProvider, ok := storeQ.(auth.TokenProvider); ok && auth.IsAPIKeyAuthStore(tokenProvider) {
+		org, err := storeQ.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		workspaces, err := storeQ.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(workspaces) == 0 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
+		}
+		return &workspaces[0], nil
+	}
+
 	user, err := storeQ.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

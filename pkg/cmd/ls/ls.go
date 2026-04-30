@@ -12,6 +12,7 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
@@ -37,6 +38,7 @@ import (
 type LsStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetCachedActiveOrganizationOrNil() (*entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
@@ -113,9 +115,11 @@ with other commands like stop, start, or delete.`,
 // trackLsAnalytics sends analytics event for ls command
 func trackLsAnalytics(store LsStore) {
 	userID := ""
-	user, err := store.GetCurrentUser()
-	if err == nil {
-		userID = user.ID
+	if !isAPIKeyAuthStore(store) {
+		user, err := store.GetCurrentUser()
+		if err == nil {
+			userID = user.ID
+		}
 	}
 	data := analytics.EventData{
 		EventName: "Brev ls",
@@ -124,8 +128,26 @@ func trackLsAnalytics(store LsStore) {
 	_ = analytics.TrackEvent(data)
 }
 
-func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, error) {
+func isAPIKeyAuthStore(lsStore LsStore) bool {
+	return auth.IsAPIKeyAuthStore(lsStore)
+}
+
+func getOrgForRunLs(lsStore LsStore, orgflag string, apiKeyAuth bool) (*entity.Organization, error) {
 	var org *entity.Organization
+	if apiKeyAuth {
+		if orgflag != "" {
+			return nil, breverrors.NewValidationError("api key auth is scoped to the org saved during login; --org is not supported")
+		}
+		cachedOrg, err := lsStore.GetCachedActiveOrganizationOrNil()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if cachedOrg == nil || cachedOrg.ID == "" {
+			return nil, breverrors.NewValidationError("api key auth requires an active org; run brev login --api-key <api-key> --org-id <org-id>")
+		}
+		return cachedOrg, nil
+	}
+
 	if orgflag != "" {
 		var orgs []entity.Organization
 		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
@@ -155,12 +177,18 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 
 func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
-	user, err := lsStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	apiKeyAuth := isAPIKeyAuthStore(lsStore)
+
+	var user *entity.User
+	if !apiKeyAuth {
+		var err error
+		user, err = lsStore.GetCurrentUser()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
 	}
 
-	org, err := getOrgForRunLs(lsStore, orgflag)
+	org, err := getOrgForRunLs(lsStore, orgflag, apiKeyAuth)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -169,7 +197,7 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, args[0], user, org, showAll)
+		err = handleLsArg(ls, args[0], user, org, showAll, apiKeyAuth)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -185,44 +213,76 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	return nil
 }
 
-func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
-	// todo refactor this to cmd.register
-	//nolint:gocritic // idk how to write this as a switch
-	if util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization") { // handle org, orgs, and organization(s)
-		err := ls.RunOrgs()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool, apiKeyAuth bool) error {
+	switch classifyLsArg(arg) {
+	case lsArgOrgs:
+		if apiKeyAuth {
+			return breverrors.NewValidationError("api key auth cannot list organizations")
 		}
+		return wrapLsRun(ls.RunOrgs())
+	case lsArgWorkspaces:
+		return wrapLsRun(ls.RunWorkspaces(org, user, showAll))
+	case lsArgUsers:
+		return runAdminLsArg(user, apiKeyAuth, "users", func() error {
+			return ls.RunUser(showAll)
+		})
+	case lsArgHosts:
+		return runAdminLsArg(user, apiKeyAuth, "hosts", func() error {
+			return ls.RunHosts(org)
+		})
+	case lsArgNodes:
+		return wrapLsRun(ls.RunNodes(org))
+	case lsArgInstances:
+		return wrapLsRun(ls.RunInstances(org, user, showAll))
+	default:
 		return nil
-	} else if util.IsSingularOrPlural(arg, "workspace") {
-		err := ls.RunWorkspaces(org, user, showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else if util.IsSingularOrPlural(arg, "user") && featureflag.IsAdmin(user.GlobalUserType) {
-		err := ls.RunUser(showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	}
+}
+
+type lsArgKind int
+
+const (
+	lsArgUnknown lsArgKind = iota
+	lsArgOrgs
+	lsArgWorkspaces
+	lsArgUsers
+	lsArgHosts
+	lsArgNodes
+	lsArgInstances
+)
+
+func classifyLsArg(arg string) lsArgKind {
+	switch {
+	case util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization"):
+		return lsArgOrgs
+	case util.IsSingularOrPlural(arg, "workspace"):
+		return lsArgWorkspaces
+	case util.IsSingularOrPlural(arg, "user"):
+		return lsArgUsers
+	case util.IsSingularOrPlural(arg, "host"):
+		return lsArgHosts
+	case util.IsSingularOrPlural(arg, "node"):
+		return lsArgNodes
+	case util.IsSingularOrPlural(arg, "instance"):
+		return lsArgInstances
+	default:
+		return lsArgUnknown
+	}
+}
+
+func runAdminLsArg(user *entity.User, apiKeyAuth bool, resource string, run func() error) error {
+	if apiKeyAuth {
+		return breverrors.NewValidationError(fmt.Sprintf("api key auth cannot list %s", resource))
+	}
+	if !featureflag.IsAdmin(user.GlobalUserType) {
 		return nil
-	} else if util.IsSingularOrPlural(arg, "host") && featureflag.IsAdmin(user.GlobalUserType) {
-		err := ls.RunHosts(org)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		return nil
-	} else if util.IsSingularOrPlural(arg, "node") {
-		err := ls.RunNodes(org)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		return nil
-	} else if util.IsSingularOrPlural(arg, "instance") {
-		err := ls.RunInstances(org, user, showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		return nil
+	}
+	return wrapLsRun(run())
+}
+
+func wrapLsRun(err error) error {
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -355,6 +415,19 @@ func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Org
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
 }
 
+func (ls Ls) ShowOrgWorkspaces(org *entity.Organization, workspaces []entity.Workspace, gpuLookup map[string]string) {
+	if len(workspaces) == 0 {
+		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
+		return
+	}
+	ls.terminal.Vprintf("Org %s has %d instances\n", ls.terminal.Yellow(org.Name), len(workspaces))
+	displayWorkspacesTable(ls.terminal, workspaces, gpuLookup)
+
+	fmt.Print("\n")
+
+	displayLsResetBreadCrumb(ls.terminal, workspaces)
+}
+
 func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	if len(userWorkspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
@@ -451,15 +524,23 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 
 	// Determine which workspaces to show
 	var workspacesToShow []entity.Workspace
-	if showAll {
+	switch {
+	case showAll:
 		workspacesToShow = allWorkspaces
-	} else {
+	case user == nil:
+		workspacesToShow = allWorkspaces
+	default:
 		workspacesToShow = store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 	}
 
 	// Handle JSON output
 	if ls.jsonOutput {
 		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup, nodes)
+	}
+
+	if user == nil {
+		ls.ShowOrgWorkspaces(org, workspacesToShow, gpuLookup)
+		return nil
 	}
 
 	// Table output with colors and help text

@@ -3,6 +3,7 @@ package gpucreate
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -42,6 +43,10 @@ func NewMockGPUCreateStore() *MockGPUCreateStore {
 
 func (m *MockGPUCreateStore) GetCurrentUser() (*entity.User, error) {
 	return m.User, nil
+}
+
+func (m *MockGPUCreateStore) GetAccessToken() (string, error) {
+	return "", nil
 }
 
 func (m *MockGPUCreateStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
@@ -640,4 +645,23 @@ func TestFormatInstanceSpecs(t *testing.T) {
 
 	result := formatInstanceSpecs(specs)
 	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)", result)
+}
+
+func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {
+	store := NewMockGPUCreateStore()
+	store.Workspaces["ws-failed"] = &entity.Workspace{
+		ID:            "ws-failed",
+		Name:          "test",
+		Status:        entity.Failure,
+		StatusMessage: "unexpected end of JSON input",
+	}
+
+	ctx := &createContext{
+		store: store,
+		opts:  GPUCreateOptions{Timeout: time.Second},
+	}
+
+	err := ctx.pollUntilReady("ws-failed")
+
+	assert.ErrorContains(t, err, "instance test failed: unexpected end of JSON input")
 }
