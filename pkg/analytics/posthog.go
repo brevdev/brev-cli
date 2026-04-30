@@ -48,7 +48,7 @@ func getClient() (posthog.Client, error) {
 	return client, clientErr
 }
 
-// IsAnalyticsFeatureEnabled is the remote kill switch for CLI telemetry; gating capture lets us turn it off without a release.
+// IsAnalyticsFeatureEnabled is the remote kill switch for PostHog telemetry only — gating PostHog capture lets us turn it off without a release. It does NOT gate analytics.TrackEvent (the brev-internal endpoint), which has its own channel.
 func IsAnalyticsFeatureEnabled() bool {
 	anonID := GetOrCreateAnalyticsID()
 	if anonID == "" {
@@ -151,9 +151,15 @@ func GetOrCreateAnalyticsID() string {
 	return settings.AnalyticsID
 }
 
+// shouldCapturePostHog returns true only when both the local opt-out and
+// the remote PostHog kill switch agree.
+func shouldCapturePostHog() bool {
+	return IsAnalyticsEnabled() && IsAnalyticsFeatureEnabled()
+}
+
 // IdentifyUser links the anonymous analytics ID to a real user ID using PostHog Alias.
 func IdentifyUser(userID string) {
-	if !IsAnalyticsEnabled() {
+	if !shouldCapturePostHog() {
 		return
 	}
 
@@ -193,10 +199,7 @@ func CaptureCommandError() {
 }
 
 func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bool) {
-	if !IsAnalyticsEnabled() {
-		return
-	}
-	if !IsAnalyticsFeatureEnabled() {
+	if !shouldCapturePostHog() {
 		return
 	}
 

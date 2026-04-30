@@ -5,11 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
-	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/util"
 	"github.com/spf13/afero"
 )
 
@@ -20,43 +17,6 @@ func GetFirstName(name string) string {
 		return split[0]
 	}
 	return name
-}
-
-// The LS step should get the GetOnboardingData from the user
-// and use that to check the step "FinishedOnboarding"
-// Either way. It should set it to True
-func ShouldWeRunOnboardingLSStep(s HelloStore) bool {
-	user, err := s.GetCurrentUser()
-	if err != nil {
-		return false
-	}
-
-	ob, err := user.GetOnboardingData()
-	if err != nil {
-		return false
-	}
-
-	if ob.FinishedOnboarding {
-		return false
-	} else {
-		// set the value and return true
-		newOnboardingStatus := make(map[string]interface{})
-		newOnboardingStatus["finishedOnboarding"] = true
-
-		user, err = s.UpdateUser(user.ID, &entity.UpdateUser{
-			// username, name, and email are required fields, but we only care about onboarding status
-			Username:       user.Username,
-			Name:           user.Name,
-			Email:          user.Email,
-			OnboardingData: util.MapAppend(user.OnboardingData, newOnboardingStatus),
-		})
-		if err != nil {
-			// TODO: what should we do here?
-			return true
-		}
-
-		return true
-	}
 }
 
 func ShouldWeRunOnboarding(s HelloStore) bool {
@@ -79,35 +39,6 @@ func ShouldWeRunOnboarding(s HelloStore) bool {
 	}
 }
 
-func CanWeOnboard(t *terminal.Terminal, user *entity.User, store HelloStore) error {
-	s := t.Green("\n\nHi " + GetFirstName(user.Name) + "! Looks like it's your first time using Brev!\n")
-
-	TypeItToMeUnskippable(s)
-
-	res := terminal.PromptSelectInput(terminal.PromptSelectContent{
-		Label:    "Want a quick tour?",
-		ErrorMsg: "Please pick yes or no",
-		Items:    []string{"Yes!", "No, I'll read docs later"},
-	})
-	if res == "Yes!" {
-		err := RunOnboarding(t, user, store)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else {
-		_ = SetOnboardingObject(OnboardingObject{
-			Step:            1,
-			HasRunBrevOpen:  true,
-			HasRunBrevShell: true,
-		})
-
-		_ = SkippedOnboarding(user, store)
-
-		t.Vprintf("\nOkay, you can always read the docs at %s\n\n", t.Yellow("https://brev.dev/docs"))
-	}
-	return nil
-}
-
 func GetOnboardingFilePath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -121,10 +52,6 @@ type OnboardingObject struct {
 	Step            int  `json:"step"`
 	HasRunBrevShell bool `json:"hasRunBrevShell"`
 	HasRunBrevOpen  bool `json:"hasRunBrevOpen"`
-}
-
-func shellOnboardingPollDone(res *OnboardingObject) bool {
-	return res != nil && res.HasRunBrevShell
 }
 
 func SetupDefaultOnboardingFile() error {
