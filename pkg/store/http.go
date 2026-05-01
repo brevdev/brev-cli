@@ -104,7 +104,7 @@ func (s *AuthHTTPStore) SetForbiddenStatusRetryHandler(handler func() error) err
 	}
 	attemptsThresh := 1
 	s.authHTTPClient.restyClient.OnAfterResponse(func(c *resty.Client, r *resty.Response) error {
-		if r.StatusCode() == http.StatusForbidden && r.Request.Attempt < attemptsThresh+1 {
+		if isAuthFailure(r.StatusCode()) && r.Request.Attempt < attemptsThresh+1 {
 			err := handler()
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -117,12 +117,20 @@ func (s *AuthHTTPStore) SetForbiddenStatusRetryHandler(handler func() error) err
 			if e != nil {
 				return false
 			}
-			return r.StatusCode() == http.StatusForbidden
+			return isAuthFailure(r.StatusCode())
 		})
 	s.authHTTPClient.restyClient.SetRetryCount(attemptsThresh)
 
 	s.isRefreshTokenHandlerSet = true
 	return nil
+}
+
+// isAuthFailure reports whether an HTTP status code indicates the caller's
+// credentials are missing, invalid, or expired. Both 401 Unauthorized and
+// 403 Forbidden can signal an expired access token from Brev's APIs, so we
+// treat both as triggers for the refresh-and-retry path.
+func isAuthFailure(code int) bool {
+	return code == http.StatusUnauthorized || code == http.StatusForbidden
 }
 
 type AuthHTTPClient struct {
