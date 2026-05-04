@@ -1,9 +1,12 @@
 package shell
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -203,8 +206,9 @@ func runSSH(sshAlias string, host bool) error {
 		cmd = fmt.Sprintf("%s && ssh -t %s 'DIR=$(readlink -f /proc/1/cwd 2>/dev/null || pwd); cd \"$DIR\" || echo \"Warning: Could not access container directory\" >&2; exec -l ${SHELL:-/bin/sh}'", sshAgentEval, sshAlias)
 	}
 
+	var stderrBuf bytes.Buffer
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
-	sshCmd.Stderr = os.Stderr
+	sshCmd.Stderr = io.MultiWriter(os.Stderr, &stderrBuf)
 	sshCmd.Stdout = os.Stdout
 	sshCmd.Stdin = os.Stdin
 
@@ -215,6 +219,13 @@ func runSSH(sshAlias string, host bool) error {
 
 	err = sshCmd.Run()
 	if err != nil {
+		stderrStr := stderrBuf.String()
+		if strings.Contains(stderrStr, "unix_listener") || strings.Contains(stderrStr, "path too long") {
+			fmt.Fprintf(os.Stderr, "\nbrev shell failed: SSH ControlPath socket path is too long for this system.\n")
+			fmt.Fprintf(os.Stderr, "Fix: run 'brev refresh' to regenerate your SSH config with the updated ControlPath.\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "\nbrev shell failed. If the above SSH error is unclear, try running 'brev refresh' and reconnecting.\n")
+		}
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil

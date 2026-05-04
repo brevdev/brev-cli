@@ -98,6 +98,17 @@ func (m *MockGPUCreateStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string
 	return nil, nil
 }
 
+func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
+	return &store.LaunchableResponse{
+		ID:   launchableID,
+		Name: "test-launchable",
+	}, nil
+}
+
+func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error) {
+	return &store.RedeemCouponCodeResponse{}, nil
+}
+
 func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
 	// Return a default set of instance types for testing
 	return &gpusearch.InstanceTypesResponse{
@@ -142,6 +153,197 @@ func TestIsValidInstanceType(t *testing.T) {
 			assert.Equal(t, tt.expected, result, "Validation failed for %s", tt.input)
 		})
 	}
+}
+
+func TestParseLaunchableID(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		expected  string
+		expectErr bool
+	}{
+		{"Empty string", "", "", false},
+		{"Raw ID", "env-2jeVokEK44iJZzleTF8yKjt3hh7", "env-2jeVokEK44iJZzleTF8yKjt3hh7", false},
+		{"Console URL with query param", "https://console.brev.dev/launchable/deploy?launchableID=env-abc123", "env-abc123", false},
+		{"Console URL with extra params", "https://console.brev.dev/launchable/deploy?userID=u1&launchableID=env-abc123&name=test", "env-abc123", false},
+		{"URL with env- in path", "https://console.brev.dev/launchables/env-abc123", "env-abc123", false},
+		{"URL without launchableID param", "https://console.brev.dev/launchable/deploy", "", true},
+		{"Non-env ID", "some-other-id", "some-other-id", false},
+		{"ID with path chars", "env-abc/../../etc", "", true},
+		{"ID with query chars", "env-abc?foo=bar", "", true},
+		{"URL query param traversal", "https://console.brev.dev/launchable/deploy?launchableID=env-abc/../../other", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseLaunchableID(tt.input)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
+	t.Run("populates all fields from launchable", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			WorkspaceGroupID: "",
+			PortMappings:     map[string]string{},
+		}
+		info := &store.LaunchableResponse{
+			ID:              "env-abc123",
+			Name:            "Test Launchable",
+			CreatedByUserID: "user-1",
+			CreatedByOrgID:  "org-1",
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				WorkspaceGroupID: "GCP",
+				InstanceType:     "n2-standard-4",
+				Storage:          "256",
+				Location:         "us-west1",
+			},
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{
+					ForceJupyterInstall: false,
+					LifeCycleScriptAttr: &store.LifeCycleScriptAttr{
+						Script: "#!/bin/bash\necho hello",
+						ID:     "ls-abc",
+					},
+				},
+				Ports: []store.LaunchablePort{
+					{Name: "Code-Server", Port: "13337"},
+					{Name: "OpenClaw", Port: "18789"},
+				},
+			},
+			File: &store.LaunchableFile{
+				URL:  "https://github.com/NVIDIA/NemoClaw",
+				Path: "./",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc123", info)
+
+		// Workspace group from launchable
+		assert.Equal(t, "GCP", cwOptions.WorkspaceGroupID)
+		// Location
+		assert.Equal(t, "us-west1", cwOptions.Location)
+		// Storage with Gi suffix
+		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
+		// Build config
+		assert.NotNil(t, cwOptions.VMBuild)
+		assert.False(t, cwOptions.VMBuild.ForceJupyterInstall)
+		assert.Equal(t, "#!/bin/bash\necho hello", cwOptions.VMBuild.LifeCycleScriptAttr.Script)
+		assert.Equal(t, "ls-abc", cwOptions.VMBuild.LifeCycleScriptAttr.ID)
+		// Port mappings
+		assert.Equal(t, map[string]string{"Code-Server": "13337", "OpenClaw": "18789"}, cwOptions.PortMappings)
+		// Files
+		assert.NotNil(t, cwOptions.Files)
+		// LaunchableConfig
+		assert.Equal(t, "env-abc123", cwOptions.LaunchableConfig.ID)
+		// Labels
+		labels, ok := cwOptions.Labels.(map[string]string)
+		assert.True(t, ok)
+		assert.Equal(t, "env-abc123", labels["launchableId"])
+		assert.Equal(t, "n2-standard-4", labels["launchableInstanceType"])
+		assert.Equal(t, "GCP", labels["workspaceGroupId"])
+		assert.Equal(t, "user-1", labels["launchableCreatedByUserId"])
+		assert.Equal(t, "org-1", labels["launchableCreatedByOrgId"])
+	})
+
+	t.Run("preserves existing workspace group", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			WorkspaceGroupID: "existing-wg",
+		}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				WorkspaceGroupID: "GCP",
+				InstanceType:     "n2-standard-4",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "existing-wg", cwOptions.WorkspaceGroupID)
+	})
+
+	t.Run("storage already has Gi suffix", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				Storage: "256Gi",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
+	})
+
+	t.Run("storage bare number gets Gi suffix", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				Storage: "256",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
+	})
+
+	t.Run("storage with other suffix passes through", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				Storage: "100G",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "100G", cwOptions.DiskStorage)
+	})
+
+	t.Run("container build clears VMBuild", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			VMBuild: &store.VMBuild{ForceJupyterInstall: true},
+		}
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				CustomContainer: &store.CustomContainer{
+					ContainerURL: "nvcr.io/nvidia/test:latest",
+				},
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Nil(t, cwOptions.VMBuild)
+		assert.Equal(t, "nvcr.io/nvidia/test:latest", cwOptions.CustomContainer.ContainerURL)
+	})
+
+	t.Run("merges with existing labels", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			Labels: map[string]string{"existingKey": "existingValue"},
+		}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				InstanceType: "n2-standard-4",
+			},
+			CreatedByUserID: "user-1",
+			CreatedByOrgID:  "org-1",
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		labels, ok := cwOptions.Labels.(map[string]string)
+		assert.True(t, ok)
+		assert.Equal(t, "existingValue", labels["existingKey"])
+		assert.Equal(t, "env-abc", labels["launchableId"])
+	})
 }
 
 func TestParseInstanceTypesFromFlag(t *testing.T) {

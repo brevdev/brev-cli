@@ -74,40 +74,7 @@ with other commands like stop, start, or delete.`,
   brev ls orgs
   brev ls orgs --json
 		`,
-		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			if hello.ShouldWeRunOnboardingLSStep(noLoginLsStore) && hello.ShouldWeRunOnboarding(noLoginLsStore) {
-				// Getting the workspaces should go in the hello.go file but then
-				// requires passing in stores and that makes it hard to use in other commands
-				org, err := getOrgForRunLs(loginLsStore, org)
-				if err != nil {
-					return err
-				}
-
-				allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				user, err := loginLsStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				var myWorkspaces []entity.Workspace
-				for _, v := range allWorkspaces {
-					if v.CreatedByUserID == user.ID {
-						myWorkspaces = append(myWorkspaces, v)
-					}
-				}
-
-				err = hello.Step1(t, myWorkspaces, user, loginLsStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-			}
-			return cmdcontext.InvokeParentPersistentPostRun(cmd, args)
-		},
+		PersistentPostRunE: cmdcontext.InvokeParentPersistentPostRun,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -423,9 +390,6 @@ func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspac
 			t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
 			foundAResettableWorkspace = true
 		}
-	}
-	if foundAResettableWorkspace {
-		t.Vprintf("%s", t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
 	}
 }
 

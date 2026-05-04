@@ -53,7 +53,7 @@ func NewCmdRecreate(t *terminal.Terminal, store recreateStore) *cobra.Command {
 
 func RunRecreate(t *terminal.Terminal, args []string, recreateStore recreateStore) error {
 	for _, arg := range args {
-		err := hardResetProcess(arg, t, recreateStore)
+		err := recreateProcess(arg, t, recreateStore)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -61,8 +61,8 @@ func RunRecreate(t *terminal.Terminal, args []string, recreateStore recreateStor
 	return nil
 }
 
-// hardResetProcess deletes an existing workspace and creates a new one
-func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore recreateStore) error {
+// recreateProcess deletes an existing workspace and creates a new one
+func recreateProcess(workspaceName string, t *terminal.Terminal, recreateStore recreateStore) error {
 	t.Vprint(t.Green("recreating 🤙 " + t.Yellow("This can take a couple of minutes.\n")))
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(recreateStore, workspaceName)
 	if err != nil {
@@ -78,12 +78,12 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 	time.Sleep(10 * time.Second)
 
 	if len(deletedWorkspace.GitRepo) != 0 {
-		err := hardResetCreateWorkspaceFromRepo(t, recreateStore, deletedWorkspace)
+		err := createWorkspaceFromRepo(t, recreateStore, deletedWorkspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else {
-		err := hardResetCreateEmptyWorkspace(t, recreateStore, deletedWorkspace)
+		err := createEmptyWorkspace(t, recreateStore, deletedWorkspace)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -91,8 +91,8 @@ func hardResetProcess(workspaceName string, t *terminal.Terminal, recreateStore 
 	return nil
 }
 
-// hardResetCreateWorkspaceFromRepo clone a GIT repository, triggeres from the --hardreset flag
-func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
+// createWorkspaceFromRepo recreates a workspace from its git repo source.
+func createWorkspaceFromRepo(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
 	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time."))
 	var orgID string
 	activeorg, err := recreateStore.GetActiveOrganizationOrDefault()
@@ -133,8 +133,8 @@ func hardResetCreateWorkspaceFromRepo(t *terminal.Terminal, recreateStore recrea
 	return nil
 }
 
-// hardResetCreateEmptyWorkspace creates a new empty worksapce,  triggered from the --hardreset flag
-func hardResetCreateEmptyWorkspace(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
+// createEmptyWorkspace recreates an empty workspace (no git repo).
+func createEmptyWorkspace(t *terminal.Terminal, recreateStore recreateStore, workspace *entity.Workspace) error {
 	t.Vprint(t.Green("Instance is starting. ") + t.Yellow("This can take up to 2 minutes the first time.\n"))
 
 	// ensure name

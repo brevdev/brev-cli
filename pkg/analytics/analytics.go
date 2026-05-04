@@ -17,6 +17,10 @@ type EventData struct {
 }
 
 func TrackEvent(data EventData) error {
+	if !IsAnalyticsEnabled() {
+		return nil
+	}
+
 	conf := config.NewConstants()
 
 	url := conf.GetBrevAPIURl() + "/api/brevent"
