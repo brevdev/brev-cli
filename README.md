@@ -14,7 +14,13 @@ brew install brevdev/homebrew-brev/brev
 ### Linux
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)"
+curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | bash
+```
+
+Installs to `~/.local/bin`. If it's not on your `PATH`, add this to your shell profile:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### Windows
@@ -27,10 +33,16 @@ Brev is supported on windows currently through the Windows Subsystem for Linux (
 - Virtualization enabled in your BIOS
 - Ubuntu >=22.04 installed from the Microsoft Store
 
-Once you have WSL installed and configured, you can install Brev by running the following command in your terminal:
+Once WSL is set up, install Brev with:
 
-```bash 
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh)"
+```bash
+curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | bash
+```
+
+Installs to `~/.local/bin`. If it's not on your `PATH`, add this to your shell profile:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ### From conda-forge

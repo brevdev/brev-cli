@@ -15,7 +15,22 @@ curl -L "${DOWNLOAD_URL}" -o "${TMP_DIR}/$(basename "${DOWNLOAD_URL}")"
 ARCHIVE_FILE="$(find "${TMP_DIR}" -name "brev*.tar.gz" -type f)"
 tar -xzf "${ARCHIVE_FILE}" -C "${TMP_DIR}"
 
-# Install the binary to system location
-sudo mv "${TMP_DIR}/brev" /usr/local/bin/brev
-sudo chmod +x /usr/local/bin/brev
+# Install the binary to the user's local bin
+INSTALL_DIR="${HOME}/.local/bin"
+mkdir -p "${INSTALL_DIR}"
+mv "${TMP_DIR}/brev" "${INSTALL_DIR}/brev"
+chmod +x "${INSTALL_DIR}/brev"
+
+echo "Successfully installed brev CLI to ${INSTALL_DIR}/brev"
+
+case ":${PATH}:" in
+    *":${INSTALL_DIR}:"*) ;;
+    *)
+        echo
+        echo "Warning: ${INSTALL_DIR} is not in your PATH." >&2
+        echo "Add it by appending the following line to your shell profile (e.g. ~/.bashrc, ~/.zshrc):" >&2
+        echo "    export PATH=\"\${HOME}/.local/bin:\${PATH}\"" >&2
+        echo "Then restart your shell or run 'source' on the profile to pick up the change." >&2
+        ;;
+esac
 
