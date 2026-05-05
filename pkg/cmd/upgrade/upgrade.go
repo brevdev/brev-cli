@@ -4,12 +4,12 @@ package upgrade
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
@@ -43,7 +43,6 @@ type upgradeDeps struct {
 	detector       Detector
 	upgrader       Upgrader
 	confirmer      terminal.Confirmer
-	gater          sudo.Gater
 	skillInstaller SkillInstaller
 }
 
@@ -52,7 +51,6 @@ func defaultUpgradeDeps() upgradeDeps {
 		detector:       SystemDetector{},
 		upgrader:       SystemUpgrader{},
 		confirmer:      register.TerminalPrompter{},
-		gater:          sudo.Default,
 		skillInstaller: defaultSkillInstaller{},
 	}
 }
@@ -146,11 +144,12 @@ func upgradeViaBrew(t *terminal.Terminal, deps upgradeDeps) (bool, error) {
 
 func upgradeViaDirect(t *terminal.Terminal, deps upgradeDeps) (bool, error) {
 	t.Vprint("Detected install method: direct binary install")
-	t.Vprint("This will download the latest release and install it to /usr/local/bin/brev")
+	t.Vprint("This will download the latest release and install it to ~/.local/bin/brev.")
 	t.Vprint("")
 
-	if err := deps.gater.Gate(t, deps.confirmer, "Upgrade", false); err != nil {
-		return false, fmt.Errorf("sudo issue: %w", err)
+	if !deps.confirmer.ConfirmYesNo("Proceed with upgrade?") {
+		t.Vprint("Upgrade canceled.")
+		return false, nil
 	}
 
 	t.Vprint("")
@@ -160,5 +159,33 @@ func upgradeViaDirect(t *terminal.Terminal, deps upgradeDeps) (bool, error) {
 
 	t.Vprint("")
 	t.Vprint(t.Green("Upgrade complete."))
+
+	if stale := detectStaleSystemInstall(); stale != "" {
+		t.Vprint("")
+		t.Vprintf("  The new brev binary was installed at ~/.local/bin/brev,\n")
+		t.Vprintf("  but an older binary still exists at %s.\n", stale)
+		t.Vprint("  If that path appears earlier in your PATH, your shell will keep running the old version.")
+		t.Vprintf("  Remove it with: sudo rm %s\n", stale)
+	}
 	return true, nil
+}
+
+// detectStaleSystemInstall returns the path of the currently-running binary
+// when it lives in a system bin directory left over from a pre-~/.local/bin
+// install. Returns "" if the running binary is already in ~/.local/bin or in
+// any other non-system location.
+func detectStaleSystemInstall() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	resolved, err := filepath.EvalSymlinks(exe)
+	if err != nil {
+		resolved = exe
+	}
+	switch filepath.Dir(resolved) {
+	case "/usr/local/bin", "/usr/bin":
+		return resolved
+	}
+	return ""
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/store"
-	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -65,7 +64,6 @@ func Test_runUpgrade_AlreadyUpToDate(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodBrew},
 		upgrader:       upgrader,
 		confirmer:      mockConfirmer{confirm: true},
-		gater:          sudo.CachedGater{},
 		skillInstaller: skill,
 	}
 
@@ -94,7 +92,6 @@ func Test_runUpgrade_BrewPath(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodBrew},
 		upgrader:       upgrader,
 		confirmer:      mockConfirmer{confirm: true},
-		gater:          sudo.CachedGater{},
 		skillInstaller: skill,
 	}
 
@@ -126,7 +123,6 @@ func Test_runUpgrade_DirectPath(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodDirect},
 		upgrader:       upgrader,
 		confirmer:      mockConfirmer{confirm: true},
-		gater:          sudo.CachedGater{},
 		skillInstaller: skill,
 	}
 
@@ -158,7 +154,6 @@ func Test_runUpgrade_UserCancels(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodBrew},
 		upgrader:       upgrader,
 		confirmer:      mockConfirmer{confirm: false},
-		gater:          sudo.CachedGater{},
 		skillInstaller: skill,
 	}
 
@@ -181,7 +176,6 @@ func Test_runUpgrade_VersionCheckFails(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodBrew},
 		upgrader:       &mockUpgrader{},
 		confirmer:      mockConfirmer{confirm: true},
-		gater:          sudo.CachedGater{},
 		skillInstaller: &mockSkillInstaller{},
 	}
 
@@ -204,7 +198,6 @@ func Test_runUpgrade_UpgraderFails(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodBrew},
 		upgrader:       upgrader,
 		confirmer:      mockConfirmer{confirm: true},
-		gater:          sudo.CachedGater{},
 		skillInstaller: skill,
 	}
 
@@ -230,7 +223,6 @@ func Test_runUpgrade_SkillInstallFailure_DoesNotFailUpgrade(t *testing.T) {
 		detector:       mockDetector{method: InstallMethodBrew},
 		upgrader:       upgrader,
 		confirmer:      mockConfirmer{confirm: true},
-		gater:          sudo.CachedGater{},
 		skillInstaller: skill,
 	}
 
