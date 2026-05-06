@@ -158,7 +158,7 @@ func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]ent
 
 	filteredOrgs := []entity.Organization{}
 	for _, o := range orgs {
-		if o.Name == options.Name {
+		if strings.EqualFold(o.Name, options.Name) {
 			filteredOrgs = append(filteredOrgs, o)
 		}
 	}

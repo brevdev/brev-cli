@@ -607,7 +607,7 @@ func TestSanitizeNodeName(t *testing.T) {
 		want  string
 	}{
 		{"My GPU Box", "my-gpu-box"},
-		{"pratik-ec2", "pratik-ec2"},
+		{"my-ec2", "my-ec2"},
 		{"already-clean", "already-clean"},
 		{"UPPER CASE", "upper-case"},
 		{"special!@#chars", "special-chars"},
