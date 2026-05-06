@@ -109,6 +109,35 @@ type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
 }
 
+type CurrentUserAuthStore interface {
+	APIKeyAuthStore
+	GetCurrentUser() (*entity.User, error)
+}
+
+type CLIAuth struct {
+	apiKey bool
+	user   *entity.User
+}
+
+func (a CLIAuth) IsAPIKey() bool {
+	return a.apiKey
+}
+
+func (a CLIAuth) User() *entity.User {
+	return a.user
+}
+
+func ResolveCLIAuth(store CurrentUserAuthStore) (CLIAuth, error) {
+	if IsAPIKeyAuthStore(store) {
+		return CLIAuth{apiKey: true}, nil
+	}
+	user, err := store.GetCurrentUser()
+	if err != nil {
+		return CLIAuth{}, breverrors.WrapAndTrace(err)
+	}
+	return CLIAuth{user: user}, nil
+}
+
 func IsBrevAPIKey(token string) bool {
 	return strings.HasPrefix(strings.TrimSpace(token), BrevAPIKeyPrefix)
 }

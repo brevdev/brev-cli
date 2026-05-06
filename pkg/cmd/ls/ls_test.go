@@ -97,6 +97,20 @@ func newTestStore() *mockLsStore {
 	}
 }
 
+func resolveTestCLIAuth(t *testing.T, s *mockLsStore) authpkg.CLIAuth {
+	t.Helper()
+	cliAuth, err := authpkg.ResolveCLIAuth(s)
+	if err != nil {
+		t.Fatalf("ResolveCLIAuth returned error: %v", err)
+	}
+	return cliAuth
+}
+
+func runLs(t *testing.T, term *terminal.Terminal, s *mockLsStore, args []string, showAll bool) error {
+	t.Helper()
+	return RunLs(term, resolveTestCLIAuth(t, s), s, args, "", showAll, true)
+}
+
 func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
 	s := newTestStore()
 	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org1"}
@@ -117,7 +131,7 @@ func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -155,7 +169,7 @@ func TestRunLs_APIKeyUsesCredentialOrgNotCachedActiveOrg(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -174,7 +188,7 @@ func TestGetOrgForRunLs_APIKeyUsesActiveOrgDisplayName(t *testing.T) {
 	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-login"}
 	s.org = &entity.Organization{ID: "org-login", Name: "friendly-org"}
 
-	org, err := getOrgForRunLs(s, "", true)
+	org, err := getOrgForRunLs(resolveTestCLIAuth(t, s), s, "")
 	if err != nil {
 		t.Fatalf("getOrgForRunLs returned error: %v", err)
 	}
@@ -191,7 +205,7 @@ func TestRunLs_APIKeyRequiresCredentialOrg(t *testing.T) {
 	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey}
 	term := terminal.New()
 
-	err := RunLs(term, s, nil, "", false, true)
+	err := runLs(t, term, s, nil, false)
 
 	if err == nil {
 		t.Fatal("expected missing API key org error, got nil")
@@ -251,7 +265,7 @@ func TestRunLs_DefaultJSON(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -299,7 +313,7 @@ func TestRunLs_DefaultJSON_Empty(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -332,7 +346,7 @@ func TestRunLs_InstancesJSON(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, []string{"instances"}, "", false, true)
+		err := runLs(t, term, s, []string{"instances"}, false)
 		if err != nil {
 			t.Fatalf("RunLs instances returned error: %v", err)
 		}
@@ -363,7 +377,7 @@ func TestRunLs_OrgsJSON(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, []string{"orgs"}, "", false, true)
+		err := runLs(t, term, s, []string{"orgs"}, false)
 		if err != nil {
 			t.Fatalf("RunLs orgs returned error: %v", err)
 		}
@@ -410,7 +424,7 @@ func TestRunLs_ShowAllJSON(t *testing.T) {
 
 	// Without --all: only my workspaces
 	outMine := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -431,7 +445,7 @@ func TestRunLs_ShowAllJSON(t *testing.T) {
 	// With --all: output is always {workspaces, nodes} object.
 	// Nodes fetch fails gracefully (no gRPC server), so nodes will be empty.
 	outAll := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", true, true)
+		err := runLs(t, term, s, nil, true)
 		if err != nil {
 			t.Fatalf("RunLs --all returned error: %v", err)
 		}
@@ -456,7 +470,7 @@ func TestRunLs_TooManyArgs(t *testing.T) {
 	s := newTestStore()
 	term := terminal.New()
 
-	err := RunLs(term, s, []string{"instances", "nodes"}, "", false, true)
+	err := runLs(t, term, s, []string{"instances", "nodes"}, false)
 	if err == nil {
 		t.Fatal("expected error for too many args, got nil")
 	}
@@ -480,7 +494,7 @@ func TestRunLs_WorkspaceGPULookup(t *testing.T) {
 
 	// The mock returns empty InstanceTypesResponse, so GPU should be "-".
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -517,7 +531,7 @@ func TestRunLs_UnhealthyStatus(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, s, nil, "", false, true)
+		err := runLs(t, term, s, nil, false)
 		if err != nil {
 			t.Fatalf("RunLs returned error: %v", err)
 		}
@@ -548,7 +562,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 		"workspace", "workspaces",
 	}
 	for _, arg := range successArgs {
-		if err := handleLsArg(ls, arg, s.user, s.org, false, false); err != nil {
+		if err := handleLsArg(ls, resolveTestCLIAuth(t, s), arg, s.org, false); err != nil {
 			t.Errorf("handleLsArg(%q) returned unexpected error: %v", arg, err)
 		}
 	}
@@ -556,7 +570,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 	// "node"/"nodes" route to RunNodes which calls the gRPC client — verify
 	// it attempts the path (error expected due to no real client).
 	for _, arg := range []string{"node", "nodes"} {
-		_ = handleLsArg(ls, arg, s.user, s.org, false, false)
+		_ = handleLsArg(ls, resolveTestCLIAuth(t, s), arg, s.org, false)
 	}
 }
 

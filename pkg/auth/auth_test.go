@@ -130,6 +130,68 @@ func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
 	assert.False(t, s.getAccessTokenCalled)
 }
 
+type cliAuthStore struct {
+	tokens           *entity.AuthTokens
+	user             *entity.User
+	currentUserErr   error
+	currentUserCalls int
+}
+
+func (s *cliAuthStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	return s.tokens, nil
+}
+
+func (s *cliAuthStore) GetCurrentUser() (*entity.User, error) {
+	s.currentUserCalls++
+	if s.currentUserErr != nil {
+		return nil, s.currentUserErr
+	}
+	return s.user, nil
+}
+
+func TestResolveCLIAuth_APIKeySkipsCurrentUser(t *testing.T) {
+	s := &cliAuthStore{
+		tokens: &entity.AuthTokens{APIKey: testAPIKey},
+		user:   &entity.User{ID: "user-test"},
+	}
+
+	cliAuth, err := ResolveCLIAuth(s)
+
+	assert.NoError(t, err)
+	assert.True(t, cliAuth.IsAPIKey())
+	assert.Nil(t, cliAuth.User())
+	assert.Equal(t, 0, s.currentUserCalls)
+}
+
+func TestResolveCLIAuth_LegacyCredentialsFetchCurrentUser(t *testing.T) {
+	user := &entity.User{ID: "user-test"}
+	s := &cliAuthStore{
+		tokens: &entity.AuthTokens{AccessToken: validToken},
+		user:   user,
+	}
+
+	cliAuth, err := ResolveCLIAuth(s)
+
+	assert.NoError(t, err)
+	assert.False(t, cliAuth.IsAPIKey())
+	assert.Equal(t, user, cliAuth.User())
+	assert.Equal(t, 1, s.currentUserCalls)
+}
+
+func TestResolveCLIAuth_CurrentUserErrorReturnsError(t *testing.T) {
+	s := &cliAuthStore{
+		tokens:         &entity.AuthTokens{AccessToken: validToken},
+		currentUserErr: breverrors.NewValidationError("current user failed"),
+	}
+
+	cliAuth, err := ResolveCLIAuth(s)
+
+	assert.Error(t, err)
+	assert.False(t, cliAuth.IsAPIKey())
+	assert.Nil(t, cliAuth.User())
+	assert.Equal(t, 1, s.currentUserCalls)
+}
+
 func TestGetFreshAccessTokenOrNil_APIKeySkipsJWTValidationAndRefresh(t *testing.T) {
 	s := MockAuthStore{authTokens: &entity.AuthTokens{
 		AccessToken:  "expired-jwt",

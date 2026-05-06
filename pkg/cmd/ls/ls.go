@@ -88,12 +88,16 @@ with other commands like stop, start, or delete.`,
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
 		ValidArgs: []string{"orgs", "workspaces", "nodes", "instances"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput)
+			cliAuth, err := auth.ResolveCLIAuth(loginLsStore)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = RunLs(t, cliAuth, loginLsStore, args, org, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			if !jsonOutput {
-				trackLsAnalytics(loginLsStore)
+				trackLsAnalytics(cliAuth)
 			}
 			return nil
 		},
@@ -113,13 +117,10 @@ with other commands like stop, start, or delete.`,
 }
 
 // trackLsAnalytics sends analytics event for ls command
-func trackLsAnalytics(store LsStore) {
+func trackLsAnalytics(cliAuth auth.CLIAuth) {
 	userID := ""
-	if !isAPIKeyAuthStore(store) {
-		user, err := store.GetCurrentUser()
-		if err == nil {
-			userID = user.ID
-		}
+	if !cliAuth.IsAPIKey() && cliAuth.User() != nil {
+		userID = cliAuth.User().ID
 	}
 	data := analytics.EventData{
 		EventName: "Brev ls",
@@ -128,13 +129,9 @@ func trackLsAnalytics(store LsStore) {
 	_ = analytics.TrackEvent(data)
 }
 
-func isAPIKeyAuthStore(lsStore LsStore) bool {
-	return auth.IsAPIKeyAuthStore(lsStore)
-}
-
-func getOrgForRunLs(lsStore LsStore, orgflag string, apiKeyAuth bool) (*entity.Organization, error) {
+func getOrgForRunLs(cliAuth auth.CLIAuth, lsStore LsStore, orgflag string) (*entity.Organization, error) {
 	var org *entity.Organization
-	if apiKeyAuth {
+	if cliAuth.IsAPIKey() {
 		if orgflag != "" {
 			return nil, breverrors.NewValidationError("api key auth is scoped to the org saved during login; --org is not supported")
 		}
@@ -175,20 +172,10 @@ func getOrgForRunLs(lsStore LsStore, orgflag string, apiKeyAuth bool) (*entity.O
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
+func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
-	apiKeyAuth := isAPIKeyAuthStore(lsStore)
 
-	var user *entity.User
-	if !apiKeyAuth {
-		var err error
-		user, err = lsStore.GetCurrentUser()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-
-	org, err := getOrgForRunLs(lsStore, orgflag, apiKeyAuth)
+	org, err := getOrgForRunLs(cliAuth, lsStore, orgflag)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -197,12 +184,12 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, args[0], user, org, showAll, apiKeyAuth)
+		err = handleLsArg(ls, cliAuth, args[0], org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(org, user, showAll)
+		err = ls.RunWorkspaces(cliAuth, org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -213,27 +200,27 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	return nil
 }
 
-func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool, apiKeyAuth bool) error {
+func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organization, showAll bool) error {
 	switch classifyLsArg(arg) {
 	case lsArgOrgs:
-		if apiKeyAuth {
+		if cliAuth.IsAPIKey() {
 			return breverrors.NewValidationError("api key auth cannot list organizations")
 		}
 		return wrapLsRun(ls.RunOrgs())
 	case lsArgWorkspaces:
-		return wrapLsRun(ls.RunWorkspaces(org, user, showAll))
+		return wrapLsRun(ls.RunWorkspaces(cliAuth, org, showAll))
 	case lsArgUsers:
-		return runAdminLsArg(user, apiKeyAuth, "users", func() error {
+		return runAdminLsArg(cliAuth, "users", func() error {
 			return ls.RunUser(showAll)
 		})
 	case lsArgHosts:
-		return runAdminLsArg(user, apiKeyAuth, "hosts", func() error {
+		return runAdminLsArg(cliAuth, "hosts", func() error {
 			return ls.RunHosts(org)
 		})
 	case lsArgNodes:
 		return wrapLsRun(ls.RunNodes(org))
 	case lsArgInstances:
-		return wrapLsRun(ls.RunInstances(org, user, showAll))
+		return wrapLsRun(ls.RunInstances(cliAuth, org, showAll))
 	default:
 		return nil
 	}
@@ -270,9 +257,13 @@ func classifyLsArg(arg string) lsArgKind {
 	}
 }
 
-func runAdminLsArg(user *entity.User, apiKeyAuth bool, resource string, run func() error) error {
-	if apiKeyAuth {
+func runAdminLsArg(cliAuth auth.CLIAuth, resource string, run func() error) error {
+	if cliAuth.IsAPIKey() {
 		return breverrors.NewValidationError(fmt.Sprintf("api key auth cannot list %s", resource))
+	}
+	user := cliAuth.User()
+	if user == nil {
+		return breverrors.NewValidationError("user is required")
 	}
 	if !featureflag.IsAdmin(user.GlobalUserType) {
 		return nil
@@ -484,7 +475,7 @@ func buildGPULookup(s LsStore) map[string]string {
 	return lookup
 }
 
-func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
+func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
 	// Fetch workspaces and instance types concurrently
 	var allWorkspaces []entity.Workspace
 	var wsErr error
@@ -527,9 +518,13 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	switch {
 	case showAll:
 		workspacesToShow = allWorkspaces
-	case user == nil:
+	case cliAuth.IsAPIKey():
 		workspacesToShow = allWorkspaces
 	default:
+		user := cliAuth.User()
+		if user == nil {
+			return breverrors.NewValidationError("user is required")
+		}
 		workspacesToShow = store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 	}
 
@@ -538,9 +533,13 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup, nodes)
 	}
 
-	if user == nil {
+	if cliAuth.IsAPIKey() {
 		ls.ShowOrgWorkspaces(org, workspacesToShow, gpuLookup)
 		return nil
+	}
+	user := cliAuth.User()
+	if user == nil {
+		return breverrors.NewValidationError("user is required")
 	}
 
 	// Table output with colors and help text
@@ -561,8 +560,8 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 	return nil
 }
 
-func (ls Ls) RunInstances(org *entity.Organization, user *entity.User, showAll bool) error {
-	if err := ls.RunWorkspaces(org, user, showAll); err != nil {
+func (ls Ls) RunInstances(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+	if err := ls.RunWorkspaces(cliAuth, org, showAll); err != nil {
 		return err
 	}
 	return nil
