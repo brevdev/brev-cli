@@ -2,7 +2,9 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
 
@@ -245,6 +247,20 @@ func (c *CreateWorkspacesOptions) WithWorkspaceGroupID(workspaceGroupID string) 
 	return c
 }
 
+// CreateWorkspaceResultUnknownError indicates the create request may have succeeded server-side,
+// but the client connection closed before a response was received.
+type CreateWorkspaceResultUnknownError struct {
+	Cause error
+}
+
+func (e CreateWorkspaceResultUnknownError) Error() string {
+	return "instance create result is unknown: the Brev API connection closed before the create response was received. The instance may have been created or partially provisioned. Check `brev ls --json` for the instance name and verify `build_status` before retrying or deleting."
+}
+
+func (e CreateWorkspaceResultUnknownError) Unwrap() error {
+	return e.Cause
+}
+
 func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWorkspacesOptions) (*entity.Workspace, error) {
 	if options == nil {
 		return nil, fmt.Errorf("options can not be nil")
@@ -258,6 +274,9 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 		SetResult(&result).
 		Post(workspaceOrgPath)
 	if err != nil {
+		if errors.Is(err, io.ErrUnexpectedEOF) || strings.Contains(err.Error(), "unexpected EOF") {
+			return nil, CreateWorkspaceResultUnknownError{Cause: err}
+		}
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if res.IsError() {

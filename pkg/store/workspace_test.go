@@ -1,7 +1,10 @@
 package store
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -95,6 +98,31 @@ func TestCreateWorkspace(t *testing.T) {
 	if !assert.Equal(t, expected, u) {
 		return
 	}
+}
+
+func TestCreateWorkspaceUnexpectedEOFReturnsActionableError(t *testing.T) {
+	s := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+
+	orgID := "o1"
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(workspaceOrgPathPattern, orgID))
+	httpmock.RegisterResponder("POST", url, func(*http.Request) (*http.Response, error) {
+		return nil, io.ErrUnexpectedEOF
+	})
+
+	_, err := s.CreateWorkspace(orgID, NewCreateWorkspacesOptions("wgi", "name"))
+	if !assert.Error(t, err) {
+		return
+	}
+
+	assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.Contains(t, err.Error(), "instance create result is unknown")
+	assert.NotContains(t, err.Error(), "workspace")
+	assert.Contains(t, err.Error(), "verify `build_status`")
+	assert.NotContains(t, err.Error(), "unexpected EOF")
+
+	var unknownErr CreateWorkspaceResultUnknownError
+	assert.True(t, errors.As(err, &unknownErr))
 }
 
 func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor later, not fully duplicate code
