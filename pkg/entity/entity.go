@@ -27,6 +27,8 @@ var LegacyWorkspaceGroups = map[string]bool{
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	APIKey       string `json:"api_key,omitempty"`
+	APIKeyOrgID  string `json:"api_key_org_id,omitempty"`
 }
 
 type IDEConfig struct {

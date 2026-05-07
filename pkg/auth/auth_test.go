@@ -1,11 +1,14 @@
 package auth
 
 import (
+	"io"
+	"os"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -38,10 +41,12 @@ func TestIsAccessTokenValid(t *testing.T) {
 
 type MockAuthStore struct {
 	authTokens *entity.AuthTokens
+	saved      entity.AuthTokens
 	didSave    bool
 }
 
-func (m *MockAuthStore) SaveAuthTokens(_ entity.AuthTokens) error {
+func (m *MockAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
+	m.saved = tokens
 	m.didSave = true
 	return nil
 }
@@ -77,7 +82,242 @@ func (m MockOauth) GetNewAuthTokensWithRefresh(_ string) (*entity.AuthTokens, er
 	return m.authTokens, nil
 }
 
-const validToken = "abc"
+const (
+	validToken = "abc"
+	testAPIKey = BrevAPIKeyPrefix + "test-key"
+)
+
+func TestIsBrevAPIKey(t *testing.T) {
+	assert.True(t, IsBrevAPIKey(testAPIKey))
+	assert.True(t, IsBrevAPIKey("  "+testAPIKey+"  "))
+	assert.False(t, IsBrevAPIKey("bakery-token"))
+	assert.False(t, IsBrevAPIKey("jwt-token"))
+	assert.False(t, IsBrevAPIKey(""))
+}
+
+type sideEffectingTokenStore struct {
+	tokens               *entity.AuthTokens
+	getAccessTokenCalled bool
+}
+
+func (s *sideEffectingTokenStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	return s.tokens, nil
+}
+
+func (s *sideEffectingTokenStore) GetAccessToken() (string, error) {
+	s.getAccessTokenCalled = true
+	return testAPIKey, nil
+}
+
+func TestIsAPIKeyAuthStore_ReadsSavedTokensWithoutAccessTokenSideEffects(t *testing.T) {
+	s := &sideEffectingTokenStore{
+		tokens: &entity.AuthTokens{APIKey: testAPIKey},
+	}
+
+	assert.True(t, IsAPIKeyAuthStore(s))
+	assert.False(t, s.getAccessTokenCalled)
+}
+
+func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
+	s := &sideEffectingTokenStore{
+		tokens: &entity.AuthTokens{
+			AccessToken:  validToken,
+			RefreshToken: "refresh",
+		},
+	}
+
+	assert.False(t, IsAPIKeyAuthStore(s))
+	assert.False(t, s.getAccessTokenCalled)
+}
+
+type cliAuthStore struct {
+	tokens           *entity.AuthTokens
+	user             *entity.User
+	currentUserErr   error
+	currentUserCalls int
+}
+
+func (s *cliAuthStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	return s.tokens, nil
+}
+
+func (s *cliAuthStore) GetCurrentUser() (*entity.User, error) {
+	s.currentUserCalls++
+	if s.currentUserErr != nil {
+		return nil, s.currentUserErr
+	}
+	return s.user, nil
+}
+
+func TestResolveCLIAuth_APIKeySkipsCurrentUser(t *testing.T) {
+	s := &cliAuthStore{
+		tokens: &entity.AuthTokens{APIKey: testAPIKey},
+		user:   &entity.User{ID: "user-test"},
+	}
+
+	cliAuth, err := ResolveCLIAuth(s)
+
+	assert.NoError(t, err)
+	assert.True(t, cliAuth.IsAPIKey())
+	assert.Nil(t, cliAuth.User())
+	assert.Equal(t, 0, s.currentUserCalls)
+}
+
+func TestResolveCLIAuth_LegacyCredentialsFetchCurrentUser(t *testing.T) {
+	user := &entity.User{ID: "user-test"}
+	s := &cliAuthStore{
+		tokens: &entity.AuthTokens{AccessToken: validToken},
+		user:   user,
+	}
+
+	cliAuth, err := ResolveCLIAuth(s)
+
+	assert.NoError(t, err)
+	assert.False(t, cliAuth.IsAPIKey())
+	assert.Equal(t, user, cliAuth.User())
+	assert.Equal(t, 1, s.currentUserCalls)
+}
+
+func TestResolveCLIAuth_CurrentUserErrorReturnsError(t *testing.T) {
+	s := &cliAuthStore{
+		tokens:         &entity.AuthTokens{AccessToken: validToken},
+		currentUserErr: breverrors.NewValidationError("current user failed"),
+	}
+
+	cliAuth, err := ResolveCLIAuth(s)
+
+	assert.Error(t, err)
+	assert.False(t, cliAuth.IsAPIKey())
+	assert.Nil(t, cliAuth.User())
+	assert.Equal(t, 1, s.currentUserCalls)
+}
+
+func TestGetFreshAccessTokenOrNil_APIKeySkipsJWTValidationAndRefresh(t *testing.T) {
+	s := MockAuthStore{authTokens: &entity.AuthTokens{
+		AccessToken:  "expired-jwt",
+		APIKey:       testAPIKey,
+		RefreshToken: "should-not-refresh",
+	}}
+	a := Auth{
+		&s,
+		&MockOauth{}, func(_ string) (bool, error) {
+			t.Fatal("api keys must not be parsed as JWTs")
+			return false, nil
+		},
+		func() (bool, error) {
+			t.Fatal("api keys must not trigger login")
+			return false, nil
+		},
+	}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, testAPIKey, res)
+	assert.False(t, s.didSave)
+}
+
+func TestGetFreshAccessTokenOrNil_APIKeyOnlyCredentialReturnsAPIKey(t *testing.T) {
+	s := MockAuthStore{authTokens: &entity.AuthTokens{
+		APIKey: testAPIKey,
+	}}
+	a := Auth{
+		&s,
+		&MockOauth{}, func(_ string) (bool, error) {
+			t.Fatal("api keys must not be parsed as JWTs")
+			return false, nil
+		},
+		func() (bool, error) {
+			t.Fatal("api keys must not trigger login")
+			return false, nil
+		},
+	}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, testAPIKey, res)
+	assert.False(t, s.didSave)
+}
+
+func TestLoginWithAPIKey_SavesTypedCredential(t *testing.T) {
+	s := MockAuthStore{}
+	a := Auth{
+		authStore: &s,
+		oauth:     &MockOauth{},
+	}
+
+	err := a.LoginWithAPIKey(testAPIKey, "org-test")
+	assert.NoError(t, err)
+	assert.True(t, s.didSave)
+	assert.Equal(t, entity.AuthTokens{
+		APIKey:      testAPIKey,
+		APIKeyOrgID: "org-test",
+	}, s.saved)
+}
+
+func TestLoginWithAPIKey_PreservesExistingJWT(t *testing.T) {
+	s := MockAuthStore{authTokens: &entity.AuthTokens{
+		AccessToken:  "existing-jwt",
+		RefreshToken: "existing-refresh",
+	}}
+	a := Auth{
+		authStore: &s,
+		oauth:     &MockOauth{},
+	}
+
+	err := a.LoginWithAPIKey(testAPIKey, "org-test")
+	assert.NoError(t, err)
+	assert.Equal(t, entity.AuthTokens{
+		AccessToken:  "existing-jwt",
+		RefreshToken: "existing-refresh",
+		APIKey:       testAPIKey,
+		APIKeyOrgID:  "org-test",
+	}, s.saved)
+}
+
+func TestLoginWithAPIKey_EmptyKeyReturnsError(t *testing.T) {
+	s := MockAuthStore{}
+	a := Auth{
+		authStore: &s,
+		oauth:     &MockOauth{},
+	}
+
+	err := a.LoginWithAPIKey("", "org-test")
+	assert.Error(t, err)
+	assert.False(t, s.didSave)
+}
+
+func TestLoginWithAPIKey_EmptyOrgIDReturnsError(t *testing.T) {
+	s := MockAuthStore{}
+	a := Auth{
+		authStore: &s,
+		oauth:     &MockOauth{},
+	}
+
+	err := a.LoginWithAPIKey(testAPIKey, "")
+	assert.Error(t, err)
+	assert.False(t, s.didSave)
+}
+
+func TestStandardLogin_APIKeyCredentialDoesNotProbeOAuthProviders(t *testing.T) {
+	oldStdout := os.Stdout
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+	})
+	readPipe, writePipe, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = writePipe
+
+	_ = StandardLogin("", "", &entity.AuthTokens{
+		AccessToken: "existing-jwt",
+		APIKey:      testAPIKey,
+	})
+
+	assert.NoError(t, writePipe.Close())
+	os.Stdout = oldStdout
+	out, err := io.ReadAll(readPipe)
+	assert.NoError(t, err)
+	assert.Empty(t, string(out))
+}
 
 func TestSuccessNoRefreshGetFreshAccessTokenOrLogin(t *testing.T) {
 	s := MockAuthStore{authTokens: &entity.AuthTokens{

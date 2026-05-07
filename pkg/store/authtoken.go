@@ -19,8 +19,8 @@ const (
 )
 
 func (f FileStore) SaveAuthTokens(token entity.AuthTokens) error {
-	if token.AccessToken == "" {
-		return fmt.Errorf("access token is empty")
+	if token.AccessToken == "" && token.APIKey == "" {
+		return fmt.Errorf("access token and api key are empty")
 	}
 	brevCredentialsFile, err := f.getBrevCredentialsFile()
 	if err != nil {
