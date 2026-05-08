@@ -98,6 +98,16 @@ func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) stri
 	return ""
 }
 
+// HasInstanceType reports whether the type exists in the API listing, independent of capacity.
+func (r *AllInstanceTypesResponse) HasInstanceType(instanceType string) bool {
+	for _, it := range r.AllInstanceTypes {
+		if it.Type == instanceType {
+			return true
+		}
+	}
+	return false
+}
+
 // GPUSearchStore defines the interface for fetching instance types
 type GPUSearchStore interface {
 	GetInstanceTypes(includeCPU bool) (*InstanceTypesResponse, error)
