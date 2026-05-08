@@ -465,6 +465,60 @@ func TestRunLs_ShowAllJSON(t *testing.T) {
 	}
 }
 
+func TestRunLs_ShowAllTextListsEveryOrgWorkspace(t *testing.T) {
+	s := newTestStore()
+	s.workspaces = []entity.Workspace{
+		{
+			ID:              "ws-mine",
+			Name:            "my-ws",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u1",
+			GitRepo:         "git://same-repo",
+		},
+		{
+			ID:              "ws-other-1",
+			Name:            "teammate-a",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u2",
+			GitRepo:         "git://same-repo",
+		},
+		{
+			ID:              "ws-other-2",
+			Name:            "teammate-b",
+			Status:          entity.Stopped,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u3",
+			GitRepo:         "git://same-repo",
+		},
+		{
+			ID:              "ws-other-3",
+			Name:            "teammate-c",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u4",
+			GitRepo:         "git://same-repo",
+		},
+	}
+
+	out := captureStdout(t, func() {
+		err := RunLs(terminal.New(), resolveTestCLIAuth(t, s), s, nil, "", true, false)
+		if err != nil {
+			t.Fatalf("RunLs --all returned error: %v", err)
+		}
+	})
+
+	for _, name := range []string{"my-ws", "teammate-a", "teammate-b", "teammate-c"} {
+		if !strings.Contains(out, name) {
+			t.Fatalf("expected text --all output to include %q, got:\n%s", name, out)
+		}
+	}
+	if !strings.Contains(out, "Org test-org has 4 instances") {
+		t.Fatalf("expected org instance count in output, got:\n%s", out)
+	}
+}
+
 // TestRunLs_TooManyArgs verifies that more than one arg is rejected.
 func TestRunLs_TooManyArgs(t *testing.T) {
 	s := newTestStore()

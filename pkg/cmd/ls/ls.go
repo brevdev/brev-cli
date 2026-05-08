@@ -383,23 +383,6 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
-	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
-
-	projects := virtualproject.NewVirtualProjects(allWorkspaces)
-
-	var unjoinedProjects []virtualproject.VirtualProject
-	for _, p := range projects {
-		wks := p.GetUserWorkspaces(user.ID)
-		if len(wks) == 0 {
-			unjoinedProjects = append(unjoinedProjects, p)
-		}
-	}
-
-	displayProjects(ls.terminal, org.Name, unjoinedProjects)
-}
-
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
@@ -515,6 +498,15 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup, nodes)
 	}
 
+	if showAll {
+		ls.ShowOrgWorkspaces(org, workspacesToShow, gpuLookup)
+		if len(nodes) > 0 {
+			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+			displayNodesTable(ls.terminal, nodes, ls.piped)
+		}
+		return nil
+	}
+
 	if cliAuth.IsAPIKey() {
 		ls.ShowOrgWorkspaces(org, workspacesToShow, gpuLookup)
 		return nil
@@ -529,15 +521,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if showAll {
-		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
-		if len(nodes) > 0 {
-			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
-			displayNodesTable(ls.terminal, nodes, ls.piped)
-		}
-	} else {
-		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
-	}
+	ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
 
 	return nil
 }
