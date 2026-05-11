@@ -585,3 +585,48 @@ func TestProcessInstancesCloudExtraction(t *testing.T) {
 	assert.Equal(t, "nebius", instances[1].Cloud)
 	assert.Equal(t, "nebius", instances[1].Provider)
 }
+
+func TestAllInstanceTypesResponseLookup(t *testing.T) {
+	resp := &AllInstanceTypesResponse{
+		AllInstanceTypes: []InstanceType{
+			{
+				Type: "hyperstack_H100_sxm5x8",
+				WorkspaceGroups: []WorkspaceGroup{
+					{ID: "wg-shadeform", Name: "Shadeform", PlatformType: "shadeform"},
+				},
+			},
+			{
+				Type:            "hyperstack_H100x8_NVLINK",
+				WorkspaceGroups: nil,
+			},
+			{
+				Type:            "verda-b300-8x",
+				WorkspaceGroups: []WorkspaceGroup{},
+			},
+		},
+	}
+
+	t.Run("GetWorkspaceGroupID returns id when type has groups", func(t *testing.T) {
+		assert.Equal(t, "wg-shadeform", resp.GetWorkspaceGroupID("hyperstack_H100_sxm5x8"))
+	})
+
+	t.Run("GetWorkspaceGroupID returns empty for type without groups", func(t *testing.T) {
+		assert.Equal(t, "", resp.GetWorkspaceGroupID("hyperstack_H100x8_NVLINK"))
+		assert.Equal(t, "", resp.GetWorkspaceGroupID("verda-b300-8x"))
+	})
+
+	t.Run("GetWorkspaceGroupID returns empty for unknown type", func(t *testing.T) {
+		assert.Equal(t, "", resp.GetWorkspaceGroupID("hyperstack_H100x8_one"))
+	})
+
+	t.Run("HasInstanceType is true even when groups are empty", func(t *testing.T) {
+		assert.True(t, resp.HasInstanceType("hyperstack_H100_sxm5x8"))
+		assert.True(t, resp.HasInstanceType("hyperstack_H100x8_NVLINK"))
+		assert.True(t, resp.HasInstanceType("verda-b300-8x"))
+	})
+
+	t.Run("HasInstanceType is false for unknown type", func(t *testing.T) {
+		assert.False(t, resp.HasInstanceType("hyperstack_H100x8_one"))
+		assert.False(t, resp.HasInstanceType(""))
+	})
+}
