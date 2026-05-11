@@ -810,7 +810,7 @@ func (c *createContext) createInstancesWithType(spec InstanceSpec, startIdx, cou
 
 	if c.opts.LaunchableID == "" {
 		if err := c.validateInstanceTypeAvailability(spec.Type); err != nil {
-			c.logf("Skipping %s: %s\n", c.colorize(spec.Type, c.t.Yellow), err.Error())
+			c.logf("Skipping: %s\n", err.Error())
 			result.hadFailure = true
 			return result
 		}

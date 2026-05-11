@@ -7,6 +7,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
@@ -746,4 +747,159 @@ func TestInlineLaunchableLifeCycleScript(t *testing.T) {
 		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
 		assert.Equal(t, "", info.BuildRequest.VMBuild.LifeCycleScriptAttr.Script)
 	})
+}
+
+func TestValidateInstanceTypeAvailability(t *testing.T) {
+	t.Run("returns nil when listing is unavailable", func(t *testing.T) {
+		ctx := &createContext{}
+		assert.NoError(t, ctx.validateInstanceTypeAvailability("hyperstack_H100x8_one"))
+	})
+
+	t.Run("returns nil when type has a workspace group", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{
+						Type: "hyperstack_H100_sxm5x8",
+						WorkspaceGroups: []gpusearch.WorkspaceGroup{
+							{ID: "wg-1", Name: "Shadeform", PlatformType: "shadeform"},
+						},
+					},
+				},
+			},
+		}
+		assert.NoError(t, ctx.validateInstanceTypeAvailability("hyperstack_H100_sxm5x8"))
+	})
+
+	t.Run("returns invalid-type error for unknown type", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{Type: "hyperstack_H100_sxm5x8", WorkspaceGroups: []gpusearch.WorkspaceGroup{{ID: "wg-1"}}},
+				},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("hyperstack_H100x8_one")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `"hyperstack_H100x8_one"`)
+		assert.Contains(t, err.Error(), "not a recognized type")
+		assert.Contains(t, err.Error(), "brev search")
+	})
+
+	t.Run("returns unavailable error for known type without workspace groups", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{Type: "hyperstack_H100x8_NVLINK", WorkspaceGroups: nil},
+				},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("hyperstack_H100x8_NVLINK")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `"hyperstack_H100x8_NVLINK"`)
+		assert.Contains(t, err.Error(), "currently unavailable")
+		assert.Contains(t, err.Error(), "brev search")
+	})
+
+	t.Run("error type is ValidationError so no stack trace is appended", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("missing")
+		assert.Error(t, err)
+		var ve breverrors.ValidationError
+		assert.ErrorAs(t, err, &ve)
+		assert.NotContains(t, err.Error(), "gpucreate.go", "validation error should not include source-file traces")
+	})
+}
+
+func TestCreateInstancesWithTypeSkipsInvalidType(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{
+					Type: "hyperstack_H100_sxm5x8",
+					WorkspaceGroups: []gpusearch.WorkspaceGroup{
+						{ID: "wg-shadeform", Name: "Shadeform", PlatformType: "shadeform"},
+					},
+				},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100x8_one"}, 0, 1)
+
+	assert.True(t, result.hadFailure, "expected hadFailure for an invalid instance type")
+	assert.Empty(t, result.successes, "expected no successes for invalid type")
+	assert.NoError(t, result.fatalError, "invalid type should not be fatal — caller may try the next type")
+	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when the type is unrecognized")
+}
+
+func TestCreateInstancesWithTypeSkipsUnavailableType(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{Type: "hyperstack_H100x8_NVLINK", WorkspaceGroups: nil},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100x8_NVLINK"}, 0, 1)
+
+	assert.True(t, result.hadFailure, "expected hadFailure for an unavailable instance type")
+	assert.Empty(t, result.successes)
+	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when no workspace group is available")
+}
+
+func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts: GPUCreateOptions{
+			Count:        1,
+			Parallel:     1,
+			Name:         "jt-4",
+			LaunchableID: "env-abc",
+			LaunchableInfo: &store.LaunchableResponse{
+				ID:   "env-abc",
+				Name: "test-launchable",
+				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+					WorkspaceGroupID: "wg-from-launchable",
+					InstanceType:     "n2-standard-4",
+				},
+			},
+		},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{}, // launchable's type is not in the org listing
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "n2-standard-4"}, 0, 1)
+
+	assert.False(t, result.hadFailure, "launchable should not be blocked by pre-flight validation")
+	assert.Len(t, result.successes, 1, "expected the launchable instance to be created")
+	assert.Len(t, mock.CreatedWorkspaces, 1)
 }
