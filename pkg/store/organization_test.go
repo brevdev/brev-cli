@@ -104,6 +104,42 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testi
 	assert.Equal(t, expected.Name, org.Name)
 }
 
+func TestGetOrganizationsFiltersNameCaseInsensitive(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	expected := []entity.Organization{{
+		ID:   "1",
+		Name: "TEST",
+	}}
+	orgs := []entity.Organization{
+		expected[0],
+		{
+			ID:   "2",
+			Name: "Other",
+		},
+	}
+	res, err := httpmock.NewJsonResponder(200, orgs)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, res)
+
+	org, err := fs.GetOrganizations(&GetOrganizationsOptions{Name: "test"})
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.NotNil(t, org) {
+		return
+	}
+
+	if !assert.Equal(t, expected, org) {
+		return
+	}
+}
+
 func TestCreateOrganization(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
