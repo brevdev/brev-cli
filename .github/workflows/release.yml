@@ -9,7 +9,7 @@ env:
   # Go module path for Docker mount (must match go.mod module).
   BREV_MODULE: github.com/brevdev/brev-cli
   # goreleaser-cross image with cross-compilers for CGO (see https://goreleaser.com/limitations/cgo/#using-docker).
-  GOLANG_CROSS_VERSION: v1.24.5
+  GOLANG_CROSS_VERSION: v1.25.0
 
 jobs:
   goreleaser:
@@ -21,7 +21,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24.0'
+          go-version: '1.25.0'
           cache: true
 
       - name: CI, smoke-test, and release
