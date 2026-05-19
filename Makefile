@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := fast-build
 VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 
-# Cross-compilation via Docker (golang:1.24 native Linux container).
+# Cross-compilation via Docker (golang:1.25 native Linux container).
 # When arch=<GOOS>/<GOARCH> is provided, spin up a container that matches
 # the target platform so CGO uses the native Linux gcc/GNU ld toolchain
 _GOMODCACHE := $(shell go env GOMODCACHE)
@@ -16,7 +16,7 @@ ifdef arch
     -e GOPRIVATE=github.com/brevdev/* \
     -e GONOSUMDB=github.com/brevdev/* \
     -w /app \
-    golang:1.24
+    golang:1.25
 else
   _BUILD_PREFIX := CGO_ENABLED=1
 endif
