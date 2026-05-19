@@ -110,6 +110,12 @@ func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.Launchab
 	}, nil
 }
 
+func (m *MockGPUCreateStore) GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error) {
+	return &store.LifeCycleScriptResponse{
+		Attrs: &store.LifeCycleScriptAttr{ID: scriptID, Script: "echo mock-script"},
+	}, nil
+}
+
 func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error) {
 	return &store.RedeemCouponCodeResponse{}, nil
 }
