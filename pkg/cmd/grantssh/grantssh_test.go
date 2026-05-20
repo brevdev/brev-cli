@@ -245,6 +245,14 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 						ExternalNodeId: "unode_abc",
 						Name:           "My Spark",
 						SshAccess:      []*nodev1.SSHAccess{{UserId: "user_1", LinuxUser: "ubuntu"}},
+						Ports: []*nodev1.Port{
+							{
+								PortId:     "port_ssh",
+								Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+								PortNumber: 22,
+								ServerPort: 41920,
+							},
+						},
 					},
 				},
 			}, nil
@@ -276,6 +284,74 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	}
 	if gotReq.GetLinuxUser() != "ubuntu" {
 		t.Errorf("expected linux user ubuntu, got %s", gotReq.GetLinuxUser())
+	}
+	if gotReq.GetPortId() != "port_ssh" {
+		t.Errorf("expected port ID port_ssh, got %s", gotReq.GetPortId())
+	}
+}
+
+func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+		},
+	}
+
+	targetUser := &entity.User{ID: "user_2", Name: "Alice", Email: "alice@example.com"}
+
+	store := &mockGrantSSHStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+		attachments: []entity.OrgRoleAttachment{
+			{Subject: "user_1"},
+			{Subject: "user_2"},
+		},
+		users: map[string]*entity.User{"user_2": targetUser},
+	}
+
+	var gotReq *nodev1.GrantNodeSSHAccessRequest
+	svc := &fakeNodeService{
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{
+					{
+						ExternalNodeId: "unode_abc",
+						Name:           "My Spark",
+						Ports: []*nodev1.Port{
+							{PortId: "port_ssh", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, PortNumber: 22},
+						},
+					},
+				},
+			}, nil
+		},
+		grantSSHFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			gotReq = req
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
+
+	deps, server := testGrantSSHDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	opts := grantSSHOpts{
+		interactive:   false,
+		orgName:       "TestOrg",
+		nodeName:      "My Spark",
+		userIDOrEmail: "alice@example.com",
+		linuxUser:     "ubuntu",
+		portID:        "port_ssh",
+		skipConfirm:   true,
+	}
+	err := runGrantSSH(context.Background(), term, store, opts, deps)
+	if err != nil {
+		t.Fatalf("runGrantSSH failed: %v", err)
+	}
+	if gotReq == nil || gotReq.GetPortId() != "port_ssh" {
+		t.Fatalf("expected port_ssh in request, got %+v", gotReq)
 	}
 }
 

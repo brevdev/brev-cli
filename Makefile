@@ -346,11 +346,11 @@ develop-with-nix:
 	nix develop .
 
 .PHONY: update-devplane-deps
-update-devplane-deps: ## update devplane dependencies (use: make update-devplane-deps commit=<hash-or-tag>, defaults to latest)
+update-devplane-deps: ## update devplane Buf modules (use: make update-devplane-deps commit=<buf-tag>, defaults to latest)
 	@COMMIT=$${commit:-latest}; \
 	echo "Updating devplane dependencies to: $$COMMIT"; \
 	GOPRIVATE=github.com/brevdev/* go get -u github.com/brevdev/dev-plane@$$COMMIT; \
-	go get buf.build/gen/go/brevdev/devplane/grpc/go@$$COMMIT; \
+	go get buf.build/gen/go/brevdev/devplane/connectrpc/go@$$COMMIT; \
 	go get buf.build/gen/go/brevdev/devplane/protocolbuffers/go@$$COMMIT; \
 	GOPRIVATE=github.com/brevdev/* go mod tidy; \
 	echo "Successfully updated to $$COMMIT"

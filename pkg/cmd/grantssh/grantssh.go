@@ -60,6 +60,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 	var nodeFlag string
 	var userFlag string
 	var linuxUser string
+	var portIDFlag string
 	var approveFlag bool
 
 	cmd := &cobra.Command{
@@ -67,8 +68,8 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		Use:                   "grant-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Grant SSH access to a node for another org member",
-		Long:                  "Grant SSH access to a node for another member of your organization. Interactive: no flags, prompts for org and user. Non-interactive: --org, --user, --linux-user required.",
-		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --approve",
+		Long:                  "Grant SSH access to a node for another member of your organization. Interactive: no flags, prompts for org, node, port, and user. Non-interactive: --org, --node, --user, --linux-user, and --port-id required.",
+		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --port-id port_abc --approve",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			interactive := orgFlag == "" && nodeFlag == "" && userFlag == ""
 			opts := grantSSHOpts{
@@ -77,6 +78,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 				nodeName:      nodeFlag,
 				userIDOrEmail: userFlag,
 				linuxUser:     linuxUser,
+				portID:        portIDFlag,
 				skipConfirm:   approveFlag,
 			}
 			return runGrantSSH(cmd.Context(), t, store, opts, defaultGrantSSHDeps())
@@ -87,6 +89,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to grant (required in non-interactive mode)")
 	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (required in non-interactive mode)")
+	cmd.Flags().StringVar(&portIDFlag, "port-id", "", "Brev port ID to grant access on (required in non-interactive mode)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
 	return cmd
@@ -99,12 +102,12 @@ type grantSSHOpts struct {
 	nodeName      string
 	userIDOrEmail string
 	linuxUser     string
+	portID        string
 	skipConfirm   bool
 }
 
 // runGrantSSH runs the grant-ssh flow; the only difference by mode is whether we prompt or use opts.
 func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opts grantSSHOpts, deps grantSSHDeps) error { //nolint:gocognit,gocyclo,funlen // ok
-	// Run through the login flow
 	currentUser, err := s.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -115,11 +118,13 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 			return fmt.Errorf("in non-interactive mode --org, --node, and --user are required")
 		}
 		if opts.linuxUser == "" {
-			return fmt.Errorf("--linux-user is required in non-interactive mode (no cached value found)")
+			return fmt.Errorf("--linux-user is required in non-interactive mode")
+		}
+		if opts.portID == "" {
+			return fmt.Errorf("--port-id is required in non-interactive mode")
 		}
 	}
 
-	// Capture the target organization
 	var org *entity.Organization
 	if opts.interactive {
 		allOrgs, listErr := s.ListOrganizations()
@@ -136,7 +141,6 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 
-	// Capture the target node
 	var node *nodev1.ExternalNode
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
@@ -158,6 +162,11 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	}
 
 	orgMembers, err := getOrgMembers(currentUser, t, s, org.ID)
+	if err != nil {
+		return err
+	}
+
+	brevPortID, portLabel, err := resolveGrantPort(ctx, t, opts, deps, node)
 	if err != nil {
 		return err
 	}
@@ -199,6 +208,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		t.Vprint("")
 	}
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node:")), t.BoldBlue(node.GetName()+" ("+node.GetExternalNodeId()+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Port:")), t.BoldBlue(portLabel))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(selectedUser.Name+" ("+selectedUser.ID+")"))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(linuxUser))
 	t.Vprint("")
@@ -213,6 +223,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 
 	_, err = client.GrantNodeSSHAccess(ctx, connect.NewRequest(&nodev1.GrantNodeSSHAccessRequest{
 		ExternalNodeId: node.GetExternalNodeId(),
+		PortId:         brevPortID,
 		UserId:         selectedUser.ID,
 		LinuxUser:      linuxUser,
 	}))
@@ -223,6 +234,36 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	t.Vprint("")
 	t.Vprint(t.Green(fmt.Sprintf("SSH access granted for %s. They can now SSH to this device via: brev shell %s", selectedUser.Name, node.GetName())))
 	t.Vprint("")
+	return nil
+}
+
+// resolveGrantPort returns the Brev port ID and display label for the grant target.
+func resolveGrantPort(ctx context.Context, t *terminal.Terminal, opts grantSSHOpts, deps grantSSHDeps, node *nodev1.ExternalNode) (portID, portLabel string, err error) {
+	if !opts.interactive {
+		p := findPortByID(node, opts.portID)
+		if p == nil {
+			return "", "", fmt.Errorf("no port with id %q on node %q", opts.portID, node.GetName())
+		}
+		return p.GetPortId(), register.FormatPortLabel(p), nil
+	}
+
+	ports := node.GetPorts()
+	if len(ports) == 0 {
+		return "", "", fmt.Errorf("no ports found on node %q", node.GetName())
+	}
+	selected, selErr := register.SelectPortFromList(ctx, t, deps.prompter, ports)
+	if selErr != nil {
+		return "", "", selErr
+	}
+	return selected.GetPortId(), register.FormatPortLabel(selected), nil
+}
+
+func findPortByID(node *nodev1.ExternalNode, portID string) *nodev1.Port {
+	for _, p := range node.GetPorts() {
+		if p.GetPortId() == portID {
+			return p
+		}
+	}
 	return nil
 }
 

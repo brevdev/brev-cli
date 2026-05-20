@@ -457,12 +457,12 @@ func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps regi
 }
 
 func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
-	err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port)
+	brevPortID, err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port)
 	if err != nil {
 		return fmt.Errorf("allocate SSH port failed: %w", err)
 	}
 
-	err = SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser.Username)
+	err = SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser.Username, brevPortID)
 	if err != nil {
 		return fmt.Errorf("grant SSH failed: %w", err)
 	}
