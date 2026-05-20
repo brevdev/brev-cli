@@ -415,8 +415,6 @@ func (ls Ls) ShowOrgWorkspaces(org *entity.Organization, workspaces []entity.Wor
 	displayWorkspacesTable(ls.terminal, workspaces, gpuLookup)
 
 	fmt.Print("\n")
-
-	displayLsResetBreadCrumb(ls.terminal, workspaces)
 }
 
 func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
@@ -438,22 +436,6 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 		displayWorkspacesTable(ls.terminal, userWorkspaces, gpuLookup)
 
 		fmt.Print("\n")
-
-		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
-		// displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
-	}
-}
-
-func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
-	foundAResettableWorkspace := false
-	for _, w := range workspaces {
-		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
-			if !foundAResettableWorkspace {
-				t.Vprintf("%s", t.Red("Reset unhealthy or failed instance:\n"))
-			}
-			t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
-			foundAResettableWorkspace = true
-		}
 	}
 }
 
