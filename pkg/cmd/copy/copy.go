@@ -37,6 +37,7 @@ type CopyStore interface {
 	StartWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetAccessToken() (string, error)
 }
 
 func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopyStore) *cobra.Command {
@@ -65,6 +66,9 @@ func NewCmdCopy(t *terminal.Terminal, store CopyStore, noLoginStartStore CopySto
 }
 
 func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string, host bool) error {
+	if _, err := cstore.GetAccessToken(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	workspaceNameOrID, remotePath, localPath, isUpload, err := parseCopyArguments(source, dest)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
