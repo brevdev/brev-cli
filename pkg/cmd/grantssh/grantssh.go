@@ -253,7 +253,7 @@ func resolveGrantPort(ctx context.Context, t *terminal.Terminal, opts grantSSHOp
 	}
 	selected, selErr := register.SelectPortFromList(ctx, t, deps.prompter, ports)
 	if selErr != nil {
-		return "", "", selErr
+		return "", "", breverrors.WrapAndTrace(selErr)
 	}
 	return selected.GetPortId(), register.FormatPortLabel(selected), nil
 }

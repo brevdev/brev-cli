@@ -55,7 +55,6 @@ func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter term
 	return selected, nil
 }
 
-
 func SelectPortFromList(_ context.Context, t *terminal.Terminal, prompter terminal.Selector, ports []*nodev1.Port) (*nodev1.Port, error) {
 	if len(ports) == 0 {
 		return nil, fmt.Errorf("no ports to select")
