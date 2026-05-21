@@ -2,7 +2,6 @@ package enablessh
 
 import (
 	"context"
-	"fmt"
 	"net/http/httptest"
 	"os"
 	"os/user"
@@ -34,146 +33,6 @@ func readAuthorizedKeys(t *testing.T, u *user.User) string {
 	return string(data)
 }
 
-// --- InstallAuthorizedKey ---
-
-func Test_InstallAuthorizedKey_TagsKeyWithBrevComment(t *testing.T) {
-	u := tempUser(t)
-
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey: %v", err)
-	}
-
-	content := readAuthorizedKeys(t, u)
-	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyPrefix) {
-		t.Errorf("expected key tagged with %q, got:\n%s", register.BrevKeyPrefix, content)
-	}
-}
-
-func Test_InstallAuthorizedKey_SkipsDuplicate(t *testing.T) {
-	u := tempUser(t)
-
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("first install: %v", err)
-	}
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("second install: %v", err)
-	}
-
-	content := readAuthorizedKeys(t, u)
-	count := strings.Count(content, "ssh-rsa AAAA testkey")
-	if count != 1 {
-		t.Errorf("expected key to appear once, appeared %d times:\n%s", count, content)
-	}
-}
-
-func Test_InstallAuthorizedKey_SkipsDuplicateEvenIfAlreadyTagged(t *testing.T) {
-	u := tempUser(t)
-
-	// Pre-seed a tagged key (as if brev already installed it).
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte("ssh-rsa AAAA testkey "+register.BrevKeyPrefix+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey: %v", err)
-	}
-
-	content := readAuthorizedKeys(t, u)
-	count := strings.Count(content, "ssh-rsa AAAA testkey")
-	if count != 1 {
-		t.Errorf("expected key to appear once, appeared %d times:\n%s", count, content)
-	}
-}
-
-func Test_InstallAuthorizedKey_EmptyKeyIsNoop(t *testing.T) {
-	u := tempUser(t)
-
-	if _, err := register.InstallAuthorizedKey(u, "", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey: %v", err)
-	}
-	if _, err := register.InstallAuthorizedKey(u, "   ", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey (whitespace): %v", err)
-	}
-
-	// authorized_keys should not exist since nothing was written.
-	path := filepath.Join(u.HomeDir, ".ssh", "authorized_keys")
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		t.Errorf("expected authorized_keys to not exist, but it does")
-	}
-}
-
-func Test_InstallAuthorizedKey_CreatesSSHDir(t *testing.T) {
-	u := tempUser(t)
-
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey: %v", err)
-	}
-
-	info, err := os.Stat(filepath.Join(u.HomeDir, ".ssh"))
-	if err != nil {
-		t.Fatalf("stat .ssh: %v", err)
-	}
-	if !info.IsDir() {
-		t.Error(".ssh is not a directory")
-	}
-}
-
-func Test_InstallAuthorizedKey_PreservesExistingKeys(t *testing.T) {
-	u := tempUser(t)
-
-	// Pre-seed a non-brev key.
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte("ssh-rsa EXISTING user@host\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey: %v", err)
-	}
-
-	content := readAuthorizedKeys(t, u)
-	if !strings.Contains(content, "ssh-rsa EXISTING user@host") {
-		t.Errorf("existing key was lost:\n%s", content)
-	}
-	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyPrefix) {
-		t.Errorf("new key not found:\n%s", content)
-	}
-}
-
-func Test_InstallAuthorizedKey_TagsExistingUntaggedKey(t *testing.T) {
-	u := tempUser(t)
-
-	// Pre-seed a key without the brev-cli tag.
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte("ssh-rsa AAAA testkey\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// InstallAuthorizedKey should tag the existing key rather than adding a duplicate.
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa AAAA testkey", ""); err != nil {
-		t.Fatalf("InstallAuthorizedKey: %v", err)
-	}
-
-	content := readAuthorizedKeys(t, u)
-	if !strings.Contains(content, "ssh-rsa AAAA testkey "+register.BrevKeyPrefix) {
-		t.Errorf("expected existing key to be tagged with %q, got:\n%s", register.BrevKeyPrefix, content)
-	}
-	count := strings.Count(content, "ssh-rsa AAAA testkey")
-	if count != 1 {
-		t.Errorf("expected key to appear once, appeared %d times:\n%s", count, content)
-	}
-}
-
 // --- RemoveBrevAuthorizedKeys ---
 
 func Test_RemoveBrevAuthorizedKeys_RemovesTaggedKeys(t *testing.T) {
@@ -185,9 +44,9 @@ func Test_RemoveBrevAuthorizedKeys_RemovesTaggedKeys(t *testing.T) {
 
 	content := strings.Join([]string{
 		"ssh-rsa EXISTING user@host",
-		"ssh-rsa BREVKEY1 " + register.BrevKeyPrefix,
+		"ssh-rsa BREVKEY1 " + register.DevplaneAuthorizedKeysComment("p1", "u1"),
 		"ssh-ed25519 OTHERKEY admin@server",
-		"ssh-rsa BREVKEY2 " + register.BrevKeyPrefix,
+		"ssh-rsa BREVKEY2 " + register.DevplaneAuthorizedKeysComment("p2", "u2"),
 		"",
 	}, "\n")
 	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(content), 0o600); err != nil {
@@ -204,7 +63,7 @@ func Test_RemoveBrevAuthorizedKeys_RemovesTaggedKeys(t *testing.T) {
 	}
 
 	result := readAuthorizedKeys(t, u)
-	if strings.Contains(result, register.BrevKeyPrefix) {
+	if strings.Contains(result, "#brev-portID:") {
 		t.Errorf("brev keys still present:\n%s", result)
 	}
 	if !strings.Contains(result, "ssh-rsa EXISTING user@host") {
@@ -264,7 +123,7 @@ func Test_RemoveAuthorizedKey_RemovesOnlyTargetKey(t *testing.T) {
 
 	content := strings.Join([]string{
 		"ssh-rsa KEEP1 user@host",
-		"ssh-rsa TARGET " + register.BrevKeyPrefix,
+		"ssh-rsa TARGET " + register.DevplaneAuthorizedKeysComment("p1", "u1"),
 		"ssh-rsa KEEP2 admin@server",
 		"",
 	}, "\n")
@@ -337,8 +196,8 @@ func Test_RemoveAuthorizedKey_DoesNotRemoveOtherBrevKeys(t *testing.T) {
 	}
 
 	content := strings.Join([]string{
-		"ssh-rsa ALICE_KEY " + register.BrevKeyPrefix,
-		"ssh-rsa BOB_KEY " + register.BrevKeyPrefix,
+		"ssh-rsa ALICE_KEY " + register.DevplaneAuthorizedKeysComment("p1", "u1"),
+		"ssh-rsa BOB_KEY " + register.DevplaneAuthorizedKeysComment("p2", "u2"),
 		"",
 	}, "\n")
 	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(content), 0o600); err != nil {
@@ -358,71 +217,6 @@ func Test_RemoveAuthorizedKey_DoesNotRemoveOtherBrevKeys(t *testing.T) {
 		t.Errorf("Bob's key was removed:\n%s", result)
 	}
 }
-
-// --- Round-trip: install then remove (all brev keys) ---
-
-func Test_InstallThenRemove_RoundTrip(t *testing.T) {
-	u := tempUser(t)
-
-	// Pre-seed a non-brev key.
-	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte("ssh-rsa EXISTING user@host\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Install two brev keys.
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY1", "user_1"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa KEY2", "user_2"); err != nil {
-		t.Fatal(err)
-	}
-
-	// Remove all brev keys.
-	if _, err := register.RemoveBrevAuthorizedKeys(u); err != nil {
-		t.Fatal(err)
-	}
-
-	result := readAuthorizedKeys(t, u)
-	if strings.Contains(result, register.BrevKeyPrefix) {
-		t.Errorf("brev keys still present after removal:\n%s", result)
-	}
-	if !strings.Contains(result, "ssh-rsa EXISTING user@host") {
-		t.Errorf("non-brev key was removed:\n%s", result)
-	}
-}
-
-// --- Round-trip: install then rollback specific key ---
-
-func Test_InstallThenRemoveSpecificKey_RollbackScenario(t *testing.T) {
-	u := tempUser(t)
-
-	// Install two brev keys (simulating two users granted access).
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa ALICE", "user_a"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := register.InstallAuthorizedKey(u, "ssh-rsa BOB", "user_b"); err != nil {
-		t.Fatal(err)
-	}
-
-	// Simulate rollback: remove only Bob's key (e.g. his grant RPC failed).
-	if err := register.RemoveAuthorizedKey(u, "ssh-rsa BOB"); err != nil {
-		t.Fatal(err)
-	}
-
-	result := readAuthorizedKeys(t, u)
-	if strings.Contains(result, "BOB") {
-		t.Errorf("Bob's key still present after rollback:\n%s", result)
-	}
-	if !strings.Contains(result, "ssh-rsa ALICE") {
-		t.Errorf("Alice's key was removed during Bob's rollback:\n%s", result)
-	}
-}
-
-// --- existingSSHPort ---
 
 type mockNodeClientFactory struct{ serverURL string }
 
@@ -461,64 +255,27 @@ func startFakeServer(t *testing.T, svc *fakeNodeService) (enableSSHDeps, *httpte
 	}, server
 }
 
-func Test_existingSSHPort(t *testing.T) {
-	ssh := nodev1.PortProtocol_PORT_PROTOCOL_SSH
-	tcp := nodev1.PortProtocol_PORT_PROTOCOL_TCP
-
-	tests := []struct {
-		name     string
-		resp     *nodev1.GetNodeResponse
-		rpcErr   error
-		wantPort int32
-		wantErr  bool
-	}{
-		{
-			name: "ReturnsExistingPort",
-			resp: &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
-				Ports: []*nodev1.Port{{Protocol: ssh, PortNumber: 2222}},
-			}},
-			wantPort: 2222,
-		},
-		{
-			name:     "ReturnsZeroWhenNoPorts",
-			resp:     &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{}},
-			wantPort: 0,
-		},
-		{
-			name:    "ReturnsErrorOnRPCFailure",
-			rpcErr:  connect.NewError(connect.CodeInternal, fmt.Errorf("server error")),
-			wantErr: true,
-		},
-		{
-			name: "IgnoresNonSSHPorts",
-			resp: &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
-				Ports: []*nodev1.Port{
-					{Protocol: tcp, PortNumber: 8080},
-					{Protocol: ssh, PortNumber: 3333},
-				},
-			}},
-			wantPort: 3333,
+func Test_fetchRegisteredNode(t *testing.T) {
+	svc := &fakeNodeService{
+		getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			if req.GetExternalNodeId() != "unode_abc" {
+				t.Fatalf("unexpected node id %q", req.GetExternalNodeId())
+			}
+			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
+				ExternalNodeId: "unode_abc",
+				Ports:          []*nodev1.Port{{PortId: "port_1", PortNumber: 11640, ServerPort: 22}},
+			}}, nil
 		},
 	}
+	deps, _ := startFakeServer(t, svc)
+	store := &mockEnableSSHStore{token: "tok"}
+	reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc", OrgID: "org_1"}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &fakeNodeService{
-				getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-					return tt.resp, tt.rpcErr
-				},
-			}
-			deps, _ := startFakeServer(t, svc)
-			store := &mockEnableSSHStore{token: "tok"}
-			reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc"}
-
-			port, err := existingSSHPort(context.Background(), deps, store, reg)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
-			}
-			if port != tt.wantPort {
-				t.Errorf("port = %d, want %d", port, tt.wantPort)
-			}
-		})
+	node, err := fetchRegisteredNode(context.Background(), deps, store, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(node.GetPorts()) != 1 || node.GetPorts()[0].GetPortId() != "port_1" {
+		t.Fatalf("unexpected node: %+v", node)
 	}
 }

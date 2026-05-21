@@ -22,8 +22,8 @@ func TestResolveExternalNodeSSH_BuildsCorrectInfo(t *testing.T) {
 		Ports: []*nodev1.Port{
 			{
 				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
-				PortNumber: 22,
-				ServerPort: 41920,
+				PortNumber: 41920,
+				ServerPort: 22,
 				Hostname:   strPtr("10.0.0.5"),
 			},
 		},

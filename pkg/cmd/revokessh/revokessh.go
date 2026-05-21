@@ -52,6 +52,7 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	var nodeFlag string
 	var userFlag string
 	var linuxUserFlag string
+	var portIDFlag string
 	var approveFlag bool
 
 	cmd := &cobra.Command{
@@ -59,16 +60,17 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 		Use:                   "revoke-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Revoke SSH access to a node for an org member",
-		Long:                  "Revoke SSH access to a node for a member of your organization. Interactive: no flags, prompts for org and which access to revoke. Non-interactive: --org, --user, --linux-user required.",
-		Example:               "  brev revoke-ssh\n  brev revoke-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --approve",
+		Long:                  "Revoke SSH access to a node for a member of your organization. Interactive: no flags, prompts for org, node, and which access entry to revoke. Non-interactive: --org, --node, --user, --linux-user, and --port-id required.",
+		Example:               "  brev revoke-ssh\n  brev revoke-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --port-id port_abc --approve",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			interactive := orgFlag == "" && nodeFlag == "" && userFlag == "" && linuxUserFlag == ""
+			interactive := orgFlag == "" && nodeFlag == "" && userFlag == "" && linuxUserFlag == "" && portIDFlag == ""
 			opts := revokeSSHOpts{
 				interactive:   interactive,
 				orgName:       orgFlag,
 				nodeName:      nodeFlag,
 				userIDOrEmail: userFlag,
 				linuxUser:     linuxUserFlag,
+				portID:        portIDFlag,
 				skipConfirm:   approveFlag,
 			}
 			return runRevokeSSH(cmd.Context(), t, store, opts, defaultRevokeSSHDeps())
@@ -79,31 +81,31 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to revoke (required in non-interactive mode)")
 	cmd.Flags().StringVar(&linuxUserFlag, "linux-user", "", "Linux username on the target node (required in non-interactive mode)")
+	cmd.Flags().StringVar(&portIDFlag, "port-id", "", "Brev port ID for the SSH access entry (required in non-interactive mode)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
 	return cmd
 }
 
-// revokeSSHOpts carries mode and inputs: when interactive, org/user/linuxUser from prompts; otherwise from flags.
+// revokeSSHOpts carries mode and inputs: when interactive, org/user/linuxUser/port from prompts; otherwise from flags.
 type revokeSSHOpts struct {
 	interactive   bool
 	orgName       string
 	nodeName      string
 	userIDOrEmail string
 	linuxUser     string
+	portID        string
 	skipConfirm   bool
 }
 
 // runRevokeSSH runs the revoke-ssh flow; the only difference by mode is whether we prompt or use opts.
 func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, opts revokeSSHOpts, deps revokeSSHDeps) error { //nolint:gocognit,gocyclo,funlen // ok
-	// Basic validation
 	if !opts.interactive {
-		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" || opts.linuxUser == "" {
-			return fmt.Errorf("in non-interactive mode --org, --node, --user, and --linux-user are required")
+		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" || opts.linuxUser == "" || opts.portID == "" {
+			return fmt.Errorf("in non-interactive mode --org, --node, --user, --linux-user, and --port-id are required")
 		}
 	}
 
-	// Capture the target organization
 	var selectedOrg *entity.Organization
 	if opts.interactive {
 		list, listErr := s.ListOrganizations()
@@ -125,7 +127,6 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 
-	// Capture the target node
 	var selectedNode *nodev1.ExternalNode
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
@@ -157,16 +158,11 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		return nil
 	}
 
-	// Capture the target SSH access
-	var targetUserID, targetLinuxUser string
+	var targetUserID, targetLinuxUser, targetPortID, portLabel string
 	if opts.interactive {
 		labels := make([]string, len(nodeSshAccesses))
 		for i, sa := range nodeSshAccesses {
-			userName := sa.GetUserId()
-			if u, err := s.GetUserByID(sa.GetUserId()); err == nil && u != nil {
-				userName = fmt.Sprintf("%s (%s)", u.Name, sa.GetUserId())
-			}
-			labels[i] = fmt.Sprintf("%s, linux_user: %s", userName, sa.GetLinuxUser())
+			labels[i] = formatSSHAccessLabel(s, sa, selectedNode)
 		}
 
 		selected := deps.prompter.Select("Select SSH access to revoke:", labels)
@@ -184,6 +180,8 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 
 		targetUserID = selectedAccess.GetUserId()
 		targetLinuxUser = selectedAccess.GetLinuxUser()
+		targetPortID = selectedAccess.GetPortId()
+		portLabel = portLabelForAccess(selectedNode, selectedAccess)
 	} else {
 		resolvedUserID, err := resolveUserID(s, selectedOrg.ID, opts.userIDOrEmail)
 		if err != nil {
@@ -191,17 +189,20 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		}
 		var found bool
 		for _, sa := range nodeSshAccesses {
-			if sa.GetUserId() == resolvedUserID && sa.GetLinuxUser() == opts.linuxUser {
+			if sa.GetUserId() == resolvedUserID && sa.GetLinuxUser() == opts.linuxUser && sa.GetPortId() == opts.portID {
 				found = true
+				portLabel = portLabelForAccess(selectedNode, sa)
 				break
 			}
 		}
 		if !found {
-			return fmt.Errorf("no SSH access entry found for user %q and linux_user %q on node %q", targetUserID, targetLinuxUser, selectedNode.GetName())
+			return fmt.Errorf("no SSH access entry found for user %q, linux_user %q, and port_id %q on node %q",
+				resolvedUserID, opts.linuxUser, opts.portID, selectedNode.GetName())
 		}
 
 		targetUserID = resolvedUserID
 		targetLinuxUser = opts.linuxUser
+		targetPortID = opts.portID
 	}
 
 	userDisplay := targetUserID
@@ -219,6 +220,7 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		t.Vprint("")
 	}
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Node:")), t.BoldBlue(selectedNode.GetName()+" ("+selectedNode.GetExternalNodeId()+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Port:")), t.BoldBlue(portLabel))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "User:")), t.BoldBlue(userDisplay))
 	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(targetLinuxUser))
 	t.Vprint("")
@@ -233,6 +235,7 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 
 	_, err := client.RevokeNodeSSHAccess(ctx, connect.NewRequest(&nodev1.RevokeNodeSSHAccessRequest{
 		ExternalNodeId: selectedNode.GetExternalNodeId(),
+		PortId:         targetPortID,
 		UserId:         targetUserID,
 		LinuxUser:      targetLinuxUser,
 	}))
@@ -244,13 +247,32 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 	return nil
 }
 
+func formatSSHAccessLabel(s RevokeSSHStore, sa *nodev1.SSHAccess, node *nodev1.ExternalNode) string {
+	userName := sa.GetUserId()
+	if u, err := s.GetUserByID(sa.GetUserId()); err == nil && u != nil && u.Name != "" {
+		userName = u.Name
+	}
+	return fmt.Sprintf("%s, linux_user: %s, port: %s", userName, sa.GetLinuxUser(), portLabelForAccess(node, sa))
+}
+
+func portLabelForAccess(node *nodev1.ExternalNode, sa *nodev1.SSHAccess) string {
+	for _, p := range node.GetPorts() {
+		if p.GetPortId() == sa.GetPortId() {
+			return register.FormatPortLabel(p)
+		}
+	}
+	if sa.GetPortId() != "" {
+		return sa.GetPortId()
+	}
+	return "unknown"
+}
+
 // resolveUserID resolves idOrEmail to a Brev user ID using org members when it looks like an email.
 func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, error) {
 	if idOrEmail == "" {
 		return "", fmt.Errorf("user is required")
 	}
 
-	// Search by ID
 	if !strings.Contains(idOrEmail, "@") {
 		u, err := s.GetUserByID(idOrEmail)
 		if err == nil && u != nil {
@@ -259,7 +281,6 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 		return idOrEmail, nil
 	}
 
-	// Search by email
 	attachments, err := s.GetOrgRoleAttachments(orgID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list org members: %w", err)
@@ -267,7 +288,6 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 	for _, a := range attachments {
 		u, err := s.GetUserByID(a.Subject)
 		if err != nil {
-			// Ignore error and continue
 			continue
 		}
 		if u != nil && strings.EqualFold(u.Email, idOrEmail) {
@@ -275,6 +295,5 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 		}
 	}
 
-	// No match found
 	return "", fmt.Errorf("no org member found with email %q", idOrEmail)
 }

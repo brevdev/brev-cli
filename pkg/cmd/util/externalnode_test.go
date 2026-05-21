@@ -32,7 +32,7 @@ func (m *mockExternalNodeStore) GetCurrentUser() (*entity.User, error) {
 
 func strPtr(s string) *string { return &s }
 
-func makeTestNode(name, userID, linuxUser, hostname string, serverPort int32) *nodev1.ExternalNode {
+func makeTestNode(name, userID, linuxUser, hostname string, portNumber int32) *nodev1.ExternalNode {
 	return &nodev1.ExternalNode{
 		ExternalNodeId: "unode_test",
 		Name:           name,
@@ -42,8 +42,8 @@ func makeTestNode(name, userID, linuxUser, hostname string, serverPort int32) *n
 		Ports: []*nodev1.Port{
 			{
 				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
-				PortNumber: 22,
-				ServerPort: serverPort,
+				PortNumber: portNumber,
+				ServerPort: 22,
 				Hostname:   &hostname,
 			},
 		},
@@ -83,8 +83,8 @@ func TestResolveExternalNodeSSH_UsesServerPortNotPortNumber(t *testing.T) {
 		Ports: []*nodev1.Port{
 			{
 				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
-				PortNumber: 22,    // well-known port — NOT what we connect to
-				ServerPort: 41920, // netbird-assigned port — this is correct
+				PortNumber: 41920, // netbird-assigned port — this is correct
+				ServerPort: 22,    // well-known port — NOT what we connect to
 				Hostname:   strPtr("gateway.example.com"),
 			},
 		},

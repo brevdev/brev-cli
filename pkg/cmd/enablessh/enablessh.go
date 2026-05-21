@@ -33,6 +33,7 @@ type enableSSHDeps struct {
 	platform          externalnode.PlatformChecker
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
+	prompter          terminal.Selector
 }
 
 func defaultEnableSSHDeps() enableSSHDeps {
@@ -40,6 +41,7 @@ func defaultEnableSSHDeps() enableSSHDeps {
 		platform:          register.LinuxPlatform{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
+		prompter:          register.TerminalPrompter{},
 	}
 }
 
@@ -103,27 +105,17 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", linuxUsername)
 	t.Vprint("")
 
-	// Check if the node already has an SSH port allocated (e.g. for another linux user)
-	port, err := existingSSHPort(ctx, deps, tokenProvider, reg)
+	node, err := fetchRegisteredNode(ctx, deps, tokenProvider, reg)
 	if err != nil {
-		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not check for existing ports: %v", err)))
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
-	if port != 0 {
-		t.Vprintf("  Using existing SSH port %d.\n", port)
-	} else {
-		t.Vprint("")
-		port, err = register.PromptSSHPort(t)
-		if err != nil {
-			return fmt.Errorf("invalid SSH port: %w", err)
-		}
-
-		if err := register.OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port); err != nil {
-			return fmt.Errorf("enable SSH failed: %w", err)
-		}
+	brevPortID, err := register.ResolveSSHAccessPort(ctx, t, deps.prompter, deps.nodeClients, tokenProvider, reg, node)
+	if err != nil {
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
-	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUsername); err != nil {
+	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUsername, brevPortID); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
@@ -131,25 +123,21 @@ func enableSSH(
 	return nil
 }
 
-// existingSSHPort calls GetNode and returns the PortNumber of an already-allocated
-// SSH port, or 0 if none exists
-func existingSSHPort(ctx context.Context, deps enableSSHDeps, tokenProvider externalnode.TokenProvider, reg *register.DeviceRegistration) (int32, error) {
+func fetchRegisteredNode(
+	ctx context.Context,
+	deps enableSSHDeps,
+	tokenProvider externalnode.TokenProvider,
+	reg *register.DeviceRegistration,
+) (*nodev1.ExternalNode, error) {
 	client := deps.nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
 		ExternalNodeId: reg.ExternalNodeID,
 		OrganizationId: reg.OrgID,
 	}))
 	if err != nil {
-		return 0, fmt.Errorf("error retrieving node: %w", err)
+		return nil, fmt.Errorf("error retrieving node: %w", err)
 	}
-
-	for _, p := range resp.Msg.GetExternalNode().GetPorts() {
-		// TODO if we ever allow more than one SSH port, this should be modified
-		if p.GetProtocol() == nodev1.PortProtocol_PORT_PROTOCOL_SSH {
-			return p.GetPortNumber(), nil
-		}
-	}
-	return 0, nil
+	return resp.Msg.GetExternalNode(), nil
 }
 
 // checkSSHDaemon prints a warning if neither "ssh" nor "sshd" systemd services

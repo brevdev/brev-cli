@@ -19,8 +19,8 @@ func TestResolveNodeSSHEntry_HappyPath(t *testing.T) {
 		Ports: []*nodev1.Port{
 			{
 				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
-				PortNumber: 22,
-				ServerPort: 41920,
+				PortNumber: 41920,
+				ServerPort: 22,
 				Hostname:   strPtr("10.0.0.5"),
 			},
 		},
@@ -53,8 +53,8 @@ func TestResolveNodeSSHEntry_UsesServerPortNotPortNumber(t *testing.T) {
 		Ports: []*nodev1.Port{
 			{
 				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
-				PortNumber: 22,    // well-known port — NOT what we should connect to
-				ServerPort: 51234, // netbird-assigned port — correct
+				PortNumber: 51234, // netbird-assigned port — correct
+				ServerPort: 22,    // well-known port — NOT what we should connect to
 				Hostname:   strPtr("gateway.example.com"),
 			},
 		},

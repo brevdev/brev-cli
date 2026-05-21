@@ -1010,8 +1010,8 @@ func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen, gocyclo, goc
 				if openReq.GetExternalNodeId() != "unode_abc" {
 					t.Errorf("expected node ID unode_abc, got %s", openReq.GetExternalNodeId())
 				}
-				if openReq.GetProtocol() != nodev1.PortProtocol_PORT_PROTOCOL_SSH {
-					t.Errorf("expected PORT_PROTOCOL_SSH, got %s", openReq.GetProtocol())
+				if openReq.GetProtocol() != nodev1.PortProtocol_PORT_PROTOCOL_TCP {
+					t.Errorf("expected PORT_PROTOCOL_TCP, got %s", openReq.GetProtocol())
 				}
 				if openReq.GetPortNumber() != 2222 {
 					t.Errorf("expected port 2222, got %d", openReq.GetPortNumber())

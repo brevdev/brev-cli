@@ -239,7 +239,10 @@ func Test_runRevokeSSH_RevokeAccess(t *testing.T) {
 						ExternalNodeId: "unode_abc",
 						Name:           "My Spark",
 						SshAccess: []*nodev1.SSHAccess{
-							{UserId: "user_2", LinuxUser: "ubuntu"},
+							{UserId: "user_2", LinuxUser: "ubuntu", PortId: "port_ssh"},
+						},
+						Ports: []*nodev1.Port{
+							{PortId: "port_ssh", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, PortNumber: 22, ServerPort: 41920},
 						},
 					},
 				},
@@ -274,6 +277,9 @@ func Test_runRevokeSSH_RevokeAccess(t *testing.T) {
 	if gotReq.GetLinuxUser() != "ubuntu" {
 		t.Errorf("expected linux user ubuntu, got %s", gotReq.GetLinuxUser())
 	}
+	if gotReq.GetPortId() != "port_ssh" {
+		t.Errorf("expected port ID port_ssh, got %s", gotReq.GetPortId())
+	}
 }
 
 func Test_runRevokeSSH_RPCFailure(t *testing.T) {
@@ -296,7 +302,10 @@ func Test_runRevokeSSH_RPCFailure(t *testing.T) {
 						ExternalNodeId: "unode_abc",
 						Name:           "My Spark",
 						SshAccess: []*nodev1.SSHAccess{
-							{UserId: "user_3", LinuxUser: "testuser"},
+							{UserId: "user_3", LinuxUser: "testuser", PortId: "port_ssh"},
+						},
+						Ports: []*nodev1.Port{
+							{PortId: "port_ssh", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, PortNumber: 22},
 						},
 					},
 				},
