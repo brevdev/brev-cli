@@ -17,11 +17,12 @@ func TestResolveExternalNodeSSH_BuildsCorrectInfo(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "My GPU Box",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ec2-user"},
+			{UserId: "user_1", LinuxUser: "ec2-user", PortId: "port_1"},
 		},
 		Ports: []*nodev1.Port{
 			{
-				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+				PortId:     "port_1",
+				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_TCP,
 				PortNumber: 41920,
 				ServerPort: 22,
 				Hostname:   strPtr("10.0.0.5"),
@@ -82,21 +83,18 @@ func TestResolveExternalNodeSSH_NoAccess(t *testing.T) {
 	}
 }
 
-// TestResolveExternalNodeSSH_NoSSHPort verifies that a node with no SSH port
-// returns nil even when the user has access.
-func TestResolveExternalNodeSSH_NoSSHPort(t *testing.T) {
+// TestResolveExternalNodeSSH_NoPorts verifies nil when the user has access but no ports exist.
+func TestResolveExternalNodeSSH_NoPorts(t *testing.T) {
 	node := &nodev1.ExternalNode{
-		Name: "no-ssh",
+		Name: "no-ports",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_missing"},
 		},
-		Ports: []*nodev1.Port{
-			{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 8080, Hostname: strPtr("10.0.0.1")},
-		},
+		Ports: nil,
 	}
 
 	entry := util.ResolveNodeSSHEntry("user_1", node)
 	if entry != nil {
-		t.Errorf("expected nil for node without SSH port, got %+v", entry)
+		t.Errorf("expected nil for node without ports, got %+v", entry)
 	}
 }

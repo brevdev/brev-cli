@@ -14,11 +14,12 @@ func TestResolveNodeSSHEntry_HappyPath(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "My GPU Box",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ec2-user"},
+			{UserId: "user_1", LinuxUser: "ec2-user", PortId: "port_1"},
 		},
 		Ports: []*nodev1.Port{
 			{
-				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+				PortId:     "port_1",
+				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_TCP,
 				PortNumber: 41920,
 				ServerPort: 22,
 				Hostname:   strPtr("10.0.0.5"),
@@ -48,11 +49,12 @@ func TestResolveNodeSSHEntry_UsesServerPortNotPortNumber(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "test-node",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_1"},
 		},
 		Ports: []*nodev1.Port{
 			{
-				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+				PortId:     "port_1",
+				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_TCP,
 				PortNumber: 51234, // netbird-assigned port — correct
 				ServerPort: 22,    // well-known port — NOT what we should connect to
 				Hostname:   strPtr("gateway.example.com"),
@@ -76,7 +78,7 @@ func TestResolveNodeSSHEntry_SkipsNoAccess(t *testing.T) {
 			{UserId: "other_user", LinuxUser: "ubuntu"},
 		},
 		Ports: []*nodev1.Port{
-			{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 22, Hostname: strPtr("h")},
+			{PortId: "port_1", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 22, Hostname: strPtr("h")},
 		},
 	}
 
@@ -86,20 +88,23 @@ func TestResolveNodeSSHEntry_SkipsNoAccess(t *testing.T) {
 	}
 }
 
-func TestResolveNodeSSHEntry_SkipsNoSSHPort(t *testing.T) {
+func TestResolveNodeSSHEntry_UsesAccessPortNotProtocol(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "box",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_tcp"},
 		},
 		Ports: []*nodev1.Port{
-			{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 8080, Hostname: strPtr("h")},
+			{PortId: "port_tcp", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, PortNumber: 51234, ServerPort: 22, Hostname: strPtr("h")},
 		},
 	}
 
 	entry := util.ResolveNodeSSHEntry("user_1", node)
-	if entry != nil {
-		t.Errorf("expected nil for no SSH port, got %+v", entry)
+	if entry == nil {
+		t.Fatal("expected entry for TCP port with access")
+	}
+	if entry.Port != 51234 {
+		t.Errorf("expected port 51234, got %d", entry.Port)
 	}
 }
 
@@ -107,10 +112,10 @@ func TestResolveNodeSSHEntry_SkipsEmptyHostname(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "box",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_1"},
 		},
 		Ports: []*nodev1.Port{
-			{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 22},
+			{PortId: "port_1", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 22},
 		},
 	}
 
@@ -120,33 +125,50 @@ func TestResolveNodeSSHEntry_SkipsEmptyHostname(t *testing.T) {
 	}
 }
 
+func TestResolveNodeSSHEntry_SkipsWhenPortIDMissing(t *testing.T) {
+	node := &nodev1.ExternalNode{
+		Name: "box",
+		SshAccess: []*nodev1.SSHAccess{
+			{UserId: "user_1", LinuxUser: "ubuntu"},
+		},
+		Ports: []*nodev1.Port{
+			{PortId: "port_a", PortNumber: 41000, ServerPort: 22, Hostname: strPtr("10.0.0.1")},
+		},
+	}
+
+	entry := util.ResolveNodeSSHEntry("user_1", node)
+	if entry != nil {
+		t.Errorf("expected nil without PortId on access, got %+v", entry)
+	}
+}
+
 func TestResolveNodeSSHEntry_MultipleNodes(t *testing.T) {
 	nodes := []*nodev1.ExternalNode{
 		{
 			Name: "Node A",
 			SshAccess: []*nodev1.SSHAccess{
-				{UserId: "user_1", LinuxUser: "ubuntu"},
+				{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_a"},
 			},
 			Ports: []*nodev1.Port{
-				{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 41000, Hostname: strPtr("10.0.0.1")},
+				{PortId: "port_a", PortNumber: 41000, ServerPort: 22, Hostname: strPtr("10.0.0.1")},
 			},
 		},
 		{
 			Name: "Node B",
 			SshAccess: []*nodev1.SSHAccess{
-				{UserId: "other_user", LinuxUser: "root"},
+				{UserId: "other_user", LinuxUser: "root", PortId: "port_b"},
 			},
 			Ports: []*nodev1.Port{
-				{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 42000, Hostname: strPtr("10.0.0.2")},
+				{PortId: "port_b", PortNumber: 42000, ServerPort: 22, Hostname: strPtr("10.0.0.2")},
 			},
 		},
 		{
 			Name: "Node C",
 			SshAccess: []*nodev1.SSHAccess{
-				{UserId: "user_1", LinuxUser: "admin"},
+				{UserId: "user_1", LinuxUser: "admin", PortId: "port_c"},
 			},
 			Ports: []*nodev1.Port{
-				{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 43000, Hostname: strPtr("10.0.0.3")},
+				{PortId: "port_c", PortNumber: 43000, ServerPort: 22, Hostname: strPtr("10.0.0.3")},
 			},
 		},
 	}
