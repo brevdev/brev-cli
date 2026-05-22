@@ -72,38 +72,41 @@ func (info *ExternalNodeSSHInfo) HomePath() string {
 }
 
 // ResolveNodeSSHEntry is a pure data function that extracts the SSH config entry
-// for a given user from a node. Returns nil if the user has no access or the node
-// has no SSH port. This is the single source of truth for node→SSHEntry conversion,
-// used by both ResolveExternalNodeSSH (for commands) and refresh (for SSH config generation).
+// for a given user from a node. Returns nil if the user has no SSH access or no
+// resolvable port with a hostname. Uses the port matching the user's access PortId.
 func ResolveNodeSSHEntry(userID string, node *nodev1.ExternalNode) *ssh.ExternalNodeSSHEntry {
-	var linuxUser string
-	for _, access := range node.GetSshAccess() {
-		if access.GetUserId() == userID {
-			linuxUser = access.GetLinuxUser()
+	var access *nodev1.SSHAccess
+	for _, a := range node.GetSshAccess() {
+		if a.GetUserId() == userID {
+			access = a
 			break
 		}
 	}
-	if linuxUser == "" {
+	if access == nil || access.GetLinuxUser() == "" {
 		return nil
 	}
 
-	var sshPort *nodev1.Port
-	for _, p := range node.GetPorts() {
-		if p.GetProtocol() == nodev1.PortProtocol_PORT_PROTOCOL_SSH {
-			sshPort = p
-			break
-		}
-	}
-	if sshPort == nil || sshPort.GetHostname() == "" {
+	port := resolvePortForSSHAccess(node, access)
+	if port == nil || port.GetHostname() == "" {
 		return nil
 	}
 
 	return &ssh.ExternalNodeSSHEntry{
 		Alias:    ssh.SanitizeNodeName(node.GetName()),
-		Hostname: sshPort.GetHostname(),
-		Port:     sshPort.GetPortNumber(),
-		User:     linuxUser,
+		Hostname: port.GetHostname(),
+		Port:     port.GetPortNumber(),
+		User:     access.GetLinuxUser(),
 	}
+}
+
+func resolvePortForSSHAccess(node *nodev1.ExternalNode, access *nodev1.SSHAccess) *nodev1.Port {
+	portID := access.GetPortId()
+	for _, p := range node.GetPorts() {
+		if p.GetPortId() == portID {
+			return p
+		}
+	}
+	return nil
 }
 
 // OpenPort calls the OpenPort RPC to open a port on an external node via netbird.
@@ -144,7 +147,7 @@ func FindExternalNode(store ExternalNodeStore, name string) (*nodev1.ExternalNod
 }
 
 // ResolveExternalNodeSSH resolves the SSH connection details for an external node
-// by finding the current user's SSH access and the node's SSH port.
+// by finding the current user's SSH access and the allocated port for that access.
 func ResolveExternalNodeSSH(store ExternalNodeStore, node *nodev1.ExternalNode) (*ExternalNodeSSHInfo, error) {
 	user, err := store.GetCurrentUser()
 	if err != nil {
@@ -153,7 +156,7 @@ func ResolveExternalNodeSSH(store ExternalNodeStore, node *nodev1.ExternalNode) 
 
 	entry := ResolveNodeSSHEntry(user.ID, node)
 	if entry == nil {
-		return nil, breverrors.New(fmt.Sprintf("cannot resolve SSH for node %q — no access, no SSH port, or no hostname", node.GetName()))
+		return nil, breverrors.New(fmt.Sprintf("cannot resolve SSH for node %q — no access, no port, or no hostname", node.GetName()))
 	}
 
 	return &ExternalNodeSSHInfo{

@@ -1,7 +1,7 @@
-buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.2-20260520183101-9f4cb67aff2c.1 h1:OtdZWOk/dypzAe4bylO+TFfcw9J3Ndyeh1yylWSNgRc=
-buf.build/gen/go/brevdev/devplane/connectrpc/go v1.19.2-20260520183101-9f4cb67aff2c.1/go.mod h1:eaa0R5ozu4wxcy62DEtRxO6hahJ0WuFsMAG33Zj/lVQ=
-buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260520183101-9f4cb67aff2c.1 h1:fDUuYv/K3h8IpEGf0uic/1/A1nBN+Vao4jzVWDRMLLc=
-buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260520183101-9f4cb67aff2c.1/go.mod h1:V/y7Wxg0QvU4XPVwqErF5NHLobUT1QEyfgrGuQIxdPo=
+buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260521231113-5bd61a2e035f.1 h1:p2gDnCmIeMzMuRNP05Jh143Q8iiSq0/oXG8eckzCkSY=
+buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260521231113-5bd61a2e035f.1/go.mod h1:CwGL+2J9G36DvGlMYW/5f+LTnGAOGJPcAw3S/Zy7lbk=
+buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260521231113-5bd61a2e035f.1 h1:NyJ55L5BmM+AOC77hUrLysVvzU4m9YO+g93YwvZS3Y4=
+buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260521231113-5bd61a2e035f.1/go.mod h1:V/y7Wxg0QvU4XPVwqErF5NHLobUT1QEyfgrGuQIxdPo=
 buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.11-20220906235457-8b4922735da5.1 h1:6amhprQmCKJ4wgJ6ngkh32d9V+dQcOLUZ/SfHdOnYgo=
 buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.11-20220906235457-8b4922735da5.1/go.mod h1:O+pnSHMru/naTMrm4tmpBoH3wz6PHa+R75HR7Mv8X2g=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
@@ -41,8 +41,8 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3fOKtUw0Xmo=
-connectrpc.com/connect v1.19.2 h1:McQ83FGdzL+t60peksi0gXC7MQ/iLKgLduAnThbM0mo=
-connectrpc.com/connect v1.19.2/go.mod h1:tN20fjdGlewnSFeZxLKb0xwIZ6ozc3OQs2hTXy4du9w=
+connectrpc.com/connect v1.20.0 h1:6TNDAB+WeNd2uolWNlYczB5E0KNNaVMNUEx8JEUsPmQ=
+connectrpc.com/connect v1.20.0/go.mod h1:A2ygJrukXwWy32vkCAAHNVguZrqZ+jeZ9rGRnGR4dN4=
 dario.cat/mergo v1.0.0 h1:AGCNq9Evsj31mOgNPcLyXc+4PNABt905YmuqPYYpBWk=
 dario.cat/mergo v1.0.0/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=

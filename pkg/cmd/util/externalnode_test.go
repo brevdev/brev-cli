@@ -33,15 +33,17 @@ func (m *mockExternalNodeStore) GetCurrentUser() (*entity.User, error) {
 func strPtr(s string) *string { return &s }
 
 func makeTestNode(name, userID, linuxUser, hostname string, portNumber int32) *nodev1.ExternalNode {
+	portID := "port_test"
 	return &nodev1.ExternalNode{
 		ExternalNodeId: "unode_test",
 		Name:           name,
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: userID, LinuxUser: linuxUser},
+			{UserId: userID, LinuxUser: linuxUser, PortId: portID},
 		},
 		Ports: []*nodev1.Port{
 			{
-				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+				PortId:     portID,
+				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_TCP,
 				PortNumber: portNumber,
 				ServerPort: 22,
 				Hostname:   &hostname,
@@ -78,11 +80,12 @@ func TestResolveExternalNodeSSH_UsesServerPortNotPortNumber(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "test-node",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_1"},
 		},
 		Ports: []*nodev1.Port{
 			{
-				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_SSH,
+				PortId:     "port_1",
+				Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_TCP,
 				PortNumber: 41920, // netbird-assigned port — this is correct
 				ServerPort: 22,    // well-known port — NOT what we connect to
 				Hostname:   strPtr("gateway.example.com"),
@@ -111,23 +114,26 @@ func TestResolveExternalNodeSSH_NoAccess(t *testing.T) {
 	}
 }
 
-func TestResolveExternalNodeSSH_NoSSHPort(t *testing.T) {
+func TestResolveExternalNodeSSH_UsesAccessPortNotProtocol(t *testing.T) {
 	store := &mockExternalNodeStore{
 		user: &entity.User{ID: "user_1"},
 	}
 	node := &nodev1.ExternalNode{
 		Name: "box",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_tcp"},
 		},
 		Ports: []*nodev1.Port{
-			{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, Hostname: strPtr("h")},
+			{PortId: "port_tcp", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, PortNumber: 51234, ServerPort: 22, Hostname: strPtr("h")},
 		},
 	}
 
-	_, err := ResolveExternalNodeSSH(store, node)
-	if err == nil {
-		t.Fatal("expected error for no SSH port")
+	info, err := ResolveExternalNodeSSH(store, node)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if info.Port != 51234 {
+		t.Errorf("expected port 51234, got %d", info.Port)
 	}
 }
 
@@ -138,10 +144,10 @@ func TestResolveExternalNodeSSH_EmptyHostname(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "box",
 		SshAccess: []*nodev1.SSHAccess{
-			{UserId: "user_1", LinuxUser: "ubuntu"},
+			{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_1"},
 		},
 		Ports: []*nodev1.Port{
-			{Protocol: nodev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 22},
+			{PortId: "port_1", Protocol: nodev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 22},
 		},
 	}
 
