@@ -5,7 +5,7 @@ import (
 )
 
 func TestIsEditorType(t *testing.T) {
-	valid := []string{"code", "cursor", "windsurf", "terminal", "tmux"}
+	valid := []string{"code", "cursor", "windsurf", "terminal", "tmux", "claude"}
 	for _, v := range valid {
 		if !isEditorType(v) {
 			t.Errorf("expected %q to be valid editor type", v)
@@ -30,6 +30,7 @@ func TestGetEditorName(t *testing.T) {
 		{"windsurf", "Windsurf"},
 		{"terminal", "Terminal"},
 		{"tmux", "tmux"},
+		{"claude", "Claude Code"},
 		{"unknown", "VSCode"},
 	}
 	for _, tt := range tests {
