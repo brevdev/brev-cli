@@ -31,6 +31,7 @@ type PortforwardStore interface {
 	refresh.RefreshStore
 	util.GetWorkspaceByNameOrIDErrStore
 	util.MakeWorkspaceWithMetaStore
+	GetAccessToken() (string, error)
 }
 
 func NewCmdPortForwardSSH(pfStore PortforwardStore, t *terminal.Terminal) *cobra.Command {
@@ -87,6 +88,9 @@ func isPortAlreadyAllocatedError(err error) bool {
 }
 
 func RunPortforward(t *terminal.Terminal, pfStore PortforwardStore, nameOrID string, portString string, useHost bool) error {
+	if _, err := pfStore.GetAccessToken(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	localPort, remotePort, err := parsePortString(portString)
 	if err != nil {
 		return err
