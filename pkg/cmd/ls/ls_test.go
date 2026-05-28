@@ -401,6 +401,41 @@ func TestRunLs_OrgsJSON(t *testing.T) {
 	}
 }
 
+// TestRunLs_ShowAllTable verifies that --all lists every org instance in table output.
+func TestRunLs_ShowAllTable(t *testing.T) {
+	s := newTestStore()
+	s.workspaces = []entity.Workspace{
+		{
+			ID:              "ws-mine",
+			Name:            "my-ws",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u1",
+		},
+		{
+			ID:              "ws-other",
+			Name:            "other-ws",
+			Status:          entity.Running,
+			VerbBuildStatus: entity.Completed,
+			CreatedByUserID: "u2",
+		},
+	}
+	term := terminal.New()
+
+	out := captureStdout(t, func() {
+		err := RunLs(term, resolveTestCLIAuth(t, s), s, nil, "", true, false)
+		if err != nil {
+			t.Fatalf("RunLs --all returned error: %v", err)
+		}
+	})
+	if !strings.Contains(out, "my-ws") || !strings.Contains(out, "other-ws") {
+		t.Fatalf("expected both workspaces in table output, got:\n%s", out)
+	}
+	if strings.Contains(out, "brev ls --all") {
+		t.Fatal("should not suggest brev ls --all when already using --all")
+	}
+}
+
 // TestRunLs_ShowAll verifies that --all includes workspaces from other users.
 func TestRunLs_ShowAllJSON(t *testing.T) {
 	s := newTestStore()

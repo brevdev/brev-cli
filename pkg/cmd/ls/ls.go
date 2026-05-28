@@ -24,7 +24,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/entity/virtualproject"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -383,27 +382,14 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
-	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
-
-	projects := virtualproject.NewVirtualProjects(allWorkspaces)
-
-	var unjoinedProjects []virtualproject.VirtualProject
-	for _, p := range projects {
-		wks := p.GetUserWorkspaces(user.ID)
-		if len(wks) == 0 {
-			unjoinedProjects = append(unjoinedProjects, p)
-		}
-	}
-
-	displayProjects(ls.terminal, org.Name, unjoinedProjects)
+func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, workspacesToShow []entity.Workspace, gpuLookup map[string]string) {
+	ls.displayWorkspacesAndHelp(org, otherOrgs, workspacesToShow, workspacesToShow, true, gpuLookup)
 }
 
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, gpuLookup)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, false, gpuLookup)
 }
 
 func (ls Ls) ShowOrgWorkspaces(org *entity.Organization, workspaces []entity.Workspace, gpuLookup map[string]string) {
@@ -417,10 +403,10 @@ func (ls Ls) ShowOrgWorkspaces(org *entity.Organization, workspaces []entity.Wor
 	fmt.Print("\n")
 }
 
-func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
-	if len(userWorkspaces) == 0 {
+func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, workspacesToDisplay []entity.Workspace, allWorkspaces []entity.Workspace, showAll bool, gpuLookup map[string]string) {
+	if len(workspacesToDisplay) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
-		if len(allWorkspaces) > 0 {
+		if !showAll && len(allWorkspaces) > 0 {
 			ls.terminal.Vprintf("%s", ls.terminal.Green("See teammates' instances:\n"))
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
@@ -432,8 +418,12 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
 		}
 	} else {
-		ls.terminal.Vprintf("You have %d instances in Org %s\n", len(userWorkspaces), ls.terminal.Yellow(org.Name))
-		displayWorkspacesTable(ls.terminal, userWorkspaces, gpuLookup)
+		if showAll {
+			ls.terminal.Vprintf("%d instances in Org %s\n", len(workspacesToDisplay), ls.terminal.Yellow(org.Name))
+		} else {
+			ls.terminal.Vprintf("You have %d instances in Org %s\n", len(workspacesToDisplay), ls.terminal.Yellow(org.Name))
+		}
+		displayWorkspacesTable(ls.terminal, workspacesToDisplay, gpuLookup)
 
 		fmt.Print("\n")
 	}
@@ -530,7 +520,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 		return breverrors.WrapAndTrace(err)
 	}
 	if showAll {
-		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
+		ls.ShowAllWorkspaces(org, orgs, workspacesToShow, gpuLookup)
 		if len(nodes) > 0 {
 			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 			displayNodesTable(ls.terminal, nodes, ls.piped)
@@ -662,23 +652,6 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 	return nil
 }
 
-func displayProjects(t *terminal.Terminal, orgName string, projects []virtualproject.VirtualProject) {
-	if len(projects) > 0 {
-		fmt.Print("\n")
-		t.Vprintf("%d other projects in Org %s\n", len(projects), t.Yellow(orgName))
-		displayProjectsTable(projects)
-
-		fmt.Print("\n")
-		t.Vprintf("%s", t.Green("Join a project:\n")+
-			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
-	} else {
-		t.Vprintf("no other projects in Org %s\n", t.Yellow(orgName))
-		fmt.Print("\n")
-		t.Vprintf("%s", t.Green("Invite a teamate:\n")+
-			t.Yellow("\tbrev invite"))
-	}
-}
-
 func getBrevTableOptions() table.Options {
 	options := table.OptionsDefault
 	options.DrawBorder = false
@@ -770,19 +743,6 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 		if o.ID == currentOrg.ID {
 			workspaceRow = []table.Row{{t.Green("* " + o.Name), t.Green(o.ID)}}
 		}
-		ta.AppendRows(workspaceRow)
-	}
-	ta.Render()
-}
-
-func displayProjectsTable(projects []virtualproject.VirtualProject) {
-	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "MEMBERS"}
-	ta.AppendHeader(header)
-	for _, p := range projects {
-		workspaceRow := []table.Row{{p.Name, p.GetUniqueUserCount()}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
