@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -1116,9 +1118,12 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		cwOptions.WorkspaceGroupID = wsReq.WorkspaceGroupID
 	}
 
-	// Location
+	// Location / sub-location
 	if wsReq.Location != "" {
 		cwOptions.Location = wsReq.Location
+	}
+	if wsReq.SubLocation != "" {
+		cwOptions.SubLocation = wsReq.SubLocation
 	}
 
 	// Disk storage — the API may return a bare number (e.g., "256") or with
@@ -1150,6 +1155,10 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		cwOptions.PortMappings = portMappings
 	}
 
+	if len(wsReq.FirewallRules) > 0 {
+		cwOptions.FirewallRules = resolveFirewallRulesClientIP(wsReq.FirewallRules, publicIPLookup)
+	}
+
 	// Files from launchable
 	if info.File != nil {
 		cwOptions.Files = []map[string]string{
@@ -1171,6 +1180,98 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 	labels["launchableCreatedByOrgId"] = info.CreatedByOrgID
 	labels["launchableRawURL"] = "/launchable/deploy/now?launchableID=" + launchableID
 	cwOptions.Labels = labels
+}
+
+// resolveFirewallRulesClientIP fills ClientIPs on any "user-ip" rule that
+// doesn't already have one, calling lookupIP at most once. Rules are left
+// unchanged on lookup failure or unparseable IPs.
+func resolveFirewallRulesClientIP(rules []store.CreateFirewallRule, lookupIP func() (string, error)) []store.CreateFirewallRule {
+	out := make([]store.CreateFirewallRule, len(rules))
+	copy(out, rules)
+
+	var (
+		ip     string
+		ipErr  error
+		looked bool
+	)
+	for i := range out {
+		if out[i].AllowedIPs != "user-ip" || len(out[i].ClientIPs) > 0 {
+			continue
+		}
+		if !looked {
+			ip, ipErr = lookupIP()
+			looked = true
+		}
+		if ipErr != nil || ip == "" {
+			continue
+		}
+		cidr := toHostCIDR(ip)
+		if cidr == "" {
+			continue
+		}
+		out[i].ClientIPs = []string{cidr}
+	}
+	return out
+}
+
+// toHostCIDR returns the single-host CIDR for an IP literal: /32 for IPv4,
+// /128 for IPv6. Returns "" if raw isn't a valid IP.
+func toHostCIDR(raw string) string {
+	parsed := net.ParseIP(strings.TrimSpace(raw))
+	if parsed == nil {
+		return ""
+	}
+	if v4 := parsed.To4(); v4 != nil {
+		return v4.String() + "/32"
+	}
+	return parsed.String() + "/128"
+}
+
+// publicIPLookup is a var so tests can stub it.
+var publicIPLookup = resolvePublicIP
+
+// publicIPEndpoints are tried in order until one returns a valid IP.
+// All return the IP as a plain-text body.
+var publicIPEndpoints = []string{
+	"https://api.ipify.org",
+	"https://checkip.amazonaws.com",
+	"https://ifconfig.me/ip",
+}
+
+func resolvePublicIP() (string, error) {
+	client := &http.Client{Timeout: 3 * time.Second}
+	var lastErr error
+	for _, url := range publicIPEndpoints {
+		ip, err := fetchPublicIP(client, url)
+		if err == nil {
+			return ip, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no public IP endpoints configured")
+	}
+	return "", lastErr
+}
+
+func fetchPublicIP(client *http.Client, url string) (string, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // best-effort
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s returned status %d", url, resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	ipStr := strings.TrimSpace(string(body))
+	if net.ParseIP(ipStr) == nil {
+		return "", fmt.Errorf("%s returned non-IP response: %q", url, ipStr)
+	}
+	return ipStr, nil
 }
 
 // normalizeDiskStorage ensures a disk storage value has a Kubernetes quantity suffix.
