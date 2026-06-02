@@ -31,7 +31,7 @@ func NewCmdNotebook(store NotebookStore, t *terminal.Terminal) *cobra.Command {
 		Short:   "Open a notebook on your Brev machine",
 		Long:    notebookLong,
 		Example: notebookExample,
-		Args:    cobra.ExactArgs(2),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Channel to get the result of the network call
 			resultCh := make(chan *WorkspaceResult)
