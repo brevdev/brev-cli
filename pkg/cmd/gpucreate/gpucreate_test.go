@@ -14,14 +14,15 @@ import (
 
 // MockGPUCreateStore is a mock implementation of GPUCreateStore for testing
 type MockGPUCreateStore struct {
-	User                *entity.User
-	Org                 *entity.Organization
-	Workspaces          map[string]*entity.Workspace
-	CreateError         error
-	CreateErrorTypes    map[string]error // Errors for specific instance types
-	DeleteError         error
-	CreatedWorkspaces   []*entity.Workspace
-	DeletedWorkspaceIDs []string
+	User                      *entity.User
+	Org                       *entity.Organization
+	Workspaces                map[string]*entity.Workspace
+	CreateError               error
+	CreateErrorTypes          map[string]error // Errors for specific instance types
+	DeleteError               error
+	CreatedWorkspaces         []*entity.Workspace
+	DeletedWorkspaceIDs       []string
+	FetchedLifeCycleScriptIDs []string
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -107,6 +108,13 @@ func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.Launchab
 	return &store.LaunchableResponse{
 		ID:   launchableID,
 		Name: "test-launchable",
+	}, nil
+}
+
+func (m *MockGPUCreateStore) GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error) {
+	m.FetchedLifeCycleScriptIDs = append(m.FetchedLifeCycleScriptIDs, scriptID)
+	return &store.LifeCycleScriptResponse{
+		Attrs: &store.LifeCycleScriptAttr{ID: scriptID, Script: "echo mock-script"},
 	}, nil
 }
 
@@ -664,4 +672,78 @@ func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {
 	err := ctx.pollUntilReady("ws-failed")
 
 	assert.ErrorContains(t, err, "instance test failed: unexpected end of JSON input")
+}
+
+func TestInlineLaunchableLifeCycleScript(t *testing.T) {
+	t.Run("fetches and inlines lifecycle script body", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{
+					LifeCycleScriptAttr: &store.LifeCycleScriptAttr{ID: "ls-abc"},
+				},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"ls-abc"}, mockStore.FetchedLifeCycleScriptIDs)
+		assert.Equal(t, "echo mock-script", info.BuildRequest.VMBuild.LifeCycleScriptAttr.Script)
+	})
+
+	t.Run("skips fetch when info is nil", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", nil)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+	})
+
+	t.Run("container build skips lifecycle script fetch", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				CustomContainer: &store.CustomContainer{ContainerURL: "nvcr.io/nvidia/test:latest"},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+	})
+
+	t.Run("skips fetch when launchable has no lifecycle script", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{ForceJupyterInstall: true},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+		assert.Nil(t, info.BuildRequest.VMBuild.LifeCycleScriptAttr)
+	})
+
+	t.Run("skips fetch when script ID is empty", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{
+					LifeCycleScriptAttr: &store.LifeCycleScriptAttr{Name: "stale"},
+				},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+		assert.Equal(t, "", info.BuildRequest.VMBuild.LifeCycleScriptAttr.Script)
+	})
 }

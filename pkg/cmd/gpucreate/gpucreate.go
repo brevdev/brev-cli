@@ -105,6 +105,7 @@ type GPUCreateStore interface {
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
 	GetLaunchable(launchableID string) (*store.LaunchableResponse, error)
+	GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error)
 	RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error)
 }
 
@@ -394,6 +395,11 @@ func fetchAndDisplayLaunchable(gpuCreateStore GPUCreateStore, t *terminal.Termin
 		return nil, fmt.Errorf("failed to fetch launchable %q: %w", launchableID, err)
 	}
 
+	// Inline the script body; the launchable GET only returns its id.
+	if err := inlineLaunchableLifeCycleScript(gpuCreateStore, launchableID, info); err != nil {
+		return nil, err
+	}
+
 	t.Vprintf("Deploying launchable: %q\n", info.Name)
 	if info.Description != "" {
 		t.Vprintf("Description: %s\n", info.Description)
@@ -408,6 +414,24 @@ func fetchAndDisplayLaunchable(gpuCreateStore GPUCreateStore, t *terminal.Termin
 	t.Vprintf("Build mode: %s\n\n", buildMode)
 
 	return info, nil
+}
+
+func inlineLaunchableLifeCycleScript(gpuCreateStore GPUCreateStore, launchableID string, info *store.LaunchableResponse) error {
+	if info == nil || info.BuildRequest.VMBuild == nil {
+		return nil
+	}
+	attr := info.BuildRequest.VMBuild.LifeCycleScriptAttr
+	if attr == nil || attr.ID == "" {
+		return nil
+	}
+	resp, err := gpuCreateStore.GetLaunchableLifeCycleScript(launchableID, attr.ID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch lifecycle script %q for launchable %q: %w", attr.ID, launchableID, err)
+	}
+	if resp != nil && resp.Attrs != nil {
+		attr.Script = resp.Attrs.Script
+	}
+	return nil
 }
 
 func launchableBuildModeName(info *store.LaunchableResponse) string {
