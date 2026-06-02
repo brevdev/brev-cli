@@ -283,6 +283,29 @@ func (s AuthHTTPStore) GetLaunchable(launchableID string) (*LaunchableResponse, 
 	return &result, nil
 }
 
+// LifeCycleScriptResponse holds a lifecycle script with the script body populated.
+type LifeCycleScriptResponse struct {
+	Attrs *LifeCycleScriptAttr `json:"attrs"`
+}
+
+// GetLaunchableLifeCycleScript fetches the full lifecycle script for a launchable.
+func (s AuthHTTPStore) GetLaunchableLifeCycleScript(launchableID, scriptID string) (*LifeCycleScriptResponse, error) {
+	var result LifeCycleScriptResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetQueryParam("envId", launchableID).
+		SetQueryParam("scriptId", scriptID).
+		SetResult(&result).
+		Get("api/launchable/lifecycle-script")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
 type GetWorkspacesOptions struct {
 	UserID string
 	Name   string
