@@ -421,7 +421,7 @@ func inlineLaunchableLifeCycleScript(gpuCreateStore GPUCreateStore, launchableID
 		return nil
 	}
 	attr := info.BuildRequest.VMBuild.LifeCycleScriptAttr
-	if attr == nil || attr.ID == "" || attr.Script != "" {
+	if attr == nil || attr.ID == "" {
 		return nil
 	}
 	resp, err := gpuCreateStore.GetLaunchableLifeCycleScript(launchableID, attr.ID)
