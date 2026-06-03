@@ -161,6 +161,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var jupyter bool
 	var containerImage string
 	var composeFile string
+	var image string
 	var launchable string
 	var filters searchFilterFlags
 
@@ -229,6 +230,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				JupyterSet:     cmd.Flags().Changed("jupyter"),
 				ContainerImage: containerImage,
 				ComposeFile:    composeFile,
+				Image:          image,
 				LaunchableID:   launchableID,
 				LaunchableInfo: launchableInfo,
 			}
@@ -246,7 +248,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &filters)
+	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &image, &launchable, &filters)
 
 	return cmd
 }
@@ -263,7 +265,7 @@ func validateArgs(name string, count int) error {
 }
 
 // registerCreateFlags registers all flags for the create command
-func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, filters *searchFilterFlags) {
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, image, launchable *string, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
 	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
@@ -278,6 +280,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().BoolVar(jupyter, "jupyter", true, "Install Jupyter (default true for vm/k8s modes)")
 	cmd.Flags().StringVar(containerImage, "container-image", "", "Container image URL (required for container mode)")
 	cmd.Flags().StringVar(composeFile, "compose-file", "", "Docker compose file path or URL (required for compose mode)")
+	cmd.Flags().StringVar(image, "image", "", "Advanced: base image to provision the instance with (passed through to the backend as baseImage)")
 	cmd.Flags().StringVarP(launchable, "launchable", "l", "", "Launchable ID or URL to deploy (e.g., env-XXX or console URL)")
 
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
@@ -314,6 +317,7 @@ type GPUCreateOptions struct {
 	JupyterSet     bool // whether --jupyter was explicitly set
 	ContainerImage string
 	ComposeFile    string
+	Image          string // advanced: base image passed through to the backend (baseImage)
 	LaunchableID   string
 	LaunchableInfo *store.LaunchableResponse // populated when LaunchableID is set
 }
@@ -1058,6 +1062,12 @@ func applyBuildMode(cwOptions *store.CreateWorkspacesOptions, opts GPUCreateOpti
 	mode := opts.Mode
 	if mode == "" {
 		mode = "vm"
+	}
+
+	// Advanced: pass a custom base image through to the backend. Applies across
+	// modes; the backend already supports the baseImage field.
+	if opts.Image != "" {
+		cwOptions.BaseImage = opts.Image
 	}
 
 	switch mode {
