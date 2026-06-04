@@ -1,12 +1,16 @@
 package ls
 
 import (
+	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
@@ -707,4 +711,84 @@ func TestOutputWorkspacesJSON_NoNodes(t *testing.T) {
 	if strings.Contains(out, `"nodes"`) {
 		t.Error("nil nodes should not produce a nodes key in the output")
 	}
+}
+
+type lsFakeNodeService struct {
+	nodev1connect.UnimplementedExternalNodeServiceHandler
+}
+
+func (f *lsFakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+	if req.Msg.GetOrganizationId() != "org1" {
+		return connect.NewResponse(&nodev1.ListNodesResponse{}), nil
+	}
+	return connect.NewResponse(&nodev1.ListNodesResponse{
+		Items: []*nodev1.ExternalNode{
+			{Name: "gpu-node-1", ExternalNodeId: "en-123", OrganizationId: "org1"},
+			{Name: "gpu-node-2", ExternalNodeId: "en-456", OrganizationId: "org1"},
+		},
+	}), nil
+}
+
+func withFakeNodeAPI(t *testing.T, fn func()) {
+	t.Helper()
+	_, handler := nodev1connect.NewExternalNodeServiceHandler(&lsFakeNodeService{})
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
+	fn()
+}
+
+// TestRunLs_ShowAllJSON_WithNodes verifies --all includes nodes from listNodes.
+func TestRunLs_ShowAllJSON_WithNodes(t *testing.T) {
+	term := terminal.New()
+
+	t.Run("matching org returns nodes", func(t *testing.T) {
+		s := newTestStore()
+		s.workspaces = []entity.Workspace{
+			{ID: "ws1", Name: "my-ws", Status: entity.Running, VerbBuildStatus: entity.Completed, CreatedByUserID: "u1"},
+		}
+		withFakeNodeAPI(t, func() {
+			out := captureStdout(t, func() {
+				if err := runLs(t, term, s, nil, true); err != nil {
+					t.Fatalf("RunLs --all: %v", err)
+				}
+			})
+			var res struct {
+				Workspaces []WorkspaceInfo `json:"workspaces"`
+				Nodes      []NodeInfo      `json:"nodes"`
+			}
+			if err := json.Unmarshal([]byte(out), &res); err != nil {
+				t.Fatalf("parse JSON: %v\n%s", err, out)
+			}
+			if len(res.Nodes) != 2 || res.Nodes[0].Name != "gpu-node-1" {
+				t.Fatalf("expected 2 nodes from listNodes, got %+v", res.Nodes)
+			}
+		})
+	})
+
+	t.Run("other org returns no nodes", func(t *testing.T) {
+		s := newTestStore()
+		s.org = &entity.Organization{ID: "other-org", Name: "other-org"}
+		s.orgs = []entity.Organization{*s.org}
+		s.workspaces = []entity.Workspace{
+			{ID: "ws1", Name: "my-ws", Status: entity.Running, VerbBuildStatus: entity.Completed, CreatedByUserID: "u1"},
+		}
+		withFakeNodeAPI(t, func() {
+			out := captureStdout(t, func() {
+				if err := runLs(t, term, s, nil, true); err != nil {
+					t.Fatalf("RunLs --all: %v", err)
+				}
+			})
+			var res struct {
+				Workspaces []WorkspaceInfo `json:"workspaces"`
+				Nodes      []NodeInfo      `json:"nodes"`
+			}
+			if err := json.Unmarshal([]byte(out), &res); err != nil {
+				t.Fatalf("parse JSON: %v\n%s", err, out)
+			}
+			if len(res.Nodes) != 0 {
+				t.Fatalf("expected 0 nodes for non-org1 org, got %+v", res.Nodes)
+			}
+		})
+	})
 }
