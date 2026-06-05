@@ -25,7 +25,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	uutil "github.com/brevdev/brev-cli/pkg/util"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/mo"
@@ -341,10 +340,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors,
-	// but we don't want to block the user from using vscode
-	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
 	err = openEditorWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString, editorType)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
