@@ -784,9 +784,37 @@ type typeCreateResult struct {
 	fatalError error
 }
 
+// validateInstanceTypeAvailability errors when the type is invalid or has no capacity. Returns nil when the listing is missing.
+func (c *createContext) validateInstanceTypeAvailability(instanceType string) error {
+	if c.allInstanceTypes == nil {
+		return nil
+	}
+	if c.allInstanceTypes.GetWorkspaceGroupID(instanceType) != "" {
+		return nil
+	}
+	if !c.allInstanceTypes.HasInstanceType(instanceType) {
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"instance type %q is not a recognized type; run 'brev search' to see available types",
+			instanceType,
+		))
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"instance type %q is currently unavailable (no capacity); try again later or run 'brev search' to find another type",
+		instanceType,
+	))
+}
+
 // createInstancesWithType attempts to create instances using a specific type
 func (c *createContext) createInstancesWithType(spec InstanceSpec, startIdx, count int) typeCreateResult {
 	result := typeCreateResult{}
+
+	if c.opts.LaunchableID == "" {
+		if err := c.validateInstanceTypeAvailability(spec.Type); err != nil {
+			c.logf("Skipping: %s\n", err.Error())
+			result.hadFailure = true
+			return result
+		}
+	}
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -1025,6 +1053,19 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
+	}
+
+	if cwOptions.WorkspaceGroupID == "" {
+		if c.allInstanceTypes == nil {
+			return nil, breverrors.NewValidationError(fmt.Sprintf(
+				"could not resolve workspace group for %q (instance-type listing was unavailable); please retry",
+				spec.Type,
+			))
+		}
+		return nil, breverrors.NewValidationError(fmt.Sprintf(
+			"instance type %q is invalid or unavailable; run 'brev search' to see available types",
+			spec.Type,
+		))
 	}
 
 	workspace, err := c.store.CreateWorkspace(c.org.ID, cwOptions)
