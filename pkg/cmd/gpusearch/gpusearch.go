@@ -303,7 +303,6 @@ type GPUInstanceInfo struct {
 	Memory           string   `json:"memory"`
 	RAMInGB          float64  `json:"ram_gb"`
 	Arch             string   `json:"arch"`
-	Region           string   `json:"region,omitempty"`
 	AvailableRegions []string `json:"available_regions,omitempty"`
 	DiskMin          float64  `json:"disk_min_gb"`
 	DiskMax          float64  `json:"disk_max_gb"`
@@ -761,7 +760,6 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 				Memory:           item.Memory,
 				RAMInGB:          ramInGB,
 				Arch:             arch,
-				Region:           item.Location,
 				AvailableRegions: item.AvailableLocations,
 				DiskMin:          diskMin,
 				DiskMax:          diskMax,
@@ -799,7 +797,6 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 				Memory:           item.Memory,
 				RAMInGB:          ramInGB,
 				Arch:             arch,
-				Region:           item.Location,
 				AvailableRegions: item.AvailableLocations,
 				DiskMin:          diskMin,
 				DiskMax:          diskMax,
@@ -861,13 +858,9 @@ func (f *FilterOptions) matchesStringFilters(inst GPUInstanceInfo) bool {
 }
 
 // matchesRegion checks if an instance is available in the given region
+// via substring match against any entry in AvailableRegions.
 func matchesRegion(region string, inst GPUInstanceInfo) bool {
 	regionLower := strings.ToLower(region)
-	// Check primary location
-	if strings.Contains(strings.ToLower(inst.Region), regionLower) {
-		return true
-	}
-	// Check available locations
 	for _, loc := range inst.AvailableRegions {
 		if strings.Contains(strings.ToLower(loc), regionLower) {
 			return true
