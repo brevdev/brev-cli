@@ -650,12 +650,9 @@ func validateRegion(region string, types []InstanceSpec, store GPUCreateStore) e
 	return nil
 }
 
-// typeSupportsRegion reports whether an instance type lists the given region (already lowercased)
-// in either its primary Location or AvailableLocations, using substring matching.
+// typeSupportsRegion reports whether an instance type lists the given region
+// (already lowercased) in its AvailableLocations, using substring matching.
 func typeSupportsRegion(item gpusearch.InstanceType, regionLower string) bool {
-	if strings.Contains(strings.ToLower(item.Location), regionLower) {
-		return true
-	}
 	for _, loc := range item.AvailableLocations {
 		if strings.Contains(strings.ToLower(loc), regionLower) {
 			return true
