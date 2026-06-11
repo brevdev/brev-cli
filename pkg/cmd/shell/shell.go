@@ -49,6 +49,7 @@ type ShellStore interface {
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetAccessToken() (string, error)
 }
 
 func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore ShellStore) *cobra.Command {
@@ -80,6 +81,9 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 const pollTimeout = 10 * time.Minute
 
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool) error {
+	if _, err := sstore.GetAccessToken(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	s := t.NewSpinner()
 	target, err := util.ResolveWorkspaceOrNode(sstore, workspaceNameOrID)
 	if err != nil {
