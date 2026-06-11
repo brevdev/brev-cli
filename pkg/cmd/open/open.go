@@ -110,6 +110,7 @@ type OpenStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWindowsDir() (string, error)
 	IsWorkspace() (bool, error)
+	GetAccessToken() (string, error)
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
@@ -280,6 +281,9 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string) error { //nolint:funlen,gocyclo // define brev command
+	if _, err := tstore.GetAccessToken(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
