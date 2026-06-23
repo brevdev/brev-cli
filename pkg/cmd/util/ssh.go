@@ -1,6 +1,7 @@
 package util
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -12,6 +13,14 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/briandowns/spinner"
+)
+
+var (
+	sshAvailabilityConnectTimeoutSeconds = 3
+	sshAvailabilityAttemptTimeout        = 5 * time.Second
+	sshAvailabilityWaitDelay             = time.Second
+	sshAvailabilityRetrySleep            = time.Second
+	sshAvailabilityMaxAttempts           = 20
 )
 
 // WorkspacePollingStore is the minimal interface needed for polling workspace state
@@ -56,27 +65,45 @@ func WaitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
 	s.Suffix = " waiting for SSH connection to be available"
 	s.Start()
 	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=10", sshAlias, "echo", " ")
+		attempt := counter + 1
+		ctx, cancel := context.WithTimeout(context.Background(), sshAvailabilityAttemptTimeout)
+		cmd := exec.CommandContext(ctx, "ssh",
+			"-T",
+			"-o", fmt.Sprintf("ConnectTimeout=%d", sshAvailabilityConnectTimeoutSeconds),
+			"-o", "ConnectionAttempts=1",
+			"-o", "BatchMode=yes",
+			"-o", "NumberOfPasswordPrompts=0",
+			"-o", "RequestTTY=no",
+			"-o", "LogLevel=ERROR",
+			sshAlias,
+			"true",
+		)
+		cmd.WaitDelay = sshAvailabilityWaitDelay
 		out, err := cmd.CombinedOutput()
+		timedOut := ctx.Err() == context.DeadlineExceeded
+		cancel()
 		if err == nil {
 			s.Stop()
 			return nil
 		}
 
-		outputStr := string(out)
-		lines := strings.Split(outputStr, "\n")
-		stdErr := outputStr
-		if len(lines) > 1 {
-			stdErr = lines[1]
+		stdErr := strings.TrimSpace(string(out))
+		if timedOut {
+			stdErr = fmt.Sprintf("SSH attempt %d timed out after %s", attempt, sshAvailabilityAttemptTimeout)
+		} else if stdErr == "" {
+			stdErr = err.Error()
 		}
 
-		if counter == 40 || !store.SatisfactorySSHErrMessage(stdErr) {
+		if counter == sshAvailabilityMaxAttempts || (!timedOut && !store.SatisfactorySSHErrMessage(stdErr)) {
 			s.Stop()
 			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
 		}
 
+		s.Stop()
+		_, _ = fmt.Fprintf(s.Writer, "still waiting for SSH connection (attempt %d failed; retrying)\n", attempt)
 		counter++
-		time.Sleep(1 * time.Second)
+		time.Sleep(sshAvailabilityRetrySleep)
+		s.Start()
 	}
 }
 
