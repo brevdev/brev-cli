@@ -36,7 +36,7 @@ ifdef env
 	$(_BUILD_PREFIX) go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 	@echo '#!/bin/sh' > brev
 	@echo '# Auto-generated wrapper with environment overrides' >> brev
-	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
+	@echo 'export BREV_CONSOLE_URL="https://dev.brev.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev
 	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
