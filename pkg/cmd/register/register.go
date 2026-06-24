@@ -292,6 +292,12 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		NodeSpec:       toProtoNodeSpec(hwProfile),
 	}))
 	if err != nil {
+		// TODO: dev-plane should return a connect.CodeAlreadyExists error for a
+		// duplicate node name so we can match on the code instead of this brittle
+		// string match, which breaks if the constraint is ever renamed.
+		if strings.Contains(err.Error(), "externalnode_organization_id_name") {
+			return nil, fmt.Errorf("a node with this name already exists")
+		}
 		return nil, fmt.Errorf("failed to register node: %w", err)
 	}
 
