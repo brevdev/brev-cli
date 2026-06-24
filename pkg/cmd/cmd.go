@@ -58,7 +58,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
 	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -309,7 +308,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	} else {
 		_ = 0 // noop
 	}
-	cmd.AddCommand(workspacegroups.NewCmdWorkspaceGroups(t, loginCmdStore))
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
 	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
 	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
