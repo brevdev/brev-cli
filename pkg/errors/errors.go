@@ -2,6 +2,8 @@ package errors
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"runtime"
 	"strconv"
 	"time"
@@ -129,6 +131,87 @@ func (d *DeclineToLoginError) Error() string     { return "declined to login" }
 func (d *DeclineToLoginError) Directive() string { return "log in to run this command" }
 
 var NetworkErrorMessage = "possible internet connection problem"
+
+// NetworkError is a user-facing error for transport-level failures (DNS
+// lookup failures, dial timeouts, connection refused, etc.) when reaching a
+// remote service. It hides the underlying stacktrace and produces a short,
+// actionable message suitable for end users.
+type NetworkError struct {
+	// Host is the host the CLI was trying to reach (e.g. "api.ngc.nvidia.com").
+	// Empty if no host could be derived from the original error.
+	Host string
+	// Cause is the underlying transport error.
+	Cause error
+}
+
+func (e *NetworkError) Error() string {
+	if e.Host != "" {
+		return fmt.Sprintf("Could not reach %s — check your internet connection and try again", e.Host)
+	}
+	return "Could not reach the network — check your internet connection and try again"
+}
+
+func (e *NetworkError) Directive() string {
+	if e.Host != "" {
+		return fmt.Sprintf("Verify you can resolve %s and that no firewall or proxy is blocking it. If the host is reachable, the service may be temporarily unavailable.", e.Host)
+	}
+	return "Verify your internet connection. If the network is healthy, the service may be temporarily unavailable."
+}
+
+func (e *NetworkError) Unwrap() error { return e.Cause }
+
+// IsNetworkError reports whether err (or any error in its chain) is a
+// transport-level network failure such as a DNS lookup failure, dial
+// timeout, or connection refusal.
+func IsNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var dnsErr *net.DNSError
+	if stderrors.As(err, &dnsErr) {
+		return true
+	}
+	var opErr *net.OpError
+	if stderrors.As(err, &opErr) {
+		return true
+	}
+	var netErr net.Error
+	if stderrors.As(err, &netErr) {
+		return true
+	}
+	return false
+}
+
+// HostFromURLError returns the host from a *url.Error in err's chain, or ""
+// if no URL is available. Useful when wrapping HTTP client errors.
+func HostFromURLError(err error) string {
+	var urlErr *url.Error
+	if !stderrors.As(err, &urlErr) {
+		return ""
+	}
+	parsed, perr := url.Parse(urlErr.URL)
+	if perr != nil || parsed == nil {
+		return ""
+	}
+	return parsed.Host
+}
+
+// WrapNetworkError returns a *NetworkError wrapping err if err is a
+// transport-level network failure; otherwise it returns err unchanged. The
+// fallbackHost is used only if the host cannot be derived from err.
+func WrapNetworkError(err error, fallbackHost string) error {
+	if err == nil {
+		return nil
+	}
+	if !IsNetworkError(err) {
+		return err
+	}
+	host := HostFromURLError(err)
+	if host == "" {
+		host = fallbackHost
+	}
+	return &NetworkError{Host: host, Cause: err}
+}
 
 type CredentialsFileNotFound struct{}
 

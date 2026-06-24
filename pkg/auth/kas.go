@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +16,14 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/google/uuid"
 )
+
+func hostFromURL(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil {
+		return ""
+	}
+	return parsed.Host
+}
 
 var _ OAuth = KasAuthenticator{}
 
@@ -103,7 +112,7 @@ func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, er
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return LoginCallResponse{}, breverrors.WrapAndTrace(err)
+		return LoginCallResponse{}, breverrors.WrapAndTrace(breverrors.WrapNetworkError(err, hostFromURL(a.BaseURL)))
 	}
 	defer resp.Body.Close() //nolint:errcheck // fine
 
@@ -219,6 +228,9 @@ func (a KasAuthenticator) retrieveIDToken(sessionKey, deviceID string) (string, 
 
 	tokenResp, err := client.Do(tokenReq)
 	if err != nil {
+		if breverrors.IsNetworkError(err) {
+			return "", breverrors.WrapNetworkError(err, hostFromURL(a.BaseURL))
+		}
 		return "", fmt.Errorf("error sending token request: %v", err)
 	}
 	defer tokenResp.Body.Close() //nolint:errcheck // fine
