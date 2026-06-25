@@ -1,6 +1,9 @@
 package gpucreate
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -217,6 +220,11 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 				InstanceType:     "n2-standard-4",
 				Storage:          "256",
 				Location:         "us-west1",
+				SubLocation:      "us-west1-b",
+				FirewallRules: []store.CreateFirewallRule{
+					{Port: "8080", AllowedIPs: "all"},
+					{Port: "9000-9100", AllowedIPs: "all"},
+				},
 			},
 			BuildRequest: store.LaunchableBuildRequest{
 				VMBuild: &store.VMBuild{
@@ -241,8 +249,9 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 
 		// Workspace group from launchable
 		assert.Equal(t, "GCP", cwOptions.WorkspaceGroupID)
-		// Location
+		// Location / sub-location
 		assert.Equal(t, "us-west1", cwOptions.Location)
+		assert.Equal(t, "us-west1-b", cwOptions.SubLocation)
 		// Storage with Gi suffix
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 		// Build config
@@ -252,6 +261,10 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		assert.Equal(t, "ls-abc", cwOptions.VMBuild.LifeCycleScriptAttr.ID)
 		// Port mappings
 		assert.Equal(t, map[string]string{"Code-Server": "13337", "OpenClaw": "18789"}, cwOptions.PortMappings)
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "8080", AllowedIPs: "all"},
+			{Port: "9000-9100", AllowedIPs: "all"},
+		}, cwOptions.FirewallRules)
 		// Files
 		assert.NotNil(t, cwOptions.Files)
 		// LaunchableConfig
@@ -339,6 +352,96 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		assert.Equal(t, "nvcr.io/nvidia/test:latest", cwOptions.CustomContainer.ContainerURL)
 	})
 
+	t.Run("substitutes public IP for user-ip firewall rules", func(t *testing.T) {
+		orig := publicIPLookup
+		publicIPLookup = func() (string, error) { return "203.0.113.7", nil }
+		defer func() { publicIPLookup = orig }()
+
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				InstanceType: "n2-standard-4",
+				FirewallRules: []store.CreateFirewallRule{
+					{Port: "22", AllowedIPs: "user-ip"},
+					{Port: "443", AllowedIPs: "all"},
+				},
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
+			{Port: "443", AllowedIPs: "all"},
+		}, cwOptions.FirewallRules)
+	})
+
+	t.Run("preserves rule when public IP lookup fails", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "", assert.AnError
+		})
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}, resolved)
+	})
+
+	t.Run("does not call lookup when no user-ip rules", func(t *testing.T) {
+		called := false
+		rules := []store.CreateFirewallRule{
+			{Port: "8080", AllowedIPs: "all"},
+		}
+		resolveFirewallRulesClientIP(rules, func() (string, error) {
+			called = true
+			return "1.2.3.4", nil
+		})
+		assert.False(t, called, "lookup should be skipped when no user-ip rules exist")
+	})
+
+	t.Run("respects pre-existing ClientIPs on user-ip rule", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"198.51.100.5/32"}},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "203.0.113.7", nil
+		})
+		assert.Equal(t, []string{"198.51.100.5/32"}, resolved[0].ClientIPs)
+	})
+
+	t.Run("uses /128 for IPv6 public IPs", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "2403:2500:4000:0000:0000:0000:0000:090a", nil
+		})
+		assert.Equal(t, []string{"2403:2500:4000::90a/128"}, resolved[0].ClientIPs)
+	})
+
+	t.Run("canonicalizes IPv4-mapped IPv6 to bare IPv4 with /32", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "::ffff:203.0.113.7", nil
+		})
+		assert.Equal(t, []string{"203.0.113.7/32"}, resolved[0].ClientIPs)
+	})
+
+	t.Run("skips rule when lookup returns garbage", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "<html>captive portal</html>", nil
+		})
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}, resolved)
+	})
+
 	t.Run("merges with existing labels", func(t *testing.T) {
 		cwOptions := &store.CreateWorkspacesOptions{
 			Labels: map[string]string{"existingKey": "existingValue"},
@@ -357,6 +460,150 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		assert.True(t, ok)
 		assert.Equal(t, "existingValue", labels["existingKey"])
 		assert.Equal(t, "env-abc", labels["launchableId"])
+	})
+}
+
+func TestToHostCIDR(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"IPv4", "203.0.113.7", "203.0.113.7/32"},
+		{"IPv4 with surrounding whitespace", "  203.0.113.7\n", "203.0.113.7/32"},
+		{"IPv4-mapped IPv6 canonicalizes to IPv4", "::ffff:203.0.113.7", "203.0.113.7/32"},
+		{"IPv6 short form", "2403:2500:4000::90a", "2403:2500:4000::90a/128"},
+		{"IPv6 long form canonicalizes", "2403:2500:4000:0000:0000:0000:0000:090a", "2403:2500:4000::90a/128"},
+		{"IPv6 loopback", "::1", "::1/128"},
+		{"empty", "", ""},
+		{"not an IP", "not-an-ip", ""},
+		{"captive portal HTML", "<html>", ""},
+		{"IPv4 with port appended", "203.0.113.7:443", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, toHostCIDR(tt.in))
+		})
+	}
+}
+
+// TestLaunchableJSONWireFormat guards against silent regressions in the JSON
+// tags on CreateWorkspacesOptions — the original bug was that fields the
+// server expected (firewallRules, subLocation) were missing from the request
+// body. Asserting on the marshaled bytes catches typos like "firewall_rules"
+// or a dropped tag that struct-field assertions can't.
+func TestLaunchableJSONWireFormat(t *testing.T) {
+	cwOptions := &store.CreateWorkspacesOptions{}
+	info := &store.LaunchableResponse{
+		ID: "env-abc",
+		CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+			InstanceType: "n2-standard-4",
+			Location:     "us-west1",
+			SubLocation:  "us-west1-b",
+			FirewallRules: []store.CreateFirewallRule{
+				{Port: "8080", AllowedIPs: "all"},
+				{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
+			},
+		},
+	}
+
+	applyLaunchableConfig(cwOptions, "env-abc", info)
+
+	body, err := json.Marshal(cwOptions)
+	assert.NoError(t, err)
+	s := string(body)
+
+	assert.Contains(t, s, `"subLocation":"us-west1-b"`)
+	assert.Contains(t, s, `"firewallRules":`)
+	assert.Contains(t, s, `"port":"8080"`)
+	assert.Contains(t, s, `"port":"22"`)
+	assert.Contains(t, s, `"allowedIPs":"all"`)
+	assert.Contains(t, s, `"allowedIPs":"user-ip"`)
+	assert.Contains(t, s, `"clientIPs":["203.0.113.7/32"]`)
+	assert.Contains(t, s, `"launchableConfig":{"id":"env-abc"}`)
+}
+
+func TestFetchPublicIP(t *testing.T) {
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	t.Run("returns IP for plain text body", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("203.0.113.7\n"))
+		}))
+		defer s.Close()
+
+		ip, err := fetchPublicIP(client, s.URL)
+		assert.NoError(t, err)
+		assert.Equal(t, "203.0.113.7", ip)
+	})
+
+	t.Run("rejects non-200 status", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		defer s.Close()
+
+		_, err := fetchPublicIP(client, s.URL)
+		assert.Error(t, err)
+	})
+
+	t.Run("rejects non-IP body (captive portal HTML)", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("<html>login required</html>"))
+		}))
+		defer s.Close()
+
+		_, err := fetchPublicIP(client, s.URL)
+		assert.Error(t, err)
+	})
+}
+
+func TestResolvePublicIPFallback(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer failing.Close()
+
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("198.51.100.42"))
+	}))
+	defer ok.Close()
+
+	t.Run("falls through failing endpoints until one succeeds", func(t *testing.T) {
+		orig := publicIPEndpoints
+		publicIPEndpoints = []string{failing.URL, failing.URL, ok.URL}
+		defer func() { publicIPEndpoints = orig }()
+
+		ip, err := resolvePublicIP()
+		assert.NoError(t, err)
+		assert.Equal(t, "198.51.100.42", ip)
+	})
+
+	t.Run("returns error when all endpoints fail", func(t *testing.T) {
+		orig := publicIPEndpoints
+		publicIPEndpoints = []string{failing.URL, failing.URL}
+		defer func() { publicIPEndpoints = orig }()
+
+		_, err := resolvePublicIP()
+		assert.Error(t, err)
+	})
+
+	t.Run("short-circuits on first success", func(t *testing.T) {
+		hits := 0
+		counted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits++
+			_, _ = w.Write([]byte("203.0.113.7"))
+		}))
+		defer counted.Close()
+
+		orig := publicIPEndpoints
+		publicIPEndpoints = []string{counted.URL, failing.URL, ok.URL}
+		defer func() { publicIPEndpoints = orig }()
+
+		ip, err := resolvePublicIP()
+		assert.NoError(t, err)
+		assert.Equal(t, "203.0.113.7", ip)
+		assert.Equal(t, 1, hits, "later endpoints must not be hit after success")
 	})
 }
 
