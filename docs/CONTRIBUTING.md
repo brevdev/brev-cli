@@ -10,7 +10,7 @@
 
 ```
 VERSION=unknown
-BREV_API_URL=http://localhost:8080 
+BREV_API_URL=http://localhost:8080
 # BREV_API_URL=<your backend>
 ```
 
@@ -88,15 +88,6 @@ index a33540c..b03d5f2 100644
 
  func hasHousekeepingCommands(cmd *cobra.Command) bool {
 ```
-
-test your function
-
-```
-make && ./brev recreate
-```
-
-add documentation by editing `pkg/cmd/recreate/doc.md`. Docs should fill out the
-minimum fields:
 
 ```
 <!-- Insert title here -->
