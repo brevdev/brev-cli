@@ -3,6 +3,7 @@ package register
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/user"
 	"strings"
@@ -292,13 +293,11 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		NodeSpec:       toProtoNodeSpec(hwProfile),
 	}))
 	if err != nil {
-		// Newer dev-plane returns CodeAlreadyExists for a duplicate node name.
-		// Older dev-plane leaks the raw Postgres unique-constraint error, so we
-		// also match the constraint name for backwards compatibility until the
-		// server change is fully rolled out.
-		if connect.CodeOf(err) == connect.CodeAlreadyExists ||
-			strings.Contains(err.Error(), "externalnode_organization_id_name") {
-			return nil, fmt.Errorf("a node with this name already exists")
+		// dev-plane returns CodeAlreadyExists for a duplicate node name; surface
+		// its message directly, which already reads as "node already exists".
+		var connectErr *connect.Error
+		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeAlreadyExists {
+			return nil, errors.New(connectErr.Message())
 		}
 		return nil, fmt.Errorf("failed to register node: %w", err)
 	}
