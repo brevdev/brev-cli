@@ -3,6 +3,7 @@ package register
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/user"
 	"strings"
@@ -292,6 +293,12 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		NodeSpec:       toProtoNodeSpec(hwProfile),
 	}))
 	if err != nil {
+		// dev-plane returns CodeAlreadyExists for a duplicate node name; surface
+		// its message directly, which already reads as "node already exists".
+		var connectErr *connect.Error
+		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeAlreadyExists {
+			return nil, errors.New(connectErr.Message())
+		}
 		return nil, fmt.Errorf("failed to register node: %w", err)
 	}
 
