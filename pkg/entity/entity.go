@@ -279,6 +279,10 @@ type WorkspaceGroup struct {
 	TenantType     string `json:"tenantType"`
 } // @Name WorkspaceGroup
 
+type WorkspaceInstanceTypeInfo struct {
+	Stoppable bool `json:"stoppable"`
+}
+
 type Workspace struct {
 	ID                   string            `json:"id"`
 	Name                 string            `json:"name"`
@@ -287,6 +291,7 @@ type Workspace struct {
 	WorkspaceClassID     string            `json:"workspaceClassId"` // WorkspaceClassID is resources, like "2x8"
 	InstanceType         string            `json:"instanceType,omitempty"`
 	CreatedByUserID      string            `json:"createdByUserId"`
+	InstanceTypeInfo     *WorkspaceInstanceTypeInfo `json:"instanceTypeInfo,omitempty"`
 	DNS                  string            `json:"dns"`
 	Status               string            `json:"status"`
 	Password             string            `json:"password"`
