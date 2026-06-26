@@ -1,8 +1,14 @@
 package store
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strings"
+
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -251,28 +257,58 @@ func (s AuthHTTPStore) CreateInviteLink(organizationID string) (string, error) {
 	return result, nil
 }
 
+type authHTTPStoreTransport struct {
+	store *AuthHTTPStore
+	base  http.RoundTripper
+}
+
+func (t *authHTTPStoreTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	token, err := t.store.GetAccessToken()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp, nil
+}
+
+func (s *AuthHTTPStore) ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error) {
+	client := nodev1connect.NewOrganizationServiceClient(
+		&http.Client{Transport: &authHTTPStoreTransport{store: s, base: http.DefaultTransport}},
+		s.authHTTPClient.restyClient.BaseURL,
+	)
+
+	var members []*nodev1.OrganizationMember
+	var pageToken string
+	for {
+		resp, err := client.ListOrganizationMembers(ctx, connect.NewRequest(&nodev1.ListOrganizationMembersRequest{
+			OrganizationId: orgID,
+			PageParams: &nodev1.PageParams{
+				PageSize:  1000,
+				PageToken: pageToken,
+			},
+		}))
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		members = append(members, resp.Msg.GetItems()...)
+		pageToken = resp.Msg.GetNextPageToken()
+		if pageToken == "" {
+			return members, nil
+		}
+	}
+}
+
 func GetDefaultOrNilOrg(orgs []entity.Organization) *entity.Organization {
 	if len(orgs) > 0 {
 		return &orgs[0]
 	} else {
 		return nil
 	}
-}
-
-func (s AuthHTTPStore) GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error) {
-	var result []entity.OrgRoleAttachment
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		Get(fmt.Sprintf("api/organizations/%s/role_attachments", orgID))
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-
-	return result, nil
 }
 
 type RedeemCouponCodeRequest struct {

@@ -1,8 +1,16 @@
 package store
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -11,6 +19,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeOrganizationService struct {
+	nodev1connect.UnimplementedOrganizationServiceHandler
+	listMembersFn func(http.Header, *nodev1.ListOrganizationMembersRequest) (*nodev1.ListOrganizationMembersResponse, error)
+}
+
+func (f *fakeOrganizationService) ListOrganizationMembers(_ context.Context, req *connect.Request[nodev1.ListOrganizationMembersRequest]) (*connect.Response[nodev1.ListOrganizationMembersResponse], error) {
+	resp, err := f.listMembersFn(req.Header(), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
 
 func TestGetActiveOrganization(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
@@ -50,6 +71,39 @@ func TestGetOrganizations(t *testing.T) {
 	if !assert.Equal(t, expected, org) {
 		return
 	}
+}
+
+func TestListOrganizationMembersUsesDevPlaneRPC(t *testing.T) {
+	var gotAuth string
+	var gotOrgID string
+	svc := &fakeOrganizationService{
+		listMembersFn: func(header http.Header, msg *nodev1.ListOrganizationMembersRequest) (*nodev1.ListOrganizationMembersResponse, error) {
+			gotAuth = header.Get("Authorization")
+			gotOrgID = msg.GetOrganizationId()
+			return &nodev1.ListOrganizationMembersResponse{
+				Items: []*nodev1.OrganizationMember{
+					{UserId: "user_1", DisplayName: "Alice", DefaultEmail: "alice@example.com"},
+					{UserId: "user_2", DisplayName: "Bob", DefaultEmail: "bob@example.com"},
+				},
+			}, nil
+		},
+	}
+	_, handler := nodev1connect.NewOrganizationServiceHandler(svc)
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	token := "tok"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &token}, server.URL))
+
+	members, err := s.ListOrganizationMembers(context.Background(), "org_123")
+
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	assert.Equal(t, "Bearer tok", gotAuth)
+	assert.Equal(t, "org_123", gotOrgID)
+	assert.Equal(t, "user_1", members[0].GetUserId())
+	assert.True(t, strings.Contains(members[1].GetDefaultEmail(), "@"))
 }
 
 func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {
