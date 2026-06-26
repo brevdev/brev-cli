@@ -105,6 +105,12 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool) er
 	var stoppedNames []string
 	for _, v := range workspaces {
 		if v.Status == entity.Running {
+			if err := validateWorkspaceStoppable(&v); err != nil {
+				if !piped {
+					t.Vprintf("%s", t.Yellow("\n%s skipped (does not support stop)", v.Name))
+				}
+				continue
+			}
 			_, err = stopStore.StopWorkspace(v.ID)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -168,6 +174,9 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 				}
 			}
 		}
+		if err = validateWorkspaceStoppable(workspace); err != nil {
+			return err
+		}
 		workspaceID = workspace.ID
 	}
 
@@ -185,4 +194,13 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 	}
 
 	return nil
+}
+
+func validateWorkspaceStoppable(workspace *entity.Workspace) error {
+	if workspace.InstanceTypeInfo != nil && workspace.InstanceTypeInfo.Stoppable {
+		return nil
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"instance %q does not support stop.",
+		workspace.Name))
 }
