@@ -308,3 +308,34 @@ func (s AuthHTTPStore) RedeemCouponCode(organizationID string, code string) (*Re
 
 	return &result, nil
 }
+
+type CreditDetails struct {
+	RemainingCredits *int64 `json:"remaining_credits"`
+	TopUpAmount      *int64 `json:"top_up_amount"`
+	TopUpThreshold   *int64 `json:"top_up_threshold"`
+}
+
+type BillingProfile struct {
+	BillingProfileID string         `json:"billing_profile_id"`
+	CreditDetails    *CreditDetails `json:"credit_details"`
+}
+
+// GetBillingProfile fetches the billing profile for the given organization.
+// remaining_credits is returned in cents (server-side). Caller should divide by 100 for dollars.
+func (s AuthHTTPStore) GetBillingProfile(organizationID string) (*BillingProfile, error) {
+	var result BillingProfile
+	path := orgPath + "/" + organizationID + "/billingprofile"
+
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(path)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return &result, nil
+}
