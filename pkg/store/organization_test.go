@@ -91,10 +91,14 @@ func TestListOrganizationMembersUsesDevPlaneRPC(t *testing.T) {
 	_, handler := nodev1connect.NewOrganizationServiceHandler(svc)
 	server := httptest.NewServer(handler)
 	defer server.Close()
+	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
+
+	legacyRESTServer := httptest.NewServer(http.NotFoundHandler())
+	defer legacyRESTServer.Close()
 
 	token := "tok"
 	fileStore, _, _ := newAuthTokenTestStore(t)
-	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &token}, server.URL))
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &token}, legacyRESTServer.URL))
 
 	members, err := s.ListOrganizationMembers(context.Background(), "org_123")
 

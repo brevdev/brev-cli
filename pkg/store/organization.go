@@ -11,6 +11,7 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -279,7 +280,7 @@ func (t *authHTTPStoreTransport) RoundTrip(req *http.Request) (*http.Response, e
 func (s *AuthHTTPStore) ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error) {
 	client := nodev1connect.NewOrganizationServiceClient(
 		&http.Client{Transport: &authHTTPStoreTransport{store: s, base: http.DefaultTransport}},
-		s.authHTTPClient.restyClient.BaseURL,
+		config.GlobalConfig.GetBrevPublicAPIURL(),
 	)
 
 	var members []*nodev1.OrganizationMember
