@@ -11,6 +11,7 @@ import (
 	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
 )
@@ -58,6 +59,9 @@ func resolveCommitSHA(client *http.Client, ref string) (string, error) {
 		return "", breverrors.WrapAndTrace(err)
 	}
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	if token := store.GitHubAPIToken(); token != "" {
+		req.Header.Set("Authorization", "token "+token)
+	}
 
 	resp, err := client.Do(req) //nolint:bodyclose // closed below
 	if err != nil {
