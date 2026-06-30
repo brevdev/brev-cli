@@ -1,7 +1,7 @@
-buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260521231113-5bd61a2e035f.1 h1:p2gDnCmIeMzMuRNP05Jh143Q8iiSq0/oXG8eckzCkSY=
-buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260521231113-5bd61a2e035f.1/go.mod h1:CwGL+2J9G36DvGlMYW/5f+LTnGAOGJPcAw3S/Zy7lbk=
-buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260521231113-5bd61a2e035f.1 h1:NyJ55L5BmM+AOC77hUrLysVvzU4m9YO+g93YwvZS3Y4=
-buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260521231113-5bd61a2e035f.1/go.mod h1:V/y7Wxg0QvU4XPVwqErF5NHLobUT1QEyfgrGuQIxdPo=
+buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260626205643-49b0d20e08f1.1 h1:Qj4BTbhIF0KE5YHiJJ+SN2goGYF8dJC1l8cv69YU/Ms=
+buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260626205643-49b0d20e08f1.1/go.mod h1:KW+lsYUmrF994Z/zj/wibrS7zhitXrYLicqR5BbVSp0=
+buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260626205643-49b0d20e08f1.1 h1:+GNKe6qV3aRH+N/FBlH6NfqyKOxMecAtbHndj3NPZc4=
+buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260626205643-49b0d20e08f1.1/go.mod h1:V/y7Wxg0QvU4XPVwqErF5NHLobUT1QEyfgrGuQIxdPo=
 buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.11-20220906235457-8b4922735da5.1 h1:6amhprQmCKJ4wgJ6ngkh32d9V+dQcOLUZ/SfHdOnYgo=
 buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.11-20220906235457-8b4922735da5.1/go.mod h1:O+pnSHMru/naTMrm4tmpBoH3wz6PHa+R75HR7Mv8X2g=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=

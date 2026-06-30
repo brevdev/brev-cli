@@ -25,7 +25,7 @@ endif
 fast-build: ## go build -o brev
 	$(call print-target)
 	echo ${VERSION}
-	CGO_ENABLED=1 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: local
 local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg arch=linux/amd64, or make local for defaults)

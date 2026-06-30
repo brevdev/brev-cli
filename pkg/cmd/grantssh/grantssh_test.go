@@ -62,12 +62,12 @@ func (m *mockRegistrationStore) Exists() (bool, error) {
 
 // mockGrantSSHStore satisfies GrantSSHStore.
 type mockGrantSSHStore struct {
-	user        *entity.User
-	org         *entity.Organization
-	token       string
-	attachments []entity.OrgRoleAttachment
-	users       map[string]*entity.User
-	err         error
+	user    *entity.User
+	org     *entity.Organization
+	token   string
+	members []*nodev1.OrganizationMember
+	users   map[string]*entity.User
+	err     error
 }
 
 func (m *mockGrantSSHStore) GetCurrentUser() (*entity.User, error) {
@@ -83,8 +83,8 @@ func (m *mockGrantSSHStore) GetActiveOrganizationOrDefault() (*entity.Organizati
 
 func (m *mockGrantSSHStore) GetAccessToken() (string, error) { return m.token, nil }
 
-func (m *mockGrantSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAttachment, error) {
-	return m.attachments, nil
+func (m *mockGrantSSHStore) ListOrganizationMembers(_ context.Context, _ string) ([]*nodev1.OrganizationMember, error) {
+	return m.members, nil
 }
 
 func (m *mockGrantSSHStore) GetUserByID(userID string) (*entity.User, error) {
@@ -226,9 +226,9 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 		user:  &entity.User{ID: "user_1", PublicKey: "ssh-ed25519 testkey"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_1"}, // current user, should be filtered
-			{Subject: "user_2"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_1"}, // current user, should be filtered
+			{UserId: "user_2"},
 		},
 		users: map[string]*entity.User{
 			"user_2": targetUser,
@@ -305,9 +305,9 @@ func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_1"},
-			{Subject: "user_2"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_1"},
+			{UserId: "user_2"},
 		},
 		users: map[string]*entity.User{"user_2": targetUser},
 	}
@@ -368,8 +368,8 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_2"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_2"},
 		},
 		users: map[string]*entity.User{
 			"user_2": {ID: "user_2", Name: "Alice", Email: "alice@example.com"},
@@ -406,8 +406,8 @@ func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_1"}, // only current user, no others
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_1"}, // only current user, no others
 		},
 		users: map[string]*entity.User{},
 	}
