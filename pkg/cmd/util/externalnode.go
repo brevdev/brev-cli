@@ -190,23 +190,23 @@ func classifyNodeSSHFailure(user *entity.User, node *nodev1.ExternalNode) error 
 		if who == "" {
 			who = user.ID
 		}
-		return breverrors.New(fmt.Sprintf(
+		return breverrors.NewValidationError(fmt.Sprintf(
 			"you don't have SSH access to node %q.\n"+
-				"Ask an org admin to grant you access, e.g.:\n"+
+				"Ask someone with SSH access to this node to grant you access, e.g.:\n"+
 				"  brev grant-ssh --node %s --user %s",
 			nodeName, nodeName, who))
 	}
 
 	port := resolvePortForSSHAccess(node, access)
 	if port == nil {
-		return breverrors.New(fmt.Sprintf(
+		return breverrors.NewValidationError(fmt.Sprintf(
 			"SSH access to node %q is granted but its SSH port isn't allocated yet.\n"+
 				"The node may still be connecting — try again shortly, or run 'brev refresh'.",
 			nodeName))
 	}
 
 	// Access and port exist, but the port has no hostname yet.
-	return breverrors.New(fmt.Sprintf(
+	return breverrors.NewValidationError(fmt.Sprintf(
 		"SSH access to node %q is granted but the connection details aren't ready yet.\n"+
 			"The node may still be connecting — try again shortly, or run 'brev refresh'.",
 		nodeName))

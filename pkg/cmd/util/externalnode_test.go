@@ -8,6 +8,7 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 // mockExternalNodeStore satisfies ExternalNodeStore for unit tests that
@@ -118,11 +119,24 @@ func TestResolveExternalNodeSSH_NoAccess(t *testing.T) {
 	if !strings.Contains(err.Error(), "don't have SSH access") {
 		t.Errorf("expected a 'no access' message, got: %v", err)
 	}
+	// It should point the user at someone who can grant access, not an org admin.
+	if !strings.Contains(err.Error(), "someone with SSH access to this node") {
+		t.Errorf("expected the message to ask someone with SSH access, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "org admin") {
+		t.Errorf("did not expect the message to reference an org admin, got: %v", err)
+	}
 	if !strings.Contains(err.Error(), "brev grant-ssh") {
 		t.Errorf("expected the message to suggest 'brev grant-ssh', got: %v", err)
 	}
 	if !strings.Contains(err.Error(), "me@example.com") {
 		t.Errorf("expected the message to reference the user's email, got: %v", err)
+	}
+	// It must be a ValidationError so the top-level handler prints it cleanly
+	// (no stack trace, no Sentry report) even in dev builds.
+	var valErr breverrors.ValidationError
+	if !breverrors.As(err, &valErr) {
+		t.Errorf("expected a ValidationError, got %T: %v", err, err)
 	}
 }
 
