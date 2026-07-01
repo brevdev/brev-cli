@@ -181,6 +181,12 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				name = args[0]
 			}
 
+			// Normalize --region: provider region names are case-sensitive on the
+			// server side (e.g. GCP rejects "US-WEST1", accepts "us-west1"), while
+			// our client-side validation is case-insensitive. Lowercase here so
+			// what we validate matches what we send.
+			filters.region = strings.ToLower(strings.TrimSpace(filters.region))
+
 			launchableID, err := parseLaunchableID(launchable)
 			if err != nil {
 				return err
@@ -237,25 +243,41 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				Region:         filters.region,
 			}
 
+			// Fetch the instance-type catalog at most once per invocation. Region
+			// validation, auto-search, and dry-run preview all share the same response
+			// so we never issue more than one round-trip. --type explicit + no region
+			// skips the fetch entirely (runDryRun returns early on explicit specs).
+			var catalogItems []gpusearch.InstanceType
+			needCatalog := filters.region != "" || (len(types) == 0 && launchableID == "")
+			if needCatalog {
+				resp, err := gpuCreateStore.GetInstanceTypes(false)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				if resp != nil {
+					catalogItems = resp.Items
+				}
+			}
+
 			if filters.region != "" {
-				if err := validateRegionExists(filters.region, gpuCreateStore); err != nil {
+				if err := validateRegionExists(filters.region, catalogItems); err != nil {
 					return err
 				}
 			}
 
-			opts.InstanceTypes, err = resolveInstanceTypes(cmd, gpuCreateStore, opts, types, &filters)
+			opts.InstanceTypes, err = resolveInstanceTypes(cmd, catalogItems, opts, types, &filters)
 			if err != nil {
 				return err
 			}
 
 			if filters.region != "" {
-				if err := validateRegion(filters.region, opts.InstanceTypes, gpuCreateStore); err != nil {
+				if err := validateRegion(filters.region, opts.InstanceTypes, catalogItems); err != nil {
 					return err
 				}
 			}
 
 			if dryRun {
-				return runDryRun(t, gpuCreateStore, opts.InstanceTypes, &filters)
+				return runDryRun(t, catalogItems, opts.InstanceTypes, &filters)
 			}
 
 			return RunGPUCreate(t, gpuCreateStore, opts)
@@ -463,8 +485,9 @@ func launchableBuildModeName(info *store.LaunchableResponse) string {
 	}
 }
 
-// resolveInstanceTypes determines instance types from launchable, flags, or filters
-func resolveInstanceTypes(cmd *cobra.Command, gpuCreateStore GPUCreateStore, opts GPUCreateOptions, types []InstanceSpec, filters *searchFilterFlags) ([]InstanceSpec, error) {
+// resolveInstanceTypes determines instance types from launchable, flags, or filters.
+// Operates on a pre-fetched catalog when auto-search is needed.
+func resolveInstanceTypes(cmd *cobra.Command, items []gpusearch.InstanceType, opts GPUCreateOptions, types []InstanceSpec, filters *searchFilterFlags) ([]InstanceSpec, error) {
 	if opts.LaunchableID != "" && len(types) == 0 && !cmd.Flags().Changed("type") {
 		instanceType := ""
 		if opts.LaunchableInfo != nil {
@@ -477,10 +500,7 @@ func resolveInstanceTypes(cmd *cobra.Command, gpuCreateStore GPUCreateStore, opt
 	}
 
 	if len(types) == 0 {
-		filtered, err := getFilteredInstanceTypes(gpuCreateStore, filters)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
+		filtered := getFilteredInstanceTypes(items, filters)
 		if len(filtered) == 0 {
 			return nil, breverrors.NewValidationError("no GPU instances match the specified filters. Try 'brev search' to see available options")
 		}
@@ -511,15 +531,11 @@ func parseStartupScript(value string) (string, error) {
 	return value, nil
 }
 
-// searchInstances fetches and filters GPU instances using user-provided filters merged with defaults
-func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64, error) {
-	response, err := s.GetInstanceTypes(false)
-	if err != nil {
-		return nil, 0, breverrors.WrapAndTrace(err)
-	}
-
-	if response == nil || len(response.Items) == 0 {
-		return nil, 0, nil
+// searchInstances filters GPU instances using user-provided filters merged with defaults.
+// Operates on a pre-fetched catalog so callers can share one network round-trip.
+func searchInstances(items []gpusearch.InstanceType, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64) {
+	if len(items) == 0 {
+		return nil, 0
 	}
 
 	minTotalVRAM := orDefault(filters.minTotalVRAM, defaultMinTotalVRAM)
@@ -534,21 +550,19 @@ func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.
 		sortBy = "price"
 	}
 
-	instances := gpusearch.ProcessInstances(response.Items)
+	instances := gpusearch.ProcessInstances(items)
 	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.region, filters.provider, "", filters.minVRAM,
 		minTotalVRAM, minCapability, 0, minDisk, 0, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts, true)
 	gpusearch.SortInstances(filtered, sortBy, filters.descending)
 
-	return filtered, minDisk, nil
+	return filtered, minDisk
 }
 
-// getFilteredInstanceTypes fetches GPU instance types using user-provided filters
+// getFilteredInstanceTypes filters GPU instance types using user-provided filters
 // merged with defaults. When a filter flag is not set, the default value is used.
-func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]InstanceSpec, error) {
-	filtered, minDisk, err := searchInstances(s, filters)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
+// Operates on a pre-fetched catalog.
+func getFilteredInstanceTypes(items []gpusearch.InstanceType, filters *searchFilterFlags) []InstanceSpec {
+	filtered, minDisk := searchInstances(items, filters)
 
 	var specs []InstanceSpec
 	for _, inst := range filtered {
@@ -559,20 +573,18 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 		specs = append(specs, InstanceSpec{Type: inst.Type, DiskGB: diskGB})
 	}
 
-	return specs, nil
+	return specs
 }
 
-// runDryRun shows the instance types that would be used without creating anything
-func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, filters *searchFilterFlags) error {
+// runDryRun shows the instance types that would be used without creating anything.
+// Operates on a pre-fetched catalog.
+func runDryRun(t *terminal.Terminal, items []gpusearch.InstanceType, specs []InstanceSpec, filters *searchFilterFlags) error {
 	if len(specs) > 0 {
 		t.Print(formatInstanceSpecs(specs))
 		return nil
 	}
 
-	filtered, _, err := searchInstances(s, filters)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	filtered, _ := searchInstances(items, filters)
 
 	piped := gpusearch.IsStdoutPiped()
 	if err := gpusearch.DisplayGPUResults(t, filtered, false, piped, false); err != nil {
@@ -582,18 +594,14 @@ func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, fil
 }
 
 // validateRegionExists checks that the given region appears in at least one instance type in the catalog.
-func validateRegionExists(region string, store GPUCreateStore) error {
-	response, err := store.GetInstanceTypes(false)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if response == nil || len(response.Items) == 0 {
+// Operates on a pre-fetched catalog.
+func validateRegionExists(region string, items []gpusearch.InstanceType) error {
+	if len(items) == 0 {
 		return nil
 	}
 
-	regionLower := strings.ToLower(region)
-	for _, item := range response.Items {
-		if typeSupportsRegion(item, regionLower) {
+	for _, item := range items {
+		if typeSupportsRegion(item, region) {
 			return nil
 		}
 	}
@@ -605,25 +613,17 @@ func validateRegionExists(region string, store GPUCreateStore) error {
 }
 
 // validateRegion checks that every requested instance type is available in the given region.
-func validateRegion(region string, types []InstanceSpec, store GPUCreateStore) error {
-	if len(types) == 0 {
+// Operates on a pre-fetched catalog.
+func validateRegion(region string, types []InstanceSpec, items []gpusearch.InstanceType) error {
+	if len(types) == 0 || len(items) == 0 {
 		return nil
 	}
 
-	response, err := store.GetInstanceTypes(false)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if response == nil || len(response.Items) == 0 {
-		return nil
-	}
-
-	catalog := make(map[string]gpusearch.InstanceType, len(response.Items))
-	for _, item := range response.Items {
+	catalog := make(map[string]gpusearch.InstanceType, len(items))
+	for _, item := range items {
 		catalog[item.Type] = item
 	}
 
-	regionLower := strings.ToLower(region)
 	var unsupported []string
 	var unknown []string
 
@@ -633,7 +633,7 @@ func validateRegion(region string, types []InstanceSpec, store GPUCreateStore) e
 			unknown = append(unknown, spec.Type)
 			continue
 		}
-		if !typeSupportsRegion(item, regionLower) {
+		if !typeSupportsRegion(item, region) {
 			unsupported = append(unsupported, spec.Type)
 		}
 	}
@@ -653,10 +653,12 @@ func validateRegion(region string, types []InstanceSpec, store GPUCreateStore) e
 }
 
 // typeSupportsRegion reports whether an instance type lists the given region
-// (already lowercased) in its AvailableLocations, using substring matching.
-func typeSupportsRegion(item gpusearch.InstanceType, regionLower string) bool {
+// in its AvailableLocations. Match is case-insensitive but must be an exact
+// equality — substring matching would let e.g. --region "us" pass validation
+// against "us-east-1", and then we'd forward "us" to the server as the region.
+func typeSupportsRegion(item gpusearch.InstanceType, region string) bool {
 	for _, loc := range item.AvailableLocations {
-		if strings.Contains(strings.ToLower(loc), regionLower) {
+		if strings.EqualFold(loc, region) {
 			return true
 		}
 	}

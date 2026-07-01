@@ -27,6 +27,7 @@ type MockGPUCreateStore struct {
 	CreatedWorkspaces         []*entity.Workspace
 	DeletedWorkspaceIDs       []string
 	FetchedLifeCycleScriptIDs []string
+	GetInstanceTypesCallCount int
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -127,6 +128,7 @@ func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string
 }
 
 func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
+	m.GetInstanceTypesCallCount++
 	// Return a default set of instance types for testing
 	return &gpusearch.InstanceTypesResponse{
 		Items: []gpusearch.InstanceType{
@@ -776,16 +778,58 @@ func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
 	assert.Empty(t, mock.CreatedWorkspaces)
 }
 
+func TestCreateFetchesCatalogAtMostOnce(t *testing.T) {
+	tests := []struct {
+		name           string
+		args           []string
+		wantFetchCount int
+	}{
+		{
+			name:           "explicit type, no region — no catalog fetch needed",
+			args:           []string{"no-fetch", "--type", "g5.xlarge", "--dry-run"},
+			wantFetchCount: 0,
+		},
+		{
+			name:           "auto-search needs catalog once",
+			args:           []string{"auto", "--dry-run"},
+			wantFetchCount: 1,
+		},
+		{
+			name:           "region triggers catalog fetch, reused across validations",
+			args:           []string{"reg", "--type", "g5.xlarge", "--region", "us-east-1", "--dry-run"},
+			wantFetchCount: 1,
+		},
+		{
+			name:           "region + auto-search shares one fetch across validators and resolveInstanceTypes",
+			args:           []string{"reg-auto", "--region", "us-east-1", "--dry-run"},
+			wantFetchCount: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := NewMockGPUCreateStore()
+			term := terminal.New()
+
+			cmd := NewCmdGPUCreate(term, mock)
+			cmd.SetArgs(tt.args)
+			_ = cmd.Execute() // success not required — count assertion is the point
+			assert.Equal(t, tt.wantFetchCount, mock.GetInstanceTypesCallCount,
+				"GetInstanceTypes should be called %d time(s) for args %v", tt.wantFetchCount, tt.args)
+		})
+	}
+}
+
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	mock := NewMockGPUCreateStore()
+	resp, err := mock.GetInstanceTypes(false)
+	assert.NoError(t, err)
 
 	// Get instance types with no user filters (uses defaults):
 	// - 24GB VRAM (>= 20GB total VRAM requirement)
 	// - 500GB disk (>= 500GB requirement)
 	// - A10G GPU = 8.6 capability (>= 8.0 requirement)
 	// - 5m boot time (< 7m requirement)
-	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{})
-	assert.NoError(t, err)
+	specs := getFilteredInstanceTypes(resp.Items, &searchFilterFlags{})
 	assert.Len(t, specs, 1)
 	assert.Equal(t, "g5.xlarge", specs[0].Type)
 	assert.Equal(t, 500.0, specs[0].DiskGB) // Should use the instance's disk size
@@ -793,20 +837,22 @@ func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 
 func TestGetFilteredInstanceTypesWithGPUName(t *testing.T) {
 	mock := NewMockGPUCreateStore()
+	resp, err := mock.GetInstanceTypes(false)
+	assert.NoError(t, err)
 
 	// Filter by GPU name that matches the mock data
-	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "A10G"})
-	assert.NoError(t, err)
+	specs := getFilteredInstanceTypes(resp.Items, &searchFilterFlags{gpuName: "A10G"})
 	assert.Len(t, specs, 1)
 	assert.Equal(t, "g5.xlarge", specs[0].Type)
 }
 
 func TestGetFilteredInstanceTypesNoMatch(t *testing.T) {
 	mock := NewMockGPUCreateStore()
+	resp, err := mock.GetInstanceTypes(false)
+	assert.NoError(t, err)
 
 	// Filter by GPU name that doesn't match
-	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "H100"})
-	assert.NoError(t, err)
+	specs := getFilteredInstanceTypes(resp.Items, &searchFilterFlags{gpuName: "H100"})
 	assert.Len(t, specs, 0)
 }
 
