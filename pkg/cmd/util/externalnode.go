@@ -156,7 +156,7 @@ func ResolveExternalNodeSSH(store ExternalNodeStore, node *nodev1.ExternalNode) 
 
 	entry := ResolveNodeSSHEntry(user.ID, node)
 	if entry == nil {
-		return nil, breverrors.New(fmt.Sprintf("cannot resolve SSH for node %q — no access, no port, or no hostname", node.GetName()))
+		return nil, classifyNodeSSHFailure(user, node)
 	}
 
 	return &ExternalNodeSSHInfo{
@@ -165,4 +165,49 @@ func ResolveExternalNodeSSH(store ExternalNodeStore, node *nodev1.ExternalNode) 
 		Hostname:  entry.Hostname,
 		Port:      entry.Port,
 	}, nil
+}
+
+// classifyNodeSSHFailure returns an actionable error explaining why SSH cannot
+// be resolved for the user on this node. The cases mirror ResolveNodeSSHEntry:
+// the user may have no access grant, an access grant whose port is not yet
+// allocated, or a port that has not yet reported its hostname. Each case has a
+// distinct remedy, so we surface them separately rather than as one catch-all.
+func classifyNodeSSHFailure(user *entity.User, node *nodev1.ExternalNode) error {
+	nodeName := node.GetName()
+
+	var access *nodev1.SSHAccess
+	for _, a := range node.GetSshAccess() {
+		if a.GetUserId() == user.ID {
+			access = a
+			break
+		}
+	}
+
+	// Most common case (per the issue): the node is visible in `brev ls nodes`
+	// because the user is in the org, but no SSH access has been granted.
+	if access == nil || access.GetLinuxUser() == "" {
+		who := user.Email
+		if who == "" {
+			who = user.ID
+		}
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"you don't have SSH access to node %q.\n"+
+				"Ask someone with SSH access to this node to grant you access, e.g.:\n"+
+				"  brev grant-ssh --node %s --user %s",
+			nodeName, nodeName, who))
+	}
+
+	port := resolvePortForSSHAccess(node, access)
+	if port == nil {
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"SSH access to node %q is granted but its SSH port isn't allocated yet.\n"+
+				"The node may still be connecting — try again shortly, or run 'brev refresh'.",
+			nodeName))
+	}
+
+	// Access and port exist, but the port has no hostname yet.
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"SSH access to node %q is granted but the connection details aren't ready yet.\n"+
+			"The node may still be connecting — try again shortly, or run 'brev refresh'.",
+		nodeName))
 }
