@@ -55,6 +55,14 @@ type WorkspaceGroup struct {
 	PlatformType string `json:"platformType"`
 }
 
+// CloudCred represents a cloud credential that can run an instance type.
+type CloudCred struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	PlatformType string `json:"platformType"`
+	TenantType   string `json:"tenantType"`
+}
+
 // InstanceType represents an instance type from the API
 type InstanceType struct {
 	Type                   string           `json:"type"`
@@ -69,6 +77,8 @@ type InstanceType struct {
 	SubLocation            string           `json:"sub_location"`
 	AvailableLocations     []string         `json:"available_locations"`
 	Provider               string           `json:"provider"`
+	CloudCredID            string           `json:"cloud_cred_id"`
+	CloudCreds             []CloudCred      `json:"cloud_creds"`
 	WorkspaceGroups        []WorkspaceGroup `json:"workspace_groups"`
 	EstimatedDeployTime    string           `json:"estimated_deploy_time"`
 	Stoppable              bool             `json:"stoppable"`
@@ -81,21 +91,32 @@ type InstanceTypesResponse struct {
 	Items []InstanceType `json:"items"`
 }
 
-// AllInstanceTypesResponse represents the authenticated API response with workspace groups
+// AllInstanceTypesResponse represents the authenticated API response with cloud credentials.
 type AllInstanceTypesResponse struct {
 	AllInstanceTypes []InstanceType `json:"allInstanceTypes"`
 }
 
-// GetWorkspaceGroupID returns the workspace group ID for an instance type, or empty string if not found
-func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) string {
+// GetCloudCredID returns the cloud credential ID for an instance type, or empty string if not found.
+func (r *AllInstanceTypesResponse) GetCloudCredID(instanceType string) string {
 	for _, it := range r.AllInstanceTypes {
 		if it.Type == instanceType {
+			if it.CloudCredID != "" {
+				return it.CloudCredID
+			}
+			if len(it.CloudCreds) > 0 {
+				return it.CloudCreds[0].ID
+			}
 			if len(it.WorkspaceGroups) > 0 {
 				return it.WorkspaceGroups[0].ID
 			}
 		}
 	}
 	return ""
+}
+
+// GetWorkspaceGroupID is a compatibility alias while create still accepts workspaceGroupId.
+func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) string {
+	return r.GetCloudCredID(instanceType)
 }
 
 // HasInstanceType reports whether the type exists in the API listing, independent of capacity.

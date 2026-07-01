@@ -105,7 +105,7 @@ type GPUCreateStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
+	GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
 	GetLaunchable(launchableID string) (*store.LaunchableResponse, error)
 	GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error)
 	RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error)
@@ -768,11 +768,11 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 	}
 	ctx.org = org
 
-	// Fetch instance types with workspace groups
-	allInstanceTypes, err := store.GetAllInstanceTypesWithWorkspaceGroups(org.ID)
+	// Fetch instance types with cloud credentials.
+	allInstanceTypes, err := store.GetAllInstanceTypesWithCloudCreds(org.ID)
 	if err != nil {
-		ctx.logf("Warning: could not fetch instance types with workspace groups: %s\n", err.Error())
-		ctx.logf("Falling back to default workspace group\n")
+		ctx.logf("Warning: could not fetch instance types with cloud credentials: %s\n", err.Error())
+		ctx.logf("Falling back to default cloud credential\n")
 	}
 	ctx.allInstanceTypes = allInstanceTypes
 
@@ -791,7 +791,7 @@ func (c *createContext) validateInstanceTypeAvailability(instanceType string) er
 	if c.allInstanceTypes == nil {
 		return nil
 	}
-	if c.allInstanceTypes.GetWorkspaceGroupID(instanceType) != "" {
+	if c.allInstanceTypes.GetCloudCredID(instanceType) != "" {
 		return nil
 	}
 	if !c.allInstanceTypes.HasInstanceType(instanceType) {
@@ -1042,8 +1042,8 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	}
 
 	if c.allInstanceTypes != nil {
-		if wgID := c.allInstanceTypes.GetWorkspaceGroupID(spec.Type); wgID != "" {
-			cwOptions.WorkspaceGroupID = wgID
+		if cloudCredID := c.allInstanceTypes.GetCloudCredID(spec.Type); cloudCredID != "" {
+			cwOptions.WithCloudCredID(cloudCredID)
 		}
 	}
 
@@ -1060,7 +1060,7 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	if cwOptions.WorkspaceGroupID == "" {
 		if c.allInstanceTypes == nil {
 			return nil, breverrors.NewValidationError(fmt.Sprintf(
-				"could not resolve workspace group for %q (instance-type listing was unavailable); please retry",
+				"could not resolve cloud credential for %q (instance-type listing was unavailable); please retry",
 				spec.Type,
 			))
 		}
@@ -1178,9 +1178,15 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 
 	wsReq := info.CreateWorkspaceRequest
 
-	// Use launchable's workspace group if not already resolved from instance types
+	// Use launchable's cloud credential if not already resolved from instance types.
+	if cwOptions.CloudCredID == "" && wsReq.CloudCredID != "" {
+		cwOptions.WithCloudCredID(wsReq.CloudCredID)
+	}
 	if cwOptions.WorkspaceGroupID == "" && wsReq.WorkspaceGroupID != "" {
 		cwOptions.WorkspaceGroupID = wsReq.WorkspaceGroupID
+		if cwOptions.CloudCredID == "" {
+			cwOptions.CloudCredID = wsReq.WorkspaceGroupID
+		}
 	}
 
 	// Location / sub-location
@@ -1240,6 +1246,7 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 	}
 	labels["launchableId"] = launchableID
 	labels["launchableInstanceType"] = wsReq.InstanceType
+	labels["cloudCredId"] = cwOptions.CloudCredID
 	labels["workspaceGroupId"] = cwOptions.WorkspaceGroupID
 	labels["launchableCreatedByUserId"] = info.CreatedByUserID
 	labels["launchableCreatedByOrgId"] = info.CreatedByOrgID

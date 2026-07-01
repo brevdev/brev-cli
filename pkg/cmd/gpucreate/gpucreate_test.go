@@ -14,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockGPUCreateStore is a mock implementation of GPUCreateStore for testing
@@ -24,6 +25,7 @@ type MockGPUCreateStore struct {
 	CreateError               error
 	CreateErrorTypes          map[string]error // Errors for specific instance types
 	DeleteError               error
+	CreatedOptions            []*store.CreateWorkspacesOptions
 	CreatedWorkspaces         []*entity.Workspace
 	DeletedWorkspaceIDs       []string
 	FetchedLifeCycleScriptIDs []string
@@ -85,6 +87,7 @@ func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *sto
 		Status:       entity.Running,
 	}
 	m.Workspaces[ws.ID] = ws
+	m.CreatedOptions = append(m.CreatedOptions, options)
 	m.CreatedWorkspaces = append(m.CreatedWorkspaces, ws)
 	return ws, nil
 }
@@ -104,7 +107,7 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 	return []entity.Workspace{}, nil
 }
 
-func (m *MockGPUCreateStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
+func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
 	return nil, nil
 }
 
@@ -247,7 +250,8 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 
 		applyLaunchableConfig(cwOptions, "env-abc123", info)
 
-		// Workspace group from launchable
+		// Cloud credential from launchable compatibility input.
+		assert.Equal(t, "GCP", cwOptions.CloudCredID)
 		assert.Equal(t, "GCP", cwOptions.WorkspaceGroupID)
 		// Location / sub-location
 		assert.Equal(t, "us-west1", cwOptions.Location)
@@ -274,6 +278,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		assert.True(t, ok)
 		assert.Equal(t, "env-abc123", labels["launchableId"])
 		assert.Equal(t, "n2-standard-4", labels["launchableInstanceType"])
+		assert.Equal(t, "GCP", labels["cloudCredId"])
 		assert.Equal(t, "GCP", labels["workspaceGroupId"])
 		assert.Equal(t, "user-1", labels["launchableCreatedByUserId"])
 		assert.Equal(t, "org-1", labels["launchableCreatedByOrgId"])
@@ -281,6 +286,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 
 	t.Run("preserves existing workspace group", func(t *testing.T) {
 		cwOptions := &store.CreateWorkspacesOptions{
+			CloudCredID:      "existing-wg",
 			WorkspaceGroupID: "existing-wg",
 		}
 		info := &store.LaunchableResponse{
@@ -293,6 +299,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		applyLaunchableConfig(cwOptions, "env-abc", info)
 
 		assert.Equal(t, "existing-wg", cwOptions.WorkspaceGroupID)
+		assert.Equal(t, "existing-wg", cwOptions.CloudCredID)
 	})
 
 	t.Run("storage already has Gi suffix", func(t *testing.T) {
@@ -1114,6 +1121,34 @@ func TestCreateInstancesWithTypeSkipsUnavailableType(t *testing.T) {
 	assert.True(t, result.hadFailure, "expected hadFailure for an unavailable instance type")
 	assert.Empty(t, result.successes)
 	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when no workspace group is available")
+}
+
+func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{
+					Type:        "hyperstack_H100_sxm5x8",
+					CloudCredID: "cc-shadeform",
+				},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100_sxm5x8"}, 0, 1)
+
+	assert.False(t, result.hadFailure)
+	require.Len(t, mock.CreatedOptions, 1)
+	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].CloudCredID)
+	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].WorkspaceGroupID)
 }
 
 func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {

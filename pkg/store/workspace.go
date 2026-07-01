@@ -80,6 +80,7 @@ type Registry struct {
 
 type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
+	CloudCredID          string               `json:"cloudCredId,omitempty"`
 	WorkspaceGroupID     string               `json:"workspaceGroupId"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
@@ -141,6 +142,7 @@ type LaunchableResponse struct {
 }
 
 type LaunchableWorkspaceRequest struct {
+	CloudCredID      string               `json:"cloudCredId,omitempty"`
 	WorkspaceGroupID string               `json:"workspaceGroupId,omitempty"`
 	InstanceType     string               `json:"instanceType"`
 	Storage          string               `json:"storage,omitempty"`
@@ -255,6 +257,12 @@ func (c *CreateWorkspacesOptions) WithVMBuild(vmBuild *VMBuild) *CreateWorkspace
 
 func (c *CreateWorkspacesOptions) WithWorkspaceGroupID(workspaceGroupID string) *CreateWorkspacesOptions {
 	c.WorkspaceGroupID = workspaceGroupID
+	return c
+}
+
+func (c *CreateWorkspacesOptions) WithCloudCredID(cloudCredID string) *CreateWorkspacesOptions {
+	c.CloudCredID = cloudCredID
+	c.WorkspaceGroupID = cloudCredID
 	return c
 }
 
