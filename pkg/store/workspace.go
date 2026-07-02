@@ -99,6 +99,7 @@ type CreateWorkspacesOptions struct {
 	ExecsV1              *entity.ExecsV1      `json:"execsV1"`
 	InstanceType         string               `json:"instanceType"`
 	Location             string               `json:"location,omitempty"`
+	SubLocation          string               `json:"subLocation,omitempty"`
 	DiskStorage          string               `json:"diskStorage"`
 	BaseImage            string               `json:"baseImage"`
 	VMOnlyMode           bool                 `json:"vmOnlyMode"`
@@ -107,11 +108,20 @@ type CreateWorkspacesOptions struct {
 	DockerCompose        *DockerCompose       `json:"dockerCompose,omitempty"`
 	OnContainer          bool                 `json:"onContainer,omitempty"`
 	PortMappings         map[string]string    `json:"portMappings"`
+	FirewallRules        []CreateFirewallRule `json:"firewallRules,omitempty"`
 	Files                interface{}          `json:"files"`
 	Labels               interface{}          `json:"labels"`
 	WorkspaceVersion     string               `json:"workspaceVersion"`
 	LaunchJupyterOnStart bool                 `json:"launchJupyterOnStart"`
 	LaunchableConfig     *LaunchableConfig    `json:"launchableConfig,omitempty"`
+}
+
+// CreateFirewallRule mirrors brev-deploy's CreateFirewallRule. AllowedIPs is
+// either "all" (open to 0.0.0.0/0) or "user-ip" (open to ClientIPs).
+type CreateFirewallRule struct {
+	Port       string   `json:"port"`
+	AllowedIPs string   `json:"allowedIPs"`
+	ClientIPs  []string `json:"clientIPs,omitempty"`
 }
 
 type LaunchableConfig struct {
@@ -131,11 +141,13 @@ type LaunchableResponse struct {
 }
 
 type LaunchableWorkspaceRequest struct {
-	WorkspaceGroupID string `json:"workspaceGroupId,omitempty"`
-	InstanceType     string `json:"instanceType"`
-	Storage          string `json:"storage,omitempty"`
-	Location         string `json:"location,omitempty"`
-	ImageID          string `json:"imageId,omitempty"`
+	WorkspaceGroupID string               `json:"workspaceGroupId,omitempty"`
+	InstanceType     string               `json:"instanceType"`
+	Storage          string               `json:"storage,omitempty"`
+	Location         string               `json:"location,omitempty"`
+	SubLocation      string               `json:"subLocation,omitempty"`
+	ImageID          string               `json:"imageId,omitempty"`
+	FirewallRules    []CreateFirewallRule `json:"firewallRules,omitempty"`
 }
 
 type LaunchableBuildRequest struct {

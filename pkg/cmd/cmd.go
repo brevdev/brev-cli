@@ -38,7 +38,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
-	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/redeem"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
@@ -58,7 +57,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
 	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -308,7 +306,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	} else {
 		_ = 0 // noop
 	}
-	cmd.AddCommand(workspacegroups.NewCmdWorkspaceGroups(t, loginCmdStore))
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
 	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
 	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
@@ -341,7 +338,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
-	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 	cmd.AddCommand(feedback.NewCmdFeedback(t, noLoginCmdStore))
 }

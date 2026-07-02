@@ -60,9 +60,10 @@ func (m *mockRegistrationStore) Exists() (bool, error) {
 }
 
 type mockRevokeSSHStore struct {
-	token string
-	org   *entity.Organization
-	users map[string]*entity.User
+	token   string
+	org     *entity.Organization
+	members []*nodev1.OrganizationMember
+	users   map[string]*entity.User
 }
 
 func (m *mockRevokeSSHStore) GetAccessToken() (string, error) { return m.token, nil }
@@ -94,8 +95,8 @@ func (m *mockRevokeSSHStore) GetOrganizationsByName(name string) ([]entity.Organ
 	return nil, nil
 }
 
-func (m *mockRevokeSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAttachment, error) {
-	return nil, nil
+func (m *mockRevokeSSHStore) ListOrganizationMembers(_ context.Context, _ string) ([]*nodev1.OrganizationMember, error) {
+	return m.members, nil
 }
 
 // fakeNodeService implements the server side of ExternalNodeService for testing.
