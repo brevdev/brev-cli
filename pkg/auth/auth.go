@@ -4,9 +4,8 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -324,10 +323,20 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	return nil
 }
 
-// showLoginURL displays the login link and CLI alternative for manual navigation.
+func init() {
+	// pkg/browser pipes the launcher's stderr to ours, which leaks confusing
+	// noise like "xdg-open: no DISPLAY environment variable specified" on
+	// headless machines. We always print the login URL, so discard it.
+	browser.Stderr = io.Discard
+}
+
+// showLoginURL prints the login link, framed as a fallback for when the
+// browser doesn't open (e.g. headless machine, wrong default browser).
 func showLoginURL(url string) {
 	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("Login here: " + urlType(url))
+	fmt.Println("Browser didn't open? Use the URL below to sign in:")
+	fmt.Println()
+	fmt.Println(urlType(url))
 }
 
 func defaultAuthFunc(url, code string) {
@@ -337,12 +346,9 @@ func defaultAuthFunc(url, code string) {
 		fmt.Print("\n")
 	}
 
-	if hasBrowser() {
-		if err := browser.OpenURL(url); err == nil {
-			fmt.Println("Waiting for login to complete in browser...")
-			return
-		}
-	}
+	// Best-effort: try to open the browser, but always show the URL below so
+	// the user is never stranded if it doesn't open.
+	_ = browser.OpenURL(url)
 	showLoginURL(url)
 	fmt.Println("\nWaiting for login to complete...")
 }
@@ -350,21 +356,6 @@ func defaultAuthFunc(url, code string) {
 func skipBrowserAuthFunc(url, _ string) {
 	showLoginURL(url)
 	fmt.Println("\nWaiting for login to complete...")
-}
-
-// hasBrowser reports whether a browser can be opened on the current platform.
-func hasBrowser() bool {
-	if runtime.GOOS == "darwin" {
-		// macOS always has "open".
-		return true
-	}
-	// Linux: check for a known browser launcher.
-	for _, name := range []string{"xdg-open", "x-www-browser", "www-browser"} {
-		if _, err := exec.LookPath(name); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
