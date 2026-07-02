@@ -16,7 +16,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/spf13/cobra"
@@ -229,7 +228,6 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
 		err = runSSH(sshName, command)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
@@ -263,7 +261,6 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 			"could not connect to instance %q: %w\nPlease check with: brev ls",
 			workspaceNameOrID, err))
 	}
-	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
 	err = runSSH(sshName, command)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

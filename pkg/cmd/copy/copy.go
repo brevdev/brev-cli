@@ -18,7 +18,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 
 	"github.com/spf13/cobra"
@@ -98,8 +97,6 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	_ = writeconnectionevent.WriteWCEOnEnv(cstore, workspace.DNS)
 
 	err = runSCP(t, sshName, localPath, remotePath, isUpload)
 	if err != nil {
