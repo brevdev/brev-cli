@@ -28,7 +28,7 @@ type RevokeSSHStore interface {
 	GetOrganizationsByName(name string) ([]entity.Organization, error)
 	ListOrganizations() ([]entity.Organization, error)
 	GetUserByID(userID string) (*entity.User, error)
-	GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error)
+	ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error)
 }
 
 // revokeSSHDeps bundles the side-effecting dependencies of runRevokeSSH so they
@@ -183,7 +183,7 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		targetPortID = selectedAccess.GetPortId()
 		portLabel = portLabelForAccess(selectedNode, selectedAccess)
 	} else {
-		resolvedUserID, err := resolveUserID(s, selectedOrg.ID, opts.userIDOrEmail)
+		resolvedUserID, err := resolveUserID(ctx, s, selectedOrg.ID, opts.userIDOrEmail)
 		if err != nil {
 			return err
 		}
@@ -268,7 +268,7 @@ func portLabelForAccess(node *nodev1.ExternalNode, sa *nodev1.SSHAccess) string 
 }
 
 // resolveUserID resolves idOrEmail to a Brev user ID using org members when it looks like an email.
-func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, error) {
+func resolveUserID(ctx context.Context, s RevokeSSHStore, orgID string, idOrEmail string) (string, error) {
 	if idOrEmail == "" {
 		return "", fmt.Errorf("user is required")
 	}
@@ -281,12 +281,15 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 		return idOrEmail, nil
 	}
 
-	attachments, err := s.GetOrgRoleAttachments(orgID)
+	members, err := s.ListOrganizationMembers(ctx, orgID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list org members: %w", err)
 	}
-	for _, a := range attachments {
-		u, err := s.GetUserByID(a.Subject)
+	for _, member := range members {
+		if strings.EqualFold(member.GetDefaultEmail(), idOrEmail) {
+			return member.GetUserId(), nil
+		}
+		u, err := s.GetUserByID(member.GetUserId())
 		if err != nil {
 			continue
 		}

@@ -577,17 +577,6 @@ func (u User) GetOnboardingData() (*OnboardingData, error) {
 	return x, nil
 }
 
-type OrgRoleAttachment struct {
-	Subject string                `json:"subject"`
-	Object  string                `json:"object"`
-	Role    OrgRoleAttachmentRole `json:"role"`
-}
-
-type OrgRoleAttachmentRole struct {
-	ID      string   `json:"id"`
-	Actions []string `json:"actions"`
-}
-
 type ModifyWorkspaceRequest struct {
 	WorkspaceClass    string    `json:"workspaceClassId"`
 	IsStoppable       *bool     `json:"isStoppable"`

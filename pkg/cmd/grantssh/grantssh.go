@@ -30,7 +30,7 @@ type GrantSSHStore interface {
 	GetOrganizationsByName(name string) ([]entity.Organization, error)
 	ListOrganizations() ([]entity.Organization, error)
 	GetAccessToken() (string, error)
-	GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error)
+	ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error)
 	GetUserByID(userID string) (*entity.User, error)
 }
 
@@ -43,8 +43,7 @@ type grantSSHDeps struct {
 }
 
 type resolvedMember struct {
-	user       *entity.User
-	attachment entity.OrgRoleAttachment
+	user *entity.User
 }
 
 func defaultGrantSSHDeps() grantSSHDeps {
@@ -161,7 +160,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		return breverrors.WrapAndTrace(err)
 	}
 
-	orgMembers, err := getOrgMembers(currentUser, t, s, org.ID)
+	orgMembers, err := getOrgMembers(ctx, currentUser, t, s, org.ID)
 	if err != nil {
 		return err
 	}
@@ -291,16 +290,16 @@ func findUserByIDOrEmail(members []resolvedMember, idOrEmail string) (*entity.Us
 	return nil, fmt.Errorf("no org member found matching %q", idOrEmail)
 }
 
-func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgID string) ([]resolvedMember, error) {
-	attachments, err := s.GetOrgRoleAttachments(orgID)
+func getOrgMembers(ctx context.Context, currentUser *entity.User, t *terminal.Terminal, s GrantSSHStore, orgID string) ([]resolvedMember, error) {
+	members, err := s.ListOrganizationMembers(ctx, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch org members: %w", err)
 	}
 
-	var otherMembers []entity.OrgRoleAttachment
-	for _, a := range attachments {
-		if a.Subject != currentUser.ID {
-			otherMembers = append(otherMembers, a)
+	var otherMembers []*nodev1.OrganizationMember
+	for _, member := range members {
+		if member.GetUserId() != currentUser.ID {
+			otherMembers = append(otherMembers, member)
 		}
 	}
 
@@ -309,12 +308,12 @@ func getOrgMembers(currentUser *entity.User, t *terminal.Terminal, s GrantSSHSto
 	}
 	var resolved []resolvedMember
 	for _, m := range otherMembers {
-		memberUser, err := s.GetUserByID(m.Subject)
+		memberUser, err := s.GetUserByID(m.GetUserId())
 		if err != nil {
-			t.Vprintf("  Warning: could not resolve user %s: %v\n", m.Subject, err)
+			t.Vprintf("  Warning: could not resolve user %s: %v\n", m.GetUserId(), err)
 			continue
 		}
-		resolved = append(resolved, resolvedMember{user: memberUser, attachment: m})
+		resolved = append(resolved, resolvedMember{user: memberUser})
 	}
 
 	if len(resolved) == 0 {
