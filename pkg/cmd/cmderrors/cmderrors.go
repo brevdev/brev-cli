@@ -29,6 +29,10 @@ func DisplayAndHandleError(err error) {
 	if err != nil {
 		t := terminal.New()
 		prettyErr := ""
+		// showTrace gates whether we dump the full wrapped error (with stack
+		// frames) in dev/debug builds. Only unexpected, Sentry-reported errors
+		// warrant a trace; expected user-facing errors always print cleanly.
+		showTrace := false
 		switch errors.Cause(err).(type) {
 		case breverrors.ValidationError:
 			// do not report error
@@ -65,9 +69,10 @@ func DisplayAndHandleError(err error) {
 			} else {
 				er.ReportError(err)
 				prettyErr = (t.Red(errors.Cause(err).Error()))
+				showTrace = true
 			}
 		}
-		if featureflag.Debug() || featureflag.IsDev() {
+		if showTrace && (featureflag.Debug() || featureflag.IsDev()) {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
 			fmt.Fprintln(os.Stderr, prettyErr)
