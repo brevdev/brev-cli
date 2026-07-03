@@ -1,11 +1,16 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"strings"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -439,19 +444,161 @@ func (s AuthHTTPStore) GetAllWorkspaces(options *GetWorkspacesOptions) ([]entity
 }
 
 func (s AuthHTTPStore) getWorkspaces(organizationID string) ([]entity.Workspace, error) {
-	var result []entity.Workspace
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetPathParam(orgIDParamName, organizationID).
-		SetResult(&result).
-		Get(workspaceOrgPath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	client := nodev1connect.NewEnvironmentServiceClient(
+		&http.Client{Transport: &authHTTPStoreTransport{store: &s, base: http.DefaultTransport}},
+		config.GlobalConfig.GetBrevPublicAPIURL(),
+	)
+	ctx := context.Background()
+	workspaces := []entity.Workspace{}
+	pageToken := ""
+	for {
+		resp, err := client.ListEnvironment(ctx, connect.NewRequest(&nodev1.ListEnvironmentRequest{
+			PageParams: &nodev1.PageParams{PageSize: 1000, PageToken: pageToken},
+			Options: &nodev1.ListEnvironmentOptions{
+				HasAllLabels: map[string]string{"organizationId": organizationID},
+				AttachedDataOptions: &nodev1.ListEnvironmentAttachedDataOptions{
+					Instance:         true,
+					InstanceType:     true,
+					HealthChecks:     true,
+					IngressGateways:  true,
+					Tasks:            true,
+					SysUsers:         true,
+					LifecycleScripts: true,
+					SshAccess:        true,
+				},
+			},
+		}))
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		for _, environment := range resp.Msg.GetItems() {
+			workspaces = append(workspaces, mapEnvironmentToWorkspace(environment))
+		}
+		pageToken = resp.Msg.GetNextPageToken()
+		if pageToken == "" {
+			return workspaces, nil
+		}
 	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
+}
+
+func mapEnvironmentToWorkspace(environment *nodev1.Environment) entity.Workspace {
+	labels := environment.GetLabels()
+	workspace := entity.Workspace{
+		ID:               environment.GetEnvironmentId(),
+		Name:             environment.GetName(),
+		WorkspaceGroupID: labels["workspaceGroupId"],
+		OrganizationID:   labels["organizationId"],
+		CreatedByUserID:  labels["userId"],
+		Status:           mapEnvironmentStatus(environment.GetStatus()),
+		HealthStatus:     entity.Unavailable,
+		Version:          "v1",
+		SSHPort:          22,
+		SSHUser:          entity.DefaultUser,
+		HostSSHPort:      22,
+		HostSSHUser:      entity.DefaultUser,
 	}
-	return result, nil
+	if workspace.OrganizationID == "" {
+		workspace.OrganizationID = environment.GetNamespace()
+	}
+	if instance := environment.GetInstance(); instance != nil {
+		workspace.InstanceType = instance.GetInstanceType()
+		workspace.DNS = instance.GetPublicDns()
+		workspace.IsStoppable = instance.GetIsStoppable()
+		if instance.GetSshUser() != "" {
+			workspace.SSHUser = instance.GetSshUser()
+		}
+		if instance.GetSshPort() != 0 {
+			workspace.SSHPort = int(instance.GetSshPort())
+		}
+		if instance.GetSshHostname() != "" {
+			workspace.SSHProxyHostname = instance.GetSshHostname()
+		}
+	}
+	mapEnvironmentUsers(&workspace, environment.GetSysUsers())
+	seenAdditionalUsers := map[string]struct{}{}
+	for _, access := range environment.GetSshAccess() {
+		userID := access.GetUserId()
+		if userID != "" && userID != workspace.CreatedByUserID {
+			if _, ok := seenAdditionalUsers[userID]; ok {
+				continue
+			}
+			seenAdditionalUsers[userID] = struct{}{}
+			workspace.AdditionalUsers = append(workspace.AdditionalUsers, userID)
+		}
+	}
+	workspace.VerbBuildStatus = mapEnvironmentBuildStatus(environment.GetTasks())
+	return workspace
+}
+
+func mapEnvironmentUsers(workspace *entity.Workspace, users []*nodev1.SysUser) {
+	for _, user := range users {
+		switch user.GetUserType() {
+		case nodev1.UserType_USER_TYPE_HOST:
+			workspace.HostSSHPort = int(user.GetPort())
+			workspace.HostSSHUser = user.GetUsername()
+			workspace.HostSSHProxyHostname = user.GetSshProxyHostname()
+			if workspace.SSHUser == "" {
+				workspace.SSHPort = int(user.GetPort())
+				workspace.SSHUser = user.GetUsername()
+				workspace.SSHProxyHostname = user.GetSshProxyHostname()
+			}
+		case nodev1.UserType_USER_TYPE_CONTAINER:
+			workspace.SSHPort = int(user.GetPort())
+			workspace.SSHUser = user.GetUsername()
+			workspace.SSHProxyHostname = user.GetSshProxyHostname()
+		}
+	}
+}
+
+func mapEnvironmentStatus(status nodev1.EnvironmentStatus) string {
+	switch status {
+	case nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_RUNNING:
+		return entity.Running
+	case nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_STOPPING:
+		return entity.Stopping
+	case nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_STOPPED:
+		return entity.Stopped
+	case nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_STARTING:
+		return entity.Starting
+	case nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_TERMINATING:
+		return entity.Deleting
+	case nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED,
+		nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_BUILDING_FAILED,
+		nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_INSTANCE_LOST,
+		nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_STOPPING_FAILED,
+		nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_STARTING_FAILED,
+		nodev1.EnvironmentStatus_ENVIRONMENT_STATUS_TERMINATING_FAILED:
+		return entity.Failure
+	default:
+		return entity.Deploying
+	}
+}
+
+func mapEnvironmentBuildStatus(tasks []*nodev1.Task) entity.VerbBuildStatus {
+	var latest *nodev1.Task
+	for _, task := range tasks {
+		if task.GetName() != "environment-build" {
+			continue
+		}
+		if latest == nil || task.GetCreateTime().AsTime().After(latest.GetCreateTime().AsTime()) {
+			latest = task
+		}
+	}
+	if latest == nil {
+		return entity.Unset
+	}
+	switch latest.GetStatus() {
+	case "running":
+		return entity.Building
+	case "waiting", "pending":
+		return entity.Pending
+	case "succeeded", "success":
+		return entity.Completed
+	case "failed", "failure":
+		return entity.CreateFailed
+	default:
+		return entity.Unset
+	}
 }
 
 var (
