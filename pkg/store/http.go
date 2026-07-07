@@ -50,6 +50,7 @@ type AuthHTTPStore struct {
 	NoAuthHTTPStore
 	authHTTPClient           *AuthHTTPClient
 	isRefreshTokenHandlerSet bool
+	devPlane                 *devPlaneServices
 	BasicStore
 }
 

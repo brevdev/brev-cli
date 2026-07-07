@@ -4,24 +4,19 @@ import (
 	"fmt"
 	"testing"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetCurrentUser(t *testing.T) {
-	s := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
-
 	expected := &entity.User{
 		ID: "1",
 	}
-	res, err := httpmock.NewJsonResponder(200, expected)
-	if !assert.Nil(t, err) {
-		return
-	}
-	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, mePath)
-	httpmock.RegisterResponder("GET", url, res)
+	s := MakeMockAuthHTTPStore().withDevPlaneServices(&devPlaneServices{
+		user: &mockDevPlaneUserService{currentUser: &nodev1.User{UserId: expected.ID}},
+	})
 
 	u, err := s.GetCurrentUser()
 	if !assert.Nil(t, err) {
@@ -37,19 +32,13 @@ func TestGetCurrentUser(t *testing.T) {
 }
 
 func TestGetCurrentUserKeys(t *testing.T) {
-	s := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
-
 	expected := &entity.UserKeys{
 		PrivateKey: "priv",
 		PublicKey:  "pub",
 	}
-	res, err := httpmock.NewJsonResponder(200, expected)
-	if !assert.Nil(t, err) {
-		return
-	}
-	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, userKeysPath)
-	httpmock.RegisterResponder("GET", url, res)
+	s := MakeMockAuthHTTPStore().withDevPlaneServices(&devPlaneServices{
+		user: &mockDevPlaneUserService{keys: expected},
+	})
 
 	u, err := s.GetCurrentUserKeys()
 	if !assert.Nil(t, err) {

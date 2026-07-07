@@ -45,20 +45,19 @@ func TestGetActiveOrganization(t *testing.T) {
 }
 
 func TestGetOrganizations(t *testing.T) {
-	fs := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
-	defer httpmock.DeactivateAndReset()
-
 	expected := []entity.Organization{{
 		ID:   "1",
 		Name: "test",
 	}}
-	res, err := httpmock.NewJsonResponder(200, expected)
-	if !assert.Nil(t, err) {
-		return
-	}
-	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
-	httpmock.RegisterResponder("GET", url, res)
+	fs := MakeMockAuthHTTPStore().withDevPlaneServices(&devPlaneServices{
+		user: &mockDevPlaneUserService{currentUser: &nodev1.User{
+			OrganizationAccesses: []*nodev1.OrganizationAccess{{OrganizationId: "1"}},
+		}},
+		organization: &mockDevPlaneOrganizationService{organizations: []*nodev1.Organization{{
+			OrganizationId: "1",
+			DisplayName:    "test",
+		}}},
+	})
 
 	org, err := fs.GetOrganizations(nil)
 	if !assert.Nil(t, err) {
@@ -114,8 +113,7 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {
 	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
 	fileStore, _, _ := newAuthTokenTestStore(t)
 	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
-	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
-	defer httpmock.DeactivateAndReset()
+	s = s.withDevPlaneServices(&devPlaneServices{organization: &mockDevPlaneOrganizationService{}})
 
 	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
 		APIKey:      apiKey,
@@ -138,8 +136,9 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testi
 	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
 	fileStore, _, _ := newAuthTokenTestStore(t)
 	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
-	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
-	defer httpmock.DeactivateAndReset()
+	s = s.withDevPlaneServices(&devPlaneServices{organization: &mockDevPlaneOrganizationService{
+		organization: &nodev1.Organization{OrganizationId: "org-api-key", DisplayName: "friendly-org"},
+	}})
 
 	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
 		APIKey:      apiKey,
@@ -149,10 +148,6 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testi
 		ID:   "org-api-key",
 		Name: "friendly-org",
 	}
-	res, err := httpmock.NewJsonResponder(200, expected)
-	require.NoError(t, err)
-	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, fmt.Sprintf(orgIDPathPattern, "org-api-key"))
-	httpmock.RegisterResponder("GET", url, res)
 
 	org, err := s.GetActiveOrganizationOrDefault()
 
@@ -163,10 +158,6 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testi
 }
 
 func TestGetOrganizationsFiltersNameCaseInsensitive(t *testing.T) {
-	fs := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
-	defer httpmock.DeactivateAndReset()
-
 	expected := []entity.Organization{{
 		ID:   "1",
 		Name: "TEST",
@@ -178,12 +169,15 @@ func TestGetOrganizationsFiltersNameCaseInsensitive(t *testing.T) {
 			Name: "Other",
 		},
 	}
-	res, err := httpmock.NewJsonResponder(200, orgs)
-	if !assert.Nil(t, err) {
-		return
-	}
-	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
-	httpmock.RegisterResponder("GET", url, res)
+	fs := MakeMockAuthHTTPStore().withDevPlaneServices(&devPlaneServices{
+		user: &mockDevPlaneUserService{currentUser: &nodev1.User{
+			OrganizationAccesses: []*nodev1.OrganizationAccess{{OrganizationId: "1"}, {OrganizationId: "2"}},
+		}},
+		organization: &mockDevPlaneOrganizationService{organizations: []*nodev1.Organization{
+			{OrganizationId: orgs[0].ID, DisplayName: orgs[0].Name},
+			{OrganizationId: orgs[1].ID, DisplayName: orgs[1].Name},
+		}},
+	})
 
 	org, err := fs.GetOrganizations(&GetOrganizationsOptions{Name: "test"})
 	if !assert.Nil(t, err) {

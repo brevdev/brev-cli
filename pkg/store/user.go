@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -8,19 +9,14 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-var mePath = "api/me"
-
 func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
-	var result entity.User
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		Get(mePath)
+	apiUser, publicSSHKey, err := s.devPlaneServiceClients().user.GetCurrentUser(context.Background())
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
+	result, err := mapDevPlaneUser(apiUser, publicSSHKey)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	// Check if user has multiple identities and is using Auth0
@@ -45,7 +41,7 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 		Email:    result.Email,
 	})
 
-	return &result, nil
+	return result, nil
 }
 
 func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
@@ -63,21 +59,12 @@ func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
 	return user.ID, nil
 }
 
-var userKeysPath = fmt.Sprintf("%s/keys", mePath)
-
 func (s AuthHTTPStore) GetCurrentUserKeys() (*entity.UserKeys, error) {
-	var result entity.UserKeys
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		Get(userKeysPath)
+	result, err := s.devPlaneServiceClients().user.GetCurrentUserKeys(context.Background())
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-	return &result, nil
+	return result, nil
 }
 
 var usersPath = "api/users"
@@ -130,19 +117,15 @@ var usersIDPathPattern = fmt.Sprintf("%s/%s", usersPath, "%s")
 // usersIDPath        = fmt.Sprintf(usersIDPathPattern, fmt.Sprintf("{%s}", userIDParamStr))
 
 func (s AuthHTTPStore) GetUserByID(userID string) (*entity.User, error) {
-	var result entity.User
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		Get(fmt.Sprintf(usersIDPathPattern, userID))
+	apiUser, err := s.devPlaneServiceClients().user.GetUser(context.Background(), userID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
+	result, err := mapDevPlaneUser(apiUser, "")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
-
-	return &result, nil
+	return result, nil
 }
 
 func (s AuthHTTPStore) GetUsers(queryParams map[string]string) ([]entity.User, error) {

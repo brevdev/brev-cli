@@ -2,8 +2,6 @@ package store
 
 import (
 	"context"
-	"fmt"
-	"net/http"
 	"strings"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -154,9 +152,25 @@ type GetOrganizationsOptions struct {
 }
 
 func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]entity.Organization, error) {
-	orgs, err := s.getOrganizations()
+	apiUser, _, err := s.devPlaneServiceClients().user.GetCurrentUser(context.Background())
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
+	}
+	organizationIDs := make([]string, 0, len(apiUser.GetOrganizationAccesses()))
+	for _, access := range apiUser.GetOrganizationAccesses() {
+		organizationIDs = append(organizationIDs, access.GetOrganizationId())
+	}
+	apiOrganizations, err := s.devPlaneServiceClients().organization.ListOrganizations(context.Background(), organizationIDs)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	orgs := make([]entity.Organization, 0, len(apiOrganizations))
+	for _, apiOrganization := range apiOrganizations {
+		organization, err := mapDevPlaneOrganization(apiOrganization)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		orgs = append(orgs, *organization)
 	}
 
 	if options == nil || options.Name == "" {
@@ -182,43 +196,12 @@ func (s AuthHTTPStore) ListOrganizations() ([]entity.Organization, error) {
 	return s.GetOrganizations(nil)
 }
 
-func (s AuthHTTPStore) getOrganizations() ([]entity.Organization, error) {
-	var result []entity.Organization
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		Get(orgPath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-
-	return result, nil
-}
-
-var (
-	orgParamName     = "organizationID"
-	orgIDPathPattern = "api/organizations/%s"
-	orgIDPath        = fmt.Sprintf(orgIDPathPattern, fmt.Sprintf("{%s}", orgParamName))
-)
-
 func (s AuthHTTPStore) GetOrganization(organizationID string) (*entity.Organization, error) {
-	var result entity.Organization
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		SetPathParam(orgIDParamName, organizationID).
-		Get(orgIDPath)
+	apiOrganization, err := s.devPlaneServiceClients().organization.GetOrganization(context.Background(), organizationID)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-
-	return &result, nil
+	return mapDevPlaneOrganization(apiOrganization)
 }
 
 type CreateOrganizationRequest struct {
@@ -258,28 +241,9 @@ func (s AuthHTTPStore) CreateInviteLink(organizationID string) (string, error) {
 	return result, nil
 }
 
-type authHTTPStoreTransport struct {
-	store *AuthHTTPStore
-	base  http.RoundTripper
-}
-
-func (t *authHTTPStoreTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	token, err := t.store.GetAccessToken()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	req = req.Clone(req.Context())
-	req.Header.Set("Authorization", "Bearer "+token)
-	resp, err := t.base.RoundTrip(req)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	return resp, nil
-}
-
 func (s *AuthHTTPStore) ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error) {
 	client := nodev1connect.NewOrganizationServiceClient(
-		&http.Client{Transport: &authHTTPStoreTransport{store: s, base: http.DefaultTransport}},
+		s.devPlaneHTTPClient(),
 		config.GlobalConfig.GetBrevPublicAPIURL(),
 	)
 

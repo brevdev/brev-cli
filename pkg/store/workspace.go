@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -517,14 +518,9 @@ func (s AuthHTTPStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, e
 }
 
 func (s AuthHTTPStore) BanUser(userID string) error {
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		Put(fmt.Sprintf("/api/users/%s/block", userID))
+	_, err := s.devPlaneServiceClients().user.SetUserBlocked(context.Background(), userID, true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return NewHTTPResponseError(res)
 	}
 	return nil
 }
