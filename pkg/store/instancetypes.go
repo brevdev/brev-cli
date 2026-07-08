@@ -2,7 +2,6 @@ package store
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	"buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -14,9 +13,8 @@ import (
 )
 
 const (
-	instanceTypesAPIPath = "v1/instance/types"
-	tenantTypeShared     = "shared"
-	tenantTypeIsolated   = "isolated"
+	tenantTypeShared   = "shared"
+	tenantTypeIsolated = "isolated"
 )
 
 // GetInstanceTypes fetches all available instance types from the public API
@@ -29,31 +27,25 @@ func (s AuthHTTPStore) GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTyp
 	return fetchInstanceTypes(includeCPU)
 }
 
-// fetchInstanceTypes fetches instance types from the public Brev API
+// fetchInstanceTypes fetches instance types from dev-plane's public Connect API.
 func fetchInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
-	cfg := config.NewConstants()
-	client := NewRestyClient(cfg.GetBrevPublicAPIURL())
-
-	req := client.R().
-		SetHeader("Accept", "application/json")
-	if includeCPU {
-		req.SetQueryParam("include_cpu", "true")
-	}
-	res, err := req.Get(instanceTypesAPIPath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-
-	var result gpusearch.InstanceTypesResponse
-	err = json.Unmarshal(res.Body(), &result)
+	client := devplaneapiv1connect.NewInstanceServiceClient(
+		http.DefaultClient,
+		config.NewConstants().GetBrevPublicAPIURL(),
+	)
+	skipAccessFilter := false
+	res, err := client.ListPublicInstanceType(context.Background(), connect.NewRequest(&devplaneapiv1.ListPublicInstanceTypeRequest{
+		Options: &devplaneapiv1.ListInstanceTypeOptions{
+			IncludeCpu:       &includeCPU,
+			SkipAccessFilter: &skipAccessFilter,
+		},
+	}))
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	return &result, nil
+	mapped := mapProtoInstanceTypesToGPUSearchResponse(res.Msg.GetItems())
+	return &gpusearch.InstanceTypesResponse{Items: mapped.AllInstanceTypes}, nil
 }
 
 // GetAllInstanceTypesWithCloudCreds fetches org-scoped instance types from dev-plane's public Connect API.
@@ -92,6 +84,9 @@ func mapProtoInstanceTypesToGPUSearchResponse(instanceTypes []*devplaneapiv1.Ins
 		}
 		item := gpusearch.InstanceType{
 			Type:                   instanceType.GetType(),
+			SupportedArchitectures: instanceType.GetSupportedArchitectures(),
+			Memory:                 instanceType.GetMemory(),
+			InstanceMemoryBytes:    mapProtoBytes(instanceType.GetMemoryBytes()),
 			VCPU:                   int(instanceType.GetVcpu()),
 			Location:               instanceType.GetLocation(),
 			SubLocation:            instanceType.GetSubLocation(),
@@ -104,17 +99,32 @@ func mapProtoInstanceTypesToGPUSearchResponse(instanceTypes []*devplaneapiv1.Ins
 			CanModifyFirewallRules: instanceType.GetCanModifyFirewallRules(),
 		}
 		if basePrice := instanceType.GetBasePrice(); basePrice != nil {
-			item.BasePrice = gpusearch.BasePrice{
-				Currency: basePrice.GetCurrency(),
-				Amount:   basePrice.GetAmount(),
-			}
+			item.BasePrice = mapProtoCurrencyAmount(basePrice)
 		}
 		for _, gpu := range instanceType.GetSupportedGpus() {
+			if gpu == nil {
+				continue
+			}
 			item.SupportedGPUs = append(item.SupportedGPUs, gpusearch.GPU{
 				Count:        int(gpu.GetCount()),
 				Name:         gpu.GetName(),
 				Manufacturer: gpu.GetManufacturer(),
 				Memory:       gpu.GetMemory(),
+				MemoryBytes:  mapProtoBytes(gpu.GetMemoryBytes()),
+			})
+		}
+		for _, storage := range instanceType.GetSupportedStorage() {
+			if storage == nil {
+				continue
+			}
+			item.SupportedStorage = append(item.SupportedStorage, gpusearch.Storage{
+				Count:        int(storage.GetCount()),
+				Size:         storage.GetSize(),
+				Type:         storage.GetType(),
+				MinSize:      storage.GetMinSize(),
+				MaxSize:      storage.GetMaxSize(),
+				SizeBytes:    mapProtoBytes(storage.GetSizeBytes()),
+				PricePerGBHr: mapProtoCurrencyAmount(storage.GetPricePerGbHr()),
 			})
 		}
 		if cloudCred := instanceType.GetCloudCred(); cloudCred != nil {
@@ -129,6 +139,20 @@ func mapProtoInstanceTypesToGPUSearchResponse(instanceTypes []*devplaneapiv1.Ins
 		items = append(items, item)
 	}
 	return &gpusearch.AllInstanceTypesResponse{AllInstanceTypes: items}
+}
+
+func mapProtoBytes(value *devplaneapiv1.Bytes) gpusearch.MemoryBytes {
+	if value == nil {
+		return gpusearch.MemoryBytes{}
+	}
+	return gpusearch.MemoryBytes{Value: value.GetValue(), Unit: value.GetUnit()}
+}
+
+func mapProtoCurrencyAmount(value *devplaneapiv1.CurrencyAmount) gpusearch.BasePrice {
+	if value == nil {
+		return gpusearch.BasePrice{}
+	}
+	return gpusearch.BasePrice{Currency: value.GetCurrency(), Amount: value.GetAmount()}
 }
 
 func mapTenantType(tenantType devplaneapiv1.TenantType) string {
