@@ -48,13 +48,6 @@ type Storage struct {
 	PricePerGBHr BasePrice   `json:"price_per_gb_hr"` // Uses BasePrice since API returns {currency, amount}
 }
 
-// WorkspaceGroup represents a workspace group that can run an instance type
-type WorkspaceGroup struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	PlatformType string `json:"platformType"`
-}
-
 // CloudCred represents a cloud credential that can run an instance type.
 type CloudCred struct {
 	ID           string `json:"id"`
@@ -65,25 +58,24 @@ type CloudCred struct {
 
 // InstanceType represents an instance type from the API
 type InstanceType struct {
-	Type                   string           `json:"type"`
-	SupportedGPUs          []GPU            `json:"supported_gpus"`
-	SupportedStorage       []Storage        `json:"supported_storage"`
-	SupportedArchitectures []string         `json:"supported_architectures"`
-	Memory                 string           `json:"memory"`
-	InstanceMemoryBytes    MemoryBytes      `json:"memory_bytes"`
-	VCPU                   int              `json:"vcpu"`
-	BasePrice              BasePrice        `json:"base_price"`
-	Location               string           `json:"location"`
-	SubLocation            string           `json:"sub_location"`
-	AvailableLocations     []string         `json:"available_locations"`
-	Provider               string           `json:"provider"`
-	CloudCredID            string           `json:"cloud_cred_id"`
-	CloudCreds             []CloudCred      `json:"cloud_creds"`
-	WorkspaceGroups        []WorkspaceGroup `json:"workspace_groups"`
-	EstimatedDeployTime    string           `json:"estimated_deploy_time"`
-	Stoppable              bool             `json:"stoppable"`
-	Rebootable             bool             `json:"rebootable"`
-	CanModifyFirewallRules bool             `json:"can_modify_firewall_rules"`
+	Type                   string      `json:"type"`
+	SupportedGPUs          []GPU       `json:"supported_gpus"`
+	SupportedStorage       []Storage   `json:"supported_storage"`
+	SupportedArchitectures []string    `json:"supported_architectures"`
+	Memory                 string      `json:"memory"`
+	InstanceMemoryBytes    MemoryBytes `json:"memory_bytes"`
+	VCPU                   int         `json:"vcpu"`
+	BasePrice              BasePrice   `json:"base_price"`
+	Location               string      `json:"location"`
+	SubLocation            string      `json:"sub_location"`
+	AvailableLocations     []string    `json:"available_locations"`
+	Provider               string      `json:"provider"`
+	CloudCredID            string      `json:"cloud_cred_id"`
+	CloudCreds             []CloudCred `json:"cloud_creds"`
+	EstimatedDeployTime    string      `json:"estimated_deploy_time"`
+	Stoppable              bool        `json:"stoppable"`
+	Rebootable             bool        `json:"rebootable"`
+	CanModifyFirewallRules bool        `json:"can_modify_firewall_rules"`
 }
 
 // InstanceTypesResponse represents the API response
@@ -106,17 +98,9 @@ func (r *AllInstanceTypesResponse) GetCloudCredID(instanceType string) string {
 			if len(it.CloudCreds) > 0 {
 				return it.CloudCreds[0].ID
 			}
-			if len(it.WorkspaceGroups) > 0 {
-				return it.WorkspaceGroups[0].ID
-			}
 		}
 	}
 	return ""
-}
-
-// GetWorkspaceGroupID is a compatibility alias while create still accepts workspaceGroupId.
-func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) string {
-	return r.GetCloudCredID(instanceType)
 }
 
 // HasInstanceType reports whether the type exists in the API listing, independent of capacity.

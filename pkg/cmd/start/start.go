@@ -360,7 +360,6 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 	} else {
 		t.Vprintf("\tCPU instance %s\n", t.Green(cwOptions.WorkspaceClassID))
 	}
-	t.Vprintf("\tCloud %s\n\n", t.Green(cwOptions.WorkspaceGroupID))
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
@@ -467,7 +466,6 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 	} else {
 		t.Vprintf("\tCPU instance %s\n", cwOptions.WorkspaceClassID)
 	}
-	t.Vprintf("\tCloud %s\n", cwOptions.WorkspaceGroupID)
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
@@ -635,7 +633,6 @@ func createWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, w
 	} else {
 		t.Vprintf("\tCPU instance %s\n", options.WorkspaceClassID)
 	}
-	t.Vprintf("\tCloud %s\n", options.WorkspaceGroupID)
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"

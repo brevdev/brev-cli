@@ -81,7 +81,6 @@ type Registry struct {
 type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
 	CloudCredID          string               `json:"cloudCredId,omitempty"`
-	WorkspaceGroupID     string               `json:"workspaceGroupId"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	Description          string               `json:"description"`
@@ -142,14 +141,13 @@ type LaunchableResponse struct {
 }
 
 type LaunchableWorkspaceRequest struct {
-	CloudCredID      string               `json:"cloudCredId,omitempty"`
-	WorkspaceGroupID string               `json:"workspaceGroupId,omitempty"`
-	InstanceType     string               `json:"instanceType"`
-	Storage          string               `json:"storage,omitempty"`
-	Location         string               `json:"location,omitempty"`
-	SubLocation      string               `json:"subLocation,omitempty"`
-	ImageID          string               `json:"imageId,omitempty"`
-	FirewallRules    []CreateFirewallRule `json:"firewallRules,omitempty"`
+	CloudCredID   string               `json:"cloudCredId,omitempty"`
+	InstanceType  string               `json:"instanceType"`
+	Storage       string               `json:"storage,omitempty"`
+	Location      string               `json:"location,omitempty"`
+	SubLocation   string               `json:"subLocation,omitempty"`
+	ImageID       string               `json:"imageId,omitempty"`
+	FirewallRules []CreateFirewallRule `json:"firewallRules,omitempty"`
 }
 
 type LaunchableBuildRequest struct {
@@ -209,7 +207,6 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PortMappings:         map[string]string{},
 		ReposV1:              &entity.ReposV1{},
 		VMBuild:              &VMBuild{ForceJupyterInstall: true},
-		WorkspaceGroupID:     "", // resolved dynamically from instance type
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		WorkspaceVersion:     "v1",
 	}
@@ -255,14 +252,8 @@ func (c *CreateWorkspacesOptions) WithVMBuild(vmBuild *VMBuild) *CreateWorkspace
 	return c
 }
 
-func (c *CreateWorkspacesOptions) WithWorkspaceGroupID(workspaceGroupID string) *CreateWorkspacesOptions {
-	c.WorkspaceGroupID = workspaceGroupID
-	return c
-}
-
 func (c *CreateWorkspacesOptions) WithCloudCredID(cloudCredID string) *CreateWorkspacesOptions {
 	c.CloudCredID = cloudCredID
-	c.WorkspaceGroupID = cloudCredID
 	return c
 }
 
@@ -506,7 +497,6 @@ func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, options *ModifyWorksp
 	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
 	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
 	// fmt.Printf("instance %s\n", result.InstanceType)
-	// fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 	return &result, nil
 }
 

@@ -210,8 +210,7 @@ func TestParseLaunchableID(t *testing.T) {
 func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 	t.Run("populates all fields from launchable", func(t *testing.T) {
 		cwOptions := &store.CreateWorkspacesOptions{
-			WorkspaceGroupID: "",
-			PortMappings:     map[string]string{},
+			PortMappings: map[string]string{},
 		}
 		info := &store.LaunchableResponse{
 			ID:              "env-abc123",
@@ -219,11 +218,11 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			CreatedByUserID: "user-1",
 			CreatedByOrgID:  "org-1",
 			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
-				WorkspaceGroupID: "GCP",
-				InstanceType:     "n2-standard-4",
-				Storage:          "256",
-				Location:         "us-west1",
-				SubLocation:      "us-west1-b",
+				CloudCredID:  "GCP",
+				InstanceType: "n2-standard-4",
+				Storage:      "256",
+				Location:     "us-west1",
+				SubLocation:  "us-west1-b",
 				FirewallRules: []store.CreateFirewallRule{
 					{Port: "8080", AllowedIPs: "all"},
 					{Port: "9000-9100", AllowedIPs: "all"},
@@ -250,9 +249,8 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 
 		applyLaunchableConfig(cwOptions, "env-abc123", info)
 
-		// Cloud credential from launchable compatibility input.
+		// Cloud credential from launchable input.
 		assert.Equal(t, "GCP", cwOptions.CloudCredID)
-		assert.Equal(t, "GCP", cwOptions.WorkspaceGroupID)
 		// Location / sub-location
 		assert.Equal(t, "us-west1", cwOptions.Location)
 		assert.Equal(t, "us-west1-b", cwOptions.SubLocation)
@@ -279,27 +277,25 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		assert.Equal(t, "env-abc123", labels["launchableId"])
 		assert.Equal(t, "n2-standard-4", labels["launchableInstanceType"])
 		assert.Equal(t, "GCP", labels["cloudCredId"])
-		assert.Equal(t, "GCP", labels["workspaceGroupId"])
+		assert.NotContains(t, labels, "workspaceGroupId")
 		assert.Equal(t, "user-1", labels["launchableCreatedByUserId"])
 		assert.Equal(t, "org-1", labels["launchableCreatedByOrgId"])
 	})
 
-	t.Run("preserves existing workspace group", func(t *testing.T) {
+	t.Run("preserves existing cloud credential", func(t *testing.T) {
 		cwOptions := &store.CreateWorkspacesOptions{
-			CloudCredID:      "existing-wg",
-			WorkspaceGroupID: "existing-wg",
+			CloudCredID: "existing-cloud-cred",
 		}
 		info := &store.LaunchableResponse{
 			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
-				WorkspaceGroupID: "GCP",
-				InstanceType:     "n2-standard-4",
+				CloudCredID:  "GCP",
+				InstanceType: "n2-standard-4",
 			},
 		}
 
 		applyLaunchableConfig(cwOptions, "env-abc", info)
 
-		assert.Equal(t, "existing-wg", cwOptions.WorkspaceGroupID)
-		assert.Equal(t, "existing-wg", cwOptions.CloudCredID)
+		assert.Equal(t, "existing-cloud-cred", cwOptions.CloudCredID)
 	})
 
 	t.Run("storage already has Gi suffix", func(t *testing.T) {
@@ -357,6 +353,28 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 
 		assert.Nil(t, cwOptions.VMBuild)
 		assert.Equal(t, "nvcr.io/nvidia/test:latest", cwOptions.CustomContainer.ContainerURL)
+	})
+
+	t.Run("docker compose file URL takes precedence over hydrated YAML", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			VMBuild: &store.VMBuild{ForceJupyterInstall: true},
+		}
+		dockerCompose := &store.DockerCompose{
+			FileURL:    "https://example.com/compose.yaml",
+			YamlString: "services:\n  app:\n    image: example/app",
+		}
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				DockerCompose: dockerCompose,
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Nil(t, cwOptions.VMBuild)
+		assert.Equal(t, dockerCompose.FileURL, cwOptions.DockerCompose.FileURL)
+		assert.Empty(t, cwOptions.DockerCompose.YamlString)
+		assert.NotEmpty(t, dockerCompose.YamlString, "launchable response should not be mutated")
 	})
 
 	t.Run("substitutes public IP for user-ip firewall rules", func(t *testing.T) {
@@ -1009,15 +1027,13 @@ func TestValidateInstanceTypeAvailability(t *testing.T) {
 		assert.NoError(t, ctx.validateInstanceTypeAvailability("hyperstack_H100x8_one"))
 	})
 
-	t.Run("returns nil when type has a workspace group", func(t *testing.T) {
+	t.Run("returns nil when type has a cloud credential", func(t *testing.T) {
 		ctx := &createContext{
 			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
 				AllInstanceTypes: []gpusearch.InstanceType{
 					{
-						Type: "hyperstack_H100_sxm5x8",
-						WorkspaceGroups: []gpusearch.WorkspaceGroup{
-							{ID: "wg-1", Name: "Shadeform", PlatformType: "shadeform"},
-						},
+						Type:        "hyperstack_H100_sxm5x8",
+						CloudCredID: "cc-1",
 					},
 				},
 			},
@@ -1029,7 +1045,7 @@ func TestValidateInstanceTypeAvailability(t *testing.T) {
 		ctx := &createContext{
 			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
 				AllInstanceTypes: []gpusearch.InstanceType{
-					{Type: "hyperstack_H100_sxm5x8", WorkspaceGroups: []gpusearch.WorkspaceGroup{{ID: "wg-1"}}},
+					{Type: "hyperstack_H100_sxm5x8", CloudCredID: "cc-1"},
 				},
 			},
 		}
@@ -1040,11 +1056,11 @@ func TestValidateInstanceTypeAvailability(t *testing.T) {
 		assert.Contains(t, err.Error(), "brev search")
 	})
 
-	t.Run("returns unavailable error for known type without workspace groups", func(t *testing.T) {
+	t.Run("returns unavailable error for known type without a cloud credential", func(t *testing.T) {
 		ctx := &createContext{
 			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
 				AllInstanceTypes: []gpusearch.InstanceType{
-					{Type: "hyperstack_H100x8_NVLINK", WorkspaceGroups: nil},
+					{Type: "hyperstack_H100x8_NVLINK"},
 				},
 			},
 		}
@@ -1081,10 +1097,8 @@ func TestCreateInstancesWithTypeSkipsInvalidType(t *testing.T) {
 		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
 			AllInstanceTypes: []gpusearch.InstanceType{
 				{
-					Type: "hyperstack_H100_sxm5x8",
-					WorkspaceGroups: []gpusearch.WorkspaceGroup{
-						{ID: "wg-shadeform", Name: "Shadeform", PlatformType: "shadeform"},
-					},
+					Type:        "hyperstack_H100_sxm5x8",
+					CloudCredID: "cc-shadeform",
 				},
 			},
 		},
@@ -1110,7 +1124,7 @@ func TestCreateInstancesWithTypeSkipsUnavailableType(t *testing.T) {
 		piped: true,
 		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
 			AllInstanceTypes: []gpusearch.InstanceType{
-				{Type: "hyperstack_H100x8_NVLINK", WorkspaceGroups: nil},
+				{Type: "hyperstack_H100x8_NVLINK"},
 			},
 		},
 	}
@@ -1120,7 +1134,7 @@ func TestCreateInstancesWithTypeSkipsUnavailableType(t *testing.T) {
 
 	assert.True(t, result.hadFailure, "expected hadFailure for an unavailable instance type")
 	assert.Empty(t, result.successes)
-	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when no workspace group is available")
+	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when no cloud credential is available")
 }
 
 func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
@@ -1148,7 +1162,6 @@ func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
 	assert.False(t, result.hadFailure)
 	require.Len(t, mock.CreatedOptions, 1)
 	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].CloudCredID)
-	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].WorkspaceGroupID)
 }
 
 func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
@@ -1165,8 +1178,8 @@ func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
 				ID:   "env-abc",
 				Name: "test-launchable",
 				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
-					WorkspaceGroupID: "wg-from-launchable",
-					InstanceType:     "n2-standard-4",
+					CloudCredID:  "cc-from-launchable",
+					InstanceType: "n2-standard-4",
 				},
 			},
 		},

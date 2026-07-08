@@ -84,11 +84,6 @@ func (s AuthHTTPStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusear
 	return mapProtoInstanceTypesToGPUSearchResponse(res.Msg.GetItems()), nil
 }
 
-// GetAllInstanceTypesWithWorkspaceGroups is a compatibility alias while create still accepts workspaceGroupId.
-func (s AuthHTTPStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	return s.GetAllInstanceTypesWithCloudCreds(orgID)
-}
-
 func mapProtoInstanceTypesToGPUSearchResponse(instanceTypes []*devplaneapiv1.InstanceType) *gpusearch.AllInstanceTypesResponse {
 	items := make([]gpusearch.InstanceType, 0, len(instanceTypes))
 	for _, instanceType := range instanceTypes {
@@ -130,11 +125,6 @@ func mapProtoInstanceTypesToGPUSearchResponse(instanceTypes []*devplaneapiv1.Ins
 				TenantType:   mapTenantType(cloudCred.GetTenantType()),
 			}
 			item.CloudCreds = []gpusearch.CloudCred{mappedCloudCred}
-			item.WorkspaceGroups = []gpusearch.WorkspaceGroup{{
-				ID:           mappedCloudCred.ID,
-				Name:         mappedCloudCred.Name,
-				PlatformType: mappedCloudCred.PlatformType,
-			}}
 		}
 		items = append(items, item)
 	}

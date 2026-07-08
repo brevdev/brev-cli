@@ -590,33 +590,28 @@ func TestAllInstanceTypesResponseLookup(t *testing.T) {
 	resp := &AllInstanceTypesResponse{
 		AllInstanceTypes: []InstanceType{
 			{
-				Type: "hyperstack_H100_sxm5x8",
-				WorkspaceGroups: []WorkspaceGroup{
-					{ID: "wg-shadeform", Name: "Shadeform", PlatformType: "shadeform"},
-				},
+				Type:        "hyperstack_H100_sxm5x8",
+				CloudCredID: "cc-shadeform",
 			},
 			{
-				Type:            "hyperstack_H100x8_NVLINK",
-				WorkspaceGroups: nil,
+				Type: "hyperstack_H100x8_NVLINK",
 			},
 			{
-				Type:            "verda-b300-8x",
-				WorkspaceGroups: []WorkspaceGroup{},
+				Type: "verda-b300-8x",
 			},
 		},
 	}
 
-	t.Run("GetWorkspaceGroupID returns id when type has groups", func(t *testing.T) {
-		assert.Equal(t, "wg-shadeform", resp.GetWorkspaceGroupID("hyperstack_H100_sxm5x8"))
+	t.Run("GetCloudCredID returns the cloud credential instead of the workspace group", func(t *testing.T) {
+		assert.Equal(t, "cc-shadeform", resp.GetCloudCredID("hyperstack_H100_sxm5x8"))
 	})
 
-	t.Run("GetWorkspaceGroupID returns empty for type without groups", func(t *testing.T) {
-		assert.Equal(t, "", resp.GetWorkspaceGroupID("hyperstack_H100x8_NVLINK"))
-		assert.Equal(t, "", resp.GetWorkspaceGroupID("verda-b300-8x"))
+	t.Run("GetCloudCredID returns empty when no cloud credential is available", func(t *testing.T) {
+		assert.Equal(t, "", resp.GetCloudCredID("verda-b300-8x"))
 	})
 
-	t.Run("GetWorkspaceGroupID returns empty for unknown type", func(t *testing.T) {
-		assert.Equal(t, "", resp.GetWorkspaceGroupID("hyperstack_H100x8_one"))
+	t.Run("GetCloudCredID returns empty for unknown type", func(t *testing.T) {
+		assert.Equal(t, "", resp.GetCloudCredID("hyperstack_H100x8_one"))
 	})
 
 	t.Run("HasInstanceType is true even when groups are empty", func(t *testing.T) {

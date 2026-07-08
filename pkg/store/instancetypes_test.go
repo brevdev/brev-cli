@@ -70,6 +70,5 @@ func TestGetAllInstanceTypesWithCloudCredsUsesDevPlanePublicAPI(t *testing.T) {
 	if assert.Len(t, resp.AllInstanceTypes, 1) {
 		assert.Equal(t, "h100-1x", resp.AllInstanceTypes[0].Type)
 		assert.Equal(t, "cc-org-1", resp.GetCloudCredID("h100-1x"))
-		assert.Equal(t, "cc-org-1", resp.GetWorkspaceGroupID("h100-1x"))
 	}
 }

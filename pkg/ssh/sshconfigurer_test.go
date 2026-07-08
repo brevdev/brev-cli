@@ -15,7 +15,6 @@ var somePlainWorkspaces = []entity.Workspace{
 	{
 		ID:               "test-id-1",
 		Name:             "testName1",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -28,7 +27,6 @@ var somePlainWorkspaces = []entity.Workspace{
 	{
 		ID:               "test-id-2",
 		Name:             "testName2",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -294,7 +292,6 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: entity.WorkspaceGroupDevPlane,
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -352,7 +349,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: "test-id-2",
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -407,7 +403,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: "test-id-2",
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -458,84 +453,11 @@ Host testName2-host
 `,
 		},
 		{
-			name: "test legacy workspace uses brev user 1",
-			args: args{
-				workspace: entity.Workspace{
-					ID:               "test-id-2",
-					Name:             "testName2",
-					WorkspaceGroupID: "k8s.brevstack.com", // a legacy wsg
-					OrganizationID:   "oi",
-					WorkspaceClassID: "wci",
-					CreatedByUserID:  "cui",
-					DNS:              "test2-dns-org.brev.sh",
-					Status:           entity.Running,
-					Password:         "sdfal",
-					GitRepo:          "gitrepo",
-				},
-				privateKeyPath: "/my/priv/key.pem",
-				runRemoteCMD:   true,
-			},
-			want: `Host testName2
-  IdentityFile "/my/priv/key.pem"
-  User brev
-  ProxyCommand brev proxy test-id-2
-  ServerAliveInterval 30
-  UserKnownHostsFile /dev/null
-  IdentitiesOnly yes
-  StrictHostKeyChecking no
-  PasswordAuthentication no
-  AddKeysToAgent yes
-  ForwardAgent yes
-  RequestTTY yes
-  ControlMaster auto
-  ControlPath ~/.ssh/brev-control-%C
-  ControlPersist 10m
-
-`,
-		},
-		{
-			name: "test legacy workspace uses brev user 1",
-			args: args{
-				workspace: entity.Workspace{
-					ID:               "test-id-2",
-					Name:             "testName2",
-					WorkspaceGroupID: "brev-test-brevtenant-cluster", // a legacy wsg
-					OrganizationID:   "oi",
-					WorkspaceClassID: "wci",
-					CreatedByUserID:  "cui",
-					DNS:              "test2-dns-org.brev.sh",
-					Status:           entity.Running,
-					Password:         "sdfal",
-					GitRepo:          "gitrepo",
-				},
-				privateKeyPath: "/my/priv/key.pem",
-				runRemoteCMD:   true,
-			},
-			want: `Host testName2
-  IdentityFile "/my/priv/key.pem"
-  User brev
-  ProxyCommand brev proxy test-id-2
-  ServerAliveInterval 30
-  UserKnownHostsFile /dev/null
-  IdentitiesOnly yes
-  StrictHostKeyChecking no
-  PasswordAuthentication no
-  AddKeysToAgent yes
-  ForwardAgent yes
-  RequestTTY yes
-  ControlMaster auto
-  ControlPath ~/.ssh/brev-control-%C
-  ControlPersist 10m
-
-`,
-		},
-		{
 			name: "test default ssh proxy",
 			args: args{
 				workspace: entity.Workspace{
 					ID:                   "test-id-2",
 					Name:                 "testName2",
-					WorkspaceGroupID:     "test-id-2",
 					OrganizationID:       "oi",
 					WorkspaceClassID:     "wci",
 					CreatedByUserID:      "cui",
@@ -780,7 +702,6 @@ func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
 					{
 						ID:               "test-id-1",
 						Name:             "testName1",
-						WorkspaceGroupID: "test-id-1",
 						OrganizationID:   "oi",
 						WorkspaceClassID: "wci",
 						CreatedByUserID:  "cui",
@@ -846,7 +767,6 @@ Host testName1-host
 					{
 						ID:               "test-id-1",
 						Name:             "testName1",
-						WorkspaceGroupID: "test-id-1",
 						OrganizationID:   "oi",
 						WorkspaceClassID: "wci",
 						CreatedByUserID:  "cui",

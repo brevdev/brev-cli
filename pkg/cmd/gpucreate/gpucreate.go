@@ -1057,7 +1057,7 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		}
 	}
 
-	if cwOptions.WorkspaceGroupID == "" {
+	if cwOptions.CloudCredID == "" {
 		if c.allInstanceTypes == nil {
 			return nil, breverrors.NewValidationError(fmt.Sprintf(
 				"could not resolve cloud credential for %q (instance-type listing was unavailable); please retry",
@@ -1187,13 +1187,6 @@ func applyLaunchableWorkspaceRequest(cwOptions *store.CreateWorkspacesOptions, w
 	if cwOptions.CloudCredID == "" && wsReq.CloudCredID != "" {
 		cwOptions.WithCloudCredID(wsReq.CloudCredID)
 	}
-	if cwOptions.WorkspaceGroupID == "" && wsReq.WorkspaceGroupID != "" {
-		cwOptions.WorkspaceGroupID = wsReq.WorkspaceGroupID
-		if cwOptions.CloudCredID == "" {
-			cwOptions.CloudCredID = wsReq.WorkspaceGroupID
-		}
-	}
-
 	// Location / sub-location
 	if wsReq.Location != "" {
 		cwOptions.Location = wsReq.Location
@@ -1224,7 +1217,7 @@ func applyLaunchableBuildRequest(cwOptions *store.CreateWorkspacesOptions, build
 		cwOptions.CustomContainer = build.CustomContainer
 	case build.DockerCompose != nil:
 		cwOptions.VMBuild = nil
-		cwOptions.DockerCompose = build.DockerCompose
+		cwOptions.DockerCompose = normalizeLaunchableDockerCompose(build.DockerCompose)
 	}
 
 	// Port mappings from build request ports
@@ -1235,6 +1228,14 @@ func applyLaunchableBuildRequest(cwOptions *store.CreateWorkspacesOptions, build
 		}
 		cwOptions.PortMappings = portMappings
 	}
+}
+
+func normalizeLaunchableDockerCompose(dockerCompose *store.DockerCompose) *store.DockerCompose {
+	normalized := *dockerCompose
+	if normalized.FileURL != "" {
+		normalized.YamlString = ""
+	}
+	return &normalized
 }
 
 func applyLaunchableFile(cwOptions *store.CreateWorkspacesOptions, file *store.LaunchableFile) {
@@ -1257,7 +1258,6 @@ func applyLaunchableLabels(cwOptions *store.CreateWorkspacesOptions, launchableI
 	labels["launchableId"] = launchableID
 	labels["launchableInstanceType"] = info.CreateWorkspaceRequest.InstanceType
 	labels["cloudCredId"] = cwOptions.CloudCredID
-	labels["workspaceGroupId"] = cwOptions.WorkspaceGroupID
 	labels["launchableCreatedByUserId"] = info.CreatedByUserID
 	labels["launchableCreatedByOrgId"] = info.CreatedByOrgID
 	labels["launchableRawURL"] = "/launchable/deploy/now?launchableID=" + launchableID

@@ -133,15 +133,6 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	analytics.SetUserStore(noLoginCmdStore)
 
-	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
-	if workspaceGroupID != "" {
-		loginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
-		noLoginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
-	}
-
 	cmds := &cobra.Command{
 		SilenceErrors: true,
 		SilenceUsage:  true,
