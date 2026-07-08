@@ -1,20 +1,22 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 
+	"buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const (
-	instanceTypesAPIPath              = "v1/instance/types"
-	organizationAvailableTypesRPCPath = "devplaneapi.v1.InstanceService/ListOrganizationAvailableInstanceTypes"
-	tenantTypeShared                  = "shared"
-	tenantTypeIsolated                = "isolated"
+	instanceTypesAPIPath = "v1/instance/types"
+	tenantTypeShared     = "shared"
+	tenantTypeIsolated   = "isolated"
 )
 
 // GetInstanceTypes fetches all available instance types from the public API
@@ -56,34 +58,30 @@ func fetchInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, erro
 
 // GetAllInstanceTypesWithCloudCreds fetches org-scoped instance types from dev-plane's public Connect API.
 func (s AuthHTTPStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	publicClient := NewAuthHTTPClient(s.authHTTPClient.auth, config.NewConstants().GetBrevPublicAPIURL()).restyClient
-
-	res, err := publicClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetBody(map[string]interface{}{
-			"organizationId": orgID,
-			"options": map[string]interface{}{
-				"includeUnavailable": false,
-				"includePreemptible": false,
-				"includeCpu":         true,
-				"uniqueInstanceType": true,
-				"skipAccessFilter":   false,
-			},
-		}).
-		Post(organizationAvailableTypesRPCPath)
+	client := devplaneapiv1connect.NewInstanceServiceClient(
+		&http.Client{Transport: &authHTTPStoreTransport{store: &s, base: http.DefaultTransport}},
+		config.NewConstants().GetBrevPublicAPIURL(),
+	)
+	includeUnavailable := false
+	includePreemptible := false
+	includeCPU := true
+	uniqueInstanceType := true
+	skipAccessFilter := false
+	res, err := client.ListOrganizationAvailableInstanceTypes(context.Background(), connect.NewRequest(&devplaneapiv1.ListOrganizationAvailableInstanceTypesRequest{
+		OrganizationId: orgID,
+		Options: &devplaneapiv1.ListInstanceTypeOptions{
+			IncludeUnavailable: &includeUnavailable,
+			IncludePreemptible: &includePreemptible,
+			IncludeCpu:         &includeCPU,
+			UniqueInstanceType: &uniqueInstanceType,
+			SkipAccessFilter:   &skipAccessFilter,
+		},
+	}))
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
 
-	var protoResp devplaneapiv1.ListInstanceTypeResponse
-	if err := protojson.Unmarshal(res.Body(), &protoResp); err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return mapProtoInstanceTypesToGPUSearchResponse(protoResp.Items), nil
+	return mapProtoInstanceTypesToGPUSearchResponse(res.Msg.GetItems()), nil
 }
 
 // GetAllInstanceTypesWithWorkspaceGroups is a compatibility alias while create still accepts workspaceGroupId.

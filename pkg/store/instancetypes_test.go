@@ -1,44 +1,54 @@
 package store
 
 import (
-	"encoding/json"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetAllInstanceTypesWithCloudCredsUsesDevPlanePublicAPI(t *testing.T) {
-	var gotAuth string
-	var gotOrgID string
+type instanceCatalogTestHandler struct {
+	devplaneapiv1connect.UnimplementedInstanceServiceHandler
+	gotAuth                   string
+	gotOrgID                  string
+	gotConnectProtocolVersion string
+}
 
+func (h *instanceCatalogTestHandler) ListOrganizationAvailableInstanceTypes(
+	_ context.Context,
+	req *connect.Request[devplaneapiv1.ListOrganizationAvailableInstanceTypesRequest],
+) (*connect.Response[devplaneapiv1.ListOrganizationAvailableInstanceTypesResponse], error) {
+	h.gotAuth = req.Header().Get("Authorization")
+	h.gotOrgID = req.Msg.GetOrganizationId()
+	h.gotConnectProtocolVersion = req.Header().Get("Connect-Protocol-Version")
+	return connect.NewResponse(&devplaneapiv1.ListOrganizationAvailableInstanceTypesResponse{
+		Items: []*devplaneapiv1.InstanceType{{
+			Type:        "h100-1x",
+			CloudCredId: "cc-org-1",
+			CloudCred: &devplaneapiv1.CloudCredMetadata{
+				CloudCredId: "cc-org-1",
+				ProviderId:  "aws",
+				Name:        "Org AWS",
+				TenantType:  devplaneapiv1.TenantType_TENANT_TYPE_ISOLATED,
+			},
+			AvailableLocations: []string{"us-east-1"},
+			IsAvailable:        true,
+		}},
+	}), nil
+}
+
+func TestGetAllInstanceTypesWithCloudCredsUsesDevPlanePublicAPI(t *testing.T) {
+	catalogHandler := &instanceCatalogTestHandler{}
+	_, connectHandler := devplaneapiv1connect.NewInstanceServiceHandler(catalogHandler)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/devplaneapi.v1.InstanceService/ListOrganizationAvailableInstanceTypes", r.URL.Path)
-		gotAuth = r.Header.Get("Authorization")
-
-		var req struct {
-			OrganizationID string `json:"organizationId"`
-		}
-		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
-		gotOrgID = req.OrganizationID
-
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{
-			"items": [{
-				"type": "h100-1x",
-				"cloudCredId": "cc-org-1",
-				"cloudCred": {
-					"cloudCredId": "cc-org-1",
-					"providerId": "aws",
-					"name": "Org AWS",
-					"tenantType": "TENANT_TYPE_ISOLATED"
-				},
-				"availableLocations": ["us-east-1"],
-				"isAvailable": true
-			}]
-		}`))
+		connectHandler.ServeHTTP(w, r)
 	}))
 	defer server.Close()
 
@@ -54,8 +64,9 @@ func TestGetAllInstanceTypesWithCloudCredsUsesDevPlanePublicAPI(t *testing.T) {
 	resp, err := s.GetAllInstanceTypesWithCloudCreds("org-1")
 	require.NoError(t, err)
 
-	assert.Equal(t, "Bearer tok", gotAuth)
-	assert.Equal(t, "org-1", gotOrgID)
+	assert.Equal(t, "Bearer tok", catalogHandler.gotAuth)
+	assert.Equal(t, "1", catalogHandler.gotConnectProtocolVersion)
+	assert.Equal(t, "org-1", catalogHandler.gotOrgID)
 	if assert.Len(t, resp.AllInstanceTypes, 1) {
 		assert.Equal(t, "h100-1x", resp.AllInstanceTypes[0].Type)
 		assert.Equal(t, "cc-org-1", resp.GetCloudCredID("h100-1x"))
