@@ -48,7 +48,6 @@ func Test_DisplayBC(t *testing.T) {
 	displayConnectBreadCrumb(term, &entity.Workspace{
 		ID:                "123456789",
 		Name:              "my-name",
-		WorkspaceGroupID:  "",
 		OrganizationID:    "",
 		WorkspaceClassID:  "",
 		CreatedByUserID:   "",

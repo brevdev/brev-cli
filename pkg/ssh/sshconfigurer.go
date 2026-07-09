@@ -356,30 +356,6 @@ func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string) (string, error) { //nolint:funlen,gocyclo // ok
 	alias := string(workspace.GetLocalIdentifier())
 	privateKeyPath = "\"" + privateKeyPath + "\""
-	if workspace.IsLegacy() {
-		proxyCommand := makeProxyCommand(workspace.ID)
-		projPath, err := workspace.GetProjectFolderPath()
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		entry := SSHConfigEntryV2{
-			Alias:        alias,
-			IdentityFile: privateKeyPath,
-			User:         "brev",
-			ProxyCommand: proxyCommand,
-			Dir:          projPath,
-		}
-		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		val, err := tmplAndValToString(tmpl, entry)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		return val, nil
-	}
-
 	var sshVal string
 	user := workspace.GetSSHUser()
 	hostname := workspace.GetHostname()
@@ -480,68 +456,8 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	return val, nil
 }
 
-// func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
-// 	alias := string(workspace.GetLocalIdentifier())
-// 	privateKeyPath = "\"" + privateKeyPath + "\""
-// 	if workspace.IsLegacy() {
-// 		proxyCommand := makeProxyCommand(workspace.ID)
-// 		entry := SSHConfigEntryV2{
-// 			Alias:        alias,
-// 			IdentityFile: privateKeyPath,
-// 			User:         "brev", // todo param-user
-// 			ProxyCommand: proxyCommand,
-// 			Dir:          workspace.GetProjectFolderPath(),
-// 		}
-// 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-
-// 		buf := &bytes.Buffer{}
-// 		err = tmpl.Execute(buf, entry)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-
-// 		return buf.String(), nil
-// 	} else {
-// 		hostname := workspace.GetHostname()
-// 		var userName string
-// 		port := workspace.GetSSHPort()
-// 		if port == 22 {
-// 			userName = "ubuntu"
-// 		} else {
-// 			userName = "root"
-// 		}
-// 		entry := SSHConfigEntryV2{
-// 			Alias:        alias,
-// 			IdentityFile: privateKeyPath,
-// 			User:         userName, // todo param-user
-// 			Dir:          workspace.GetProjectFolderPath(),
-// 			HostName:     hostname,
-// 			Port:         port,
-// 		}
-// 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-// 		buf := &bytes.Buffer{}
-// 		err = tmpl.Execute(buf, entry)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-
-// 		return buf.String(), nil
-// 	}
-// }
-
 func makeCloudflareSSHProxyCommand(cloudflaredBinaryPath string, hostname string) string {
 	return fmt.Sprintf("%s access ssh --hostname %s", cloudflaredBinaryPath, hostname)
-}
-
-func makeProxyCommand(workspaceID string) string {
-	huproxyExec := "brev proxy"
-	return fmt.Sprintf("%s %s", huproxyExec, workspaceID)
 }
 
 func (s SSHConfigurerV2) EnsureWSLConfigHasInclude() error {
@@ -724,7 +640,7 @@ func makeJetbrainsConfigEntry(workspace entity.Workspace, privateKeyPath string)
 		Host:     hostname,
 		Port:     fmt.Sprint(port),
 		KeyPath:  privateKeyPath,
-		Username: workspace.GetUsername(),
+		Username: workspace.GetSSHUser(),
 		// CustomName:       name,
 		NameFormat:       "DESCRIPTIVE",
 		ConnectionConfig: `{"hostKeyVerifier":{"stringHostKeyChecking":"NO"},"serverAliveInterval":30}`,

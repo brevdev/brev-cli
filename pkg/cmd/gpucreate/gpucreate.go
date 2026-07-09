@@ -105,7 +105,7 @@ type GPUCreateStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
+	GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
 	GetLaunchable(launchableID string) (*store.LaunchableResponse, error)
 	GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error)
 	RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error)
@@ -768,11 +768,11 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 	}
 	ctx.org = org
 
-	// Fetch instance types with workspace groups
-	allInstanceTypes, err := store.GetAllInstanceTypesWithWorkspaceGroups(org.ID)
+	// Fetch instance types with cloud credentials.
+	allInstanceTypes, err := store.GetAllInstanceTypesWithCloudCreds(org.ID)
 	if err != nil {
-		ctx.logf("Warning: could not fetch instance types with workspace groups: %s\n", err.Error())
-		ctx.logf("Falling back to default workspace group\n")
+		ctx.logf("Warning: could not fetch instance types with cloud credentials: %s\n", err.Error())
+		ctx.logf("Falling back to default cloud credential\n")
 	}
 	ctx.allInstanceTypes = allInstanceTypes
 
@@ -791,7 +791,7 @@ func (c *createContext) validateInstanceTypeAvailability(instanceType string) er
 	if c.allInstanceTypes == nil {
 		return nil
 	}
-	if c.allInstanceTypes.GetWorkspaceGroupID(instanceType) != "" {
+	if c.allInstanceTypes.GetCloudCredID(instanceType) != "" {
 		return nil
 	}
 	if !c.allInstanceTypes.HasInstanceType(instanceType) {
@@ -1042,8 +1042,8 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	}
 
 	if c.allInstanceTypes != nil {
-		if wgID := c.allInstanceTypes.GetWorkspaceGroupID(spec.Type); wgID != "" {
-			cwOptions.WorkspaceGroupID = wgID
+		if cloudCredID := c.allInstanceTypes.GetCloudCredID(spec.Type); cloudCredID != "" {
+			cwOptions.WithCloudCredID(cloudCredID)
 		}
 	}
 
@@ -1057,10 +1057,10 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		}
 	}
 
-	if cwOptions.WorkspaceGroupID == "" {
+	if cwOptions.CloudCredID == "" {
 		if c.allInstanceTypes == nil {
 			return nil, breverrors.NewValidationError(fmt.Sprintf(
-				"could not resolve workspace group for %q (instance-type listing was unavailable); please retry",
+				"could not resolve cloud credential for %q (instance-type listing was unavailable); please retry",
 				spec.Type,
 			))
 		}
@@ -1176,13 +1176,17 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		return
 	}
 
-	wsReq := info.CreateWorkspaceRequest
+	applyLaunchableWorkspaceRequest(cwOptions, info.CreateWorkspaceRequest)
+	applyLaunchableBuildRequest(cwOptions, info.BuildRequest)
+	applyLaunchableFile(cwOptions, info.File)
+	applyLaunchableLabels(cwOptions, launchableID, info)
+}
 
-	// Use launchable's workspace group if not already resolved from instance types
-	if cwOptions.WorkspaceGroupID == "" && wsReq.WorkspaceGroupID != "" {
-		cwOptions.WorkspaceGroupID = wsReq.WorkspaceGroupID
+func applyLaunchableWorkspaceRequest(cwOptions *store.CreateWorkspacesOptions, wsReq store.LaunchableWorkspaceRequest) {
+	// Use launchable's cloud credential if not already resolved from instance types.
+	if cwOptions.CloudCredID == "" && wsReq.CloudCredID != "" {
+		cwOptions.WithCloudCredID(wsReq.CloudCredID)
 	}
-
 	// Location / sub-location
 	if wsReq.Location != "" {
 		cwOptions.Location = wsReq.Location
@@ -1198,8 +1202,13 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		cwOptions.DiskStorage = normalizeDiskStorage(wsReq.Storage)
 	}
 
+	if len(wsReq.FirewallRules) > 0 {
+		cwOptions.FirewallRules = resolveFirewallRulesClientIP(wsReq.FirewallRules, publicIPLookup)
+	}
+}
+
+func applyLaunchableBuildRequest(cwOptions *store.CreateWorkspacesOptions, build store.LaunchableBuildRequest) {
 	// Build configuration from launchable
-	build := info.BuildRequest
 	switch {
 	case build.VMBuild != nil:
 		cwOptions.VMBuild = build.VMBuild
@@ -1208,7 +1217,7 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		cwOptions.CustomContainer = build.CustomContainer
 	case build.DockerCompose != nil:
 		cwOptions.VMBuild = nil
-		cwOptions.DockerCompose = build.DockerCompose
+		cwOptions.DockerCompose = normalizeLaunchableDockerCompose(build.DockerCompose)
 	}
 
 	// Port mappings from build request ports
@@ -1219,18 +1228,26 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		}
 		cwOptions.PortMappings = portMappings
 	}
+}
 
-	if len(wsReq.FirewallRules) > 0 {
-		cwOptions.FirewallRules = resolveFirewallRulesClientIP(wsReq.FirewallRules, publicIPLookup)
+func normalizeLaunchableDockerCompose(dockerCompose *store.DockerCompose) *store.DockerCompose {
+	normalized := *dockerCompose
+	if normalized.FileURL != "" {
+		normalized.YamlString = ""
 	}
+	return &normalized
+}
 
+func applyLaunchableFile(cwOptions *store.CreateWorkspacesOptions, file *store.LaunchableFile) {
 	// Files from launchable
-	if info.File != nil {
+	if file != nil {
 		cwOptions.Files = []map[string]string{
-			{"url": info.File.URL, "path": info.File.Path},
+			{"url": file.URL, "path": file.Path},
 		}
 	}
+}
 
+func applyLaunchableLabels(cwOptions *store.CreateWorkspacesOptions, launchableID string, info *store.LaunchableResponse) {
 	// Labels for tracking and UI rendering — merge with any existing labels
 	var labels map[string]string
 	if existing, ok := cwOptions.Labels.(map[string]string); ok && existing != nil {
@@ -1239,8 +1256,8 @@ func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableI
 		labels = make(map[string]string)
 	}
 	labels["launchableId"] = launchableID
-	labels["launchableInstanceType"] = wsReq.InstanceType
-	labels["workspaceGroupId"] = cwOptions.WorkspaceGroupID
+	labels["launchableInstanceType"] = info.CreateWorkspaceRequest.InstanceType
+	labels["cloudCredId"] = cwOptions.CloudCredID
 	labels["launchableCreatedByUserId"] = info.CreatedByUserID
 	labels["launchableCreatedByOrgId"] = info.CreatedByOrgID
 	labels["launchableRawURL"] = "/launchable/deploy/now?launchableID=" + launchableID

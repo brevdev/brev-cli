@@ -48,32 +48,34 @@ type Storage struct {
 	PricePerGBHr BasePrice   `json:"price_per_gb_hr"` // Uses BasePrice since API returns {currency, amount}
 }
 
-// WorkspaceGroup represents a workspace group that can run an instance type
-type WorkspaceGroup struct {
+// CloudCred represents a cloud credential that can run an instance type.
+type CloudCred struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	PlatformType string `json:"platformType"`
+	TenantType   string `json:"tenantType"`
 }
 
 // InstanceType represents an instance type from the API
 type InstanceType struct {
-	Type                   string           `json:"type"`
-	SupportedGPUs          []GPU            `json:"supported_gpus"`
-	SupportedStorage       []Storage        `json:"supported_storage"`
-	SupportedArchitectures []string         `json:"supported_architectures"`
-	Memory                 string           `json:"memory"`
-	InstanceMemoryBytes    MemoryBytes      `json:"memory_bytes"`
-	VCPU                   int              `json:"vcpu"`
-	BasePrice              BasePrice        `json:"base_price"`
-	Location               string           `json:"location"`
-	SubLocation            string           `json:"sub_location"`
-	AvailableLocations     []string         `json:"available_locations"`
-	Provider               string           `json:"provider"`
-	WorkspaceGroups        []WorkspaceGroup `json:"workspace_groups"`
-	EstimatedDeployTime    string           `json:"estimated_deploy_time"`
-	Stoppable              bool             `json:"stoppable"`
-	Rebootable             bool             `json:"rebootable"`
-	CanModifyFirewallRules bool             `json:"can_modify_firewall_rules"`
+	Type                   string      `json:"type"`
+	SupportedGPUs          []GPU       `json:"supported_gpus"`
+	SupportedStorage       []Storage   `json:"supported_storage"`
+	SupportedArchitectures []string    `json:"supported_architectures"`
+	Memory                 string      `json:"memory"`
+	InstanceMemoryBytes    MemoryBytes `json:"memory_bytes"`
+	VCPU                   int         `json:"vcpu"`
+	BasePrice              BasePrice   `json:"base_price"`
+	Location               string      `json:"location"`
+	SubLocation            string      `json:"sub_location"`
+	AvailableLocations     []string    `json:"available_locations"`
+	Provider               string      `json:"provider"`
+	CloudCredID            string      `json:"cloud_cred_id"`
+	CloudCreds             []CloudCred `json:"cloud_creds"`
+	EstimatedDeployTime    string      `json:"estimated_deploy_time"`
+	Stoppable              bool        `json:"stoppable"`
+	Rebootable             bool        `json:"rebootable"`
+	CanModifyFirewallRules bool        `json:"can_modify_firewall_rules"`
 }
 
 // InstanceTypesResponse represents the API response
@@ -81,17 +83,20 @@ type InstanceTypesResponse struct {
 	Items []InstanceType `json:"items"`
 }
 
-// AllInstanceTypesResponse represents the authenticated API response with workspace groups
+// AllInstanceTypesResponse represents the authenticated API response with cloud credentials.
 type AllInstanceTypesResponse struct {
 	AllInstanceTypes []InstanceType `json:"allInstanceTypes"`
 }
 
-// GetWorkspaceGroupID returns the workspace group ID for an instance type, or empty string if not found
-func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) string {
+// GetCloudCredID returns the cloud credential ID for an instance type, or empty string if not found.
+func (r *AllInstanceTypesResponse) GetCloudCredID(instanceType string) string {
 	for _, it := range r.AllInstanceTypes {
 		if it.Type == instanceType {
-			if len(it.WorkspaceGroups) > 0 {
-				return it.WorkspaceGroups[0].ID
+			if it.CloudCredID != "" {
+				return it.CloudCredID
+			}
+			if len(it.CloudCreds) > 0 {
+				return it.CloudCreds[0].ID
 			}
 		}
 	}
