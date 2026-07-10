@@ -11,13 +11,11 @@ import (
 )
 
 type mockDevPlaneUserService struct {
-	currentUser      *nodev1.User
-	publicSSHKey     string
-	keys             *entity.UserKeys
-	getUser          *nodev1.User
-	gotUserID        string
-	gotBlockedUserID string
-	gotBlocked       bool
+	currentUser  *nodev1.User
+	publicSSHKey string
+	keys         *entity.UserKeys
+	getUser      *nodev1.User
+	gotUserID    string
 }
 
 func (m *mockDevPlaneUserService) GetCurrentUser(context.Context) (*nodev1.User, string, error) {
@@ -30,12 +28,6 @@ func (m *mockDevPlaneUserService) GetCurrentUserKeys(context.Context) (*entity.U
 
 func (m *mockDevPlaneUserService) GetUser(_ context.Context, userID string) (*nodev1.User, error) {
 	m.gotUserID = userID
-	return m.getUser, nil
-}
-
-func (m *mockDevPlaneUserService) SetUserBlocked(_ context.Context, userID string, blocked bool) (*nodev1.User, error) {
-	m.gotBlockedUserID = userID
-	m.gotBlocked = blocked
 	return m.getUser, nil
 }
 
@@ -104,10 +96,6 @@ func TestIdentityStoresUseDevPlaneServices(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "user-1", target.ID)
 	require.Equal(t, "user-2", users.gotUserID)
-
-	require.NoError(t, store.BanUser("user-2"))
-	require.Equal(t, "user-2", users.gotBlockedUserID)
-	require.True(t, users.gotBlocked)
 }
 
 func TestOrganizationStoresUseCurrentUserAccessesAndDevPlane(t *testing.T) {

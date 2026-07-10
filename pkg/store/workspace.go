@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -515,14 +514,6 @@ func (s AuthHTTPStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, e
 		return nil, NewHTTPResponseError(res)
 	}
 	return &result, nil
-}
-
-func (s AuthHTTPStore) BanUser(userID string) error {
-	_, err := s.devPlaneServiceClients().user.SetUserBlocked(context.Background(), userID, true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
 }
 
 func (s AuthHTTPStore) GetAllOrgsAsAdmin(userID string) ([]entity.Organization, error) {

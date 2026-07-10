@@ -19,7 +19,6 @@ type devPlaneUserService interface {
 	GetCurrentUser(context.Context) (*nodev1.User, string, error)
 	GetCurrentUserKeys(context.Context) (*entity.UserKeys, error)
 	GetUser(context.Context, string) (*nodev1.User, error)
-	SetUserBlocked(context.Context, string, bool) (*nodev1.User, error)
 }
 
 type devPlaneOrganizationService interface {
@@ -106,10 +105,6 @@ func (s *generatedDevPlaneUserService) GetUser(ctx context.Context, userID strin
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	return response.Msg.GetUser(), nil
-}
-
-func (s *generatedDevPlaneUserService) SetUserBlocked(context.Context, string, bool) (*nodev1.User, error) {
-	return nil, fmt.Errorf("SetUserBlocked requires the published Set 1 Buf revision")
 }
 
 type generatedDevPlaneOrganizationService struct {
