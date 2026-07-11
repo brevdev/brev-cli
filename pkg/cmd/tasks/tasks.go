@@ -19,7 +19,7 @@ type TaskMap map[string]tasks.Task
 var all bool // used for run command
 
 type TaskStore interface {
-	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey() (string, error)
 	CopyBin(targetBin string) error
 	WriteString(path, data string) error
 	GetOrCreateFile(path string) (afero.File, error)

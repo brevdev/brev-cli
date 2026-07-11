@@ -59,10 +59,10 @@ func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
 	return user.ID, nil
 }
 
-func (s AuthHTTPStore) GetCurrentUserKeys() (*entity.UserKeys, error) {
-	result, err := s.devPlaneServiceClients().user.GetCurrentUserKeys(context.Background())
+func (s AuthHTTPStore) GetCurrentUserSSHPrivateKey() (string, error) {
+	result, err := s.devPlaneServiceClients().user.GetCurrentUserSSHPrivateKey(context.Background())
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return "", breverrors.WrapAndTrace(err)
 	}
 	return result, nil
 }

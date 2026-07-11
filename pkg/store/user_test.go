@@ -31,24 +31,18 @@ func TestGetCurrentUser(t *testing.T) {
 	}
 }
 
-func TestGetCurrentUserKeys(t *testing.T) {
-	expected := &entity.UserKeys{
-		PrivateKey: "priv",
-		PublicKey:  "pub",
-	}
+func TestGetCurrentUserSSHPrivateKey(t *testing.T) {
+	expected := "priv"
 	s := MakeMockAuthHTTPStore().withDevPlaneServices(&devPlaneServices{
-		user: &mockDevPlaneUserService{keys: expected},
+		user: &mockDevPlaneUserService{privateKey: expected},
 	})
 
-	u, err := s.GetCurrentUserKeys()
+	privateKey, err := s.GetCurrentUserSSHPrivateKey()
 	if !assert.Nil(t, err) {
 		return
 	}
-	if !assert.NotNil(t, u) {
-		return
-	}
 
-	if !assert.Equal(t, expected, u) {
+	if !assert.Equal(t, expected, privateKey) {
 		return
 	}
 }

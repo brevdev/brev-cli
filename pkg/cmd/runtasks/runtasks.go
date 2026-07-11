@@ -48,7 +48,7 @@ type RunTasksStore interface {
 	ssh.SSHConfigurerV2Store
 	tasks.RunTaskAsDaemonStore
 	GetCurrentUser() (*entity.User, error)
-	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey() (string, error)
 }
 
 func RunTasks(_ *terminal.Terminal, store RunTasksStore, detached bool) error {
@@ -77,12 +77,12 @@ func getDefaultTasks(store RunTasksStore) ([]tasks.Task, error) {
 	}
 
 	// get private key and set here
-	keys, err := store.GetCurrentUserKeys()
+	privateKey, err := store.GetCurrentUserSSHPrivateKey()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
+	cu := ssh.NewConfigUpdater(store, configs, privateKey)
 
 	return []tasks.Task{cu}, nil
 }

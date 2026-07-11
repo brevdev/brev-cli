@@ -13,7 +13,7 @@ import (
 type mockDevPlaneUserService struct {
 	currentUser  *nodev1.User
 	publicSSHKey string
-	keys         *entity.UserKeys
+	privateKey   string
 	getUser      *nodev1.User
 	gotUserID    string
 }
@@ -22,8 +22,8 @@ func (m *mockDevPlaneUserService) GetCurrentUser(context.Context) (*nodev1.User,
 	return m.currentUser, m.publicSSHKey, nil
 }
 
-func (m *mockDevPlaneUserService) GetCurrentUserKeys(context.Context) (*entity.UserKeys, error) {
-	return m.keys, nil
+func (m *mockDevPlaneUserService) GetCurrentUserSSHPrivateKey(context.Context) (string, error) {
+	return m.privateKey, nil
 }
 
 func (m *mockDevPlaneUserService) GetUser(_ context.Context, userID string) (*nodev1.User, error) {
@@ -73,7 +73,7 @@ func TestIdentityStoresUseDevPlaneServices(t *testing.T) {
 	users := &mockDevPlaneUserService{
 		currentUser:  apiUser,
 		publicSSHKey: "ssh-rsa public",
-		keys:         &entity.UserKeys{PublicKey: "public", PrivateKey: "private"},
+		privateKey:   "private",
 		getUser:      apiUser,
 	}
 	store := MakeMockAuthHTTPStore().withDevPlaneServices(&devPlaneServices{user: users})
@@ -88,14 +88,21 @@ func TestIdentityStoresUseDevPlaneServices(t *testing.T) {
 	require.Equal(t, entity.Admin, current.GlobalUserType)
 	require.Equal(t, true, current.OnboardingData["usedCLI"])
 
-	keys, err := store.GetCurrentUserKeys()
+	privateKey, err := store.GetCurrentUserSSHPrivateKey()
 	require.NoError(t, err)
-	require.Equal(t, "private", keys.PrivateKey)
+	require.Equal(t, "private", privateKey)
 
 	target, err := store.GetUserByID("user-2")
 	require.NoError(t, err)
 	require.Equal(t, "user-1", target.ID)
 	require.Equal(t, "user-2", users.gotUserID)
+}
+
+func TestGeneratedDevPlaneUserServiceGetCurrentUserSSHPrivateKeyFailsClosedUntilBufUpdate(t *testing.T) {
+	privateKey, err := (&generatedDevPlaneUserService{}).GetCurrentUserSSHPrivateKey(context.Background())
+
+	require.Empty(t, privateKey)
+	require.EqualError(t, err, "GetCurrentUserSSHPrivateKey requires the published Set 1 Buf revision")
 }
 
 func TestOrganizationStoresUseCurrentUserAccessesAndDevPlane(t *testing.T) {

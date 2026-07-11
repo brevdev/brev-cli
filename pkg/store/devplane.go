@@ -17,7 +17,7 @@ import (
 
 type devPlaneUserService interface {
 	GetCurrentUser(context.Context) (*nodev1.User, string, error)
-	GetCurrentUserKeys(context.Context) (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey(context.Context) (string, error)
 	GetUser(context.Context, string) (*nodev1.User, error)
 }
 
@@ -88,8 +88,8 @@ func (s *generatedDevPlaneUserService) GetCurrentUser(ctx context.Context) (*nod
 	return response.Msg.GetUser(), "", nil
 }
 
-func (s *generatedDevPlaneUserService) GetCurrentUserKeys(context.Context) (*entity.UserKeys, error) {
-	return nil, fmt.Errorf("GetCurrentUserSSHKeys requires the published Set 1 Buf revision")
+func (s *generatedDevPlaneUserService) GetCurrentUserSSHPrivateKey(context.Context) (string, error) {
+	return "", fmt.Errorf("GetCurrentUserSSHPrivateKey requires the published Set 1 Buf revision")
 }
 
 func (s *generatedDevPlaneUserService) GetUser(ctx context.Context, userID string) (*nodev1.User, error) {

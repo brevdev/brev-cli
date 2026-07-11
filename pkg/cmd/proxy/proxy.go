@@ -24,7 +24,7 @@ type ProxyStore interface {
 	huproxyclient.HubProxyStore
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	WritePrivateKey(pem string) error
-	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey() (string, error)
 }
 
 func NewCmdProxy(t *terminal.Terminal, store ProxyStore) *cobra.Command {
@@ -149,11 +149,11 @@ func checkWorkspaceInfraVersionOrErr(workspace *entity.Workspace) error {
 }
 
 func WriteUserPrivateKey(store ProxyStore) error {
-	keys, err := store.GetCurrentUserKeys()
+	privateKey, err := store.GetCurrentUserSSHPrivateKey()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = store.WritePrivateKey(keys.PrivateKey)
+	err = store.WritePrivateKey(privateKey)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
