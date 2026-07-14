@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	copyLong    = "Copy files and directories between your local machine and remote instance (uses rsync by default and falls back to scp)"
+	copyLong    = "Copy files and directories between your local machine and remote instance"
 	copyExample = "brev copy instance_name:/path/to/remote/file /path/to/local/file\nbrev copy /path/to/local/file instance_name:/path/to/remote/file\nbrev copy ./local-directory/ instance_name:/remote/path/"
 )
 
