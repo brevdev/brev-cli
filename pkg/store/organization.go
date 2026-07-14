@@ -1,9 +1,17 @@
 package store
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
+	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -38,8 +46,54 @@ func (f FileStore) ClearDefaultOrganization() error {
 	return nil
 }
 
+func (f FileStore) GetCachedActiveOrganizationOrNil() (*entity.Organization, error) {
+	home, err := f.UserHomeDir()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	brevActiveOrgsFile := files.GetActiveOrgsPath(home)
+
+	exists, err := afero.Exists(f.fs, brevActiveOrgsFile)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if !exists {
+		return nil, nil
+	}
+
+	var activeOrg entity.Organization
+	err = files.ReadJSON(f.fs, brevActiveOrgsFile, &activeOrg)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return &activeOrg, nil
+}
+
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
+	if auth.IsAPIKeyAuthStore(&s) {
+		orgID, err := auth.GetAPIKeyOrgID(&s)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		org := &entity.Organization{ID: orgID, Name: orgID}
+		// Name hydration is best-effort; the command itself should surface backend auth errors.
+		freshOrg, err := s.GetOrganization(orgID)
+		if err != nil {
+			return org, nil
+		}
+		if freshOrg == nil {
+			return org, nil
+		}
+		if freshOrg.ID == "" {
+			freshOrg.ID = orgID
+		}
+		if freshOrg.Name == "" {
+			freshOrg.Name = freshOrg.ID
+		}
+		return freshOrg, nil
+	}
+
 	workspaceID, err := s.GetCurrentWorkspaceID()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -58,24 +112,12 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		return org, nil
 	}
 
-	home, err := s.UserHomeDir()
+	activeOrg, err := s.GetCachedActiveOrganizationOrNil()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	brevActiveOrgsFile := files.GetActiveOrgsPath(home)
-
-	exists, err := afero.Exists(s.fs, brevActiveOrgsFile)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if !exists {
+	if activeOrg == nil {
 		return nil, nil
-	}
-
-	var activeOrg entity.Organization
-	err = files.ReadJSON(s.fs, brevActiveOrgsFile, &activeOrg)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	freshOrg, err := s.GetOrganization(activeOrg.ID)
@@ -123,11 +165,21 @@ func (s AuthHTTPStore) GetOrganizations(options *GetOrganizationsOptions) ([]ent
 
 	filteredOrgs := []entity.Organization{}
 	for _, o := range orgs {
-		if o.Name == options.Name {
+		if strings.EqualFold(o.Name, options.Name) {
 			filteredOrgs = append(filteredOrgs, o)
 		}
 	}
 	return filteredOrgs, nil
+}
+
+// GetOrganizationsByName returns organizations matching the given name.
+func (s AuthHTTPStore) GetOrganizationsByName(name string) ([]entity.Organization, error) {
+	return s.GetOrganizations(&GetOrganizationsOptions{Name: name})
+}
+
+// ListOrganizations returns all organizations (for prompt-driven register flow).
+func (s AuthHTTPStore) ListOrganizations() ([]entity.Organization, error) {
+	return s.GetOrganizations(nil)
 }
 
 func (s AuthHTTPStore) getOrganizations() ([]entity.Organization, error) {
@@ -204,6 +256,52 @@ func (s AuthHTTPStore) CreateInviteLink(organizationID string) (string, error) {
 	}
 
 	return result, nil
+}
+
+type authHTTPStoreTransport struct {
+	store *AuthHTTPStore
+	base  http.RoundTripper
+}
+
+func (t *authHTTPStoreTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	token, err := t.store.GetAccessToken()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp, nil
+}
+
+func (s *AuthHTTPStore) ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error) {
+	client := nodev1connect.NewOrganizationServiceClient(
+		&http.Client{Transport: &authHTTPStoreTransport{store: s, base: http.DefaultTransport}},
+		config.GlobalConfig.GetBrevPublicAPIURL(),
+	)
+
+	var members []*nodev1.OrganizationMember
+	var pageToken string
+	for {
+		resp, err := client.ListOrganizationMembers(ctx, connect.NewRequest(&nodev1.ListOrganizationMembersRequest{
+			OrganizationId: orgID,
+			PageParams: &nodev1.PageParams{
+				PageSize:  1000,
+				PageToken: pageToken,
+			},
+		}))
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		members = append(members, resp.Msg.GetItems()...)
+		pageToken = resp.Msg.GetNextPageToken()
+		if pageToken == "" {
+			return members, nil
+		}
+	}
 }
 
 func GetDefaultOrNilOrg(orgs []entity.Organization) *entity.Organization {

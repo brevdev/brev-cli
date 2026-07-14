@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -16,6 +17,66 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
+// ExternalNodeSSHEntry holds pre-resolved SSH details for an external node.
+type ExternalNodeSSHEntry struct {
+	Alias    string
+	Hostname string
+	Port     int32
+	User     string
+}
+
+var (
+	sanitizeNodeNameRe = regexp.MustCompile(`[^a-z0-9-]+`)
+	collapseHyphensRe  = regexp.MustCompile(`-{2,}`)
+)
+
+// SanitizeNodeName converts a node display name into a valid SSH Host alias.
+func SanitizeNodeName(name string) string {
+	s := strings.ToLower(name)
+	s = sanitizeNodeNameRe.ReplaceAllString(s, "-")
+	s = collapseHyphensRe.ReplaceAllString(s, "-")
+	s = strings.Trim(s, "-")
+	if s == "" {
+		s = "node"
+	}
+	return s
+}
+
+const SSHConfigEntryTemplateNode = `Host {{ .Alias }}
+  HostName {{ .Hostname }}
+  User {{ .User }}
+  Port {{ .Port }}
+  IdentityFile {{ .IdentityFile }}
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+
+type externalNodeSSHConfigEntry struct {
+	Alias        string
+	Hostname     string
+	User         string
+	Port         int32
+	IdentityFile string
+}
+
+func makeSSHConfigEntryForNode(node ExternalNodeSSHEntry, privateKeyPath string) (string, error) {
+	entry := externalNodeSSHConfigEntry{
+		Alias:        node.Alias,
+		Hostname:     node.Hostname,
+		User:         node.User,
+		Port:         node.Port,
+		IdentityFile: "\"" + privateKeyPath + "\"",
+	}
+	tmpl, err := template.New(node.Alias).Parse(SSHConfigEntryTemplateNode)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return tmplAndValToString(tmpl, entry)
+}
+
 type ConfigUpdaterStore interface {
 	autostartconf.AutoStartStore
 	GetContextWorkspaces() ([]entity.Workspace, error)
@@ -23,13 +84,14 @@ type ConfigUpdaterStore interface {
 }
 
 type Config interface {
-	Update(workspaces []entity.Workspace) error
+	Update(workspaces []entity.Workspace, nodes []ExternalNodeSSHEntry) error
 }
 
 type ConfigUpdater struct {
-	Store      ConfigUpdaterStore
-	Configs    []Config
-	PrivateKey string
+	Store         ConfigUpdaterStore
+	Configs       []Config
+	PrivateKey    string
+	ExternalNodes []ExternalNodeSSHEntry
 }
 
 func NewConfigUpdater(store ConfigUpdaterStore, configs []Config, privateKey string) *ConfigUpdater {
@@ -59,8 +121,8 @@ func (c ConfigUpdater) Run() error {
 	}
 
 	var res error
-	for _, c := range c.Configs {
-		err := c.Update(runningWorkspaces)
+	for _, cfg := range c.Configs {
+		err := cfg.Update(runningWorkspaces, c.ExternalNodes)
 		if err != nil {
 			res = multierror.Append(res, err)
 		}
@@ -121,8 +183,8 @@ func NewSSHConfigurerV2(store SSHConfigurerV2Store) *SSHConfigurerV2 {
 	}
 }
 
-func (s SSHConfigurerV2) Update(workspaces []entity.Workspace) error {
-	newConfig, err := s.CreateNewSSHConfig(workspaces)
+func (s SSHConfigurerV2) Update(workspaces []entity.Workspace, nodes []ExternalNodeSSHEntry) error {
+	newConfig, err := s.CreateNewSSHConfig(workspaces, nodes)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -183,7 +245,7 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 	return sshConfig, nil
 }
 
-func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (string, error) {
+func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace, nodes []ExternalNodeSSHEntry) (string, error) {
 	configPath, err := s.store.GetUserSSHConfigPath()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -203,6 +265,15 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace) (stri
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
+
+	for _, node := range nodes {
+		entry, err := makeSSHConfigEntryForNode(node, pkPath)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		sshConfig += entry
+	}
+
 	return sshConfig, nil
 }
 
@@ -233,6 +304,9 @@ const SSHConfigEntryTemplateV2 = `Host {{ .Alias }}
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
 {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
 {{ end }}
@@ -250,6 +324,9 @@ const SSHConfigEntryTemplateV3 = `Host {{ .Alias }}
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port {{ .Port }}
 {{ if .RunRemoteCMD }}
   RemoteCommand cd {{ .Dir }}; $SHELL
@@ -279,30 +356,6 @@ func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error
 func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string) (string, error) { //nolint:funlen,gocyclo // ok
 	alias := string(workspace.GetLocalIdentifier())
 	privateKeyPath = "\"" + privateKeyPath + "\""
-	if workspace.IsLegacy() {
-		proxyCommand := makeProxyCommand(workspace.ID)
-		projPath, err := workspace.GetProjectFolderPath()
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		entry := SSHConfigEntryV2{
-			Alias:        alias,
-			IdentityFile: privateKeyPath,
-			User:         "brev",
-			ProxyCommand: proxyCommand,
-			Dir:          projPath,
-		}
-		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		val, err := tmplAndValToString(tmpl, entry)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
-		return val, nil
-	}
-
 	var sshVal string
 	user := workspace.GetSSHUser()
 	hostname := workspace.GetHostname()
@@ -403,68 +456,8 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	return val, nil
 }
 
-// func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string) (string, error) {
-// 	alias := string(workspace.GetLocalIdentifier())
-// 	privateKeyPath = "\"" + privateKeyPath + "\""
-// 	if workspace.IsLegacy() {
-// 		proxyCommand := makeProxyCommand(workspace.ID)
-// 		entry := SSHConfigEntryV2{
-// 			Alias:        alias,
-// 			IdentityFile: privateKeyPath,
-// 			User:         "brev", // todo param-user
-// 			ProxyCommand: proxyCommand,
-// 			Dir:          workspace.GetProjectFolderPath(),
-// 		}
-// 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV2)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-
-// 		buf := &bytes.Buffer{}
-// 		err = tmpl.Execute(buf, entry)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-
-// 		return buf.String(), nil
-// 	} else {
-// 		hostname := workspace.GetHostname()
-// 		var userName string
-// 		port := workspace.GetSSHPort()
-// 		if port == 22 {
-// 			userName = "ubuntu"
-// 		} else {
-// 			userName = "root"
-// 		}
-// 		entry := SSHConfigEntryV2{
-// 			Alias:        alias,
-// 			IdentityFile: privateKeyPath,
-// 			User:         userName, // todo param-user
-// 			Dir:          workspace.GetProjectFolderPath(),
-// 			HostName:     hostname,
-// 			Port:         port,
-// 		}
-// 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-// 		buf := &bytes.Buffer{}
-// 		err = tmpl.Execute(buf, entry)
-// 		if err != nil {
-// 			return "", breverrors.WrapAndTrace(err)
-// 		}
-
-// 		return buf.String(), nil
-// 	}
-// }
-
 func makeCloudflareSSHProxyCommand(cloudflaredBinaryPath string, hostname string) string {
 	return fmt.Sprintf("%s access ssh --hostname %s", cloudflaredBinaryPath, hostname)
-}
-
-func makeProxyCommand(workspaceID string) string {
-	huproxyExec := "brev proxy"
-	return fmt.Sprintf("%s %s", huproxyExec, workspaceID)
 }
 
 func (s SSHConfigurerV2) EnsureWSLConfigHasInclude() error {
@@ -534,7 +527,13 @@ func makeIncludeBrevStr(brevSSHConfigPath string) string {
 }
 
 func doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
-	return strings.Contains(conf, makeIncludeBrevStr(brevConfigPath))
+	if strings.Contains(conf, makeIncludeBrevStr(brevConfigPath)) {
+		return true
+	}
+	if strings.Contains(conf, makeIncludeBrevStr(toWindowsPath(brevConfigPath))) {
+		return true
+	}
+	return false
 }
 
 // Deprecated: var _ Config = SSHConfigurerServiceMesh{}
@@ -570,7 +569,7 @@ func NewSSHConfigurerJetBrains(store SSHConfigurerV2Store) (*SSHConfigurerJetBra
 	}, nil
 }
 
-func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace) error {
+func (s SSHConfigurerJetBrains) Update(workspaces []entity.Workspace, _ []ExternalNodeSSHEntry) error {
 	doesJbPathExist, err := s.store.DoesJetbrainsFilePathExist()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -641,7 +640,7 @@ func makeJetbrainsConfigEntry(workspace entity.Workspace, privateKeyPath string)
 		Host:     hostname,
 		Port:     fmt.Sprint(port),
 		KeyPath:  privateKeyPath,
-		Username: workspace.GetUsername(),
+		Username: workspace.GetSSHUser(),
 		// CustomName:       name,
 		NameFormat:       "DESCRIPTIVE",
 		ConnectionConfig: `{"hostKeyVerifier":{"stringHostKeyChecking":"NO"},"serverAliveInterval":30}`,

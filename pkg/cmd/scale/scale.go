@@ -88,7 +88,6 @@ func Runscale(t *terminal.Terminal, args []string, gpu string, cpu string, sstor
 	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
 	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
 	// fmt.Printf("instance %s\n", result.InstanceType)
-	// fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 
 	if gpu != "" {
 		t.Vprintf("\n\nInstance %s scaled to %s 🤙\n", t.Green(ws.Name), t.Green(ws.InstanceType))

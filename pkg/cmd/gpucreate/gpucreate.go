@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
+	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -12,12 +16,15 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+	"github.com/brevdev/brev-cli/pkg/names"
+	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -93,11 +100,15 @@ type GPUCreateStore interface {
 	util.GetWorkspaceByNameOrIDErrStore
 	gpusearch.GPUSearchStore
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetAuthTokens() (*entity.AuthTokens, error)
 	GetCurrentUser() (*entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
+	GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
+	GetLaunchable(launchableID string) (*store.LaunchableResponse, error)
+	GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error)
+	RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error)
 }
 
 // Default filter values for automatic GPU selection
@@ -139,7 +150,7 @@ func (f *searchFilterFlags) hasUserFilters() bool {
 }
 
 // NewCmdGPUCreate creates the gpu-create command
-func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra.Command {
+func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra.Command { //nolint:gocognit,gocyclo,funlen // easier to read as one function
 	var name string
 	var instanceTypes string
 	var count int
@@ -152,12 +163,13 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var jupyter bool
 	var containerImage string
 	var composeFile string
+	var launchable string
 	var filters searchFilterFlags
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
 		Use:                   "create [name]",
-		Aliases:               []string{"provision", "gpu-create", "gpu-retry", "gcreate"},
+		Aliases:               []string{"provision"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Create GPU instances with automatic retry",
 		Long:                  long,
@@ -168,82 +180,92 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				name = args[0]
 			}
 
-			if err := validateBuildMode(mode, containerImage, composeFile); err != nil {
+			launchableID, err := parseLaunchableID(launchable)
+			if err != nil {
 				return err
 			}
 
-			// Parse instance types from flag or stdin
+			warnLaunchableFlagConflicts(cmd, t, launchableID)
+
+			if launchableID == "" {
+				if err := validateBuildMode(mode, containerImage, composeFile); err != nil {
+					return err
+				}
+			}
+
+			launchableInfo, err := fetchAndDisplayLaunchable(gpuCreateStore, t, launchableID)
+			if err != nil {
+				return err
+			}
+
+			// Default workspace name from launchable with random suffix for uniqueness
+			if name == "" && launchableInfo != nil {
+				name = fmt.Sprintf("%s-%05d", ssh.SanitizeNodeName(launchableInfo.Name), rand.IntN(100000)) //nolint:gosec // not security-sensitive
+			}
+
+			err = validateArgs(name, count)
+			if err != nil {
+				return err
+			}
+
 			types, err := parseInstanceTypes(instanceTypes)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			// If no types provided, use search filters (or defaults) to find suitable GPUs
-			if len(types) == 0 {
-				if dryRun {
-					return runDryRun(t, gpuCreateStore, &filters)
-				}
-
-				types, err = getFilteredInstanceTypes(gpuCreateStore, &filters)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				if len(types) == 0 {
-					return breverrors.NewValidationError("no GPU instances match the specified filters. Try 'brev search' to see available options")
-				}
-			}
-
-			if name == "" {
-				return breverrors.NewValidationError("name is required (as argument or --name flag)")
-			}
-
-			if count < 1 {
-				return breverrors.NewValidationError("--count must be at least 1")
-			}
-
-			if parallel < 1 {
-				parallel = 1
-			}
-
-			// Parse startup script (can be a string or @filepath)
 			scriptContent, err := parseStartupScript(startupScript)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 
-			jupyterSet := cmd.Flags().Changed("jupyter")
-
 			opts := GPUCreateOptions{
 				Name:           name,
 				InstanceTypes:  types,
 				Count:          count,
-				Parallel:       parallel,
+				Parallel:       max(1, parallel),
 				Detached:       detached,
 				Timeout:        time.Duration(timeout) * time.Second,
 				StartupScript:  scriptContent,
 				Mode:           mode,
 				Jupyter:        jupyter,
-				JupyterSet:     jupyterSet,
+				JupyterSet:     cmd.Flags().Changed("jupyter"),
 				ContainerImage: containerImage,
 				ComposeFile:    composeFile,
+				LaunchableID:   launchableID,
+				LaunchableInfo: launchableInfo,
 			}
 
-			err = RunGPUCreate(t, gpuCreateStore, opts)
+			opts.InstanceTypes, err = resolveInstanceTypes(cmd, gpuCreateStore, opts, types, &filters)
 			if err != nil {
-				return breverrors.WrapAndTrace(err)
+				return err
 			}
-			return nil
+
+			if dryRun {
+				return runDryRun(t, gpuCreateStore, opts.InstanceTypes, &filters)
+			}
+
+			return RunGPUCreate(t, gpuCreateStore, opts)
 		},
 	}
 
-	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &filters)
+	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &filters)
 
 	return cmd
 }
 
+func validateArgs(name string, count int) error {
+	if err := names.ValidateNodeName(name); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if count < 1 {
+		return breverrors.NewValidationError("--count must be at least 1")
+	}
+	return nil
+}
+
 // registerCreateFlags registers all flags for the create command
-func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile *string, filters *searchFilterFlags) {
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
 	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
@@ -258,6 +280,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().BoolVar(jupyter, "jupyter", true, "Install Jupyter (default true for vm/k8s modes)")
 	cmd.Flags().StringVar(containerImage, "container-image", "", "Container image URL (required for container mode)")
 	cmd.Flags().StringVar(composeFile, "compose-file", "", "Docker compose file path or URL (required for compose mode)")
+	cmd.Flags().StringVarP(launchable, "launchable", "l", "", "Launchable ID or URL to deploy (e.g., env-XXX or console URL)")
 
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
@@ -293,6 +316,162 @@ type GPUCreateOptions struct {
 	JupyterSet     bool // whether --jupyter was explicitly set
 	ContainerImage string
 	ComposeFile    string
+	LaunchableID   string
+	LaunchableInfo *store.LaunchableResponse // populated when LaunchableID is set
+}
+
+// parseLaunchableID extracts a launchable ID from either a raw ID (env-XXX) or
+// a console URL (https://console.brev.dev/launchable/deploy?launchableID=env-XXX)
+func parseLaunchableID(input string) (string, error) {
+	if input == "" {
+		return "", nil
+	}
+	// Check if it looks like a URL
+	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
+		u, err := url.Parse(input)
+		if err != nil {
+			return "", fmt.Errorf("invalid launchable URL: %w", err)
+		}
+		if id := u.Query().Get("launchableID"); id != "" {
+			if err := validateLaunchableID(id); err != nil {
+				return "", err
+			}
+			return id, nil
+		}
+		// Check path for launchable ID (e.g., /launchables/env-XXX)
+		parts := strings.Split(strings.TrimRight(u.Path, "/"), "/")
+		if len(parts) > 0 {
+			last := parts[len(parts)-1]
+			if strings.HasPrefix(last, "env-") {
+				if err := validateLaunchableID(last); err != nil {
+					return "", err
+				}
+				return last, nil
+			}
+		}
+		return "", fmt.Errorf("could not extract launchable ID from URL %q — expected a launchableID query parameter or env-XXX path segment", input)
+	}
+	if err := validateLaunchableID(input); err != nil {
+		return "", err
+	}
+	return input, nil
+}
+
+// validateLaunchableID checks that a launchable ID is safe to use in API paths
+func validateLaunchableID(id string) error {
+	if strings.ContainsAny(id, "/?&#") {
+		return fmt.Errorf("invalid launchable ID %q — must not contain path or query characters", id)
+	}
+	return nil
+}
+
+// warnLaunchableFlagConflicts warns about flags that conflict with --launchable
+func warnLaunchableFlagConflicts(cmd *cobra.Command, t *terminal.Terminal, launchableID string) {
+	if launchableID == "" {
+		return
+	}
+
+	buildFlagsSet := cmd.Flags().Changed("mode") || cmd.Flags().Changed("container-image") ||
+		cmd.Flags().Changed("compose-file") || cmd.Flags().Changed("startup-script") ||
+		cmd.Flags().Changed("jupyter")
+	if buildFlagsSet {
+		t.Vprintf("Warning: Build config flags (--mode, --container-image, --compose-file, --startup-script, --jupyter) are ignored when deploying a launchable.\n")
+		t.Vprintf("The launchable defines its own build configuration.\n\n")
+	}
+
+	instanceFlagsSet := cmd.Flags().Changed("type") || cmd.Flags().Changed("gpu-name") ||
+		cmd.Flags().Changed("provider") || cmd.Flags().Changed("min-vram")
+	if instanceFlagsSet {
+		t.Vprintf("Warning: Overriding the launchable's recommended instance configuration. This is not the recommended path and may cause issues.\n\n")
+	}
+}
+
+// fetchAndDisplayLaunchable fetches launchable info and displays it to the user
+func fetchAndDisplayLaunchable(gpuCreateStore GPUCreateStore, t *terminal.Terminal, launchableID string) (*store.LaunchableResponse, error) {
+	if launchableID == "" {
+		return nil, nil
+	}
+
+	info, err := gpuCreateStore.GetLaunchable(launchableID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch launchable %q: %w", launchableID, err)
+	}
+
+	// Inline the script body; the launchable GET only returns its id.
+	if err := inlineLaunchableLifeCycleScript(gpuCreateStore, launchableID, info); err != nil {
+		return nil, err
+	}
+
+	t.Vprintf("Deploying launchable: %q\n", info.Name)
+	if info.Description != "" {
+		t.Vprintf("Description: %s\n", info.Description)
+	}
+	if info.CreateWorkspaceRequest.InstanceType != "" {
+		t.Vprintf("Instance type: %s\n", info.CreateWorkspaceRequest.InstanceType)
+	}
+	if info.CreateWorkspaceRequest.Storage != "" {
+		t.Vprintf("Storage: %s\n", info.CreateWorkspaceRequest.Storage)
+	}
+	buildMode := launchableBuildModeName(info)
+	t.Vprintf("Build mode: %s\n\n", buildMode)
+
+	return info, nil
+}
+
+func inlineLaunchableLifeCycleScript(gpuCreateStore GPUCreateStore, launchableID string, info *store.LaunchableResponse) error {
+	if info == nil || info.BuildRequest.VMBuild == nil {
+		return nil
+	}
+	attr := info.BuildRequest.VMBuild.LifeCycleScriptAttr
+	if attr == nil || attr.ID == "" {
+		return nil
+	}
+	resp, err := gpuCreateStore.GetLaunchableLifeCycleScript(launchableID, attr.ID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch lifecycle script %q for launchable %q: %w", attr.ID, launchableID, err)
+	}
+	if resp != nil && resp.Attrs != nil {
+		attr.Script = resp.Attrs.Script
+	}
+	return nil
+}
+
+func launchableBuildModeName(info *store.LaunchableResponse) string {
+	switch {
+	case info.BuildRequest.CustomContainer != nil:
+		return "Container"
+	case info.BuildRequest.DockerCompose != nil:
+		return "Docker Compose"
+	default:
+		return "VM"
+	}
+}
+
+// resolveInstanceTypes determines instance types from launchable, flags, or filters
+func resolveInstanceTypes(cmd *cobra.Command, gpuCreateStore GPUCreateStore, opts GPUCreateOptions, types []InstanceSpec, filters *searchFilterFlags) ([]InstanceSpec, error) {
+	if opts.LaunchableID != "" && len(types) == 0 && !cmd.Flags().Changed("type") {
+		instanceType := ""
+		if opts.LaunchableInfo != nil {
+			instanceType = opts.LaunchableInfo.CreateWorkspaceRequest.InstanceType
+		}
+		if instanceType != "" {
+			return []InstanceSpec{{Type: instanceType}}, nil
+		}
+		return nil, breverrors.NewValidationError("launchable has no instance type configured and no --type was specified")
+	}
+
+	if len(types) == 0 {
+		filtered, err := getFilteredInstanceTypes(gpuCreateStore, filters)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(filtered) == 0 {
+			return nil, breverrors.NewValidationError("no GPU instances match the specified filters. Try 'brev search' to see available options")
+		}
+		return filtered, nil
+	}
+
+	return types, nil
 }
 
 // parseStartupScript parses the startup script from a string or file path
@@ -318,7 +497,7 @@ func parseStartupScript(value string) (string, error) {
 
 // searchInstances fetches and filters GPU instances using user-provided filters merged with defaults
 func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64, error) {
-	response, err := s.GetInstanceTypes()
+	response, err := s.GetInstanceTypes(false)
 	if err != nil {
 		return nil, 0, breverrors.WrapAndTrace(err)
 	}
@@ -340,8 +519,8 @@ func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.
 	}
 
 	instances := gpusearch.ProcessInstances(response.Items)
-	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, filters.minVRAM,
-		minTotalVRAM, minCapability, minDisk, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts)
+	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, "", filters.minVRAM,
+		minTotalVRAM, minCapability, 0, minDisk, 0, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts, true)
 	gpusearch.SortInstances(filtered, sortBy, filters.descending)
 
 	return filtered, minDisk, nil
@@ -368,14 +547,19 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 }
 
 // runDryRun shows the instance types that would be used without creating anything
-func runDryRun(t *terminal.Terminal, s GPUCreateStore, filters *searchFilterFlags) error {
+func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, filters *searchFilterFlags) error {
+	if len(specs) > 0 {
+		t.Print(formatInstanceSpecs(specs))
+		return nil
+	}
+
 	filtered, _, err := searchInstances(s, filters)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	piped := gpusearch.IsStdoutPiped()
-	if err := gpusearch.DisplayResults(t, filtered, false, piped); err != nil {
+	if err := gpusearch.DisplayGPUResults(t, filtered, false, piped, false); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
@@ -564,10 +748,13 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 		}
 	}
 
-	// Get user
-	user, err := store.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	user := &entity.User{}
+	if !auth.IsAPIKeyAuthStore(store) {
+		var err error
+		user, err = store.GetCurrentUser()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
 	}
 	ctx.user = user
 
@@ -581,11 +768,11 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 	}
 	ctx.org = org
 
-	// Fetch instance types with workspace groups
-	allInstanceTypes, err := store.GetAllInstanceTypesWithWorkspaceGroups(org.ID)
+	// Fetch instance types with cloud credentials.
+	allInstanceTypes, err := store.GetAllInstanceTypesWithCloudCreds(org.ID)
 	if err != nil {
-		ctx.logf("Warning: could not fetch instance types with workspace groups: %s\n", err.Error())
-		ctx.logf("Falling back to default workspace group\n")
+		ctx.logf("Warning: could not fetch instance types with cloud credentials: %s\n", err.Error())
+		ctx.logf("Falling back to default cloud credential\n")
 	}
 	ctx.allInstanceTypes = allInstanceTypes
 
@@ -599,9 +786,37 @@ type typeCreateResult struct {
 	fatalError error
 }
 
+// validateInstanceTypeAvailability errors when the type is invalid or has no capacity. Returns nil when the listing is missing.
+func (c *createContext) validateInstanceTypeAvailability(instanceType string) error {
+	if c.allInstanceTypes == nil {
+		return nil
+	}
+	if c.allInstanceTypes.GetCloudCredID(instanceType) != "" {
+		return nil
+	}
+	if !c.allInstanceTypes.HasInstanceType(instanceType) {
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"instance type %q is not a recognized type; run 'brev search' to see available types",
+			instanceType,
+		))
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"instance type %q is currently unavailable (no capacity); try again later or run 'brev search' to find another type",
+		instanceType,
+	))
+}
+
 // createInstancesWithType attempts to create instances using a specific type
 func (c *createContext) createInstancesWithType(spec InstanceSpec, startIdx, count int) typeCreateResult {
 	result := typeCreateResult{}
+
+	if c.opts.LaunchableID == "" {
+		if err := c.validateInstanceTypeAvailability(spec.Type); err != nil {
+			c.logf("Skipping: %s\n", err.Error())
+			result.hadFailure = true
+			return result
+		}
+	}
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
@@ -721,7 +936,11 @@ func (c *createContext) waitForInstances(workspaces []*entity.Workspace) {
 	for _, ws := range workspaces {
 		err := c.pollUntilReady(ws.ID)
 		if err != nil {
-			c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
+			if strings.Contains(err.Error(), "timeout waiting") {
+				c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
+			} else {
+				c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
+			}
 		}
 	}
 }
@@ -752,6 +971,13 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	ctx, err := newCreateContext(t, gpuCreateStore, opts)
 	if err != nil {
 		return err
+	}
+
+	// Auto-redeem coupon code if the launchable has one attached.
+	// This is silent — the UI doesn't surface coupon redemption to the user either.
+	// Failures are ignored; the coupon may already be redeemed.
+	if opts.LaunchableInfo != nil && opts.LaunchableInfo.CouponCode != "" {
+		_, _ = gpuCreateStore.RedeemCouponCode(ctx.org.ID, opts.LaunchableInfo.CouponCode)
 	}
 
 	ctx.logf("Attempting to create %d instance(s) with %d parallel attempts\n", opts.Count, opts.Parallel)
@@ -816,15 +1042,32 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	}
 
 	if c.allInstanceTypes != nil {
-		if wgID := c.allInstanceTypes.GetWorkspaceGroupID(spec.Type); wgID != "" {
-			cwOptions.WorkspaceGroupID = wgID
+		if cloudCredID := c.allInstanceTypes.GetCloudCredID(spec.Type); cloudCredID != "" {
+			cwOptions.WithCloudCredID(cloudCredID)
 		}
 	}
 
-	// Apply build mode
-	err := applyBuildMode(cwOptions, c.opts)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	// Apply launchable config or build mode
+	if c.opts.LaunchableID != "" {
+		applyLaunchableConfig(cwOptions, c.opts.LaunchableID, c.opts.LaunchableInfo)
+	} else {
+		err := applyBuildMode(cwOptions, c.opts)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+	}
+
+	if cwOptions.CloudCredID == "" {
+		if c.allInstanceTypes == nil {
+			return nil, breverrors.NewValidationError(fmt.Sprintf(
+				"could not resolve cloud credential for %q (instance-type listing was unavailable); please retry",
+				spec.Type,
+			))
+		}
+		return nil, breverrors.NewValidationError(fmt.Sprintf(
+			"instance type %q is invalid or unavailable; run 'brev search' to see available types",
+			spec.Type,
+		))
 	}
 
 	workspace, err := c.store.CreateWorkspace(c.org.ID, cwOptions)
@@ -924,6 +1167,217 @@ func applyBuildMode(cwOptions *store.CreateWorkspacesOptions, opts GPUCreateOpti
 	return nil
 }
 
+// applyLaunchableConfig populates the workspace create request with all launchable
+// configuration, mirroring what the web UI sends when deploying a launchable.
+func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableID string, info *store.LaunchableResponse) {
+	cwOptions.LaunchableConfig = &store.LaunchableConfig{ID: launchableID}
+
+	if info == nil {
+		return
+	}
+
+	applyLaunchableWorkspaceRequest(cwOptions, info.CreateWorkspaceRequest)
+	applyLaunchableBuildRequest(cwOptions, info.BuildRequest)
+	applyLaunchableFile(cwOptions, info.File)
+	applyLaunchableLabels(cwOptions, launchableID, info)
+}
+
+func applyLaunchableWorkspaceRequest(cwOptions *store.CreateWorkspacesOptions, wsReq store.LaunchableWorkspaceRequest) {
+	// Use launchable's cloud credential if not already resolved from instance types.
+	if cwOptions.CloudCredID == "" && wsReq.CloudCredID != "" {
+		cwOptions.WithCloudCredID(wsReq.CloudCredID)
+	}
+	// Location / sub-location
+	if wsReq.Location != "" {
+		cwOptions.Location = wsReq.Location
+	}
+	if wsReq.SubLocation != "" {
+		cwOptions.SubLocation = wsReq.SubLocation
+	}
+
+	// Disk storage — the API may return a bare number (e.g., "256") or with
+	// a unit suffix (e.g., "256Gi"). The server's ParseDiskStorage expects a
+	// Kubernetes quantity suffix, so append "Gi" only when the value is purely numeric.
+	if wsReq.Storage != "" {
+		cwOptions.DiskStorage = normalizeDiskStorage(wsReq.Storage)
+	}
+
+	if len(wsReq.FirewallRules) > 0 {
+		cwOptions.FirewallRules = resolveFirewallRulesClientIP(wsReq.FirewallRules, publicIPLookup)
+	}
+}
+
+func applyLaunchableBuildRequest(cwOptions *store.CreateWorkspacesOptions, build store.LaunchableBuildRequest) {
+	// Build configuration from launchable
+	switch {
+	case build.VMBuild != nil:
+		cwOptions.VMBuild = build.VMBuild
+	case build.CustomContainer != nil:
+		cwOptions.VMBuild = nil
+		cwOptions.CustomContainer = build.CustomContainer
+	case build.DockerCompose != nil:
+		cwOptions.VMBuild = nil
+		cwOptions.DockerCompose = normalizeLaunchableDockerCompose(build.DockerCompose)
+	}
+
+	// Port mappings from build request ports
+	if len(build.Ports) > 0 {
+		portMappings := make(map[string]string)
+		for _, p := range build.Ports {
+			portMappings[p.Name] = p.Port
+		}
+		cwOptions.PortMappings = portMappings
+	}
+}
+
+func normalizeLaunchableDockerCompose(dockerCompose *store.DockerCompose) *store.DockerCompose {
+	normalized := *dockerCompose
+	if normalized.FileURL != "" {
+		normalized.YamlString = ""
+	}
+	return &normalized
+}
+
+func applyLaunchableFile(cwOptions *store.CreateWorkspacesOptions, file *store.LaunchableFile) {
+	// Files from launchable
+	if file != nil {
+		cwOptions.Files = []map[string]string{
+			{"url": file.URL, "path": file.Path},
+		}
+	}
+}
+
+func applyLaunchableLabels(cwOptions *store.CreateWorkspacesOptions, launchableID string, info *store.LaunchableResponse) {
+	// Labels for tracking and UI rendering — merge with any existing labels
+	var labels map[string]string
+	if existing, ok := cwOptions.Labels.(map[string]string); ok && existing != nil {
+		labels = existing
+	} else {
+		labels = make(map[string]string)
+	}
+	labels["launchableId"] = launchableID
+	labels["launchableInstanceType"] = info.CreateWorkspaceRequest.InstanceType
+	labels["cloudCredId"] = cwOptions.CloudCredID
+	labels["launchableCreatedByUserId"] = info.CreatedByUserID
+	labels["launchableCreatedByOrgId"] = info.CreatedByOrgID
+	labels["launchableRawURL"] = "/launchable/deploy/now?launchableID=" + launchableID
+	cwOptions.Labels = labels
+}
+
+// resolveFirewallRulesClientIP fills ClientIPs on any "user-ip" rule that
+// doesn't already have one, calling lookupIP at most once. Rules are left
+// unchanged on lookup failure or unparseable IPs.
+func resolveFirewallRulesClientIP(rules []store.CreateFirewallRule, lookupIP func() (string, error)) []store.CreateFirewallRule {
+	out := make([]store.CreateFirewallRule, len(rules))
+	copy(out, rules)
+
+	var (
+		ip     string
+		ipErr  error
+		looked bool
+	)
+	for i := range out {
+		if out[i].AllowedIPs != "user-ip" || len(out[i].ClientIPs) > 0 {
+			continue
+		}
+		if !looked {
+			ip, ipErr = lookupIP()
+			looked = true
+		}
+		if ipErr != nil || ip == "" {
+			continue
+		}
+		cidr := toHostCIDR(ip)
+		if cidr == "" {
+			continue
+		}
+		out[i].ClientIPs = []string{cidr}
+	}
+	return out
+}
+
+// toHostCIDR returns the single-host CIDR for an IP literal: /32 for IPv4,
+// /128 for IPv6. Returns "" if raw isn't a valid IP.
+func toHostCIDR(raw string) string {
+	parsed := net.ParseIP(strings.TrimSpace(raw))
+	if parsed == nil {
+		return ""
+	}
+	if v4 := parsed.To4(); v4 != nil {
+		return v4.String() + "/32"
+	}
+	return parsed.String() + "/128"
+}
+
+// publicIPLookup is a var so tests can stub it.
+var publicIPLookup = resolvePublicIP
+
+// publicIPEndpoints are tried in order until one returns a valid IP.
+// All return the IP as a plain-text body.
+var publicIPEndpoints = []string{
+	"https://api.ipify.org",
+	"https://ifconfig.me/ip",
+	"https://checkip.amazonaws.com",
+}
+
+func resolvePublicIP() (string, error) {
+	client := &http.Client{Timeout: 3 * time.Second}
+	var lastErr error
+	for _, url := range publicIPEndpoints {
+		ip, err := fetchPublicIP(client, url)
+		if err == nil {
+			return ip, nil
+		}
+		lastErr = err
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("no public IP endpoints configured")
+	}
+	return "", lastErr
+}
+
+func fetchPublicIP(client *http.Client, url string) (string, error) {
+	resp, err := client.Get(url)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // best-effort
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("%s returned status %d", url, resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	ipStr := strings.TrimSpace(string(body))
+	if net.ParseIP(ipStr) == nil {
+		return "", fmt.Errorf("%s returned non-IP response: %q", url, ipStr)
+	}
+	return ipStr, nil
+}
+
+// normalizeDiskStorage ensures a disk storage value has a Kubernetes quantity suffix.
+// If the value is purely numeric (e.g., "256"), appends "Gi". Otherwise passes through
+// as-is, trusting the server's ParseDiskStorage to handle formats like "256Gi", "100G", etc.
+func normalizeDiskStorage(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	// Check if the string is purely numeric (digits and optional decimal point)
+	allDigits := true
+	for _, c := range s {
+		if c != '.' && (c < '0' || c > '9') {
+			allDigits = false
+			break
+		}
+	}
+	if allDigits {
+		return s + "Gi"
+	}
+	return s
+}
+
 // resolveWorkspaceUserOptions sets workspace template and class based on user type
 func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
 	isAdmin := featureflag.IsAdmin(user.GlobalUserType)
@@ -958,6 +1412,9 @@ func (c *createContext) pollUntilReady(wsID string) error {
 		}
 
 		if ws.Status == entity.Failure {
+			if ws.StatusMessage != "" {
+				return breverrors.NewValidationError(fmt.Sprintf("instance %s failed: %s", ws.Name, ws.StatusMessage))
+			}
 			return breverrors.NewValidationError(fmt.Sprintf("instance %s failed", ws.Name))
 		}
 

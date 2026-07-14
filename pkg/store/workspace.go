@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -37,6 +38,8 @@ type ModifyWorkspaceRequest struct {
 // LifeCycleScriptAttr holds the lifecycle script configuration
 type LifeCycleScriptAttr struct {
 	Script string `json:"script,omitempty"`
+	ID     string `json:"id,omitempty"`
+	Name   string `json:"name,omitempty"`
 }
 
 // VMBuild holds VM-specific build configuration
@@ -77,7 +80,7 @@ type Registry struct {
 
 type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
-	WorkspaceGroupID     string               `json:"workspaceGroupId"`
+	CloudCredID          string               `json:"cloudCredId,omitempty"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	Description          string               `json:"description"`
@@ -95,6 +98,8 @@ type CreateWorkspacesOptions struct {
 	ReposV1              *entity.ReposV1      `json:"reposV1"`
 	ExecsV1              *entity.ExecsV1      `json:"execsV1"`
 	InstanceType         string               `json:"instanceType"`
+	Location             string               `json:"location,omitempty"`
+	SubLocation          string               `json:"subLocation,omitempty"`
 	DiskStorage          string               `json:"diskStorage"`
 	BaseImage            string               `json:"baseImage"`
 	VMOnlyMode           bool                 `json:"vmOnlyMode"`
@@ -103,10 +108,64 @@ type CreateWorkspacesOptions struct {
 	DockerCompose        *DockerCompose       `json:"dockerCompose,omitempty"`
 	OnContainer          bool                 `json:"onContainer,omitempty"`
 	PortMappings         map[string]string    `json:"portMappings"`
+	FirewallRules        []CreateFirewallRule `json:"firewallRules,omitempty"`
 	Files                interface{}          `json:"files"`
 	Labels               interface{}          `json:"labels"`
 	WorkspaceVersion     string               `json:"workspaceVersion"`
 	LaunchJupyterOnStart bool                 `json:"launchJupyterOnStart"`
+	LaunchableConfig     *LaunchableConfig    `json:"launchableConfig,omitempty"`
+}
+
+// CreateFirewallRule mirrors brev-deploy's CreateFirewallRule. AllowedIPs is
+// either "all" (open to 0.0.0.0/0) or "user-ip" (open to ClientIPs).
+type CreateFirewallRule struct {
+	Port       string   `json:"port"`
+	AllowedIPs string   `json:"allowedIPs"`
+	ClientIPs  []string `json:"clientIPs,omitempty"`
+}
+
+type LaunchableConfig struct {
+	ID string `json:"id"`
+}
+
+type LaunchableResponse struct {
+	ID                     string                     `json:"id"`
+	Name                   string                     `json:"name"`
+	Description            string                     `json:"description"`
+	CreateWorkspaceRequest LaunchableWorkspaceRequest `json:"createWorkspaceRequest"`
+	BuildRequest           LaunchableBuildRequest     `json:"buildRequest"`
+	CreatedByUserID        string                     `json:"createdByUserId"`
+	CreatedByOrgID         string                     `json:"createdByOrgId"`
+	File                   *LaunchableFile            `json:"file,omitempty"`
+	CouponCode             string                     `json:"couponCode,omitempty"`
+}
+
+type LaunchableWorkspaceRequest struct {
+	CloudCredID   string               `json:"cloudCredId,omitempty"`
+	InstanceType  string               `json:"instanceType"`
+	Storage       string               `json:"storage,omitempty"`
+	Location      string               `json:"location,omitempty"`
+	SubLocation   string               `json:"subLocation,omitempty"`
+	ImageID       string               `json:"imageId,omitempty"`
+	FirewallRules []CreateFirewallRule `json:"firewallRules,omitempty"`
+}
+
+type LaunchableBuildRequest struct {
+	VMBuild         *VMBuild         `json:"vmBuild,omitempty"`
+	CustomContainer *CustomContainer `json:"containerBuild,omitempty"`
+	DockerCompose   *DockerCompose   `json:"dockerCompose,omitempty"`
+	Ports           []LaunchablePort `json:"ports"`
+}
+
+type LaunchablePort struct {
+	Port   string            `json:"port"`
+	Name   string            `json:"name"`
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type LaunchableFile struct {
+	URL  string `json:"url"`
+	Path string `json:"path"`
 }
 
 var (
@@ -148,7 +207,6 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PortMappings:         map[string]string{},
 		ReposV1:              &entity.ReposV1{},
 		VMBuild:              &VMBuild{ForceJupyterInstall: true},
-		WorkspaceGroupID:     "", // resolved dynamically from instance type
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		WorkspaceVersion:     "v1",
 	}
@@ -194,8 +252,8 @@ func (c *CreateWorkspacesOptions) WithVMBuild(vmBuild *VMBuild) *CreateWorkspace
 	return c
 }
 
-func (c *CreateWorkspacesOptions) WithWorkspaceGroupID(workspaceGroupID string) *CreateWorkspacesOptions {
-	c.WorkspaceGroupID = workspaceGroupID
+func (c *CreateWorkspacesOptions) WithCloudCredID(cloudCredID string) *CreateWorkspacesOptions {
+	c.CloudCredID = cloudCredID
 	return c
 }
 
@@ -218,6 +276,44 @@ func (s AuthHTTPStore) CreateWorkspace(organizationID string, options *CreateWor
 		return nil, NewHTTPResponseError(res)
 	}
 
+	return &result, nil
+}
+
+func (s AuthHTTPStore) GetLaunchable(launchableID string) (*LaunchableResponse, error) {
+	var result LaunchableResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(fmt.Sprintf("api/launchables/%s/now", launchableID))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+	return &result, nil
+}
+
+// LifeCycleScriptResponse holds a lifecycle script with the script body populated.
+type LifeCycleScriptResponse struct {
+	Attrs *LifeCycleScriptAttr `json:"attrs"`
+}
+
+// GetLaunchableLifeCycleScript fetches the full lifecycle script for a launchable.
+func (s AuthHTTPStore) GetLaunchableLifeCycleScript(launchableID, scriptID string) (*LifeCycleScriptResponse, error) {
+	var result LifeCycleScriptResponse
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetQueryParam("envId", launchableID).
+		SetQueryParam("scriptId", scriptID).
+		SetResult(&result).
+		Get("api/launchable/lifecycle-script")
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
 	return &result, nil
 }
 
@@ -282,6 +378,10 @@ func FilterNonFailedWorkspaces(workspaces []entity.Workspace) []entity.Workspace
 }
 
 func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
+	if auth.IsAPIKeyAuthStore(&s) {
+		return s.GetWorkspaces(orgID, &GetWorkspacesOptions{Name: nameOrID})
+	}
+
 	// pretty srue we always want to filter for workspaces owned by the user
 	user, err := s.GetCurrentUser()
 	if err != nil {
@@ -304,6 +404,10 @@ func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if auth.IsAPIKeyAuthStore(&s) {
+		return s.GetWorkspaces(org.ID, nil)
+	}
+
 	user, err := s.GetCurrentUser()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -393,7 +497,6 @@ func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, options *ModifyWorksp
 	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
 	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
 	// fmt.Printf("instance %s\n", result.InstanceType)
-	// fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 	return &result, nil
 }
 

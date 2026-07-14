@@ -15,7 +15,6 @@ var somePlainWorkspaces = []entity.Workspace{
 	{
 		ID:               "test-id-1",
 		Name:             "testName1",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -28,7 +27,6 @@ var somePlainWorkspaces = []entity.Workspace{
 	{
 		ID:               "test-id-2",
 		Name:             "testName2",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -129,7 +127,7 @@ func (d DummySSHConfigurerV2Store) GetBrevCloudflaredBinaryPath() (string, error
 
 func TestCreateNewSSHConfig(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
-	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces)
+	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces, nil)
 
 	assert.Nil(t, err)
 	// sometimes vs code is not happy with the formatting
@@ -150,6 +148,9 @@ Host %s
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%C
+  ControlPersist 10m
   Port 22
 
 Host %s-host
@@ -164,6 +165,9 @@ Host %s-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%C
+  ControlPersist 10m
   Port 22
 
 Host %s
@@ -178,6 +182,9 @@ Host %s
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%C
+  ControlPersist 10m
   Port 22
 
 Host %s-host
@@ -192,6 +199,9 @@ Host %s-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%%C
+  ControlPersist 10m
   Port 22
 
 `, somePlainWorkspaces[0].GetLocalIdentifier(), somePlainWorkspaces[0].GetLocalIdentifier(),
@@ -199,7 +209,7 @@ Host %s-host
 	)
 	assert.Equal(t, correct, cStr)
 
-	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{})
+	cStr, err = c.CreateNewSSHConfig([]entity.Workspace{}, nil)
 	assert.Nil(t, err)
 	correct = `# included in /my/user/config
 `
@@ -282,7 +292,6 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: entity.WorkspaceGroupDevPlane,
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -310,6 +319,9 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 20
 
 Host testName2-host
@@ -324,6 +336,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 2022
 
 `,
@@ -334,7 +349,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: "test-id-2",
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -359,6 +373,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 Host testName2-host
@@ -373,6 +390,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 `,
@@ -383,7 +403,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: "test-id-2",
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -409,6 +428,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 2022
 
 Host testName2-host
@@ -423,73 +445,10 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
-
-`,
-		},
-		{
-			name: "test legacy workspace uses brev user 1",
-			args: args{
-				workspace: entity.Workspace{
-					ID:               "test-id-2",
-					Name:             "testName2",
-					WorkspaceGroupID: "k8s.brevstack.com", // a legacy wsg
-					OrganizationID:   "oi",
-					WorkspaceClassID: "wci",
-					CreatedByUserID:  "cui",
-					DNS:              "test2-dns-org.brev.sh",
-					Status:           entity.Running,
-					Password:         "sdfal",
-					GitRepo:          "gitrepo",
-				},
-				privateKeyPath: "/my/priv/key.pem",
-				runRemoteCMD:   true,
-			},
-			want: `Host testName2
-  IdentityFile "/my/priv/key.pem"
-  User brev
-  ProxyCommand brev proxy test-id-2
-  ServerAliveInterval 30
-  UserKnownHostsFile /dev/null
-  IdentitiesOnly yes
-  StrictHostKeyChecking no
-  PasswordAuthentication no
-  AddKeysToAgent yes
-  ForwardAgent yes
-  RequestTTY yes
-
-`,
-		},
-		{
-			name: "test legacy workspace uses brev user 1",
-			args: args{
-				workspace: entity.Workspace{
-					ID:               "test-id-2",
-					Name:             "testName2",
-					WorkspaceGroupID: "brev-test-brevtenant-cluster", // a legacy wsg
-					OrganizationID:   "oi",
-					WorkspaceClassID: "wci",
-					CreatedByUserID:  "cui",
-					DNS:              "test2-dns-org.brev.sh",
-					Status:           entity.Running,
-					Password:         "sdfal",
-					GitRepo:          "gitrepo",
-				},
-				privateKeyPath: "/my/priv/key.pem",
-				runRemoteCMD:   true,
-			},
-			want: `Host testName2
-  IdentityFile "/my/priv/key.pem"
-  User brev
-  ProxyCommand brev proxy test-id-2
-  ServerAliveInterval 30
-  UserKnownHostsFile /dev/null
-  IdentitiesOnly yes
-  StrictHostKeyChecking no
-  PasswordAuthentication no
-  AddKeysToAgent yes
-  ForwardAgent yes
-  RequestTTY yes
 
 `,
 		},
@@ -499,7 +458,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:                   "test-id-2",
 					Name:                 "testName2",
-					WorkspaceGroupID:     "test-id-2",
 					OrganizationID:       "oi",
 					WorkspaceClassID:     "wci",
 					CreatedByUserID:      "cui",
@@ -527,6 +485,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
 
 Host testName2-host
   IdentityFile "/my/priv/key.pem"
@@ -540,6 +501,9 @@ Host testName2-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
 
 `,
 		},
@@ -556,6 +520,115 @@ Host testName2-host
 				t.Fatalf("%s", diff)
 			}
 		})
+	}
+}
+
+func TestSanitizeNodeName(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"My GPU Box", "my-gpu-box"},
+		{"my-ec2", "my-ec2"},
+		{"already-clean", "already-clean"},
+		{"UPPER CASE", "upper-case"},
+		{"special!@#chars", "special-chars"},
+		{"  leading/trailing  ", "leading-trailing"},
+		{"multiple   spaces", "multiple-spaces"},
+		{"", "node"},
+		{"!!!!", "node"},
+		{"a", "a"},
+		{"node-with--double-dash", "node-with-double-dash"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := SanitizeNodeName(tt.input)
+			if got != tt.want {
+				t.Errorf("SanitizeNodeName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestMakeSSHConfigEntryForNode(t *testing.T) {
+	entry := ExternalNodeSSHEntry{
+		Alias:    "my-gpu-box",
+		Hostname: "10.0.0.5",
+		Port:     41920,
+		User:     "ec2-user",
+	}
+
+	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := `Host my-gpu-box
+  HostName 10.0.0.5
+  User ec2-user
+  Port 41920
+  IdentityFile "/home/test/.brev/brev.pem"
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+	if got != want {
+		t.Errorf("makeSSHConfigEntryForNode() mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestCreateNewSSHConfig_WithNodes(t *testing.T) {
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+
+	nodes := []ExternalNodeSSHEntry{
+		{Alias: "gpu-box", Hostname: "10.0.0.5", Port: 41920, User: "ec2-user"},
+	}
+
+	cStr, err := c.CreateNewSSHConfig([]entity.Workspace{}, nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := `# included in /my/user/config
+Host gpu-box
+  HostName 10.0.0.5
+  User ec2-user
+  Port 41920
+  IdentityFile "/my/priv/key.pem"
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+	if cStr != want {
+		t.Errorf("CreateNewSSHConfig with nodes mismatch:\ngot:\n%s\nwant:\n%s", cStr, want)
+	}
+}
+
+func TestCreateNewSSHConfig_WorkspacesAndNodes(t *testing.T) {
+	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
+
+	nodes := []ExternalNodeSSHEntry{
+		{Alias: "my-node", Hostname: "192.168.1.100", Port: 33000, User: "ubuntu"},
+	}
+
+	cStr, err := c.CreateNewSSHConfig(somePlainWorkspaces[:1], nodes)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should contain both workspace entry and node entry
+	if !assert.Contains(t, cStr, "Host testName1\n") {
+		return
+	}
+	if !assert.Contains(t, cStr, "Host my-node\n") {
+		return
+	}
+	if !assert.Contains(t, cStr, "Port 33000\n") {
+		return
 	}
 }
 
@@ -629,7 +702,6 @@ func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
 					{
 						ID:               "test-id-1",
 						Name:             "testName1",
-						WorkspaceGroupID: "test-id-1",
 						OrganizationID:   "oi",
 						WorkspaceClassID: "wci",
 						CreatedByUserID:  "cui",
@@ -656,6 +728,9 @@ Host testName1
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 Host testName1-host
@@ -670,6 +745,9 @@ Host testName1-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 `,
@@ -689,7 +767,6 @@ Host testName1-host
 					{
 						ID:               "test-id-1",
 						Name:             "testName1",
-						WorkspaceGroupID: "test-id-1",
 						OrganizationID:   "oi",
 						WorkspaceClassID: "wci",
 						CreatedByUserID:  "cui",
@@ -716,6 +793,9 @@ Host testName1
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 Host testName1-host
@@ -730,6 +810,9 @@ Host testName1-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 `,
@@ -747,6 +830,9 @@ Host testName1
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 Host testName1-host
@@ -761,6 +847,9 @@ Host testName1-host
   AddKeysToAgent yes
   ForwardAgent yes
   RequestTTY yes
+  ControlMaster auto
+  ControlPath ~/.ssh/brev-control-%C
+  ControlPersist 10m
   Port 22
 
 `,
@@ -775,7 +864,7 @@ Host testName1-host
 			s := SSHConfigurerV2{
 				store: tt.fields.store,
 			}
-			if err := s.Update(tt.args.workspaces); (err != nil) != tt.wantErr {
+			if err := s.Update(tt.args.workspaces, nil); (err != nil) != tt.wantErr {
 				t.Errorf("SSHConfigurerV2.Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			// make sure the linux config is correct

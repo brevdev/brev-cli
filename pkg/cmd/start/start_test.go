@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
 )
@@ -47,7 +48,6 @@ func Test_DisplayBC(t *testing.T) {
 	displayConnectBreadCrumb(term, &entity.Workspace{
 		ID:                "123456789",
 		Name:              "my-name",
-		WorkspaceGroupID:  "",
 		OrganizationID:    "",
 		WorkspaceClassID:  "",
 		CreatedByUserID:   "",
@@ -59,4 +59,18 @@ func Test_DisplayBC(t *testing.T) {
 		WorkspaceTemplate: entity.WorkspaceTemplate{},
 		NetworkID:         "",
 	})
+}
+
+func TestResolveWorkspaceUserOptions_APIKeyAuthUsesUserDefaultsWithoutUser(t *testing.T) {
+	got := resolveWorkspaceUserOptions(&store.CreateWorkspacesOptions{}, nil, true)
+
+	assert.Equal(t, store.UserWorkspaceTemplateID, got.WorkspaceTemplateID)
+	assert.Equal(t, store.UserWorkspaceClassID, got.WorkspaceClassID)
+}
+
+func TestResolveWorkspaceUserOptions_AdminUserUsesDevDefaults(t *testing.T) {
+	got := resolveWorkspaceUserOptions(&store.CreateWorkspacesOptions{}, &entity.User{GlobalUserType: entity.Admin}, false)
+
+	assert.Equal(t, store.DevWorkspaceTemplateID, got.WorkspaceTemplateID)
+	assert.Equal(t, store.DevWorkspaceClassID, got.WorkspaceClassID)
 }

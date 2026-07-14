@@ -2,19 +2,28 @@
 package ls
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
+	"github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/externalnode"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
+	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/entity/virtualproject"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -32,6 +41,9 @@ type LsStore interface {
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	externalnode.TokenProvider
+	GetAuthTokens() (*entity.AuthTokens, error)
+	GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error)
 	hello.HelloStore
 }
 
@@ -47,49 +59,23 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 		Short:       "List instances within active org",
 		Long: `List instances within your active org. List all instances if no active org is set.
 
+Subcommands:
+  instances  List cloud instances
+  nodes      List external nodes only
+  orgs       List organizations
+
 When stdout is piped, outputs instance names only (one per line) for easy chaining
 with other commands like stop, start, or delete.`,
 		Example: `
   brev ls
+  brev ls instances
+  brev ls nodes
   brev ls --json
   brev ls | grep running | brev stop
   brev ls orgs
   brev ls orgs --json
 		`,
-		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			if hello.ShouldWeRunOnboardingLSStep(noLoginLsStore) && hello.ShouldWeRunOnboarding(noLoginLsStore) {
-				// Getting the workspaces should go in the hello.go file but then
-				// requires passing in stores and that makes it hard to use in other commands
-				org, err := getOrgForRunLs(loginLsStore, org)
-				if err != nil {
-					return err
-				}
-
-				allWorkspaces, err := loginLsStore.GetWorkspaces(org.ID, nil)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				user, err := loginLsStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-				var myWorkspaces []entity.Workspace
-				for _, v := range allWorkspaces {
-					if v.CreatedByUserID == user.ID {
-						myWorkspaces = append(myWorkspaces, v)
-					}
-				}
-
-				err = hello.Step1(t, myWorkspaces, user, loginLsStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-
-			}
-			return cmdcontext.InvokeParentPersistentPostRun(cmd, args)
-		},
+		PersistentPostRunE: cmdcontext.InvokeParentPersistentPostRun,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			err := cmdcontext.InvokeParentPersistentPreRun(cmd, args)
 			if err != nil {
@@ -99,14 +85,18 @@ with other commands like stop, start, or delete.`,
 			return nil
 		},
 		Args:      cmderrors.TransformToValidationError(cobra.MinimumNArgs(0)),
-		ValidArgs: []string{"orgs", "workspaces"},
+		ValidArgs: []string{"orgs", "workspaces", "nodes", "instances"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunLs(t, loginLsStore, args, org, showAll, jsonOutput)
+			cliAuth, err := auth.ResolveCLIAuth(loginLsStore)
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
+			err = RunLs(t, cliAuth, loginLsStore, args, org, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
 			if !jsonOutput {
-				trackLsAnalytics(loginLsStore)
+				trackLsAnalytics(cliAuth)
 			}
 			return nil
 		},
@@ -119,18 +109,17 @@ with other commands like stop, start, or delete.`,
 		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")
+	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and external nodes in org")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
 }
 
 // trackLsAnalytics sends analytics event for ls command
-func trackLsAnalytics(store LsStore) {
+func trackLsAnalytics(cliAuth auth.CLIAuth) {
 	userID := ""
-	user, err := store.GetCurrentUser()
-	if err == nil {
-		userID = user.ID
+	if !cliAuth.IsAPIKey() && cliAuth.User() != nil {
+		userID = cliAuth.User().ID
 	}
 	data := analytics.EventData{
 		EventName: "Brev ls",
@@ -139,8 +128,22 @@ func trackLsAnalytics(store LsStore) {
 	_ = analytics.TrackEvent(data)
 }
 
-func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, error) {
+func getOrgForRunLs(cliAuth auth.CLIAuth, lsStore LsStore, orgflag string) (*entity.Organization, error) {
 	var org *entity.Organization
+	if cliAuth.IsAPIKey() {
+		if orgflag != "" {
+			return nil, breverrors.NewValidationError("api key auth is scoped to the org saved during login; --org is not supported")
+		}
+		org, err := lsStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if org == nil {
+			return nil, breverrors.NewValidationError("no orgs exist")
+		}
+		return org, nil
+	}
+
 	if orgflag != "" {
 		var orgs []entity.Organization
 		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
@@ -168,14 +171,10 @@ func getOrgForRunLs(lsStore LsStore, orgflag string) (*entity.Organization, erro
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
+func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
-	user, err := lsStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
 
-	org, err := getOrgForRunLs(lsStore, orgflag)
+	org, err := getOrgForRunLs(cliAuth, lsStore, orgflag)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -184,12 +183,12 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, args[0], user, org, showAll)
+		err = handleLsArg(ls, cliAuth, args[0], org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(org, user, showAll)
+		err = ls.RunWorkspaces(cliAuth, org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -200,32 +199,80 @@ func RunLs(t *terminal.Terminal, lsStore LsStore, args []string, orgflag string,
 	return nil
 }
 
-func handleLsArg(ls *Ls, arg string, user *entity.User, org *entity.Organization, showAll bool) error {
-	// todo refactor this to cmd.register
-	//nolint:gocritic // idk how to write this as a switch
-	if util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization") { // handle org, orgs, and organization(s)
-		err := ls.RunOrgs()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
+func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organization, showAll bool) error {
+	switch classifyLsArg(arg) {
+	case lsArgOrgs:
+		if cliAuth.IsAPIKey() {
+			return breverrors.NewValidationError("api key auth cannot list organizations")
 		}
+		return wrapLsRun(ls.RunOrgs())
+	case lsArgWorkspaces:
+		return wrapLsRun(ls.RunWorkspaces(cliAuth, org, showAll))
+	case lsArgUsers:
+		return runAdminLsArg(cliAuth, "users", func() error {
+			return ls.RunUser(showAll)
+		})
+	case lsArgHosts:
+		return runAdminLsArg(cliAuth, "hosts", func() error {
+			return ls.RunHosts(org)
+		})
+	case lsArgNodes:
+		return wrapLsRun(ls.RunNodes(org))
+	case lsArgInstances:
+		return wrapLsRun(ls.RunInstances(cliAuth, org, showAll))
+	default:
 		return nil
-	} else if util.IsSingularOrPlural(arg, "workspace") {
-		err := ls.RunWorkspaces(org, user, showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	} else if util.IsSingularOrPlural(arg, "user") && featureflag.IsAdmin(user.GlobalUserType) {
-		err := ls.RunUser(showAll)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	}
+}
+
+type lsArgKind int
+
+const (
+	lsArgUnknown lsArgKind = iota
+	lsArgOrgs
+	lsArgWorkspaces
+	lsArgUsers
+	lsArgHosts
+	lsArgNodes
+	lsArgInstances
+)
+
+func classifyLsArg(arg string) lsArgKind {
+	switch {
+	case util.IsSingularOrPlural(arg, "org") || util.IsSingularOrPlural(arg, "organization"):
+		return lsArgOrgs
+	case util.IsSingularOrPlural(arg, "workspace"):
+		return lsArgWorkspaces
+	case util.IsSingularOrPlural(arg, "user"):
+		return lsArgUsers
+	case util.IsSingularOrPlural(arg, "host"):
+		return lsArgHosts
+	case util.IsSingularOrPlural(arg, "node"):
+		return lsArgNodes
+	case util.IsSingularOrPlural(arg, "instance"):
+		return lsArgInstances
+	default:
+		return lsArgUnknown
+	}
+}
+
+func runAdminLsArg(cliAuth auth.CLIAuth, resource string, run func() error) error {
+	if cliAuth.IsAPIKey() {
+		return breverrors.NewValidationError(fmt.Sprintf("api key auth cannot list %s", resource))
+	}
+	user := cliAuth.User()
+	if user == nil {
+		return breverrors.NewValidationError("user is required")
+	}
+	if !featureflag.IsAdmin(user.GlobalUserType) {
 		return nil
-	} else if util.IsSingularOrPlural(arg, "host") && featureflag.IsAdmin(user.GlobalUserType) {
-		err := ls.RunHosts(org)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		return nil
+	}
+	return wrapLsRun(run())
+}
+
+func wrapLsRun(err error) error {
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -234,13 +281,19 @@ type Ls struct {
 	lsStore    LsStore
 	terminal   *terminal.Terminal
 	jsonOutput bool
+	piped      bool
 }
 
 func NewLs(lsStore LsStore, terminal *terminal.Terminal, jsonOutput bool) *Ls {
+	piped := false
+	if fi, err := os.Stdout.Stat(); err == nil {
+		piped = fi.Mode()&os.ModeCharDevice == 0
+	}
 	return &Ls{
 		lsStore:    lsStore,
 		terminal:   terminal,
 		jsonOutput: jsonOutput,
+		piped:      piped,
 	}
 }
 
@@ -329,33 +382,31 @@ func (ls Ls) RunUser(_ bool) error {
 	return nil
 }
 
-func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
-	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
-
-	projects := virtualproject.NewVirtualProjects(allWorkspaces)
-
-	var unjoinedProjects []virtualproject.VirtualProject
-	for _, p := range projects {
-		wks := p.GetUserWorkspaces(user.ID)
-		if len(wks) == 0 {
-			unjoinedProjects = append(unjoinedProjects, p)
-		}
-	}
-
-	displayProjects(ls.terminal, org.Name, unjoinedProjects)
+func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, workspacesToShow []entity.Workspace, gpuLookup map[string]string) {
+	ls.displayWorkspacesAndHelp(org, otherOrgs, workspacesToShow, workspacesToShow, true, gpuLookup)
 }
 
-func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace) {
+func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 
-	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces)
+	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, false, gpuLookup)
 }
 
-func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, userWorkspaces []entity.Workspace, allWorkspaces []entity.Workspace) {
-	if len(userWorkspaces) == 0 {
+func (ls Ls) ShowOrgWorkspaces(org *entity.Organization, workspaces []entity.Workspace, gpuLookup map[string]string) {
+	if len(workspaces) == 0 {
 		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
-		if len(allWorkspaces) > 0 {
+		return
+	}
+	ls.terminal.Vprintf("Org %s has %d instances\n", ls.terminal.Yellow(org.Name), len(workspaces))
+	displayWorkspacesTable(ls.terminal, workspaces, gpuLookup)
+
+	fmt.Print("\n")
+}
+
+func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []entity.Organization, workspacesToDisplay []entity.Workspace, allWorkspaces []entity.Workspace, showAll bool, gpuLookup map[string]string) {
+	if len(workspacesToDisplay) == 0 {
+		ls.terminal.Vprint(ls.terminal.Yellow("No instances in org %s\n", org.Name))
+		if !showAll && len(allWorkspaces) > 0 {
 			ls.terminal.Vprintf("%s", ls.terminal.Green("See teammates' instances:\n"))
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
@@ -367,49 +418,100 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow(fmt.Sprintf("\tbrev set %s\n", getOtherOrg(otherOrgs, *org).Name)))
 		}
 	} else {
-		ls.terminal.Vprintf("You have %d instances in Org %s\n", len(userWorkspaces), ls.terminal.Yellow(org.Name))
-		displayWorkspacesTable(ls.terminal, userWorkspaces)
+		if showAll {
+			ls.terminal.Vprintf("%d instances in Org %s\n", len(workspacesToDisplay), ls.terminal.Yellow(org.Name))
+		} else {
+			ls.terminal.Vprintf("You have %d instances in Org %s\n", len(workspacesToDisplay), ls.terminal.Yellow(org.Name))
+		}
+		displayWorkspacesTable(ls.terminal, workspacesToDisplay, gpuLookup)
 
 		fmt.Print("\n")
-
-		displayLsResetBreadCrumb(ls.terminal, userWorkspaces)
-		// displayLsConnectBreadCrumb(ls.terminal, userWorkspaces)
 	}
 }
 
-func displayLsResetBreadCrumb(t *terminal.Terminal, workspaces []entity.Workspace) {
-	foundAResettableWorkspace := false
-	for _, w := range workspaces {
-		if w.Status == entity.Failure || getWorkspaceDisplayStatus(w) == entity.Unhealthy {
-			if !foundAResettableWorkspace {
-				t.Vprintf("%s", t.Red("Reset unhealthy or failed instance:\n"))
-			}
-			t.Vprintf("%s", t.Yellow(fmt.Sprintf("\tbrev reset %s\n", w.Name)))
-			foundAResettableWorkspace = true
+// buildGPULookup builds a map of instance type name to GPU name.
+// Returns nil if the fetch fails (graceful degradation).
+func buildGPULookup(s LsStore) map[string]string {
+	resp, err := s.GetInstanceTypes(true)
+	if err != nil || resp == nil {
+		return nil
+	}
+	lookup := make(map[string]string, len(resp.Items))
+	for _, item := range resp.Items {
+		if len(item.SupportedGPUs) > 0 {
+			lookup[item.Type] = item.SupportedGPUs[0].Name
+		} else {
+			lookup[item.Type] = "-"
 		}
 	}
-	if foundAResettableWorkspace {
-		t.Vprintf("%s", t.Yellow("If this problem persists, run the command again with the --hard flag (warning: the --hard flag will not preserve uncommitted files!) \n\n"))
-	}
+	return lookup
 }
 
-func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll bool) error {
-	allWorkspaces, err := ls.lsStore.GetWorkspaces(org.ID, nil)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+	// Fetch workspaces and instance types concurrently
+	var allWorkspaces []entity.Workspace
+	var wsErr error
+	var gpuLookup map[string]string
+	var nodes []*nodev1.ExternalNode
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	if showAll {
+		wg.Add(1)
+	}
+	go func() {
+		defer wg.Done()
+		allWorkspaces, wsErr = ls.lsStore.GetWorkspaces(org.ID, nil)
+	}()
+	go func() {
+		defer wg.Done()
+		gpuLookup = buildGPULookup(ls.lsStore)
+	}()
+	if showAll {
+		go func() {
+			defer wg.Done()
+			var err error
+			nodes, err = ls.listNodes(org)
+			if err != nil {
+				if featureflag.Debug() {
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list external nodes: %v\n", err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	if wsErr != nil {
+		return breverrors.WrapAndTrace(wsErr)
 	}
 
 	// Determine which workspaces to show
 	var workspacesToShow []entity.Workspace
-	if showAll {
+	switch {
+	case showAll:
 		workspacesToShow = allWorkspaces
-	} else {
+	case cliAuth.IsAPIKey():
+		workspacesToShow = allWorkspaces
+	default:
+		user := cliAuth.User()
+		if user == nil {
+			return breverrors.NewValidationError("user is required")
+		}
 		workspacesToShow = store.FilterForUserWorkspaces(allWorkspaces, user.ID)
 	}
 
 	// Handle JSON output
 	if ls.jsonOutput {
-		return ls.outputWorkspacesJSON(workspacesToShow)
+		return ls.outputWorkspacesJSON(workspacesToShow, gpuLookup, nodes)
+	}
+
+	if cliAuth.IsAPIKey() {
+		ls.ShowOrgWorkspaces(org, workspacesToShow, gpuLookup)
+		return nil
+	}
+	user := cliAuth.User()
+	if user == nil {
+		return breverrors.NewValidationError("user is required")
 	}
 
 	// Table output with colors and help text
@@ -418,9 +520,21 @@ func (ls Ls) RunWorkspaces(org *entity.Organization, user *entity.User, showAll 
 		return breverrors.WrapAndTrace(err)
 	}
 	if showAll {
-		ls.ShowAllWorkspaces(org, orgs, user, allWorkspaces)
+		ls.ShowAllWorkspaces(org, orgs, workspacesToShow, gpuLookup)
+		if len(nodes) > 0 {
+			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+			displayNodesTable(ls.terminal, nodes, ls.piped)
+		}
 	} else {
-		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces)
+		ls.ShowUserWorkspaces(org, orgs, user, allWorkspaces, gpuLookup)
+	}
+
+	return nil
+}
+
+func (ls Ls) RunInstances(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+	if err := ls.RunWorkspaces(cliAuth, org, showAll); err != nil {
+		return err
 	}
 	return nil
 }
@@ -435,12 +549,31 @@ type WorkspaceInfo struct {
 	HealthStatus string `json:"health_status"`
 	InstanceType string `json:"instance_type"`
 	InstanceKind string `json:"instance_kind"`
+	GPU          string `json:"gpu"`
+}
+
+// getGPUForInstance returns the GPU name for an instance type using the lookup map.
+// Returns the GPU name (e.g. "A100"), "-" for CPU-only, or "-" if unknown.
+func getGPUForInstance(w entity.Workspace, gpuLookup map[string]string) string {
+	if w.InstanceType != "" && gpuLookup != nil {
+		if gpu, ok := gpuLookup[w.InstanceType]; ok {
+			return gpu
+		}
+	}
+	if w.InstanceType == "" && w.WorkspaceClassID != "" {
+		return "-"
+	}
+	return "-"
 }
 
 // getInstanceTypeAndKind returns the instance type and kind (gpu/cpu)
-func getInstanceTypeAndKind(w entity.Workspace) (string, string) {
+func getInstanceTypeAndKind(w entity.Workspace, gpuLookup map[string]string) (string, string) {
 	if w.InstanceType != "" {
-		return w.InstanceType, "gpu"
+		gpu := getGPUForInstance(w, gpuLookup)
+		if gpu != "-" {
+			return w.InstanceType, "gpu"
+		}
+		return w.InstanceType, "cpu"
 	}
 	if w.WorkspaceClassID != "" {
 		return w.WorkspaceClassID, "cpu"
@@ -448,11 +581,23 @@ func getInstanceTypeAndKind(w entity.Workspace) (string, string) {
 	return "", ""
 }
 
-func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace) error {
-	var infos []WorkspaceInfo
+func toNodeInfos(nodes []*nodev1.ExternalNode) []NodeInfo {
+	var infos []NodeInfo
+	for _, n := range nodes {
+		infos = append(infos, NodeInfo{
+			Name:   n.GetName(),
+			OrgID:  n.GetOrganizationId(),
+			Status: nodeConnectionStatus(n),
+		})
+	}
+	return infos
+}
+
+func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string, nodes []*nodev1.ExternalNode) error {
+	var wsInfos []WorkspaceInfo
 	for _, w := range workspaces {
-		instanceType, instanceKind := getInstanceTypeAndKind(w)
-		infos = append(infos, WorkspaceInfo{
+		instanceType, instanceKind := getInstanceTypeAndKind(w, gpuLookup)
+		wsInfos = append(wsInfos, WorkspaceInfo{
 			Name:         w.Name,
 			ID:           w.ID,
 			Status:       getWorkspaceDisplayStatus(w),
@@ -461,9 +606,28 @@ func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace) error {
 			HealthStatus: w.HealthStatus,
 			InstanceType: instanceType,
 			InstanceKind: instanceKind,
+			GPU:          getGPUForInstance(w, gpuLookup),
 		})
 	}
-	output, err := json.MarshalIndent(infos, "", "  ")
+
+	var result any
+	if nodes != nil {
+		result = struct {
+			Workspaces []WorkspaceInfo `json:"workspaces"`
+			Nodes      []NodeInfo      `json:"nodes"`
+		}{
+			Workspaces: wsInfos,
+			Nodes:      toNodeInfos(nodes),
+		}
+	} else {
+		result = struct {
+			Workspaces []WorkspaceInfo `json:"workspaces"`
+		}{
+			Workspaces: wsInfos,
+		}
+	}
+
+	output, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -488,23 +652,6 @@ func (ls Ls) RunHosts(org *entity.Organization) error {
 	return nil
 }
 
-func displayProjects(t *terminal.Terminal, orgName string, projects []virtualproject.VirtualProject) {
-	if len(projects) > 0 {
-		fmt.Print("\n")
-		t.Vprintf("%d other projects in Org %s\n", len(projects), t.Yellow(orgName))
-		displayProjectsTable(projects)
-
-		fmt.Print("\n")
-		t.Vprintf("%s", t.Green("Join a project:\n")+
-			t.Yellow(fmt.Sprintf("\tbrev start %s\n", projects[0].Name)))
-	} else {
-		t.Vprintf("no other projects in Org %s\n", t.Yellow(orgName))
-		fmt.Print("\n")
-		t.Vprintf("%s", t.Green("Invite a teamate:\n")+
-			t.Yellow("\tbrev invite"))
-	}
-}
-
 func getBrevTableOptions() table.Options {
 	options := table.OptionsDefault
 	options.DrawBorder = false
@@ -514,16 +661,17 @@ func getBrevTableOptions() table.Options {
 	return options
 }
 
-func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace) {
+func displayWorkspacesTable(t *terminal.Terminal, workspaces []entity.Workspace, gpuLookup map[string]string) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"Name", "Status", "Build", "Shell", "ID", "Machine"}
+	header := table.Row{"Name", "Status", "Build", "Shell", "ID", "Machine", "GPU"}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := cmdutil.GetInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString}}
+		gpu := getGPUForInstance(w, gpuLookup)
+		workspaceRow := []table.Row{{w.Name, getStatusColoredText(t, status), getStatusColoredText(t, string(w.VerbBuildStatus)), getStatusColoredText(t, getShellDisplayStatus(w)), w.ID, instanceString, gpu}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
@@ -550,16 +698,17 @@ func getWorkspaceDisplayStatus(w entity.Workspace) string {
 
 // displayWorkspacesTablePlain outputs a clean table without colors for piping
 // Enables: brev ls | grep RUNNING | awk '{print $1}' | brev stop
-func displayWorkspacesTablePlain(workspaces []entity.Workspace) { //nolint:unused // see TODO above
+func displayWorkspacesTablePlain(workspaces []entity.Workspace, gpuLookup map[string]string) { //nolint:unused // see TODO above
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE"}
+	header := table.Row{"NAME", "STATUS", "BUILD", "SHELL", "ID", "MACHINE", "GPU"}
 	ta.AppendHeader(header)
 	for _, w := range workspaces {
 		status := getWorkspaceDisplayStatus(w)
 		instanceString := cmdutil.GetInstanceString(w)
-		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString}}
+		gpu := getGPUForInstance(w, gpuLookup)
+		workspaceRow := []table.Row{{w.Name, status, string(w.VerbBuildStatus), getShellDisplayStatus(w), w.ID, instanceString, gpu}}
 		ta.AppendRows(workspaceRow)
 	}
 	ta.Render()
@@ -599,19 +748,6 @@ func displayOrgTable(t *terminal.Terminal, orgs []entity.Organization, currentOr
 	ta.Render()
 }
 
-func displayProjectsTable(projects []virtualproject.VirtualProject) {
-	ta := table.NewWriter()
-	ta.SetOutputMirror(os.Stdout)
-	ta.Style().Options = getBrevTableOptions()
-	header := table.Row{"NAME", "MEMBERS"}
-	ta.AppendHeader(header)
-	for _, p := range projects {
-		workspaceRow := []table.Row{{p.Name, p.GetUniqueUserCount()}}
-		ta.AppendRows(workspaceRow)
-	}
-	ta.Render()
-}
-
 func getStatusColoredText(t *terminal.Terminal, status string) string {
 	switch status {
 	case entity.Running, entity.Ready, string(entity.Completed):
@@ -623,4 +759,83 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	default:
 		return status
 	}
+}
+
+// NodeInfo represents external node data for JSON output.
+type NodeInfo struct {
+	Name   string `json:"name"`
+	OrgID  string `json:"org_id"`
+	Status string `json:"status"`
+}
+
+func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
+	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: org.ID,
+	}))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp.Msg.GetItems(), nil
+}
+
+// RunNodes lists external nodes for the given org.
+func (ls Ls) RunNodes(org *entity.Organization) error {
+	nodes, err := ls.listNodes(org)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if len(nodes) == 0 {
+		if ls.jsonOutput {
+			fmt.Println("[]")
+			return nil
+		}
+		if ls.piped {
+			return nil
+		}
+		ls.terminal.Vprint(ls.terminal.Yellow("No external nodes in this org."))
+		return nil
+	}
+
+	if ls.jsonOutput {
+		return ls.outputNodesJSON(nodes)
+	}
+	if !ls.piped {
+		ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+	}
+	displayNodesTable(ls.terminal, nodes, ls.piped)
+	return nil
+}
+
+func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
+	output, err := json.MarshalIndent(toNodeInfos(nodes), "", "  ")
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode, isPiped bool) {
+	ta := table.NewWriter()
+	ta.SetOutputMirror(os.Stdout)
+	ta.Style().Options = getBrevTableOptions()
+	ta.AppendHeader(table.Row{"NAME", "STATUS"})
+	for _, n := range nodes {
+		status := nodeConnectionStatus(n)
+		if !isPiped {
+			status = getStatusColoredText(t, status)
+		}
+		ta.AppendRows([]table.Row{{n.GetName(), status}})
+	}
+	ta.Render()
+}
+
+func nodeConnectionStatus(n *nodev1.ExternalNode) string {
+	ci := n.GetConnectivityInfo()
+	if ci == nil {
+		return "Unknown"
+	}
+	return externalnode.FriendlyNetworkStatus(ci.GetStatus())
 }

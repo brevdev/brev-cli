@@ -1,31 +1,52 @@
 .DEFAULT_GOAL := fast-build
 VERSION := dev-$(shell git rev-parse HEAD | cut -c 1-8)
 
+# Cross-compilation via Docker (golang:1.25 native Linux container).
+# When arch=<GOOS>/<GOARCH> is provided, spin up a container that matches
+# the target platform so CGO uses the native Linux gcc/GNU ld toolchain
+_GOMODCACHE := $(shell go env GOMODCACHE)
+ifdef arch
+  _CROSS_GOOS   := $(word 1,$(subst /, ,$(arch)))
+  _CROSS_GOARCH := $(word 2,$(subst /, ,$(arch)))
+  _BUILD_PREFIX := docker run --rm \
+    --platform $(_CROSS_GOOS)/$(_CROSS_GOARCH) \
+    -v $(CURDIR):/app \
+    -v $(_GOMODCACHE):/go/pkg/mod \
+    -e CGO_ENABLED=1 \
+    -e GOPRIVATE=github.com/brevdev/* \
+    -e GONOSUMDB=github.com/brevdev/* \
+    -w /app \
+    golang:1.25
+else
+  _BUILD_PREFIX := CGO_ENABLED=1
+endif
+
 .PHONY: fast-build
 fast-build: ## go build -o brev
 	$(call print-target)
 	echo ${VERSION}
-	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: local
-local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg, or make local for defaults)
+local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg arch=linux/amd64, or make local for defaults)
 	$(call print-target)
 ifdef env
 	@echo "Building with env=$(env) wrapper..."
 	@echo ${VERSION}
-	CGO_ENABLED=0 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(_BUILD_PREFIX) go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 	@echo '#!/bin/sh' > brev
 	@echo '# Auto-generated wrapper with environment overrides' >> brev
-	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
+	@echo 'export BREV_CONSOLE_URL="https://dev.brev.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev
 	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
+	@echo 'export BREV_PUBLIC_API_URL="https://api.$(env).brev.nvidia.com"' >> brev
 	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev
-	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev" "$$@"' >> brev
+	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev-local" "$$@"' >> brev
 	@chmod +x brev
 else
 	@echo "Building without environment overrides (using config.go defaults)..."
-	$(MAKE) fast-build
+	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 endif
 
 .PHONY: install-dev
@@ -103,17 +124,41 @@ diff: ## git diff
 	git diff --exit-code
 	RES=$$(git status --porcelain) ; if [ -n "$$RES" ]; then echo $$RES && exit 1 ; fi
 
-.PHONY: build
-build: ## goreleaser --snapshot --skip-publish --rm-dist
-build: install-tools
-	$(call print-target)
-	goreleaser --snapshot --skip-publish --rm-dist
-
 .PHONY: release
 release: ## goreleaser --rm-dist
 release: install-tools
 	$(call print-target)
 	goreleaser --rm-dist
+
+# Docker-based build/release using goreleaser-cross.
+# See: https://goreleaser.com/limitations/cgo (goreleaser needs explicit instructions for CGO builds)
+# See: https://github.com/goreleaser/goreleaser-cross (docker image with cross-compilers for CGO builds)
+# See: https://github.com/goreleaser/example-cross (example of using goreleaser-cross)
+GOLANG_CROSS_VERSION ?= v1.24.5
+BREV_MODULE ?= github.com/brevdev/brev-cli
+
+# Dry-run build using goreleaser-cross
+.PHONY: build-cross
+build-cross:
+	$(call print-target)
+	docker run --rm \
+		-e CGO_ENABLED=1 \
+		-v "$$(pwd):/go/src/$(BREV_MODULE)" \
+		-w "/go/src/$(BREV_MODULE)" \
+		ghcr.io/goreleaser/goreleaser-cross:$(GOLANG_CROSS_VERSION) \
+		--clean --skip=validate --skip=publish
+
+# Release using goreleaser-cross. Requires GITHUB_TOKEN to be set.
+.PHONY: release-cross
+release-cross:
+	$(call print-target)
+	docker run --rm \
+		-e CGO_ENABLED=1 \
+		-e "GITHUB_TOKEN=$$GITHUB_TOKEN" \
+		-v "$$(pwd):/go/src/$(BREV_MODULE)" \
+		-w "/go/src/$(BREV_MODULE)" \
+		ghcr.io/goreleaser/goreleaser-cross:$(GOLANG_CROSS_VERSION) \
+		release --clean
 
 .PHONY: run
 run: ## go run
@@ -168,7 +213,7 @@ full-smoke-test: ci fast-build
 build-linux-amd:
 	$(call print-target)
 	echo ${VERSION}
-	GOOS=linux GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: build-darwin-amd
 build-darwin-amd:
@@ -301,11 +346,11 @@ develop-with-nix:
 	nix develop .
 
 .PHONY: update-devplane-deps
-update-devplane-deps: ## update devplane dependencies (use: make update-devplane-deps commit=<hash-or-tag>, defaults to latest)
+update-devplane-deps: ## update devplane Buf modules (use: make update-devplane-deps commit=<buf-tag>, defaults to latest)
 	@COMMIT=$${commit:-latest}; \
 	echo "Updating devplane dependencies to: $$COMMIT"; \
-	go get -u github.com/brevdev/dev-plane@$$COMMIT; \
-	go get buf.build/gen/go/brevdev/devplane/grpc/go@$$COMMIT; \
+	GOPRIVATE=github.com/brevdev/* go get -u github.com/brevdev/dev-plane@$$COMMIT; \
+	go get buf.build/gen/go/brevdev/devplane/connectrpc/go@$$COMMIT; \
 	go get buf.build/gen/go/brevdev/devplane/protocolbuffers/go@$$COMMIT; \
-	go mod tidy; \
+	GOPRIVATE=github.com/brevdev/* go mod tidy; \
 	echo "Successfully updated to $$COMMIT"

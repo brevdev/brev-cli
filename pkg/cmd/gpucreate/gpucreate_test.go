@@ -1,25 +1,34 @@
 package gpucreate
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockGPUCreateStore is a mock implementation of GPUCreateStore for testing
 type MockGPUCreateStore struct {
-	User                *entity.User
-	Org                 *entity.Organization
-	Workspaces          map[string]*entity.Workspace
-	CreateError         error
-	CreateErrorTypes    map[string]error // Errors for specific instance types
-	DeleteError         error
-	CreatedWorkspaces   []*entity.Workspace
-	DeletedWorkspaceIDs []string
+	User                      *entity.User
+	Org                       *entity.Organization
+	Workspaces                map[string]*entity.Workspace
+	CreateError               error
+	CreateErrorTypes          map[string]error // Errors for specific instance types
+	DeleteError               error
+	CreatedOptions            []*store.CreateWorkspacesOptions
+	CreatedWorkspaces         []*entity.Workspace
+	DeletedWorkspaceIDs       []string
+	FetchedLifeCycleScriptIDs []string
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -41,6 +50,10 @@ func NewMockGPUCreateStore() *MockGPUCreateStore {
 
 func (m *MockGPUCreateStore) GetCurrentUser() (*entity.User, error) {
 	return m.User, nil
+}
+
+func (m *MockGPUCreateStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	return nil, nil
 }
 
 func (m *MockGPUCreateStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
@@ -74,6 +87,7 @@ func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *sto
 		Status:       entity.Running,
 	}
 	m.Workspaces[ws.ID] = ws
+	m.CreatedOptions = append(m.CreatedOptions, options)
 	m.CreatedWorkspaces = append(m.CreatedWorkspaces, ws)
 	return ws, nil
 }
@@ -93,11 +107,29 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 	return []entity.Workspace{}, nil
 }
 
-func (m *MockGPUCreateStore) GetAllInstanceTypesWithWorkspaceGroups(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
+func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
 	return nil, nil
 }
 
-func (m *MockGPUCreateStore) GetInstanceTypes() (*gpusearch.InstanceTypesResponse, error) {
+func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
+	return &store.LaunchableResponse{
+		ID:   launchableID,
+		Name: "test-launchable",
+	}, nil
+}
+
+func (m *MockGPUCreateStore) GetLaunchableLifeCycleScript(launchableID, scriptID string) (*store.LifeCycleScriptResponse, error) {
+	m.FetchedLifeCycleScriptIDs = append(m.FetchedLifeCycleScriptIDs, scriptID)
+	return &store.LifeCycleScriptResponse{
+		Attrs: &store.LifeCycleScriptAttr{ID: scriptID, Script: "echo mock-script"},
+	}, nil
+}
+
+func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error) {
+	return &store.RedeemCouponCodeResponse{}, nil
+}
+
+func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
 	// Return a default set of instance types for testing
 	return &gpusearch.InstanceTypesResponse{
 		Items: []gpusearch.InstanceType{
@@ -141,6 +173,463 @@ func TestIsValidInstanceType(t *testing.T) {
 			assert.Equal(t, tt.expected, result, "Validation failed for %s", tt.input)
 		})
 	}
+}
+
+func TestParseLaunchableID(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		expected  string
+		expectErr bool
+	}{
+		{"Empty string", "", "", false},
+		{"Raw ID", "env-2jeVokEK44iJZzleTF8yKjt3hh7", "env-2jeVokEK44iJZzleTF8yKjt3hh7", false},
+		{"Console URL with query param", "https://console.brev.dev/launchable/deploy?launchableID=env-abc123", "env-abc123", false},
+		{"Console URL with extra params", "https://console.brev.dev/launchable/deploy?userID=u1&launchableID=env-abc123&name=test", "env-abc123", false},
+		{"URL with env- in path", "https://console.brev.dev/launchables/env-abc123", "env-abc123", false},
+		{"URL without launchableID param", "https://console.brev.dev/launchable/deploy", "", true},
+		{"Non-env ID", "some-other-id", "some-other-id", false},
+		{"ID with path chars", "env-abc/../../etc", "", true},
+		{"ID with query chars", "env-abc?foo=bar", "", true},
+		{"URL query param traversal", "https://console.brev.dev/launchable/deploy?launchableID=env-abc/../../other", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := parseLaunchableID(tt.input)
+			if tt.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
+	t.Run("populates all fields from launchable", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			PortMappings: map[string]string{},
+		}
+		info := &store.LaunchableResponse{
+			ID:              "env-abc123",
+			Name:            "Test Launchable",
+			CreatedByUserID: "user-1",
+			CreatedByOrgID:  "org-1",
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				CloudCredID:  "GCP",
+				InstanceType: "n2-standard-4",
+				Storage:      "256",
+				Location:     "us-west1",
+				SubLocation:  "us-west1-b",
+				FirewallRules: []store.CreateFirewallRule{
+					{Port: "8080", AllowedIPs: "all"},
+					{Port: "9000-9100", AllowedIPs: "all"},
+				},
+			},
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{
+					ForceJupyterInstall: false,
+					LifeCycleScriptAttr: &store.LifeCycleScriptAttr{
+						Script: "#!/bin/bash\necho hello",
+						ID:     "ls-abc",
+					},
+				},
+				Ports: []store.LaunchablePort{
+					{Name: "Code-Server", Port: "13337"},
+					{Name: "OpenClaw", Port: "18789"},
+				},
+			},
+			File: &store.LaunchableFile{
+				URL:  "https://github.com/NVIDIA/NemoClaw",
+				Path: "./",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc123", info)
+
+		// Cloud credential from launchable input.
+		assert.Equal(t, "GCP", cwOptions.CloudCredID)
+		// Location / sub-location
+		assert.Equal(t, "us-west1", cwOptions.Location)
+		assert.Equal(t, "us-west1-b", cwOptions.SubLocation)
+		// Storage with Gi suffix
+		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
+		// Build config
+		assert.NotNil(t, cwOptions.VMBuild)
+		assert.False(t, cwOptions.VMBuild.ForceJupyterInstall)
+		assert.Equal(t, "#!/bin/bash\necho hello", cwOptions.VMBuild.LifeCycleScriptAttr.Script)
+		assert.Equal(t, "ls-abc", cwOptions.VMBuild.LifeCycleScriptAttr.ID)
+		// Port mappings
+		assert.Equal(t, map[string]string{"Code-Server": "13337", "OpenClaw": "18789"}, cwOptions.PortMappings)
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "8080", AllowedIPs: "all"},
+			{Port: "9000-9100", AllowedIPs: "all"},
+		}, cwOptions.FirewallRules)
+		// Files
+		assert.NotNil(t, cwOptions.Files)
+		// LaunchableConfig
+		assert.Equal(t, "env-abc123", cwOptions.LaunchableConfig.ID)
+		// Labels
+		labels, ok := cwOptions.Labels.(map[string]string)
+		assert.True(t, ok)
+		assert.Equal(t, "env-abc123", labels["launchableId"])
+		assert.Equal(t, "n2-standard-4", labels["launchableInstanceType"])
+		assert.Equal(t, "GCP", labels["cloudCredId"])
+		assert.NotContains(t, labels, "workspaceGroupId")
+		assert.Equal(t, "user-1", labels["launchableCreatedByUserId"])
+		assert.Equal(t, "org-1", labels["launchableCreatedByOrgId"])
+	})
+
+	t.Run("preserves existing cloud credential", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			CloudCredID: "existing-cloud-cred",
+		}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				CloudCredID:  "GCP",
+				InstanceType: "n2-standard-4",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "existing-cloud-cred", cwOptions.CloudCredID)
+	})
+
+	t.Run("storage already has Gi suffix", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				Storage: "256Gi",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
+	})
+
+	t.Run("storage bare number gets Gi suffix", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				Storage: "256",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
+	})
+
+	t.Run("storage with other suffix passes through", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				Storage: "100G",
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, "100G", cwOptions.DiskStorage)
+	})
+
+	t.Run("container build clears VMBuild", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			VMBuild: &store.VMBuild{ForceJupyterInstall: true},
+		}
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				CustomContainer: &store.CustomContainer{
+					ContainerURL: "nvcr.io/nvidia/test:latest",
+				},
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Nil(t, cwOptions.VMBuild)
+		assert.Equal(t, "nvcr.io/nvidia/test:latest", cwOptions.CustomContainer.ContainerURL)
+	})
+
+	t.Run("docker compose file URL takes precedence over hydrated YAML", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			VMBuild: &store.VMBuild{ForceJupyterInstall: true},
+		}
+		dockerCompose := &store.DockerCompose{
+			FileURL:    "https://example.com/compose.yaml",
+			YamlString: "services:\n  app:\n    image: example/app",
+		}
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				DockerCompose: dockerCompose,
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Nil(t, cwOptions.VMBuild)
+		assert.Equal(t, dockerCompose.FileURL, cwOptions.DockerCompose.FileURL)
+		assert.Empty(t, cwOptions.DockerCompose.YamlString)
+		assert.NotEmpty(t, dockerCompose.YamlString, "launchable response should not be mutated")
+	})
+
+	t.Run("substitutes public IP for user-ip firewall rules", func(t *testing.T) {
+		orig := publicIPLookup
+		publicIPLookup = func() (string, error) { return "203.0.113.7", nil }
+		defer func() { publicIPLookup = orig }()
+
+		cwOptions := &store.CreateWorkspacesOptions{}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				InstanceType: "n2-standard-4",
+				FirewallRules: []store.CreateFirewallRule{
+					{Port: "22", AllowedIPs: "user-ip"},
+					{Port: "443", AllowedIPs: "all"},
+				},
+			},
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
+			{Port: "443", AllowedIPs: "all"},
+		}, cwOptions.FirewallRules)
+	})
+
+	t.Run("preserves rule when public IP lookup fails", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "", assert.AnError
+		})
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}, resolved)
+	})
+
+	t.Run("does not call lookup when no user-ip rules", func(t *testing.T) {
+		called := false
+		rules := []store.CreateFirewallRule{
+			{Port: "8080", AllowedIPs: "all"},
+		}
+		resolveFirewallRulesClientIP(rules, func() (string, error) {
+			called = true
+			return "1.2.3.4", nil
+		})
+		assert.False(t, called, "lookup should be skipped when no user-ip rules exist")
+	})
+
+	t.Run("respects pre-existing ClientIPs on user-ip rule", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"198.51.100.5/32"}},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "203.0.113.7", nil
+		})
+		assert.Equal(t, []string{"198.51.100.5/32"}, resolved[0].ClientIPs)
+	})
+
+	t.Run("uses /128 for IPv6 public IPs", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "2403:2500:4000:0000:0000:0000:0000:090a", nil
+		})
+		assert.Equal(t, []string{"2403:2500:4000::90a/128"}, resolved[0].ClientIPs)
+	})
+
+	t.Run("canonicalizes IPv4-mapped IPv6 to bare IPv4 with /32", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "::ffff:203.0.113.7", nil
+		})
+		assert.Equal(t, []string{"203.0.113.7/32"}, resolved[0].ClientIPs)
+	})
+
+	t.Run("skips rule when lookup returns garbage", func(t *testing.T) {
+		rules := []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}
+		resolved := resolveFirewallRulesClientIP(rules, func() (string, error) {
+			return "<html>captive portal</html>", nil
+		})
+		assert.Equal(t, []store.CreateFirewallRule{
+			{Port: "22", AllowedIPs: "user-ip"},
+		}, resolved)
+	})
+
+	t.Run("merges with existing labels", func(t *testing.T) {
+		cwOptions := &store.CreateWorkspacesOptions{
+			Labels: map[string]string{"existingKey": "existingValue"},
+		}
+		info := &store.LaunchableResponse{
+			CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+				InstanceType: "n2-standard-4",
+			},
+			CreatedByUserID: "user-1",
+			CreatedByOrgID:  "org-1",
+		}
+
+		applyLaunchableConfig(cwOptions, "env-abc", info)
+
+		labels, ok := cwOptions.Labels.(map[string]string)
+		assert.True(t, ok)
+		assert.Equal(t, "existingValue", labels["existingKey"])
+		assert.Equal(t, "env-abc", labels["launchableId"])
+	})
+}
+
+func TestToHostCIDR(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"IPv4", "203.0.113.7", "203.0.113.7/32"},
+		{"IPv4 with surrounding whitespace", "  203.0.113.7\n", "203.0.113.7/32"},
+		{"IPv4-mapped IPv6 canonicalizes to IPv4", "::ffff:203.0.113.7", "203.0.113.7/32"},
+		{"IPv6 short form", "2403:2500:4000::90a", "2403:2500:4000::90a/128"},
+		{"IPv6 long form canonicalizes", "2403:2500:4000:0000:0000:0000:0000:090a", "2403:2500:4000::90a/128"},
+		{"IPv6 loopback", "::1", "::1/128"},
+		{"empty", "", ""},
+		{"not an IP", "not-an-ip", ""},
+		{"captive portal HTML", "<html>", ""},
+		{"IPv4 with port appended", "203.0.113.7:443", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, toHostCIDR(tt.in))
+		})
+	}
+}
+
+// TestLaunchableJSONWireFormat guards against silent regressions in the JSON
+// tags on CreateWorkspacesOptions — the original bug was that fields the
+// server expected (firewallRules, subLocation) were missing from the request
+// body. Asserting on the marshaled bytes catches typos like "firewall_rules"
+// or a dropped tag that struct-field assertions can't.
+func TestLaunchableJSONWireFormat(t *testing.T) {
+	cwOptions := &store.CreateWorkspacesOptions{}
+	info := &store.LaunchableResponse{
+		ID: "env-abc",
+		CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+			InstanceType: "n2-standard-4",
+			Location:     "us-west1",
+			SubLocation:  "us-west1-b",
+			FirewallRules: []store.CreateFirewallRule{
+				{Port: "8080", AllowedIPs: "all"},
+				{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
+			},
+		},
+	}
+
+	applyLaunchableConfig(cwOptions, "env-abc", info)
+
+	body, err := json.Marshal(cwOptions)
+	assert.NoError(t, err)
+	s := string(body)
+
+	assert.Contains(t, s, `"subLocation":"us-west1-b"`)
+	assert.Contains(t, s, `"firewallRules":`)
+	assert.Contains(t, s, `"port":"8080"`)
+	assert.Contains(t, s, `"port":"22"`)
+	assert.Contains(t, s, `"allowedIPs":"all"`)
+	assert.Contains(t, s, `"allowedIPs":"user-ip"`)
+	assert.Contains(t, s, `"clientIPs":["203.0.113.7/32"]`)
+	assert.Contains(t, s, `"launchableConfig":{"id":"env-abc"}`)
+}
+
+func TestFetchPublicIP(t *testing.T) {
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	t.Run("returns IP for plain text body", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("203.0.113.7\n"))
+		}))
+		defer s.Close()
+
+		ip, err := fetchPublicIP(client, s.URL)
+		assert.NoError(t, err)
+		assert.Equal(t, "203.0.113.7", ip)
+	})
+
+	t.Run("rejects non-200 status", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}))
+		defer s.Close()
+
+		_, err := fetchPublicIP(client, s.URL)
+		assert.Error(t, err)
+	})
+
+	t.Run("rejects non-IP body (captive portal HTML)", func(t *testing.T) {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("<html>login required</html>"))
+		}))
+		defer s.Close()
+
+		_, err := fetchPublicIP(client, s.URL)
+		assert.Error(t, err)
+	})
+}
+
+func TestResolvePublicIPFallback(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "down", http.StatusBadGateway)
+	}))
+	defer failing.Close()
+
+	ok := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("198.51.100.42"))
+	}))
+	defer ok.Close()
+
+	t.Run("falls through failing endpoints until one succeeds", func(t *testing.T) {
+		orig := publicIPEndpoints
+		publicIPEndpoints = []string{failing.URL, failing.URL, ok.URL}
+		defer func() { publicIPEndpoints = orig }()
+
+		ip, err := resolvePublicIP()
+		assert.NoError(t, err)
+		assert.Equal(t, "198.51.100.42", ip)
+	})
+
+	t.Run("returns error when all endpoints fail", func(t *testing.T) {
+		orig := publicIPEndpoints
+		publicIPEndpoints = []string{failing.URL, failing.URL}
+		defer func() { publicIPEndpoints = orig }()
+
+		_, err := resolvePublicIP()
+		assert.Error(t, err)
+	})
+
+	t.Run("short-circuits on first success", func(t *testing.T) {
+		hits := 0
+		counted := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			hits++
+			_, _ = w.Write([]byte("203.0.113.7"))
+		}))
+		defer counted.Close()
+
+		orig := publicIPEndpoints
+		publicIPEndpoints = []string{counted.URL, failing.URL, ok.URL}
+		defer func() { publicIPEndpoints = orig }()
+
+		ip, err := resolvePublicIP()
+		assert.NoError(t, err)
+		assert.Equal(t, "203.0.113.7", ip)
+		assert.Equal(t, 1, hits, "later endpoints must not be hit after success")
+	})
 }
 
 func TestParseInstanceTypesFromFlag(t *testing.T) {
@@ -300,6 +789,18 @@ func TestMockGPUCreateStoreTypeSpecificError(t *testing.T) {
 	assert.NotNil(t, ws)
 }
 
+func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	term := terminal.New()
+
+	cmd := NewCmdGPUCreate(term, mock)
+	cmd.SetArgs([]string{"dry-run-test", "--type", "g5.xlarge", "--dry-run"})
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+	assert.Empty(t, mock.CreatedWorkspaces)
+}
+
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
@@ -355,6 +856,28 @@ func TestParseTableInput(t *testing.T) {
 	assert.Equal(t, 1000.0, specs[2].DiskGB)
 }
 
+func TestParseTableInputCPU(t *testing.T) {
+	// Simulated plain table output from `brev search cpu`
+	tableInput := strings.Join([]string{
+		" TYPE                   TARGET_DISK  PROVIDER  VCPUS  RAM   ARCH    DISK       $/GB/MO  BOOT  FEATURES  $/HR",
+		" n2d-highcpu-2          10           gcp           2  2     x86_64  10GB-16TB  $0.13    7m    SP        $0.05",
+		" n1-standard-1          10           gcp           1  4     x86_64  10GB-16TB  $0.14    7m    SP        $0.06",
+		" m8i-flex.8xlarge       500          aws          32  128   x86_64  10GB-16TB  $0.10    7m    SRP       $1.93",
+		"",
+		"Found 3 CPU instance types",
+	}, "\n")
+
+	specs := parseTableInput(tableInput)
+
+	assert.Len(t, specs, 3)
+	assert.Equal(t, "n2d-highcpu-2", specs[0].Type)
+	assert.Equal(t, 10.0, specs[0].DiskGB)
+	assert.Equal(t, "n1-standard-1", specs[1].Type)
+	assert.Equal(t, 10.0, specs[1].DiskGB)
+	assert.Equal(t, "m8i-flex.8xlarge", specs[2].Type)
+	assert.Equal(t, 500.0, specs[2].DiskGB)
+}
+
 func TestParseJSONInput(t *testing.T) {
 	// Simulated JSON output from gpu-search --json
 	jsonInput := `[
@@ -403,4 +926,275 @@ func TestFormatInstanceSpecs(t *testing.T) {
 
 	result := formatInstanceSpecs(specs)
 	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)", result)
+}
+
+func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {
+	store := NewMockGPUCreateStore()
+	store.Workspaces["ws-failed"] = &entity.Workspace{
+		ID:            "ws-failed",
+		Name:          "test",
+		Status:        entity.Failure,
+		StatusMessage: "unexpected end of JSON input",
+	}
+
+	ctx := &createContext{
+		store: store,
+		opts:  GPUCreateOptions{Timeout: time.Second},
+	}
+
+	err := ctx.pollUntilReady("ws-failed")
+
+	assert.ErrorContains(t, err, "instance test failed: unexpected end of JSON input")
+}
+
+func TestInlineLaunchableLifeCycleScript(t *testing.T) {
+	t.Run("fetches and inlines lifecycle script body", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{
+					LifeCycleScriptAttr: &store.LifeCycleScriptAttr{ID: "ls-abc"},
+				},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"ls-abc"}, mockStore.FetchedLifeCycleScriptIDs)
+		assert.Equal(t, "echo mock-script", info.BuildRequest.VMBuild.LifeCycleScriptAttr.Script)
+	})
+
+	t.Run("skips fetch when info is nil", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", nil)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+	})
+
+	t.Run("container build skips lifecycle script fetch", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				CustomContainer: &store.CustomContainer{ContainerURL: "nvcr.io/nvidia/test:latest"},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+	})
+
+	t.Run("skips fetch when launchable has no lifecycle script", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{ForceJupyterInstall: true},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+		assert.Nil(t, info.BuildRequest.VMBuild.LifeCycleScriptAttr)
+	})
+
+	t.Run("skips fetch when script ID is empty", func(t *testing.T) {
+		mockStore := NewMockGPUCreateStore()
+		info := &store.LaunchableResponse{
+			BuildRequest: store.LaunchableBuildRequest{
+				VMBuild: &store.VMBuild{
+					LifeCycleScriptAttr: &store.LifeCycleScriptAttr{Name: "stale"},
+				},
+			},
+		}
+
+		err := inlineLaunchableLifeCycleScript(mockStore, "env-abc", info)
+
+		assert.NoError(t, err)
+		assert.Empty(t, mockStore.FetchedLifeCycleScriptIDs)
+		assert.Equal(t, "", info.BuildRequest.VMBuild.LifeCycleScriptAttr.Script)
+	})
+}
+
+func TestValidateInstanceTypeAvailability(t *testing.T) {
+	t.Run("returns nil when listing is unavailable", func(t *testing.T) {
+		ctx := &createContext{}
+		assert.NoError(t, ctx.validateInstanceTypeAvailability("hyperstack_H100x8_one"))
+	})
+
+	t.Run("returns nil when type has a cloud credential", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{
+						Type:        "hyperstack_H100_sxm5x8",
+						CloudCredID: "cc-1",
+					},
+				},
+			},
+		}
+		assert.NoError(t, ctx.validateInstanceTypeAvailability("hyperstack_H100_sxm5x8"))
+	})
+
+	t.Run("returns invalid-type error for unknown type", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{Type: "hyperstack_H100_sxm5x8", CloudCredID: "cc-1"},
+				},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("hyperstack_H100x8_one")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `"hyperstack_H100x8_one"`)
+		assert.Contains(t, err.Error(), "not a recognized type")
+		assert.Contains(t, err.Error(), "brev search")
+	})
+
+	t.Run("returns unavailable error for known type without a cloud credential", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{Type: "hyperstack_H100x8_NVLINK"},
+				},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("hyperstack_H100x8_NVLINK")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), `"hyperstack_H100x8_NVLINK"`)
+		assert.Contains(t, err.Error(), "currently unavailable")
+		assert.Contains(t, err.Error(), "brev search")
+	})
+
+	t.Run("error type is ValidationError so no stack trace is appended", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("missing")
+		assert.Error(t, err)
+		var ve breverrors.ValidationError
+		assert.ErrorAs(t, err, &ve)
+		assert.NotContains(t, err.Error(), "gpucreate.go", "validation error should not include source-file traces")
+	})
+}
+
+func TestCreateInstancesWithTypeSkipsInvalidType(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{
+					Type:        "hyperstack_H100_sxm5x8",
+					CloudCredID: "cc-shadeform",
+				},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100x8_one"}, 0, 1)
+
+	assert.True(t, result.hadFailure, "expected hadFailure for an invalid instance type")
+	assert.Empty(t, result.successes, "expected no successes for invalid type")
+	assert.NoError(t, result.fatalError, "invalid type should not be fatal — caller may try the next type")
+	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when the type is unrecognized")
+}
+
+func TestCreateInstancesWithTypeSkipsUnavailableType(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{Type: "hyperstack_H100x8_NVLINK"},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100x8_NVLINK"}, 0, 1)
+
+	assert.True(t, result.hadFailure, "expected hadFailure for an unavailable instance type")
+	assert.Empty(t, result.successes)
+	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when no cloud credential is available")
+}
+
+func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{
+					Type:        "hyperstack_H100_sxm5x8",
+					CloudCredID: "cc-shadeform",
+				},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100_sxm5x8"}, 0, 1)
+
+	assert.False(t, result.hadFailure)
+	require.Len(t, mock.CreatedOptions, 1)
+	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].CloudCredID)
+}
+
+func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts: GPUCreateOptions{
+			Count:        1,
+			Parallel:     1,
+			Name:         "jt-4",
+			LaunchableID: "env-abc",
+			LaunchableInfo: &store.LaunchableResponse{
+				ID:   "env-abc",
+				Name: "test-launchable",
+				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+					CloudCredID:  "cc-from-launchable",
+					InstanceType: "n2-standard-4",
+				},
+			},
+		},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{}, // launchable's type is not in the org listing
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "n2-standard-4"}, 0, 1)
+
+	assert.False(t, result.hadFailure, "launchable should not be blocked by pre-flight validation")
+	assert.Len(t, result.successes, 1, "expected the launchable instance to be created")
+	assert.Len(t, mock.CreatedWorkspaces, 1)
 }

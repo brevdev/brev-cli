@@ -2,12 +2,20 @@
 package refresh
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"sync"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
+	"github.com/brevdev/brev-cli/pkg/cmd/register"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
@@ -22,6 +30,8 @@ type RefreshStore interface {
 	ssh.SSHConfigurerV2Store
 	GetCurrentUser() (*entity.User, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetAccessToken() (string, error)
 	Chmod(string, fs.FileMode) error
 	MkdirAll(string, fs.FileMode) error
 	GetBrevCloudflaredBinaryPath() (string, error)
@@ -151,8 +161,44 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 	}
 
 	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
+	cu.ExternalNodes = getExternalNodeSSHEntries(store)
 
 	return cu, nil
+}
+
+// getExternalNodeSSHEntries fetches external nodes and resolves their SSH details.
+// This is best-effort: if anything fails, it returns nil so workspace SSH config is unaffected.
+func getExternalNodeSSHEntries(store RefreshStore) []ssh.ExternalNodeSSHEntry {
+	org, err := store.GetActiveOrganizationOrDefault()
+	if err != nil {
+		log.Printf("external nodes: skipping (no org): %v", err)
+		return nil
+	}
+
+	user, err := store.GetCurrentUser()
+	if err != nil {
+		log.Printf("external nodes: skipping (no user): %v", err)
+		return nil
+	}
+
+	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: org.ID,
+	}))
+	if err != nil {
+		log.Printf("external nodes: skipping (list failed): %v", err)
+		return nil
+	}
+
+	var entries []ssh.ExternalNodeSSHEntry
+	for _, node := range resp.Msg.GetItems() {
+		entry := util.ResolveNodeSSHEntry(user.ID, node)
+		if entry != nil {
+			entries = append(entries, *entry)
+		}
+	}
+
+	return entries
 }
 
 func GetCloudflare(refreshStore RefreshStore) store.Cloudflared {

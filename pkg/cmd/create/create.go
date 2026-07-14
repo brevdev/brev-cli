@@ -132,7 +132,6 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 	} else {
 		t.Vprintf("\tCPU instance %s\n", t.Green(cwOptions.WorkspaceClassID))
 	}
-	t.Vprintf("\tCloud %s\n\n", t.Green(cwOptions.WorkspaceGroupID))
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"

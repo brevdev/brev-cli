@@ -33,6 +33,7 @@ type LoginStore interface {
 	auth.AuthStore
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
+	SetDefaultOrganization(org *entity.Organization) error
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
@@ -47,6 +48,7 @@ type LoginStore interface {
 type Auth interface {
 	Login(skipBrowser bool) (*auth.LoginTokens, error)
 	LoginWithToken(token string) error
+	LoginWithAPIKey(apiKey string, orgID string) error
 }
 
 // loginStore must be a no prompt store
@@ -57,6 +59,8 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 	}
 
 	var loginToken string
+	var apiKey string
+	var apiKeyOrgID string
 	var skipBrowser bool
 	var emailFlag string
 	var authProviderFlag string
@@ -68,23 +72,10 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Short:                 "Log into Brev",
 		Long:                  "Log into brev",
 		Example:               "brev login",
-		PostRunE: func(cmd *cobra.Command, args []string) error {
-			shouldWe := hello.ShouldWeRunOnboarding(loginStore)
-			if shouldWe {
-				user, err := loginStore.GetCurrentUser()
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-				err = hello.CanWeOnboard(t, user, loginStore)
-				if err != nil {
-					return breverrors.WrapAndTrace(err)
-				}
-			}
-			return nil
-		},
-		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
+		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := opts.RunLogin(t, loginToken, skipBrowser, emailFlag, authProviderFlag)
+			apiKeyLogin := strings.TrimSpace(apiKey) != ""
+			err := opts.RunLogin(t, loginToken, apiKey, apiKeyOrgID, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
 				// if err is ImportIDEConfigError, log err with sentry but continue
 				if _, ok := err.(*importideconfig.ImportIDEConfigError); !ok {
@@ -97,15 +88,24 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 				}
 				return err //nolint:wrapcheck // we want to return the error from the login
 			}
-			// Offer Claude Code skill installation after successful login
+			if apiKeyLogin {
+				return nil
+			}
 			homeDir, homeErr := opts.LoginStore.UserHomeDir()
-			if homeErr == nil {
-				agentskill.RunInstallSkillIfWanted(t, homeDir)
+			if homeErr == nil && agentskill.IsAnyAgentInstalled(homeDir) && !agentskill.IsSkillInstalled(homeDir) {
+				t.Vprintf("\n💡 Detected an AI coding agent. Run %s to enable natural-language commands.\n", t.Yellow("brev agent-skill install"))
+			}
+			if hello.ShouldWeRunOnboarding(loginStore) {
+				t.Vprintf("\n👋 New to Brev? Run %s for a guided walkthrough.\n", t.Yellow("brev hello"))
 			}
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "api key to authenticate CLI requests")
+	cmd.Flags().StringVar(&apiKeyOrgID, "org-id", "", "organization ID for API key auth")
+	_ = cmd.Flags().MarkHidden("api-key")
+	_ = cmd.Flags().MarkHidden("org-id")
 	cmd.Flags().BoolVar(&skipBrowser, "skip-browser", false, "print url instead of auto opening browser")
 	cmd.Flags().StringVar(&emailFlag, "email", "", "email to use for authentication")
 	cmd.Flags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is nvidia)")
@@ -157,7 +157,15 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 	return org, nil
 }
 
-func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
+func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, apiKey string, apiKeyOrgID string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey != "" {
+		return o.doApiKeyLogin(t, loginToken, apiKey, apiKeyOrgID, skipBrowser, emailFlag, authProviderFlag)
+	}
+	if strings.TrimSpace(apiKeyOrgID) != "" {
+		return breverrors.NewValidationError("org-id can only be used with api-key")
+	}
+
 	tokens, _ := o.LoginStore.GetAuthTokens()
 
 	if authProviderFlag != "" && authProviderFlag != "nvidia" && authProviderFlag != "legacy" {
@@ -200,6 +208,28 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, skipBrow
 	return nil
 }
 
+func (o LoginOptions) doApiKeyLogin(t *terminal.Terminal, loginToken string, apiKey string, apiKeyOrgID string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
+	if loginToken != "" || skipBrowser || emailFlag != "" || authProviderFlag != "" {
+		return breverrors.NewValidationError("api-key cannot be used with token, skip-browser, email, or auth flags")
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	orgID := strings.TrimSpace(apiKeyOrgID)
+	if orgID == "" {
+		return breverrors.NewValidationError(auth.MissingAPIKeyOrgIDMessage)
+	}
+	if err := o.Auth.LoginWithAPIKey(apiKey, orgID); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err := o.LoginStore.SetDefaultOrganization(&entity.Organization{
+		ID:   orgID,
+		Name: orgID,
+	}); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprint(t.Green(fmt.Sprintf("API key saved for org %s", orgID)))
+	return nil
+}
+
 func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) error {
 	// figure out if we should onboard the user
 	currentOnboardingStatus, err := user.GetOnboardingData()
@@ -230,17 +260,6 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 	if !currentOnboardingStatus.UsedCLI {
 		// by getting this far, we know they have set up the cli
 		newOnboardingStatus["usedCLI"] = true
-	}
-
-	_, analyticsAsked := analytics.IsAnalyticsEnabled()
-	if !analyticsAsked {
-		choice := terminal.PromptSelectInput(terminal.PromptSelectContent{
-			Label:    "Help us improve Brev by sharing usage data?",
-			ErrorMsg: "Error: must choose an option",
-			Items:    []string{"Yes, share usage data", "No, opt out"},
-		})
-		optIn := strings.HasPrefix(choice, "Yes")
-		_ = analytics.SetAnalyticsPreference(optIn)
 	}
 
 	analytics.IdentifyUser(user.ID)

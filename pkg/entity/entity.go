@@ -17,16 +17,11 @@ const (
 	CredientialProviderUnspecified CredentialProvider = ""
 )
 
-const WorkspaceGroupDevPlane = "devplane-brev-1"
-
-var LegacyWorkspaceGroups = map[string]bool{
-	"k8s.brevstack.com":            true,
-	"brev-test-brevtenant-cluster": true,
-}
-
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	APIKey       string `json:"api_key,omitempty"`
+	APIKeyOrgID  string `json:"api_key_org_id,omitempty"`
 }
 
 type IDEConfig struct {
@@ -230,7 +225,6 @@ type Application struct {
 
 type RequestCreateWorkspace struct {
 	Name                 string        `json:"name"`
-	WorkspaceGroupID     string        `json:"workspaceGroupId"`
 	WorkspaceClassID     string        `json:"workspaceClassId"`
 	GitRepo              string        `json:"gitRepo"`
 	IsStoppable          bool          `json:"isStoppable"`
@@ -265,26 +259,18 @@ const (
 	Ready    = "READY"
 )
 
-type WorkspaceGroup struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	BaseDNS        string `json:"baseDns"`
-	Status         string `json:"status"`
-	Platform       string `json:"platform"`
-	PlatformID     string `json:"platformId"`
-	PlatformRegion string `json:"platformRegion"`
-	Version        string `json:"version"`
-	TenantType     string `json:"tenantType"`
-} // @Name WorkspaceGroup
+type InstanceTypeInfo struct {
+	Stoppable bool `json:"stoppable"`
+}
 
 type Workspace struct {
 	ID                   string            `json:"id"`
 	Name                 string            `json:"name"`
-	WorkspaceGroupID     string            `json:"workspaceGroupId"`
 	OrganizationID       string            `json:"organizationId"`
 	WorkspaceClassID     string            `json:"workspaceClassId"` // WorkspaceClassID is resources, like "2x8"
 	InstanceType         string            `json:"instanceType,omitempty"`
 	CreatedByUserID      string            `json:"createdByUserId"`
+	InstanceTypeInfo     *InstanceTypeInfo `json:"instanceTypeInfo,omitempty"`
 	DNS                  string            `json:"dns"`
 	Status               string            `json:"status"`
 	Password             string            `json:"password"`
@@ -418,17 +404,6 @@ func (w Workspace) GetHostSSHPort() int {
 	return port
 }
 
-func (w Workspace) IsLegacy() bool {
-	return MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID)
-}
-
-func (w Workspace) GetUsername() string {
-	if w.IsLegacy() {
-		return "brev"
-	}
-	return DefaultUser
-}
-
 type WorkspaceTemplate struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"`
@@ -439,21 +414,11 @@ type WorkspaceTemplate struct {
 	Port        int    `json:"port"`
 }
 
-func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
-	_, ok := m[key]
-	return ok
-}
-
 func (w Workspace) GetProjectFolderPath() (string, error) {
-	var prefix string
-	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
-		prefix = "/home/brev/workspace"
-	} else {
-		if w.SSHUser == "" {
-			return "", fmt.Errorf("workspace %s has empty SSH user (workspace may not be running)", w.ID)
-		}
-		prefix = "/home/" + w.SSHUser
+	if w.SSHUser == "" {
+		return "", fmt.Errorf("workspace %s has empty SSH user (workspace may not be running)", w.ID)
 	}
+	prefix := "/home/" + w.SSHUser
 	var folderName string
 	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
 		if path.IsAbs(w.IDEConfig.DefaultWorkingDir) {

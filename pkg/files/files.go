@@ -17,16 +17,15 @@ import (
 
 type PersonalSettings struct {
 	DefaultEditor    string `json:"default_editor"`
-	AnalyticsEnabled *bool  `json:"analytics_enabled,omitempty"` // nil = never asked, true = opted in, false = opted out
+	AnalyticsEnabled *bool  `json:"analytics_enabled,omitempty"` // nil = default on (opt-out model), true = explicit opt-in, false = opted out
 	AnalyticsID      string `json:"analytics_id,omitempty"`      // stable anonymous ID for analytics
 }
 
 const (
 	brevDirectory = ".brev"
 	// This might be better as a context.json??
-	activeOrgFile      = "active_org.json"
-	orgCacheFile       = "org_cache.json"
-	workspaceCacheFile = "workspace_cache.json"
+	activeOrgFile     = "active_org.json"
+	userCacheFileName = "user_cache.json"
 	// WIP: This will be used to let people "brev open" with editors other than VS Code
 	personalSettingsCache         = "personal_settings.json"
 	kubeCertFileName              = "brev.crt"

@@ -4,13 +4,13 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/browser"
@@ -100,6 +100,73 @@ type Auth struct {
 	shouldLogin          func() (bool, error)
 }
 
+const BrevAPIKeyPrefix = "bak-"
+
+const MissingAPIKeyOrgIDMessage = "api key auth requires an org id; run brev login --api-key <api-key> --org-id <org-id>"
+
+type APIKeyAuthStore interface {
+	GetAuthTokens() (*entity.AuthTokens, error)
+}
+
+type CurrentUserAuthStore interface {
+	APIKeyAuthStore
+	GetCurrentUser() (*entity.User, error)
+}
+
+type CLIAuth struct {
+	apiKey bool
+	user   *entity.User
+}
+
+func (a CLIAuth) IsAPIKey() bool {
+	return a.apiKey
+}
+
+func (a CLIAuth) User() *entity.User {
+	return a.user
+}
+
+func ResolveCLIAuth(store CurrentUserAuthStore) (CLIAuth, error) {
+	if IsAPIKeyAuthStore(store) {
+		return CLIAuth{apiKey: true}, nil
+	}
+	user, err := store.GetCurrentUser()
+	if err != nil {
+		return CLIAuth{}, breverrors.WrapAndTrace(err)
+	}
+	return CLIAuth{user: user}, nil
+}
+
+func IsBrevAPIKey(token string) bool {
+	return strings.HasPrefix(strings.TrimSpace(token), BrevAPIKeyPrefix)
+}
+
+func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
+	tokens, err := authTokensProvider.GetAuthTokens()
+	if err != nil {
+		return false
+	}
+	if tokens == nil {
+		return false
+	}
+	return IsBrevAPIKey(tokens.APIKey)
+}
+
+func GetAPIKeyOrgID(authTokensProvider APIKeyAuthStore) (string, error) {
+	tokens, err := authTokensProvider.GetAuthTokens()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		return "", breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+	}
+	orgID := strings.TrimSpace(tokens.APIKeyOrgID)
+	if orgID == "" {
+		return "", breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+	}
+	return orgID, nil
+}
+
 func NewAuth(authStore AuthStore, oauth OAuth) *Auth {
 	return &Auth{
 		authStore:            authStore,
@@ -111,6 +178,11 @@ func NewAuth(authStore AuthStore, oauth OAuth) *Auth {
 
 func (t *Auth) WithAccessTokenValidator(val func(string) (bool, error)) *Auth {
 	t.accessTokenValidator = val
+	return t
+}
+
+func (t *Auth) WithShouldLogin(fn func() (bool, error)) *Auth {
+	t.shouldLogin = fn
 	return t
 }
 
@@ -138,6 +210,11 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	}
 	if tokens == nil {
 		return "", nil
+	}
+
+	apiKey := strings.TrimSpace(tokens.APIKey)
+	if apiKey != "" {
+		return apiKey, nil
 	}
 
 	// should always at least have access token?
@@ -216,38 +293,69 @@ func (t Auth) LoginWithToken(token string) error {
 	return nil
 }
 
+func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return breverrors.NewValidationError("api key is empty")
+	}
+	if !IsBrevAPIKey(apiKey) {
+		return breverrors.NewValidationError(fmt.Sprintf("api key must start with %s", BrevAPIKeyPrefix))
+	}
+	orgID = strings.TrimSpace(orgID)
+	if orgID == "" {
+		return breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+	}
+
+	tokens, err := t.getSavedTokensOrNil()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		tokens = &entity.AuthTokens{}
+	}
+	tokens.APIKey = apiKey
+	tokens.APIKeyOrgID = orgID
+
+	err = t.authStore.SaveAuthTokens(*tokens)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func init() {
+	// pkg/browser pipes the launcher's stderr to ours, which leaks confusing
+	// noise like "xdg-open: no DISPLAY environment variable specified" on
+	// headless machines. We always print the login URL, so discard it.
+	browser.Stderr = io.Discard
+}
+
+// showLoginURL prints the login link, framed as a fallback for when the
+// browser doesn't open (e.g. headless machine, wrong default browser).
+func showLoginURL(url string) {
+	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
+	fmt.Println("Browser didn't open? Use the URL below to sign in:")
+	fmt.Println()
+	fmt.Println(urlType(url))
+}
+
 func defaultAuthFunc(url, code string) {
 	codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
 	if code != "" {
 		fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
 		fmt.Print("\n")
 	}
-	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("Browser link: " + urlType(url) + "\n")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleURL())))
-	fmt.Print("\n")
-	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	enterType := color.New(color.FgGreen, color.Bold).SprintFunc()
-	_ = terminal.PromptGetInput(terminal.PromptContent{
-		Label:      "   " + caretType("▸") + "    Press " + enterType("Enter") + " to login via browser",
-		ErrorMsg:   "error",
-		AllowEmpty: true,
-	})
 
-	fmt.Print("\n")
-
-	err := browser.OpenURL(url)
-	if err != nil {
-		fmt.Println("Error opening browser. Please copy", urlType(url), "and paste it in your browser.")
-	}
-	fmt.Println("Waiting for login to complete in browser... ")
+	// Best-effort: try to open the browser, but always show the URL below so
+	// the user is never stranded if it doesn't open.
+	_ = browser.OpenURL(url)
+	showLoginURL(url)
+	fmt.Println("\nWaiting for login to complete...")
 }
 
 func skipBrowserAuthFunc(url, _ string) {
-	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("Please copy", urlType(url), "and paste it in your browser.")
-	fmt.Println("Alternatively, get CLI Command (\"Login via CLI\"): ", urlType(fmt.Sprintf("%s/profile?login=cli", config.GlobalConfig.GetConsoleURL())))
-	fmt.Println("Waiting for login to complete in browser... Ctrl+C to use CLI command instead.")
+	showLoginURL(url)
+	fmt.Println("\nWaiting for login to complete...")
 }
 
 func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
@@ -298,7 +406,7 @@ func (t Auth) getSavedTokensOrNil() (*entity.AuthTokens, error) {
 		}
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if tokens != nil && tokens.AccessToken == "" && tokens.RefreshToken == "" {
+	if tokens != nil && tokens.AccessToken == "" && tokens.RefreshToken == "" && tokens.APIKey == "" {
 		return nil, nil
 	}
 	return tokens, nil
@@ -400,7 +508,7 @@ func AuthProviderFlagToCredentialProvider(authProviderFlag string) entity.Creden
 func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens) OAuth {
 	// Set KAS as the default authenticator
 	shouldPromptEmail := false
-	if email == "" && tokens != nil && tokens.AccessToken != "" {
+	if email == "" && tokens != nil && tokens.AccessToken != "" && tokens.APIKey == "" {
 		email = GetEmailFromToken(tokens.AccessToken)
 		shouldPromptEmail = true
 	}
@@ -430,7 +538,7 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 		kasAuthenticator,
 	})
 
-	if tokens != nil && tokens.AccessToken != "" {
+	if tokens != nil && tokens.AccessToken != "" && tokens.APIKey == "" {
 		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
 		if errr != nil {
 			fmt.Printf("%v\n", errr)

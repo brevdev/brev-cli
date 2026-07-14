@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/alessio/shellescape"
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
@@ -23,7 +25,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	uutil "github.com/brevdev/brev-cli/pkg/util"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/mo"
@@ -108,6 +109,7 @@ type OpenStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWindowsDir() (string, error)
 	IsWorkspace() (bool, error)
+	GetAccessToken() (string, error)
 }
 
 func NewCmdOpen(t *terminal.Terminal, store OpenStore, noLoginStartStore OpenStore) *cobra.Command {
@@ -278,13 +280,24 @@ func handleSetDefault(t *terminal.Terminal, editorType string) error {
 
 // Fetch workspace info, then open code editor
 func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, setupDoneString string, directory string, host bool, editorType string) error { //nolint:funlen,gocyclo // define brev command
+	if _, err := tstore.GetAccessToken(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	// todo check if workspace is stopped and start if it if it is stopped
 	fmt.Println("finding your instance...")
 	res := refresh.RunRefreshAsync(tstore)
-	workspace, err := util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+	target, err := util.ResolveWorkspaceOrNode(tstore, wsIDOrName)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if target.Node != nil {
+		// Await refresh so SSH config entries are written for the node.
+		if awaitErr := res.Await(); awaitErr != nil {
+			return breverrors.WrapAndTrace(awaitErr)
+		}
+		return openExternalNode(t, tstore, target.Node, directory, editorType)
+	}
+	workspace := target.Workspace
 	if workspace.Status == "STOPPED" { // we start the env for the user
 		err = startWorkspaceIfStopped(t, tstore, wsIDOrName, workspace)
 		if err != nil {
@@ -327,10 +340,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors,
-	// but we don't want to block the user from using vscode
-	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
 	err = openEditorWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString, editorType)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {
@@ -346,7 +355,7 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 			return handlePathError(tstore, workspace, errMsg)
 		}
 		if strings.Contains(err.Error(), `tmux: command not found`) {
-			errMsg := "tmux not found on remote instance. This will be installed automatically."
+			errMsg := "tmux not found on remote instance. Please install it and try again."
 			return handlePathError(tstore, workspace, errMsg)
 		}
 		return breverrors.WrapAndTrace(err)
@@ -354,6 +363,36 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	// Call analytics for open
 	_ = pushOpenAnalytics(tstore, workspace)
 	return nil
+}
+
+func openExternalNode(t *terminal.Terminal, tstore OpenStore, node *nodev1.ExternalNode, directory string, editorType string) error {
+	info, err := util.ResolveExternalNodeSSH(tstore, node)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	alias := info.SSHAlias()
+	path := info.HomePath()
+	if directory != "" {
+		path = directory
+	}
+
+	_ = hello.SetHasRunOpen(true)
+
+	s := t.NewSpinner()
+	s.Start()
+	s.Suffix = "  checking if your node is ready..."
+	err = waitForSSHToBeAvailable(t, s, alias)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	editorName := getEditorName(editorType)
+	s.Suffix = fmt.Sprintf(" Node is ready. Opening %s", editorName)
+	time.Sleep(250 * time.Millisecond)
+	s.Stop()
+	t.Vprintf("\n")
+
+	return openEditorByType(t, editorType, alias, path, tstore)
 }
 
 func pushOpenAnalytics(tstore OpenStore, workspace *entity.Workspace) error {
@@ -769,16 +808,6 @@ func ensureTmuxInstalled(sshAlias string) error {
 	checkCmd := fmt.Sprintf("ssh %s 'which tmux >/dev/null 2>&1'", sshAlias)
 	checkExec := exec.Command("bash", "-c", checkCmd) // #nosec G204
 	err := checkExec.Run()
-	if err == nil {
-		return nil
-	}
-
-	installCmd := fmt.Sprintf("ssh %s 'sudo apt-get update && sudo apt-get install -y tmux'", sshAlias)
-	installExec := exec.Command("bash", "-c", installCmd) // #nosec G204
-	installExec.Stderr = os.Stderr
-	installExec.Stdout = os.Stdout
-
-	err = installExec.Run()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

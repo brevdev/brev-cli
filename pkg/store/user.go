@@ -129,6 +129,22 @@ var usersIDPathPattern = fmt.Sprintf("%s/%s", usersPath, "%s")
 
 // usersIDPath        = fmt.Sprintf(usersIDPathPattern, fmt.Sprintf("{%s}", userIDParamStr))
 
+func (s AuthHTTPStore) GetUserByID(userID string) (*entity.User, error) {
+	var result entity.User
+	res, err := s.authHTTPClient.restyClient.R().
+		SetHeader("Content-Type", "application/json").
+		SetResult(&result).
+		Get(fmt.Sprintf(usersIDPathPattern, userID))
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if res.IsError() {
+		return nil, NewHTTPResponseError(res)
+	}
+
+	return &result, nil
+}
+
 func (s AuthHTTPStore) GetUsers(queryParams map[string]string) ([]entity.User, error) {
 	var result []entity.User
 	res, err := s.authHTTPClient.restyClient.R().

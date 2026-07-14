@@ -7,17 +7,22 @@ import (
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
+	analyticscmd "github.com/brevdev/brev-cli/pkg/cmd/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
+	"github.com/brevdev/brev-cli/pkg/cmd/deregister"
+	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/exec"
+	"github.com/brevdev/brev-cli/pkg/cmd/feedback"
 	"github.com/brevdev/brev-cli/pkg/cmd/fu"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpucreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/cmd/grantssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
@@ -33,11 +38,11 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
-	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/redeem"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/cmd/reset"
+	"github.com/brevdev/brev-cli/pkg/cmd/revokessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/runtasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/scale"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
@@ -50,10 +55,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/test"
 	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
+	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
-	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/remoteversion"
@@ -125,14 +130,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	)
 	noLoginCmdStore := noAuthCmdStore.WithAuth(noLoginAuth)
 
-	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
-	if workspaceGroupID != "" {
-		loginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
-		noLoginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
-	}
+	analytics.SetUserStore(noLoginCmdStore)
 
 	cmds := &cobra.Command{
 		SilenceErrors: true,
@@ -144,29 +142,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
       Find more information at:
             https://brev.nvidia.com`,
-		PostRun: func(cmd *cobra.Command, args []string) {
-			shouldWe := hello.ShouldWeRunOnboarding(noLoginCmdStore)
-			if shouldWe {
-				user, err := loginCmdStore.GetCurrentUser()
-				if err != nil {
-					return
-				}
-				err = hello.CanWeOnboard(t, user, loginCmdStore)
-				if err != nil {
-					return
-				}
-			}
-		},
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			userID := ""
-			user, err := noLoginCmdStore.GetCurrentUser()
-			if err == nil && user != nil {
-				userID = user.ID
-			}
-			if userID == "" {
-				userID = analytics.GetOrCreateAnalyticsID()
-			}
-			analytics.CaptureCommand(userID, cmd, args)
+			analytics.CaptureCommand("", cmd, args)
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -231,6 +208,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
+				if hello.ShouldWeRunOnboarding(noLoginCmdStore) {
+					t.Vprintf("\n👋 New to Brev? Run %s for a guided walkthrough.\n", t.Yellow("brev hello"))
+				}
 				return nil
 			}
 		},
@@ -252,12 +232,45 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	cmds.SetUsageTemplate(usageTemplate)
 
-	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth)
+	// In-memory auth for external node commands — never touches credentials.json.
+	// Pre-fill the cached email so the user sees a confirmation prompt instead of
+	// having to type it from scratch every time.
+	cachedEmail, _ := fsStore.GetCachedEmail()
+	memAuthenticator := auth.StandardLogin("", cachedEmail, nil)
+	if cachedEmail != "" {
+		if kas, ok := memAuthenticator.(auth.KasAuthenticator); ok {
+			kas.ShouldPromptEmail = true
+			memAuthenticator = kas
+		}
+	}
+	memAuthStore := &emailCachingAuthStore{
+		MemoryAuthStore: store.NewMemoryAuthStore(),
+		fileStore:       fsStore,
+	}
+	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
+	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
+
+	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
+
+	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
+		_, err1 := memLoginAuth.GetAccessToken()
+		if err1 != nil {
+			return breverrors.WrapAndTrace(err1)
+		}
+		return nil
+	})
+	if err != nil {
+		fmt.Printf("%v\n", err)
+	}
+
+	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)
 
 	return cmds
 }
 
-func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth) { //nolint:funlen // define brev command
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth, externalNodeCmdStore *store.AuthHTTPStore) { //nolint:funlen // define brev command
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
@@ -284,7 +297,6 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	} else {
 		_ = 0 // noop
 	}
-	cmd.AddCommand(workspacegroups.NewCmdWorkspaceGroups(t, loginCmdStore))
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
 	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
 	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
@@ -296,6 +308,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
 	cmd.AddCommand(agentskill.NewCmdAgentSkill(t, noLoginCmdStore))
+	cmd.AddCommand(analyticscmd.NewCmdAnalytics(t))
 	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
 	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
 	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
@@ -305,15 +318,19 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(refresh.NewCmdRefresh(t, loginCmdStore))
-	cmd.AddCommand(register.NewCmdRegister(t))
+	cmd.AddCommand(register.NewCmdRegister(t, externalNodeCmdStore))
+	cmd.AddCommand(deregister.NewCmdDeregister(t, externalNodeCmdStore))
+	cmd.AddCommand(upgrade.NewCmdUpgrade(t, noLoginCmdStore))
+	cmd.AddCommand(enablessh.NewCmdEnableSSH(t, externalNodeCmdStore))
+	cmd.AddCommand(grantssh.NewCmdGrantSSH(t, externalNodeCmdStore))
+	cmd.AddCommand(revokessh.NewCmdRevokeSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
-	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
-	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
+	cmd.AddCommand(feedback.NewCmdFeedback(t, noLoginCmdStore))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {
@@ -459,6 +476,13 @@ Aliases:
 Examples:
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
 
+{{- if hasQuickstartCommands . }}
+
+Quick Start:
+{{- range quickstartCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
 {{- if or (hasWorkspaceCommands .) (hasProviderDependentCommands .) }}
 
 Instance Commands:
@@ -493,13 +517,6 @@ Configuration:
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
-{{- if hasQuickstartCommands . }}
-
-Quick Start:
-{{- range quickstartCommands . }}
-  {{rpad .Name .NamePadding }} {{.Short}}
-{{- end}}{{- end}}
-
 {{- if hasDebugCommands . }}
 
 Debug Commands:
@@ -525,4 +542,23 @@ var (
 	_ store.Auth     = auth.LoginAuth{}
 	_ store.Auth     = auth.NoLoginAuth{}
 	_ auth.AuthStore = store.FileStore{}
+	_ auth.AuthStore = &store.MemoryAuthStore{}
+	_ auth.AuthStore = &emailCachingAuthStore{}
 )
+
+// emailCachingAuthStore wraps MemoryAuthStore and persists the login email
+// to ~/.brev/cached-email after each successful authentication.
+type emailCachingAuthStore struct {
+	*store.MemoryAuthStore
+	fileStore *store.FileStore
+}
+
+func (e *emailCachingAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
+	if err := e.MemoryAuthStore.SaveAuthTokens(tokens); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if email := auth.GetEmailFromToken(tokens.AccessToken); email != "" {
+		_ = e.fileStore.SaveCachedEmail(email)
+	}
+	return nil
+}

@@ -134,6 +134,44 @@ git config --global user.name "Your Name"
 git config --global user.email "you@example.com"
 ```
 
+## CPU Instance Patterns
+
+### Find CPU Instances
+```bash
+# All CPU instances sorted by price
+brev search cpu --sort price
+
+# Cheapest ARM CPU instances
+brev search cpu --arch arm64 --sort price
+
+# High-memory CPU for data processing
+brev search cpu --min-ram 128 --sort price
+
+# Many-core for parallel workloads
+brev search cpu --min-vcpu 32 --sort price
+```
+
+### Create CPU Instance
+```bash
+# Create from CPU search
+brev search cpu --min-ram 64 | brev create my-cpu-box
+
+# Create CPU instance and run setup
+brev search cpu --sort price | brev create data-proc | brev exec @setup.sh
+```
+
+### CPU Use Cases
+```bash
+# Data preprocessing box
+brev search cpu --min-ram 64 --min-disk 500 | brev create etl-box
+
+# CI/CD runner
+brev search cpu --min-vcpu 8 --max-boot-time 3 | brev create ci-runner
+
+# Web server / API host
+brev search cpu --stoppable --sort price | brev create api-server
+```
+
 ## Quick Start Patterns
 
 ### Create and Connect (One-Liner)

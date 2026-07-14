@@ -52,7 +52,7 @@ func (c ConstantsConfig) GetBrevAuthIssuerURL() string {
 }
 
 func (c ConstantsConfig) GetConsoleURL() string {
-	return getEnvOrDefault(brevConsoleURL, "https://brev.nvidia.com")
+	return getEnvOrDefault(brevConsoleURL, "https://brev.nvidia.com/cli-login")
 }
 
 func (c ConstantsConfig) GetOllamaAPIURL() string {

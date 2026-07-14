@@ -2,25 +2,25 @@
 package agentskill
 
 import (
-	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/fatih/color"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
 const (
 	// GitHub raw content base URL template
 	baseURLTemplate = "https://raw.githubusercontent.com/brevdev/brev-cli/%s/.agents/skills/brev-cli"
+
+	// GitHub API URL template for resolving branch to commit SHA
+	githubAPICommitTemplate = "https://api.github.com/repos/brevdev/brev-cli/commits/%s"
 
 	// Default branch
 	defaultBranch = "main"
@@ -30,16 +30,61 @@ const (
 
 	// Skill name
 	skillName = "brev-cli"
+
+	// Version file name
+	versionFileName = ".version"
 )
 
 // getBaseURL returns the base URL for downloading skill files
 // Uses BREV_SKILL_BRANCH env var if set, otherwise defaults to main
 func getBaseURL() string {
+	return fmt.Sprintf(baseURLTemplate, getBranch())
+}
+
+// getBranch returns the branch used for downloading skill files
+func getBranch() string {
 	branch := os.Getenv(branchEnvVar)
 	if branch == "" {
 		branch = defaultBranch
 	}
-	return fmt.Sprintf(baseURLTemplate, branch)
+	return branch
+}
+
+// resolveCommitSHA uses the GitHub API to resolve a branch/ref to a commit SHA
+func resolveCommitSHA(client *http.Client, ref string) (string, error) {
+	url := fmt.Sprintf(githubAPICommitTemplate, ref)
+	req, err := http.NewRequest("GET", url, nil) //nolint:noctx // simple API call
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+
+	resp, err := client.Do(req) //nolint:bodyclose // closed below
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", breverrors.NewValidationError(fmt.Sprintf("failed to resolve commit for %s: %s", ref, resp.Status))
+	}
+
+	var result struct {
+		SHA string `json:"sha"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	return result.SHA, nil
+}
+
+// writeVersionFile writes a .version file to all skill directories
+func writeVersionFile(skillDirs []string, branch, commitSHA string) {
+	content := fmt.Sprintf("branch=%s\ncommit=%s\n", branch, commitSHA)
+	for _, dir := range skillDirs {
+		_ = os.WriteFile(filepath.Join(dir, versionFileName), []byte(content), 0o644) //nolint:gosec // not sensitive
+	}
 }
 
 // Files to download (relative to skill directory)
@@ -116,7 +161,7 @@ func newCmdUninstall(t *terminal.Terminal, store AgentSkillStore) *cobra.Command
 
 // installDirs are the parent directories under $HOME where skills are installed.
 // We install to both so the skill works with Claude Code (~/.claude) and other agents (~/.agent).
-var installDirs = []string{".claude", ".agents"}
+var installDirs = []string{".claude", ".agents", ".codex"}
 
 // GetSkillDirs returns all paths where the skill should be installed
 func GetSkillDirs(homeDir string) []string {
@@ -132,11 +177,14 @@ func GetSkillDir(homeDir string) string {
 	return filepath.Join(homeDir, ".claude", "skills", skillName)
 }
 
-// IsClaudeInstalled checks if Claude Code appears to be installed
-func IsClaudeInstalled(homeDir string) bool {
-	claudeDir := filepath.Join(homeDir, ".claude")
-	_, err := os.Stat(claudeDir)
-	return err == nil
+// IsAnyAgentInstalled returns true if any of installDirs exists under homeDir.
+func IsAnyAgentInstalled(homeDir string) bool {
+	for _, dir := range installDirs {
+		if _, err := os.Stat(filepath.Join(homeDir, dir)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // IsSkillInstalled checks if the brev-cli skill is installed in any location
@@ -148,45 +196,6 @@ func IsSkillInstalled(homeDir string) bool {
 		}
 	}
 	return false
-}
-
-// PromptInstallSkill asks the user if they want to install the agent skill
-// Returns true if they want to install, false otherwise
-func PromptInstallSkill(t *terminal.Terminal, homeDir string) bool {
-	// Skip if skill is already installed
-	if IsSkillInstalled(homeDir) {
-		return false
-	}
-
-	// Check if Claude Code appears to be installed
-	if !IsClaudeInstalled(homeDir) {
-		return false
-	}
-
-	fmt.Println()
-	caretType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("  ", caretType("▸"), "    AI Agent Integration")
-	fmt.Println()
-	fmt.Println("       We detected an AI coding agent on your system.")
-	fmt.Println("       Would you like to install the Brev CLI skill?")
-	fmt.Println()
-	fmt.Println("       This enables natural language commands like:")
-	fmt.Println(t.Yellow("         \"Create an A100 instance for ML training\""))
-	fmt.Println(t.Yellow("         \"Search for GPUs with 40GB VRAM\""))
-	fmt.Println(t.Yellow("         \"Stop all my running instances\""))
-	fmt.Println()
-
-	prompt := promptui.Select{
-		Label: "Install agent skill",
-		Items: []string{"Yes, install it", "No, skip for now"},
-	}
-
-	idx, _, err := prompt.Run()
-	if err != nil {
-		return false
-	}
-
-	return idx == 0
 }
 
 // InstallSkill downloads and installs the agent skill to all install paths
@@ -221,6 +230,15 @@ func InstallSkill(t *terminal.Terminal, homeDir string, quiet bool) error {
 	for _, file := range skillFiles {
 		if !downloadAndInstallFile(client, baseURL, file, skillDirs, t, quiet) {
 			failed++
+		}
+	}
+
+	// Resolve commit SHA and write .version file
+	branch := getBranch()
+	if commitSHA, err := resolveCommitSHA(client, branch); err == nil {
+		writeVersionFile(skillDirs, branch, commitSHA)
+		if !quiet {
+			fmt.Printf("    %s .version (%s)\n", t.Green("✓"), commitSHA[:12])
 		}
 	}
 
@@ -262,18 +280,6 @@ func UninstallSkill(t *terminal.Terminal, homeDir string) error {
 	fmt.Println("  Restart your AI coding agent to apply changes.")
 
 	return nil
-}
-
-// RunInstallSkillIfWanted prompts and installs if user wants it
-// This is called from the login flow
-func RunInstallSkillIfWanted(t *terminal.Terminal, homeDir string) {
-	if PromptInstallSkill(t, homeDir) {
-		err := InstallSkill(t, homeDir, false)
-		if err != nil {
-			// Don't fail login for skill install errors
-			fmt.Printf("  %s Failed to install skill: %v\n", t.Yellow("Warning:"), err)
-		}
-	}
 }
 
 // downloadAndInstallFile downloads a single file and writes it to all skill dirs.
@@ -327,13 +333,4 @@ func downloadBytes(client *http.Client, url string) ([]byte, error) {
 	}
 
 	return body, nil
-}
-
-// PromptInstallSkillSimple is a simpler yes/no prompt for the login flow
-func PromptInstallSkillSimple() bool {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Install agent skill? [y/N]: ")
-	response, _ := reader.ReadString('\n')
-	response = strings.ToLower(strings.TrimSpace(response))
-	return response == "y" || response == "yes"
 }

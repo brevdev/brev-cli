@@ -19,6 +19,11 @@ import (
 
 const posthogAPIKey = "phc_PWWXIQgQ31lXWMGI2dnTY3FyjBh7gPcMhlno1RLapLm"
 
+// UserStore provides the current user ID for analytics tracking.
+type UserStore interface {
+	GetCurrentUserID() (string, error)
+}
+
 var (
 	client     posthog.Client
 	clientOnce sync.Once
@@ -31,6 +36,9 @@ var (
 	storedCmd  *cobra.Command
 	storedArgs []string
 	storedUser string
+
+	// userStore is set via SetUserStore so GetOrCreateAnalyticsID can resolve the real user ID.
+	userStore UserStore
 )
 
 func getClient() (posthog.Client, error) {
@@ -38,6 +46,30 @@ func getClient() (posthog.Client, error) {
 		client, clientErr = posthog.NewWithConfig(posthogAPIKey, posthog.Config{})
 	})
 	return client, clientErr
+}
+
+// IsAnalyticsFeatureEnabled is the remote kill switch for PostHog telemetry only — gating PostHog capture lets us turn it off without a release. It does NOT gate analytics.TrackEvent (the brev-internal endpoint), which has its own channel.
+func IsAnalyticsFeatureEnabled() bool {
+	anonID := GetOrCreateAnalyticsID()
+	if anonID == "" {
+		return false
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return false
+	}
+
+	result, err := c.IsFeatureEnabled(posthog.FeatureFlagPayload{
+		Key:        "enable-cli-analytics",
+		DistinctId: anonID,
+	})
+	if err != nil {
+		return false
+	}
+
+	enabled, ok := result.(bool)
+	return ok && enabled
 }
 
 // RecordCommandStart should be called from PersistentPreRunE to record the start time
@@ -48,13 +80,26 @@ func RecordCommandStart(cmd *cobra.Command, args []string) {
 	storedArgs = args
 }
 
-// IsAnalyticsEnabled returns whether analytics is enabled and whether the user has been asked.
-func IsAnalyticsEnabled() (enabled bool, hasBeenAsked bool) {
+// IsAnalyticsEnabled defaults to true; DO_NOT_TRACK and BREV_NO_ANALYTICS override.
+func IsAnalyticsEnabled() bool {
+	if disabled, _ := IsDisabledByEnv(); disabled {
+		return false
+	}
 	settings := readSettings()
 	if settings.AnalyticsEnabled == nil {
-		return false, false
+		return true
 	}
-	return *settings.AnalyticsEnabled, true
+	return *settings.AnalyticsEnabled
+}
+
+func IsDisabledByEnv() (disabled bool, varName string) {
+	if os.Getenv("DO_NOT_TRACK") == "1" {
+		return true, "DO_NOT_TRACK"
+	}
+	if os.Getenv("BREV_NO_ANALYTICS") == "1" {
+		return true, "BREV_NO_ANALYTICS"
+	}
+	return false, ""
 }
 
 // SetAnalyticsPreference persists the user's analytics preference.
@@ -75,8 +120,20 @@ func SetAnalyticsPreference(enabled bool) error {
 	return nil
 }
 
-// GetOrCreateAnalyticsID returns a stable anonymous UUID for tracking, creating one if needed.
+// SetUserStore configures the store used to resolve the current user ID.
+func SetUserStore(s UserStore) {
+	userStore = s
+}
+
+// GetOrCreateAnalyticsID returns the user's distinct ID for tracking.
+// It prefers the real user ID from the store if available, falling back to a stable anonymous UUID.
 func GetOrCreateAnalyticsID() string {
+	if userStore != nil {
+		if uid, err := userStore.GetCurrentUserID(); err == nil && uid != "" {
+			return uid
+		}
+	}
+
 	fs := files.AppFs
 	home, err := getHomeDir()
 	if err != nil {
@@ -94,10 +151,15 @@ func GetOrCreateAnalyticsID() string {
 	return settings.AnalyticsID
 }
 
+// shouldCapturePostHog returns true only when both the local opt-out and
+// the remote PostHog kill switch agree.
+func shouldCapturePostHog() bool {
+	return IsAnalyticsEnabled() && IsAnalyticsFeatureEnabled()
+}
+
 // IdentifyUser links the anonymous analytics ID to a real user ID using PostHog Alias.
 func IdentifyUser(userID string) {
-	enabled, asked := IsAnalyticsEnabled()
-	if !asked || !enabled {
+	if !shouldCapturePostHog() {
 		return
 	}
 
@@ -133,22 +195,19 @@ func CaptureCommandError() {
 	if storedCmd == nil {
 		return
 	}
-	// If CaptureCommand already ran (success path), don't double-capture.
-	// storedUser being set means PersistentPostRunE ran.
-	// We only get here on error, so PersistentPostRunE didn't run.
-	userID := storedUser
-	if userID == "" {
-		userID = GetOrCreateAnalyticsID()
-	}
-	captureEvent(userID, storedCmd, storedArgs, false)
+	captureEvent(storedUser, storedCmd, storedArgs, false)
 }
 
 func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bool) {
-	enabled, asked := IsAnalyticsEnabled()
-	if !asked || !enabled {
+	if !shouldCapturePostHog() {
 		return
 	}
 
+	// Resolve the analytics ID lazily, only after gates pass — avoids writing a
+	// persistent UUID to ~/.brev/personal_settings.json for opted-out users.
+	if userID == "" {
+		userID = GetOrCreateAnalyticsID()
+	}
 	if userID == "" {
 		return
 	}
@@ -230,6 +289,32 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 	})
 }
 
+// CaptureFeedback sends a brev-cli-feedback event to PostHog.
+// This is sent regardless of analytics opt-in since the user explicitly chose to send feedback.
+func CaptureFeedback(userID, message string) {
+	if userID == "" {
+		userID = GetOrCreateAnalyticsID()
+	}
+	if userID == "" {
+		return
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return
+	}
+
+	_ = c.Enqueue(posthog.Capture{
+		DistinctId: userID,
+		Event:      "brev-cli-feedback",
+		Properties: posthog.NewProperties().
+			Set("message", message).
+			Set("os", runtime.GOOS).
+			Set("arch", runtime.GOARCH).
+			Set("cli_version", version.Version),
+	})
+}
+
 // Close flushes any pending events and closes the PostHog client.
 func Close() {
 	if client != nil {
@@ -295,9 +380,24 @@ func getTimezone() string {
 }
 
 func getGPUInfo() string {
+	type result struct {
+		out string
+	}
+	ch := make(chan result, 1)
+	go func() {
+		ch <- result{out: getGPUInfoSync()}
+	}()
+	select {
+	case r := <-ch:
+		return r.out
+	case <-time.After(100 * time.Millisecond):
+		return ""
+	}
+}
+
+func getGPUInfoSync() string {
 	out, err := exec.Command("nvidia-smi", "--query-gpu=name,memory.total,driver_version,count", "--format=csv,noheader,nounits").Output() // #nosec G204
 	if err != nil {
-		// nvidia-smi not available or no NVIDIA GPU
 		if runtime.GOOS == "darwin" {
 			return getAppleGPUInfo()
 		}
@@ -311,7 +411,6 @@ func getAppleGPUInfo() string {
 	if err != nil {
 		return ""
 	}
-	// Extract just the chipset/model lines
 	lines := strings.Split(string(out), "\n")
 	var gpuLines []string
 	for _, line := range lines {
