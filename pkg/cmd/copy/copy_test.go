@@ -54,6 +54,8 @@ func TestBuildSCPArgs(t *testing.T) {
 }
 
 func TestTransferWithFallback(t *testing.T) {
+	rsyncAvailable := func() bool { return true }
+
 	t.Run("rsync success", func(t *testing.T) {
 		calls := []string{}
 		runner := func(name string, args ...string) ([]byte, error) {
@@ -62,12 +64,49 @@ func TestTransferWithFallback(t *testing.T) {
 		}
 
 		onFallbackCalled := false
-		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() {
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, rsyncAvailable, func(reason string) {
 			onFallbackCalled = true
 		})
 		assert.NoError(t, err)
 		assert.False(t, onFallbackCalled)
 		assert.Equal(t, []string{"rsync"}, calls)
+	})
+
+	t.Run("rsync not installed locally skips straight to scp", func(t *testing.T) {
+		calls := []string{}
+		runner := func(name string, args ...string) ([]byte, error) {
+			calls = append(calls, name)
+			return []byte("ok"), nil
+		}
+
+		reasons := []string{}
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() bool { return false }, func(reason string) {
+			reasons = append(reasons, reason)
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"scp"}, calls)
+		assert.Len(t, reasons, 1)
+		assert.Contains(t, reasons[0], "Install rsync for faster transfers")
+	})
+
+	t.Run("rsync missing on instance falls back with install hint", func(t *testing.T) {
+		calls := []string{}
+		runner := func(name string, args ...string) ([]byte, error) {
+			calls = append(calls, name)
+			if name == "rsync" {
+				return []byte("bash: rsync: command not found"), errors.New("exit status 127")
+			}
+			return []byte("scp ok"), nil
+		}
+
+		reasons := []string{}
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, rsyncAvailable, func(reason string) {
+			reasons = append(reasons, reason)
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"rsync", "scp"}, calls)
+		assert.Len(t, reasons, 1)
+		assert.Contains(t, reasons[0], "Install rsync on the instance for faster transfers")
 	})
 
 	t.Run("rsync fails and scp succeeds", func(t *testing.T) {
@@ -80,7 +119,7 @@ func TestTransferWithFallback(t *testing.T) {
 			return []byte("scp ok"), nil
 		}
 
-		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() {
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, rsyncAvailable, func(reason string) {
 			calls = append(calls, "fallback")
 		})
 		assert.NoError(t, err)
@@ -95,7 +134,7 @@ func TestTransferWithFallback(t *testing.T) {
 			return []byte("scp output"), errors.New("exit status 1")
 		}
 
-		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, func() {})
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/path", true, runner, rsyncAvailable, func(reason string) {})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "rsync failed: exit status 1")
 		assert.Contains(t, err.Error(), "scp fallback failed")

@@ -224,8 +224,8 @@ func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath s
 	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
 
 	startTime := time.Now()
-	err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner, func() {
-		t.Vprint(t.Yellow("rsync failed, falling back to scp...\n"))
+	err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner, rsyncInstalledLocally, func(reason string) {
+		t.Vprint(t.Yellow("%s\n", reason))
 	})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -238,14 +238,32 @@ func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath s
 	return nil
 }
 
-func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner, onFallback func()) error {
+func rsyncInstalledLocally() bool {
+	_, err := exec.LookPath("rsync")
+	return err == nil
+}
+
+func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner, rsyncAvailable func() bool, onFallback func(reason string)) error {
+	notifyFallback := func(reason string) {
+		if onFallback != nil {
+			onFallback(reason)
+		}
+	}
+
+	if !rsyncAvailable() {
+		notifyFallback("rsync not found on this machine, using scp. Install rsync for faster transfers.")
+		return runSCPCommand(sshAlias, localPath, remotePath, isUpload, runner)
+	}
+
 	err := runRsyncCommand(sshAlias, localPath, remotePath, isUpload, runner)
 	if err == nil {
 		return nil
 	}
 
-	if onFallback != nil {
-		onFallback()
+	if strings.Contains(err.Error(), "command not found") {
+		notifyFallback("rsync is not installed on the instance, falling back to scp. Install rsync on the instance for faster transfers.")
+	} else {
+		notifyFallback("rsync failed, falling back to scp...")
 	}
 
 	scpErr := runSCPCommand(sshAlias, localPath, remotePath, isUpload, runner)
