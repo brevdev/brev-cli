@@ -302,6 +302,9 @@ func buildRsyncArgs(sshAlias, localPath, remotePath string, isUpload bool) []str
 	// A trailing slash makes rsync copy the directory's contents so the
 	// destination becomes the copy, matching scp when the destination does
 	// not exist; without it rsync nests the source inside the destination.
+	// Known divergence when the destination directory already exists: rsync
+	// merges the contents into it, while the scp fallback nests the source
+	// inside it (dest/dir/...).
 	if isUpload && isDirectory(localPath) && !strings.HasSuffix(source, "/") {
 		source += "/"
 	}
