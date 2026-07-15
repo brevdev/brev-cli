@@ -2,8 +2,6 @@ package copy
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,55 +9,202 @@ import (
 
 func TestBuildRsyncArgs(t *testing.T) {
 	t.Run("upload file", func(t *testing.T) {
-		args := buildRsyncArgs("ws", "/tmp/local.txt", "/remote/path", true)
+		args := buildRsyncArgs("ws", "/tmp/local.txt", "/remote/path", true, false)
 		assert.Equal(t, []string{"-z", "-e", "ssh", "/tmp/local.txt", "ws:/remote/path"}, args)
 	})
 
-	t.Run("upload directory", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		localDir := filepath.Join(tmpDir, "mydir")
-		err := os.MkdirAll(localDir, 0o755)
-		assert.NoError(t, err)
-
-		args := buildRsyncArgs("ws", localDir, "/remote/path", true)
-		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", localDir + "/", "ws:/remote/path"}, args)
+	t.Run("upload directory copies contents", func(t *testing.T) {
+		args := buildRsyncArgs("ws", "/tmp/mydir", "/remote/path", true, true)
+		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", "/tmp/mydir/", "ws:/remote/path"}, args)
 	})
 
 	t.Run("upload directory with trailing slash is not doubled", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		localDir := filepath.Join(tmpDir, "mydir")
-		err := os.MkdirAll(localDir, 0o755)
-		assert.NoError(t, err)
-
-		args := buildRsyncArgs("ws", localDir+"/", "/remote/path", true)
-		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", localDir + "/", "ws:/remote/path"}, args)
+		args := buildRsyncArgs("ws", "/tmp/mydir/", "/remote/path", true, true)
+		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", "/tmp/mydir/", "ws:/remote/path"}, args)
 	})
 
-	t.Run("download path", func(t *testing.T) {
-		args := buildRsyncArgs("ws", "/tmp/local.txt", "/remote/path", false)
+	t.Run("download file", func(t *testing.T) {
+		args := buildRsyncArgs("ws", "/tmp/local.txt", "/remote/path", false, false)
 		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", "ws:/remote/path", "/tmp/local.txt"}, args)
+	})
+
+	t.Run("download directory copies contents", func(t *testing.T) {
+		args := buildRsyncArgs("ws", "/tmp/local", "/remote/path", false, true)
+		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", "ws:/remote/path/", "/tmp/local"}, args)
 	})
 }
 
 func TestBuildSCPArgs(t *testing.T) {
 	t.Run("upload file", func(t *testing.T) {
-		args := buildSCPArgs("ws", "/tmp/local.txt", "/remote/path", true)
+		args := buildSCPArgs("ws", "/tmp/local.txt", "/remote/path", true, false)
 		assert.Equal(t, []string{"/tmp/local.txt", "ws:/remote/path"}, args)
 	})
 
-	t.Run("upload directory", func(t *testing.T) {
-		tmpDir := t.TempDir()
-		localDir := filepath.Join(tmpDir, "mydir")
-		err := os.MkdirAll(localDir, 0o755)
-		assert.NoError(t, err)
-
-		args := buildSCPArgs("ws", localDir, "/remote/path", true)
-		assert.Equal(t, []string{"-r", localDir, "ws:/remote/path"}, args)
+	t.Run("upload directory copies contents", func(t *testing.T) {
+		args := buildSCPArgs("ws", "/tmp/mydir", "/remote/path", true, true)
+		assert.Equal(t, []string{"-r", "/tmp/mydir/.", "ws:/remote/path"}, args)
 	})
 
-	t.Run("download path", func(t *testing.T) {
-		args := buildSCPArgs("ws", "/tmp/local.txt", "/remote/path", false)
+	t.Run("upload directory with trailing slash is not doubled", func(t *testing.T) {
+		args := buildSCPArgs("ws", "/tmp/mydir/", "/remote/path", true, true)
+		assert.Equal(t, []string{"-r", "/tmp/mydir/.", "ws:/remote/path"}, args)
+	})
+
+	t.Run("download file", func(t *testing.T) {
+		args := buildSCPArgs("ws", "/tmp/local.txt", "/remote/path", false, false)
 		assert.Equal(t, []string{"-r", "ws:/remote/path", "/tmp/local.txt"}, args)
+	})
+
+	t.Run("download directory copies contents", func(t *testing.T) {
+		args := buildSCPArgs("ws", "/tmp/local", "/remote/path", false, true)
+		assert.Equal(t, []string{"-r", "ws:/remote/path/.", "/tmp/local"}, args)
+	})
+}
+
+func TestParseCopyArguments_Upload(t *testing.T) {
+	ws, remotePath, localPath, isUpload, err := parseCopyArguments("./local.txt", "my-node:/tmp/dest")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws != "my-node" {
+		t.Errorf("expected workspace my-node, got %s", ws)
+	}
+	if remotePath != "/tmp/dest" {
+		t.Errorf("expected remotePath /tmp/dest, got %s", remotePath)
+	}
+	if localPath != "./local.txt" {
+		t.Errorf("expected localPath ./local.txt, got %s", localPath)
+	}
+	if !isUpload {
+		t.Error("expected isUpload=true")
+	}
+}
+
+func TestParseCopyArguments_Download(t *testing.T) {
+	ws, remotePath, localPath, isUpload, err := parseCopyArguments("my-node:/tmp/file", "./local.txt")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws != "my-node" {
+		t.Errorf("expected workspace my-node, got %s", ws)
+	}
+	if remotePath != "/tmp/file" {
+		t.Errorf("expected remotePath /tmp/file, got %s", remotePath)
+	}
+	if localPath != "./local.txt" {
+		t.Errorf("expected localPath ./local.txt, got %s", localPath)
+	}
+	if isUpload {
+		t.Error("expected isUpload=false")
+	}
+}
+
+func TestParseCopyArguments_BothLocal(t *testing.T) {
+	_, _, _, _, err := parseCopyArguments("./a", "./b")
+	if err == nil {
+		t.Fatal("expected error when both paths are local")
+	}
+}
+
+func TestParseCopyArguments_BothRemote(t *testing.T) {
+	_, _, _, _, err := parseCopyArguments("ws1:/a", "ws2:/b")
+	if err == nil {
+		t.Fatal("expected error when both paths are remote")
+	}
+}
+
+func TestParseWorkspacePath_Local(t *testing.T) {
+	ws, fp, err := parseWorkspacePath("/tmp/local/file")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws != "" {
+		t.Errorf("expected empty workspace, got %s", ws)
+	}
+	if fp != "/tmp/local/file" {
+		t.Errorf("expected /tmp/local/file, got %s", fp)
+	}
+}
+
+func TestParseWorkspacePath_Remote(t *testing.T) {
+	ws, fp, err := parseWorkspacePath("my-instance:/remote/path")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws != "my-instance" {
+		t.Errorf("expected my-instance, got %s", ws)
+	}
+	if fp != "/remote/path" {
+		t.Errorf("expected /remote/path, got %s", fp)
+	}
+}
+
+func TestParseWorkspacePath_InvalidMultipleColons(t *testing.T) {
+	_, _, err := parseWorkspacePath("ws:path:extra")
+	if err == nil {
+		t.Fatal("expected error for multiple colons")
+	}
+}
+
+func TestRemotePathIsDir(t *testing.T) {
+	t.Run("directory", func(t *testing.T) {
+		var gotArgs []string
+		runner := func(name string, args ...string) ([]byte, error) {
+			gotArgs = append([]string{name}, args...)
+			return nil, nil
+		}
+		assert.True(t, remotePathIsDir("ws", "/remote/path", runner))
+		assert.Equal(t, []string{"ssh", "ws", "test", "-d", "'/remote/path'"}, gotArgs)
+	})
+
+	t.Run("not a directory", func(t *testing.T) {
+		runner := func(name string, args ...string) ([]byte, error) {
+			return nil, errors.New("exit status 1")
+		}
+		assert.False(t, remotePathIsDir("ws", "/remote/file.txt", runner))
+	})
+
+	t.Run("quotes are escaped", func(t *testing.T) {
+		var gotArgs []string
+		runner := func(name string, args ...string) ([]byte, error) {
+			gotArgs = append([]string{name}, args...)
+			return nil, nil
+		}
+		remotePathIsDir("ws", "/it's/a/path", runner)
+		assert.Equal(t, `'/it'\''s/a/path'`, gotArgs[4])
+	})
+}
+
+func TestTransferWithFallbackDownloadNormalization(t *testing.T) {
+	rsyncAvailable := func() bool { return true }
+
+	t.Run("download probes remote path type and copies directory contents", func(t *testing.T) {
+		commands := [][]string{}
+		runner := func(name string, args ...string) ([]byte, error) {
+			commands = append(commands, append([]string{name}, args...))
+			return nil, nil
+		}
+
+		err := transferWithFallback("ws", "/tmp/local", "/remote/path", false, runner, rsyncAvailable, nil)
+		assert.NoError(t, err)
+		assert.Len(t, commands, 2)
+		assert.Equal(t, "ssh", commands[0][0])
+		assert.Equal(t, []string{"rsync", "-z", "-e", "ssh", "-r", "ws:/remote/path/", "/tmp/local"}, commands[1])
+	})
+
+	t.Run("download of a file is not normalized", func(t *testing.T) {
+		commands := [][]string{}
+		runner := func(name string, args ...string) ([]byte, error) {
+			if name == "ssh" {
+				return nil, errors.New("exit status 1")
+			}
+			commands = append(commands, append([]string{name}, args...))
+			return nil, nil
+		}
+
+		err := transferWithFallback("ws", "/tmp/local.txt", "/remote/file.txt", false, runner, rsyncAvailable, nil)
+		assert.NoError(t, err)
+		assert.Equal(t, [][]string{{"rsync", "-z", "-e", "ssh", "-r", "ws:/remote/file.txt", "/tmp/local.txt"}}, commands)
 	})
 }
 
@@ -152,89 +297,4 @@ func TestTransferWithFallback(t *testing.T) {
 		assert.Contains(t, err.Error(), "scp output")
 		assert.NotContains(t, err.Error(), "rsync failed: rsync failed:")
 	})
-}
-
-func TestParseCopyArguments_Upload(t *testing.T) {
-	ws, remotePath, localPath, isUpload, err := parseCopyArguments("./local.txt", "my-node:/tmp/dest")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ws != "my-node" {
-		t.Errorf("expected workspace my-node, got %s", ws)
-	}
-	if remotePath != "/tmp/dest" {
-		t.Errorf("expected remotePath /tmp/dest, got %s", remotePath)
-	}
-	if localPath != "./local.txt" {
-		t.Errorf("expected localPath ./local.txt, got %s", localPath)
-	}
-	if !isUpload {
-		t.Error("expected isUpload=true")
-	}
-}
-
-func TestParseCopyArguments_Download(t *testing.T) {
-	ws, remotePath, localPath, isUpload, err := parseCopyArguments("my-node:/tmp/file", "./local.txt")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ws != "my-node" {
-		t.Errorf("expected workspace my-node, got %s", ws)
-	}
-	if remotePath != "/tmp/file" {
-		t.Errorf("expected remotePath /tmp/file, got %s", remotePath)
-	}
-	if localPath != "./local.txt" {
-		t.Errorf("expected localPath ./local.txt, got %s", localPath)
-	}
-	if isUpload {
-		t.Error("expected isUpload=false")
-	}
-}
-
-func TestParseCopyArguments_BothLocal(t *testing.T) {
-	_, _, _, _, err := parseCopyArguments("./a", "./b")
-	if err == nil {
-		t.Fatal("expected error when both paths are local")
-	}
-}
-
-func TestParseCopyArguments_BothRemote(t *testing.T) {
-	_, _, _, _, err := parseCopyArguments("ws1:/a", "ws2:/b")
-	if err == nil {
-		t.Fatal("expected error when both paths are remote")
-	}
-}
-
-func TestParseWorkspacePath_Local(t *testing.T) {
-	ws, fp, err := parseWorkspacePath("/tmp/local/file")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ws != "" {
-		t.Errorf("expected empty workspace, got %s", ws)
-	}
-	if fp != "/tmp/local/file" {
-		t.Errorf("expected /tmp/local/file, got %s", fp)
-	}
-}
-
-func TestParseWorkspacePath_Remote(t *testing.T) {
-	ws, fp, err := parseWorkspacePath("my-instance:/remote/path")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if ws != "my-instance" {
-		t.Errorf("expected my-instance, got %s", ws)
-	}
-	if fp != "/remote/path" {
-		t.Errorf("expected /remote/path, got %s", fp)
-	}
-}
-
-func TestParseWorkspacePath_InvalidMultipleColons(t *testing.T) {
-	_, _, err := parseWorkspacePath("ws:path:extra")
-	if err == nil {
-		t.Fatal("expected error for multiple colons")
-	}
 }
