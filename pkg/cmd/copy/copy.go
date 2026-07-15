@@ -299,6 +299,12 @@ func buildRsyncArgs(sshAlias, localPath, remotePath string, isUpload bool) []str
 	if !isUpload || isDirectory(localPath) {
 		rsyncArgs = append(rsyncArgs, "-r")
 	}
+	// A trailing slash makes rsync copy the directory's contents so the
+	// destination becomes the copy, matching scp when the destination does
+	// not exist; without it rsync nests the source inside the destination.
+	if isUpload && isDirectory(localPath) && !strings.HasSuffix(source, "/") {
+		source += "/"
+	}
 	rsyncArgs = append(rsyncArgs, source, dest)
 
 	return rsyncArgs

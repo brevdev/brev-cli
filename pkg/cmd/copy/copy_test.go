@@ -22,7 +22,17 @@ func TestBuildRsyncArgs(t *testing.T) {
 		assert.NoError(t, err)
 
 		args := buildRsyncArgs("ws", localDir, "/remote/path", true)
-		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", localDir, "ws:/remote/path"}, args)
+		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", localDir + "/", "ws:/remote/path"}, args)
+	})
+
+	t.Run("upload directory with trailing slash is not doubled", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		localDir := filepath.Join(tmpDir, "mydir")
+		err := os.MkdirAll(localDir, 0o755)
+		assert.NoError(t, err)
+
+		args := buildRsyncArgs("ws", localDir+"/", "/remote/path", true)
+		assert.Equal(t, []string{"-z", "-e", "ssh", "-r", localDir + "/", "ws:/remote/path"}, args)
 	})
 
 	t.Run("download path", func(t *testing.T) {
