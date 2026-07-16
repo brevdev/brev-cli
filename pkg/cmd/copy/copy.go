@@ -98,7 +98,7 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	err = runSCP(t, sshName, localPath, remotePath, isUpload)
+	err = runCopyWithFallback(t, sshName, localPath, remotePath, isUpload)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -209,33 +209,26 @@ func parseWorkspacePath(path string) (workspace, filePath string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
-	var scpCmd *exec.Cmd
-	var source, dest string
+type commandRunner func(name string, args ...string) ([]byte, error)
+
+func combinedOutputRunner(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...) //nolint:gosec // Command and args come from internal call sites using fixed binaries/flags (rsync/scp).
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return output, fmt.Errorf("run %s command: %w", name, err)
+	}
+	return output, nil
+}
+
+func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
 
 	startTime := time.Now()
-
-	scpArgs := []string{"scp"}
-
-	if isUpload {
-		if isDirectory(localPath) {
-			scpArgs = append(scpArgs, "-r")
-		}
-		scpArgs = append(scpArgs, localPath, fmt.Sprintf("%s:%s", sshAlias, remotePath))
-		source = localPath
-		dest = fmt.Sprintf("%s:%s", sshAlias, remotePath)
-	} else {
-		scpArgs = append(scpArgs, "-r")
-		scpArgs = append(scpArgs, fmt.Sprintf("%s:%s", sshAlias, remotePath), localPath)
-		source = fmt.Sprintf("%s:%s", sshAlias, remotePath)
-		dest = localPath
-	}
-
-	scpCmd = exec.Command(scpArgs[0], scpArgs[1:]...) //nolint:gosec //sshAlias is validated workspace identifier
-
-	output, err := scpCmd.CombinedOutput()
+	err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner, rsyncInstalledLocally, func(reason string) {
+		t.Vprint(t.Yellow("%s\n", reason))
+	})
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output)))
+		return breverrors.WrapAndTrace(err)
 	}
 
 	duration := time.Since(startTime)
@@ -243,6 +236,121 @@ func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUplo
 	t.Vprint(t.Green(fmt.Sprintf("✓ Successfully copied %s → %s (%v)\n", source, dest, duration.Round(time.Millisecond))))
 
 	return nil
+}
+
+func rsyncInstalledLocally() bool {
+	_, err := exec.LookPath("rsync")
+	return err == nil
+}
+
+func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner, rsyncAvailable func() bool, onFallback func(reason string)) error {
+	notifyFallback := func(reason string) {
+		if onFallback != nil {
+			onFallback(reason)
+		}
+	}
+
+	// Directory sources are normalized to contents-copy form so the
+	// destination always mirrors the source, whether or not it already
+	// exists, and rsync and scp produce identical layouts. Uploads can
+	// stat the local source; downloads probe the remote path type.
+	sourceIsDir := isUpload && isDirectory(localPath)
+	if !isUpload {
+		sourceIsDir = remotePathIsDir(sshAlias, remotePath, runner)
+	}
+
+	if !rsyncAvailable() {
+		notifyFallback("rsync not found on this machine, using scp. Install rsync for faster transfers.")
+		return runSCPCommand(sshAlias, localPath, remotePath, isUpload, sourceIsDir, runner)
+	}
+
+	err := runRsyncCommand(sshAlias, localPath, remotePath, isUpload, sourceIsDir, runner)
+	if err == nil {
+		return nil
+	}
+
+	if strings.Contains(err.Error(), "command not found") {
+		notifyFallback("rsync is not installed on the instance, falling back to scp. Install rsync on the instance for faster transfers.")
+	} else {
+		notifyFallback("rsync failed, falling back to scp...")
+	}
+
+	scpErr := runSCPCommand(sshAlias, localPath, remotePath, isUpload, sourceIsDir, runner)
+	if scpErr != nil {
+		return fmt.Errorf("%v\nscp fallback failed: %w", err, scpErr)
+	}
+
+	return nil
+}
+
+func remotePathIsDir(sshAlias, remotePath string, runner commandRunner) bool {
+	quoted := "'" + strings.ReplaceAll(remotePath, "'", `'\''`) + "'"
+	_, err := runner("ssh", sshAlias, "test", "-d", quoted)
+	return err == nil
+}
+
+func runRsyncCommand(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool, runner commandRunner) error {
+	rsyncArgs := buildRsyncArgs(sshAlias, localPath, remotePath, isUpload, sourceIsDir)
+	output, err := runner("rsync", rsyncArgs...)
+	if err != nil {
+		return fmt.Errorf("rsync failed: %s\nOutput: %s", err.Error(), string(output))
+	}
+	return nil
+}
+
+func runSCPCommand(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool, runner commandRunner) error {
+	scpArgs := buildSCPArgs(sshAlias, localPath, remotePath, isUpload, sourceIsDir)
+	output, err := runner("scp", scpArgs...)
+	if err != nil {
+		return fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output))
+	}
+	return nil
+}
+
+func buildRsyncArgs(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool) []string {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
+
+	rsyncArgs := []string{"-z", "-e", "ssh"}
+	if !isUpload || sourceIsDir {
+		rsyncArgs = append(rsyncArgs, "-r")
+	}
+	// A trailing slash makes rsync copy the directory's contents, so the
+	// destination becomes the copy instead of having the source directory
+	// nested inside it. scp gets the same treatment via "/." below.
+	if sourceIsDir && !strings.HasSuffix(source, "/") {
+		source += "/"
+	}
+	rsyncArgs = append(rsyncArgs, source, dest)
+
+	return rsyncArgs
+}
+
+func buildSCPArgs(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool) []string {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
+
+	scpArgs := []string{}
+	if !isUpload || sourceIsDir {
+		scpArgs = append(scpArgs, "-r")
+	}
+	// "dir/." makes scp copy the directory's contents, mirroring rsync's
+	// trailing-slash behavior regardless of whether the destination exists.
+	if sourceIsDir {
+		if !strings.HasSuffix(source, "/") {
+			source += "/"
+		}
+		source += "."
+	}
+	scpArgs = append(scpArgs, source, dest)
+
+	return scpArgs
+}
+
+func transferEndpoints(sshAlias, localPath, remotePath string, isUpload bool) (source, dest string) {
+	remoteTarget := fmt.Sprintf("%s:%s", sshAlias, remotePath)
+	if isUpload {
+		return localPath, remoteTarget
+	}
+	return remoteTarget, localPath
 }
 
 func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
@@ -313,7 +421,7 @@ func copyExternalNode(t *terminal.Terminal, cstore CopyStore, node *nodev1.Exter
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return runSCP(t, alias, localPath, remotePath, isUpload)
+	return runCopyWithFallback(t, alias, localPath, remotePath, isUpload)
 }
 
 func pollUntil(s *spinner.Spinner, wsid string, state string, copyStore CopyStore, waitMsg string) error {
