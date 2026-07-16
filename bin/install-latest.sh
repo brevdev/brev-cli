@@ -9,6 +9,12 @@ case "${ARCH}" in
     aarch64) ARCH="arm64" ;;
 esac
 
+# GitHub API token: GITHUB_TOKEN env, else gh auth token.
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+if [ -z "${GITHUB_TOKEN}" ] && command -v gh >/dev/null 2>&1; then
+    GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
+fi
+
 # Fetch release metadata from GitHub API
 API_RESPONSE="$(curl -sf ${GITHUB_TOKEN:+-H "Authorization: token ${GITHUB_TOKEN}"} https://api.github.com/repos/brevdev/brev-cli/releases/latest)" || {
     echo "Error: Failed to fetch release info from GitHub API." >&2
