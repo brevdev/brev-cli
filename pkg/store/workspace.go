@@ -516,19 +516,6 @@ func (s AuthHTTPStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, e
 	return &result, nil
 }
 
-func (s AuthHTTPStore) BanUser(userID string) error {
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		Put(fmt.Sprintf("/api/users/%s/block", userID))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return NewHTTPResponseError(res)
-	}
-	return nil
-}
-
 func (s AuthHTTPStore) GetAllOrgsAsAdmin(userID string) ([]entity.Organization, error) {
 	var result []entity.Organization
 	res, err := s.authHTTPClient.restyClient.R().

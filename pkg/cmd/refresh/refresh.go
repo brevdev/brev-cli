@@ -29,7 +29,7 @@ type RefreshStore interface {
 	ssh.ConfigUpdaterStore
 	ssh.SSHConfigurerV2Store
 	GetCurrentUser() (*entity.User, error)
-	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey() (string, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetAccessToken() (string, error)
 	Chmod(string, fs.FileMode) error
@@ -155,12 +155,12 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	keys, err := store.GetCurrentUserKeys()
+	privateKey, err := store.GetCurrentUserSSHPrivateKey()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
+	cu := ssh.NewConfigUpdater(store, configs, privateKey)
 	cu.ExternalNodes = getExternalNodeSSHEntries(store)
 
 	return cu, nil

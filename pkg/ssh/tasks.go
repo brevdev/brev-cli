@@ -2,7 +2,6 @@ package ssh
 
 import (
 	"github.com/brevdev/brev-cli/pkg/autostartconf"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/tasks"
 )
@@ -10,7 +9,7 @@ import (
 type SSHConfigurerTaskStore interface {
 	ConfigUpdaterStore
 	SSHConfigurerV2Store
-	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey() (string, error)
 }
 
 type SSHConfigurerTask struct {
@@ -29,12 +28,12 @@ func (sct SSHConfigurerTask) Run() error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	keys, err := sct.Store.GetCurrentUserKeys()
+	privateKey, err := sct.Store.GetCurrentUserSSHPrivateKey()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	cu := NewConfigUpdater(sct.Store, configs, keys.PrivateKey)
+	cu := NewConfigUpdater(sct.Store, configs, privateKey)
 	err = tasks.RunTasks([]tasks.Task{cu})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)

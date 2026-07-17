@@ -35,7 +35,7 @@ type CopyStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	StartWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetCurrentUserKeys() (*entity.UserKeys, error)
+	GetCurrentUserSSHPrivateKey() (string, error)
 	GetAccessToken() (string, error)
 }
 
