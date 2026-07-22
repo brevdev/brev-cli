@@ -2,6 +2,7 @@ package refresh
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -13,18 +14,18 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 )
 
-const workspaceSSHAccessTimeout = 10 * time.Second
+const sshAccessLookupTimeout = 10 * time.Second
 
-type environmentGetter interface {
+type environmentSSHClient interface {
 	GetEnvironment(context.Context, *connect.Request[devplanev1.GetEnvironmentRequest]) (*connect.Response[devplanev1.GetEnvironmentResponse], error)
 	GetNetworkInfo(context.Context, *connect.Request[devplanev1.EnvironmentServiceGetNetworkInfoRequest]) (*connect.Response[devplanev1.EnvironmentServiceGetNetworkInfoResponse], error)
 }
 
-type sshAccessWorkspaceStore struct {
+type workspaceSSHStore struct {
 	RefreshStore
 }
 
-func (s sshAccessWorkspaceStore) GetContextWorkspaces() ([]entity.Workspace, error) {
+func (s workspaceSSHStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	workspaces, err := s.RefreshStore.GetContextWorkspaces()
 	if err != nil {
 		return nil, err
@@ -37,98 +38,97 @@ func (s sshAccessWorkspaceStore) GetContextWorkspaces() ([]entity.Workspace, err
 	}
 
 	client := register.NewEnvironmentServiceClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	ctx, cancel := context.WithTimeout(context.Background(), workspaceSSHAccessTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), sshAccessLookupTimeout)
 	defer cancel()
 
 	return enrichWorkspacesWithSSHAccess(ctx, client, user.ID, workspaces), nil
 }
 
-func enrichWorkspacesWithSSHAccess(ctx context.Context, client environmentGetter, userID string, workspaces []entity.Workspace) []entity.Workspace {
+func enrichWorkspacesWithSSHAccess(ctx context.Context, client environmentSSHClient, userID string, workspaces []entity.Workspace) []entity.Workspace {
 	for i := range workspaces {
 		if workspaces[i].Status != entity.Running {
 			continue
 		}
 
-		res, err := client.GetEnvironment(ctx, connect.NewRequest(&devplanev1.GetEnvironmentRequest{
-			EnvironmentId: workspaces[i].ID,
-			AttachedDataOptions: &devplanev1.GetEnvironmentAttachedDataOptions{
-				Instance:  true,
-				SshAccess: true,
-			},
-		}))
+		workspace, err := resolveWorkspaceSSH(ctx, client, userID, workspaces[i])
 		if err != nil {
 			log.Printf("workspace SSH access: using legacy configuration for %s: %v", workspaces[i].ID, err)
 			continue
 		}
-		if res == nil || res.Msg == nil {
-			log.Printf("workspace SSH access: using legacy configuration for %s: empty response", workspaces[i].ID)
-			continue
-		}
-
-		environment := res.Msg.GetEnvironment()
-		access := getPortBackedSSHAccess(environment, userID)
-		if access == nil {
-			log.Printf("workspace SSH access: using legacy configuration for %s (no port-backed access for current user)", workspaces[i].ID)
-			continue
-		}
-
-		networkRes, err := client.GetNetworkInfo(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceGetNetworkInfoRequest{
-			EnvironmentId: workspaces[i].ID,
-		}))
-		if err != nil {
-			log.Printf("workspace SSH access: using legacy configuration for %s (network lookup failed): %v", workspaces[i].ID, err)
-			continue
-		}
-		if networkRes == nil || networkRes.Msg == nil {
-			log.Printf("workspace SSH access: using legacy configuration for %s (empty network response)", workspaces[i].ID)
-			continue
-		}
-
-		port := getSSHAccessPort(networkRes.Msg.GetNetworkInfo(), access.GetPortId())
-		if port == nil {
-			log.Printf("workspace SSH access: using legacy configuration for %s (port %s not found)", workspaces[i].ID, access.GetPortId())
-			continue
-		}
-
-		workspaces[i] = applyEnvironmentSSHAccess(workspaces[i], environment.GetInstance(), access, port)
-		log.Printf(
-			"workspace SSH access: resolved %s as %s@%s:%d from port %s",
-			workspaces[i].ID,
-			workspaces[i].SSHUser,
-			workspaces[i].SSHHostname,
-			workspaces[i].SSHPort,
-			access.GetPortId(),
-		)
+		workspaces[i] = workspace
 	}
 	return workspaces
 }
 
-func applyEnvironmentSSHAccess(
+func resolveWorkspaceSSH(
+	ctx context.Context,
+	client environmentSSHClient,
+	userID string,
 	workspace entity.Workspace,
-	instance *devplanev1.Instance,
-	access *devplanev1.SSHAccess,
-	port *devplanev1.Port,
-) entity.Workspace {
-	if access == nil || port == nil || port.GetHostname() == "" || port.GetPortNumber() == 0 {
-		return workspace
+) (entity.Workspace, error) {
+	environmentRes, err := client.GetEnvironment(ctx, connect.NewRequest(&devplanev1.GetEnvironmentRequest{
+		EnvironmentId: workspace.ID,
+		AttachedDataOptions: &devplanev1.GetEnvironmentAttachedDataOptions{
+			Instance:  true,
+			SshAccess: true,
+		},
+	}))
+	if err != nil {
+		return workspace, fmt.Errorf("get environment: %w", err)
+	}
+	if environmentRes == nil || environmentRes.Msg == nil || environmentRes.Msg.GetEnvironment() == nil {
+		return workspace, fmt.Errorf("get environment: empty response")
 	}
 
+	// Use the ssh access information to determine the SSH target, rather than the public IP, DNS, or other information
+	// returned by the initial workspace query.
+	environment := environmentRes.Msg.GetEnvironment()
+	access := findUserSSHAccess(environment.GetSshAccess(), userID)
+	if access == nil {
+		return workspace, nil
+	}
+	if access.GetLinuxUser() == "" {
+		return workspace, fmt.Errorf("SSH access has no Linux user")
+	}
+
+	// Using the port ID, we can lookup the network information to get the hostname and port number of the SSH target.
+	networkRes, err := client.GetNetworkInfo(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceGetNetworkInfoRequest{
+		EnvironmentId: workspace.ID,
+	}))
+	if err != nil {
+		return workspace, fmt.Errorf("get network info: %w", err)
+	}
+	if networkRes == nil || networkRes.Msg == nil {
+		return workspace, fmt.Errorf("get network info: empty response")
+	}
+
+	port := findNetworkPort(networkRes.Msg.GetNetworkInfo(), access.GetPortId())
+	if port == nil {
+		return workspace, fmt.Errorf("SSH access port %q not found", access.GetPortId())
+	}
+	if port.GetHostname() == "" || port.GetPortNumber() == 0 {
+		return workspace, fmt.Errorf("SSH access port %q has no endpoint", access.GetPortId())
+	}
+
+	// Honor the SSH access information as the source of truth for the SSH target.
 	workspace.SSHHostname = port.GetHostname()
 	workspace.SSHPort = int(port.GetPortNumber())
 	workspace.SSHUser = access.GetLinuxUser()
 	workspace.SSHProxyHostname = ""
 
-	if providerHostname := getProviderSSHHostname(instance); providerHostname != "" {
+	// To support the "--host" fallback, preserve the legacy hostname information returned by the initial workspace query.
+	if providerHostname := providerSSHHostname(environment.GetInstance(), port.GetHostname()); providerHostname != "" {
 		workspace.HostSSHHostname = providerHostname
 		workspace.HostSSHProxyHostname = ""
 	}
-	return workspace
+	return workspace, nil
 }
 
-func getPortBackedSSHAccess(environment *devplanev1.Environment, userID string) *devplanev1.SSHAccess {
-	for _, access := range environment.GetSshAccess() {
-		// A PortId identifies access through the resolved Skybridge endpoint.
-		// Legacy Cloudflare access has no PortId and keeps using the existing proxy config.
+func findUserSSHAccess(accesses []*devplanev1.SSHAccess, userID string) *devplanev1.SSHAccess {
+	// Technically it is possible that multiple SSHAccess entries exist for a single user+environment. This is typically only
+	// for external nodes, which allow for multiple sshd processes to be targeted. For the normal environment flow, the below
+	// is a best-effort approach to find the *first* applicable entry.
+	for _, access := range accesses {
 		if access.GetUserId() == userID && access.GetPortId() != "" {
 			return access
 		}
@@ -136,7 +136,7 @@ func getPortBackedSSHAccess(environment *devplanev1.Environment, userID string) 
 	return nil
 }
 
-func getSSHAccessPort(networkInfo *devplanev1.EnvironmentNetworkInfo, portID string) *devplanev1.Port {
+func findNetworkPort(networkInfo *devplanev1.EnvironmentNetworkInfo, portID string) *devplanev1.Port {
 	for _, port := range networkInfo.GetPorts() {
 		if port.GetPortId() == portID {
 			return port
@@ -145,15 +145,14 @@ func getSSHAccessPort(networkInfo *devplanev1.EnvironmentNetworkInfo, portID str
 	return nil
 }
 
-func getProviderSSHHostname(instance *devplanev1.Instance) string {
-	if instance.GetPublicIp() != "" {
-		return instance.GetPublicIp()
+func providerSSHHostname(instance *devplanev1.Instance, workloadHostname string) string {
+	if instance == nil {
+		return ""
 	}
-	if instance.GetPublicDns() != "" && instance.GetPublicDns() != instance.GetSshHostname() {
-		return instance.GetPublicDns()
-	}
-	if instance.GetHostname() != "" && instance.GetHostname() != instance.GetSshHostname() {
-		return instance.GetHostname()
+	for _, hostname := range []string{instance.GetPublicIp(), instance.GetPublicDns(), instance.GetHostname()} {
+		if hostname != "" && hostname != workloadHostname {
+			return hostname
+		}
 	}
 	return ""
 }

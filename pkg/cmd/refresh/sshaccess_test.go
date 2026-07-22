@@ -12,16 +12,15 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 )
 
-type stubEnvironmentGetter struct {
+type stubEnvironmentSSHClient struct {
 	environment    *devplanev1.Environment
 	networkInfo    *devplanev1.EnvironmentNetworkInfo
 	err            error
-	networkErr     error
 	request        *devplanev1.GetEnvironmentRequest
 	networkRequest *devplanev1.EnvironmentServiceGetNetworkInfoRequest
 }
 
-func (s *stubEnvironmentGetter) GetEnvironment(
+func (s *stubEnvironmentSSHClient) GetEnvironment(
 	_ context.Context,
 	req *connect.Request[devplanev1.GetEnvironmentRequest],
 ) (*connect.Response[devplanev1.GetEnvironmentResponse], error) {
@@ -32,20 +31,17 @@ func (s *stubEnvironmentGetter) GetEnvironment(
 	return connect.NewResponse(&devplanev1.GetEnvironmentResponse{Environment: s.environment}), nil
 }
 
-func (s *stubEnvironmentGetter) GetNetworkInfo(
+func (s *stubEnvironmentSSHClient) GetNetworkInfo(
 	_ context.Context,
 	req *connect.Request[devplanev1.EnvironmentServiceGetNetworkInfoRequest],
 ) (*connect.Response[devplanev1.EnvironmentServiceGetNetworkInfoResponse], error) {
 	s.networkRequest = req.Msg
-	if s.networkErr != nil {
-		return nil, s.networkErr
-	}
 	return connect.NewResponse(&devplanev1.EnvironmentServiceGetNetworkInfoResponse{
 		NetworkInfo: s.networkInfo,
 	}), nil
 }
 
-func TestEnrichWorkspacesWithSSHAccess_ContainerEndpoint(t *testing.T) {
+func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPort(t *testing.T) {
 	workspace := entity.Workspace{
 		ID:                   "env-1",
 		Name:                 "container-env",
@@ -58,7 +54,7 @@ func TestEnrichWorkspacesWithSSHAccess_ContainerEndpoint(t *testing.T) {
 		SSHProxyHostname:     "legacy-proxy.example.com",
 		HostSSHProxyHostname: "legacy-host-proxy.example.com",
 	}
-	client := &stubEnvironmentGetter{
+	client := &stubEnvironmentSSHClient{
 		environment: &devplanev1.Environment{
 			Instance: &devplanev1.Instance{
 				SshHostname: "203.0.113.10",
@@ -66,11 +62,13 @@ func TestEnrichWorkspacesWithSSHAccess_ContainerEndpoint(t *testing.T) {
 				PublicIp:    "203.0.113.10",
 			},
 			SshAccess: []*devplanev1.SSHAccess{
+				{UserId: "other-user", LinuxUser: "wrong-user", PortId: "other-port"},
 				{UserId: "user-1", LinuxUser: "root", PortId: "ssh-port"},
 			},
 		},
 		networkInfo: &devplanev1.EnvironmentNetworkInfo{
 			Ports: []*devplanev1.Port{
+				{PortId: "other-port", Hostname: strPtr("wrong.example.com"), PortNumber: 49999},
 				{PortId: "ssh-port", Hostname: strPtr("skybridge.example.com"), PortNumber: 41234, ServerPort: 22},
 			},
 		},
@@ -100,41 +98,6 @@ func TestEnrichWorkspacesWithSSHAccess_ContainerEndpoint(t *testing.T) {
 	}
 }
 
-func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersAccessWithoutSysUserType(t *testing.T) {
-	workspace := entity.Workspace{
-		ID:      "env-1",
-		Name:    "vm-env",
-		DNS:     "legacy.example.com",
-		Status:  entity.Running,
-		SSHUser: "ubuntu",
-		SSHPort: 22,
-	}
-	client := &stubEnvironmentGetter{
-		environment: &devplanev1.Environment{
-			Instance: &devplanev1.Instance{},
-			SshAccess: []*devplanev1.SSHAccess{
-				{UserId: "other-user", LinuxUser: "wrong-user", PortId: "other-port"},
-				{UserId: "user-1", LinuxUser: "ubuntu", PortId: "ssh-port"},
-			},
-		},
-		networkInfo: &devplanev1.EnvironmentNetworkInfo{
-			Ports: []*devplanev1.Port{
-				{PortId: "other-port", Hostname: strPtr("wrong.example.com"), PortNumber: 49999},
-				{PortId: "ssh-port", Hostname: strPtr("skybridge.example.com"), PortNumber: 41234},
-			},
-		},
-	}
-
-	got := enrichWorkspacesWithSSHAccess(context.Background(), client, "user-1", []entity.Workspace{workspace})
-	want := workspace
-	want.SSHHostname = "skybridge.example.com"
-	want.SSHPort = 41234
-
-	if diff := cmp.Diff([]entity.Workspace{want}, got); diff != "" {
-		t.Fatalf("unexpected workspace (-want +got): %s", diff)
-	}
-}
-
 func TestEnrichWorkspacesWithSSHAccess_FallsBackOnError(t *testing.T) {
 	workspace := entity.Workspace{
 		ID:      "env-1",
@@ -144,7 +107,7 @@ func TestEnrichWorkspacesWithSSHAccess_FallsBackOnError(t *testing.T) {
 		SSHUser: "ubuntu",
 		SSHPort: 22,
 	}
-	client := &stubEnvironmentGetter{err: errors.New("dev-plane unavailable")}
+	client := &stubEnvironmentSSHClient{err: errors.New("dev-plane unavailable")}
 
 	got := enrichWorkspacesWithSSHAccess(context.Background(), client, "user-1", []entity.Workspace{workspace})
 	if diff := cmp.Diff([]entity.Workspace{workspace}, got); diff != "" {
@@ -160,7 +123,7 @@ func TestEnrichWorkspacesWithSSHAccess_FallsBackWithoutPortBackedAccess(t *testi
 		SSHUser: "ubuntu",
 		SSHPort: 22,
 	}
-	client := &stubEnvironmentGetter{environment: &devplanev1.Environment{
+	client := &stubEnvironmentSSHClient{environment: &devplanev1.Environment{
 		Instance: &devplanev1.Instance{},
 		SshAccess: []*devplanev1.SSHAccess{
 			{UserId: "user-1", LinuxUser: "root"},
