@@ -207,6 +207,92 @@ func TestParseLaunchableID(t *testing.T) {
 	}
 }
 
+func TestParseLaunchableParameterValues(t *testing.T) {
+	values, err := parseLaunchableParameterValues([]string{"MODEL=llama=3", "PORT=8080"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"MODEL": "llama=3", "PORT": "8080"}, values)
+
+	_, err = parseLaunchableParameterValues([]string{"MISSING_SEPARATOR"})
+	assert.ErrorContains(t, err, "expected NAME=VALUE")
+
+	_, err = parseLaunchableParameterValues([]string{"MODEL=a", "MODEL=b"})
+	assert.ErrorContains(t, err, "provided more than once")
+}
+
+func TestResolveLaunchableParameterBindings(t *testing.T) {
+	info := &store.LaunchableResponse{
+		BuildRequest: store.LaunchableBuildRequest{
+			Parameters: []store.Parameter{
+				{Name: "MODEL", Required: true, Choice: &store.ChoiceParameter{
+					Choices: []string{"llama", "nemotron"},
+				}},
+				{Name: "REGION", Required: true, Choice: &store.ChoiceParameter{
+					Choices: []string{"us", "eu"},
+				}},
+				{Name: "TAG", Text: &store.TextParameter{DefaultValue: "latest"}},
+				{Name: "OPTIONAL", Text: &store.TextParameter{}},
+			},
+		},
+	}
+
+	bindings, err := resolveLaunchableParameterBindings(info, map[string]string{"MODEL": "nemotron", "REGION": "us"})
+	require.NoError(t, err)
+	assert.Equal(t, []store.ParameterBinding{
+		{Name: "MODEL", Value: "nemotron"},
+		{Name: "REGION", Value: "us"},
+		{Name: "TAG", Value: "latest"},
+	}, bindings)
+
+	_, err = resolveLaunchableParameterBindings(info, map[string]string{
+		"MODEL":  "unknown",
+		"REGION": "asia",
+		"TYPO":   "value",
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `unknown parameter "TYPO"`)
+	assert.ErrorContains(t, err, `invalid value "unknown" for "MODEL"`)
+	assert.ErrorContains(t, err, `invalid value "asia" for "REGION"`)
+
+	_, err = resolveLaunchableParameterBindings(info, nil)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `missing required parameter "MODEL"; provide --param MODEL=VALUE`)
+	assert.ErrorContains(t, err, `missing required parameter "REGION"; provide --param REGION=VALUE`)
+}
+
+func TestLaunchableParameterDisplayLines(t *testing.T) {
+	parameters := []store.Parameter{
+		{
+			Name:        "B",
+			Description: "Optional parameter",
+			Text:        &store.TextParameter{},
+		},
+		{
+			Name:        "A",
+			Description: "Text parameter",
+			Required:    true,
+			Text:        &store.TextParameter{DefaultValue: "default-a"},
+		},
+		{
+			Name:        "C",
+			Description: "Choice parameter",
+			Required:    true,
+			Choice: &store.ChoiceParameter{
+				Choices:      []string{"one", "two"},
+				DefaultValue: "one",
+			},
+		},
+	}
+
+	assert.Equal(t, []string{
+		"Required Parameters:",
+		"    A    Text parameter (default: default-a)",
+		"    C    Choice parameter (allowed: one, two; default: one)",
+		"Optional Parameters:",
+		"    B    Optional parameter",
+	}, launchableParameterDisplayLines(parameters))
+	assert.Nil(t, launchableParameterDisplayLines(nil))
+}
+
 func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 	t.Run("populates all fields from launchable", func(t *testing.T) {
 		cwOptions := &store.CreateWorkspacesOptions{
@@ -247,7 +333,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc123", info)
+		applyLaunchableConfig(cwOptions, "env-abc123", info, nil)
 
 		// Cloud credential from launchable input.
 		assert.Equal(t, "GCP", cwOptions.CloudCredID)
@@ -293,7 +379,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "existing-cloud-cred", cwOptions.CloudCredID)
 	})
@@ -306,7 +392,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 	})
@@ -319,7 +405,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 	})
@@ -332,7 +418,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "100G", cwOptions.DiskStorage)
 	})
@@ -349,7 +435,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Nil(t, cwOptions.VMBuild)
 		assert.Equal(t, "nvcr.io/nvidia/test:latest", cwOptions.CustomContainer.ContainerURL)
@@ -369,7 +455,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Nil(t, cwOptions.VMBuild)
 		assert.Equal(t, dockerCompose.FileURL, cwOptions.DockerCompose.FileURL)
@@ -393,7 +479,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, []store.CreateFirewallRule{
 			{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
@@ -479,7 +565,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			CreatedByOrgID:  "org-1",
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		labels, ok := cwOptions.Labels.(map[string]string)
 		assert.True(t, ok)
@@ -532,7 +618,9 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 		},
 	}
 
-	applyLaunchableConfig(cwOptions, "env-abc", info)
+	applyLaunchableConfig(cwOptions, "env-abc", info, []store.ParameterBinding{
+		{Name: "MODEL", Value: "llama"},
+	})
 
 	body, err := json.Marshal(cwOptions)
 	assert.NoError(t, err)
@@ -545,7 +633,7 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 	assert.Contains(t, s, `"allowedIPs":"all"`)
 	assert.Contains(t, s, `"allowedIPs":"user-ip"`)
 	assert.Contains(t, s, `"clientIPs":["203.0.113.7/32"]`)
-	assert.Contains(t, s, `"launchableConfig":{"id":"env-abc"}`)
+	assert.Contains(t, s, `"launchableConfig":{"id":"env-abc","parameterBindings":[{"name":"MODEL","value":"llama"}]}`)
 }
 
 func TestFetchPublicIP(t *testing.T) {
