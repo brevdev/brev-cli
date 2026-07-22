@@ -286,9 +286,11 @@ type Workspace struct {
 	IDEConfig            IDEConfig         `json:"ideConfig"`
 	SSHPort              int               `json:"sshPort"`
 	SSHUser              string            `json:"sshUser"`
+	SSHHostname          string            `json:"sshHostname,omitempty"`
 	SSHProxyHostname     string            `json:"sshProxyHostname"`
 	HostSSHPort          int               `json:"hostSshPort"`
 	HostSSHUser          string            `json:"hostSshUser"`
+	HostSSHHostname      string            `json:"hostSshHostname,omitempty"`
 	HostSSHProxyHostname string            `json:"hostSshProxyHostname"`
 	VerbBuildStatus      VerbBuildStatus   `json:"verbBuildStatus"`
 	VerbYaml             string            `json:"verbYaml"`
@@ -368,6 +370,20 @@ func (w Workspace) GetHostname() string {
 		hostname = "-"
 	}
 	return hostname
+}
+
+func (w Workspace) GetSSHHostname() string {
+	if w.SSHHostname != "" {
+		return w.SSHHostname
+	}
+	return w.GetHostname()
+}
+
+func (w Workspace) GetHostSSHHostname() string {
+	if w.HostSSHHostname != "" {
+		return w.HostSSHHostname
+	}
+	return w.GetHostname()
 }
 
 func (w Workspace) GetSSHPort() int {

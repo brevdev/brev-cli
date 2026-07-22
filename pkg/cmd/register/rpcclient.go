@@ -53,6 +53,14 @@ func NewNodeServiceClient(provider externalnode.TokenProvider, baseURL string) n
 	)
 }
 
+// NewEnvironmentServiceClient creates an authenticated ConnectRPC EnvironmentServiceClient.
+func NewEnvironmentServiceClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.EnvironmentServiceClient {
+	return nodev1connect.NewEnvironmentServiceClient(
+		newAuthenticatedHTTPClient(provider),
+		baseURL,
+	)
+}
+
 // toProtoNodeSpec converts the local HardwareProfile (used for collection, display,
 // persistence) to the generated proto NodeSpec for RPC calls.
 func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {

@@ -358,7 +358,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	privateKeyPath = "\"" + privateKeyPath + "\""
 	var sshVal string
 	user := workspace.GetSSHUser()
-	hostname := workspace.GetHostname()
+	hostname := workspace.GetSSHHostname()
 	if workspace.SSHProxyHostname == "" {
 		port := workspace.GetSSHPort()
 		projPath, err := workspace.GetProjectFolderPath()
@@ -408,6 +408,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	var hostSSHVal string
 	hostport := workspace.GetHostSSHPort()
 	hostuser := workspace.GetHostSSHUser()
+	hostSSHHostname := workspace.GetHostSSHHostname()
 	if workspace.HostSSHProxyHostname == "" {
 		projPath, err := workspace.GetProjectFolderPath()
 		if err != nil {
@@ -418,7 +419,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 			IdentityFile: privateKeyPath,
 			User:         hostuser,
 			Dir:          projPath,
-			HostName:     hostname,
+			HostName:     hostSSHHostname,
 			Port:         hostport,
 		}
 		tmpl, err := template.New(alias).Parse(SSHConfigEntryTemplateV3)
@@ -633,7 +634,7 @@ func (s SSHConfigurerJetBrains) CreateNewSSHConfig(workspaces []entity.Workspace
 //
 // </application>
 func makeJetbrainsConfigEntry(workspace entity.Workspace, privateKeyPath string) JetbrainsGatewayConfigXMLSSHConfig {
-	hostname := workspace.GetHostname()
+	hostname := workspace.GetSSHHostname()
 	port := workspace.GetSSHPort()
 	// name := workspace.GetLocalIdentifier()
 	return JetbrainsGatewayConfigXMLSSHConfig{

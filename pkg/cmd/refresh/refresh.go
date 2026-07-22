@@ -160,7 +160,7 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
+	cu := ssh.NewConfigUpdater(sshAccessWorkspaceStore{RefreshStore: store}, configs, keys.PrivateKey)
 	cu.ExternalNodes = getExternalNodeSSHEntries(store)
 
 	return cu, nil

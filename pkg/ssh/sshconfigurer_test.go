@@ -287,7 +287,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 	}{
 		// TODO: Add test cases.
 		{
-			name: "test devplane uses ubuntu",
+			name: "test separate workload and host endpoints",
 			args: args{
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
@@ -301,14 +301,16 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 					GitRepo:          "gitrepo",
 					SSHPort:          20,
 					SSHUser:          "ubuntu-wk",
+					SSHHostname:      "skybridge.example.com",
 					HostSSHPort:      2022,
 					HostSSHUser:      "ubuntu-host",
+					HostSSHHostname:  "203.0.113.10",
 				},
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
 			want: `Host testName2
-  Hostname test2-dns-org.brev.sh
+  Hostname skybridge.example.com
   IdentityFile "/my/priv/key.pem"
   User ubuntu-wk
   ServerAliveInterval 30
@@ -325,7 +327,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   Port 20
 
 Host testName2-host
-  Hostname test2-dns-org.brev.sh
+  Hostname 203.0.113.10
   IdentityFile "/my/priv/key.pem"
   User ubuntu-host
   ServerAliveInterval 30
@@ -520,6 +522,19 @@ Host testName2-host
 				t.Fatalf("%s", diff)
 			}
 		})
+	}
+}
+
+func TestMakeJetbrainsConfigEntryUsesSSHHostname(t *testing.T) {
+	entry := makeJetbrainsConfigEntry(entity.Workspace{
+		DNS:         "legacy.example.com",
+		SSHHostname: "skybridge.example.com",
+		SSHUser:     "root",
+		SSHPort:     41234,
+	}, "/tmp/brev.pem")
+
+	if entry.Host != "skybridge.example.com" {
+		t.Fatalf("host = %q, want skybridge.example.com", entry.Host)
 	}
 }
 
