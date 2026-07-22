@@ -125,7 +125,14 @@ type CreateFirewallRule struct {
 }
 
 type LaunchableConfig struct {
-	ID string `json:"id"`
+	ID                string             `json:"id"`
+	ParameterBindings []ParameterBinding `json:"parameterBindings,omitempty"`
+}
+
+type ParameterBinding struct {
+	Name         string `json:"name"`
+	Value        string `json:"value,omitempty"`
+	BrevSecretID string `json:"brevSecretId,omitempty"`
 }
 
 type LaunchableResponse struct {
@@ -155,6 +162,24 @@ type LaunchableBuildRequest struct {
 	CustomContainer *CustomContainer `json:"containerBuild,omitempty"`
 	DockerCompose   *DockerCompose   `json:"dockerCompose,omitempty"`
 	Ports           []LaunchablePort `json:"ports"`
+	Parameters      []Parameter      `json:"parameters,omitempty"`
+}
+
+type Parameter struct {
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	Required    bool             `json:"required"`
+	Text        *TextParameter   `json:"text,omitempty"`
+	Choice      *ChoiceParameter `json:"choice,omitempty"`
+}
+
+type TextParameter struct {
+	DefaultValue string `json:"defaultValue,omitempty"`
+}
+
+type ChoiceParameter struct {
+	Choices      []string `json:"choices"`
+	DefaultValue string   `json:"defaultValue,omitempty"`
 }
 
 type LaunchablePort struct {
