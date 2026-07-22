@@ -12,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 const sshAccessLookupTimeout = 10 * time.Second
@@ -28,7 +29,7 @@ type workspaceSSHStore struct {
 func (s workspaceSSHStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	workspaces, err := s.RefreshStore.GetContextWorkspaces()
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	user, err := s.GetCurrentUser()
