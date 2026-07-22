@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"sync"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -160,7 +159,7 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.NewConfigUpdater(store, configs, keys.PrivateKey)
+	cu := ssh.NewConfigUpdater(workspaceSSHStore{RefreshStore: store}, configs, keys.PrivateKey)
 	cu.ExternalNodes = getExternalNodeSSHEntries(store)
 
 	return cu, nil
@@ -171,13 +170,11 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 func getExternalNodeSSHEntries(store RefreshStore) []ssh.ExternalNodeSSHEntry {
 	org, err := store.GetActiveOrganizationOrDefault()
 	if err != nil {
-		log.Printf("external nodes: skipping (no org): %v", err)
 		return nil
 	}
 
 	user, err := store.GetCurrentUser()
 	if err != nil {
-		log.Printf("external nodes: skipping (no user): %v", err)
 		return nil
 	}
 
@@ -186,7 +183,6 @@ func getExternalNodeSSHEntries(store RefreshStore) []ssh.ExternalNodeSSHEntry {
 		OrganizationId: org.ID,
 	}))
 	if err != nil {
-		log.Printf("external nodes: skipping (list failed): %v", err)
 		return nil
 	}
 

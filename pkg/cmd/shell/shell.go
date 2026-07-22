@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -111,6 +112,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	}
 	sshName := string(localIdentifier)
 
+	printResolvedSSHTarget(sshName)
 	err = runSSHWithOptions(sshName, host, false)
 	if err == nil {
 		trackShellAnalytics(sstore, workspace)
@@ -132,6 +134,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	printResolvedSSHTarget(sshName)
 	err = util.WaitForSSHToBeAvailable(sshName, s)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -246,4 +249,48 @@ func runSSHWithOptions(sshAlias string, host bool, printFailureAdvice bool) erro
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func printResolvedSSHTarget(sshAlias string) {
+	output, err := exec.Command("ssh", "-G", sshAlias).Output() //nolint:gosec // alias is the same internal SSH target passed to ssh
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target: unavailable:", err)
+		return
+	}
+
+	var user, hostname, port, proxyCommand string
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		key, value, found := strings.Cut(scanner.Text(), " ")
+		if !found {
+			continue
+		}
+		switch key {
+		case "user":
+			user = value
+		case "hostname":
+			hostname = value
+		case "port":
+			port = value
+		case "proxycommand":
+			proxyCommand = value
+		}
+	}
+
+	if hostname == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target: unavailable")
+		return
+	}
+
+	target := hostname
+	if user != "" {
+		target = user + "@" + target
+	}
+	if port != "" {
+		target += ":" + port
+	}
+	if proxyCommand != "" && proxyCommand != "none" {
+		target += " via " + proxyCommand
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target:", target)
 }
