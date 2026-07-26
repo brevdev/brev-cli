@@ -343,6 +343,11 @@ Prefix a file path with `@` to run a local script on the remote instance:
 - `@setup.sh` - relative path from current directory
 - `@/absolute/path/script.sh` - absolute path
 - The script is read locally and executed remotely
+
+**Long-running commands:** `brev exec` holds the session until the command exits,
+including for `nohup ... &` children. For long jobs (training runs), have the script
+detach fully (`setsid nohup <job> > run.log 2>&1 < /dev/null & disown`) and write a
+completion marker (`echo DONE >> ~/progress.log`) that later `brev exec` calls can poll.
 - Works with any shell script
 
 **Examples:**
