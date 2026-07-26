@@ -142,6 +142,8 @@ alone is not usable - wait for the SHELL column to show `READY` in `brev ls` bef
 `exec`/`shell`, and retry the first connection (sshd can refuse for another minute or two
 after `READY`). The create readiness poll can end with a spurious-looking `ErrorForbidden`
 even though the instance provisions fine - treat it as benign and watch `brev ls` instead.
+Stop/start preserves the disk (venv, payload) but can change the **public IP** - re-run
+`brev refresh` and re-resolve any direct endpoints after a restart.
 
 ### Instance Access
 ```bash
