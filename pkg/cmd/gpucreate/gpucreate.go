@@ -1374,6 +1374,9 @@ func applyLaunchableWorkspaceRequest(cwOptions *store.CreateWorkspacesOptions, w
 	if wsReq.SubLocation != "" {
 		cwOptions.SubLocation = wsReq.SubLocation
 	}
+	if wsReq.ImageID != "" {
+		cwOptions.BaseImage = wsReq.ImageID
+	}
 
 	// Disk storage — the API may return a bare number (e.g., "256") or with
 	// a unit suffix (e.g., "256Gi"). The server's ParseDiskStorage expects a
