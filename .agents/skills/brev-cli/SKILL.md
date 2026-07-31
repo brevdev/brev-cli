@@ -27,7 +27,7 @@ Use this skill when users want to:
 - Port forward from remote to local
 - Manage organizations and instances
 
-**Trigger Keywords:** brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine, shell
+**Trigger Keywords:** brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine, shell, node, external node, brev ls nodes
 
 ## Quick Start
 
@@ -46,6 +46,9 @@ brev create my-instance --type g5.xlarge
 
 # List your instances
 brev ls
+
+# List external nodes (a separate list from `brev ls`)
+brev ls nodes
 
 # SSH into an instance (interactive)
 brev shell my-instance
@@ -169,6 +172,36 @@ brev copy my-instance:/remote/file ./local-path/
 brev port-forward my-instance -p 8080:8080
 ```
 
+### Listing Instances and Nodes
+`brev ls` covers two separate namespaces. External nodes never appear in
+`brev ls`, so check `brev ls nodes` before concluding a machine doesn't exist.
+
+```bash
+brev ls              # cloud instances
+brev ls instances    # same as above, explicit
+brev ls nodes        # external nodes only (machines registered to the org)
+brev ls orgs         # organizations
+brev ls --json       # machine-readable
+brev ls nodes --json
+```
+
+|  | `brev ls` | `brev ls nodes` |
+|---|---|---|
+| Status values | `RUNNING` / `STOPPED` | `Connected` / `Disconnected` |
+| Columns | NAME, STATUS, BUILD, SHELL, ID, MACHINE, GPU | NAME, STATUS |
+| `stop` / `start` / `delete` | yes | no — Brev doesn't manage their lifecycle |
+
+The two `--json` shapes differ: `brev ls nodes --json` is a top-level array,
+while `brev ls --json` wraps rows in `.workspaces`.
+
+```bash
+brev ls nodes --json | jq -r '.[].name'
+brev ls       --json | jq -r '.workspaces[].name'
+
+# Names of nodes that are currently connected
+brev ls nodes --json | jq -r '.[] | select(.status=="Connected") | .name'
+```
+
 ### Instance Management
 ```bash
 # List instances
@@ -267,6 +300,7 @@ Do this proactively when:
 
 **"Instance not found":**
 - Run `brev ls` to see available instances
+- Run `brev ls nodes` — external nodes are a separate list and never show up in `brev ls`
 - Check if you're in the correct org: `brev org ls`
 
 **"Failed to create instance":**

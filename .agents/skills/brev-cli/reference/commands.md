@@ -211,8 +211,16 @@ brev search cpu | brev create my-cpu-box
 List instances in active org.
 
 ```bash
-brev ls [flags]
+brev ls [subcommand] [flags]
 ```
+
+**Subcommands:**
+| Subcommand | Lists |
+|---|---|
+| *(none)* | cloud instances |
+| `instances` | cloud instances (explicit form) |
+| `nodes` | external nodes only |
+| `orgs` | organizations |
 
 **Flags:**
 | Flag | Short | Description |
@@ -220,6 +228,37 @@ brev ls [flags]
 | `--org` | `-o` | Override active org |
 | `--all` | | Show all instances in org |
 | `--json` | | Output as JSON |
+
+#### Instances vs. external nodes
+
+Two separate namespaces — an external node never appears in `brev ls`.
+
+```bash
+$ brev ls
+ NAME         STATUS   BUILD      SHELL  ID         MACHINE         GPU
+ my-instance  RUNNING  COMPLETED  READY  jmorx0saw  n2d-standard-2  -
+
+$ brev ls nodes
+ NAME     STATUS
+ my-node  Connected
+```
+
+|  | `brev ls` | `brev ls nodes` |
+|---|---|---|
+| Status values | `RUNNING` / `STOPPED` | `Connected` / `Disconnected` |
+| Columns | NAME, STATUS, BUILD, SHELL, ID, MACHINE, GPU | NAME, STATUS |
+| `stop` / `start` / `delete` | yes | no |
+
+The two `--json` shapes differ — `brev ls nodes --json` returns a top-level
+array, `brev ls --json` wraps rows in `.workspaces`:
+
+```bash
+brev ls nodes --json | jq -r '.[].name'
+brev ls       --json | jq -r '.workspaces[].name'
+
+# Only the nodes that are currently connected
+brev ls nodes --json | jq -r '.[] | select(.status=="Connected") | .name'
+```
 
 When stdout is piped, outputs instance names only (one per line) for chaining.
 
