@@ -27,7 +27,7 @@ Use this skill when users want to:
 - Port forward from remote to local
 - Manage organizations and instances
 
-**Trigger Keywords:** brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine, shell, node, external node, brev ls nodes
+**Trigger Keywords:** brev, gpu, cpu, instance, create instance, ssh, vram, vcpu, A100, H100, cloud gpu, cloud cpu, remote machine, shell
 
 ## Quick Start
 
