@@ -58,7 +58,10 @@ func (s AuthHTTPStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusear
 	includePreemptible := false
 	includeCPU := true
 	uniqueInstanceType := true
-	skipAccessFilter := false
+	// The create flow must see every type the organization can launch through
+	// its cloud credentials, including reserved-pool types surfaced by search.
+	// Capacity is still filtered by IncludeUnavailable above.
+	skipAccessFilter := true
 	res, err := client.ListOrganizationAvailableInstanceTypes(context.Background(), connect.NewRequest(&devplaneapiv1.ListOrganizationAvailableInstanceTypesRequest{
 		OrganizationId: orgID,
 		Options: &devplaneapiv1.ListInstanceTypeOptions{

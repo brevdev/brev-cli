@@ -20,6 +20,7 @@ type instanceCatalogTestHandler struct {
 	gotOrgID                  string
 	gotConnectProtocolVersion string
 	gotIncludeCPU             bool
+	gotSkipAccessFilter       bool
 }
 
 func (h *instanceCatalogTestHandler) ListPublicInstanceType(
@@ -79,19 +80,24 @@ func (h *instanceCatalogTestHandler) ListOrganizationAvailableInstanceTypes(
 	h.gotAuth = req.Header().Get("Authorization")
 	h.gotOrgID = req.Msg.GetOrganizationId()
 	h.gotConnectProtocolVersion = req.Header().Get("Connect-Protocol-Version")
-	return connect.NewResponse(&devplaneapiv1.ListOrganizationAvailableInstanceTypesResponse{
-		Items: []*devplaneapiv1.InstanceType{{
-			Type:        "h100-1x",
+	h.gotSkipAccessFilter = req.Msg.GetOptions().GetSkipAccessFilter()
+	items := []*devplaneapiv1.InstanceType{}
+	if h.gotSkipAccessFilter {
+		items = append(items, &devplaneapiv1.InstanceType{
+			Type:        "verda_RTXPro6000",
 			CloudCredId: "cc-org-1",
 			CloudCred: &devplaneapiv1.CloudCredMetadata{
 				CloudCredId: "cc-org-1",
-				ProviderId:  "aws",
-				Name:        "Org AWS",
+				ProviderId:  "shadeform",
+				Name:        "Shadeform",
 				TenantType:  devplaneapiv1.TenantType_TENANT_TYPE_ISOLATED,
 			},
-			AvailableLocations: []string{"us-east-1"},
+			AvailableLocations: []string{"us-central-1"},
 			IsAvailable:        true,
-		}},
+		})
+	}
+	return connect.NewResponse(&devplaneapiv1.ListOrganizationAvailableInstanceTypesResponse{
+		Items: items,
 	}), nil
 }
 
@@ -119,9 +125,10 @@ func TestGetAllInstanceTypesWithCloudCredsUsesDevPlanePublicAPI(t *testing.T) {
 	assert.Equal(t, "Bearer tok", catalogHandler.gotAuth)
 	assert.Equal(t, "1", catalogHandler.gotConnectProtocolVersion)
 	assert.Equal(t, "org-1", catalogHandler.gotOrgID)
+	assert.True(t, catalogHandler.gotSkipAccessFilter)
 	if assert.Len(t, resp.AllInstanceTypes, 1) {
-		assert.Equal(t, "h100-1x", resp.AllInstanceTypes[0].Type)
-		assert.Equal(t, "cc-org-1", resp.GetCloudCredID("h100-1x"))
+		assert.Equal(t, "verda_RTXPro6000", resp.AllInstanceTypes[0].Type)
+		assert.Equal(t, "cc-org-1", resp.GetCloudCredID("verda_RTXPro6000"))
 	}
 }
 
