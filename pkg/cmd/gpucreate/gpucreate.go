@@ -1236,6 +1236,14 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 			cwOptions.WithCloudCredID(cloudCredID)
 		}
 	}
+	if cwOptions.CloudCredID == "" && c.publicInstanceTypes != nil {
+		for _, it := range c.publicInstanceTypes.Items {
+			if it.Type == spec.Type && it.CloudCredID != "" {
+				cwOptions.WithCloudCredID(it.CloudCredID)
+				break
+			}
+		}
+	}
 
 	// Apply launchable config or build mode
 	if c.opts.LaunchableID != "" {

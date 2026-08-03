@@ -1262,6 +1262,27 @@ func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
 	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].CloudCredID)
 }
 
+func TestCreateInstancesWithTypeSetsCloudCredIDFromPublicCatalog(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:                   terminal.New(),
+		store:               mock,
+		opts:                GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		org:                 mock.Org,
+		user:                mock.User,
+		piped:               true,
+		allInstanceTypes:    &gpusearch.AllInstanceTypesResponse{},
+		publicInstanceTypes: &gpusearch.InstanceTypesResponse{Items: []gpusearch.InstanceType{{Type: "verda_RTXPro6000", CloudCredID: "cc-public-shadeform"}}},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "verda_RTXPro6000"}, 0, 1)
+
+	assert.False(t, result.hadFailure)
+	require.Len(t, mock.CreatedOptions, 1)
+	assert.Equal(t, "cc-public-shadeform", mock.CreatedOptions[0].CloudCredID)
+}
+
 func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 	ctx := &createContext{
