@@ -1144,6 +1144,16 @@ func TestValidateInstanceTypeAvailability(t *testing.T) {
 		assert.Contains(t, err.Error(), "brev search")
 	})
 
+	t.Run("accepts a public Shadeform type omitted from the org listing", func(t *testing.T) {
+		ctx := &createContext{
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{},
+			publicInstanceTypes: &gpusearch.InstanceTypesResponse{Items: []gpusearch.InstanceType{
+				{Type: "verda_RTXPro6000"},
+			}},
+		}
+		assert.NoError(t, ctx.validateInstanceTypeAvailability("verda_RTXPro6000"))
+	})
+
 	t.Run("returns unavailable error for known type without a cloud credential", func(t *testing.T) {
 		ctx := &createContext{
 			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{

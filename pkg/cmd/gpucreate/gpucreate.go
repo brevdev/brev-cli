@@ -895,14 +895,15 @@ func formatInstanceSpecs(specs []InstanceSpec) string {
 
 // createContext holds shared state for instance creation
 type createContext struct {
-	t                *terminal.Terminal
-	store            GPUCreateStore
-	opts             GPUCreateOptions
-	org              *entity.Organization
-	user             *entity.User
-	allInstanceTypes *gpusearch.AllInstanceTypesResponse
-	piped            bool
-	logf             func(format string, a ...interface{})
+	t                   *terminal.Terminal
+	store               GPUCreateStore
+	opts                GPUCreateOptions
+	org                 *entity.Organization
+	user                *entity.User
+	allInstanceTypes    *gpusearch.AllInstanceTypesResponse
+	publicInstanceTypes *gpusearch.InstanceTypesResponse
+	piped               bool
+	logf                func(format string, a ...interface{})
 }
 
 // newCreateContext initializes the context for instance creation
@@ -952,6 +953,11 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 		ctx.logf("Falling back to default cloud credential\n")
 	}
 	ctx.allInstanceTypes = allInstanceTypes
+	publicInstanceTypes, publicErr := store.GetInstanceTypes(false)
+	if publicErr != nil {
+		ctx.logf("Warning: could not fetch public instance types: %s\n", publicErr.Error())
+	}
+	ctx.publicInstanceTypes = publicInstanceTypes
 
 	return ctx, nil
 }
@@ -972,6 +978,13 @@ func (c *createContext) validateInstanceTypeAvailability(instanceType string) er
 		return nil
 	}
 	if !c.allInstanceTypes.HasInstanceType(instanceType) {
+		if c.publicInstanceTypes != nil {
+			for _, it := range c.publicInstanceTypes.Items {
+				if it.Type == instanceType {
+					return nil
+				}
+			}
+		}
 		return breverrors.NewValidationError(fmt.Sprintf(
 			"instance type %q is not a recognized type; run 'brev search' to see available types",
 			instanceType,
