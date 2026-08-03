@@ -309,6 +309,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 				Storage:      "256",
 				Location:     "us-west1",
 				SubLocation:  "us-west1-b",
+				ImageID:      "projects/example/global/images/custom-image",
 				FirewallRules: []store.CreateFirewallRule{
 					{Port: "8080", AllowedIPs: "all"},
 					{Port: "9000-9100", AllowedIPs: "all"},
@@ -340,6 +341,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 		// Location / sub-location
 		assert.Equal(t, "us-west1", cwOptions.Location)
 		assert.Equal(t, "us-west1-b", cwOptions.SubLocation)
+		assert.Equal(t, "projects/example/global/images/custom-image", cwOptions.BaseImage)
 		// Storage with Gi suffix
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 		// Build config
@@ -611,6 +613,7 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 			InstanceType: "n2-standard-4",
 			Location:     "us-west1",
 			SubLocation:  "us-west1-b",
+			ImageID:      "projects/example/global/images/custom-image",
 			FirewallRules: []store.CreateFirewallRule{
 				{Port: "8080", AllowedIPs: "all"},
 				{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
@@ -627,6 +630,7 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 	s := string(body)
 
 	assert.Contains(t, s, `"subLocation":"us-west1-b"`)
+	assert.Contains(t, s, `"baseImage":"projects/example/global/images/custom-image"`)
 	assert.Contains(t, s, `"firewallRules":`)
 	assert.Contains(t, s, `"port":"8080"`)
 	assert.Contains(t, s, `"port":"22"`)
