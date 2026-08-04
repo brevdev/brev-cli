@@ -17,7 +17,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/instancetypes"
-	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
@@ -225,7 +224,7 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, apiKeyAuth
 
 func maybeStartFromGitURL(t *terminal.Terminal, user *entity.User, apiKeyAuth bool, options StartOptions, startStore StartStore) (bool, error) {
 	if util.IsGitURL(options.RepoOrPathOrNameOrID) { // todo this is function is not complete, some cloneable urls are not identified
-		err := createNewWorkspaceFromGit(user, apiKeyAuth, t, options.SetupScript, options, startStore)
+		err := createNewWorkspaceFromGit(user, apiKeyAuth, t, options, startStore)
 		if err != nil {
 			return true, breverrors.WrapAndTrace(err)
 		}
@@ -272,21 +271,11 @@ func startWorkspaceFromPath(user *entity.User, apiKeyAuth bool, t *terminal.Term
 	}
 	gitParts := strings.Split(gitURL, "/")
 	options.Name = strings.Split(gitParts[len(gitParts)-1], ".")[0]
-	localSetupPath := filepath.Join(options.RepoOrPathOrNameOrID, ".brev", "setup.sh")
-	if options.RepoOrPathOrNameOrID == "." {
-		localSetupPath = filepath.Join(".brev", "setup.sh")
-	}
-	if !util.DoesPathExist(localSetupPath) {
-		fmt.Println(strings.Join([]string{"Generating setup script at", localSetupPath}, "\n"))
-		mergeshells.ImportPath(t, options.RepoOrPathOrNameOrID, startStore)
-		fmt.Println("setup script generated.")
-	}
-
 	// createNewWorkspaceFromGit expects this field to be a git url, but above
 	// logic wants it to be the directory path, so set it only before calling
 	// createNewWorkspaceFromGit
 	options.RepoOrPathOrNameOrID = gitURL
-	err := createNewWorkspaceFromGit(user, apiKeyAuth, t, localSetupPath, options, startStore)
+	err := createNewWorkspaceFromGit(user, apiKeyAuth, t, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -491,34 +480,7 @@ func IsURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
-	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
-	// fetch contents of file
-	// todo: read contents of file
-
-	var setupScriptContents string
-	var err error
-	if len(startOptions.RepoOrPathOrNameOrID) > 0 && len(startOptions.SetupPath) > 0 {
-		// STUFF HERE
-	} else if len(setupScriptURLOrPath) > 0 {
-		if IsURL(setupScriptURLOrPath) {
-			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptURLOrPath)
-			if err1 != nil {
-				t.Vprintf("%s", t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath)+t.Yellow("Continuing with default setup script 👍"))
-				return breverrors.WrapAndTrace(err1)
-			}
-			setupScriptContents += "\n" + contents
-		} else {
-			// ERROR: not sure what this use case is for
-			var err2 error
-			setupScriptContents, err2 = startStore.GetFileAsString(setupScriptURLOrPath)
-			if err2 != nil {
-				return breverrors.WrapAndTrace(err2)
-			}
-		}
-	}
-	_ = setupScriptContents
-
+func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, startOptions StartOptions, startStore StartStore) error {
 	newWorkspace := MakeNewWorkspaceFromURL(startOptions.RepoOrPathOrNameOrID)
 
 	if (startOptions.Name) != "" {
@@ -531,7 +493,7 @@ func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.T
 	if startOptions.OrgName == "" {
 		activeorg, err2 := startStore.GetActiveOrganizationOrDefault()
 		if err2 != nil {
-			return breverrors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err2)
 		}
 		if activeorg == nil {
 			return breverrors.NewValidationError("no org exist")
@@ -540,7 +502,7 @@ func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.T
 	} else {
 		orgs, err2 := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: startOptions.OrgName})
 		if err2 != nil {
-			return breverrors.WrapAndTrace(err)
+			return breverrors.WrapAndTrace(err2)
 		}
 		if len(orgs) == 0 {
 			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", startOptions.OrgName))
@@ -550,7 +512,7 @@ func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.T
 		orgID = orgs[0].ID
 	}
 
-	err = createWorkspace(user, apiKeyAuth, t, newWorkspace, orgID, startStore, startOptions)
+	err := createWorkspace(user, apiKeyAuth, t, newWorkspace, orgID, startStore, startOptions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
