@@ -29,6 +29,7 @@ type MockGPUCreateStore struct {
 	CreatedWorkspaces         []*entity.Workspace
 	DeletedWorkspaceIDs       []string
 	FetchedLifeCycleScriptIDs []string
+	AllInstanceTypes          *gpusearch.AllInstanceTypesResponse
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -108,7 +109,7 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 }
 
 func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	return nil, nil
+	return m.AllInstanceTypes, nil
 }
 
 func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
@@ -801,6 +802,35 @@ func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
 	assert.Empty(t, mock.CreatedWorkspaces)
 }
 
+func TestCreateWithExplicitDiskSize(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.AllInstanceTypes = &gpusearch.AllInstanceTypesResponse{
+		AllInstanceTypes: []gpusearch.InstanceType{
+			{Type: "g5.xlarge", CloudCredID: "cc-1"},
+		},
+	}
+
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"disk-size-test", "--type", "g5.xlarge", "--disk-size", "750", "--detached"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+	require.Len(t, mock.CreatedOptions, 1)
+	assert.Equal(t, "750Gi", mock.CreatedOptions[0].DiskStorage)
+}
+
+func TestCreateRejectsInvalidDiskSize(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"disk-size-test", "--type", "g5.xlarge", "--disk-size=0"})
+
+	err := cmd.Execute()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--disk-size must be greater than 0")
+	assert.Empty(t, mock.CreatedWorkspaces)
+}
+
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
@@ -1180,6 +1210,7 @@ func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
 				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
 					CloudCredID:  "cc-from-launchable",
 					InstanceType: "n2-standard-4",
+					Storage:      "256",
 				},
 			},
 		},
@@ -1192,9 +1223,10 @@ func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
 	}
 	ctx.logf = func(_ string, _ ...interface{}) {}
 
-	result := ctx.createInstancesWithType(InstanceSpec{Type: "n2-standard-4"}, 0, 1)
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "n2-standard-4", DiskGB: 750}, 0, 1)
 
 	assert.False(t, result.hadFailure, "launchable should not be blocked by pre-flight validation")
 	assert.Len(t, result.successes, 1, "expected the launchable instance to be created")
 	assert.Len(t, mock.CreatedWorkspaces, 1)
+	assert.Equal(t, "750Gi", mock.CreatedOptions[0].DiskStorage, "explicit disk size should override launchable storage")
 }
