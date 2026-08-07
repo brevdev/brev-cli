@@ -189,8 +189,7 @@ func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1
 }
 
 func runSSHWithPort(target string, port int32, identityFile string) error {
-	sshAgentEval := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
-	cmd := fmt.Sprintf("%s && ssh -i %q -o StrictHostKeyChecking=no -p %d %s", sshAgentEval, identityFile, port, target)
+	cmd := buildSSHWithPortCommand(target, port, identityFile)
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is constructed from API data
 	sshCmd.Stderr = os.Stderr
@@ -207,6 +206,17 @@ func runSSHWithPort(target string, port int32, identityFile string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func buildSSHWithPortCommand(target string, port int32, identityFile string) string {
+	sshAgentEval := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
+	return fmt.Sprintf(
+		"%s && ssh -i %q -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -p %d %s",
+		sshAgentEval,
+		identityFile,
+		port,
+		target,
+	)
 }
 
 func runSSH(sshAlias string, host bool) error {
