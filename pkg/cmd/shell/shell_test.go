@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"strings"
 	"testing"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -9,6 +10,19 @@ import (
 )
 
 func strPtr(s string) *string { return &s }
+
+func TestBuildSSHWithPortCommandIncludesServerKeepalives(t *testing.T) {
+	cmd := buildSSHWithPortCommand("ubuntu@example.com", 2222, "/tmp/test key")
+
+	for _, option := range []string{
+		"-o ServerAliveInterval=30",
+		"-o ServerAliveCountMax=3",
+	} {
+		if !strings.Contains(cmd, option) {
+			t.Errorf("buildSSHWithPortCommand() = %q, missing %q", cmd, option)
+		}
+	}
+}
 
 // TestResolveExternalNodeSSH_BuildsCorrectInfo tests that the SSH info
 // returned by ResolveNodeSSHEntry has the correct target, alias, and home path —
