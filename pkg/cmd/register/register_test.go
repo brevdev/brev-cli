@@ -52,6 +52,13 @@ func TestNewCmdJoin_CommandSurface(t *testing.T) {
 	require.True(t, cmd.Flags().Lookup("ssh-port").Hidden)
 }
 
+func TestNewCmdRegister_DeprecatedSourceCompatibility(t *testing.T) {
+	cmd := NewCmdRegister(terminal.New(), panicRegisterStore{})
+
+	require.Equal(t, "join", cmd.Name())
+	require.Equal(t, []string{"register"}, cmd.Aliases)
+}
+
 func TestNewCmdJoin_RegisterAliasWarnsOnExecution(t *testing.T) {
 	cmd := NewCmdJoin(terminal.New(), panicRegisterStore{})
 	root := &cobra.Command{Use: "brev", SilenceUsage: true}

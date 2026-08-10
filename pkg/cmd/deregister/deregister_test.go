@@ -227,6 +227,14 @@ func TestNewCmdLeave_CommandSurface(t *testing.T) {
 	require.NotNil(t, cmd.Flags().Lookup("approve"))
 }
 
+func TestNewCmdDeregister_DeprecatedSourceCompatibility(t *testing.T) {
+	var store DeregisterStore = &leaveTestStore{}
+	cmd := NewCmdDeregister(terminal.New(), store)
+
+	require.Equal(t, "leave", cmd.Name())
+	require.Equal(t, []string{"deregister"}, cmd.Aliases)
+}
+
 func TestNewCmdLeave_DeregisterAliasWarnsOnExecution(t *testing.T) {
 	h := newLeaveTestHarness()
 	var stderr bytes.Buffer
@@ -244,17 +252,21 @@ func TestNewCmdLeave_DeregisterAliasWarnsOnExecution(t *testing.T) {
 }
 
 func TestNewCmdLeave_HelpDoesNotWarn(t *testing.T) {
-	h := newLeaveTestHarness()
-	var stderr bytes.Buffer
-	root := &cobra.Command{Use: "brev"}
-	root.AddCommand(newCmdLeave(terminal.New(), h.store, h.deps))
-	root.SetArgs([]string{"deregister", "--help"})
-	root.SetOut(io.Discard)
-	root.SetErr(&stderr)
+	for _, name := range []string{"leave", "deregister"} {
+		t.Run(name, func(t *testing.T) {
+			h := newLeaveTestHarness()
+			var stderr bytes.Buffer
+			root := &cobra.Command{Use: "brev"}
+			root.AddCommand(newCmdLeave(terminal.New(), h.store, h.deps))
+			root.SetArgs([]string{name, "--help"})
+			root.SetOut(io.Discard)
+			root.SetErr(&stderr)
 
-	require.NoError(t, root.Execute())
-	require.NotContains(t, stderr.String(), "deprecated")
-	require.Empty(t, h.events)
+			require.NoError(t, root.Execute())
+			require.NotContains(t, stderr.String(), "deprecated")
+			require.Empty(t, h.events)
+		})
+	}
 }
 
 func TestNewCmdLeave_CanonicalInvocationDoesNotWarnAboutDeprecation(t *testing.T) {
@@ -306,10 +318,16 @@ func TestRunLeave_RemainingGrantsWarnButDoNotBlock(t *testing.T) {
 
 func TestRunLeave_ApproveSkipsConfirmationButNotWarnings(t *testing.T) {
 	h := newLeaveTestHarness()
+	h.client.listResponse.Items[0].SshAccess = []*nodev1.SSHAccess{
+		{UserId: "user_1", LinuxUser: "ubuntu", PortId: "port_1"},
+		{UserId: "user_2", LinuxUser: "alice", PortId: "port_2"},
+	}
 	_, stderr, err := h.run(t, true)
 	require.NoError(t, err)
 	require.Zero(t, h.confirmer.calls)
 	require.Contains(t, stderr, "may interrupt commands using Brev SSH")
+	require.Contains(t, stderr, "2 SSH grants across 2 Linux accounts")
+	require.Contains(t, stderr, `run "brev disable-ssh" first`)
 	require.Equal(t, 1, h.gater.calls)
 }
 
@@ -317,13 +335,63 @@ func TestRunLeave_CancelStopsBeforeSudoAndMutation(t *testing.T) {
 	h := newLeaveTestHarness()
 	h.confirmer.answer = false
 
-	_, _, err := h.run(t, false)
+	stdout, _, err := h.run(t, false)
 	require.NoError(t, err)
 	require.Equal(t, []string{"platform", "registration-load", "auth", "list-nodes", "confirm"}, h.events)
 	require.Zero(t, h.gater.calls)
 	require.Empty(t, h.client.removeRequests)
 	require.Zero(t, h.netbird.calls)
 	require.Zero(t, h.registrations.deleteCalls)
+	require.NotContains(t, stdout, "Left the Brev network.")
+}
+
+func TestRunLeave_IncompatiblePlatformStopsBeforeLoadOrMutation(t *testing.T) {
+	h := newLeaveTestHarness()
+	h.deps.platform = &leaveTestPlatform{compatible: false, events: &h.events}
+
+	stdout, _, err := h.run(t, false)
+	require.EqualError(t, err, "brev leave is only supported on Linux")
+	require.Equal(t, []string{"platform"}, h.events)
+	require.NotNil(t, h.registrations.reg)
+	require.Zero(t, h.confirmer.calls)
+	require.Zero(t, h.gater.calls)
+	require.Empty(t, h.client.removeRequests)
+	require.Zero(t, h.netbird.calls)
+	require.Zero(t, h.registrations.deleteCalls)
+	require.NotContains(t, stdout, "Left the Brev network.")
+}
+
+func TestRunLeave_AuthenticationFailureStopsBeforeLookupOrMutation(t *testing.T) {
+	h := newLeaveTestHarness()
+	authErr := errors.New("authentication failed")
+	h.store.currentUserErr = authErr
+
+	stdout, _, err := h.run(t, false)
+	require.ErrorIs(t, err, authErr)
+	require.Equal(t, []string{"platform", "registration-load", "auth"}, h.events)
+	require.NotNil(t, h.registrations.reg)
+	require.Empty(t, h.client.listRequests)
+	require.Zero(t, h.confirmer.calls)
+	require.Zero(t, h.gater.calls)
+	require.Empty(t, h.client.removeRequests)
+	require.Zero(t, h.netbird.calls)
+	require.Zero(t, h.registrations.deleteCalls)
+	require.NotContains(t, stdout, "Left the Brev network.")
+}
+
+func TestRunLeave_SudoFailureStopsBeforeAuthoritativeMutation(t *testing.T) {
+	h := newLeaveTestHarness()
+	sudoErr := errors.New("sudo unavailable")
+	h.gater.err = sudoErr
+
+	stdout, _, err := h.run(t, true)
+	require.ErrorIs(t, err, sudoErr)
+	require.Equal(t, []string{"platform", "registration-load", "auth", "list-nodes", "sudo"}, h.events)
+	require.NotNil(t, h.registrations.reg)
+	require.Empty(t, h.client.removeRequests)
+	require.Zero(t, h.netbird.calls)
+	require.Zero(t, h.registrations.deleteCalls)
+	require.NotContains(t, stdout, "Left the Brev network.")
 }
 
 func TestRunLeave_OrderIsRemoveNodeUninstallDeleteRegistration(t *testing.T) {
@@ -343,7 +411,7 @@ func TestRunLeave_OrderIsRemoveNodeUninstallDeleteRegistration(t *testing.T) {
 
 func TestRunLeave_CompleteNodeListWithoutRegisteredIDAllowsAuthoritativeRemoveRetry(t *testing.T) {
 	h := newLeaveTestHarness()
-	h.client.listResponse = &nodev1.ListNodesResponse{Items: []*nodev1.ExternalNode{{ExternalNodeId: "other"}}}
+	h.client.listResponse = &nodev1.ListNodesResponse{Items: []*nodev1.ExternalNode{nil, {ExternalNodeId: "other"}}}
 
 	_, stderr, err := h.run(t, true)
 	require.NoError(t, err)
@@ -447,15 +515,20 @@ func TestRunLeave_RegistrationLoadFailureDoesNotAuthenticate(t *testing.T) {
 	h := newLeaveTestHarness()
 	h.registrations.loadErr = errors.New("registration missing")
 
-	_, _, err := h.run(t, false)
+	stdout, _, err := h.run(t, false)
 	require.Error(t, err)
 	require.Equal(t, []string{"platform", "registration-load"}, h.events)
 	require.Zero(t, h.store.currentUserCalls)
+	require.NotNil(t, h.registrations.reg)
+	require.Empty(t, h.client.removeRequests)
+	require.Zero(t, h.netbird.calls)
+	require.Zero(t, h.registrations.deleteCalls)
+	require.NotContains(t, stdout, "Left the Brev network.")
 }
 
 func assertLeaveLookupFailureStopsMutation(t *testing.T, h *leaveTestHarness) {
 	t.Helper()
-	_, _, err := h.run(t, false)
+	stdout, _, err := h.run(t, false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "inspect joined node before leaving")
 	require.Equal(t, []string{"platform", "registration-load", "auth", "list-nodes"}, h.events)
@@ -464,6 +537,8 @@ func assertLeaveLookupFailureStopsMutation(t *testing.T, h *leaveTestHarness) {
 	require.Empty(t, h.client.removeRequests)
 	require.Zero(t, h.netbird.calls)
 	require.Zero(t, h.registrations.deleteCalls)
+	require.NotNil(t, h.registrations.reg)
+	require.NotContains(t, stdout, "Left the Brev network.")
 }
 
 func recordLeaveEvent(events *[]string, event string) {

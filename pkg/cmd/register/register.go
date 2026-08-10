@@ -103,6 +103,14 @@ func NewCmdJoin(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	return newCmdJoin(t, store, defaultJoinDeps)
 }
 
+// NewCmdRegister is retained for source compatibility. It returns the
+// canonical join command with register as its deprecated alias.
+//
+// Deprecated: use NewCmdJoin.
+func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
+	return NewCmdJoin(t, store)
+}
+
 func newCmdJoin(t *terminal.Terminal, store RegisterStore, depsFactory func() joinDeps) *cobra.Command {
 	var orgFlag string
 	var nameFlag string

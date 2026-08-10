@@ -28,6 +28,11 @@ type LeaveStore interface {
 	GetAccessToken() (string, error)
 }
 
+// DeregisterStore is retained for source compatibility.
+//
+// Deprecated: use LeaveStore.
+type DeregisterStore = LeaveStore
+
 type netBirdUninstaller interface {
 	Uninstall() error
 }
@@ -61,6 +66,14 @@ entries; run "brev disable-ssh" first when those credentials should be removed.`
 // NewCmdLeave creates the canonical network-membership teardown command.
 func NewCmdLeave(t *terminal.Terminal, store LeaveStore) *cobra.Command {
 	return newCmdLeave(t, store, defaultLeaveDeps())
+}
+
+// NewCmdDeregister is retained for source compatibility. It returns the
+// canonical leave command with deregister as its deprecated alias.
+//
+// Deprecated: use NewCmdLeave.
+func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Command {
+	return NewCmdLeave(t, store)
 }
 
 func newCmdLeave(t *terminal.Terminal, store LeaveStore, deps leaveDeps) *cobra.Command {
