@@ -466,6 +466,50 @@ brev port-forward my-instance -p 8080:8080
 brev port-forward my-instance -p 3000:3000
 ```
 
+### brev ports
+List Skybridge-managed HTTP applications and raw network port mappings for a
+managed instance or registered compute node.
+
+```bash
+brev ports <instance-or-node> [flags]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--json` | Output the port mappings as JSON |
+
+The table output includes endpoint, IP restrictions, public port, destination
+port, and protocol. HTTP applications also include their authorization policy.
+
+For managed instances, this command reads the Skybridge network member. It does
+not synthesize the legacy secure-link or firewall rows shown by the Brev console,
+because those rows do not have real port IDs and cannot be used by port-management
+automation. If the instance is still provisioning or uses legacy network access,
+the command returns an error directing the user to the console.
+
+The JSON output is an array with the following stable fields:
+
+| Field | Meaning |
+|------|---------|
+| `port_id` | Unique port mapping ID used by automation |
+| `kind` | `http` or `network` |
+| `endpoint` | Public URL or `host:port` endpoint |
+| `public_port` | Externally addressable port |
+| `destination_port` | Port listening on the target machine |
+| `protocol` | `HTTP`, `HTTPS`, `SSH`, `TCP`, `UDP`, or `UNKNOWN` |
+| `allowed_sources` | Allowed IP addresses or CIDR blocks |
+| `authorized_emails` | Identities authorized for an HTTP application |
+| `allow_public_unauthenticated` | Whether an HTTP application is public |
+| `type` | `system`, `user`, `unspecified`, or `unknown` |
+
+**Examples:**
+```bash
+brev ports my-instance
+brev ports my-node
+brev ports my-instance --json
+```
+
 ## Organization Commands
 
 ### brev org ls
