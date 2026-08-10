@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
@@ -323,6 +322,21 @@ func (t orderedTunnel) EnsureConnected(context.Context) error {
 	return t.err
 }
 
+type reconnectingTunnel struct {
+	order             *enableSSHOrder
+	connected         *bool
+	reconnectAttempts int
+}
+
+func (t *reconnectingTunnel) EnsureConnected(context.Context) error {
+	t.order.add("tunnel")
+	if !*t.connected {
+		t.reconnectAttempts++
+		*t.connected = true
+	}
+	return nil
+}
+
 type orderedProvisioner struct {
 	order *enableSSHOrder
 	err   error
@@ -338,6 +352,28 @@ func (p orderedProvisioner) Provision(
 ) error {
 	p.order.add("provision")
 	return p.err
+}
+
+type connectedTunnelProvisioner struct {
+	order             *enableSSHOrder
+	tunnelConnected   *bool
+	observedConnected bool
+}
+
+func (p *connectedTunnelProvisioner) Provision(
+	context.Context,
+	*terminal.Terminal,
+	externalnode.TokenProvider,
+	*register.DeviceRegistration,
+	*entity.User,
+	*nodev1.ExternalNode,
+) error {
+	p.order.add("provision")
+	p.observedConnected = *p.tunnelConnected
+	if !p.observedConnected {
+		return errors.New("SSH provisioning started before the Brev tunnel connected")
+	}
+	return nil
 }
 
 func newEnableSSHTestDeps(order *enableSSHOrder, factory externalnode.NodeClientFactory, registrationStore register.RegistrationStore, tunnelErr error) enableSSHDeps {
@@ -410,6 +446,7 @@ func TestRunEnableSSH_ConnectedTunnelProvisionsSSH(t *testing.T) {
 
 func TestRunEnableSSH_ReconnectsBeforeProvisioning(t *testing.T) {
 	order := &enableSSHOrder{}
+	tunnelConnected := false
 	svc := &fakeNodeService{
 		order: &order.entries,
 		getNodeFn: func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
@@ -419,13 +456,17 @@ func TestRunEnableSSH_ReconnectsBeforeProvisioning(t *testing.T) {
 	deps, _ := startFakeServer(t, svc)
 	deps.platform = orderedPlatform{order: order}
 	deps.registrationStore = &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
-	deps.tunnel = orderedTunnel{order: order}
-	deps.provisioner = orderedProvisioner{order: order}
+	tunnel := &reconnectingTunnel{order: order, connected: &tunnelConnected}
+	deps.tunnel = tunnel
+	provisioner := &connectedTunnelProvisioner{order: order, tunnelConnected: &tunnelConnected}
+	deps.provisioner = provisioner
 
 	err := runEnableSSH(context.Background(), terminal.New(), orderedEnableSSHStore{order: order, user: &entity.User{ID: "user_123"}}, deps)
 
 	require.NoError(t, err)
-	require.Less(t, slices.Index(order.entries, "tunnel"), slices.Index(order.entries, "provision"))
+	require.Equal(t, 1, tunnel.reconnectAttempts)
+	require.True(t, provisioner.observedConnected)
+	require.Equal(t, []string{"platform", "registration", "auth", "node", "tunnel", "provision"}, order.entries)
 }
 
 func TestRunEnableSSH_TunnelFailureDoesNotProvision(t *testing.T) {
