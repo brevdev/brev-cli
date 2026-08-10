@@ -15,6 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/deregister"
+	"github.com/brevdev/brev-cli/pkg/cmd/disablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/exec"
@@ -320,6 +321,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(deregister.NewCmdDeregister(t, externalNodeCmdStore))
 	cmd.AddCommand(upgrade.NewCmdUpgrade(t, noLoginCmdStore))
 	cmd.AddCommand(enablessh.NewCmdEnableSSH(t, externalNodeCmdStore))
+	cmd.AddCommand(disablessh.NewCmdDisableSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(grantssh.NewCmdGrantSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(revokessh.NewCmdRevokeSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
