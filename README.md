@@ -76,6 +76,8 @@ brev ls
 
 https://docs.nvidia.com/brev/latest/
 
+[Bring Your Own Node (BYON) network and SSH workflows](docs/BYON.md)
+
 ---
 
 ## AI Agent Integration

@@ -202,6 +202,33 @@ brev ls       --json | jq -r '.workspaces[].name'
 brev ls nodes --json | jq -r '.[] | select(.status=="Connected") | .name'
 ```
 
+### BYON Network and SSH
+
+For a machine you bring to Brev, network membership and SSH credentials are
+separate operations:
+
+```bash
+# Join only the organization's Brev/NetBird network.
+brev join
+
+# Optionally enable access for yourself, then grant a collaborator.
+brev enable-ssh
+brev grant-ssh
+
+# Retire the node completely.
+brev disable-ssh
+brev leave
+```
+
+`brev register` and `brev deregister` are deprecated aliases for `join` and
+`leave`; they warn when executed. `enable-ssh` requires an existing join and
+can reconnect its tunnel, but never joins a network. Use `grant-ssh` and
+`revoke-ssh` for individual collaborators. `disable-ssh` removes all
+Brev-managed SSH access across the node without closing ports, stopping `sshd`,
+ending active sessions, or leaving the network. `leave` removes membership but
+leaves Brev-managed keys on the host; run `disable-ssh` first when removing
+those keys is intended.
+
 ### Instance Management
 ```bash
 # List instances

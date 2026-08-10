@@ -497,6 +497,90 @@ Generate an invite link.
 brev invite
 ```
 
+## BYON Network and SSH Commands
+
+These commands apply to a machine brought into a Brev organization. Network
+membership and Brev-managed SSH credentials are separate.
+
+### Canonical workflows
+
+```bash
+# Join networking only. Then optionally enable your SSH access and grant a collaborator.
+brev join
+brev enable-ssh
+brev grant-ssh
+
+# Remove Brev-managed SSH credentials before retiring network membership.
+brev disable-ssh
+brev leave
+```
+
+### brev join / brev register
+
+Join a device to the organization's Brev/NetBird network.
+
+```bash
+brev join [--name <device-name> --org <organization>] [--approve]
+```
+
+`join` establishes membership only: it does not enable SSH or allocate an SSH
+port. `register` is a deprecated alias that warns on execution. The old
+`--ssh-port` flag is no longer supported; migrate scripts to `brev join` and
+then `brev enable-ssh` on the joined machine.
+
+### brev enable-ssh
+
+Enable Brev-managed SSH for the invoking Brev user on the joined node.
+
+```bash
+brev enable-ssh
+```
+
+This requires an existing `join`. It confirms the existing Brev tunnel and can
+reconnect it when disconnected, but it does not add a node, select an
+organization, save a registration, or join a network.
+
+### brev grant-ssh / brev revoke-ssh
+
+Manage an individual collaborator's SSH access tuple on a node.
+
+```bash
+brev grant-ssh
+brev revoke-ssh
+```
+
+Use these commands for collaborator access rather than treating `enable-ssh`
+or `disable-ssh` as collaborator-management commands.
+
+### brev disable-ssh
+
+Remove all Brev-managed SSH credentials from the joined node.
+
+```bash
+brev disable-ssh [--approve]
+```
+
+This node-wide operation revokes each exact active backend access tuple, then
+runs a privileged root sweep to remove Brev-tagged local keys. It leaves
+existing ports allocated, leaves `sshd` running, does not forcibly terminate
+active SSH sessions, and does not remove membership or the backend node.
+
+### brev leave / brev deregister
+
+Remove Brev network membership from the device.
+
+```bash
+brev leave [--approve]
+```
+
+`leave` removes the backend node, VPN route, and local registration. It does
+not revoke grants or remove host keys from `authorized_keys`; run
+`brev disable-ssh` first for complete retirement. `deregister` is a deprecated
+alias that warns on execution.
+
+`leave` continues to uninstall NetBird even if it was installed before Brev.
+Install-ownership tracking is a follow-up, so ensure that removal is intended.
+
 ## Configuration Commands
 
 ### brev login / brev logout
