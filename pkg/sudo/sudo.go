@@ -29,10 +29,14 @@ type Gater interface {
 var Default Gater = &systemGater{}
 
 // systemGater implements Gater using the real sudo check and optional password prompt.
-type systemGater struct{}
+type systemGater struct {
+	checkStatus func() Status
+	runCommand  func(*exec.Cmd) error
+	stdin       *os.File
+}
 
 func (g *systemGater) Gate(t *terminal.Terminal, confirmer terminal.Confirmer, reason string, assumeYes bool) error {
-	status := check()
+	status := g.status()
 	if status == StatusRoot {
 		return nil
 	}
@@ -51,20 +55,43 @@ func (g *systemGater) Gate(t *terminal.Terminal, confirmer terminal.Confirmer, r
 	}
 
 	if status == StatusUncached {
-		if exec.Command("sudo", "-n", "-v").Run() != nil { //nolint:gosec // intentional sudo -n -v
-			if isTTY(os.Stdin) {
-				cmd := exec.Command("sudo", "-v") //nolint:gosec // intentional sudo -v
-				cmd.Stdin = os.Stdin
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				if err := cmd.Run(); err != nil {
-					return fmt.Errorf("sudo authentication failed: %w", err)
-				}
+		if err := g.run(exec.Command("sudo", "-n", "-v")); err != nil { //nolint:gosec // intentional sudo -n -v
+			stdin := g.input()
+			if !isTTY(stdin) {
+				return fmt.Errorf("sudo authentication unavailable without an interactive terminal: %w", err)
+			}
+			cmd := exec.Command("sudo", "-v") //nolint:gosec // intentional sudo -v
+			cmd.Stdin = stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := g.run(cmd); err != nil {
+				return fmt.Errorf("sudo authentication failed: %w", err)
 			}
 		}
 	}
 
 	return nil
+}
+
+func (g *systemGater) status() Status {
+	if g.checkStatus != nil {
+		return g.checkStatus()
+	}
+	return check()
+}
+
+func (g *systemGater) run(cmd *exec.Cmd) error {
+	if g.runCommand != nil {
+		return g.runCommand(cmd)
+	}
+	return cmd.Run() //nolint:wrapcheck // Gate adds branch-specific sudo authentication context.
+}
+
+func (g *systemGater) input() *os.File {
+	if g.stdin != nil {
+		return g.stdin
+	}
+	return os.Stdin
 }
 
 // check returns the current sudo status.
