@@ -100,6 +100,10 @@ Two modes are supported:
 )
 
 func NewCmdJoin(t *terminal.Terminal, store RegisterStore) *cobra.Command {
+	return newCmdJoin(t, store, defaultJoinDeps)
+}
+
+func newCmdJoin(t *terminal.Terminal, store RegisterStore, depsFactory func() joinDeps) *cobra.Command {
 	var orgFlag string
 	var nameFlag string
 	var sshPort int
@@ -128,7 +132,7 @@ func NewCmdJoin(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 				orgName:     orgFlag,
 				skipConfirm: approveFlag,
 			}
-			return runJoin(cmd.Context(), t, store, opts, defaultJoinDeps())
+			return runJoin(cmd.Context(), t, store, opts, depsFactory())
 		},
 	}
 

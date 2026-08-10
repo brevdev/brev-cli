@@ -80,36 +80,55 @@ func TestNewCmdJoin_HelpDoesNotWarn(t *testing.T) {
 
 func TestNewCmdJoin_LegacySSHPortFailsBeforeSideEffects(t *testing.T) {
 	tests := [][]string{
-		{"join", "--ssh-port", "22"},
 		{"join", "--ssh-port", "0"},
+		{"join", "--ssh-port", "22"},
+		{"join", "-p", "0"},
 		{"join", "-p", "22"},
+		{"register", "--ssh-port", "0"},
 		{"register", "--ssh-port", "22"},
+		{"register", "-p", "0"},
 		{"register", "-p", "22"},
 	}
 
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			cmd := NewCmdJoin(terminal.New(), panicRegisterStore{})
+			depsConstructed := 0
+			cmd := newCmdJoin(terminal.New(), panicRegisterStore{}, func() joinDeps {
+				depsConstructed++
+				return joinDeps{}
+			})
 			root := &cobra.Command{Use: "brev", SilenceUsage: true}
 			root.AddCommand(cmd)
 			root.SetErr(&bytes.Buffer{})
 			root.SetArgs(args)
 
 			require.EqualError(t, root.Execute(), legacySSHPortMigrationError)
+			// All platform, sudo, authentication, NetBird, RPC, persistence,
+			// setup, and hardware work is contained in the dependency factory.
+			require.Zero(t, depsConstructed)
 		})
 	}
 }
 
 type recordingJoinPrompter struct {
-	inputs []terminal.PromptContent
+	prompts []joinPrompt
 }
 
-func (p *recordingJoinPrompter) ConfirmYesNo(string) bool { return true }
-func (p *recordingJoinPrompter) Select(_ string, items []string) string {
+type joinPrompt struct {
+	kind  string
+	label string
+}
+
+func (p *recordingJoinPrompter) ConfirmYesNo(label string) bool {
+	p.prompts = append(p.prompts, joinPrompt{kind: "confirm", label: label})
+	return true
+}
+func (p *recordingJoinPrompter) Select(label string, items []string) string {
+	p.prompts = append(p.prompts, joinPrompt{kind: "select", label: label})
 	return items[0]
 }
 func (p *recordingJoinPrompter) Input(content terminal.PromptContent) string {
-	p.inputs = append(p.inputs, content)
+	p.prompts = append(p.prompts, joinPrompt{kind: "input", label: content.Label})
 	return "interactive-node"
 }
 
@@ -131,8 +150,11 @@ func TestRunJoin_InteractivePromptsOnlyForMembership(t *testing.T) {
 	deps.prompter = prompter
 
 	require.NoError(t, runJoin(context.Background(), terminal.New(), store, joinOpts{interactive: true}, deps))
-	require.Len(t, prompter.inputs, 1)
-	require.Equal(t, "Device name", prompter.inputs[0].Label)
+	require.Equal(t, []joinPrompt{
+		{kind: "input", label: "Device name"},
+		{kind: "select", label: "Select organization"},
+		{kind: "confirm", label: "Proceed with join?"},
+	}, prompter.prompts)
 }
 
 func TestRunJoin_DoesNotOpenPortOrGrantSSH(t *testing.T) {
