@@ -229,6 +229,48 @@ func TestReplaceAuthorizedKeys_RejectsSubstitutedDestinationWithoutDestroyingIt(
 	}
 }
 
+func TestReplaceAuthorizedKeys_RejectsInPlaceTempContentMutation(t *testing.T) {
+	_, authKeysPath := prepareAuthorizedKeys(t, true)
+	original := []byte("ssh-ed25519 OLD old@example.com #brev-portID:old\n")
+	if err := os.WriteFile(authKeysPath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sshFD, originalFD, originalStat := openReplacementTestDescriptors(t, authKeysPath)
+	defer closeDescriptor(sshFD)
+	defer closeDescriptor(originalFD)
+
+	err := replaceAuthorizedKeysWithHooks(
+		sshFD,
+		originalFD,
+		original,
+		[]byte("ssh-ed25519 OLD old@example.com\n"),
+		originalStat,
+		replaceAuthorizedKeysHooks{beforeExchange: func(sshFD int, tempName string) error {
+			mutatorFD, err := unix.Openat(
+				sshFD,
+				tempName,
+				unix.O_WRONLY|unix.O_TRUNC|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+				0,
+			)
+			if err != nil {
+				return err
+			}
+			defer closeDescriptor(mutatorFD)
+			return writeAll(mutatorFD, []byte("attacker-mutated bytes\n"))
+		}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "changed during commit") {
+		t.Fatalf("replaceAuthorizedKeysWithHooks() error = %v, want temp-content mutation failure", err)
+	}
+	got, readErr := os.ReadFile(authKeysPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("authorized_keys = %q, want original destination restored %q", got, original)
+	}
+}
+
 func TestSystemAuthorizedKeysCleaner_NoMarkersDoesNotRewrite(t *testing.T) {
 	account, authKeysPath := prepareAuthorizedKeys(t, true)
 	if err := os.WriteFile(authKeysPath, []byte("ssh-ed25519 AAAA_KEEP keep@example.com\n"), 0o600); err != nil {

@@ -268,7 +268,7 @@ func replaceAuthorizedKeysWithHooks(
 	if err := verifyDescriptorState(originalFD, original, originalData); err != nil {
 		return fmt.Errorf("authorized_keys changed before commit: %w", err)
 	}
-	if err := verifyDescriptorMetadata(tempFD, tempStat); err != nil {
+	if err := verifyDescriptorState(tempFD, tempStat, cleaned); err != nil {
 		return fmt.Errorf("temporary authorized_keys changed before commit: %w", err)
 	}
 	if err := verifyNameMatches(sshFD, authorizedKeysName, original); err != nil {
@@ -301,6 +301,7 @@ func replaceAuthorizedKeysWithHooks(
 		original,
 		tempStat,
 		originalData,
+		cleaned,
 	)
 	if verificationErr != nil {
 		rollbackErr := rollbackAuthorizedKeysExchange(sshFD, tempName, postAuthorized, postTemp)
@@ -334,6 +335,7 @@ func verifyExchangedAuthorizedKeys(
 	original unix.Stat_t,
 	temp unix.Stat_t,
 	originalData []byte,
+	cleaned []byte,
 ) (unix.Stat_t, unix.Stat_t, error) {
 	postAuthorized, authorizedErr := statName(sshFD, authorizedKeysName)
 	postTemp, tempErr := statName(sshFD, tempName)
@@ -351,7 +353,7 @@ func verifyExchangedAuthorizedKeys(
 	if err := verifyDescriptorState(originalFD, original, originalData); err != nil {
 		verificationErrs = append(verificationErrs, fmt.Errorf("opened original authorized_keys changed: %w", err))
 	}
-	if err := verifyDescriptorMetadata(tempFD, temp); err != nil {
+	if err := verifyDescriptorState(tempFD, temp, cleaned); err != nil {
 		verificationErrs = append(verificationErrs, fmt.Errorf("opened temporary authorized_keys changed: %w", err))
 	}
 	return postAuthorized, postTemp, errors.Join(verificationErrs...)
@@ -492,7 +494,7 @@ func createRandomTempFile(sshFD int) (int, string, error) {
 		fd, err := unix.Openat(
 			sshFD,
 			name,
-			unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+			unix.O_CREAT|unix.O_EXCL|unix.O_RDWR|unix.O_CLOEXEC|unix.O_NOFOLLOW,
 			0o600,
 		)
 		if err == nil {
