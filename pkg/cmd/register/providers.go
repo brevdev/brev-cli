@@ -139,7 +139,7 @@ func (n Netbird) EnsureConnected(ctx context.Context) error {
 			if lastStatusErr != nil {
 				return fmt.Errorf("Brev tunnel connection was not confirmed: %w", lastStatusErr)
 			}
-			return fmt.Errorf("Brev tunnel connection was not confirmed")
+			return fmt.Errorf("Brev tunnel connection was not confirmed: %w", confirmationCtx.Err())
 		case <-ticker.C:
 			if checkStatus() {
 				return nil

@@ -151,6 +151,9 @@ func TestNetbirdEnsureConnected_StatusNeverConfirmsConnection(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "Brev tunnel connection was not confirmed") {
 		t.Fatalf("EnsureConnected() error = %v, want confirmation timeout", err)
 	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("EnsureConnected() error = %v, want context deadline exceeded", err)
+	}
 }
 
 func TestNetbirdEnsureConnected_StatusErrorsAreNotSuccess(t *testing.T) {
