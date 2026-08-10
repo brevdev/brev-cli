@@ -9,10 +9,8 @@ import (
 	"os/user"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
-	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
@@ -27,21 +25,44 @@ type EnableSSHStore interface {
 	GetAccessToken() (string, error)
 }
 
+type sshAccessProvisioner interface {
+	Provision(
+		context.Context,
+		*terminal.Terminal,
+		externalnode.TokenProvider,
+		*register.DeviceRegistration,
+		*entity.User,
+		*nodev1.ExternalNode,
+	) error
+}
+
 // enableSSHDeps bundles the side-effecting dependencies of runEnableSSH so they
 // can be replaced in tests.
 type enableSSHDeps struct {
 	platform          externalnode.PlatformChecker
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
-	prompter          terminal.Selector
+	tunnel            register.NetBirdConnector
+	provisioner       sshAccessProvisioner
+}
+
+type defaultSSHAccessProvisioner struct {
+	prompter    terminal.Selector
+	nodeClients externalnode.NodeClientFactory
 }
 
 func defaultEnableSSHDeps() enableSSHDeps {
+	prompter := register.TerminalPrompter{}
+	nodeClients := register.DefaultNodeClientFactory{}
 	return enableSSHDeps{
 		platform:          register.LinuxPlatform{},
-		nodeClients:       register.DefaultNodeClientFactory{},
+		nodeClients:       nodeClients,
 		registrationStore: register.NewFileRegistrationStore(),
-		prompter:          register.TerminalPrompter{},
+		tunnel:            register.Netbird{},
+		provisioner: defaultSSHAccessProvisioner{
+			prompter:    prompter,
+			nodeClients: nodeClients,
+		},
 	}
 }
 
@@ -50,9 +71,10 @@ func NewCmdEnableSSH(t *terminal.Terminal, store EnableSSHStore) *cobra.Command 
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "enable-ssh",
 		DisableFlagsInUseLine: true,
-		Short:                 "Enable SSH access to this registered device",
-		Long:                  "Enable SSH access to this registered device for the current Brev user.",
+		Short:                 "Enable SSH access to this joined node",
+		Long:                  "Enable SSH access to this joined node for the current Brev user.",
 		Example:               "  brev enable-ssh",
+		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps())
 		},
@@ -66,9 +88,17 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return fmt.Errorf("brev enable-ssh is only supported on Linux")
 	}
 
+	exists, err := deps.registrationStore.Exists()
+	if err != nil {
+		return fmt.Errorf("check joined-device registration: %w", err)
+	}
+	if !exists {
+		return breverrors.New(`This machine has not joined a Brev network; run "brev join" first.`)
+	}
+
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
-		return fmt.Errorf("failed to read registration file: %w", err)
+		return fmt.Errorf("read joined-device registration: %w", err)
 	}
 
 	brevUser, err := s.GetCurrentUser()
@@ -76,18 +106,30 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return enableSSH(ctx, t, deps, s, reg, brevUser)
+	node, err := register.FetchRegisteredNode(ctx, deps.nodeClients, s, reg)
+	if err != nil {
+		return fmt.Errorf("enable SSH failed: %w", err)
+	}
+	if err := deps.tunnel.EnsureConnected(ctx); err != nil {
+		return fmt.Errorf("enable SSH requires a connected Brev tunnel: %w", err)
+	}
+	if err := deps.provisioner.Provision(ctx, t, s, reg, brevUser, node); err != nil {
+		return fmt.Errorf("enable SSH failed: %w", err)
+	}
+
+	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
+	return nil
 }
 
-// enableSSH grants SSH access to the given node for the current Brev user.
+// Provision grants SSH access to the joined node for the current Brev user.
 // This is the "reflexive grant" — granting yourself SSH access to the device.
-func enableSSH(
+func (p defaultSSHAccessProvisioner) Provision(
 	ctx context.Context,
 	t *terminal.Terminal,
-	deps enableSSHDeps,
 	tokenProvider externalnode.TokenProvider,
 	reg *register.DeviceRegistration,
 	brevUser *entity.User,
+	node *nodev1.ExternalNode,
 ) error {
 	linuxUser, err := user.Current()
 	if err != nil {
@@ -105,39 +147,16 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", linuxUsername)
 	t.Vprint("")
 
-	node, err := fetchRegisteredNode(ctx, deps, tokenProvider, reg)
+	brevPortID, err := register.ResolveSSHAccessPort(ctx, t, p.prompter, p.nodeClients, tokenProvider, reg, node)
 	if err != nil {
-		return fmt.Errorf("enable SSH failed: %w", err)
+		return err
 	}
 
-	brevPortID, err := register.ResolveSSHAccessPort(ctx, t, deps.prompter, deps.nodeClients, tokenProvider, reg, node)
-	if err != nil {
-		return fmt.Errorf("enable SSH failed: %w", err)
+	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, p.nodeClients, tokenProvider, reg, brevUser, linuxUsername, brevPortID); err != nil {
+		return err
 	}
 
-	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUsername, brevPortID); err != nil {
-		return fmt.Errorf("enable SSH failed: %w", err)
-	}
-
-	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 	return nil
-}
-
-func fetchRegisteredNode(
-	ctx context.Context,
-	deps enableSSHDeps,
-	tokenProvider externalnode.TokenProvider,
-	reg *register.DeviceRegistration,
-) (*nodev1.ExternalNode, error) {
-	client := deps.nodeClients.NewNodeClient(tokenProvider, config.GlobalConfig.GetBrevPublicAPIURL())
-	resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-		OrganizationId: reg.OrgID,
-	}))
-	if err != nil {
-		return nil, fmt.Errorf("error retrieving node: %w", err)
-	}
-	return resp.Msg.GetExternalNode(), nil
 }
 
 // checkSSHDaemon prints a warning if neither "ssh" nor "sshd" systemd services
