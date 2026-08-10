@@ -3,6 +3,7 @@
 package disablessh
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -68,6 +69,9 @@ func listLocalAccountsWith(ctx context.Context, getentPath string, runner getent
 	accounts, err := parsePasswd(output)
 	if err != nil {
 		return nil, fmt.Errorf("parse getent passwd output: %w", err)
+	}
+	if len(accounts) == 0 {
+		return nil, fmt.Errorf("getent passwd returned no local accounts")
 	}
 	return accounts, nil
 }
@@ -141,7 +145,7 @@ func cleanLocalAccount(account localAccount) (int, error) {
 		return 0, nil
 	}
 
-	if err := replaceAuthorizedKeys(sshFD, cleaned, opened); err != nil {
+	if err := replaceAuthorizedKeys(sshFD, authorizedKeysFD, data, cleaned, opened); err != nil {
 		return 0, fmt.Errorf("replace authorized_keys under home %q: %w", account.HomeDir, err)
 	}
 	return removed, nil
@@ -192,19 +196,54 @@ func sameFileIdentity(a, b unix.Stat_t) bool {
 	return a.Dev == b.Dev && a.Ino == b.Ino && a.Mode&unix.S_IFMT == b.Mode&unix.S_IFMT
 }
 
-func replaceAuthorizedKeys(sshFD int, cleaned []byte, original unix.Stat_t) error {
+type replaceAuthorizedKeysHooks struct {
+	beforeExchange func(sshFD int, tempName string) error
+}
+
+func replaceAuthorizedKeys(
+	sshFD int,
+	originalFD int,
+	originalData []byte,
+	cleaned []byte,
+	original unix.Stat_t,
+) error {
+	return replaceAuthorizedKeysWithHooks(
+		sshFD,
+		originalFD,
+		originalData,
+		cleaned,
+		original,
+		replaceAuthorizedKeysHooks{},
+	)
+}
+
+func replaceAuthorizedKeysWithHooks(
+	sshFD int,
+	originalFD int,
+	originalData []byte,
+	cleaned []byte,
+	original unix.Stat_t,
+	hooks replaceAuthorizedKeysHooks,
+) (retErr error) {
 	tempFD, tempName, err := createRandomTempFile(sshFD)
 	if err != nil {
 		return err
 	}
-	renamed := false
+	var tempCleanupIdentity unix.Stat_t
+	tempIdentityKnown := false
+	if err := unix.Fstat(tempFD, &tempCleanupIdentity); err != nil {
+		closeDescriptor(tempFD)
+		return fmt.Errorf("inspect created temporary authorized_keys: %w", err)
+	}
+	tempIdentityKnown = true
+	var tempStat unix.Stat_t
 	defer func() {
-		if tempFD >= 0 {
-			closeDescriptor(tempFD)
+		if tempIdentityKnown {
+			if _, cleanupErr := unlinkNameIfMatches(sshFD, tempName, tempCleanupIdentity); cleanupErr != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("remove temporary authorized_keys: %w", cleanupErr))
+			}
 		}
-		if !renamed {
-			_ = unix.Unlinkat(sshFD, tempName, 0)
-		}
+		closeDescriptor(tempFD)
 	}()
 
 	if err := writeAll(tempFD, cleaned); err != nil {
@@ -219,19 +258,228 @@ func replaceAuthorizedKeys(sshFD int, cleaned []byte, original unix.Stat_t) erro
 	if err := unix.Fsync(tempFD); err != nil {
 		return fmt.Errorf("sync temporary authorized_keys: %w", err)
 	}
-	if err := unix.Close(tempFD); err != nil {
-		tempFD = -1
-		return fmt.Errorf("close temporary authorized_keys: %w", err)
+	if err := unix.Fstat(tempFD, &tempStat); err != nil {
+		return fmt.Errorf("inspect temporary authorized_keys: %w", err)
 	}
-	tempFD = -1
-	if err := unix.Renameat(sshFD, tempName, sshFD, authorizedKeysName); err != nil {
-		return fmt.Errorf("rename temporary authorized_keys: %w", err)
+	if !isRegular(tempStat) {
+		return fmt.Errorf("temporary authorized_keys is not a regular file")
 	}
-	renamed = true
+
+	if err := verifyDescriptorState(originalFD, original, originalData); err != nil {
+		return fmt.Errorf("authorized_keys changed before commit: %w", err)
+	}
+	if err := verifyDescriptorMetadata(tempFD, tempStat); err != nil {
+		return fmt.Errorf("temporary authorized_keys changed before commit: %w", err)
+	}
+	if err := verifyNameMatches(sshFD, authorizedKeysName, original); err != nil {
+		return fmt.Errorf("authorized_keys changed before commit: %w", err)
+	}
+	if err := verifyNameMatches(sshFD, tempName, tempStat); err != nil {
+		return fmt.Errorf("temporary authorized_keys changed before commit: %w", err)
+	}
+	if hooks.beforeExchange != nil {
+		if err := hooks.beforeExchange(sshFD, tempName); err != nil {
+			return fmt.Errorf("run authorized_keys commit hook: %w", err)
+		}
+	}
+
+	if err := unix.Renameat2(
+		sshFD,
+		tempName,
+		sshFD,
+		authorizedKeysName,
+		unix.RENAME_EXCHANGE,
+	); err != nil {
+		return fmt.Errorf("exchange temporary authorized_keys: %w", err)
+	}
+
+	postAuthorized, postTemp, verificationErr := verifyExchangedAuthorizedKeys(
+		sshFD,
+		originalFD,
+		tempFD,
+		tempName,
+		original,
+		tempStat,
+		originalData,
+	)
+	if verificationErr != nil {
+		rollbackErr := rollbackAuthorizedKeysExchange(sshFD, tempName, postAuthorized, postTemp)
+		if rollbackErr != nil {
+			return errors.Join(
+				fmt.Errorf("authorized_keys changed during commit: %w", verificationErr),
+				fmt.Errorf("restore authorized_keys exchange: %w", rollbackErr),
+			)
+		}
+		return fmt.Errorf("authorized_keys changed during commit: %w", verificationErr)
+	}
+
+	unlinked, err := unlinkNameIfMatches(sshFD, tempName, original)
+	if err != nil {
+		return fmt.Errorf("remove exchanged original authorized_keys: %w", err)
+	}
+	if !unlinked {
+		return fmt.Errorf("authorized_keys changed during commit before removing exchanged original")
+	}
 	if err := unix.Fsync(sshFD); err != nil {
 		return fmt.Errorf("sync .ssh directory: %w", err)
 	}
 	return nil
+}
+
+func verifyExchangedAuthorizedKeys(
+	sshFD int,
+	originalFD int,
+	tempFD int,
+	tempName string,
+	original unix.Stat_t,
+	temp unix.Stat_t,
+	originalData []byte,
+) (unix.Stat_t, unix.Stat_t, error) {
+	postAuthorized, authorizedErr := statName(sshFD, authorizedKeysName)
+	postTemp, tempErr := statName(sshFD, tempName)
+	var verificationErrs []error
+	if authorizedErr != nil {
+		verificationErrs = append(verificationErrs, fmt.Errorf("inspect exchanged authorized_keys: %w", authorizedErr))
+	} else if !sameFileIdentity(postAuthorized, temp) {
+		verificationErrs = append(verificationErrs, fmt.Errorf("exchanged authorized_keys does not match verified temporary file"))
+	}
+	if tempErr != nil {
+		verificationErrs = append(verificationErrs, fmt.Errorf("inspect exchanged original authorized_keys: %w", tempErr))
+	} else if !sameFileIdentity(postTemp, original) {
+		verificationErrs = append(verificationErrs, fmt.Errorf("exchanged original authorized_keys does not match opened file"))
+	}
+	if err := verifyDescriptorState(originalFD, original, originalData); err != nil {
+		verificationErrs = append(verificationErrs, fmt.Errorf("opened original authorized_keys changed: %w", err))
+	}
+	if err := verifyDescriptorMetadata(tempFD, temp); err != nil {
+		verificationErrs = append(verificationErrs, fmt.Errorf("opened temporary authorized_keys changed: %w", err))
+	}
+	return postAuthorized, postTemp, errors.Join(verificationErrs...)
+}
+
+func rollbackAuthorizedKeysExchange(
+	sshFD int,
+	tempName string,
+	postAuthorized unix.Stat_t,
+	postTemp unix.Stat_t,
+) error {
+	currentAuthorized, authorizedErr := statName(sshFD, authorizedKeysName)
+	currentTemp, tempErr := statName(sshFD, tempName)
+	if authorizedErr != nil || tempErr != nil {
+		var inspectErrs []error
+		if authorizedErr != nil {
+			inspectErrs = append(inspectErrs, fmt.Errorf("inspect current authorized_keys before rollback: %w", authorizedErr))
+		}
+		if tempErr != nil {
+			inspectErrs = append(inspectErrs, fmt.Errorf("inspect current temporary name before rollback: %w", tempErr))
+		}
+		return errors.Join(inspectErrs...)
+	}
+	if !sameFileIdentity(currentAuthorized, postAuthorized) || !sameFileIdentity(currentTemp, postTemp) {
+		return fmt.Errorf("directory entries changed again before rollback")
+	}
+	if err := unix.Renameat2(
+		sshFD,
+		tempName,
+		sshFD,
+		authorizedKeysName,
+		unix.RENAME_EXCHANGE,
+	); err != nil {
+		return fmt.Errorf("exchange directory entries back: %w", err)
+	}
+	if err := verifyNameMatches(sshFD, authorizedKeysName, postTemp); err != nil {
+		return fmt.Errorf("verify restored authorized_keys: %w", err)
+	}
+	if err := verifyNameMatches(sshFD, tempName, postAuthorized); err != nil {
+		return fmt.Errorf("verify restored temporary name: %w", err)
+	}
+	if err := unix.Fsync(sshFD); err != nil {
+		return fmt.Errorf("sync restored .ssh directory: %w", err)
+	}
+	return nil
+}
+
+func verifyDescriptorState(fd int, expected unix.Stat_t, expectedData []byte) error {
+	if err := verifyDescriptorMetadata(fd, expected); err != nil {
+		return err
+	}
+	data, err := readAllAt(fd)
+	if err != nil {
+		return fmt.Errorf("read opened file: %w", err)
+	}
+	if !bytes.Equal(data, expectedData) {
+		return fmt.Errorf("opened file contents changed")
+	}
+	return nil
+}
+
+func verifyDescriptorMetadata(fd int, expected unix.Stat_t) error {
+	var current unix.Stat_t
+	if err := unix.Fstat(fd, &current); err != nil {
+		return fmt.Errorf("inspect opened file: %w", err)
+	}
+	if !isRegular(current) || !sameFileIdentity(current, expected) {
+		return fmt.Errorf("opened file identity changed")
+	}
+	if current.Uid != expected.Uid || current.Gid != expected.Gid || current.Mode&0o7777 != expected.Mode&0o7777 {
+		return fmt.Errorf("opened file ownership or mode changed")
+	}
+	return nil
+}
+
+func verifyNameMatches(dirFD int, name string, expected unix.Stat_t) error {
+	current, err := statName(dirFD, name)
+	if err != nil {
+		return err
+	}
+	if !isRegular(current) || !sameFileIdentity(current, expected) {
+		return fmt.Errorf("%q no longer identifies the verified regular file", name)
+	}
+	return nil
+}
+
+func statName(dirFD int, name string) (unix.Stat_t, error) {
+	var stat unix.Stat_t
+	if err := unix.Fstatat(dirFD, name, &stat, unix.AT_SYMLINK_NOFOLLOW); err != nil {
+		return unix.Stat_t{}, err
+	}
+	return stat, nil
+}
+
+func unlinkNameIfMatches(dirFD int, name string, expected unix.Stat_t) (bool, error) {
+	current, err := statName(dirFD, name)
+	if errors.Is(err, unix.ENOENT) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !sameFileIdentity(current, expected) {
+		return false, nil
+	}
+	if err := unix.Unlinkat(dirFD, name, 0); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func readAllAt(fd int) ([]byte, error) {
+	const chunkSize = 32 * 1024
+	data := make([]byte, 0, chunkSize)
+	buffer := make([]byte, chunkSize)
+	for {
+		n, err := unix.Pread(fd, buffer, int64(len(data)))
+		if errors.Is(err, unix.EINTR) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			return data, nil
+		}
+		data = append(data, buffer[:n]...)
+	}
 }
 
 func createRandomTempFile(sshFD int) (int, string, error) {

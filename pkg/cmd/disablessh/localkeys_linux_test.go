@@ -74,6 +74,16 @@ func TestListLocalAccountsWith_PropagatesGetentFailure(t *testing.T) {
 	}
 }
 
+func TestListLocalAccountsWith_RejectsEmptyEnumeration(t *testing.T) {
+	for _, output := range [][]byte{nil, []byte("\n\r\n")} {
+		runner := &fakeGetentRunner{output: output}
+		_, err := listLocalAccountsWith(context.Background(), "/usr/bin/getent", runner)
+		if err == nil || !strings.Contains(err.Error(), "returned no local accounts") {
+			t.Fatalf("listLocalAccountsWith(%q) error = %v, want empty-enumeration failure", output, err)
+		}
+	}
+}
+
 func TestSystemAuthorizedKeysCleaner_RemovesBothMarkersAndPreservesModeAndOwnership(t *testing.T) {
 	account, authKeysPath := prepareAuthorizedKeys(t, true)
 	before, err := os.ReadFile("testdata/authorized_keys.before")
@@ -89,6 +99,9 @@ func TestSystemAuthorizedKeysCleaner_RemovesBothMarkersAndPreservesModeAndOwners
 	var beforeStat unix.Stat_t
 	if err := unix.Stat(authKeysPath, &beforeStat); err != nil {
 		t.Fatal(err)
+	}
+	if got := beforeStat.Mode & 0o7777; got != 0o2640 {
+		t.Skipf("filesystem cannot establish setgid test precondition: mode = %#o, want %#o", got, uint32(0o2640))
 	}
 
 	removed, err := cleanLocalAccount(account)
@@ -118,6 +131,101 @@ func TestSystemAuthorizedKeysCleaner_RemovesBothMarkersAndPreservesModeAndOwners
 	}
 	if gotMode, wantMode := afterStat.Mode&0o7777, beforeStat.Mode&0o7777; gotMode != wantMode {
 		t.Fatalf("mode = %#o, want full mode %#o", gotMode, wantMode)
+	}
+}
+
+func TestReplaceAuthorizedKeys_RejectsSubstitutedTempSource(t *testing.T) {
+	_, authKeysPath := prepareAuthorizedKeys(t, true)
+	original := []byte("ssh-ed25519 KEEP keep@example.com #brev-portID:old\n")
+	if err := os.WriteFile(authKeysPath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sshFD, originalFD, originalStat := openReplacementTestDescriptors(t, authKeysPath)
+	defer closeDescriptor(sshFD)
+	defer closeDescriptor(originalFD)
+
+	err := replaceAuthorizedKeysWithHooks(
+		sshFD,
+		originalFD,
+		original,
+		[]byte("ssh-ed25519 KEEP keep@example.com\n"),
+		originalStat,
+		replaceAuthorizedKeysHooks{beforeExchange: func(sshFD int, tempName string) error {
+			if err := unix.Unlinkat(sshFD, tempName, 0); err != nil {
+				return err
+			}
+			attackerFD, err := unix.Openat(
+				sshFD,
+				tempName,
+				unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+				0o600,
+			)
+			if err != nil {
+				return err
+			}
+			defer closeDescriptor(attackerFD)
+			return writeAll(attackerFD, []byte("attacker-controlled source\n"))
+		}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "changed during commit") {
+		t.Fatalf("replaceAuthorizedKeysWithHooks() error = %v, want source-substitution failure", err)
+	}
+	got, readErr := os.ReadFile(authKeysPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, original) {
+		t.Fatalf("authorized_keys = %q, want original destination preserved %q", got, original)
+	}
+}
+
+func TestReplaceAuthorizedKeys_RejectsSubstitutedDestinationWithoutDestroyingIt(t *testing.T) {
+	_, authKeysPath := prepareAuthorizedKeys(t, true)
+	original := []byte("ssh-ed25519 OLD old@example.com #brev-portID:old\n")
+	if err := os.WriteFile(authKeysPath, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sshFD, originalFD, originalStat := openReplacementTestDescriptors(t, authKeysPath)
+	defer closeDescriptor(sshFD)
+	defer closeDescriptor(originalFD)
+	replacement := []byte("ssh-ed25519 NEW concurrent@example.com\n")
+
+	err := replaceAuthorizedKeysWithHooks(
+		sshFD,
+		originalFD,
+		original,
+		[]byte("ssh-ed25519 OLD old@example.com\n"),
+		originalStat,
+		replaceAuthorizedKeysHooks{beforeExchange: func(sshFD int, _ string) error {
+			const replacementName = "authorized_keys.concurrent-replacement"
+			replacementFD, err := unix.Openat(
+				sshFD,
+				replacementName,
+				unix.O_CREAT|unix.O_EXCL|unix.O_WRONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW,
+				0o600,
+			)
+			if err != nil {
+				return err
+			}
+			if err := writeAll(replacementFD, replacement); err != nil {
+				closeDescriptor(replacementFD)
+				return err
+			}
+			if err := unix.Close(replacementFD); err != nil {
+				return err
+			}
+			return unix.Renameat(sshFD, replacementName, sshFD, authorizedKeysName)
+		}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "changed during commit") {
+		t.Fatalf("replaceAuthorizedKeysWithHooks() error = %v, want destination-substitution failure", err)
+	}
+	got, readErr := os.ReadFile(authKeysPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if !bytes.Equal(got, replacement) {
+		t.Fatalf("authorized_keys = %q, want concurrent replacement preserved %q", got, replacement)
 	}
 }
 
@@ -277,6 +385,31 @@ func prepareAuthorizedKeys(t *testing.T, createSSH bool) (localAccount, string) 
 		}
 	}
 	return localAccount{Username: "alice", HomeDir: home}, filepath.Join(sshDir, "authorized_keys")
+}
+
+func openReplacementTestDescriptors(t *testing.T, authorizedKeysPath string) (int, int, unix.Stat_t) {
+	t.Helper()
+	sshFD, err := unix.Open(filepath.Dir(authorizedKeysPath), directoryOpenFlags(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalFD, err := unix.Openat(
+		sshFD,
+		authorizedKeysName,
+		unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK,
+		0,
+	)
+	if err != nil {
+		closeDescriptor(sshFD)
+		t.Fatal(err)
+	}
+	var originalStat unix.Stat_t
+	if err := unix.Fstat(originalFD, &originalStat); err != nil {
+		closeDescriptor(originalFD)
+		closeDescriptor(sshFD)
+		t.Fatal(err)
+	}
+	return sshFD, originalFD, originalStat
 }
 
 func assertUnsafeAccountPath(t *testing.T, account localAccount) {
