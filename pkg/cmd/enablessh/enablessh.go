@@ -149,11 +149,11 @@ func (p defaultSSHAccessProvisioner) Provision(
 
 	brevPortID, err := register.ResolveSSHAccessPort(ctx, t, p.prompter, p.nodeClients, tokenProvider, reg, node)
 	if err != nil {
-		return err
+		return err //nolint:wrapcheck // ResolveSSHAccessPort returns operation-specific user guidance.
 	}
 
 	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, p.nodeClients, tokenProvider, reg, brevUser, linuxUsername, brevPortID); err != nil {
-		return err
+		return err //nolint:wrapcheck // SetupAndRegisterNodeSSHAccess supplies provisioning context.
 	}
 
 	return nil

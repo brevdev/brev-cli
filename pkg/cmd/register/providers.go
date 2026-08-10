@@ -55,7 +55,7 @@ type netBirdCommandRunner interface {
 type execNetBirdCommandRunner struct{}
 
 func (execNetBirdCommandRunner) Output(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).Output()
+	return exec.CommandContext(ctx, name, args...).Output() //nolint:wrapcheck // EnsureConnected adds operation context.
 }
 
 func (execNetBirdCommandRunner) Run(ctx context.Context, name string, args ...string) error {
@@ -63,7 +63,7 @@ func (execNetBirdCommandRunner) Run(ctx context.Context, name string, args ...st
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	return cmd.Run() //nolint:wrapcheck // EnsureConnected adds operation context.
 }
 
 // Netbird handles NetBird installation and connectivity.
@@ -138,7 +138,7 @@ func (n Netbird) EnsureConnected(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("wait for Brev tunnel connection: %w", ctx.Err())
 		case <-confirmationCtx.Done():
 			if lastStatusErr != nil {
 				return fmt.Errorf("Brev tunnel connection was not confirmed: %w", lastStatusErr)

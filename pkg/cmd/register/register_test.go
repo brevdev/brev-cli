@@ -30,9 +30,11 @@ func (panicRegisterStore) GetCurrentUser() (*entity.User, error) { panic("GetCur
 func (panicRegisterStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
 	panic("GetActiveOrganizationOrDefault called")
 }
+
 func (panicRegisterStore) GetOrganizationsByName(string) ([]entity.Organization, error) {
 	panic("GetOrganizationsByName called")
 }
+
 func (panicRegisterStore) ListOrganizations() ([]entity.Organization, error) {
 	panic("ListOrganizations called")
 }
@@ -130,10 +132,12 @@ func (p *recordingJoinPrompter) ConfirmYesNo(label string) bool {
 	p.prompts = append(p.prompts, joinPrompt{kind: "confirm", label: label})
 	return true
 }
+
 func (p *recordingJoinPrompter) Select(label string, items []string) string {
 	p.prompts = append(p.prompts, joinPrompt{kind: "select", label: label})
 	return items[0]
 }
+
 func (p *recordingJoinPrompter) Input(content terminal.PromptContent) string {
 	p.prompts = append(p.prompts, joinPrompt{kind: "input", label: content.Label})
 	return "interactive-node"

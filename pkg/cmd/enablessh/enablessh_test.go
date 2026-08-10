@@ -261,14 +261,14 @@ func (f *fakeNodeService) AddNode(_ context.Context, _ *connect.Request[nodev1.A
 	return connect.NewResponse(&nodev1.AddNodeResponse{}), nil
 }
 
-func startFakeServer(t *testing.T, svc *fakeNodeService) (enableSSHDeps, *httptest.Server) {
+func startFakeServer(t *testing.T, svc *fakeNodeService) enableSSHDeps {
 	t.Helper()
 	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	return enableSSHDeps{
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
-	}, server
+	}
 }
 
 type enableSSHOrder struct{ entries []string }
@@ -292,6 +292,7 @@ type orderedRegistrationStore struct {
 func (s *orderedRegistrationStore) Save(*register.DeviceRegistration) error {
 	return errors.New("Save must not be called")
 }
+
 func (s *orderedRegistrationStore) Load() (*register.DeviceRegistration, error) {
 	return s.reg, s.err
 }
@@ -410,7 +411,7 @@ func TestRunEnableSSH_MissingBackendNodeDoesNotConnectOrProvision(t *testing.T) 
 			return &nodev1.GetNodeResponse{}, nil
 		},
 	}
-	deps, _ := startFakeServer(t, svc)
+	deps := startFakeServer(t, svc)
 	registrationStore := &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
 	deps.platform = orderedPlatform{order: order}
 	deps.registrationStore = registrationStore
@@ -431,7 +432,7 @@ func TestRunEnableSSH_ConnectedTunnelProvisionsSSH(t *testing.T) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_123"}}, nil
 		},
 	}
-	deps, _ := startFakeServer(t, svc)
+	deps := startFakeServer(t, svc)
 	registrationStore := &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456", DisplayName: "joined-node"}}
 	deps.platform = orderedPlatform{order: order}
 	deps.registrationStore = registrationStore
@@ -453,7 +454,7 @@ func TestRunEnableSSH_ReconnectsBeforeProvisioning(t *testing.T) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_123"}}, nil
 		},
 	}
-	deps, _ := startFakeServer(t, svc)
+	deps := startFakeServer(t, svc)
 	deps.platform = orderedPlatform{order: order}
 	deps.registrationStore = &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
 	tunnel := &reconnectingTunnel{order: order, connected: &tunnelConnected}
@@ -470,43 +471,44 @@ func TestRunEnableSSH_ReconnectsBeforeProvisioning(t *testing.T) {
 }
 
 func TestRunEnableSSH_TunnelFailureDoesNotProvision(t *testing.T) {
-	order := &enableSSHOrder{}
-	svc := &fakeNodeService{
-		order: &order.entries,
-		getNodeFn: func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_123"}}, nil
+	tests := []struct {
+		name       string
+		tunnelErr  error
+		wantErrMsg string
+	}{
+		{
+			name:       "generic reconnect failure",
+			tunnelErr:  errors.New("tunnel failed"),
+			wantErrMsg: "enable SSH requires a connected Brev tunnel",
+		},
+		{
+			name:       "connection remains unconfirmed",
+			tunnelErr:  errors.New("Brev tunnel connection was not confirmed"),
+			wantErrMsg: "Brev tunnel connection was not confirmed",
 		},
 	}
-	deps, _ := startFakeServer(t, svc)
-	deps.platform = orderedPlatform{order: order}
-	deps.registrationStore = &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
-	deps.tunnel = orderedTunnel{order: order, err: errors.New("tunnel failed")}
-	deps.provisioner = orderedProvisioner{order: order}
 
-	err := runEnableSSH(context.Background(), terminal.New(), orderedEnableSSHStore{order: order, user: &entity.User{ID: "user_123"}}, deps)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			order := &enableSSHOrder{}
+			svc := &fakeNodeService{
+				order: &order.entries,
+				getNodeFn: func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+					return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_123"}}, nil
+				},
+			}
+			deps := startFakeServer(t, svc)
+			deps.platform = orderedPlatform{order: order}
+			deps.registrationStore = &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
+			deps.tunnel = orderedTunnel{order: order, err: tt.tunnelErr}
+			deps.provisioner = orderedProvisioner{order: order}
 
-	require.ErrorContains(t, err, "enable SSH requires a connected Brev tunnel")
-	require.NotContains(t, order.entries, "provision")
-}
+			err := runEnableSSH(context.Background(), terminal.New(), orderedEnableSSHStore{order: order, user: &entity.User{ID: "user_123"}}, deps)
 
-func TestRunEnableSSH_UnconfirmedTunnelDoesNotProvision(t *testing.T) {
-	order := &enableSSHOrder{}
-	svc := &fakeNodeService{
-		order: &order.entries,
-		getNodeFn: func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_123"}}, nil
-		},
+			require.ErrorContains(t, err, tt.wantErrMsg)
+			require.NotContains(t, order.entries, "provision")
+		})
 	}
-	deps, _ := startFakeServer(t, svc)
-	deps.platform = orderedPlatform{order: order}
-	deps.registrationStore = &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
-	deps.tunnel = orderedTunnel{order: order, err: errors.New("Brev tunnel connection was not confirmed")}
-	deps.provisioner = orderedProvisioner{order: order}
-
-	err := runEnableSSH(context.Background(), terminal.New(), orderedEnableSSHStore{order: order, user: &entity.User{ID: "user_123"}}, deps)
-
-	require.ErrorContains(t, err, "Brev tunnel connection was not confirmed")
-	require.NotContains(t, order.entries, "provision")
 }
 
 func TestRunEnableSSH_NeverAddsNode(t *testing.T) {
@@ -517,7 +519,7 @@ func TestRunEnableSSH_NeverAddsNode(t *testing.T) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_123"}}, nil
 		},
 	}
-	deps, _ := startFakeServer(t, svc)
+	deps := startFakeServer(t, svc)
 	deps.platform = orderedPlatform{order: order}
 	deps.registrationStore = &orderedRegistrationStore{order: order, exists: true, reg: &register.DeviceRegistration{ExternalNodeID: "unode_123", OrgID: "org_456"}}
 	deps.tunnel = orderedTunnel{order: order}
