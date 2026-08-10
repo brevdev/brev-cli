@@ -1,0 +1,3 @@
+from="10.0.0.0/8",no-agent-forwarding ssh-ed25519 AAAA_KEEP keep@example.com
+
+ssh-ed25519 AAAA_FINAL final@example.com

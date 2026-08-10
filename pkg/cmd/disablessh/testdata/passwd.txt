@@ -1,0 +1,5 @@
+root:x:0:0:root:/root:/bin/bash
+alice:x:1000:1000:Alice:/home/alice:/bin/bash
+svc-agent:x:998:998:Service Agent:/var/lib/svc-agent:/usr/sbin/nologin
+bob:x:1001:1001:Bob:/home/shared:/bin/zsh
+carol:x:1002:1002:Carol:/home/shared:/bin/bash

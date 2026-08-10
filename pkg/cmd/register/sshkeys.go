@@ -159,7 +159,9 @@ type BrevAuthorizedKey struct {
 	UserID     string // from devplane brev-userID:... or legacy user_id=
 }
 
-func isBrevManagedAuthorizedKeysLine(line string) bool {
+// IsBrevManagedAuthorizedKeysLine reports whether a line was managed by a
+// current or legacy Brev CLI SSH flow.
+func IsBrevManagedAuthorizedKeysLine(line string) bool {
 	return strings.Contains(line, BrevKeyPrefixLegacy) || strings.Contains(line, "#brev-portID:")
 }
 
@@ -213,7 +215,7 @@ func ListBrevAuthorizedKeys(u *user.User) ([]BrevAuthorizedKey, error) {
 
 	var keys []BrevAuthorizedKey
 	for _, line := range strings.Split(string(data), "\n") {
-		if !isBrevManagedAuthorizedKeysLine(line) {
+		if !IsBrevManagedAuthorizedKeysLine(line) {
 			continue
 		}
 		trimmed := strings.TrimSpace(line)
@@ -529,7 +531,7 @@ func RemoveBrevAuthorizedKeys(u *user.User) ([]string, error) {
 	var kept []string
 	var removed []string
 	for _, line := range strings.Split(string(existing), "\n") {
-		if isBrevManagedAuthorizedKeysLine(line) {
+		if IsBrevManagedAuthorizedKeysLine(line) {
 			if trimmed := strings.TrimSpace(line); trimmed != "" {
 				removed = append(removed, trimmed)
 			}

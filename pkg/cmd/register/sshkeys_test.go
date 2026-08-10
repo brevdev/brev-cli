@@ -43,6 +43,28 @@ func TestDevplaneAuthorizedKeysComment(t *testing.T) {
 	}
 }
 
+func TestIsBrevManagedAuthorizedKeysLine(t *testing.T) {
+	tests := []struct {
+		name string
+		line string
+		want bool
+	}{
+		{name: "current marker", line: "ssh-ed25519 AAAA #brev-portID:port_1,brev-userID:user_1", want: true},
+		{name: "legacy marker", line: "ssh-rsa AAAA # brev-cli user_id=user_1", want: true},
+		{name: "unrelated key", line: "ssh-rsa AAAA user@example.com", want: false},
+		{name: "blank line", line: "", want: false},
+		{name: "unrelated comment", line: "# managed by another tool", want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsBrevManagedAuthorizedKeysLine(tt.line); got != tt.want {
+				t.Fatalf("IsBrevManagedAuthorizedKeysLine(%q) = %v, want %v", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestListBrevAuthorizedKeys_ParsesDevplaneFormat(t *testing.T) {
 	u := tempUser(t)
 	seedKeys(t, u, strings.Join([]string{
