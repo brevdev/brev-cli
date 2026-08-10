@@ -117,9 +117,21 @@ func (m mockSelector) Select(_ string, items []string) string {
 
 type mockNetBirdManager struct{ err error }
 
-func (m mockNetBirdManager) Install() error       { return m.err }
-func (m mockNetBirdManager) Uninstall() error     { return m.err }
-func (m mockNetBirdManager) EnsureRunning() error { return m.err }
+func (m mockNetBirdManager) Install() error                        { return m.err }
+func (m mockNetBirdManager) Uninstall() error                      { return m.err }
+func (m mockNetBirdManager) EnsureConnected(context.Context) error { return m.err }
+
+type reconcilingNetBirdManager struct {
+	called bool
+	err    error
+}
+
+func (m *reconcilingNetBirdManager) Install() error   { return m.err }
+func (m *reconcilingNetBirdManager) Uninstall() error { return m.err }
+func (m *reconcilingNetBirdManager) EnsureConnected(context.Context) error {
+	m.called = true
+	return m.err
+}
 
 type mockSetupRunner struct {
 	called bool
@@ -394,6 +406,38 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 				t.Error("expected registration to still exist")
 			}
 		})
+	}
+}
+
+func TestCheckExistingRegistration_ReconcilesLocalTunnel(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &DeviceRegistration{
+			ExternalNodeID: "unode_existing",
+			DisplayName:    "Existing",
+			OrgID:          "org_123",
+		},
+	}
+	store := &mockRegisterStore{token: "tok"}
+	svc := &fakeNodeService{getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+		return &nodev1.GetNodeResponse{
+			ExternalNode: &nodev1.ExternalNode{
+				ExternalNodeId: req.GetExternalNodeId(),
+				ConnectivityInfo: &nodev1.ConnectivityInfo{
+					Status: nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED,
+				},
+			},
+		}, nil
+	}}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+	tunnel := &reconcilingNetBirdManager{}
+	deps.netbird = tunnel
+
+	if err := checkExistingRegistration(context.Background(), terminal.New(), store, deps); err != nil {
+		t.Fatalf("checkExistingRegistration() error = %v", err)
+	}
+	if !tunnel.called {
+		t.Fatal("checkExistingRegistration() did not reconcile the local Brev tunnel")
 	}
 }
 

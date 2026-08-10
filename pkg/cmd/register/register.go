@@ -34,14 +34,16 @@ type RegisterStore interface {
 	GetAccessToken() (string, error)
 }
 
+// NetBirdConnector confirms local NetBird management connectivity.
+type NetBirdConnector interface {
+	EnsureConnected(context.Context) error
+}
+
 // NetBirdManager installs, uninstalls, and monitors the NetBird network agent.
 type NetBirdManager interface {
+	NetBirdConnector
 	Install() error
 	Uninstall() error
-	// EnsureRunning checks whether the NetBird service is active and
-	// connected, starting or reconnecting it if needed. Returns nil when
-	// the tunnel is healthy.
-	EnsureRunning() error
 }
 
 // SetupRunner runs a setup script on the local machine.
@@ -377,36 +379,22 @@ func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s Regi
 		ci := node.GetConnectivityInfo()
 		if ci != nil && ci.GetStatus() == nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED {
 			t.Vprint(t.Green("  Node is connected."))
-			t.Vprint("")
-			t.Vprint("  Run 'brev deregister' first if you want to re-register.")
-			return nil
+		} else {
+			t.Vprintf("  Node status: %s\n", externalnode.FriendlyNetworkStatus(ci.GetStatus()))
 		}
-		t.Vprintf("  Node status: %s\n", externalnode.FriendlyNetworkStatus(ci.GetStatus()))
 	}
 
-	// Check local netbird service and start it if down.
+	// Confirm local NetBird connectivity even when the backend is connected.
 	t.Vprint("  Checking local Brev tunnel...")
-	if err := deps.netbird.EnsureRunning(); err != nil {
+	if err := deps.netbird.EnsureConnected(ctx); err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: %v", err)))
 	} else {
-		t.Vprint(t.Green("  Brev tunnel is running."))
+		t.Vprint(t.Green("  Brev tunnel is connected."))
 	}
 
 	t.Vprint("")
 	t.Vprint("  Run 'brev deregister' first if you want to re-register.")
 	return nil
-}
-
-// netbirdManagementConnected parses "netbird status" output and returns true
-// when the Management line reports "Connected".
-func netbirdManagementConnected(statusOutput string) bool {
-	for _, line := range strings.Split(statusOutput, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "Management:") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "Management:")) == "Connected"
-		}
-	}
-	return false
 }
 
 func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps) {
