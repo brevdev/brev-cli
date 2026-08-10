@@ -1,11 +1,10 @@
-// Package register provides the brev register command for device registration
+// Package register provides the brev join command and device registration storage.
 package register
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os/user"
 	"strings"
 	"time"
 
@@ -51,12 +50,17 @@ type SetupRunner interface {
 	RunSetup(script string) error
 }
 
-// registerDeps bundles the side-effecting dependencies of runRegister so they
+type joinPrompter interface {
+	terminal.Confirmer
+	terminal.Selector
+	Input(terminal.PromptContent) string
+}
+
+// joinDeps bundles the side-effecting dependencies of runJoin so they
 // can be replaced in tests.
-type registerDeps struct {
+type joinDeps struct {
 	platform          externalnode.PlatformChecker
-	prompter          terminal.Confirmer
-	selector          terminal.Selector
+	prompter          joinPrompter
 	gater             sudo.Gater
 	netbird           NetBirdManager
 	setupRunner       SetupRunner
@@ -65,12 +69,11 @@ type registerDeps struct {
 	registrationStore RegistrationStore
 }
 
-func defaultRegisterDeps() registerDeps {
+func defaultJoinDeps() joinDeps {
 	p := TerminalPrompter{}
-	return registerDeps{
+	return joinDeps{
 		platform:          LinuxPlatform{},
 		prompter:          p,
-		selector:          p,
 		gater:             sudo.Default,
 		netbird:           Netbird{},
 		setupRunner:       ShellSetupRunner{},
@@ -81,23 +84,22 @@ func defaultRegisterDeps() registerDeps {
 }
 
 var (
-	registerLong = `Register your device with NVIDIA Brev
+	joinLong = `Join this device to a Brev network
 
-This command sets up network connectivity and registers this machine with Brev.
+This command sets up network connectivity and joins this machine to Brev.
 
 Two modes are supported:
-  • Interactive (default): run 'brev register' with no flags and follow prompts for device name, org, and options.
-  • Non-interactive: use any of --name, --org, or --ssh-port. No prompts; --name and --org are required. Use for scripts/CI.`
+  • Interactive (default): run 'brev join' with no flags and follow prompts for device name and organization.
+  • Non-interactive: use --name and --org. No prompts; both are required. Use for scripts/CI.`
 
-	registerExample = `  # Interactive (prompts for device name, org, confirmations)
-  brev register
+	joinExample = `  # Interactive (prompts for device name, organization, and confirmations)
+  brev join
 
   # Non-interactive (any flag implies no prompts; --name and --org required)
-  brev register --name my-node --org my-org
-  brev register --name my-node --org my-org --ssh-port 22`
+  brev join --name my-node --org my-org`
 )
 
-func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
+func NewCmdJoin(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	var orgFlag string
 	var nameFlag string
 	var sshPort int
@@ -105,50 +107,56 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "register",
+		Use:                   "join",
+		Aliases:               []string{"register"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Register this device with Brev",
-		Long:                  registerLong,
-		Example:               registerExample,
+		Short:                 "Join this device to a Brev network",
+		Long:                  joinLong,
+		Example:               joinExample,
 		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			interactive := nameFlag == "" && orgFlag == "" && sshPort == 0
-			opts := registerOpts{
-				interactive: interactive,
+			if cmd.CalledAs() == "register" {
+				fmt.Fprintln(cmd.ErrOrStderr(), `Warning: "brev register" is deprecated; use "brev join" instead.`)
+				fmt.Fprintln(cmd.ErrOrStderr(), `This command no longer enables SSH; run "brev enable-ssh" separately.`)
+			}
+			if cmd.Flags().Changed("ssh-port") {
+				return fmt.Errorf("--ssh-port is no longer supported by brev join or brev register; run brev join, then run brev enable-ssh on the joined machine")
+			}
+			opts := joinOpts{
+				interactive: nameFlag == "" && orgFlag == "",
 				name:        nameFlag,
 				orgName:     orgFlag,
-				sshPort:     int32(sshPort),
 				skipConfirm: approveFlag,
 			}
-			return runRegister(cmd.Context(), t, store, opts, defaultRegisterDeps())
+			return runJoin(cmd.Context(), t, store, opts, defaultJoinDeps())
 		},
 	}
 
 	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required when using non-interactive mode)")
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
-	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
+	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "deprecated")
+	_ = cmd.Flags().MarkHidden("ssh-port")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")
 
 	return cmd
 }
 
-// registerOpts carries mode and inputs: when interactive, name/orgName/sshPort are from prompts; otherwise from flags.
-type registerOpts struct {
+// joinOpts carries mode and inputs: when interactive, name and orgName are prompted; otherwise they come from flags.
+type joinOpts struct {
 	interactive bool
 	name        string
 	orgName     string
-	sshPort     int32
 	skipConfirm bool
 }
 
-// runRegister runs a single registration flow; the only difference by mode is whether we prompt or use opts.
-func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit,gocyclo,funlen // ok
+// runJoin runs a single membership setup flow; the only difference by mode is whether we prompt or use opts.
+func runJoin(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts joinOpts, deps joinDeps) error { //nolint:gocognit,gocyclo,funlen // ok
 	// Basic validation
 	if !deps.platform.IsCompatible() {
-		return breverrors.New("brev register is only supported on Linux")
+		return breverrors.New("brev join is only supported on Linux")
 	}
 	// Always gate on sudo; skip confirmation prompt when non-interactive or --approve.
-	if err := deps.gater.Gate(t, deps.prompter, "Device registration", !opts.interactive || opts.skipConfirm); err != nil {
+	if err := deps.gater.Gate(t, deps.prompter, "Device join", !opts.interactive || opts.skipConfirm); err != nil {
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 	if !opts.interactive {
@@ -158,7 +166,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	}
 
 	// Run through the login flow
-	brevUser, err := s.GetCurrentUser()
+	_, err := s.GetCurrentUser()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -176,7 +184,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	var name string
 	if opts.interactive {
 		t.Vprint("")
-		name = terminal.PromptGetInput(terminal.PromptContent{
+		name = deps.prompter.Input(terminal.PromptContent{
 			Label:      "Device name",
 			ErrorMsg:   "name is required",
 			AllowEmpty: false,
@@ -203,7 +211,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 
 	t.Vprint("")
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
-	t.Vprint(t.White("  Registering your device with Brev"))
+	t.Vprint(t.White("  Joining your device to Brev"))
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
 	if opts.interactive && !opts.skipConfirm {
@@ -216,60 +224,34 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	t.Vprint(t.Yellow("  This will:"))
 	t.Vprint("    1. Download and install Brev tunnel")
 	t.Vprint("    2. Collect hardware profile")
-	t.Vprint("    3. Register this machine with Brev")
-	t.Vprint("    4. Store registration data")
+	t.Vprint("    3. Join this machine to Brev")
+	t.Vprint("    4. Store join data")
 	t.Vprint("    5. Connect device to Brev")
 	t.Vprint("")
 
 	if opts.interactive {
-		if !opts.skipConfirm && !deps.prompter.ConfirmYesNo("Proceed with registration?") {
-			t.Vprint("Registration canceled.")
+		if !opts.skipConfirm && !deps.prompter.ConfirmYesNo("Proceed with join?") {
+			t.Vprint("Join canceled.")
 			return nil
 		}
 	}
 
-	// Perform the registration steps
-	reg, err := runRegisterSteps(ctx, t, s, name, org, deps)
-	if err != nil {
+	if err := runJoinSteps(ctx, t, s, name, org, deps); err != nil {
 		return err
 	}
-
-	// Determine if SSH access should be enabled
-	enableSSH := false
-	sshPortForGrant := int32(0)
-	if opts.interactive {
-		enableSSH = deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?")
-		if enableSSH {
-			sshPortForGrant = 0 // prompt for port
-		}
-	} else if opts.sshPort != 0 {
-		enableSSH = true
-		sshPortForGrant = opts.sshPort
-	}
-
-	// Grant SSH access if requested
-	if enableSSH {
-		osUser, err := user.Current()
-		if err != nil {
-			return fmt.Errorf("failed to determine current Linux user: %w", err)
-		}
-		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant, opts.interactive, opts.skipConfirm); err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: %v", err)))
-		}
-	}
-
+	t.Vprint("")
+	t.Vprint("SSH access was not enabled. To enable it for your user, run: brev enable-ssh")
 	return nil
 }
 
-// runRegisterSteps performs netbird install, hardware profile, AddNode, save registration, and runSetup.
-// It does not prompt or enable SSH. Used by both flag-driven and prompt-driven flows.
-func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps) (*DeviceRegistration, error) {
+// runJoinSteps performs netbird install, hardware profile, AddNode, save registration, and runSetup.
+func runJoinSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps joinDeps) error {
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 1/5] Downloading and installing Brev tunnel..."))
 	err := deps.netbird.Install()
 	if err != nil {
-		return nil, fmt.Errorf("brev tunnel setup failed: %w", err)
+		return fmt.Errorf("brev tunnel setup failed: %w", err)
 	}
 	t.Vprintf("%s  Brev tunnel ready.\n", t.Green("  ✓"))
 
@@ -277,7 +259,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	t.Vprint(t.Yellow("[Step 2/5] Collecting hardware profile..."))
 	hwProfile, err := deps.hardwareProfiler.Profile()
 	if err != nil {
-		return nil, fmt.Errorf("failed to collect hardware profile: %w", err)
+		return fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
 	t.Vprintf("%s  Hardware profile collected.\n", t.Green("  ✓"))
 	t.Vprint("")
@@ -285,7 +267,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	t.Vprint(FormatHardwareProfile(hwProfile))
 
 	t.Vprint("")
-	t.Vprint(t.Yellow("[Step 3/5] Registering device with Brev..."))
+	t.Vprint(t.Yellow("[Step 3/5] Joining device to Brev..."))
 	deviceID := uuid.New().String()
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
@@ -299,9 +281,9 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		// its message directly, which already reads as "node already exists".
 		var connectErr *connect.Error
 		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeAlreadyExists {
-			return nil, errors.New(connectErr.Message())
+			return errors.New(connectErr.Message())
 		}
-		return nil, fmt.Errorf("failed to register node: %w", err)
+		return fmt.Errorf("failed to join node: %w", err)
 	}
 
 	node := addResp.Msg.GetExternalNode()
@@ -318,24 +300,24 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 4/5] Storing registration data..."))
 	if err := deps.registrationStore.Save(reg); err != nil {
-		return nil, fmt.Errorf("node registered but failed to save locally: %w", err)
+		return fmt.Errorf("node joined but failed to save locally: %w", err)
 	}
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 5/5] Connecting device to Brev..."))
 	runSetup(node, t, deps)
 
-	t.Vprintf("%s  Node registered.\n", t.Green("  ✓"))
-	t.Vprintf("%s  Registration complete.\n", t.Green("  ✓"))
-	return reg, nil
+	t.Vprintf("%s  Node joined.\n", t.Green("  ✓"))
+	t.Vprintf("%s  Join complete.\n", t.Green("  ✓"))
+	return nil
 }
 
-func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerDeps) (*entity.Organization, error) {
+func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps joinDeps) (*entity.Organization, error) {
 	list, err := s.ListOrganizations()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	org, err := helpers.SelectOrganizationInteractive(t, list, deps.selector)
+	org, err := helpers.SelectOrganizationInteractive(t, list, deps.prompter)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -354,7 +336,7 @@ func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
 // It calls GetNode to check the server-side NetworkMemberStatus and ensures the
 // local netbird service is running, starting it if necessary. Returns nil if
 // the node is healthy, or an error describing what's wrong.
-func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps) error {
+func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps joinDeps) error {
 	reg, loadErr := deps.registrationStore.Load()
 	if loadErr != nil {
 		return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
@@ -393,11 +375,11 @@ func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s Regi
 	}
 
 	t.Vprint("")
-	t.Vprint("  Run 'brev deregister' first if you want to re-register.")
+	t.Vprint("  Run 'brev leave' first if you want to rejoin.")
 	return nil
 }
 
-func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps) {
+func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps joinDeps) {
 	ci := node.GetConnectivityInfo()
 	if ci == nil || ci.GetRegistrationCommand() == "" {
 		t.Vprintf("  %s\n", t.Yellow("Warning: Brev tunnel setup failed, please try again."))
@@ -410,60 +392,4 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 			time.Sleep(2 * time.Second)
 		}
 	}
-}
-
-// grantSSHAccessWithPort enables SSH: shows confirm table, uses port or prompts if port is 0, then allocates port and grants access.
-func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32, interactive bool, skipConfirm bool) error {
-	brevUserName := brevUser.Username
-	if brevUserName == "" {
-		brevUserName = brevUser.Email
-	}
-	if brevUserName == "" {
-		brevUserName = brevUser.ID
-	}
-
-	t.Vprint("")
-	t.Vprint(t.White("══════════════════════════════════════════════════"))
-	t.Vprint(t.White("  Enabling SSH access on this device"))
-	t.Vprint(t.White("══════════════════════════════════════════════════"))
-	t.Vprint("")
-	if interactive && !skipConfirm {
-		t.Vprint(t.Green("  Please confirm before continuing:"))
-		t.Vprint("")
-	}
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(reg.OrgName+" ("+reg.OrgID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUserName+" ("+brevUser.ID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
-
-	var err error
-	if port == 0 {
-		t.Vprint("")
-		port, err = PromptSSHPort(t)
-		if err != nil {
-			return fmt.Errorf("invalid SSH port: %w", err)
-		}
-	} else {
-		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "SSH port:")), t.BoldBlue(fmt.Sprintf("%d", port)))
-	}
-	t.Vprint("")
-
-	return grantSSHAccess(ctx, t, deps, tokenProvider, reg, brevUser, osUser, port)
-}
-
-func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
-	brevPortID, err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port)
-	if err != nil {
-		return fmt.Errorf("allocate SSH port failed: %w", err)
-	}
-
-	err = SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser.Username, brevPortID)
-	if err != nil {
-		return fmt.Errorf("grant SSH failed: %w", err)
-	}
-
-	t.Vprint("")
-	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
-	t.Vprint("")
-	return nil
 }

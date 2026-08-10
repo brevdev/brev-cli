@@ -38,6 +38,10 @@ func (TerminalPrompter) Select(label string, items []string) string {
 	})
 }
 
+func (TerminalPrompter) Input(content terminal.PromptContent) string {
+	return terminal.PromptGetInput(content)
+}
+
 const (
 	defaultNetBirdConnectTimeout = 30 * time.Second
 	defaultNetBirdPollInterval   = 500 * time.Millisecond

@@ -80,7 +80,7 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		return nil, breverrors.New("device registration not found, run 'brev register' first")
+		return nil, breverrors.New("device registration not found, run 'brev join' first")
 	}
 	var reg DeviceRegistration
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {

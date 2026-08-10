@@ -1,9 +1,12 @@
 package register
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -15,7 +18,171 @@ import (
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
 )
+
+const legacySSHPortMigrationError = "--ssh-port is no longer supported by brev join or brev register; run brev join, then run brev enable-ssh on the joined machine"
+
+type panicRegisterStore struct{}
+
+func (panicRegisterStore) GetCurrentUser() (*entity.User, error) { panic("GetCurrentUser called") }
+func (panicRegisterStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	panic("GetActiveOrganizationOrDefault called")
+}
+func (panicRegisterStore) GetOrganizationsByName(string) ([]entity.Organization, error) {
+	panic("GetOrganizationsByName called")
+}
+func (panicRegisterStore) ListOrganizations() ([]entity.Organization, error) {
+	panic("ListOrganizations called")
+}
+func (panicRegisterStore) GetAccessToken() (string, error) { panic("GetAccessToken called") }
+
+func TestNewCmdJoin_CommandSurface(t *testing.T) {
+	cmd := NewCmdJoin(terminal.New(), panicRegisterStore{})
+	root := &cobra.Command{Use: "brev"}
+	root.AddCommand(cmd)
+
+	resolved, _, err := root.Find([]string{"register"})
+	require.NoError(t, err)
+	require.Equal(t, "join", cmd.Name())
+	require.Equal(t, []string{"register"}, cmd.Aliases)
+	require.Same(t, cmd, resolved)
+	require.Error(t, cmd.Args(cmd, []string{"unexpected"}))
+	require.True(t, cmd.Flags().Lookup("ssh-port").Hidden)
+}
+
+func TestNewCmdJoin_RegisterAliasWarnsOnExecution(t *testing.T) {
+	cmd := NewCmdJoin(terminal.New(), panicRegisterStore{})
+	root := &cobra.Command{Use: "brev", SilenceUsage: true}
+	root.AddCommand(cmd)
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"register", "--ssh-port", "22"})
+
+	err := root.Execute()
+
+	require.EqualError(t, err, legacySSHPortMigrationError)
+	require.Contains(t, stderr.String(), "Warning: \"brev register\" is deprecated; use \"brev join\" instead.\nThis command no longer enables SSH; run \"brev enable-ssh\" separately.\n")
+}
+
+func TestNewCmdJoin_HelpDoesNotWarn(t *testing.T) {
+	cmd := NewCmdJoin(terminal.New(), panicRegisterStore{})
+	root := &cobra.Command{Use: "brev", SilenceUsage: true}
+	root.AddCommand(cmd)
+	var stderr bytes.Buffer
+	root.SetErr(&stderr)
+	root.SetArgs([]string{"register", "--help"})
+
+	require.NoError(t, root.Execute())
+	require.Empty(t, stderr.String())
+}
+
+func TestNewCmdJoin_LegacySSHPortFailsBeforeSideEffects(t *testing.T) {
+	tests := [][]string{
+		{"join", "--ssh-port", "22"},
+		{"join", "--ssh-port", "0"},
+		{"join", "-p", "22"},
+		{"register", "--ssh-port", "22"},
+		{"register", "-p", "22"},
+	}
+
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			cmd := NewCmdJoin(terminal.New(), panicRegisterStore{})
+			root := &cobra.Command{Use: "brev", SilenceUsage: true}
+			root.AddCommand(cmd)
+			root.SetErr(&bytes.Buffer{})
+			root.SetArgs(args)
+
+			require.EqualError(t, root.Execute(), legacySSHPortMigrationError)
+		})
+	}
+}
+
+type recordingJoinPrompter struct {
+	inputs []terminal.PromptContent
+}
+
+func (p *recordingJoinPrompter) ConfirmYesNo(string) bool { return true }
+func (p *recordingJoinPrompter) Select(_ string, items []string) string {
+	return items[0]
+}
+func (p *recordingJoinPrompter) Input(content terminal.PromptContent) string {
+	p.inputs = append(p.inputs, content)
+	return "interactive-node"
+}
+
+func TestRunJoin_InteractivePromptsOnlyForMembership(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+	svc := &fakeNodeService{addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+		return &nodev1.AddNodeResponse{ExternalNode: &nodev1.ExternalNode{
+			ExternalNodeId: "unode_abc", OrganizationId: req.GetOrganizationId(), Name: req.GetName(), DeviceId: req.GetDeviceId(),
+		}}, nil
+	}}
+	deps, server := testJoinDeps(t, svc, regStore)
+	defer server.Close()
+	prompter := &recordingJoinPrompter{}
+	deps.prompter = prompter
+
+	require.NoError(t, runJoin(context.Background(), terminal.New(), store, joinOpts{interactive: true}, deps))
+	require.Len(t, prompter.inputs, 1)
+	require.Equal(t, "Device name", prompter.inputs[0].Label)
+}
+
+func TestRunJoin_DoesNotOpenPortOrGrantSSH(t *testing.T) {
+	regStore := &mockRegistrationStore{}
+	store := &mockRegisterStore{
+		user:  &entity.User{ID: "user_1"},
+		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		token: "tok",
+	}
+	openCalls, grantCalls := 0, 0
+	svc := &fakeNodeService{
+		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+			return &nodev1.AddNodeResponse{ExternalNode: &nodev1.ExternalNode{
+				ExternalNodeId: "unode_abc", OrganizationId: req.GetOrganizationId(), Name: req.GetName(), DeviceId: req.GetDeviceId(),
+			}}, nil
+		},
+		openPortFn: func(*nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
+			openCalls++
+			return &nodev1.OpenPortResponse{}, nil
+		},
+		grantNodeSSHAccessFn: func(*nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			grantCalls++
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
+	deps, server := testJoinDeps(t, svc, regStore)
+	defer server.Close()
+
+	stdout := captureStdout(t)
+	require.NoError(t, runJoin(context.Background(), terminal.New(), store, joinOpts{name: "my-node", orgName: "TestOrg"}, deps))
+	require.Equal(t, 0, openCalls)
+	require.Equal(t, 0, grantCalls)
+	require.Contains(t, stdout(), "brev enable-ssh")
+}
+
+func captureStdout(t *testing.T) func() string {
+	t.Helper()
+	previous := os.Stdout
+	reader, writer, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = writer
+	return func() string {
+		require.NoError(t, writer.Close())
+		os.Stdout = previous
+		output, err := io.ReadAll(reader)
+		require.NoError(t, err)
+		require.NoError(t, reader.Close())
+		return string(output)
+	}
+}
 
 // mockRegisterStore satisfies RegisterStore for orchestration tests.
 type mockRegisterStore struct {
@@ -88,7 +255,7 @@ func (m *mockRegistrationStore) Exists() (bool, error) {
 	return m.reg != nil, nil
 }
 
-// mock types for registerDeps interfaces
+// mock types for joinDeps interfaces
 
 type mockPlatform struct{ compatible bool }
 
@@ -96,23 +263,13 @@ func (m mockPlatform) IsCompatible() bool { return m.compatible }
 
 type mockConfirmer struct{ confirm bool }
 
-func (m mockConfirmer) ConfirmYesNo(_ string) bool { return m.confirm }
-
-// mockSelector implements terminal.Selector by returning the first item (for tests that need org selection).
-type mockSelector struct{ choice string }
-
-func (m mockSelector) Select(_ string, items []string) string {
-	if m.choice != "" {
-		for _, s := range items {
-			if s == m.choice {
-				return s
-			}
-		}
+func (m mockConfirmer) ConfirmYesNo(_ string) bool            { return m.confirm }
+func (m mockConfirmer) Input(_ terminal.PromptContent) string { return "" }
+func (m mockConfirmer) Select(_ string, items []string) string {
+	if len(items) == 0 {
+		return ""
 	}
-	if len(items) > 0 {
-		return items[0]
-	}
-	return ""
+	return items[0]
 }
 
 type mockNetBirdManager struct{ err error }
@@ -173,18 +330,17 @@ func testHardwareProfile() *HardwareProfile {
 	}
 }
 
-// testRegisterDeps returns deps with all side effects stubbed out, and a fake
+// testJoinDeps returns deps with all side effects stubbed out, and a fake
 // ConnectRPC server backed by the provided fakeNodeService.
-func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationStore) (registerDeps, *httptest.Server) {
+func testJoinDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationStore) (joinDeps, *httptest.Server) {
 	t.Helper()
 
 	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
 	server := httptest.NewServer(handler)
 
-	return registerDeps{
+	return joinDeps{
 		platform:    mockPlatform{compatible: true},
 		prompter:    mockConfirmer{confirm: true},
-		selector:    mockSelector{},
 		gater:       sudo.CachedGater{},
 		netbird:     mockNetBirdManager{},
 		setupRunner: &mockSetupRunner{},
@@ -196,7 +352,7 @@ func testRegisterDeps(t *testing.T, svc *fakeNodeService, regStore RegistrationS
 	}, server
 }
 
-func Test_runRegister_HappyPath(t *testing.T) {
+func Test_runJoin_HappyPath(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -230,19 +386,16 @@ func Test_runRegister_HappyPath(t *testing.T) {
 
 	setupRunner := &mockSetupRunner{}
 
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.setupRunner = setupRunner
 
-	SetTestSSHPort(22)
-	defer ClearTestSSHPort()
-
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err != nil {
-		t.Fatalf("runRegister failed: %v", err)
+		t.Fatalf("runJoin failed: %v", err)
 	}
 
 	// Verify registration was persisted
@@ -251,7 +404,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 		t.Fatalf("Exists error: %v", err)
 	}
 	if !exists {
-		t.Fatal("expected registration to exist after successful register")
+		t.Fatal("expected registration to exist after successful join")
 	}
 
 	reg, err := regStore.Load()
@@ -274,14 +427,14 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	}
 }
 
-// gaterFromFunc adapts a function to sudo.Gater; used only by Test_runRegister_UserCancels.
+// gaterFromFunc adapts a function to sudo.Gater; used only by Test_runJoin_UserCancels.
 type gaterFromFunc func(*terminal.Terminal, terminal.Confirmer, string, bool) error
 
 func (f gaterFromFunc) Gate(t *terminal.Terminal, c terminal.Confirmer, reason string, assumeYes bool) error {
 	return f(t, c, reason, assumeYes)
 }
 
-func Test_runRegister_UserCancels(t *testing.T) {
+func Test_runJoin_UserCancels(t *testing.T) {
 	// User cancel happens in interactive mode (sudo or confirm). Flag-driven has no prompts.
 	regStore := &mockRegistrationStore{}
 	store := &mockRegisterStore{
@@ -290,7 +443,7 @@ func Test_runRegister_UserCancels(t *testing.T) {
 		token: "tok",
 	}
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.prompter = mockConfirmer{confirm: false}
@@ -307,8 +460,8 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	})
 
 	term := terminal.New()
-	opts := registerOpts{interactive: true, name: "", orgName: "", sshPort: 0}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: true, name: "", orgName: ""}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when user declines sudo gate")
 	}
@@ -322,7 +475,7 @@ func Test_runRegister_UserCancels(t *testing.T) {
 	}
 }
 
-func Test_runRegister_AlreadyRegistered(t *testing.T) {
+func Test_runJoin_AlreadyRegistered(t *testing.T) {
 	tests := []struct {
 		name      string
 		getNodeFn func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
@@ -389,14 +542,14 @@ func Test_runRegister_AlreadyRegistered(t *testing.T) {
 			}
 
 			svc := &fakeNodeService{getNodeFn: tt.getNodeFn}
-			deps, server := testRegisterDeps(t, svc, regStore)
+			deps, server := testJoinDeps(t, svc, regStore)
 			defer server.Close()
 
 			term := terminal.New()
 			// Pass the same name as the existing registration so we go through
 			// the checkExistingRegistration path (not the different-name path).
-			opts := registerOpts{interactive: false, name: "Existing", orgName: "TestOrg", sshPort: 22}
-			err := runRegister(context.Background(), term, store, opts, deps)
+			opts := joinOpts{interactive: false, name: "Existing", orgName: "TestOrg"}
+			err := runJoin(context.Background(), term, store, opts, deps)
 			if err != nil {
 				t.Fatalf("expected nil error, got: %v", err)
 			}
@@ -428,7 +581,7 @@ func TestCheckExistingRegistration_ReconcilesLocalTunnel(t *testing.T) {
 			},
 		}, nil
 	}}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 	tunnel := &reconcilingNetBirdManager{}
 	deps.netbird = tunnel
@@ -441,7 +594,7 @@ func TestCheckExistingRegistration_ReconcilesLocalTunnel(t *testing.T) {
 	}
 }
 
-func Test_runRegister_NoOrganization(t *testing.T) {
+func Test_runJoin_NoOrganization(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -452,18 +605,18 @@ func Test_runRegister_NoOrganization(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when no org exists")
 	}
 }
 
-func Test_runRegister_WithOrgFlag(t *testing.T) {
+func Test_runJoin_WithOrgFlag(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -491,18 +644,15 @@ func Test_runRegister_WithOrgFlag(t *testing.T) {
 	}
 
 	setupRunner := &mockSetupRunner{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 	deps.setupRunner = setupRunner
 
-	SetTestSSHPort(22)
-	defer ClearTestSSHPort()
-
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "SpecificOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "SpecificOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err != nil {
-		t.Fatalf("runRegister with --org failed: %v", err)
+		t.Fatalf("runJoin with --org failed: %v", err)
 	}
 
 	if capturedOrgID != "org_456" {
@@ -518,7 +668,7 @@ func Test_runRegister_WithOrgFlag(t *testing.T) {
 	}
 }
 
-func Test_runRegister_WithOrgFlag_NotFound(t *testing.T) {
+func Test_runJoin_WithOrgFlag_NotFound(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -529,12 +679,12 @@ func Test_runRegister_WithOrgFlag_NotFound(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "NonexistentOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "NonexistentOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when org not found")
 	}
@@ -543,7 +693,7 @@ func Test_runRegister_WithOrgFlag_NotFound(t *testing.T) {
 	}
 }
 
-func Test_runRegister_AddNodeFails(t *testing.T) {
+func Test_runJoin_AddNodeFails(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -559,12 +709,12 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 		},
 	}
 
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when AddNode fails")
 	}
@@ -579,7 +729,7 @@ func Test_runRegister_AddNodeFails(t *testing.T) {
 	}
 }
 
-func Test_runRegister_NoSetupCommand(t *testing.T) {
+func Test_runJoin_NoSetupCommand(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -605,19 +755,16 @@ func Test_runRegister_NoSetupCommand(t *testing.T) {
 
 	setupRunner := &mockSetupRunner{}
 
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.setupRunner = setupRunner
 
-	SetTestSSHPort(22)
-	defer ClearTestSSHPort()
-
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err != nil {
-		t.Fatalf("runRegister failed: %v", err)
+		t.Fatalf("runJoin failed: %v", err)
 	}
 
 	if setupRunner.called {
@@ -706,110 +853,7 @@ Peers count: 0/0 Connected`
 	}
 }
 
-func Test_runRegister_GrantSSH_retries_on_connection_error_then_succeeds(t *testing.T) {
-	regStore := &mockRegistrationStore{}
-
-	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		token: "tok",
-	}
-
-	var grantCalls int
-	svc := &fakeNodeService{
-		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
-			return &nodev1.AddNodeResponse{
-				ExternalNode: &nodev1.ExternalNode{
-					ExternalNodeId: "unode_abc",
-					OrganizationId: "org_123",
-					Name:           req.GetName(),
-					DeviceId:       req.GetDeviceId(),
-					ConnectivityInfo: &nodev1.ConnectivityInfo{
-						RegistrationCommand: "netbird up --key abc",
-					},
-				},
-			}, nil
-		},
-		grantNodeSSHAccessFn: func(_ *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
-			grantCalls++
-			if grantCalls < 2 {
-				return nil, connect.NewError(connect.CodeInternal, nil)
-			}
-			return &nodev1.GrantNodeSSHAccessResponse{}, nil
-		},
-	}
-
-	deps, server := testRegisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	deps.prompter = mockConfirmer{confirm: true}
-
-	SetTestSSHPort(22)
-	defer ClearTestSSHPort()
-
-	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
-	if err != nil {
-		t.Fatalf("runRegister failed: %v", err)
-	}
-
-	if grantCalls != 2 {
-		t.Errorf("expected GrantNodeSSHAccess to be called 2 times (retry once), got %d", grantCalls)
-	}
-}
-
-func Test_runRegister_GrantSSH_no_retry_on_permanent_error(t *testing.T) {
-	regStore := &mockRegistrationStore{}
-
-	store := &mockRegisterStore{
-		user:  &entity.User{ID: "user_1"},
-		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-		token: "tok",
-	}
-
-	var grantCalls int
-	svc := &fakeNodeService{
-		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
-			return &nodev1.AddNodeResponse{
-				ExternalNode: &nodev1.ExternalNode{
-					ExternalNodeId: "unode_abc",
-					OrganizationId: "org_123",
-					Name:           req.GetName(),
-					DeviceId:       req.GetDeviceId(),
-					ConnectivityInfo: &nodev1.ConnectivityInfo{
-						RegistrationCommand: "netbird up --key abc",
-					},
-				},
-			}, nil
-		},
-		grantNodeSSHAccessFn: func(_ *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
-			grantCalls++
-			return nil, connect.NewError(connect.CodePermissionDenied, nil)
-		},
-	}
-
-	deps, server := testRegisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	deps.prompter = mockConfirmer{confirm: true}
-
-	SetTestSSHPort(22)
-	defer ClearTestSSHPort()
-
-	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
-	if err != nil {
-		t.Fatalf("runRegister should not fail the overall flow when SSH grant fails: %v", err)
-	}
-
-	if grantCalls != 1 {
-		t.Errorf("expected GrantNodeSSHAccess to be called once (no retry on permanent error), got %d", grantCalls)
-	}
-}
-
-func Test_runRegister_NameValidation(t *testing.T) {
+func Test_runJoin_NameValidation(t *testing.T) {
 	tests := []struct {
 		name      string
 		input     string
@@ -852,16 +896,13 @@ func Test_runRegister_NameValidation(t *testing.T) {
 				},
 			}
 
-			deps, server := testRegisterDeps(t, svc, regStore)
+			deps, server := testJoinDeps(t, svc, regStore)
 			defer server.Close()
-
-			SetTestSSHPort(22)
-			defer ClearTestSSHPort()
 
 			term := terminal.New()
 			var err error
-			opts := registerOpts{interactive: false, name: tt.input, orgName: "TestOrg", sshPort: 22}
-			err = runRegister(context.Background(), term, store, opts, deps)
+			opts := joinOpts{interactive: false, name: tt.input, orgName: "TestOrg"}
+			err = runJoin(context.Background(), term, store, opts, deps)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -876,7 +917,7 @@ func Test_runRegister_NameValidation(t *testing.T) {
 	}
 }
 
-func Test_runRegister_PlatformIncompatible(t *testing.T) {
+func Test_runJoin_PlatformIncompatible(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -886,14 +927,14 @@ func Test_runRegister_PlatformIncompatible(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.platform = mockPlatform{compatible: false}
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when platform is incompatible")
 	}
@@ -902,7 +943,7 @@ func Test_runRegister_PlatformIncompatible(t *testing.T) {
 	}
 }
 
-func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
+func Test_runJoin_HardwareProfilerFailure(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -912,14 +953,14 @@ func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.hardwareProfiler = &mockHardwareProfiler{err: fmt.Errorf("nvml init failed")}
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when hardware profiler fails")
 	}
@@ -928,7 +969,7 @@ func Test_runRegister_HardwareProfilerFailure(t *testing.T) {
 	}
 }
 
-func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
+func Test_runJoin_NetBirdInstallFailure(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
 	store := &mockRegisterStore{
@@ -938,14 +979,14 @@ func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	deps.netbird = mockNetBirdManager{err: fmt.Errorf("install failed")}
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when NetBird install fails")
 	}
@@ -954,7 +995,7 @@ func Test_runRegister_NetBirdInstallFailure(t *testing.T) {
 	}
 }
 
-func Test_runRegister_NoNameNotRegistered(t *testing.T) {
+func Test_runJoin_NoNameNotRegistered(t *testing.T) {
 	// In flag-driven mode, missing --name and --org must error (no prompts).
 	regStore := &mockRegistrationStore{}
 
@@ -965,12 +1006,12 @@ func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	}
 
 	svc := &fakeNodeService{}
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "", orgName: "", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "", orgName: ""}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err == nil {
 		t.Fatal("expected error when no name/org in non-interactive mode")
 	}
@@ -979,7 +1020,7 @@ func Test_runRegister_NoNameNotRegistered(t *testing.T) {
 	}
 }
 
-func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
+func Test_runJoin_NoNameAlreadyRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{
 		reg: &DeviceRegistration{
 			ExternalNodeID: "unode_existing",
@@ -1007,12 +1048,12 @@ func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
 		},
 	}
 
-	deps, server := testRegisterDeps(t, svc, regStore)
+	deps, server := testJoinDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "Existing", orgName: "TestOrg", sshPort: 22}
-	err := runRegister(context.Background(), term, store, opts, deps)
+	opts := joinOpts{interactive: false, name: "Existing", orgName: "TestOrg"}
+	err := runJoin(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("expected nil error when already registered with no name, got: %v", err)
 	}
@@ -1021,155 +1062,5 @@ func Test_runRegister_NoNameAlreadyRegistered(t *testing.T) {
 	exists, _ := regStore.Exists()
 	if !exists {
 		t.Error("expected registration to still exist")
-	}
-}
-
-func Test_runRegister_OpenSSHPort(t *testing.T) { // nolint:funlen, gocyclo, gocognit // test
-	tests := []struct {
-		name   string
-		port   int32
-		openFn func(*nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error)
-		verify func(t *testing.T, openReq *nodev1.OpenPortRequest, grantReq *nodev1.GrantNodeSSHAccessRequest, reg *mockRegistrationStore, err error)
-	}{
-		{
-			name: "SendsCorrectArgs",
-			port: 2222,
-			openFn: func(req *nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
-				return &nodev1.OpenPortResponse{
-					Port: &nodev1.Port{
-						PortId:     "port_ssh",
-						Protocol:   req.GetProtocol(),
-						PortNumber: req.GetPortNumber(),
-					},
-				}, nil
-			},
-			verify: func(t *testing.T, openReq *nodev1.OpenPortRequest, _ *nodev1.GrantNodeSSHAccessRequest, _ *mockRegistrationStore, err error) {
-				t.Helper()
-				if err != nil {
-					t.Fatalf("runRegister failed: %v", err)
-				}
-				if openReq == nil {
-					t.Fatal("expected OpenPort to be called")
-				}
-				if openReq.GetExternalNodeId() != "unode_abc" {
-					t.Errorf("expected node ID unode_abc, got %s", openReq.GetExternalNodeId())
-				}
-				if openReq.GetProtocol() != nodev1.PortProtocol_PORT_PROTOCOL_TCP {
-					t.Errorf("expected PORT_PROTOCOL_TCP, got %s", openReq.GetProtocol())
-				}
-				if openReq.GetPortNumber() != 2222 {
-					t.Errorf("expected port 2222, got %d", openReq.GetPortNumber())
-				}
-			},
-		},
-		{
-			name: "FailureIsSoftError",
-			port: 22,
-			openFn: func(_ *nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
-				return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("skybridge unavailable"))
-			},
-			verify: func(t *testing.T, _ *nodev1.OpenPortRequest, _ *nodev1.GrantNodeSSHAccessRequest, regStore *mockRegistrationStore, err error) {
-				t.Helper()
-				if err != nil {
-					t.Fatalf("registration should succeed even when OpenSSHPort fails (soft error), got: %v", err)
-				}
-				exists, _ := regStore.Exists()
-				if !exists {
-					t.Error("expected registration to still exist after OpenSSHPort failure")
-				}
-			},
-		},
-		{
-			name: "InvalidPortNoAPICall",
-			port: 99999,
-			verify: func(t *testing.T, openReq *nodev1.OpenPortRequest, _ *nodev1.GrantNodeSSHAccessRequest, regStore *mockRegistrationStore, err error) {
-				t.Helper()
-				if err != nil {
-					t.Fatalf("registration should succeed even when SSH port is invalid (soft error), got: %v", err)
-				}
-				if openReq != nil {
-					t.Error("expected OpenPort NOT to be called for invalid port")
-				}
-				exists, _ := regStore.Exists()
-				if !exists {
-					t.Error("expected registration to still exist after invalid port")
-				}
-			},
-		},
-		{
-			name: "GrantRequestHasNoPort",
-			port: 22,
-			verify: func(t *testing.T, _ *nodev1.OpenPortRequest, grantReq *nodev1.GrantNodeSSHAccessRequest, _ *mockRegistrationStore, err error) {
-				t.Helper()
-				if err != nil {
-					t.Fatalf("runRegister failed: %v", err)
-				}
-				if grantReq == nil {
-					t.Fatal("expected GrantNodeSSHAccess to be called")
-				}
-				if grantReq.GetExternalNodeId() != "unode_abc" {
-					t.Errorf("expected node ID unode_abc, got %s", grantReq.GetExternalNodeId())
-				}
-				if grantReq.GetUserId() != "user_1" {
-					t.Errorf("expected user ID user_1, got %s", grantReq.GetUserId())
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			regStore := &mockRegistrationStore{}
-			store := &mockRegisterStore{
-				user:  &entity.User{ID: "user_1"},
-				org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
-				token: "tok",
-			}
-
-			var gotOpenReq *nodev1.OpenPortRequest
-			var gotGrantReq *nodev1.GrantNodeSSHAccessRequest
-			svc := &fakeNodeService{
-				addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
-					return &nodev1.AddNodeResponse{
-						ExternalNode: &nodev1.ExternalNode{
-							ExternalNodeId: "unode_abc",
-							OrganizationId: "org_123",
-							Name:           req.GetName(),
-							DeviceId:       req.GetDeviceId(),
-							ConnectivityInfo: &nodev1.ConnectivityInfo{
-								RegistrationCommand: "netbird up --key abc",
-							},
-						},
-					}, nil
-				},
-				openPortFn: func(req *nodev1.OpenPortRequest) (*nodev1.OpenPortResponse, error) {
-					gotOpenReq = req
-					if tt.openFn != nil {
-						return tt.openFn(req)
-					}
-					return &nodev1.OpenPortResponse{
-						Port: &nodev1.Port{PortId: "port_ssh", Protocol: req.GetProtocol(), PortNumber: req.GetPortNumber()},
-					}, nil
-				},
-				grantNodeSSHAccessFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
-					gotGrantReq = req
-					return &nodev1.GrantNodeSSHAccessResponse{}, nil
-				},
-			}
-
-			deps, server := testRegisterDeps(t, svc, regStore)
-			defer server.Close()
-
-			deps.prompter = mockConfirmer{confirm: true}
-
-			SetTestSSHPort(tt.port)
-			defer ClearTestSSHPort()
-
-			term := terminal.New()
-			opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", sshPort: tt.port}
-			err := runRegister(context.Background(), term, store, opts, deps)
-
-			tt.verify(t, gotOpenReq, gotGrantReq, regStore, err)
-		})
 	}
 }

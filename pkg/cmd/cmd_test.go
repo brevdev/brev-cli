@@ -31,6 +31,16 @@ func newTestFileStore(t *testing.T) *store.FileStore {
 	)
 }
 
+func TestNewBrevCommand_BYONCommandSurface(t *testing.T) {
+	root := NewBrevCommand()
+	join, _, err := root.Find([]string{"join"})
+	require.NoError(t, err)
+	register, _, err := root.Find([]string{"register"})
+	require.NoError(t, err)
+	require.Equal(t, "join", join.Name())
+	require.Same(t, join, register)
+}
+
 func TestEmailCachingAuthStore_SaveCachesEmail(t *testing.T) {
 	fs := newTestFileStore(t)
 	s := &emailCachingAuthStore{

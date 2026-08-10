@@ -1,6 +1,7 @@
 package register
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -140,7 +141,10 @@ func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
 
 	_, err := store.Load()
 	if err == nil {
-		t.Error("expected error loading missing registration")
+		t.Fatal("expected error loading missing registration")
+	}
+	if !strings.Contains(err.Error(), "brev join") || strings.Contains(err.Error(), "brev register") {
+		t.Errorf("expected join recovery guidance, got: %v", err)
 	}
 }
 
