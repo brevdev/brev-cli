@@ -1,18 +1,20 @@
-// Package deregister provides the brev deregister command for device deregistration
+// Package deregister provides the canonical Brev network leave command and
+// its deprecated deregister alias.
 package deregister
 
 import (
 	"context"
 	"fmt"
-	"os/user"
+	"io"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
-	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -20,192 +22,175 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DeregisterStore defines the store methods needed by the deregister command.
-type DeregisterStore interface {
+// LeaveStore defines the authenticated store methods needed by leave.
+type LeaveStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetAccessToken() (string, error)
 }
 
-// SSHKeyRemover removes Brev-managed SSH keys and returns the lines removed.
-type SSHKeyRemover interface {
-	RemoveBrevKeys(u *user.User) ([]string, error)
+type netBirdUninstaller interface {
+	Uninstall() error
 }
 
-// brevSSHKeyRemover delegates to register.RemoveBrevAuthorizedKeys.
-type brevSSHKeyRemover struct{}
-
-func (brevSSHKeyRemover) RemoveBrevKeys(u *user.User) ([]string, error) {
-	removed, err := register.RemoveBrevAuthorizedKeys(u)
-	if err != nil {
-		return nil, fmt.Errorf("removing brev authorized keys: %w", err)
-	}
-	return removed, nil
-}
-
-// deregisterDeps bundles the side-effecting dependencies of runDeregister so
-// they can be replaced in tests.
-type deregisterDeps struct {
+type leaveDeps struct {
 	platform          externalnode.PlatformChecker
-	prompter          terminal.Selector
 	confirmer         terminal.Confirmer
 	gater             sudo.Gater
-	netbird           register.NetBirdManager
+	netbird           netBirdUninstaller
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
-	sshKeys           SSHKeyRemover
 }
 
-func defaultDeregisterDeps() deregisterDeps {
-	return deregisterDeps{
+func defaultLeaveDeps() leaveDeps {
+	return leaveDeps{
 		platform:          register.LinuxPlatform{},
-		prompter:          register.TerminalPrompter{},
 		confirmer:         register.TerminalPrompter{},
 		gater:             sudo.Default,
 		netbird:           register.Netbird{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
-		sshKeys:           brevSSHKeyRemover{},
 	}
 }
 
-var (
-	deregisterLong = `Deregister your device from NVIDIA Brev
+const leaveLong = `Leave the Brev network
 
-This command removes the local registration data and uninstalls
-the Brev tunnel (network agent).`
+This removes the backend node, uninstalls the Brev tunnel, and deletes local
+registration data. It does not revoke SSH grants or remove authorized_keys
+entries; run "brev disable-ssh" first when those credentials should be removed.`
 
-	deregisterExample = `  brev deregister`
-)
+// NewCmdLeave creates the canonical network-membership teardown command.
+func NewCmdLeave(t *terminal.Terminal, store LeaveStore) *cobra.Command {
+	return newCmdLeave(t, store, defaultLeaveDeps())
+}
 
-func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Command {
+func newCmdLeave(t *terminal.Terminal, store LeaveStore, deps leaveDeps) *cobra.Command {
 	var approveFlag bool
-
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "deregister",
+		Use:                   "leave",
+		Aliases:               []string{"deregister"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Deregister your device from Brev",
-		Long:                  deregisterLong,
-		Example:               deregisterExample,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDeregister(cmd.Context(), t, store, defaultDeregisterDeps(), approveFlag)
+		Short:                 "Leave the Brev network",
+		Long:                  leaveLong,
+		Example:               "  brev leave\n  brev leave --approve",
+		Args:                  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if cmd.CalledAs() == "deregister" {
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `Warning: "brev deregister" is deprecated; use "brev leave" instead.`)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `This command no longer removes SSH keys; run "brev disable-ssh" before leaving if you want to remove Brev-managed SSH access.`)
+			}
+			return runLeave(cmd.Context(), t, cmd.ErrOrStderr(), store, deps, approveFlag)
 		},
 	}
-
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
-
 	return cmd
 }
 
-func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen,gocyclo // deregistration flow
+func runLeave(
+	ctx context.Context,
+	t *terminal.Terminal,
+	warnings io.Writer,
+	store LeaveStore,
+	deps leaveDeps,
+	skipConfirm bool,
+) error { //nolint:funlen // The retry-safe teardown order is intentionally explicit.
 	if !deps.platform.IsCompatible() {
-		return fmt.Errorf("brev deregister is only supported on Linux")
-	}
-
-	if err := deps.gater.Gate(t, deps.confirmer, "Device deregistration", skipConfirm); err != nil {
-		return fmt.Errorf("sudo issue: %w", err)
+		return fmt.Errorf("brev leave is only supported on Linux")
 	}
 
 	reg, err := deps.registrationStore.Load()
 	if err != nil {
-		return err //nolint:wrapcheck // do not present stack trace for this error
+		return fmt.Errorf("read joined-device registration: %w", err)
 	}
-
-	// Only prompt for login when there is a device to deregister.
-	if _, err := s.GetCurrentUser(); err != nil {
+	if _, err := store.GetCurrentUser(); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	orgName := reg.OrgName
-	if orgName == "" {
-		orgName = "(unknown)"
+	client := deps.nodeClients.NewNodeClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
+	node, missing, err := lookupJoinedNodeForLeave(ctx, client, reg)
+	if err != nil {
+		return fmt.Errorf("inspect joined node before leaving: %w", err)
 	}
-	osUser, _ := user.Current()
-	linuxUser := "(unknown)"
-	if osUser != nil {
-		linuxUser = osUser.Username
+	if warnings == nil {
+		warnings = io.Discard
 	}
-
-	t.Vprint("")
-	t.Vprint(t.White("══════════════════════════════════════════════════"))
-	t.Vprint(t.White("  Deregistering your device from Brev"))
-	t.Vprint(t.White("══════════════════════════════════════════════════"))
-	t.Vprint("")
-	if !skipConfirm {
-		t.Vprint(t.Green("  Please confirm before continuing:"))
-		t.Vprint("")
-	}
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(orgName+" ("+reg.OrgID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(linuxUser))
-	t.Vprint("")
-	t.Vprint(t.Yellow("  This will:"))
-	t.Vprint("    1. Remove this node from Brev")
-	t.Vprint("    2. Remove Brev SSH keys from this machine (if any)")
-	t.Vprint("    3. Uninstall the Brev tunnel")
-	t.Vprint("    4. Delete local registration data")
-	t.Vprint("")
-
-	if !skipConfirm {
-		confirm := deps.prompter.Select(
-			"Proceed with deregistration?",
-			[]string{"Yes, proceed", "No, cancel"},
-		)
-		if confirm != "Yes, proceed" {
-			t.Vprint("Deregistration canceled.")
-			return nil
+	_, _ = fmt.Fprintln(warnings, "Leaving removes the Brev tunnel and may interrupt commands using Brev SSH. Run this locally or through out-of-band access.")
+	if missing {
+		_, _ = fmt.Fprintln(warnings, "Warning: the backend node is already absent; tagged host keys may remain on this machine.")
+	} else {
+		grantCount, accountCount := remainingSSHAccessCounts(node.GetSshAccess())
+		if grantCount > 0 {
+			_, _ = fmt.Fprintf(warnings, "Warning: %d SSH grants across %d Linux accounts remain on this node.\n", grantCount, accountCount)
+			_, _ = fmt.Fprintln(warnings, `Leaving stops Brev-routed SSH but does not remove keys from authorized_keys. Cancel and run "brev disable-ssh" first if you want Brev-managed SSH credentials removed.`)
 		}
 	}
 
-	t.Vprint(t.Yellow("[Step 1/4] Removing node from Brev..."))
-	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	t.Vprint("")
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprint(t.White("  Leaving the Brev network"))
+	t.Vprint(t.White("══════════════════════════════════════════════════"))
+	t.Vprintf("  Node:         %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
+	t.Vprintf("  Organization: %s (%s)\n", reg.OrgName, reg.OrgID)
+	t.Vprint("")
+
+	if !skipConfirm && !deps.confirmer.ConfirmYesNo("Leave the Brev network?") {
+		t.Vprint("Leave canceled.")
+		return nil
+	}
+	if err := deps.gater.Gate(t, deps.confirmer, "Leave Brev network", true); err != nil {
+		return fmt.Errorf("sudo issue: %w", err)
+	}
+
 	_, err = client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
 		ExternalNodeId: reg.ExternalNodeID,
 	}))
-	if err != nil {
-		return fmt.Errorf("failed to deregister node: %w", err)
+	if err != nil && connect.CodeOf(err) != connect.CodeNotFound {
+		return fmt.Errorf("leave Brev network: remove node: %w", err)
 	}
-	t.Vprintf("%s  Node removed from Brev.\n", t.Green("  ✓"))
-	t.Vprint("")
+	if err := deps.netbird.Uninstall(); err != nil {
+		return fmt.Errorf("leave Brev network: uninstall tunnel: %w", err)
+	}
+	if err := deps.registrationStore.Delete(); err != nil {
+		return fmt.Errorf("leave Brev network: delete local registration: %w", err)
+	}
+	t.Vprint("Left the Brev network.")
+	return nil
+}
 
-	t.Vprint(t.Yellow("[Step 2/4] Removing Brev SSH keys..."))
-	if osUser == nil {
-		t.Vprintf("  %s\n", t.Yellow("Skipped: could not determine current user"))
-	} else {
-		removed, kerr := deps.sshKeys.RemoveBrevKeys(osUser)
-		switch {
-		case kerr != nil:
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove Brev SSH keys: %v", kerr)))
-		case len(removed) > 0:
-			t.Vprintf("%s  Brev SSH keys removed from authorized_keys:\n", t.Green("  ✓"))
-			for _, key := range removed {
-				t.Vprintf("    - %s\n", key)
-			}
-		default:
-			t.Vprint("  No Brev SSH keys found in authorized_keys.")
+func lookupJoinedNodeForLeave(
+	ctx context.Context,
+	client nodev1connect.ExternalNodeServiceClient,
+	reg *register.DeviceRegistration,
+) (*nodev1.ExternalNode, bool, error) {
+	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: reg.OrgID,
+	}))
+	if err != nil {
+		return nil, false, fmt.Errorf("list organization nodes: %w", err)
+	}
+	if resp == nil || resp.Msg == nil {
+		return nil, false, fmt.Errorf("list organization nodes: empty response")
+	}
+	for _, candidate := range resp.Msg.GetItems() {
+		if candidate != nil && candidate.GetExternalNodeId() == reg.ExternalNodeID {
+			return candidate, false, nil
 		}
 	}
-	t.Vprint("")
-
-	t.Vprint(t.Yellow("[Step 3/4] Removing Brev tunnel..."))
-	err = deps.netbird.Uninstall()
-	if err != nil {
-		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove Brev tunnel: %v", err)))
-	} else {
-		t.Vprintf("%s  Brev tunnel removed.\n", t.Green("  ✓"))
+	if resp.Msg.GetNextPageToken() != "" {
+		return nil, false, fmt.Errorf("registered node was not in the returned page and node listing is incomplete")
 	}
-	t.Vprint("")
+	return nil, true, nil
+}
 
-	t.Vprint(t.Yellow("[Step 4/4] Removing registration data..."))
-	err = deps.registrationStore.Delete()
-	if err != nil {
-		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: failed to remove local registration file: %v", err)))
-		t.Vprint("  You can manually remove it with: rm /etc/brev/device_registration.json")
-	} else {
-		t.Vprintf("%s  Registration data removed.\n", t.Green("  ✓"))
+func remainingSSHAccessCounts(accesses []*nodev1.SSHAccess) (int, int) {
+	accounts := make(map[string]struct{}, len(accesses))
+	grantCount := 0
+	for _, access := range accesses {
+		if access == nil {
+			continue
+		}
+		grantCount++
+		accounts[access.GetLinuxUser()] = struct{}{}
 	}
-	t.Vprintf("%s  Deregistration complete.\n", t.Green("  ✓"))
-	t.Vprint("")
-
-	return nil
+	return grantCount, len(accounts)
 }

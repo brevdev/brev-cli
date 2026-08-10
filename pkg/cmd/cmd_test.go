@@ -44,14 +44,26 @@ func TestNewBrevCommand_BYONCommandSurface(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "disable-ssh", disableSSH.Name())
 	require.Empty(t, disableSSH.Aliases)
+	leave, _, err := root.Find([]string{"leave"})
+	require.NoError(t, err)
+	deregister, _, err := root.Find([]string{"deregister"})
+	require.NoError(t, err)
+	require.Equal(t, "leave", leave.Name())
+	require.Equal(t, []string{"deregister"}, leave.Aliases)
+	require.Same(t, leave, deregister)
 
 	var disableSSHCount int
+	var leaveCount int
 	for _, command := range root.Commands() {
 		if command.Name() == "disable-ssh" {
 			disableSSHCount++
 		}
+		if command.Name() == "leave" {
+			leaveCount++
+		}
 	}
 	require.Equal(t, 1, disableSSHCount)
+	require.Equal(t, 1, leaveCount)
 }
 
 func TestEmailCachingAuthStore_SaveCachesEmail(t *testing.T) {
