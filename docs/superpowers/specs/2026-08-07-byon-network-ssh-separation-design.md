@@ -220,17 +220,18 @@ The flow is:
 
 1. Verify Linux compatibility.
 2. Load local registration; if absent, direct the user to `brev join`.
-3. Show a node-wide confirmation using the locally registered device identity.
-   State that active sessions are not forcibly terminated. Remote grant counts
-   are not required before confirmation because authentication and backend
-   access must not block the local cleanup phase.
-4. When the effective UID is not root, write this warning to stderr before
-   confirmation:
+3. When the effective UID is not root, write this warning to stderr:
 
    ```text
    Warning: not running as root; public key cleanup may be incomplete. Re-run
    "sudo brev disable-ssh" to allow cleanup across all local accounts.
    ```
+
+4. Show a node-wide confirmation using the locally registered device identity.
+   State that active sessions are not forcibly terminated. Remote grant counts
+   are not required before confirmation because authentication and backend
+   access must not block the local cleanup phase. `--approve` skips this prompt
+   but does not suppress either safety warning.
 
 5. Enumerate accounts reported by the local OS account database at the current
    process privilege level and inspect only each account's
@@ -431,6 +432,10 @@ Tests verify:
 - Confirmation describes node-wide scope and can be bypassed with `--approve`.
 - A non-root invocation warns that cleanup may be incomplete and recommends
   `sudo brev disable-ssh`; a root invocation does not print that warning.
+- `--approve` skips confirmation without suppressing the non-root or active-
+  session warnings.
+- No disable flow invokes a sudo gate, subprocess runner, hidden helper mode, or
+  other automatic elevation path.
 - Every active access tuple is revoked exactly once.
 - Active grants require a connected tunnel; a disconnected existing tunnel is
   reconnected before revocation.
@@ -440,7 +445,9 @@ Tests verify:
 - Local cleanup errors do not block authentication or remote record cleanup;
   remote errors do not erase or misreport local progress.
 - Simultaneous local and remote failures are joined, retain both underlying
-  causes, and do not print overall success.
+  causes, include both `failed to clean up public keys` and `failed to remove
+  remote SSH access records`, and do not print overall success. Each single-side
+  failure includes only its applicable classification and underlying cause.
 - Current and legacy Brev markers are removed across accessible account homes
   while unrelated keys, ownership, and file modes remain intact.
 - No-access and no-key runs succeed.
