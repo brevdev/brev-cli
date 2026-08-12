@@ -41,7 +41,7 @@ func (s *stubEnvironmentSSHClient) GetNetworkInfo(
 	}), nil
 }
 
-func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPort(t *testing.T) {
+func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPortWithoutChangingHostRoute(t *testing.T) {
 	workspace := entity.Workspace{
 		ID:                   "env-1",
 		Name:                 "container-env",
@@ -50,7 +50,8 @@ func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPort(t *testing.T) {
 		SSHUser:              "ubuntu",
 		SSHPort:              22,
 		HostSSHUser:          "ubuntu",
-		HostSSHPort:          22,
+		HostSSHPort:          41235,
+		HostSSHHostname:      "host-gateway.example.com",
 		SSHProxyHostname:     "legacy-proxy.example.com",
 		HostSSHProxyHostname: "legacy-host-proxy.example.com",
 	}
@@ -80,8 +81,6 @@ func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPort(t *testing.T) {
 	want.SSHPort = 41234
 	want.SSHUser = "root"
 	want.SSHProxyHostname = ""
-	want.HostSSHHostname = "203.0.113.10"
-	want.HostSSHProxyHostname = ""
 
 	if diff := cmp.Diff([]entity.Workspace{want}, got); diff != "" {
 		t.Fatalf("unexpected workspace (-want +got): %s", diff)
