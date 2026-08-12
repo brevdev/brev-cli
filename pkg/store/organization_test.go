@@ -54,6 +54,21 @@ func TestGetActiveOrganizationOrDefault_UsesInvocationOverride(t *testing.T) {
 	assert.Same(t, override, org)
 }
 
+func TestGetActiveOrganizationOrDefault_ResolvesNamedInvocationOverride(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	fs.SetOrganizationOverrideName("other")
+	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	expected := entity.Organization{ID: "org-other", Name: "other"}
+	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, httpmock.NewJsonResponderOrPanic(http.StatusOK, []entity.Organization{expected}))
+
+	org, err := fs.GetActiveOrganizationOrDefault()
+	require.NoError(t, err)
+	assert.Equal(t, &expected, org)
+}
+
 func TestGetOrganizations(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())

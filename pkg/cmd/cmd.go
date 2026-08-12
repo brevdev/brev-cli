@@ -186,20 +186,13 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				externalNodeCmdStore.SetOrganizationOverride(nil)
 			}
 			if strings.TrimSpace(orgFlag) != "" {
-				orgs, orgErr := loginCmdStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgFlag})
-				if orgErr != nil {
-					return breverrors.WrapAndTrace(orgErr)
-				}
-				if len(orgs) == 0 {
-					return breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", orgFlag))
-				}
-				if len(orgs) > 1 {
-					return breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", orgFlag))
-				}
-				loginCmdStore.SetOrganizationOverride(&orgs[0])
-				noLoginCmdStore.SetOrganizationOverride(&orgs[0])
+				// Resolve the override lazily so commands using an in-memory
+				// authenticator (such as register) do not authenticate through
+				// loginCmdStore before their command handler runs.
+				loginCmdStore.SetOrganizationOverrideName(orgFlag)
+				noLoginCmdStore.SetOrganizationOverrideName(orgFlag)
 				if externalNodeCmdStore != nil {
-					externalNodeCmdStore.SetOrganizationOverride(&orgs[0])
+					externalNodeCmdStore.SetOrganizationOverrideName(orgFlag)
 				}
 			}
 			home, err := fsStore.GetBrevHomePath()
