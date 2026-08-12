@@ -180,6 +180,11 @@ brev ports create my-instance 8080
 brev ports create my-node 53 --protocol udp --allow 203.0.113.10/32
 brev ports create my-instance 3000 --protocol http --public
 brev ports create my-instance 8888 --protocol http --authorize me@example.com
+
+# Close one port interactively, by exact ID, or close all ports
+brev ports close my-instance
+brev ports close my-instance --id nport-abc123 --approve
+brev ports close my-node --all --approve
 ```
 
 ### Listing Instances and Nodes
