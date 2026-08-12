@@ -511,6 +511,32 @@ brev ports ls my-node
 brev ports ls my-instance --json
 ```
 
+#### Open a port
+
+Open a raw TCP, UDP, or SSH port on a managed instance or registered compute
+node. `add` is an alias for `open`.
+
+```bash
+brev ports open <instance-or-node> <port> [flags]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--protocol` | Port protocol: `tcp` (default), `udp`, or `ssh` |
+| `--allow` | Source CIDR allowed to connect; repeat to add more than one |
+| `--json` | Output the opened port as JSON |
+
+Omit `--allow` to allow connections from any source.
+
+**Examples:**
+```bash
+brev ports open my-instance 8080
+brev ports open my-node 53 --protocol udp
+brev ports open my-instance 8080 --allow 203.0.113.10/32
+brev ports add my-node 2222 --protocol ssh --json
+```
+
 ## Organization Commands
 
 ### brev org ls
