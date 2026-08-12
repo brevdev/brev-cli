@@ -174,6 +174,10 @@ brev port-forward my-instance -p 8080:8080
 # List Brev-managed HTTP and network ports for an instance or external node
 brev ports ls my-instance
 brev ports ls my-node --json
+
+# Open a public port (TCP by default)
+brev ports open my-instance 8080
+brev ports open my-node 53 --protocol udp --allow 203.0.113.10/32
 ```
 
 ### Listing Instances and Nodes
