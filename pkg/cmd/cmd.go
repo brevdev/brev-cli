@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -71,6 +72,7 @@ import (
 
 var (
 	userFlag      string
+	orgFlag       string
 	printVersion  bool
 	noCheckLatest bool
 )
@@ -82,6 +84,7 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
 
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVarP(&orgFlag, "org", "o", "", "Organization to use for this command (does not change the active organization)")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 
@@ -131,6 +134,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	analytics.SetUserStore(noLoginCmdStore)
 
+	var externalNodeCmdStore *store.AuthHTTPStore
 	cmds := &cobra.Command{
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -175,6 +179,28 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 					return breverrors.WrapAndTrace(err)
 				}
 
+			}
+			loginCmdStore.SetOrganizationOverride(nil)
+			noLoginCmdStore.SetOrganizationOverride(nil)
+			if externalNodeCmdStore != nil {
+				externalNodeCmdStore.SetOrganizationOverride(nil)
+			}
+			if strings.TrimSpace(orgFlag) != "" {
+				orgs, orgErr := loginCmdStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgFlag})
+				if orgErr != nil {
+					return breverrors.WrapAndTrace(orgErr)
+				}
+				if len(orgs) == 0 {
+					return breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", orgFlag))
+				}
+				if len(orgs) > 1 {
+					return breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", orgFlag))
+				}
+				loginCmdStore.SetOrganizationOverride(&orgs[0])
+				noLoginCmdStore.SetOrganizationOverride(&orgs[0])
+				if externalNodeCmdStore != nil {
+					externalNodeCmdStore.SetOrganizationOverride(&orgs[0])
+				}
 			}
 			home, err := fsStore.GetBrevHomePath()
 			if err != nil {
@@ -249,7 +275,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
 	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
 
-	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
+	externalNodeCmdStore = fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
@@ -273,8 +299,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore))
+	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))

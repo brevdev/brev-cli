@@ -31,6 +31,13 @@ func newTestFileStore(t *testing.T) *store.FileStore {
 	)
 }
 
+func TestNewDefaultBrevCommandRegistersGlobalOrgFlag(t *testing.T) {
+	cmd := NewDefaultBrevCommand()
+	flag := cmd.PersistentFlags().Lookup("org")
+	require.NotNil(t, flag)
+	assert.Equal(t, "o", flag.Shorthand)
+}
+
 func TestEmailCachingAuthStore_SaveCachesEmail(t *testing.T) {
 	fs := newTestFileStore(t)
 	s := &emailCachingAuthStore{

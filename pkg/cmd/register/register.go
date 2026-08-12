@@ -96,7 +96,6 @@ Two modes are supported:
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
-	var orgFlag string
 	var nameFlag string
 	var sshPort int
 	var approveFlag bool
@@ -110,6 +109,10 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		Example:               registerExample,
 		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			orgFlag, err := cmd.Flags().GetString("org")
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			interactive := nameFlag == "" && orgFlag == "" && sshPort == 0
 			opts := registerOpts{
 				interactive: interactive,
@@ -122,7 +125,6 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required when using non-interactive mode)")
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")

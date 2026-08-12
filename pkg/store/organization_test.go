@@ -44,6 +44,16 @@ func TestGetActiveOrganization(t *testing.T) {
 	}
 }
 
+func TestGetActiveOrganizationOrDefault_UsesInvocationOverride(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	override := &entity.Organization{ID: "org-other", Name: "other"}
+	fs.SetOrganizationOverride(override)
+
+	org, err := fs.GetActiveOrganizationOrDefault()
+	require.NoError(t, err)
+	assert.Same(t, override, org)
+}
+
 func TestGetOrganizations(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	resty "github.com/go-resty/resty/v2"
@@ -50,7 +51,14 @@ type AuthHTTPStore struct {
 	NoAuthHTTPStore
 	authHTTPClient           *AuthHTTPClient
 	isRefreshTokenHandlerSet bool
+	organizationOverride     *entity.Organization
 	BasicStore
+}
+
+// SetOrganizationOverride selects an organization for the lifetime of this
+// store. It deliberately does not update the user's persisted active org.
+func (s *AuthHTTPStore) SetOrganizationOverride(org *entity.Organization) {
+	s.organizationOverride = org
 }
 
 func (n *NoAuthHTTPStore) GetWindowsDir() (string, error) {
