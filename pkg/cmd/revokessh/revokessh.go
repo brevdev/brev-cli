@@ -55,7 +55,7 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	var approveFlag bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
 		Use:                   "revoke-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Revoke SSH access to a node for an org member",

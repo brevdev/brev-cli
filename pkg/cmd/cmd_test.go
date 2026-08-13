@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/spf13/afero"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +37,17 @@ func TestNewDefaultBrevCommandRegistersGlobalOrgFlag(t *testing.T) {
 	flag := cmd.PersistentFlags().Lookup("org")
 	require.NotNil(t, flag)
 	assert.Equal(t, "o", flag.Shorthand)
+	_, registered := cmd.GetFlagCompletionFunc("org")
+	assert.True(t, registered)
+}
+
+func TestAllowsOrgOverrideWithExternalAuth(t *testing.T) {
+	for _, commandName := range []string{"register", "grant-ssh", "revoke-ssh"} {
+		assert.True(t, allowsOrgOverrideWithExternalAuth(&cobra.Command{Use: commandName, Annotations: map[string]string{externalNodeAuthAnnotation: ""}}))
+	}
+	for _, commandName := range []string{"deregister", "enable-ssh", "start"} {
+		assert.False(t, allowsOrgOverrideWithExternalAuth(&cobra.Command{Use: commandName}))
+	}
 }
 
 func TestEmailCachingAuthStore_SaveCachesEmail(t *testing.T) {

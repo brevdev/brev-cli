@@ -11,6 +11,7 @@ import (
 	analyticscmd "github.com/brevdev/brev-cli/pkg/cmd/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
@@ -77,6 +78,13 @@ var (
 	noCheckLatest bool
 )
 
+const externalNodeAuthAnnotation = "external-node-auth"
+
+func allowsOrgOverrideWithExternalAuth(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations[externalNodeAuthAnnotation]
+	return ok
+}
+
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
 
@@ -84,7 +92,6 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
 
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
-	cmd.PersistentFlags().StringVarP(&orgFlag, "org", "o", "", "Organization to use for this command (does not change the active organization)")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 
@@ -152,6 +159,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			analytics.RecordCommandStart(cmd, args)
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
+			if strings.TrimSpace(orgFlag) != "" && !allowsOrgOverrideWithExternalAuth(cmd) && auth.IsAPIKeyAuthStore(loginCmdStore) {
+				return breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+			}
 			// version info gets in the way of the output for
 			// configure-env-vars, since shells are going to eval it
 			if featureflag.ShowVersionOnRun() && !printVersion && cmd.Name() != "configure-env-vars" {
@@ -281,6 +291,13 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	})
 	if err != nil {
 		fmt.Printf("%v\n", err)
+	}
+
+	cmds.PersistentFlags().StringVarP(&orgFlag, "org", "o", "", "Organization to use for this command (does not change the active organization)")
+	err = cmds.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(loginCmdStore, t))
+	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)

@@ -101,7 +101,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	var approveFlag bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
 		Use:                   "register",
 		DisableFlagsInUseLine: true,
 		Short:                 "Register this device with Brev",

@@ -62,7 +62,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 	var approveFlag bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
 		Use:                   "grant-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Grant SSH access to a node for another org member",
