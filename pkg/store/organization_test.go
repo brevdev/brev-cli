@@ -159,6 +159,23 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {
 	assert.Equal(t, "org-api-key", org.Name)
 }
 
+func TestGetActiveOrganization_APIKeyRejectsInvocationOverride(t *testing.T) {
+	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
+	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
+		APIKey:      apiKey,
+		APIKeyOrgID: "org-api-key",
+	}))
+	s.SetOrganizationOverrideName("other")
+
+	org, err := s.GetActiveOrganizationOrDefault()
+
+	assert.Nil(t, org)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "api key auth is scoped")
+}
+
 func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testing.T) {
 	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
 	fileStore, _, _ := newAuthTokenTestStore(t)
