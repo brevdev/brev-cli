@@ -6,6 +6,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -62,7 +63,7 @@ func getOrganizationForCompletion(cmd *cobra.Command, completionStore Completion
 	if orgFlag == nil || strings.TrimSpace(orgFlag.Value.String()) == "" {
 		org, err := completionStore.GetActiveOrganizationOrDefault()
 		if err != nil {
-			return nil, err
+			return nil, breverrors.WrapAndTrace(err)
 		}
 		return org, nil
 	}
@@ -73,7 +74,7 @@ func getOrganizationForCompletion(cmd *cobra.Command, completionStore Completion
 	orgName := strings.TrimSpace(orgFlag.Value.String())
 	orgs, err := completionStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
 	if err != nil {
-		return nil, err
+		return nil, breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) == 0 {
 		return nil, fmt.Errorf("no org found with name %s", orgName)
