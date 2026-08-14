@@ -248,7 +248,7 @@ func TestNewCmdLeave_DeregisterAliasWarnsOnExecution(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(stderr.String(), "Warning: \"brev deregister\" is deprecated; use \"brev leave\" instead.\n"+
-		"This command no longer removes SSH keys; run \"brev disable-ssh\" before leaving if you want to remove Brev-managed SSH access.\n"))
+		"This command does not revoke SSH access grants; run \"brev disable-ssh\" before leaving if you want to revoke them.\n"))
 }
 
 func TestNewCmdLeave_HelpDoesNotWarn(t *testing.T) {
@@ -312,7 +312,7 @@ func TestRunLeave_RemainingGrantsWarnButDoNotBlock(t *testing.T) {
 	_, stderr, err := h.run(t, false)
 	require.NoError(t, err)
 	require.Contains(t, stderr, "3 SSH grants across 2 Linux accounts")
-	require.Contains(t, stderr, `Leaving stops Brev-routed SSH but does not remove keys from authorized_keys. Cancel and run "brev disable-ssh" first if you want Brev-managed SSH credentials removed.`)
+	require.Contains(t, stderr, `Leaving stops Brev-routed SSH but does not revoke these grants. Cancel and run "brev disable-ssh" first if you want them revoked.`)
 	require.Len(t, h.client.removeRequests, 1)
 }
 
@@ -416,7 +416,7 @@ func TestRunLeave_CompleteNodeListWithoutRegisteredIDAllowsAuthoritativeRemoveRe
 	_, stderr, err := h.run(t, true)
 	require.NoError(t, err)
 	require.Contains(t, stderr, "backend node is already absent")
-	require.Contains(t, stderr, "tagged host keys may remain")
+	require.Contains(t, stderr, "skipping SSH grant inspection")
 	require.Len(t, h.client.removeRequests, 1)
 }
 

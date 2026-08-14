@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `brev join` no longer enables SSH. `brev enable-ssh` requires an existing joined membership and reconnects its tunnel when needed.
+- `brev disable-ssh` best-effort revokes all backend-tracked SSH grants, revokes the invoking user's own access last, and no longer sweeps local `authorized_keys` files.
 
 ### Deprecated
 

@@ -43,109 +43,6 @@ func TestDevplaneAuthorizedKeysComment(t *testing.T) {
 	}
 }
 
-func TestIsBrevManagedAuthorizedKeysLine(t *testing.T) {
-	tests := []struct {
-		name string
-		line string
-		want bool
-	}{
-		{name: "current marker", line: "ssh-ed25519 AAAA #brev-portID:port_1,brev-userID:user_1", want: true},
-		{name: "legacy marker", line: "ssh-rsa AAAA # brev-cli user_id=user_1", want: true},
-		{name: "unrelated key", line: "ssh-rsa AAAA user@example.com", want: false},
-		{name: "blank line", line: "", want: false},
-		{name: "unrelated comment", line: "# managed by another tool", want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := IsBrevManagedAuthorizedKeysLine(tt.line); got != tt.want {
-				t.Fatalf("IsBrevManagedAuthorizedKeysLine(%q) = %v, want %v", tt.line, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestListBrevAuthorizedKeys_ParsesDevplaneFormat(t *testing.T) {
-	u := tempUser(t)
-	seedKeys(t, u, strings.Join([]string{
-		"ssh-rsa EXISTING user@host",
-		"ssh-ed25519 AAAA_ALICE user@a.com " + DevplaneAuthorizedKeysComment("port_1", "user_1"),
-		"ssh-rsa AAAA_BOB " + DevplaneAuthorizedKeysComment("port_2", "user_2"),
-		"",
-	}, "\n"))
-
-	keys, err := ListBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("ListBrevAuthorizedKeys: %v", err)
-	}
-	if len(keys) != 2 {
-		t.Fatalf("expected 2 keys, got %d", len(keys))
-	}
-	if keys[0].PortID != "port_1" || keys[0].UserID != "user_1" {
-		t.Errorf("key[0]: port=%q user=%q", keys[0].PortID, keys[0].UserID)
-	}
-	if keys[1].PortID != "port_2" || keys[1].UserID != "user_2" {
-		t.Errorf("key[1]: port=%q user=%q", keys[1].PortID, keys[1].UserID)
-	}
-}
-
-func TestListBrevAuthorizedKeys_ParsesLegacyFormat(t *testing.T) {
-	u := tempUser(t)
-	seedKeys(t, u, "ssh-ed25519 AAAA_OLD # brev-cli user_id=uid_42\n")
-
-	keys, err := ListBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("ListBrevAuthorizedKeys: %v", err)
-	}
-	if len(keys) != 1 {
-		t.Fatalf("expected 1 key, got %d", len(keys))
-	}
-	if keys[0].UserID != "uid_42" {
-		t.Errorf("expected user_id uid_42, got %q", keys[0].UserID)
-	}
-}
-
-func TestListBrevAuthorizedKeys_MixedFormats(t *testing.T) {
-	u := tempUser(t)
-	seedKeys(t, u, strings.Join([]string{
-		"ssh-rsa AAAA_LEGACY # brev-cli",
-		"ssh-rsa NONBREV user@host",
-		"ssh-ed25519 AAAA_NEW " + DevplaneAuthorizedKeysComment("p1", "uid_42"),
-		"",
-	}, "\n"))
-
-	keys, err := ListBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("ListBrevAuthorizedKeys: %v", err)
-	}
-	if len(keys) != 2 {
-		t.Fatalf("expected 2 brev keys, got %d", len(keys))
-	}
-}
-
-func TestListBrevAuthorizedKeys_NoFile(t *testing.T) {
-	u := tempUser(t)
-	keys, err := ListBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("expected no error for missing file, got: %v", err)
-	}
-	if len(keys) != 0 {
-		t.Errorf("expected 0 keys, got %d", len(keys))
-	}
-}
-
-func TestListBrevAuthorizedKeys_NoBrevKeys(t *testing.T) {
-	u := tempUser(t)
-	seedKeys(t, u, "ssh-rsa NONBREV user@host\n")
-	keys, err := ListBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("ListBrevAuthorizedKeys: %v", err)
-	}
-	if len(keys) != 0 {
-		t.Errorf("expected 0 brev keys, got %d", len(keys))
-	}
-}
-
 func TestRemoveAuthorizedKeyLine_RemovesExactLine(t *testing.T) {
 	u := tempUser(t)
 	line := "ssh-ed25519 REMOVE " + DevplaneAuthorizedKeysComment("p1", "user_1")
@@ -160,43 +57,6 @@ func TestRemoveAuthorizedKeyLine_RemovesExactLine(t *testing.T) {
 	}
 	if strings.Contains(readKeys(t, u), "REMOVE") {
 		t.Fatal("line was not removed")
-	}
-}
-
-func TestRemoveBrevAuthorizedKeys_DevplaneLines(t *testing.T) {
-	u := tempUser(t)
-	seedKeys(t, u, strings.Join([]string{
-		"ssh-rsa KEEP user@host",
-		"ssh-rsa BREV1 " + DevplaneAuthorizedKeysComment("p1", "u1"),
-		"ssh-rsa BREV2 " + DevplaneAuthorizedKeysComment("p2", "u2"),
-		"",
-	}, "\n"))
-
-	removed, err := RemoveBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("RemoveBrevAuthorizedKeys: %v", err)
-	}
-	if len(removed) != 2 {
-		t.Fatalf("expected 2 removed, got %d", len(removed))
-	}
-	result := readKeys(t, u)
-	if strings.Contains(result, "#brev-portID:") {
-		t.Errorf("brev keys remain:\n%s", result)
-	}
-	if !strings.Contains(result, "KEEP") {
-		t.Error("non-brev key was removed")
-	}
-}
-
-func TestRemoveBrevAuthorizedKeys_LegacyLines(t *testing.T) {
-	u := tempUser(t)
-	seedKeys(t, u, "ssh-rsa BREVKEY "+BrevKeyPrefixLegacy+"\n")
-	removed, err := RemoveBrevAuthorizedKeys(u)
-	if err != nil {
-		t.Fatalf("RemoveBrevAuthorizedKeys: %v", err)
-	}
-	if len(removed) != 1 {
-		t.Fatalf("expected 1 removed, got %d", len(removed))
 	}
 }
 
@@ -262,18 +122,6 @@ func TestInstallAuthorizedKey_secondPortAppendsNewLine(t *testing.T) {
 	}
 	if strings.Count(content, "port_a") != 1 || strings.Count(content, "port_b") != 1 {
 		t.Fatalf("merged comments on one line:\n%s", content)
-	}
-}
-
-func TestRemoveAuthorizedKey_ByPublicKeyMaterial(t *testing.T) {
-	u := tempUser(t)
-	pub := "ssh-rsa AAAA testkey"
-	seedKeys(t, u, pub+" user@host "+DevplaneAuthorizedKeysComment("p1", "u1")+"\n")
-	if err := RemoveAuthorizedKey(u, pub); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(readKeys(t, u), "AAAA") {
-		t.Fatal("key material should be removed")
 	}
 }
 

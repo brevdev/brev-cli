@@ -215,7 +215,7 @@ brev join
 brev enable-ssh
 brev grant-ssh
 
-# Retire the node completely.
+# Explicitly revoke tracked SSH grants, then retire membership.
 brev disable-ssh
 brev leave
 ```
@@ -223,11 +223,12 @@ brev leave
 `brev register` and `brev deregister` are deprecated aliases for `join` and
 `leave`; they warn when executed. `enable-ssh` requires an existing join and
 can reconnect its tunnel, but never joins a network. Use `grant-ssh` and
-`revoke-ssh` for individual collaborators. `disable-ssh` removes all
-Brev-managed SSH access across the node without closing ports, stopping `sshd`,
-ending active sessions, or leaving the network. `leave` removes membership but
-leaves Brev-managed keys on the host; run `disable-ssh` first when removing
-those keys is intended.
+`revoke-ssh` for individual collaborators. `disable-ssh` best-effort revokes
+every backend-tracked SSH grant across the node, continuing after individual
+failures and revoking the invoking Brev user's own access last. It does not
+modify `authorized_keys`, close ports, stop `sshd`, end active sessions, or
+leave the network. `leave` removes membership without running that per-grant
+revocation flow or cleaning up local keys.
 
 ### Instance Management
 ```bash

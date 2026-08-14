@@ -1,6 +1,12 @@
 # BYON Network and SSH Separation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Archived; do not execute.** This plan records the original implementation.
+> Its `disable-ssh` local-key cleanup, privileged-helper, sudo, and fixture-heavy
+> testing sections are superseded by the
+> [living design spec](../specs/2026-08-07-byon-network-ssh-separation-design.md).
+> The current contract revokes backend-tracked grants only and attempts the
+> invoking Brev user's records last. The remaining steps are retained solely as
+> historical context.
 
 **Goal:** Make `join`/`leave` own BYON NetBird membership, make `enable-ssh`/`disable-ssh` own Brev-managed SSH credentials, and retain `register`/`deregister` only as deprecated aliases.
 

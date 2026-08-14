@@ -1,5 +1,0 @@
-from="10.0.0.0/8",no-agent-forwarding ssh-ed25519 AAAA_KEEP keep@example.com
-ssh-ed25519 AAAA_CURRENT #brev-portID:port_1,brev-userID:user_1
-
-ssh-rsa AAAA_LEGACY # brev-cli user_id=user_2
-ssh-ed25519 AAAA_FINAL final@example.com

@@ -41,28 +41,30 @@ brev revoke-ssh
 ```
 
 These commands manage individual collaborator access tuples. They are not part
-of `join`, `enable-ssh`, or the node-wide cleanup command.
+of `join`, `enable-ssh`, or the node-wide revocation command.
 
-## Retire a node completely
+## Retire Brev access and membership
 
-For a complete retirement, remove Brev-managed SSH credentials before leaving
-the network:
+To explicitly revoke Brev-tracked SSH grants before leaving the network:
 
 ```bash
 brev disable-ssh
 brev leave
 ```
 
-`disable-ssh` is node-wide. It revokes each exact active Brev SSH access tuple,
-then uses a privileged root sweep to remove Brev-tagged keys from local accounts.
-It leaves existing ports allocated, leaves `sshd` running, does not forcibly
-terminate active SSH sessions, and does not change network membership.
+`disable-ssh` is node-wide. It makes a best-effort attempt to revoke every
+backend-tracked Brev SSH access tuple, continuing after individual failures and
+revoking the invoking Brev user's own access last. It returns an error if any
+revocation fails so the remaining records can be retried. It does not inspect or
+modify local `authorized_keys` files. It leaves existing ports allocated, leaves
+`sshd` running, does not forcibly terminate active SSH sessions, and does not
+change network membership.
 
 `leave` removes the backend node, Brev VPN route, and local registration. It
-deliberately does not revoke SSH grants or remove keys already stored in
-`authorized_keys`; use `disable-ssh` first when those credentials should be
-removed. `brev deregister` is a deprecated alias for `leave` and warns when
-executed.
+does not run the per-grant `disable-ssh` flow or modify local `authorized_keys`
+files. Run `disable-ssh` first when explicit best-effort revocation of tracked
+grants is desired. `brev deregister` is a deprecated alias for `leave` and warns
+when executed.
 
 `leave` preserves the existing behavior of uninstalling NetBird even when
 NetBird was installed before Brev. Tracking whether Brev owns that installation

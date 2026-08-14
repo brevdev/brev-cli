@@ -31,7 +31,7 @@ func TestSystemGater_UncachedNonInteractiveSudoFailureIsReturned(t *testing.T) {
 		stdin: stdin,
 	}
 
-	err = gater.Gate(terminal.New(), sudoTestConfirmer{}, "Node-wide Brev SSH cleanup", true)
+	err = gater.Gate(terminal.New(), sudoTestConfirmer{}, "Leave Brev network", true)
 	require.ErrorIs(t, err, probeErr)
 	require.ErrorContains(t, err, "sudo authentication unavailable without an interactive terminal")
 	require.Equal(t, 1, runCalls)

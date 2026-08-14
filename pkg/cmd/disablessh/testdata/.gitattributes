@@ -1,2 +1,0 @@
-authorized_keys.before -text whitespace=cr-at-eol
-authorized_keys.after -text whitespace=cr-at-eol

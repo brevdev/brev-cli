@@ -510,7 +510,7 @@ brev join
 brev enable-ssh
 brev grant-ssh
 
-# Remove Brev-managed SSH credentials before retiring network membership.
+# Explicitly revoke tracked SSH grants before retiring network membership.
 brev disable-ssh
 brev leave
 ```
@@ -554,16 +554,18 @@ or `disable-ssh` as collaborator-management commands.
 
 ### brev disable-ssh
 
-Remove all Brev-managed SSH credentials from the joined node.
+Revoke all backend-tracked Brev SSH grants from the joined node.
 
 ```bash
 brev disable-ssh [--approve]
 ```
 
-This node-wide operation revokes each exact active backend access tuple, then
-runs a privileged root sweep to remove Brev-tagged local keys. It leaves
-existing ports allocated, leaves `sshd` running, does not forcibly terminate
-active SSH sessions, and does not remove membership or the backend node.
+This node-wide operation makes a best-effort attempt to revoke each exact active
+backend access tuple. It continues after individual failures, reports an error
+when any tuple remains, and revokes the invoking Brev user's own access last. It
+does not inspect or modify local `authorized_keys` files. It leaves existing
+ports allocated, leaves `sshd` running, does not forcibly terminate active SSH
+sessions, and does not remove membership or the backend node.
 
 ### brev leave / brev deregister
 
@@ -573,10 +575,11 @@ Remove Brev network membership from the device.
 brev leave [--approve]
 ```
 
-`leave` removes the backend node, VPN route, and local registration. It does
-not revoke grants or remove host keys from `authorized_keys`; run
-`brev disable-ssh` first for complete retirement. `deregister` is a deprecated
-alias that warns on execution.
+`leave` removes the backend node, VPN route, and local registration. It does not
+run `disable-ssh`'s per-grant revocation flow or modify local `authorized_keys`
+files. Run `brev disable-ssh` first when explicit best-effort revocation of
+tracked grants is desired. `deregister` is a deprecated alias that warns on
+execution.
 
 `leave` continues to uninstall NetBird even if it was installed before Brev.
 Install-ownership tracking is a follow-up, so ensure that removal is intended.

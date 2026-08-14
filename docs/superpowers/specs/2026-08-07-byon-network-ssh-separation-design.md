@@ -10,11 +10,11 @@ explicit command boundaries:
 | Join the organization's Brev network | `brev join` | `brev register` |
 | Leave the organization's Brev network | `brev leave` | `brev deregister` |
 | Enable Brev-managed SSH for the current Brev/Linux user | `brev enable-ssh` | None |
-| Disable all Brev-managed SSH access on the node | `brev disable-ssh` | None |
+| Revoke all backend-tracked Brev SSH grants on the node | `brev disable-ssh` | None |
 
 `join` and `leave` own only durable Brev/NetBird membership. `enable-ssh` and
-`disable-ssh` own Brev-managed SSH authentication. `grant-ssh` and `revoke-ssh`
-remain the commands for individual collaborator grants.
+`disable-ssh` own Brev-managed SSH authorization records. `grant-ssh` and
+`revoke-ssh` remain the commands for individual collaborator grants.
 
 `register` and `deregister` remain deprecated Cobra aliases with no scheduled
 removal release. Their handlers and behavior are the same as their canonical
@@ -33,10 +33,9 @@ commands, including the new separation from SSH.
   `revoke-ssh`.
 - Preserve compatible automation through deprecated `register` and
   `deregister` aliases, with actionable migration output.
-- Make partial teardown failures visible and safely retryable.
-- Let `disable-ssh` make best-effort progress without automatic elevation while
-  clearly directing non-root users to retry with `sudo` when public-key cleanup
-  is incomplete.
+- Make partial backend revocation failures visible and safely retryable.
+- Let `disable-ssh` make best-effort progress across every tracked grant while
+  revoking the invoking Brev user's own access last.
 
 ## Non-goals
 
@@ -53,15 +52,12 @@ commands, including the new separation from SSH.
 - Tracking whether Brev installed NetBird. `leave` preserves today's NetBird
   uninstall behavior; protecting a pre-existing user-managed NetBird
   installation is a separate follow-up.
-- Forcibly terminating already-established SSH sessions. Key removal prevents
-  future authentication but does not kill active sessions.
-- Automatically elevating or re-executing the Brev binary for
-  `disable-ssh`. Users explicitly choose whether to run the command with
-  `sudo`.
-- Promising that root can rewrite every `authorized_keys` file. Immutable files,
-  read-only filesystems, malformed account data, and concurrent modification can
-  still make cleanup fail; completion is represented by the command's exit
-  status.
+- Editing host `authorized_keys` files from `disable-ssh`, including removing
+  Brev-tagged, orphaned, or otherwise static local keys.
+- Forcibly terminating already-established SSH sessions. Revoking backend
+  authorization records does not kill active sessions.
+- Adding a sudo gate, privileged helper, or same-binary re-execution path for
+  `disable-ssh`.
 
 ## Naming Rationale
 
@@ -96,7 +92,8 @@ brev enable-ssh
 brev grant-ssh
 ```
 
-A complete retirement is intentionally two explicit operations:
+Explicit tracked-grant revocation and membership retirement are intentionally
+two operations:
 
 ```text
 brev disable-ssh
@@ -104,8 +101,8 @@ brev leave
 ```
 
 Running `leave` without `disable-ssh` is allowed. Brev-routed SSH stops because
-the node leaves the network, but Brev-added keys can remain in local
-`authorized_keys` files and may still work through another network path.
+the node leaves the network. Neither operation removes local keys from
+`authorized_keys`; any such keys may still work through another network path.
 
 ### Join and Register Alias
 
@@ -213,63 +210,39 @@ Args: cobra.NoArgs,
 ```
 
 It accepts `--approve` to skip confirmation. It operates only on the locally
-registered node and means "disable every Brev-managed SSH credential on this
-node." It does not mean "stop sshd."
+registered node and means "revoke every backend-tracked Brev SSH grant on this
+node." It does not mean "stop sshd" or "clean authorized_keys."
 
 The flow is:
 
-1. Verify Linux compatibility.
-2. Load local registration; if absent, direct the user to `brev join`.
-3. When the effective UID is not root, write this warning to stderr:
+1. Load local registration; if absent, direct the user to `brev join`.
+2. Authenticate the invoking Brev user, fetch the registered backend node, and
+   take a fresh snapshot of every remaining `SSHAccess` tuple.
+3. If the snapshot is empty, report that there are no grants to revoke and
+   return successfully without prompting.
+4. Show a node-wide confirmation with the active grant count. State that active
+   sessions are not forcibly terminated. `--approve` skips this prompt but not
+   the active-session warning.
+5. Stable-partition the snapshot so grants for collaborators remain first and
+   every grant belonging to the invoking Brev user is last. Preserve snapshot
+   order within each group.
+6. Call `RevokeNodeSSHAccess` sequentially for every tuple. Continue after
+   individual failures, including through the invoking user's final record, and
+   aggregate contextual errors with user, Linux account, and port details.
+7. Return nonzero if authentication, lookup, or any revocation is incomplete.
+   Report overall success only after every record in the fresh snapshot has
+   been revoked.
 
-   ```text
-   Warning: not running as root; public key cleanup may be incomplete. Re-run
-   "sudo brev disable-ssh" to allow cleanup across all local accounts.
-   ```
-
-4. Show a node-wide confirmation using the locally registered device identity.
-   State that active sessions are not forcibly terminated. Remote grant counts
-   are not required before confirmation because authentication and backend
-   access must not block the local cleanup phase. `--approve` skips this prompt
-   but does not suppress either safety warning.
-
-5. Enumerate accounts reported by the local OS account database at the current
-   process privilege level and inspect only each account's
-   `.ssh/authorized_keys`. Remove only lines carrying Brev's current
-   `#brev-portID:...` marker or legacy `# brev-cli` marker. Attempt every
-   account, retain partial counts, and aggregate contextual errors rather than
-   stopping at the first unreadable or unwritable account.
-6. Retain any local cleanup error and continue. Authenticate, fetch the current
-   registered backend node, and snapshot every remaining `SSHAccess` tuple. An
-   authentication or lookup failure is recorded as an incomplete remote-record
-   cleanup rather than hiding local progress.
-7. When active records exist, ensure the existing Brev tunnel is connected so
-   remote revocation can complete. Reconnect existing membership automatically,
-   but never join. If no records exist, skip the tunnel and revocation work.
-8. Call `RevokeNodeSSHAccess` sequentially for every tuple while the node and
-   its referenced ports still exist. Sequential execution avoids concurrent
-   rewrites of one Linux account's `authorized_keys`. Attempt all entries and
-   aggregate contextual failures.
-9. After all independent work has been attempted, return a joined nonzero error
-   for either incomplete obligation. Local failures are reported as `failed to
-   clean up public keys`; authentication, lookup, tunnel, or revocation failures
-   are reported as `failed to remove remote SSH access records`.
-10. Report overall success only after both local tagged-key cleanup and remote
-    record revocation succeed.
-
-No-access and no-key states are successful, making the command safely
-repeatable. A retry does not rewrite files without Brev markers, fetches a fresh
-backend access snapshot, skips already-removed records, and attempts only work
-that remains. Membership and registration remain intact after every outcome so
-either side can be retried. In particular, a non-root partial cleanup can be
-retried with `sudo brev disable-ssh`; local cleanup runs before Brev
-authentication so root's separate home or login state cannot prevent the key
-sweep from being attempted.
+A no-access state is successful, making the command safely repeatable. Each
+retry fetches a fresh backend access snapshot, skips records already removed,
+and attempts only work that remains. Membership and registration remain intact
+after every outcome so revocation can be retried.
 
 `disable-ssh` does not remove the backend node, stop or uninstall NetBird, delete
-registration, stop sshd, or close ports. Ports remain because the current API
-cannot distinguish ports created for SSH from pre-existing ports selected by
-the SSH flow.
+registration, stop sshd, close ports, terminate active sessions, or inspect or
+modify `authorized_keys`. Ports remain because the current API cannot
+distinguish ports created for SSH from pre-existing ports selected by the SSH
+flow.
 
 ### Leave and Deregister Alias
 
@@ -286,8 +259,8 @@ stderr:
 
 ```text
 Warning: "brev deregister" is deprecated; use "brev leave" instead.
-This command no longer removes SSH keys; run "brev disable-ssh" before leaving
-if you want to remove Brev-managed SSH access.
+This command does not revoke SSH access grants; run "brev disable-ssh" before
+leaving if you want to revoke them.
 ```
 
 The leave flow owns only membership teardown:
@@ -298,9 +271,10 @@ The leave flow owns only membership teardown:
    error stops before mutation.
 3. Always warn that removing the Brev tunnel may interrupt a command running
    through Brev SSH. Recommend running locally or through out-of-band access.
-4. If SSH access records remain, explain that Brev-routed SSH will stop but host
-   keys will not be removed. Tell the user to cancel and run
-   `brev disable-ssh` first if key removal is desired.
+4. If SSH access records remain, explain that Brev-routed SSH will stop and that
+   `leave` will not run the per-grant revocation flow. Tell the user to cancel
+   and run `brev disable-ssh` first if explicit best-effort revocation is
+   desired.
 5. Confirm unless `--approve` was supplied. Warnings still print with
    `--approve`.
 6. Obtain sudo authorization before network removal so local teardown will not
@@ -333,23 +307,18 @@ return nonzero rather than producing a false successful completion.
 - `pkg/cmd/deregister` retains its internal package name but owns only leave
   orchestration. Its direct authorized-key removal dependency is removed.
 - `pkg/cmd/disablessh` is a focused new package with injected dependencies for
-  registration, node lookup, tunnel connectivity, confirmation, effective-UID
-  detection, grant revocation, and local account key cleanup.
-- A narrow local key-cleanup abstraction enumerates account homes and removes
-  only Brev-tagged lines from each account's `.ssh/authorized_keys`, without
-  recursing through home directories. Rewrites preserve unrelated lines,
-  ownership, and file mode. Tests use a fake rather than touching real home
-  directories.
-- `disable-ssh` invokes that cleaner directly at the current effective UID. It
-  has no sudo gate, hidden helper argument, same-binary privileged re-execution,
-  or special dispatch in `main.go`. The shared `pkg/sudo` behavior remains for
-  commands that still require it.
+  registration, current-user lookup, node lookup, confirmation, and grant
+  revocation.
+- `disable-ssh` has no local key-cleanup abstraction, sudo gate, hidden helper
+  argument, same-binary privileged re-execution, or special dispatch in
+  `main.go`. The shared `pkg/sudo` behavior remains for commands that still
+  require it.
 - Tunnel management gains a strict connected operation suitable for SSH
   preconditions. It can start the service and run `netbird up` for existing
   membership, but returns an error unless connectivity is positively confirmed.
-- `enable-ssh` always uses that strict tunnel operation. `disable-ssh` uses the
-  same operation when active grants require remote revocation, while a
-  no-grant run can proceed directly to orphaned local-key cleanup.
+- `enable-ssh` always uses that strict tunnel operation. `disable-ssh`, like
+  `revoke-ssh`, calls the public revocation API without managing the local
+  tunnel.
 - User-facing guidance throughout the CLI changes from `brev register` to
   `brev join`. Internal and backend registration terminology remains where it
   describes persisted state or `AddNode`.
@@ -364,23 +333,22 @@ return nonzero rather than producing a false successful completion.
 - All forms of the old SSH flag, `register --ssh-port`, `register -p`,
   `join --ssh-port`, and `join -p`, fail before side effects with migration
   guidance.
-- `deregister` no longer removes the invoking user's Brev-tagged keys. Its
-  warning tells callers to run `disable-ssh` first when they want credential
-  cleanup.
+- `deregister` retains the same membership-only behavior as `leave`. Its warning
+  tells callers to run `disable-ssh` first when they want explicit per-grant
+  backend revocation.
 - Removing either alias requires a future explicit compatibility decision.
 
 ## Error Handling and Recovery
 
 - Membership validation and strict tunnel connectivity precede every
   `enable-ssh` mutation.
-- `disable-ssh` attempts local key cleanup before authentication or network
-  work, then attempts remote cleanup even when local cleanup is incomplete.
-- `disable-ssh` attempts every reachable backend revocation, reports each failed
-  tuple with user, Linux account, and port context, and joins local and remote
+- `disable-ssh` attempts every backend revocation in a fresh snapshot, reports
+  each failed tuple with user, Linux account, and port context, and joins the
   failures into one final error.
-- A local success with a remote failure fails closed on the host but may leave
-  stale backend records. A remote success with a local failure leaves tagged
-  keys on one or more accounts. Both cases return nonzero and remain retryable.
+- Collaborator records are attempted first and the invoking Brev user's own
+  records are attempted last, even after earlier failures.
+- A partial revocation returns nonzero. A retry fetches a fresh snapshot and
+  attempts only records that remain.
 - `leave` deletes registration last and treats backend not-found as an
   idempotent retry condition.
 - Neither teardown command prints success after an incomplete operation.
@@ -430,39 +398,26 @@ Tests verify:
 Tests verify:
 
 - Confirmation describes node-wide scope and can be bypassed with `--approve`.
-- A non-root invocation warns that cleanup may be incomplete and recommends
-  `sudo brev disable-ssh`; a root invocation does not print that warning.
-- `--approve` skips confirmation without suppressing the non-root or active-
-  session warnings.
-- No disable flow invokes a sudo gate, subprocess runner, hidden helper mode, or
-  other automatic elevation path.
+- `--approve` skips confirmation without suppressing the active-session warning.
+- No disable flow invokes a key-cleanup dependency, sudo gate, subprocess
+  runner, hidden helper mode, or other automatic elevation path.
 - Every active access tuple is revoked exactly once.
-- Active grants require a connected tunnel; a disconnected existing tunnel is
-  reconnected before revocation.
-- Local cleanup occurs before Brev authentication, node lookup, tunnel access,
-  or revocation.
+- Collaborator tuples preserve their snapshot order and are attempted before
+  every tuple owned by the invoking Brev user.
 - All tuples are attempted even when one fails, and errors are aggregated.
-- Local cleanup errors do not block authentication or remote record cleanup;
-  remote errors do not erase or misreport local progress.
-- Simultaneous local and remote failures are joined, retain both underlying
-  causes, include both `failed to clean up public keys` and `failed to remove
-  remote SSH access records`, and do not print overall success. Each single-side
-  failure includes only its applicable classification and underlying cause.
-- Current and legacy Brev markers are removed across accessible account homes
-  while unrelated keys, ownership, and file modes remain intact.
-- No-access and no-key runs succeed.
-- A partial non-root run followed by a root retry does not rewrite already-clean
-  files or re-revoke records absent from the fresh backend snapshot.
-- Authentication or backend lookup failure still attempts local cleanup and
-  returns an incomplete remote-record error.
+- Aggregated failures retain their underlying causes, include `failed to revoke
+  one or more SSH access grants`, and do not print overall success.
+- A no-access run succeeds without prompting or making revocation calls.
+- A retry does not re-revoke records absent from the fresh backend snapshot.
+- No `authorized_keys` file is inspected or modified.
 - No node removal, NetBird teardown, registration deletion, sshd operation, or
-  port close occurs.
+  port close occurs, and active sessions are not forcibly terminated.
 
 ### Leave
 
 Tests verify:
 
-- Remaining grants produce the SSH-key warning but do not block leave.
+- Remaining grants produce the tracked-access warning but do not block leave.
 - `--approve` skips confirmation but not warnings.
 - No SSH revoke or authorized-key dependency is called.
 - Ordering is backend removal, NetBird uninstall, then registration deletion.
@@ -487,10 +442,11 @@ separately and will not be attributed to this change.
 
 - CLI help and examples use `join` and `leave` as the primary verbs.
 - Onboarding documents show `enable-ssh` as an explicit post-join choice.
-- Offboarding documents show `disable-ssh` followed by `leave` for complete
-  credential and membership removal.
-- `disable-ssh` documentation explains best-effort non-root cleanup, its
-  nonzero partial-failure result, and the `sudo brev disable-ssh` retry.
+- Offboarding documents show `disable-ssh` followed by `leave` for explicit
+  tracked-grant revocation followed by membership removal.
+- `disable-ssh` documentation explains best-effort backend revocation, its
+  nonzero partial-failure result, current-user-last ordering, and that local
+  `authorized_keys` files are outside its scope.
 - Documentation states that `leave` alone makes the node unreachable over the
   Brev network but does not remove host keys.
 - Release notes call out both deprecated aliases and the SSH behavior change.

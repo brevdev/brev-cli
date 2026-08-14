@@ -60,8 +60,8 @@ func defaultLeaveDeps() leaveDeps {
 const leaveLong = `Leave the Brev network
 
 This removes the backend node, uninstalls the Brev tunnel, and deletes local
-registration data. It does not revoke SSH grants or remove authorized_keys
-entries; run "brev disable-ssh" first when those credentials should be removed.`
+registration data. It does not revoke SSH access grants; run "brev disable-ssh"
+first when those grants should be revoked.`
 
 // NewCmdLeave creates the canonical network-membership teardown command.
 func NewCmdLeave(t *terminal.Terminal, store LeaveStore) *cobra.Command {
@@ -90,7 +90,7 @@ func newCmdLeave(t *terminal.Terminal, store LeaveStore, deps leaveDeps) *cobra.
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.CalledAs() == "deregister" {
 				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `Warning: "brev deregister" is deprecated; use "brev leave" instead.`)
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `This command no longer removes SSH keys; run "brev disable-ssh" before leaving if you want to remove Brev-managed SSH access.`)
+				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), `This command does not revoke SSH access grants; run "brev disable-ssh" before leaving if you want to revoke them.`)
 			}
 			return runLeave(cmd.Context(), t, cmd.ErrOrStderr(), store, deps, approveFlag)
 		},
@@ -129,12 +129,12 @@ func runLeave(
 	}
 	_, _ = fmt.Fprintln(warnings, "Leaving removes the Brev tunnel and may interrupt commands using Brev SSH. Run this locally or through out-of-band access.")
 	if missing {
-		_, _ = fmt.Fprintln(warnings, "Warning: the backend node is already absent; tagged host keys may remain on this machine.")
+		_, _ = fmt.Fprintln(warnings, "Warning: the backend node is already absent; skipping SSH grant inspection.")
 	} else {
 		grantCount, accountCount := remainingSSHAccessCounts(node.GetSshAccess())
 		if grantCount > 0 {
 			_, _ = fmt.Fprintf(warnings, "Warning: %d SSH grants across %d Linux accounts remain on this node.\n", grantCount, accountCount)
-			_, _ = fmt.Fprintln(warnings, `Leaving stops Brev-routed SSH but does not remove keys from authorized_keys. Cancel and run "brev disable-ssh" first if you want Brev-managed SSH credentials removed.`)
+			_, _ = fmt.Fprintln(warnings, `Leaving stops Brev-routed SSH but does not revoke these grants. Cancel and run "brev disable-ssh" first if you want them revoked.`)
 		}
 	}
 
