@@ -513,8 +513,8 @@ brev ports ls my-instance --json
 
 #### Open a port
 
-Open a raw TCP, UDP, or SSH port on a managed instance or registered compute
-node. `add` is an alias for `open`.
+Open a raw TCP, UDP, or SSH port, or create an HTTP application endpoint, on a
+managed instance or registered compute node. `add` is an alias for `open`.
 
 ```bash
 brev ports open <instance-or-node> <port> [flags]
@@ -523,11 +523,17 @@ brev ports open <instance-or-node> <port> [flags]
 **Flags:**
 | Flag | Description |
 |------|-------------|
-| `--protocol` | Port protocol: `tcp` (default), `udp`, or `ssh` |
-| `--allow` | Source CIDR allowed to connect; repeat to add more than one |
+| `--protocol` | Port protocol: `tcp` (default), `udp`, `ssh`, `http`, or `https` |
+| `--allow` | Source CIDR for TCP, UDP, or SSH; repeat to add more than one |
+| `--authorize` | Email authorized for an HTTP endpoint; repeat to add more than one |
+| `--hostname` | HTTP endpoint hostname prefix; defaults to the destination port |
+| `--public` | Disable authentication for an HTTP endpoint |
 | `--json` | Output the opened port as JSON |
 
-Omit `--allow` to allow connections from any source.
+Omit `--allow` to allow raw-port connections from any source. HTTP endpoints
+default to authorizing the current user's email; use `--public` to make one
+available without authentication. `--protocol http` connects the public HTTPS
+endpoint to a plain-HTTP service, while `https` expects TLS on the destination.
 
 **Examples:**
 ```bash
@@ -535,6 +541,8 @@ brev ports open my-instance 8080
 brev ports open my-node 53 --protocol udp
 brev ports open my-instance 8080 --allow 203.0.113.10/32
 brev ports add my-node 2222 --protocol ssh --json
+brev ports open my-instance 3000 --protocol http --public
+brev ports open my-instance 8888 --protocol http --authorize me@example.com
 ```
 
 ## Organization Commands

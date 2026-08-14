@@ -178,6 +178,8 @@ brev ports ls my-node --json
 # Open a public port (TCP by default)
 brev ports open my-instance 8080
 brev ports open my-node 53 --protocol udp --allow 203.0.113.10/32
+brev ports open my-instance 3000 --protocol http --public
+brev ports open my-instance 8888 --protocol http --authorize me@example.com
 ```
 
 ### Listing Instances and Nodes
