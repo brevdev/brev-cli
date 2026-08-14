@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -21,9 +22,7 @@ import (
 
 // NewCmdOpenPort creates the `brev ports open` command.
 func NewCmdOpenPort(portStore Store) *cobra.Command {
-	var protocol string
-	var allowedSources []string
-	var jsonOutput bool
+	var opts openOptions
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
@@ -31,40 +30,183 @@ func NewCmdOpenPort(portStore Store) *cobra.Command {
 		Aliases:               []string{"add"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Open a public port on an instance or external node",
-		Example: `
-  brev ports open my-instance 8080
-  brev ports open my-node 53 --protocol udp
-  brev ports open my-instance 8080 --allow 203.0.113.10/32`,
+		Example: "\n  brev ports open my-instance 8080" +
+			"\n  brev ports open my-node 53 --protocol udp" +
+			"\n  brev ports open my-instance 8080 --allow 203.0.113.10/32" +
+			"\n  brev ports open my-instance 3000 --protocol http --public",
 		Args: cmderrors.TransformToValidationError(cobra.ExactArgs(2)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			portNumber, err := parsePortNumber(args[1])
-			if err != nil {
-				return err
-			}
-			portProtocol, err := parseProtocol(protocol)
-			if err != nil {
-				return err
-			}
-			allowedSources, err = normalizeAllowedSources(allowedSources)
-			if err != nil {
-				return err
-			}
-			if err := Open(cmd.Context(), cmd.OutOrStdout(), portStore, args[0], portNumber, portProtocol, allowedSources, jsonOutput); err != nil {
-				return breverrors.WrapAndTrace(err)
-			}
-			return nil
+			return runOpenCommand(cmd.Context(), cmd.OutOrStdout(), portStore, args[0], args[1], opts)
 		},
 	}
 
-	cmd.Flags().StringVar(&protocol, "protocol", "tcp", "port protocol (tcp, udp, or ssh)")
-	cmd.Flags().StringArrayVar(&allowedSources, "allow", nil, "source CIDR allowed to connect (repeatable; omit to allow all)")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output the opened port as JSON")
+	cmd.Flags().StringVar(&opts.protocol, "protocol", "tcp", "port protocol (tcp, udp, ssh, http, or https)")
+	cmd.Flags().StringArrayVar(&opts.allowedSources, "allow", nil, "source CIDR allowed to connect (repeatable; omit to allow all)")
+	cmd.Flags().StringArrayVar(&opts.authorizedEmails, "authorize", nil, "email authorized for an HTTP port (repeatable; defaults to you)")
+	cmd.Flags().StringVar(&opts.customHostname, "hostname", "", "hostname prefix for an HTTP port (defaults to the destination port)")
+	cmd.Flags().BoolVar(&opts.allowPublicUnauthenticated, "public", false, "disable authentication for an HTTP port")
+	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "output the opened port as JSON")
 	_ = cmd.RegisterFlagCompletionFunc("protocol", cobra.FixedCompletions(
-		[]string{"tcp", "udp", "ssh"},
+		[]string{"tcp", "udp", "ssh", "http", "https"},
 		cobra.ShellCompDirectiveNoFileComp,
 	))
 
 	return cmd
+}
+
+type openOptions struct {
+	protocol                   string
+	allowedSources             []string
+	authorizedEmails           []string
+	customHostname             string
+	allowPublicUnauthenticated bool
+	jsonOutput                 bool
+}
+
+func runOpenCommand(
+	ctx context.Context,
+	out io.Writer,
+	portStore Store,
+	nameOrID string,
+	portValue string,
+	opts openOptions,
+) error {
+	portNumber, err := parsePortNumber(portValue)
+	if err != nil {
+		return err
+	}
+	if isHTTPProtocol(opts.protocol) {
+		return runOpenHTTPCommand(ctx, out, portStore, nameOrID, portNumber, opts)
+	}
+	return runOpenNetworkCommand(ctx, out, portStore, nameOrID, portNumber, opts)
+}
+
+func runOpenHTTPCommand(
+	ctx context.Context,
+	out io.Writer,
+	portStore Store,
+	nameOrID string,
+	portNumber int32,
+	opts openOptions,
+) error {
+	httpProtocol, err := parseHTTPProtocol(opts.protocol)
+	if err != nil {
+		return err
+	}
+	if len(opts.allowedSources) > 0 {
+		return breverrors.NewValidationError("--allow is only supported for tcp, udp, and ssh ports")
+	}
+	authorizedEmails, err := normalizeAuthorizedEmails(opts.authorizedEmails)
+	if err != nil {
+		return err
+	}
+	if opts.allowPublicUnauthenticated && len(authorizedEmails) > 0 {
+		return breverrors.NewValidationError("--public and --authorize cannot be used together")
+	}
+	if err := validateHTTPHostname(opts.customHostname); err != nil {
+		return err
+	}
+	return breverrors.WrapAndTrace(OpenHTTP(
+		ctx, out, portStore, nameOrID, portNumber, httpProtocol, opts.customHostname,
+		authorizedEmails, opts.allowPublicUnauthenticated, opts.jsonOutput,
+	))
+}
+
+func runOpenNetworkCommand(
+	ctx context.Context,
+	out io.Writer,
+	portStore Store,
+	nameOrID string,
+	portNumber int32,
+	opts openOptions,
+) error {
+	if opts.customHostname != "" || len(opts.authorizedEmails) > 0 || opts.allowPublicUnauthenticated {
+		return breverrors.NewValidationError("--hostname, --authorize, and --public are only supported for http and https ports")
+	}
+	portProtocol, err := parseProtocol(opts.protocol)
+	if err != nil {
+		return err
+	}
+	allowedSources, err := normalizeAllowedSources(opts.allowedSources)
+	if err != nil {
+		return err
+	}
+	return breverrors.WrapAndTrace(Open(
+		ctx, out, portStore, nameOrID, portNumber, portProtocol, allowedSources, opts.jsonOutput,
+	))
+}
+
+// OpenHTTP resolves a managed instance or registered compute node and creates
+// an authenticated or public HTTP application endpoint.
+func OpenHTTP(
+	ctx context.Context,
+	out io.Writer,
+	portStore Store,
+	nameOrID string,
+	portNumber int32,
+	httpProtocol devplanev1.HttpPortProtocol,
+	customHostname string,
+	authorizedEmails []string,
+	allowPublicUnauthenticated bool,
+	jsonOutput bool,
+) error {
+	target, err := cmdutil.ResolveWorkspaceOrNodeWithContext(ctx, portStore, nameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	if !allowPublicUnauthenticated && len(authorizedEmails) == 0 {
+		user, err := portStore.GetCurrentUser()
+		if err != nil {
+			return fmt.Errorf("get current user for HTTP port authorization: %w", err)
+		}
+		if user == nil || strings.TrimSpace(user.Email) == "" {
+			return breverrors.NewValidationError("could not determine your email; use --authorize or --public")
+		}
+		authorizedEmails = []string{strings.TrimSpace(user.Email)}
+	}
+
+	var openedPort *devplanev1.Port
+	if target.Workspace != nil {
+		hostname := buildHTTPHostname(customHostname, portNumber, target.Workspace.ID)
+		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		resp, err := client.OpenHTTPPort(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceOpenHTTPPortRequest{
+			EnvironmentId:              target.Workspace.ID,
+			PortNumber:                 portNumber,
+			CustomHostname:             hostname,
+			HttpProtocol:               httpProtocol,
+			AuthorizedEmails:           authorizedEmails,
+			AllowPublicUnauthenticated: allowPublicUnauthenticated,
+		}))
+		if err != nil {
+			return fmt.Errorf("open HTTP port on instance %q: %w", nameOrID, err)
+		}
+		if resp != nil && resp.Msg != nil {
+			openedPort = resp.Msg.GetPort()
+		}
+	} else if target.Node != nil {
+		hostname := buildHTTPHostname(customHostname, portNumber, target.Node.GetExternalNodeId())
+		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		resp, err := client.OpenHTTPPort(ctx, connect.NewRequest(&devplanev1.OpenHTTPPortRequest{
+			ExternalNodeId:             target.Node.GetExternalNodeId(),
+			PortNumber:                 portNumber,
+			CustomHostname:             hostname,
+			HttpProtocol:               httpProtocol,
+			AuthorizedEmails:           authorizedEmails,
+			AllowPublicUnauthenticated: allowPublicUnauthenticated,
+		}))
+		if err != nil {
+			return fmt.Errorf("open HTTP port on external node %q: %w", nameOrID, err)
+		}
+		if resp != nil && resp.Msg != nil {
+			openedPort = resp.Msg.GetPort()
+		}
+	}
+
+	if openedPort == nil {
+		return fmt.Errorf("open HTTP port on %q: API returned no port", nameOrID)
+	}
+	return writeOpenResult(out, nameOrID, openedPort, jsonOutput)
 }
 
 // Open resolves a managed instance or registered compute node and opens a port.
@@ -78,7 +220,7 @@ func Open(
 	allowedSources []string,
 	jsonOutput bool,
 ) error {
-	target, err := cmdutil.ResolveWorkspaceOrNode(portStore, nameOrID)
+	target, err := cmdutil.ResolveWorkspaceOrNodeWithContext(ctx, portStore, nameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -138,11 +280,36 @@ func parseProtocol(value string) (devplanev1.PortProtocol, error) {
 		return devplanev1.PortProtocol_PORT_PROTOCOL_SSH, nil
 	default:
 		return devplanev1.PortProtocol_PORT_PROTOCOL_UNSPECIFIED,
-			fmt.Errorf("invalid protocol %q: must be tcp, udp, or ssh", value)
+			fmt.Errorf("invalid protocol %q: must be tcp, udp, ssh, http, or https", value)
+	}
+}
+
+func isHTTPProtocol(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return value == "http" || value == "https"
+}
+
+func parseHTTPProtocol(value string) (devplanev1.HttpPortProtocol, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "http":
+		return devplanev1.HttpPortProtocol_HTTP_PORT_PROTOCOL_HTTP, nil
+	case "https":
+		return devplanev1.HttpPortProtocol_HTTP_PORT_PROTOCOL_HTTPS, nil
+	default:
+		return devplanev1.HttpPortProtocol_HTTP_PORT_PROTOCOL_UNSPECIFIED,
+			fmt.Errorf("invalid HTTP protocol %q: must be http or https", value)
 	}
 }
 
 func normalizeAllowedSources(values []string) ([]string, error) {
+	return normalizeUniqueValues(values, "allowed source")
+}
+
+func normalizeAuthorizedEmails(values []string) ([]string, error) {
+	return normalizeUniqueValues(values, "authorized email")
+}
+
+func normalizeUniqueValues(values []string, label string) ([]string, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -152,7 +319,7 @@ func normalizeAllowedSources(values []string) ([]string, error) {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "" {
-			return nil, fmt.Errorf("allowed source cannot be empty")
+			return nil, fmt.Errorf("%s cannot be empty", label)
 		}
 		if _, ok := seen[value]; ok {
 			continue
@@ -161,6 +328,34 @@ func normalizeAllowedSources(values []string) ([]string, error) {
 		normalized = append(normalized, value)
 	}
 	return normalized, nil
+}
+
+var httpHostnamePattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`)
+
+func validateHTTPHostname(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	if len(value) > 63 {
+		return breverrors.NewValidationError("hostname must be 63 characters or fewer")
+	}
+	if !httpHostnamePattern.MatchString(value) {
+		return breverrors.NewValidationError("hostname must contain only lowercase letters, digits, and hyphens, and must start and end with a letter or digit")
+	}
+	return nil
+}
+
+func buildHTTPHostname(value string, portNumber int32, targetID string) string {
+	hostname := strings.TrimSpace(value)
+	if hostname == "" {
+		hostname = strconv.Itoa(int(portNumber))
+	}
+	suffix := "-" + strings.ToLower(strings.TrimSpace(targetID))
+	if targetID == "" || strings.HasSuffix(hostname, suffix) {
+		return hostname
+	}
+	return hostname + suffix
 }
 
 func writeOpenResult(out io.Writer, nameOrID string, port *devplanev1.Port, jsonOutput bool) error {
