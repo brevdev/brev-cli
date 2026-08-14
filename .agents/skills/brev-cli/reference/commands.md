@@ -546,6 +546,43 @@ brev ports create my-instance 3000 --protocol http --public
 brev ports create my-instance 8888 --protocol http --authorize me@example.com
 ```
 
+#### Update a port
+
+Update a mapping in place while preserving its `port_id` and public endpoint.
+Omit `--id` to select a mapping interactively. `edit` is an alias for `update`.
+
+```bash
+brev ports update <instance-or-node> [flags]
+```
+
+**Flags:**
+| Flag | Description |
+|------|-------------|
+| `--id` | Update the exact mapping with this `port_id`; omit to select interactively |
+| `--destination-port` | Change the destination port (1-65535) |
+| `--allow` | Replace source restrictions with this CIDR; repeat to add more than one |
+| `--allow-anywhere` | Clear all source restrictions |
+| `--protocol` | Change an HTTP mapping's origin protocol to `http` or `https` |
+| `--authorize` | Replace an HTTP mapping's authorized emails; repeat to add more than one |
+| `--public` | Allow unauthenticated public access to an HTTP mapping |
+| `--json` | Output the updated mapping as JSON |
+
+`--allow` and `--allow-anywhere` cannot be combined. `--authorize` and
+`--public` cannot be combined. HTTP access and protocol flags are rejected for
+raw TCP, UDP, and SSH mappings. When one command updates multiple field groups,
+the API applies them in destination, source, protocol, then access order; those
+separate mutations are not transactional.
+
+**Examples:**
+```bash
+brev ports update my-instance --destination-port 8081
+brev ports update my-instance --id nport-abc123 --allow 203.0.113.10/32
+brev ports edit my-node --id nport-abc123 --allow-anywhere
+brev ports update my-instance --id nport-abc123 --protocol https
+brev ports update my-instance --id nport-abc123 --authorize me@example.com
+brev ports update my-instance --id nport-abc123 --public --json
+```
+
 ### Close ports
 
 Select and close one port interactively or close an exact mapping by its
