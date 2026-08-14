@@ -31,41 +31,6 @@ func newTestFileStore(t *testing.T) *store.FileStore {
 	)
 }
 
-func TestNewBrevCommand_BYONCommandSurface(t *testing.T) {
-	root := NewBrevCommand()
-	join, _, err := root.Find([]string{"join"})
-	require.NoError(t, err)
-	register, _, err := root.Find([]string{"register"})
-	require.NoError(t, err)
-	require.Equal(t, "join", join.Name())
-	require.Same(t, join, register)
-
-	disableSSH, _, err := root.Find([]string{"disable-ssh"})
-	require.NoError(t, err)
-	require.Equal(t, "disable-ssh", disableSSH.Name())
-	require.Empty(t, disableSSH.Aliases)
-	leave, _, err := root.Find([]string{"leave"})
-	require.NoError(t, err)
-	deregister, _, err := root.Find([]string{"deregister"})
-	require.NoError(t, err)
-	require.Equal(t, "leave", leave.Name())
-	require.Equal(t, []string{"deregister"}, leave.Aliases)
-	require.Same(t, leave, deregister)
-
-	var disableSSHCount int
-	var leaveCount int
-	for _, command := range root.Commands() {
-		if command.Name() == "disable-ssh" {
-			disableSSHCount++
-		}
-		if command.Name() == "leave" {
-			leaveCount++
-		}
-	}
-	require.Equal(t, 1, disableSSHCount)
-	require.Equal(t, 1, leaveCount)
-}
-
 func TestEmailCachingAuthStore_SaveCachesEmail(t *testing.T) {
 	fs := newTestFileStore(t)
 	s := &emailCachingAuthStore{

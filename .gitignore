@@ -56,3 +56,7 @@ test.txt
 test2.txt
 homebrew-brev
 flake-explorations
+
+# AI
+/docs/superpowers/plans/
+/docs/superpowers/specs/
