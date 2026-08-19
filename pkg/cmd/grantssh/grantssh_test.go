@@ -44,7 +44,7 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 	return nil
 }
 
-func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
+func (m *mockRegistrationStore) Load(bool) (*register.DeviceRegistration, error) {
 	if m.reg == nil {
 		return nil, fmt.Errorf("no registration")
 	}

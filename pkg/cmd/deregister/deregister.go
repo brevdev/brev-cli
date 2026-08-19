@@ -3,6 +3,7 @@ package deregister
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/user"
 
@@ -20,18 +21,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// DeregisterStore defines the store methods needed by the deregister command.
 type DeregisterStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetAccessToken() (string, error)
 }
 
-// SSHKeyRemover removes Brev-managed SSH keys and returns the lines removed.
 type SSHKeyRemover interface {
 	RemoveBrevKeys(u *user.User) ([]string, error)
 }
 
-// brevSSHKeyRemover delegates to register.RemoveBrevAuthorizedKeys.
 type brevSSHKeyRemover struct{}
 
 func (brevSSHKeyRemover) RemoveBrevKeys(u *user.User) ([]string, error) {
@@ -97,6 +95,53 @@ func NewCmdDeregister(t *terminal.Terminal, store DeregisterStore) *cobra.Comman
 	return cmd
 }
 
+func removeNodeFromBrev(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, reg *register.DeviceRegistration) error {
+	externalNodeID := reg.ExternalNodeID
+	if externalNodeID == "" && reg.DeviceID != "" {
+		lookedUp, lookupErr := findNodeByDeviceID(ctx, s, deps, reg.OrgID, reg.DeviceID)
+		if lookupErr != nil {
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Could not look up pending node by device ID: %v", lookupErr)))
+		}
+		if lookedUp != "" {
+			externalNodeID = lookedUp
+		}
+	}
+	if externalNodeID == "" {
+		t.Vprintf("  %s\n", t.Yellow("No registered node to remove (pending registration); cleaning up local state."))
+		return nil
+	}
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	_, err := client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
+		ExternalNodeId: externalNodeID,
+	}))
+	if err != nil {
+		var connectErr *connect.Error
+		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeNotFound {
+			t.Vprintf("  %s\n", t.Yellow("Node not found on Brev; continuing."))
+			return nil
+		}
+		return fmt.Errorf("failed to deregister node: %w", err)
+	}
+	t.Vprintf("%s  Node removed from Brev.\n", t.Green("  ✓"))
+	return nil
+}
+
+func findNodeByDeviceID(ctx context.Context, s externalnode.TokenProvider, deps deregisterDeps, orgID, deviceID string) (string, error) {
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+		OrganizationId: orgID,
+	}))
+	if err != nil {
+		return "", fmt.Errorf("failed to list nodes: %w", err)
+	}
+	for _, n := range resp.Msg.GetItems() {
+		if n.GetDeviceId() == deviceID {
+			return n.GetExternalNodeId(), nil
+		}
+	}
+	return "", nil
+}
+
 func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen,gocyclo // deregistration flow
 	if !deps.platform.IsCompatible() {
 		return fmt.Errorf("brev deregister is only supported on Linux")
@@ -106,7 +151,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
-	reg, err := deps.registrationStore.Load()
+	reg, err := deps.registrationStore.Load(true) // deregister should still work for pending registrations
 	if err != nil {
 		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
@@ -158,14 +203,9 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 	}
 
 	t.Vprint(t.Yellow("[Step 1/4] Removing node from Brev..."))
-	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	_, err = client.RemoveNode(ctx, connect.NewRequest(&nodev1.RemoveNodeRequest{
-		ExternalNodeId: reg.ExternalNodeID,
-	}))
-	if err != nil {
-		return fmt.Errorf("failed to deregister node: %w", err)
+	if err := removeNodeFromBrev(ctx, t, s, deps, reg); err != nil {
+		return err
 	}
-	t.Vprintf("%s  Node removed from Brev.\n", t.Green("  ✓"))
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 2/4] Removing Brev SSH keys..."))

@@ -20,6 +20,11 @@ const (
 	globalRegistrationDir = "/etc/brev"
 )
 
+const (
+	RegistrationStatusPending    = "pending"
+	RegistrationStatusRegistered = "registered"
+)
+
 // DeviceRegistration is the persistent identity file for a registered device.
 // Fields align with the AddNodeResponse from dev-plane.
 type DeviceRegistration struct {
@@ -30,17 +35,17 @@ type DeviceRegistration struct {
 	DeviceID        string          `json:"device_id"`
 	RegisteredAt    string          `json:"registered_at"`
 	HardwareProfile HardwareProfile `json:"hardware_profile"`
+	Status          string          `json:"status,omitempty"`
 }
 
 // RegistrationStore defines the contract for persisting device registration data.
 type RegistrationStore interface {
 	Save(reg *DeviceRegistration) error
-	Load() (*DeviceRegistration, error)
+	Load(includeAll bool) (*DeviceRegistration, error)
 	Delete() error
 	Exists() (bool, error)
 }
 
-// FileRegistrationStore implements RegistrationStore using the global /etc/brev/ path.
 type FileRegistrationStore struct{}
 
 // NewFileRegistrationStore returns a FileRegistrationStore that reads/writes
@@ -72,8 +77,7 @@ func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
 	return sudoWriteFile(path, data)
 }
 
-// Load reads the registration file and returns the parsed DeviceRegistration
-func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
+func (s *FileRegistrationStore) Load(includeAll bool) (*DeviceRegistration, error) {
 	path := s.path()
 	exists, err := s.Exists()
 	if !exists {
@@ -86,7 +90,16 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	if includeAll {
+		if reg.OrgID == "" && reg.DeviceID == "" {
+			return nil, breverrors.New("malformed registration")
+		}
+		return &reg, nil
+	}
 	if reg.ExternalNodeID == "" || reg.OrgID == "" {
+		if reg.Status == RegistrationStatusPending {
+			return nil, breverrors.New("device registration is incomplete; re-run 'brev register' to finish")
+		}
 		return nil, breverrors.New("malformed registration")
 	}
 	return &reg, nil
