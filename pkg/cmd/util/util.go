@@ -16,6 +16,8 @@ type GetWorkspaceByNameOrIDErrStore interface {
 	GetCurrentUser() (*entity.User, error)
 }
 
+// GetUserWorkspaceByNameOrIDErr finds a workspace accessible to the current user by name or ID.
+// It returns a validation error when no matching workspace is found.
 func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
 	workspace, found, err := findUserWorkspaceByNameOrID(storeQ, workspaceNameOrID)
 	if err != nil {
@@ -28,7 +30,8 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 }
 
 // findUserWorkspaceByNameOrID distinguishes a missing workspace from lookup failures so callers
-// that support other target types only fall back after a confirmed absence.
+// findUserWorkspaceByNameOrID looks up a workspace accessible to the current user by name or ID.
+// It reports whether a matching workspace was found and returns any lookup or selection error.
 func findUserWorkspaceByNameOrID(
 	storeQ GetWorkspaceByNameOrIDErrStore,
 	workspaceNameOrID string,
@@ -69,6 +72,8 @@ func findUserWorkspaceByNameOrID(
 	return &workspaces[0], true, nil
 }
 
+// GetAnyWorkspaceByIDOrNameInActiveOrgErr finds a workspace by name or ID within the active organization.
+// It returns an error when the workspace cannot be found or the match is ambiguous.
 func GetAnyWorkspaceByIDOrNameInActiveOrgErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
 	org, err := storeQ.GetActiveOrganizationOrDefault()
 	if err != nil {
