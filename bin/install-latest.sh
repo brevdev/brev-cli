@@ -45,6 +45,13 @@ main() {
             ;;
     esac
 
+    if [[ -z "${BREV_INSTALL_DIR:-}" ]] && command -v brew >/dev/null 2>&1; then
+        if brew install brevdev/homebrew-brev/brev; then
+            return 0
+        fi
+        printf 'Warning: Homebrew installation failed; falling back to the release archive.\n' >&2
+    fi
+
     if ! release_arch="$(get_release_arch)"; then
         printf 'Error: Unsupported architecture: %s\n' "$(uname -m)" >&2
         return 1
