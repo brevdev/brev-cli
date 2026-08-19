@@ -53,7 +53,7 @@ func NewCmdPorts(portStore Store) *cobra.Command {
   brev ports ls my-instance
   brev ports ls my-node --json`,
 	}
-	cmd.AddCommand(NewCmdPortsLs(portStore), NewCmdOpenPort(portStore))
+	cmd.AddCommand(NewCmdPortsLs(portStore), NewCmdCreatePort(portStore))
 	return cmd
 }
 

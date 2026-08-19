@@ -20,20 +20,20 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-// NewCmdOpenPort creates the `brev ports open` command.
-func NewCmdOpenPort(portStore Store) *cobra.Command {
+// NewCmdCreatePort creates the `brev ports create` command.
+func NewCmdCreatePort(portStore Store) *cobra.Command {
 	var opts openOptions
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
-		Use:                   "open <instance-or-node> <port>",
-		Aliases:               []string{"add"},
+		Use:                   "create <instance-or-node> <port>",
+		Aliases:               []string{"open", "add"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Open a public port on an instance or external node",
-		Example: "\n  brev ports open my-instance 8080" +
-			"\n  brev ports open my-node 53 --protocol udp" +
-			"\n  brev ports open my-instance 8080 --allow 203.0.113.10/32" +
-			"\n  brev ports open my-instance 3000 --protocol http --public",
+		Short:                 "Create a public port on an instance or external node",
+		Example: "\n  brev ports create my-instance 8080" +
+			"\n  brev ports create my-node 53 --protocol udp" +
+			"\n  brev ports create my-instance 8080 --allow 203.0.113.10/32" +
+			"\n  brev ports create my-instance 3000 --protocol http --public",
 		Args: cmderrors.TransformToValidationError(cobra.ExactArgs(2)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOpenCommand(cmd.Context(), cmd.OutOrStdout(), portStore, args[0], args[1], opts)
@@ -45,7 +45,7 @@ func NewCmdOpenPort(portStore Store) *cobra.Command {
 	cmd.Flags().StringArrayVar(&opts.authorizedEmails, "authorize", nil, "email authorized for an HTTP port (repeatable; defaults to you)")
 	cmd.Flags().StringVar(&opts.customHostname, "hostname", "", "hostname prefix for an HTTP port (defaults to the destination port)")
 	cmd.Flags().BoolVar(&opts.allowPublicUnauthenticated, "public", false, "disable authentication for an HTTP port")
-	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "output the opened port as JSON")
+	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "output the created port as JSON")
 	_ = cmd.RegisterFlagCompletionFunc("protocol", cobra.FixedCompletions(
 		[]string{"tcp", "udp", "ssh", "http", "https"},
 		cobra.ShellCompDirectiveNoFileComp,
@@ -369,7 +369,7 @@ func writeOpenResult(out io.Writer, nameOrID string, port *devplanev1.Port, json
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err := fmt.Fprintf(out, "Opened %s port %d on %s.\n", portInfo.Protocol, port.GetServerPort(), nameOrID)
+	_, err := fmt.Fprintf(out, "Created %s port %d on %s.\n", portInfo.Protocol, port.GetServerPort(), nameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

@@ -149,7 +149,7 @@ func TestOpenEnvironment(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, out.String(), "Opened TCP port 8080 on my-instance.")
+	assert.Contains(t, out.String(), "Created TCP port 8080 on my-instance.")
 	assert.Contains(t, out.String(), "19001")
 	assert.Contains(t, out.String(), "203.0.113.10/32")
 }
@@ -195,7 +195,6 @@ func TestOpenExternalNodeByIDJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{
 		"port_id": "port53",
-		"kind": "network",
 		"endpoint": "global.prd.ga.run.brev.nvidia.com:19053",
 		"public_port": 19053,
 		"destination_port": 53,
@@ -250,7 +249,7 @@ func TestOpenHTTPEnvironmentDefaultsToCurrentUser(t *testing.T) {
 	)
 
 	require.NoError(t, err)
-	assert.Contains(t, out.String(), "Opened HTTP port 3000 on my-instance.")
+	assert.Contains(t, out.String(), "Created HTTP port 3000 on my-instance.")
 	assert.Contains(t, out.String(), "https://3000-env123.apps.run.brev.nvidia.com")
 	assert.Contains(t, out.String(), "me@example.com")
 }
@@ -285,7 +284,7 @@ func TestOpenHTTPExternalNodePublicJSON(t *testing.T) {
 	}
 	cmd := NewCmdPorts(store)
 	cmd.SetArgs([]string{
-		"open", "my-node", "8443", "--protocol", "HTTPS",
+		"create", "my-node", "8443", "--protocol", "HTTPS",
 		"--hostname", "demo", "--public", "--json",
 	})
 	var out bytes.Buffer
@@ -296,7 +295,6 @@ func TestOpenHTTPExternalNodePublicJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{
 		"port_id": "http8443",
-		"kind": "http",
 		"endpoint": "https://demo-unode123.apps.run.brev.nvidia.com",
 		"public_port": 443,
 		"destination_port": 8443,
@@ -308,7 +306,7 @@ func TestOpenHTTPExternalNodePublicJSON(t *testing.T) {
 	}`, out.String())
 }
 
-func TestNewCmdOpenPortParsesFlags(t *testing.T) {
+func TestNewCmdCreatePortParsesFlags(t *testing.T) {
 	service := &fakeOpenEnvironmentService{
 		t: t,
 		wantReq: &devplanev1.EnvironmentServiceOpenPortRequest{
@@ -334,7 +332,7 @@ func TestNewCmdOpenPortParsesFlags(t *testing.T) {
 	}
 	cmd := NewCmdPorts(store)
 	cmd.SetArgs([]string{
-		"open", "my-instance", "2222", "--protocol", "SSH",
+		"create", "my-instance", "2222", "--protocol", "SSH",
 		"--allow", "10.0.0.0/8", "--allow", "192.0.2.0/24",
 		"--allow", "10.0.0.0/8",
 	})
@@ -344,7 +342,7 @@ func TestNewCmdOpenPortParsesFlags(t *testing.T) {
 	err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.Contains(t, out.String(), "Opened SSH port 2222 on my-instance.")
+	assert.Contains(t, out.String(), "Created SSH port 2222 on my-instance.")
 }
 
 func TestParsePortNumber(t *testing.T) {
@@ -399,22 +397,22 @@ func TestOpenHTTPFlagValidation(t *testing.T) {
 	}{
 		{
 			name: "public with authorized email",
-			args: []string{"open", "my-instance", "8080", "--protocol", "http", "--public", "--authorize", "me@example.com"},
+			args: []string{"create", "my-instance", "8080", "--protocol", "http", "--public", "--authorize", "me@example.com"},
 			want: "--public and --authorize cannot be used together",
 		},
 		{
 			name: "IP allow-list on HTTP",
-			args: []string{"open", "my-instance", "8080", "--protocol", "http", "--allow", "10.0.0.0/8"},
+			args: []string{"create", "my-instance", "8080", "--protocol", "http", "--allow", "10.0.0.0/8"},
 			want: "--allow is only supported for tcp, udp, and ssh ports",
 		},
 		{
 			name: "HTTP flag on TCP",
-			args: []string{"open", "my-instance", "8080", "--public"},
+			args: []string{"create", "my-instance", "8080", "--public"},
 			want: "--hostname, --authorize, and --public are only supported for http and https ports",
 		},
 		{
 			name: "invalid hostname",
-			args: []string{"open", "my-instance", "8080", "--protocol", "http", "--hostname", "Not Valid"},
+			args: []string{"create", "my-instance", "8080", "--protocol", "http", "--hostname", "Not Valid"},
 			want: "hostname must contain only lowercase letters",
 		},
 	}
