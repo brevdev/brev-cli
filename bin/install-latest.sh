@@ -4,18 +4,6 @@ set -euo pipefail
 # Keep all installation work inside main so a truncated `curl | bash` download
 # cannot execute a partial installer.
 
-curl_brev_cli() {
-    curl \
-        --fail \
-        --silent \
-        --show-error \
-        --location \
-        --proto '=https' \
-        --proto-redir '=https' \
-        --connect-timeout 10 \
-        "$@"
-}
-
 get_release_arch() {
     case "$(uname -m)" in
         x86_64|amd64) printf '%s\n' "amd64" ;;
@@ -28,7 +16,17 @@ get_latest_release_tag() {
     # Use GitHub's web redirect instead of its REST API so installations from
     # shared egress IPs are not subject to the unauthenticated API quota.
     local release_url release_tag
-    release_url="$(curl_brev_cli --max-time 30 --output /dev/null --write-out '%{url_effective}' \
+    release_url="$(curl \
+        --fail \
+        --silent \
+        --show-error \
+        --location \
+        --proto '=https' \
+        --proto-redir '=https' \
+        --connect-timeout 10 \
+        --max-time 30 \
+        --output /dev/null \
+        --write-out '%{url_effective}' \
         "https://github.com/brevdev/brev-cli/releases/latest")" || return 1
     release_tag="${release_url##*/}"
     [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
@@ -66,7 +64,14 @@ main() {
 
     # The archive has no total time limit; slow but progressing downloads may
     # take as long as needed.
-    curl_brev_cli \
+    curl \
+        --fail \
+        --silent \
+        --show-error \
+        --location \
+        --proto '=https' \
+        --proto-redir '=https' \
+        --connect-timeout 10 \
         --output "$archive_path" \
         "https://github.com/brevdev/brev-cli/releases/download/${release_tag}/${archive_name}"
     tar -xzf "$archive_path" -C "$TMP_DIR" -- brev
