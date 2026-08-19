@@ -475,6 +475,7 @@ brev ports <instance-or-node> [flags]
 ```
 
 **Flags:**
+
 | Flag | Description |
 |------|-------------|
 | `--json` | Output the port mappings as JSON |

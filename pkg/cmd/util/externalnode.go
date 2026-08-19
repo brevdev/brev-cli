@@ -34,18 +34,14 @@ type WorkspaceOrNode struct {
 }
 
 // ResolveWorkspaceOrNode looks up a workspace first; if not found, falls back to external nodes.
-// ResolveWorkspaceOrNode resolves a workspace or external node by name or ID.
-// It searches for a workspace first, then an external node, and returns a validation
-// error when neither is found. Lookup and service errors are propagated.
+// The store must satisfy both GetWorkspaceByNameOrIDErrStore and ExternalNodeStore.
 func ResolveWorkspaceOrNode(store WorkspaceOrNodeResolver, nameOrID string,
 ) (*WorkspaceOrNode, error) {
 	return ResolveWorkspaceOrNodeWithContext(context.Background(), store, nameOrID)
 }
 
 // ResolveWorkspaceOrNodeWithContext looks up a workspace first; if not found, falls back to
-// ResolveWorkspaceOrNodeWithContext resolves a workspace or external node by name or ID.
-// It searches workspaces first, then external nodes, using ctx for external-node requests.
-// It returns a validation error when neither resource exists.
+// external nodes. The context is used for the external-node service request.
 func ResolveWorkspaceOrNodeWithContext(ctx context.Context, store WorkspaceOrNodeResolver, nameOrID string,
 ) (*WorkspaceOrNode, error) {
 	workspace, workspaceFound, err := findUserWorkspaceByNameOrID(store, nameOrID)
@@ -130,8 +126,7 @@ func resolvePortForSSHAccess(node *nodev1.ExternalNode, access *nodev1.SSHAccess
 }
 
 // OpenPort calls the OpenPort RPC to open a port on an external node via netbird.
-// OpenPort requests access to a non-SSH port on an external node.
-// It returns the opened port or an error.
+// This must be called before attempting to connect to a non-SSH port on a node.
 func OpenPort(store ExternalNodeStore, nodeID string, portNumber int32, protocol nodev1.PortProtocol) (*nodev1.Port, error) {
 	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.OpenPort(context.Background(), connect.NewRequest(&nodev1.OpenPortRequest{
@@ -146,15 +141,14 @@ func OpenPort(store ExternalNodeStore, nodeID string, portNumber int32, protocol
 }
 
 // FindExternalNode searches for an external node by name or ID in the user's active organization.
-// FindExternalNode locates an external node by ID or case-insensitive name.
-// It returns nil, nil when no matching node exists.
+// Returns (nil, nil) if no matching node is found.
 func FindExternalNode(store ExternalNodeStore, nameOrID string) (*nodev1.ExternalNode, error) {
 	return FindExternalNodeWithContext(context.Background(), store, nameOrID)
 }
 
 // FindExternalNodeWithContext searches for an external node by name or ID in the user's active
 // organization. Exact IDs take precedence over case-insensitive names.
-// It returns the matching node, or nil when no matching node is found.
+// Returns (nil, nil) if no matching node is found.
 func FindExternalNodeWithContext(ctx context.Context, store ExternalNodeStore, nameOrID string) (*nodev1.ExternalNode, error) {
 	org, err := store.GetActiveOrganizationOrDefault()
 	if err != nil {
@@ -170,7 +164,6 @@ func FindExternalNodeWithContext(ctx context.Context, store ExternalNodeStore, n
 	return findExternalNode(resp.Msg.GetItems(), nameOrID), nil
 }
 
-// findExternalNode returns the external node matching nameOrID by ID or, if no ID matches, by case-insensitive name. It returns nil when no match exists.
 func findExternalNode(nodes []*nodev1.ExternalNode, nameOrID string) *nodev1.ExternalNode {
 	// IDs are unique and unambiguous, so they must win even if an earlier node's name collides.
 	for _, node := range nodes {

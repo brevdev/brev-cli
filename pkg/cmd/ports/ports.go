@@ -86,7 +86,7 @@ func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, j
 			EnvironmentId: target.Workspace.ID,
 		}))
 		if err != nil {
-			return fmt.Errorf("get ports for instance %q: %w", nameOrID, err)
+			return breverrors.WrapAndTrace(fmt.Errorf("get ports for instance %q: %w", nameOrID, err))
 		}
 		var networkInfo *devplanev1.EnvironmentNetworkInfo
 		if resp != nil && resp.Msg != nil {
@@ -115,8 +115,6 @@ func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, j
 	return displayTables(out, nameOrID, portInfos)
 }
 
-// toPortInfos converts API port definitions into port information for display and serialization.
-// Nil port entries are skipped.
 func toPortInfos(apiPorts []*devplanev1.Port) []PortInfo {
 	portInfos := make([]PortInfo, 0, len(apiPorts))
 	for _, port := range apiPorts {
@@ -144,7 +142,6 @@ func toPortInfos(apiPorts []*devplanev1.Port) []PortInfo {
 	return portInfos
 }
 
-// endpoint builds the public endpoint for a port, using an HTTPS URL for HTTP ports and host-port notation for network ports.
 func endpoint(port *devplanev1.Port, isHTTP bool) string {
 	hostname := port.GetHostname()
 	if hostname == "" {
@@ -159,7 +156,6 @@ func endpoint(port *devplanev1.Port, isHTTP bool) string {
 	return net.JoinHostPort(hostname, strconv.Itoa(int(port.GetPortNumber())))
 }
 
-// protocolLabel returns the display label for a port's protocol, distinguishing HTTP and network port protocols.
 func protocolLabel(port *devplanev1.Port, isHTTP bool) string {
 	if isHTTP {
 		switch port.GetHttpProtocol() {
@@ -184,7 +180,6 @@ func protocolLabel(port *devplanev1.Port, isHTTP bool) string {
 	}
 }
 
-// portTypeLabel returns the display label for a port type.
 func portTypeLabel(portType devplanev1.PortType) string {
 	switch portType {
 	case devplanev1.PortType_PORT_TYPE_UNSPECIFIED:
@@ -198,7 +193,6 @@ func portTypeLabel(portType devplanev1.PortType) string {
 	}
 }
 
-// writeJSON writes port information as indented JSON to out and returns any serialization or output error.
 func writeJSON(out io.Writer, portInfos []PortInfo) error {
 	encoded, err := json.MarshalIndent(portInfos, "", "  ")
 	if err != nil {
@@ -208,8 +202,6 @@ func writeJSON(out io.Writer, portInfos []PortInfo) error {
 	return breverrors.WrapAndTrace(err)
 }
 
-// displayTables writes port information as separate HTTP and network port tables.
-// It reports when no ports are open and returns any output error encountered.
 func displayTables(out io.Writer, nameOrID string, portInfos []PortInfo) error {
 	if len(portInfos) == 0 {
 		_, err := fmt.Fprintf(out, "No ports are open on %s.\n", nameOrID)
@@ -246,7 +238,6 @@ func displayTables(out io.Writer, nameOrID string, portInfos []PortInfo) error {
 	return nil
 }
 
-// displayHTTPTable renders HTTP port mappings with endpoint, authorization, source restrictions, public port, destination port, and protocol. If the destination port is unset, the public port is displayed as the destination.
 func displayHTTPTable(out io.Writer, portInfos []PortInfo) {
 	tw := newTable(out)
 	tw.AppendHeader(table.Row{"ENDPOINT", "AUTHORIZATION", "IP RESTRICTIONS", "PUBLIC PORT", "DESTINATION PORT", "PROTOCOL"})
@@ -267,7 +258,6 @@ func displayHTTPTable(out io.Writer, portInfos []PortInfo) {
 	tw.Render()
 }
 
-// displayNetworkTable renders network port mappings in a table.
 func displayNetworkTable(out io.Writer, portInfos []PortInfo) {
 	tw := newTable(out)
 	tw.AppendHeader(table.Row{"ENDPOINT", "IP RESTRICTIONS", "PUBLIC PORT", "DESTINATION PORT", "PROTOCOL"})
@@ -283,7 +273,6 @@ func displayNetworkTable(out io.Writer, portInfos []PortInfo) {
 	tw.Render()
 }
 
-// newTable creates a borderless table writer with row, column, and header separators disabled.
 func newTable(out io.Writer) table.Writer {
 	tw := table.NewWriter()
 	tw.SetOutputMirror(out)
@@ -296,7 +285,6 @@ func newTable(out io.Writer) table.Writer {
 	return tw
 }
 
-// authorizationLabel formats the access authorization for a port.
 func authorizationLabel(port PortInfo) string {
 	if port.AllowPublicUnauthenticated {
 		return "Public"
@@ -307,7 +295,6 @@ func authorizationLabel(port PortInfo) string {
 	return "-"
 }
 
-// allowedSourcesLabel formats allowed source ranges for display, using "Anywhere" for unrestricted access.
 func allowedSourcesLabel(allowedSources []string) string {
 	if len(allowedSources) == 0 {
 		return "Anywhere"
@@ -325,7 +312,6 @@ func allowedSourcesLabel(allowedSources []string) string {
 	return strings.Join(allowedSources, ", ")
 }
 
-// portNumberLabel formats a port number for display, using "-" when the port is zero.
 func portNumberLabel(port int32) string {
 	if port == 0 {
 		return "-"
@@ -333,7 +319,6 @@ func portNumberLabel(port int32) string {
 	return strconv.Itoa(int(port))
 }
 
-// valueOrDash replaces an empty string with a dash.
 func valueOrDash(value string) string {
 	if value == "" {
 		return "-"
