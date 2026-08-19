@@ -168,13 +168,34 @@ func TestRunExternalNodeByIDDisplaysTables(t *testing.T) {
 	assert.Contains(t, out.String(), "HTTP APPLICATIONS")
 	assert.Contains(t, out.String(), "https://jupyter-node.apps.run.brev.nvidia.com")
 	assert.Contains(t, out.String(), "user@example.com")
-	assert.Contains(t, out.String(), "TCP/UDP PORTS")
+	assert.Contains(t, out.String(), "NETWORK PORTS")
 	assert.Contains(t, out.String(), "PUBLIC PORT")
 	assert.Contains(t, out.String(), "DESTINATION PORT")
 	assert.Contains(t, out.String(), "global.prd.ga.run.brev.nvidia.com:18928")
 	assert.Contains(t, out.String(), "Anywhere")
 	assert.Contains(t, out.String(), "22")
 	assert.Contains(t, out.String(), "TCP")
+}
+
+func TestDisplayTablesSSHUsesNetworkHeading(t *testing.T) {
+	var out bytes.Buffer
+	ports := []PortInfo{
+		{
+			Kind:            portKindNetwork,
+			Endpoint:        "gateway.example.com:18928",
+			PublicPort:      18928,
+			DestinationPort: 22,
+			Protocol:        "SSH",
+		},
+	}
+
+	err := displayTables(&out, "ssh-node", ports)
+
+	require.NoError(t, err)
+	assert.Contains(t, out.String(), "NETWORK PORTS")
+	assert.Contains(t, out.String(), "gateway.example.com:18928")
+	assert.Contains(t, out.String(), "SSH")
+	assert.NotContains(t, out.String(), "TCP/UDP PORTS")
 }
 
 func TestToPortInfosHandlesPublicHTTPAndRestrictedUDP(t *testing.T) {

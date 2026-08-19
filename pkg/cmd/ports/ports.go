@@ -230,7 +230,7 @@ func displayTables(out io.Writer, nameOrID string, portInfos []PortInfo) error {
 		}
 	}
 	if len(networkPorts) > 0 {
-		if _, err := fmt.Fprintln(out, "TCP/UDP PORTS"); err != nil {
+		if _, err := fmt.Fprintln(out, "NETWORK PORTS"); err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 		displayNetworkTable(out, networkPorts)
