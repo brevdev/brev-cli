@@ -171,9 +171,9 @@ brev copy my-instance:/remote/file ./local-path/
 # Port forward
 brev port-forward my-instance -p 8080:8080
 
-# List Skybridge-managed HTTP and network ports for an instance or external node
-brev ports my-instance
-brev ports my-node --json
+# List Brev-managed HTTP and network ports for an instance or external node
+brev ports ls my-instance
+brev ports ls my-node --json
 ```
 
 ### Listing Instances and Nodes

@@ -1,4 +1,4 @@
-// Package ports displays Skybridge-managed public port mappings for an instance or external node.
+// Package ports displays Brev-managed public port mappings for an instance or external node.
 package ports
 
 import (
@@ -22,11 +22,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-const (
-	portKindHTTP    = "http"
-	portKindNetwork = "network"
-)
-
 // Store contains the dependencies needed to resolve both managed instances and
 // registered compute nodes.
 type Store interface {
@@ -36,7 +31,6 @@ type Store interface {
 // PortInfo is the stable JSON representation of a port mapping.
 type PortInfo struct {
 	PortID                     string   `json:"port_id"`
-	Kind                       string   `json:"kind"`
 	Endpoint                   string   `json:"endpoint"`
 	PublicPort                 int32    `json:"public_port"`
 	DestinationPort            int32    `json:"destination_port"`
@@ -45,20 +39,35 @@ type PortInfo struct {
 	AuthorizedEmails           []string `json:"authorized_emails"`
 	AllowPublicUnauthenticated bool     `json:"allow_public_unauthenticated"`
 	Type                       string   `json:"type"`
+	isHTTP                     bool
 }
 
-// NewCmdPorts creates the `brev ports` command.
+// NewCmdPorts creates the `brev ports` command group.
 func NewCmdPorts(portStore Store) *cobra.Command {
+	cmd := &cobra.Command{
+		Annotations: map[string]string{"access": ""},
+		Use:         "ports",
+		Short:       "Manage ports for an instance or external node",
+		Args:        cmderrors.TransformToValidationError(cobra.NoArgs),
+		Example: `
+  brev ports ls my-instance
+  brev ports ls my-node --json`,
+	}
+	cmd.AddCommand(NewCmdPortsLs(portStore))
+	return cmd
+}
+
+// NewCmdPortsLs creates the `brev ports ls` command.
+func NewCmdPortsLs(portStore Store) *cobra.Command {
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"access": ""},
-		Use:                   "ports <instance-or-node>",
+		Use:                   "ls <instance-or-node>",
 		DisableFlagsInUseLine: true,
-		Short:                 "List Skybridge-managed ports for an instance or external node",
+		Short:                 "List Brev-managed ports for an instance or external node",
 		Example: `
-  brev ports my-instance
-  brev ports my-node --json`,
+  brev ports ls my-instance
+  brev ports ls my-node --json`,
 		Args: cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := Run(cmd.Context(), cmd.OutOrStdout(), portStore, args[0], jsonOutput); err != nil {
@@ -93,12 +102,12 @@ func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, j
 			networkInfo = resp.Msg.GetNetworkInfo()
 		}
 		// A connected or disconnected member with no ports is a valid empty result.
-		// The API uses an unspecified status and no ports when no Skybridge member exists yet.
+		// The API uses an unspecified status and no ports when no Brev-managed network is available.
 		if networkInfo == nil ||
 			(networkInfo.GetStatus() == devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_UNSPECIFIED &&
 				len(networkInfo.GetPorts()) == 0) {
 			return breverrors.NewValidationError(fmt.Sprintf(
-				"cannot list ports for instance %q: no Skybridge network member is available; "+
+				"cannot list ports for instance %q: no Brev-managed network configuration is available; "+
 					"the instance may still be provisioning or may use legacy network access. "+
 					"Try again when it is running, or view legacy secure links and firewall rules in the Brev console",
 				nameOrID,
@@ -122,13 +131,8 @@ func toPortInfos(apiPorts []*devplanev1.Port) []PortInfo {
 			continue
 		}
 		isHTTP := port.GetHttpProtocol() != devplanev1.HttpPortProtocol_HTTP_PORT_PROTOCOL_UNSPECIFIED
-		kind := portKindNetwork
-		if isHTTP {
-			kind = portKindHTTP
-		}
 		portInfos = append(portInfos, PortInfo{
 			PortID:                     port.GetPortId(),
-			Kind:                       kind,
 			Endpoint:                   endpoint(port, isHTTP),
 			PublicPort:                 port.GetPortNumber(),
 			DestinationPort:            port.GetServerPort(),
@@ -137,6 +141,7 @@ func toPortInfos(apiPorts []*devplanev1.Port) []PortInfo {
 			AuthorizedEmails:           append([]string{}, port.GetAuthorizedEmails()...),
 			AllowPublicUnauthenticated: port.GetAllowPublicUnauthenticated(),
 			Type:                       portTypeLabel(port.GetType()),
+			isHTTP:                     isHTTP,
 		})
 	}
 	return portInfos
@@ -211,7 +216,7 @@ func displayTables(out io.Writer, nameOrID string, portInfos []PortInfo) error {
 	httpPorts := make([]PortInfo, 0, len(portInfos))
 	networkPorts := make([]PortInfo, 0, len(portInfos))
 	for _, port := range portInfos {
-		if port.Kind == portKindHTTP {
+		if port.isHTTP {
 			httpPorts = append(httpPorts, port)
 		} else {
 			networkPorts = append(networkPorts, port)

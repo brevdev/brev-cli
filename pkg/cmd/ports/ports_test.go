@@ -71,6 +71,17 @@ func (s *fakeNodeService) ListNodes(
 	return connect.NewResponse(&devplanev1.ListNodesResponse{Items: s.nodes}), nil
 }
 
+func TestPortsCommandUsesListSubcommand(t *testing.T) {
+	cmd := NewCmdPorts(&fakeStore{})
+	commands := cmd.Commands()
+
+	require.Len(t, commands, 1)
+	assert.Equal(t, "ls", commands[0].Name())
+	assert.Equal(t, "ls <instance-or-node>", commands[0].Use)
+	assert.Nil(t, cmd.Flags().Lookup("json"))
+	assert.NotNil(t, commands[0].Flags().Lookup("json"))
+}
+
 func TestRunEnvironmentJSON(t *testing.T) {
 	public := false
 	hostname := "jupyter-env123.apps.run.brev.nvidia.com"
@@ -111,7 +122,6 @@ func TestRunEnvironmentJSON(t *testing.T) {
 	assert.JSONEq(t, `[
 		{
 			"port_id": "port-http",
-			"kind": "http",
 			"endpoint": "https://jupyter-env123.apps.run.brev.nvidia.com",
 			"public_port": 443,
 			"destination_port": 8888,
@@ -181,7 +191,6 @@ func TestDisplayTablesSSHUsesNetworkHeading(t *testing.T) {
 	var out bytes.Buffer
 	ports := []PortInfo{
 		{
-			Kind:            portKindNetwork,
 			Endpoint:        "gateway.example.com:18928",
 			PublicPort:      18928,
 			DestinationPort: 22,
@@ -225,11 +234,11 @@ func TestToPortInfosHandlesPublicHTTPAndRestrictedUDP(t *testing.T) {
 	})
 
 	require.Len(t, got, 2)
-	assert.Equal(t, "http", got[0].Kind)
+	assert.True(t, got[0].isHTTP)
 	assert.Equal(t, "HTTPS", got[0].Protocol)
 	assert.Equal(t, "https://app.example.com", got[0].Endpoint)
 	assert.True(t, got[0].AllowPublicUnauthenticated)
-	assert.Equal(t, "network", got[1].Kind)
+	assert.False(t, got[1].isHTTP)
 	assert.Equal(t, "UDP", got[1].Protocol)
 	assert.Equal(t, "gateway.example.com:5000", got[1].Endpoint)
 	assert.Equal(t, []string{"10.0.0.0/8"}, got[1].AllowedSources)
@@ -318,7 +327,7 @@ func TestRunEnvironmentWithoutNetworkMemberReturnsActionableError(t *testing.T) 
 
 			require.Error(t, err)
 			assert.Empty(t, out.String())
-			assert.Contains(t, err.Error(), "no Skybridge network member is available")
+			assert.Contains(t, err.Error(), "no Brev-managed network configuration is available")
 			assert.Contains(t, err.Error(), "may still be provisioning or may use legacy network access")
 			assert.Contains(t, err.Error(), "Brev console")
 		})
@@ -396,7 +405,6 @@ func TestRunExternalNodeJSONContract(t *testing.T) {
 	assert.JSONEq(t, `[
 		{
 			"port_id": "port-ssh",
-			"kind": "network",
 			"endpoint": "global.prd.ga.run.brev.nvidia.com:18928",
 			"public_port": 18928,
 			"destination_port": 22,
