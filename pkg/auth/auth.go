@@ -102,7 +102,9 @@ type Auth struct {
 
 const BrevAPIKeyPrefix = "bak-"
 
-const MissingAPIKeyOrgIDMessage = "api key auth requires an org id; run brev login --api-key <api-key> --org-id <org-id>"
+const AccessKeyEnvVar = "BREV_ACCESS_KEY"
+
+const MissingAPIKeyOrgIDMessage = "org id missing, please login again; run 'brev login --api-key <api-key>'"
 
 type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
@@ -142,6 +144,9 @@ func IsBrevAPIKey(token string) bool {
 }
 
 func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
+	if strings.TrimSpace(os.Getenv(AccessKeyEnvVar)) != "" {
+		return true
+	}
 	tokens, err := authTokensProvider.GetAuthTokens()
 	if err != nil {
 		return false
@@ -153,6 +158,20 @@ func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
 }
 
 func GetAPIKeyOrgID(authTokensProvider APIKeyAuthStore) (string, error) {
+	if envKey := strings.TrimSpace(os.Getenv(AccessKeyEnvVar)); envKey != "" {
+		tokens, err := authTokensProvider.GetAuthTokens()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		if tokens == nil || tokens.APIKey != envKey {
+			return "", breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+		}
+		orgID := strings.TrimSpace(tokens.APIKeyOrgID)
+		if orgID == "" {
+			return "", breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
+		}
+		return orgID, nil
+	}
 	tokens, err := authTokensProvider.GetAuthTokens()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -204,6 +223,9 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 
 // Gets fresh access token or returns nil and saves to store
 func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
+	if key := strings.TrimSpace(os.Getenv(AccessKeyEnvVar)); key != "" {
+		return key, nil
+	}
 	tokens, err := t.getSavedTokensOrNil()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -217,7 +239,6 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		return apiKey, nil
 	}
 
-	// should always at least have access token?
 	if tokens.AccessToken == "" {
 		breverrors.GetDefaultErrorReporter().ReportMessage("access token is an empty string but shouldn't be")
 	}
@@ -300,10 +321,6 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	}
 	if !IsBrevAPIKey(apiKey) {
 		return breverrors.NewValidationError(fmt.Sprintf("api key must start with %s", BrevAPIKeyPrefix))
-	}
-	orgID = strings.TrimSpace(orgID)
-	if orgID == "" {
-		return breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
 	}
 
 	tokens, err := t.getSavedTokensOrNil()

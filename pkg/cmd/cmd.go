@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -59,7 +60,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/config"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/brevdev/brev-cli/pkg/remoteversion"
@@ -73,6 +73,7 @@ import (
 
 var (
 	userFlag      string
+	apiKeyFlag    string
 	printVersion  bool
 	noCheckLatest bool
 )
@@ -84,6 +85,8 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
 
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVar(&apiKeyFlag, "api-key", "", "api key to authenticate CLI requests")
+	_ = cmd.PersistentFlags().MarkHidden("api-key")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 
@@ -163,6 +166,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 					fmt.Println(v)
 				}
 			}
+			if apiKeyFlag != "" {
+				os.Setenv(auth.AccessKeyEnvVar, apiKeyFlag)
+			}
 			if userFlag != "" {
 				_, err := noLoginCmdStore.WithUserID(userFlag)
 				if err != nil {
@@ -233,32 +239,20 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	cmds.SetUsageTemplate(usageTemplate)
 
-	// In-memory auth for external node commands — never touches credentials.json.
-	// Pre-fill the cached email so the user sees a confirmation prompt instead of
-	// having to type it from scratch every time.
-	cachedEmail, _ := fsStore.GetCachedEmail()
-	memAuthenticator := auth.StandardLogin("", cachedEmail, nil)
-	if cachedEmail != "" {
-		if kas, ok := memAuthenticator.(auth.KasAuthenticator); ok {
-			kas.ShouldPromptEmail = true
-			memAuthenticator = kas
-		}
-	}
-	memAuthStore := &emailCachingAuthStore{
-		MemoryAuthStore: store.NewMemoryAuthStore(),
-		fileStore:       fsStore,
-	}
-	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
-	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
-
+	// External node commands (register/deregister/enable-ssh/grant-ssh/revoke-ssh)
+	// read credentials.json and BREV_ACCESS_KEY but never prompt for a login —
+	// a shared box should not be encouraged to write durable creds.
 	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
+	).WithAuth(noLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
-		_, err1 := memLoginAuth.GetAccessToken()
+		token, err1 := noLoginAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
+		}
+		if token == "" {
+			return breverrors.New("not authenticated; set BREV_ACCESS_KEY or run 'brev login --api-key' on a trusted machine")
 		}
 		return nil
 	})
@@ -545,22 +539,4 @@ var (
 	_ store.Auth     = auth.NoLoginAuth{}
 	_ auth.AuthStore = store.FileStore{}
 	_ auth.AuthStore = &store.MemoryAuthStore{}
-	_ auth.AuthStore = &emailCachingAuthStore{}
 )
-
-// emailCachingAuthStore wraps MemoryAuthStore and persists the login email
-// to ~/.brev/cached-email after each successful authentication.
-type emailCachingAuthStore struct {
-	*store.MemoryAuthStore
-	fileStore *store.FileStore
-}
-
-func (e *emailCachingAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
-	if err := e.MemoryAuthStore.SaveAuthTokens(tokens); err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if email := auth.GetEmailFromToken(tokens.AccessToken); email != "" {
-		_ = e.fileStore.SaveCachedEmail(email)
-	}
-	return nil
-}

@@ -37,10 +37,19 @@ func (m *mockDeregisterStore) GetAccessToken() (string, error) { return m.token,
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
 	removeNodeFn func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
+	listNodesFn  func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
 }
 
 func (f *fakeNodeService) RemoveNode(_ context.Context, req *connect.Request[nodev1.RemoveNodeRequest]) (*connect.Response[nodev1.RemoveNodeResponse], error) {
 	resp, err := f.removeNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (f *fakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+	resp, err := f.listNodesFn(req.Msg)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +66,7 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 	return nil
 }
 
-func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
+func (m *mockRegistrationStore) Load(bool) (*register.DeviceRegistration, error) {
 	if m.reg == nil {
 		return nil, fmt.Errorf("no registration")
 	}
@@ -281,13 +290,186 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 		t.Fatal("expected error when RemoveNode fails")
 	}
 
-	// Registration should still exist (server-side removal failed)
 	exists, err := regStore.Exists()
 	if err != nil {
 		t.Fatalf("Exists error: %v", err)
 	}
 	if !exists {
 		t.Error("registration should still exist when RemoveNode fails")
+	}
+}
+
+func Test_runDeregister_RemoveNodeNotFound_ProceedsCleanup(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			ExternalNodeID: "unode_abc",
+			DisplayName:    "My Spark",
+			OrgID:          "org_123",
+		},
+	}
+
+	store := &mockDeregisterStore{
+		user:  &entity.User{ID: "user_1"},
+		token: "tok",
+	}
+
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return nil, connect.NewError(connect.CodeNotFound, nil)
+		},
+	}
+
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	err := runDeregister(context.Background(), term, store, deps, false)
+	if err != nil {
+		t.Fatalf("NotFound should be treated as success (node already gone), got: %v", err)
+	}
+
+	exists, err := regStore.Exists()
+	if err != nil {
+		t.Fatalf("Exists error: %v", err)
+	}
+	if exists {
+		t.Error("expected local registration to be deleted even when RemoveNode returns NotFound")
+	}
+}
+
+func Test_runDeregister_PendingRegistration_SkipsRemoveNodeAndCleansUp(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			DisplayName: "My Spark",
+			OrgID:       "org_123",
+			DeviceID:    "dev-uuid-pending",
+			Status:      register.RegistrationStatusPending,
+		},
+	}
+
+	store := &mockDeregisterStore{
+		user:  &entity.User{ID: "user_1"},
+		token: "tok",
+	}
+
+	var removeCalled bool
+	svc := &fakeNodeService{
+		removeNodeFn: func(req *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			removeCalled = true
+			return nil, fmt.Errorf("RemoveNode should not be called with empty ID %q", req.GetExternalNodeId())
+		},
+		listNodesFn: func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{}, nil // no backend node matches the device ID
+		},
+	}
+
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	err := runDeregister(context.Background(), term, store, deps, false)
+	if err != nil {
+		t.Fatalf("deregister of a pending registration should succeed, got: %v", err)
+	}
+
+	if removeCalled {
+		t.Error("RemoveNode should not be called for a pending registration (no ExternalNodeID)")
+	}
+
+	exists, err := regStore.Exists()
+	if err != nil {
+		t.Fatalf("Exists error: %v", err)
+	}
+	if exists {
+		t.Error("expected local pending registration to be deleted")
+	}
+}
+
+// Test_runDeregister_PendingRegistration_LooksUpAndRemovesBackendNode verifies that
+// when a pending record has no ExternalNodeID but AddNode succeeded backend-side,
+// deregister recovers the node via ListNodes (by device ID) and removes it.
+func Test_runDeregister_PendingRegistration_LooksUpAndRemovesBackendNode(t *testing.T) {
+	const deviceID = "dev-uuid-pending"
+	const externalNodeID = "unode_recovered"
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			DisplayName: "My Spark",
+			OrgID:       "org_123",
+			DeviceID:    deviceID,
+			Status:      register.RegistrationStatusPending,
+		},
+	}
+
+	store := &mockDeregisterStore{user: &entity.User{ID: "user_1"}, token: "tok"}
+
+	var gotOrgID string
+	var removedNodeID string
+	svc := &fakeNodeService{
+		listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			gotOrgID = req.GetOrganizationId()
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{
+					{ExternalNodeId: "unode_other", DeviceId: "dev-different"},
+					{ExternalNodeId: externalNodeID, DeviceId: deviceID},
+				},
+			}, nil
+		},
+		removeNodeFn: func(req *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			removedNodeID = req.GetExternalNodeId()
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+	}
+
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	if err := runDeregister(context.Background(), term, store, deps, false); err != nil {
+		t.Fatalf("deregister failed: %v", err)
+	}
+
+	if gotOrgID != "org_123" {
+		t.Errorf("expected ListNodes scoped to org_123, got %q", gotOrgID)
+	}
+	if removedNodeID != externalNodeID {
+		t.Errorf("expected RemoveNode called with recovered ID %q, got %q", externalNodeID, removedNodeID)
+	}
+	exists, _ := regStore.Exists()
+	if exists {
+		t.Error("expected local registration to be deleted")
+	}
+}
+
+// Test_runDeregister_PendingRegistration_ListNodesFails verifies that a
+// ListNodes failure during the device-ID lookup is non-fatal: deregister still
+// cleans up local state (the backend node, if any, can be deleted in the UI).
+func Test_runDeregister_PendingRegistration_ListNodesFails(t *testing.T) {
+	regStore := &mockRegistrationStore{
+		reg: &register.DeviceRegistration{
+			DisplayName: "My Spark",
+			OrgID:       "org_123",
+			DeviceID:    "dev-uuid-pending",
+			Status:      register.RegistrationStatusPending,
+		},
+	}
+	store := &mockDeregisterStore{user: &entity.User{ID: "user_1"}, token: "tok"}
+
+	svc := &fakeNodeService{
+		listNodesFn: func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return nil, connect.NewError(connect.CodeInternal, nil)
+		},
+	}
+
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+
+	term := terminal.New()
+	if err := runDeregister(context.Background(), term, store, deps, false); err != nil {
+		t.Fatalf("ListNodes failure should be non-fatal, got: %v", err)
+	}
+	exists, _ := regStore.Exists()
+	if exists {
+		t.Error("expected local registration to be deleted despite ListNodes failure")
 	}
 }
 
