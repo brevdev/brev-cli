@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/sshcert"
 )
 
 const sshAccessLookupTimeout = 10 * time.Second
@@ -116,6 +117,8 @@ func resolveWorkspaceSSH(
 	workspace.SSHPort = int(port.GetPortNumber())
 	workspace.SSHUser = access.GetLinuxUser()
 	workspace.SSHProxyHostname = ""
+	workspace.PortID = access.GetPortId()
+	workspace.SSHCertEligible = sshcert.EnvironmentCertEligible(environment.GetLabels())
 
 	// To support the "--host" fallback, preserve the legacy hostname information returned by the initial workspace query.
 	if providerHostname := providerSSHHostname(environment.GetInstance(), port.GetHostname()); providerHostname != "" {
