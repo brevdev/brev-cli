@@ -511,13 +511,14 @@ brev ports ls my-node
 brev ports ls my-instance --json
 ```
 
-#### Open a port
+#### Create a port
 
-Open a raw TCP, UDP, or SSH port, or create an HTTP application endpoint, on a
-managed instance or registered compute node. `add` is an alias for `open`.
+Create a raw TCP, UDP, or SSH port, or an HTTP application endpoint, on a
+managed instance or registered compute node. `open` and `add` are aliases for
+`create`.
 
 ```bash
-brev ports open <instance-or-node> <port> [flags]
+brev ports create <instance-or-node> <port> [flags]
 ```
 
 **Flags:**
@@ -528,7 +529,7 @@ brev ports open <instance-or-node> <port> [flags]
 | `--authorize` | Email authorized for an HTTP endpoint; repeat to add more than one |
 | `--hostname` | HTTP endpoint hostname prefix; defaults to the destination port |
 | `--public` | Disable authentication for an HTTP endpoint |
-| `--json` | Output the opened port as JSON |
+| `--json` | Output the created port as JSON |
 
 Omit `--allow` to allow raw-port connections from any source. HTTP endpoints
 default to authorizing the current user's email; use `--public` to make one
@@ -537,12 +538,12 @@ endpoint to a plain-HTTP service, while `https` expects TLS on the destination.
 
 **Examples:**
 ```bash
-brev ports open my-instance 8080
-brev ports open my-node 53 --protocol udp
-brev ports open my-instance 8080 --allow 203.0.113.10/32
-brev ports add my-node 2222 --protocol ssh --json
-brev ports open my-instance 3000 --protocol http --public
-brev ports open my-instance 8888 --protocol http --authorize me@example.com
+brev ports create my-instance 8080
+brev ports create my-node 53 --protocol udp
+brev ports create my-instance 8080 --allow 203.0.113.10/32
+brev ports create my-node 2222 --protocol ssh --json
+brev ports create my-instance 3000 --protocol http --public
+brev ports create my-instance 8888 --protocol http --authorize me@example.com
 ```
 
 ## Organization Commands
