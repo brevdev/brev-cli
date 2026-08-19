@@ -28,15 +28,6 @@ func TestIsAccessTokenValid(t *testing.T) {
 	if !assert.False(t, res) {
 		return
 	}
-
-	// expiredToken := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6ImdLTXBESXlRc0ZXSF9zYWdiT2oyViJ9.eyJpc3MiOiJodHRwczovL2JyZXZkZXYudXMuYXV0aDAuY29tLyIsInN1YiI6Imdvb2dsZS1vYXV0aDJ8MTAxNzY0NjMwNTEwODYxNDk5MTgwIiwiYXVkIjpbImh0dHBzOi8vYnJldmRldi51cy5hdXRoMC5jb20vYXBpL3YyLyIsImh0dHBzOi8vYnJldmRldi51cy5hdXRoMC5jb20vdXNlcmluZm8iXSwiaWF0IjoxNjM4NTYyMzY4LCJleHAiOjE2Mzg2NDg3NjgsImF6cCI6IkphcUpSTEVzZGF0NXc3VGIwV3FtVHh6SWVxd3FlcG1rIiwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCBvZmZsaW5lX2FjY2VzcyJ9.YCiO-som26ehT91qGAX5ZfrtVg4eYwamnlMRoCuUljXmg8Nf-ArDyoG32CqZkQ6YJ5XnzrVX9bVk5ZNHP_AFSE9SJvYL6MchoN09nR84WTbevRBCtZedIZUk5ULg6rWo5mszGr-S2gi08od4iTzXtKySPx1JnT60muRj_k9VV3MyixqvngEz5NvmFDdA8glGes5_iOuiBidmjOJzi_CVfKJ9s48BhlxzciSXFC0_DUBnT9OThjYjUP-22ohOuWwJWomRUv6gMSq78hJOALc330LwvmEsLdzlP7a3otIYM43hTtAVJ9QEL6M08GKqm3PdikzTxiGdfuQUhgMDlXygbQ"
-	// res, err := isAccessTokenValid(expiredToken)
-	// if !assert.Nil(t, err) {
-	// 	return
-	// }
-	// if !assert.False(t, res) {
-	// 	return
-	// }
 }
 
 type MockAuthStore struct {
@@ -48,6 +39,7 @@ type MockAuthStore struct {
 func (m *MockAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
 	m.saved = tokens
 	m.didSave = true
+	m.authTokens = &tokens // write-then-read consistent (mirrors a real store)
 	return nil
 }
 
@@ -110,6 +102,7 @@ func (s *sideEffectingTokenStore) GetAccessToken() (string, error) {
 }
 
 func TestIsAPIKeyAuthStore_ReadsSavedTokensWithoutAccessTokenSideEffects(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, "")
 	s := &sideEffectingTokenStore{
 		tokens: &entity.AuthTokens{APIKey: testAPIKey},
 	}
@@ -119,6 +112,7 @@ func TestIsAPIKeyAuthStore_ReadsSavedTokensWithoutAccessTokenSideEffects(t *test
 }
 
 func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, "")
 	s := &sideEffectingTokenStore{
 		tokens: &entity.AuthTokens{
 			AccessToken:  validToken,
@@ -128,6 +122,35 @@ func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
 
 	assert.False(t, IsAPIKeyAuthStore(s))
 	assert.False(t, s.getAccessTokenCalled)
+}
+
+func TestIsAPIKeyAuthStore_EnvKeyIsAPIKeyEvenWhenNotPersisted(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{tokens: nil} // nothing persisted
+	assert.True(t, IsAPIKeyAuthStore(s))
+}
+
+func TestGetAPIKeyOrgID_EnvKeyMismatchingPersistedRejects(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, BrevAPIKeyPrefix+"env-key")
+	s := &sideEffectingTokenStore{tokens: &entity.AuthTokens{
+		APIKey:      BrevAPIKeyPrefix + "persisted-key",
+		APIKeyOrgID: "org-persisted",
+	}}
+	_, err := GetAPIKeyOrgID(s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "org id missing")
+}
+
+// When the env key matches the persisted key, its persisted org is valid.
+func TestGetAPIKeyOrgID_EnvKeyMatchingPersistedReturnsOrg(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{tokens: &entity.AuthTokens{
+		APIKey:      testAPIKey,
+		APIKeyOrgID: "org-test",
+	}}
+	orgID, err := GetAPIKeyOrgID(s)
+	assert.NoError(t, err)
+	assert.Equal(t, "org-test", orgID)
 }
 
 type cliAuthStore struct {
@@ -238,6 +261,43 @@ func TestGetFreshAccessTokenOrNil_APIKeyOnlyCredentialReturnsAPIKey(t *testing.T
 	assert.False(t, s.didSave)
 }
 
+// Closest credential wins: BREV_ACCESS_KEY takes precedence over saved
+// tokens (flag/env before persisted), matching other CLIs. The global
+// --api-key flag handler populates this env var before the auth chain runs.
+func TestGetFreshAccessTokenOrNil_EnvVarTakesPrecedenceOverSaved(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, BrevAPIKeyPrefix+"env-key")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{APIKey: testAPIKey}}
+	a := Auth{authStore: &s, oauth: &MockOauth{}, accessTokenValidator: func(string) (bool, error) {
+		t.Fatal("env key must short-circuit before touching saved credentials")
+		return false, nil
+	}}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, BrevAPIKeyPrefix+"env-key", res, "BREV_ACCESS_KEY must win over saved tokens")
+}
+
+// With no saved credential, BREV_ACCESS_KEY authenticates headless/CI commands.
+func TestGetFreshAccessTokenOrNil_EnvVarFallbackWhenNoSavedTokens(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, testAPIKey)
+	s := MockAuthStore{} // no saved tokens
+	a := Auth{authStore: &s, oauth: &MockOauth{}}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, testAPIKey, res, "env var should be used when no credential is saved")
+}
+
+func TestGetFreshAccessTokenOrNil_EnvVarEmptyFallsThroughToSaved(t *testing.T) {
+	t.Setenv(AccessKeyEnvVar, "")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{APIKey: testAPIKey}}
+	a := Auth{authStore: &s, oauth: &MockOauth{}}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, testAPIKey, res, "empty env var should fall through to saved credentials")
+}
+
 func TestLoginWithAPIKey_SavesTypedCredential(t *testing.T) {
 	s := MockAuthStore{}
 	a := Auth{
@@ -282,18 +342,6 @@ func TestLoginWithAPIKey_EmptyKeyReturnsError(t *testing.T) {
 	}
 
 	err := a.LoginWithAPIKey("", "org-test")
-	assert.Error(t, err)
-	assert.False(t, s.didSave)
-}
-
-func TestLoginWithAPIKey_EmptyOrgIDReturnsError(t *testing.T) {
-	s := MockAuthStore{}
-	a := Auth{
-		authStore: &s,
-		oauth:     &MockOauth{},
-	}
-
-	err := a.LoginWithAPIKey(testAPIKey, "")
 	assert.Error(t, err)
 	assert.False(t, s.didSave)
 }

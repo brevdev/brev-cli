@@ -1,6 +1,7 @@
 package register
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -42,7 +43,7 @@ func Test_SaveAndLoadRegistration_RoundTrip(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	loaded, err := store.Load()
+	loaded, err := store.Load(false)
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -138,7 +139,7 @@ func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
 
 	store := NewFileRegistrationStore()
 
-	_, err := store.Load()
+	_, err := store.Load(false)
 	if err == nil {
 		t.Error("expected error loading missing registration")
 	}
@@ -159,7 +160,7 @@ func Test_LoadRegistration_RejectsMissingExternalNodeID(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	_, err := store.Load()
+	_, err := store.Load(false)
 	if err == nil {
 		t.Fatal("expected error loading registration with empty ExternalNodeID")
 	}
@@ -180,7 +181,7 @@ func Test_LoadRegistration_RejectsMissingOrgID(t *testing.T) {
 		t.Fatalf("Save failed: %v", err)
 	}
 
-	_, err := store.Load()
+	_, err := store.Load(false)
 	if err == nil {
 		t.Fatal("expected error loading registration with empty OrgID")
 	}
@@ -195,5 +196,65 @@ func Test_DeleteRegistration_FailsWhenMissing(t *testing.T) {
 	err := store.Delete()
 	if err == nil {
 		t.Error("expected error deleting missing registration")
+	}
+}
+
+func Test_Load_IncludeAllReturnsPendingRecord(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	pending := &DeviceRegistration{
+		DisplayName: "My Spark",
+		OrgID:       "org_xyz",
+		DeviceID:    "device-uuid-123",
+		Status:      RegistrationStatusPending,
+	}
+	if err := store.Save(pending); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded, err := store.Load(true)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if loaded.DeviceID != "device-uuid-123" {
+		t.Errorf("DeviceID mismatch: got %s, want device-uuid-123", loaded.DeviceID)
+	}
+	if loaded.Status != RegistrationStatusPending {
+		t.Errorf("Status mismatch: got %q, want %q", loaded.Status, RegistrationStatusPending)
+	}
+	if loaded.ExternalNodeID != "" {
+		t.Errorf("pending record should have no ExternalNodeID, got %q", loaded.ExternalNodeID)
+	}
+
+	if _, err := store.Load(false); err == nil {
+		t.Error("expected Load(false) to error on a pending record")
+	}
+}
+
+func Test_Load_PendingRecordErrorMessage(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	pending := &DeviceRegistration{
+		DisplayName: "My Spark",
+		OrgID:       "org_xyz",
+		DeviceID:    "device-uuid-123",
+		Status:      RegistrationStatusPending,
+	}
+	if err := store.Save(pending); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	_, err := store.Load(false)
+	if err == nil {
+		t.Fatal("expected Load() to error on a pending record")
+	}
+	if !strings.Contains(err.Error(), "incomplete") {
+		t.Errorf("expected 'incomplete' in error, got: %v", err)
 	}
 }
