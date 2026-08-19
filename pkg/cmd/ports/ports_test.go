@@ -78,6 +78,7 @@ func TestPortsCommandUsesListSubcommand(t *testing.T) {
 	require.Len(t, commands, 1)
 	assert.Equal(t, "ls", commands[0].Name())
 	assert.Equal(t, "ls <instance-or-node>", commands[0].Use)
+	assert.Contains(t, commands[0].Annotations, "access")
 	assert.Nil(t, cmd.Flags().Lookup("json"))
 	assert.NotNil(t, commands[0].Flags().Lookup("json"))
 }
