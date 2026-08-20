@@ -29,7 +29,7 @@ func NewCmdCreatePort(portStore Store) *cobra.Command {
 		Use:                   "create <instance-or-node> <port>",
 		Aliases:               []string{"open", "add"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Create a public port on an instance or external node",
+		Short:                 "[beta] Create a public port on an instance or external node",
 		Example: "\n  brev ports create my-instance 8080" +
 			"\n  brev ports create my-node 53 --protocol udp" +
 			"\n  brev ports create my-instance 8080 --allow 203.0.113.10/32" +

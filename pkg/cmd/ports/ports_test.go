@@ -73,10 +73,12 @@ func (s *fakeNodeService) ListNodes(
 
 func TestPortsCommandUsesSubcommands(t *testing.T) {
 	cmd := NewCmdPorts(&fakeStore{})
+	assert.Equal(t, "[beta] Manage ports for an instance or external node", cmd.Short)
 
 	listCmd, _, err := cmd.Find([]string{"ls"})
 	require.NoError(t, err)
 	assert.Equal(t, "ls <instance-or-node>", listCmd.Use)
+	assert.Equal(t, "[beta] List Brev-managed ports for an instance or external node", listCmd.Short)
 	assert.Contains(t, listCmd.Annotations, "access")
 	assert.Nil(t, cmd.Flags().Lookup("json"))
 	assert.NotNil(t, listCmd.Flags().Lookup("json"))
@@ -84,6 +86,7 @@ func TestPortsCommandUsesSubcommands(t *testing.T) {
 	createCmd, _, err := cmd.Find([]string{"create"})
 	require.NoError(t, err)
 	assert.Equal(t, "create <instance-or-node> <port>", createCmd.Use)
+	assert.Equal(t, "[beta] Create a public port on an instance or external node", createCmd.Short)
 	assert.ElementsMatch(t, []string{"open", "add"}, createCmd.Aliases)
 }
 

@@ -47,7 +47,7 @@ func NewCmdPorts(portStore Store) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"access": ""},
 		Use:         "ports",
-		Short:       "Manage ports for an instance or external node",
+		Short:       "[beta] Manage ports for an instance or external node",
 		Args:        cmderrors.TransformToValidationError(cobra.NoArgs),
 		Example: `
   brev ports ls my-instance
@@ -65,7 +65,7 @@ func NewCmdPortsLs(portStore Store) *cobra.Command {
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "ls <instance-or-node>",
 		DisableFlagsInUseLine: true,
-		Short:                 "List Brev-managed ports for an instance or external node",
+		Short:                 "[beta] List Brev-managed ports for an instance or external node",
 		Example: `
   brev ports ls my-instance
   brev ports ls my-node --json`,
