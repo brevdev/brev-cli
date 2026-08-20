@@ -208,6 +208,19 @@ func TestDisplayTablesSSHUsesNetworkHeading(t *testing.T) {
 	assert.NotContains(t, out.String(), "TCP/UDP PORTS")
 }
 
+func TestDisplayHTTPTableMissingDestinationDoesNotUsePublicPort(t *testing.T) {
+	var out bytes.Buffer
+
+	displayHTTPTable(&out, []PortInfo{{
+		Endpoint:   "https://app.example.com",
+		PublicPort: 443,
+		Protocol:   "HTTP",
+	}})
+
+	assert.Regexp(t, `443\s+-\s+HTTP`, out.String())
+	assert.NotRegexp(t, `443\s+443\s+HTTP`, out.String())
+}
+
 func TestToPortInfosHandlesPublicHTTPAndRestrictedUDP(t *testing.T) {
 	public := true
 	httpHostname := "app.example.com"

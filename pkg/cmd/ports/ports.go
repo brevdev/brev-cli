@@ -248,16 +248,12 @@ func displayHTTPTable(out io.Writer, portInfos []PortInfo) {
 	tw := newTable(out)
 	tw.AppendHeader(table.Row{"ENDPOINT", "AUTHORIZATION", "IP RESTRICTIONS", "PUBLIC PORT", "DESTINATION PORT", "PROTOCOL"})
 	for _, port := range portInfos {
-		destinationPort := port.DestinationPort
-		if destinationPort == 0 {
-			destinationPort = port.PublicPort
-		}
 		tw.AppendRow(table.Row{
 			valueOrDash(port.Endpoint),
 			authorizationLabel(port),
 			allowedSourcesLabel(port.AllowedSources),
 			portNumberLabel(port.PublicPort),
-			portNumberLabel(destinationPort),
+			portNumberLabel(port.DestinationPort),
 			port.Protocol,
 		})
 	}
