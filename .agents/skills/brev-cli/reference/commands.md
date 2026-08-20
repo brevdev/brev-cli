@@ -511,7 +511,7 @@ brev ports ls my-node
 brev ports ls my-instance --json
 ```
 
-#### Create a port
+### Create a port
 
 Create a raw TCP, UDP, or SSH port, or an HTTP application endpoint, on a
 managed instance or registered compute node. `open` and `add` are aliases for

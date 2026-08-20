@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	devplanev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -430,7 +431,26 @@ func TestOpenHTTPFlagValidation(t *testing.T) {
 }
 
 func TestBuildHTTPHostname(t *testing.T) {
-	assert.Equal(t, "8080-env123", buildHTTPHostname("", 8080, "ENV123"))
-	assert.Equal(t, "demo-env123", buildHTTPHostname(" demo ", 8080, "ENV123"))
-	assert.Equal(t, "demo-env123", buildHTTPHostname("demo-env123", 8080, "ENV123"))
+	tests := []struct {
+		value string
+		want  string
+	}{
+		{value: "", want: "8080-env123"},
+		{value: " demo ", want: "demo-env123"},
+		{value: "demo-env123", want: "demo-env123"},
+	}
+	for _, tt := range tests {
+		got, err := buildHTTPHostname(tt.value, 8080, "ENV123")
+		require.NoError(t, err)
+		assert.Equal(t, tt.want, got)
+	}
+}
+
+func TestBuildHTTPHostnameValidatesGeneratedHostnameLength(t *testing.T) {
+	hostname, err := buildHTTPHostname(strings.Repeat("a", 56), 8080, "env123")
+	require.NoError(t, err)
+	assert.Len(t, hostname, 63)
+
+	_, err = buildHTTPHostname(strings.Repeat("a", 57), 8080, "env123")
+	assert.EqualError(t, err, "hostname must be 63 characters or fewer")
 }

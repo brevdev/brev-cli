@@ -168,7 +168,10 @@ func OpenHTTP(
 
 	var openedPort *devplanev1.Port
 	if target.Workspace != nil {
-		hostname := buildHTTPHostname(customHostname, portNumber, target.Workspace.ID)
+		hostname, err := buildHTTPHostname(customHostname, portNumber, target.Workspace.ID)
+		if err != nil {
+			return err
+		}
 		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
 		resp, err := client.OpenHTTPPort(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceOpenHTTPPortRequest{
 			EnvironmentId:              target.Workspace.ID,
@@ -181,11 +184,14 @@ func OpenHTTP(
 		if err != nil {
 			return fmt.Errorf("open HTTP port on instance %q: %w", nameOrID, err)
 		}
-		if resp != nil && resp.Msg != nil {
+		if resp != nil {
 			openedPort = resp.Msg.GetPort()
 		}
 	} else if target.Node != nil {
-		hostname := buildHTTPHostname(customHostname, portNumber, target.Node.GetExternalNodeId())
+		hostname, err := buildHTTPHostname(customHostname, portNumber, target.Node.GetExternalNodeId())
+		if err != nil {
+			return err
+		}
 		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
 		resp, err := client.OpenHTTPPort(ctx, connect.NewRequest(&devplanev1.OpenHTTPPortRequest{
 			ExternalNodeId:             target.Node.GetExternalNodeId(),
@@ -198,7 +204,7 @@ func OpenHTTP(
 		if err != nil {
 			return fmt.Errorf("open HTTP port on external node %q: %w", nameOrID, err)
 		}
-		if resp != nil && resp.Msg != nil {
+		if resp != nil {
 			openedPort = resp.Msg.GetPort()
 		}
 	}
@@ -346,16 +352,19 @@ func validateHTTPHostname(value string) error {
 	return nil
 }
 
-func buildHTTPHostname(value string, portNumber int32, targetID string) string {
+func buildHTTPHostname(value string, portNumber int32, targetID string) (string, error) {
 	hostname := strings.TrimSpace(value)
 	if hostname == "" {
 		hostname = strconv.Itoa(int(portNumber))
 	}
 	suffix := "-" + strings.ToLower(strings.TrimSpace(targetID))
-	if targetID == "" || strings.HasSuffix(hostname, suffix) {
-		return hostname
+	if targetID != "" && !strings.HasSuffix(hostname, suffix) {
+		hostname += suffix
 	}
-	return hostname + suffix
+	if err := validateHTTPHostname(hostname); err != nil {
+		return "", err
+	}
+	return hostname, nil
 }
 
 func writeOpenResult(out io.Writer, nameOrID string, port *devplanev1.Port, jsonOutput bool) error {
