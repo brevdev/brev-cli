@@ -335,7 +335,7 @@ func TestNewCmdCreatePortParsesFlags(t *testing.T) {
 	cmd.SetArgs([]string{
 		"create", "my-instance", "2222", "--protocol", "SSH",
 		"--allow", "10.0.0.0/8", "--allow", "192.0.2.0/24",
-		"--allow", "10.0.0.0/8",
+		"--allow", " 10.0.0.0/8 ",
 	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -344,6 +344,15 @@ func TestNewCmdCreatePortParsesFlags(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), "Created SSH port 2222 on my-instance.")
+}
+
+func TestNewCmdCreatePortRejectsNonCIDRAllowedSource(t *testing.T) {
+	cmd := NewCmdPorts(&fakeStore{})
+	cmd.SetArgs([]string{"create", "my-instance", "2222", "--allow", "203.0.113.10"})
+
+	err := cmd.Execute()
+
+	assert.EqualError(t, err, `invalid allowed source "203.0.113.10": must be a valid CIDR`)
 }
 
 func TestParsePortNumber(t *testing.T) {

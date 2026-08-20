@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"regexp"
 	"strconv"
 	"strings"
@@ -308,7 +309,18 @@ func parseHTTPProtocol(value string) (devplanev1.HttpPortProtocol, error) {
 }
 
 func normalizeAllowedSources(values []string) ([]string, error) {
-	return normalizeUniqueValues(values, "allowed source")
+	normalized, err := normalizeUniqueValues(values, "allowed source")
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range normalized {
+		if _, _, err := net.ParseCIDR(value); err != nil {
+			return nil, breverrors.NewValidationError(fmt.Sprintf(
+				"invalid allowed source %q: must be a valid CIDR", value,
+			))
+		}
+	}
+	return normalized, nil
 }
 
 func normalizeAuthorizedEmails(values []string) ([]string, error) {
