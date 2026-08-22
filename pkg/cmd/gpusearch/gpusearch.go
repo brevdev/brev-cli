@@ -141,6 +141,8 @@ var (
 
 Use 'brev search gpu' (default) to find GPU instances.
 Use 'brev search cpu' to find CPU-only instances.
+Search output includes each type's default location, and JSON output also
+includes its default location, sub-location, and all available regions.
 
 Features column shows instance capabilities:
   S = Stoppable (can stop and restart without losing data)
@@ -332,6 +334,8 @@ type GPUInstanceInfo struct {
 	Stoppable        bool     `json:"stoppable"`
 	Rebootable       bool     `json:"rebootable"`
 	FlexPorts        bool     `json:"flex_ports"`
+	Location         string   `json:"location,omitempty"`
+	SubLocation      string   `json:"sub_location,omitempty"`
 	AvailableRegions []string `json:"available_regions,omitempty"`
 	TargetDisk       float64  `json:"target_disk_gb,omitempty"`
 	PricePerHour     float64  `json:"price_per_hour"`
@@ -791,6 +795,8 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 				Stoppable:        item.Stoppable,
 				Rebootable:       item.Rebootable,
 				FlexPorts:        item.CanModifyFirewallRules,
+				Location:         item.Location,
+				SubLocation:      item.SubLocation,
 				AvailableRegions: item.AvailableLocations,
 				PricePerHour:     price,
 				Manufacturer:     "cpu",
@@ -828,6 +834,8 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 				Stoppable:        item.Stoppable,
 				Rebootable:       item.Rebootable,
 				FlexPorts:        item.CanModifyFirewallRules,
+				Location:         item.Location,
+				SubLocation:      item.SubLocation,
 				AvailableRegions: item.AvailableLocations,
 				PricePerHour:     price,
 				Manufacturer:     gpu.Manufacturer,
@@ -1163,13 +1171,26 @@ func formatInstanceFields(inst GPUInstanceInfo, includeUnits bool) formattedInst
 	}
 }
 
+func formatDefaultLocation(location, subLocation string) string {
+	switch {
+	case location != "" && subLocation != "":
+		return location + "/" + subLocation
+	case location != "":
+		return location
+	case subLocation != "":
+		return subLocation
+	default:
+		return "-"
+	}
+}
+
 // displayGPUTable renders the GPU instances as a table
 func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "PROVIDER", "DEFAULT LOCATION", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -1177,6 +1198,7 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 		row := table.Row{
 			inst.Type,
 			f.Provider,
+			formatDefaultLocation(inst.Location, inst.SubLocation),
 			t.Green(inst.GPUName),
 			inst.GPUCount,
 			f.VRAM,
@@ -1203,7 +1225,7 @@ func displayGPUTablePlain(instances []GPUInstanceInfo) {
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL_VRAM", "CAPABILITY", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "DEFAULT_LOCATION", "GPU", "COUNT", "VRAM/GPU", "TOTAL_VRAM", "CAPABILITY", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -1212,6 +1234,7 @@ func displayGPUTablePlain(instances []GPUInstanceInfo) {
 			inst.Type,
 			f.TargetDisk,
 			f.Provider,
+			formatDefaultLocation(inst.Location, inst.SubLocation),
 			inst.GPUName,
 			inst.GPUCount,
 			f.VRAM,
@@ -1236,7 +1259,7 @@ func displayGPUTableWide(t *terminal.Terminal, instances []GPUInstanceInfo) {
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "PROVIDER", "DEFAULT LOCATION", "GPU", "COUNT", "VRAM/GPU", "TOTAL VRAM", "CAPABILITY", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -1244,6 +1267,7 @@ func displayGPUTableWide(t *terminal.Terminal, instances []GPUInstanceInfo) {
 		row := table.Row{
 			inst.Type,
 			f.Provider,
+			formatDefaultLocation(inst.Location, inst.SubLocation),
 			t.Green(inst.GPUName),
 			inst.GPUCount,
 			f.VRAM,
@@ -1270,7 +1294,7 @@ func displayGPUTablePlainWide(instances []GPUInstanceInfo) {
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "GPU", "COUNT", "VRAM/GPU", "TOTAL_VRAM", "CAPABILITY", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
+	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "DEFAULT_LOCATION", "GPU", "COUNT", "VRAM/GPU", "TOTAL_VRAM", "CAPABILITY", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "VCPUs", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -1279,6 +1303,7 @@ func displayGPUTablePlainWide(instances []GPUInstanceInfo) {
 			inst.Type,
 			f.TargetDisk,
 			f.Provider,
+			formatDefaultLocation(inst.Location, inst.SubLocation),
 			inst.GPUName,
 			inst.GPUCount,
 			f.VRAM,
@@ -1305,7 +1330,7 @@ func displayCPUTable(instances []GPUInstanceInfo) {
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "PROVIDER", "VCPUs", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "$/HR"}
+	header := table.Row{"TYPE", "PROVIDER", "DEFAULT LOCATION", "VCPUs", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -1313,6 +1338,7 @@ func displayCPUTable(instances []GPUInstanceInfo) {
 		row := table.Row{
 			inst.Type,
 			f.Provider,
+			formatDefaultLocation(inst.Location, inst.SubLocation),
 			inst.VCPUs,
 			f.RAM,
 			inst.Arch,
@@ -1334,7 +1360,7 @@ func displayCPUTablePlain(instances []GPUInstanceInfo) {
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
 
-	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "VCPUs", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "$/HR"}
+	header := table.Row{"TYPE", "TARGET_DISK", "PROVIDER", "DEFAULT_LOCATION", "VCPUs", "RAM", "ARCH", "DISK", "$/GB/MO", "BOOT", "FEATURES", "$/HR"}
 	ta.AppendHeader(header)
 
 	for _, inst := range instances {
@@ -1343,6 +1369,7 @@ func displayCPUTablePlain(instances []GPUInstanceInfo) {
 			inst.Type,
 			f.TargetDisk,
 			f.Provider,
+			formatDefaultLocation(inst.Location, inst.SubLocation),
 			inst.VCPUs,
 			f.RAM,
 			inst.Arch,

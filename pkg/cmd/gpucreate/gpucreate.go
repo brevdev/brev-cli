@@ -74,7 +74,12 @@ You can attach a startup script that runs when the instance boots using the
 --startup-script flag. The script can be provided as:
   - An inline string: --startup-script 'pip install torch'
   - A file path (prefix with @): --startup-script @setup.sh
-  - An absolute file path: --startup-script @/path/to/setup.sh`
+  - An absolute file path: --startup-script @/path/to/setup.sh
+
+Placement:
+Use --location (or --region) to choose a catalog location and --sub-location
+to choose a provider zone within it. The location is validated before create,
+and dry runs show either the selected placement or the catalog default.`
 
 	example = `
   # Create an instance using smart defaults (sorted by price)
@@ -83,8 +88,14 @@ You can attach a startup script that runs when the instance boots using the
   # Create with a specific GPU type
   brev create my-instance --type g5.xlarge
 
-  # Create in a specific region
-  brev create my-instance --type g5.xlarge --region us-east-1
+  # Create in a specific location
+  brev create my-instance --type g5.xlarge --location us-east-1
+
+  # Create a CPU instance in a specific location and zone
+  brev create my-cpu --type n2d-standard-2 --location us-west2 --sub-location us-west2-a
+
+  # Preview the type, disk, and selected/default placement without provisioning
+  brev create my-instance --type g5.xlarge --dry-run
 
   # Try multiple types in order (fallback chain)
   brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
@@ -138,6 +149,8 @@ type CreateResult struct {
 type searchFilterFlags struct {
 	gpuName       string
 	region        string
+	location      string
+	subLocation   string
 	provider      string
 	minVRAM       float64
 	minTotalVRAM  float64
@@ -155,7 +168,7 @@ type searchFilterFlags struct {
 
 // hasUserFilters returns true if the user specified any search filter flags
 func (f *searchFilterFlags) hasUserFilters() bool {
-	return f.gpuName != "" || f.region != "" || f.provider != "" || f.minVRAM > 0 || f.minTotalVRAM > 0 ||
+	return f.gpuName != "" || f.region != "" || f.location != "" || f.subLocation != "" || f.provider != "" || f.minVRAM > 0 || f.minTotalVRAM > 0 ||
 		f.minCapability > 0 || f.minDisk > 0 || f.maxBootTime > 0 ||
 		f.stoppable || f.rebootable || f.flexPorts
 }
@@ -237,8 +250,17 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return breverrors.WrapAndTrace(err)
 			}
 
-			if strings.TrimSpace(filters.region) != "" {
-				response, err := gpuCreateStore.GetInstanceTypes(false)
+			filters.region, err = resolveCreateLocation(filters.region, filters.location)
+			if err != nil {
+				return err
+			}
+			filters.subLocation = strings.TrimSpace(filters.subLocation)
+			if filters.subLocation != "" && filters.region == "" {
+				return breverrors.NewValidationError("--sub-location requires --location or --region")
+			}
+
+			if filters.region != "" || dryRun {
+				response, err := gpuCreateStore.GetInstanceTypes(true)
 				if err != nil {
 					return breverrors.WrapAndTrace(err)
 				}
@@ -246,9 +268,11 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				if response != nil {
 					filters.catalogItems = response.Items
 				}
-				filters.region, err = canonicalRegion(filters.region, filters.catalogItems)
-				if err != nil {
-					return err
+				if filters.region != "" {
+					filters.region, err = canonicalRegion(filters.region, types, filters.catalogItems)
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -274,6 +298,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				LaunchableInfo:    launchableInfo,
 				ParameterBindings: parameterBindings,
 				Region:            filters.region,
+				SubLocation:       filters.subLocation,
 			}
 
 			opts.InstanceTypes, err = resolveInstanceTypes(cmd, gpuCreateStore, opts, types, &filters)
@@ -285,7 +310,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			}
 
 			if dryRun {
-				return runDryRun(t, gpuCreateStore, opts.InstanceTypes, &filters)
+				return runDryRun(t, gpuCreateStore, opts, &filters)
 			}
 
 			return RunGPUCreate(t, gpuCreateStore, opts)
@@ -308,6 +333,21 @@ func validateArgs(name string, count int) error {
 	return nil
 }
 
+func resolveCreateLocation(region, location string) (string, error) {
+	region = strings.TrimSpace(region)
+	location = strings.TrimSpace(location)
+	if region != "" && location != "" && !strings.EqualFold(region, location) {
+		return "", breverrors.NewValidationError(fmt.Sprintf(
+			"--region %q conflicts with --location %q; specify only one location",
+			region, location,
+		))
+	}
+	if location != "" {
+		return location, nil
+	}
+	return region, nil
+}
+
 // registerCreateFlags registers all flags for the create command
 func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, launchableParams *[]string, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
@@ -328,6 +368,8 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().StringArrayVar(launchableParams, "param", nil, "Launchable setup value NAME=VALUE (repeatable)")
 
 	cmd.Flags().StringVarP(&filters.region, "region", "r", "", "Region/location to deploy the instance (e.g., us-east-1, us-central1)")
+	cmd.Flags().StringVar(&filters.location, "location", "", "Location/region to deploy the instance (alias of --region)")
+	cmd.Flags().StringVar(&filters.subLocation, "sub-location", "", "Provider sub-location or zone (requires --location or --region)")
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
 	cmd.Flags().Float64VarP(&filters.minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
@@ -344,8 +386,10 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 
 // InstanceSpec holds an instance type and its target disk size
 type InstanceSpec struct {
-	Type   string
-	DiskGB float64 // Target disk size in GB, 0 means use default
+	Type        string
+	DiskGB      float64 // Target disk size in GB, 0 means use default
+	Location    string
+	SubLocation string
 }
 
 // GPUCreateOptions holds the options for GPU instance creation
@@ -366,6 +410,7 @@ type GPUCreateOptions struct {
 	LaunchableInfo    *store.LaunchableResponse // populated when LaunchableID is set
 	ParameterBindings []store.ParameterBinding
 	Region            string
+	SubLocation       string
 }
 
 // parseLaunchableID extracts a launchable ID from either a raw ID (env-XXX) or
@@ -509,7 +554,8 @@ func warnLaunchableFlagConflicts(cmd *cobra.Command, t *terminal.Terminal, launc
 
 	instanceFlagsSet := cmd.Flags().Changed("type") || cmd.Flags().Changed("gpu-name") ||
 		cmd.Flags().Changed("provider") || cmd.Flags().Changed("min-vram") ||
-		cmd.Flags().Changed("region")
+		cmd.Flags().Changed("region") || cmd.Flags().Changed("location") ||
+		cmd.Flags().Changed("sub-location")
 	if instanceFlagsSet {
 		t.Vprintf("Warning: Overriding the launchable's recommended instance configuration. This is not the recommended path and may cause issues.\n\n")
 	}
@@ -752,15 +798,32 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 		if inst.DiskMin != inst.DiskMax && minDisk > inst.DiskMin && minDisk <= inst.DiskMax {
 			diskGB = minDisk
 		}
-		specs = append(specs, InstanceSpec{Type: inst.Type, DiskGB: diskGB})
+		specs = append(specs, InstanceSpec{
+			Type:        inst.Type,
+			DiskGB:      diskGB,
+			Location:    inst.Location,
+			SubLocation: inst.SubLocation,
+		})
 	}
 
 	return specs, nil
 }
 
 // runDryRun shows the instance types that would be used without creating anything
-func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, filters *searchFilterFlags) error {
-	if len(specs) > 0 {
+func runDryRun(t *terminal.Terminal, s GPUCreateStore, opts GPUCreateOptions, filters *searchFilterFlags) error {
+	items := filters.catalogItems
+	if !filters.catalogLoaded {
+		response, err := s.GetInstanceTypes(true)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if response != nil {
+			items = response.Items
+		}
+	}
+
+	if len(opts.InstanceTypes) > 0 {
+		specs := annotateInstanceSpecs(opts.InstanceTypes, opts.Region, opts.SubLocation, items)
 		t.Print(formatInstanceSpecs(specs))
 		return nil
 	}
@@ -779,7 +842,7 @@ func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, fil
 
 // canonicalRegion returns the catalog spelling for an exact, case-insensitive
 // region match. Create must not forward a partial region name to the provider.
-func canonicalRegion(region string, items []gpusearch.InstanceType) (string, error) {
+func canonicalRegion(region string, types []InstanceSpec, items []gpusearch.InstanceType) (string, error) {
 	region = strings.TrimSpace(region)
 	for _, item := range items {
 		for _, availableRegion := range item.AvailableLocations {
@@ -789,8 +852,13 @@ func canonicalRegion(region string, items []gpusearch.InstanceType) (string, err
 		}
 	}
 
+	typeNames := make([]string, 0, len(types))
+	for _, spec := range types {
+		typeNames = append(typeNames, spec.Type)
+	}
 	return "", breverrors.NewValidationError(fmt.Sprintf(
-		"region %q is not available; run 'brev search --json' to list valid regions", region,
+		"location %q is not available; available locations: %s",
+		region, formatAvailableLocations(availableLocationsForTypes(typeNames, items)),
 	))
 }
 
@@ -827,9 +895,49 @@ func validateTypesSupportRegion(types []InstanceSpec, region string, items []gpu
 
 	sort.Strings(unsupported)
 	return breverrors.NewValidationError(fmt.Sprintf(
-		"region %q is not available for instance type(s) %s; run 'brev search --region %s' to find compatible types",
-		region, strings.Join(unsupported, ", "), region,
+		"location %q is not available for instance type(s) %s; available locations: %s",
+		region, strings.Join(unsupported, ", "), formatAvailableLocations(availableLocationsForTypes(unsupported, items)),
 	))
+}
+
+func availableLocationsForTypes(types []string, items []gpusearch.InstanceType) []string {
+	typeFilter := make(map[string]struct{}, len(types))
+	for _, instanceType := range types {
+		typeFilter[instanceType] = struct{}{}
+	}
+
+	locations := make(map[string]string)
+	for _, item := range items {
+		if len(typeFilter) > 0 {
+			if _, ok := typeFilter[item.Type]; !ok {
+				continue
+			}
+		}
+		for _, location := range item.AvailableLocations {
+			location = strings.TrimSpace(location)
+			if location == "" {
+				continue
+			}
+			key := strings.ToLower(location)
+			if _, exists := locations[key]; !exists {
+				locations[key] = location
+			}
+		}
+	}
+
+	result := make([]string, 0, len(locations))
+	for _, location := range locations {
+		result = append(result, location)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func formatAvailableLocations(locations []string) string {
+	if len(locations) == 0 {
+		return "none reported by the catalog"
+	}
+	return strings.Join(locations, ", ")
 }
 
 func instanceTypeSupportsRegion(item gpusearch.InstanceType, region string) bool {
@@ -915,7 +1023,7 @@ func parseJSONInput(input string) ([]InstanceSpec, error) {
 }
 
 // parseTableInput parses table format input from gpu-search
-// Table format: TYPE  TARGET_DISK  PROVIDER  GPU  COUNT  ...
+// Table format: TYPE  TARGET_DISK  PROVIDER  DEFAULT_LOCATION  GPU/CPU fields ...
 func parseTableInput(input string) []InstanceSpec {
 	var specs []InstanceSpec
 	lines := strings.Split(input, "\n")
@@ -938,7 +1046,7 @@ func parseTableInput(input string) []InstanceSpec {
 		}
 
 		// Extract TYPE (column 0) and TARGET_DISK (column 1) from the table output
-		// The format is: TYPE  TARGET_DISK  PROVIDER  GPU  COUNT  ...
+		// The format starts with TYPE and TARGET_DISK; later discovery columns are ignored.
 		fields := strings.Fields(line)
 		if len(fields) > 0 {
 			instanceType := fields[0]
@@ -983,13 +1091,44 @@ func isValidInstanceType(s string) bool {
 func formatInstanceSpecs(specs []InstanceSpec) string {
 	var parts []string
 	for _, spec := range specs {
+		var details []string
 		if spec.DiskGB > 0 {
-			parts = append(parts, fmt.Sprintf("%s (%.0fGB disk)", spec.Type, spec.DiskGB))
-		} else {
-			parts = append(parts, spec.Type)
+			details = append(details, fmt.Sprintf("%.0fGB disk", spec.DiskGB))
 		}
+		if spec.Location != "" {
+			details = append(details, "location: "+spec.Location)
+		}
+		if spec.SubLocation != "" {
+			details = append(details, "sub-location: "+spec.SubLocation)
+		}
+		if len(details) == 0 {
+			parts = append(parts, spec.Type)
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", spec.Type, strings.Join(details, ", ")))
 	}
 	return strings.Join(parts, ", ")
+}
+
+func annotateInstanceSpecs(specs []InstanceSpec, location, subLocation string, items []gpusearch.InstanceType) []InstanceSpec {
+	annotated := append([]InstanceSpec(nil), specs...)
+	for i := range annotated {
+		if location != "" {
+			annotated[i].Location = location
+			annotated[i].SubLocation = subLocation
+			continue
+		}
+
+		for _, item := range items {
+			if item.Type != annotated[i].Type {
+				continue
+			}
+			annotated[i].Location = item.Location
+			annotated[i].SubLocation = item.SubLocation
+			break
+		}
+	}
+	return annotated
 }
 
 // createContext holds shared state for instance creation
@@ -1077,9 +1216,10 @@ func (c *createContext) validateInstanceTypeAvailability(instanceType string) er
 		))
 	}
 	if c.opts.Region != "" {
+		locations := availableLocationsForTypes([]string{instanceType}, c.allInstanceTypes.AllInstanceTypes)
 		return breverrors.NewValidationError(fmt.Sprintf(
-			"instance type %q is unavailable in region %q; run 'brev search --region %s' to find a compatible type",
-			instanceType, c.opts.Region, c.opts.Region,
+			"instance type %q is unavailable in location %q; available locations: %s",
+			instanceType, c.opts.Region, formatAvailableLocations(locations),
 		))
 	}
 	return breverrors.NewValidationError(fmt.Sprintf(
@@ -1254,6 +1394,15 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	if err != nil {
 		return err
 	}
+	if ctx.allInstanceTypes != nil {
+		opts.InstanceTypes = annotateInstanceSpecs(
+			opts.InstanceTypes,
+			opts.Region,
+			opts.SubLocation,
+			ctx.allInstanceTypes.AllInstanceTypes,
+		)
+		ctx.opts = opts
+	}
 
 	// Auto-redeem coupon code if the launchable has one attached.
 	// This is silent — the UI doesn't surface coupon redemption to the user either.
@@ -1327,9 +1476,10 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		if cloudCredID := c.allInstanceTypes.GetCloudCredIDForRegion(spec.Type, c.opts.Region); cloudCredID != "" {
 			cwOptions.WithCloudCredID(cloudCredID)
 		} else if c.opts.Region != "" && c.allInstanceTypes.HasInstanceType(spec.Type) {
+			locations := availableLocationsForTypes([]string{spec.Type}, c.allInstanceTypes.AllInstanceTypes)
 			return nil, breverrors.NewValidationError(fmt.Sprintf(
-				"instance type %q has no available cloud credential in region %q; run 'brev search --region %s' to find a compatible type",
-				spec.Type, c.opts.Region, c.opts.Region,
+				"instance type %q has no available cloud credential in location %q; available locations: %s",
+				spec.Type, c.opts.Region, formatAvailableLocations(locations),
 			))
 		}
 	}
@@ -1346,9 +1496,9 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 
 	if c.opts.Region != "" {
 		cwOptions.Location = c.opts.Region
-		// A launchable sub-location belongs to its original location. Let the
-		// provider choose a compatible zone when the CLI overrides the region.
-		cwOptions.SubLocation = ""
+		// A launchable sub-location belongs to its original location. Replace it
+		// with the explicit CLI value, or clear it so the provider can choose.
+		cwOptions.SubLocation = c.opts.SubLocation
 	}
 
 	if cwOptions.CloudCredID == "" {

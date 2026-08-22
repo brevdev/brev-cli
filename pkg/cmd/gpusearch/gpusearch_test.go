@@ -1,6 +1,10 @@
 package gpusearch
 
 import (
+	"encoding/json"
+	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,11 +24,46 @@ func (m *MockGPUSearchStore) GetInstanceTypes(_ bool) (*InstanceTypesResponse, e
 	return m.Response, nil
 }
 
+func captureSearchStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = oldStdout
+		_ = readPipe.Close()
+		_ = writePipe.Close()
+	}()
+
+	fn()
+	require.NoError(t, writePipe.Close())
+	os.Stdout = oldStdout
+	output, err := io.ReadAll(readPipe)
+	require.NoError(t, err)
+	return string(output)
+}
+
+func tableHeaderFields(t *testing.T, output string) []string {
+	t.Helper()
+	for _, line := range strings.Split(output, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == "TYPE" {
+			return fields
+		}
+	}
+	t.Fatalf("table header not found in output:\n%s", output)
+	return nil
+}
+
 func createTestInstanceTypes() *InstanceTypesResponse {
 	return &InstanceTypesResponse{
 		Items: []InstanceType{
 			{
 				Type:               "g5.xlarge",
+				Location:           "us-east-1",
+				SubLocation:        "us-east-1a",
 				AvailableLocations: []string{"us-east-1", "us-west-2"},
 				SupportedGPUs: []GPU{
 					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
@@ -35,6 +74,7 @@ func createTestInstanceTypes() *InstanceTypesResponse {
 			},
 			{
 				Type:               "g5.2xlarge",
+				Location:           "eu-west-1",
 				AvailableLocations: []string{"eu-west-1"},
 				SupportedGPUs: []GPU{
 					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
@@ -163,8 +203,80 @@ func TestProcessInstances(t *testing.T) {
 	assert.Equal(t, 24.0, a10gInstance.TotalVRAM)
 	assert.Equal(t, 8.6, a10gInstance.Capability)
 	assert.Equal(t, 4, a10gInstance.VCPUs)
+	assert.Equal(t, "us-east-1", a10gInstance.Location)
+	assert.Equal(t, "us-east-1a", a10gInstance.SubLocation)
 	assert.Equal(t, []string{"us-east-1", "us-west-2"}, a10gInstance.AvailableRegions)
 	assert.InDelta(t, 1.006, a10gInstance.PricePerHour, 0.001)
+}
+
+func TestFormatDefaultLocation(t *testing.T) {
+	assert.Equal(t, "us-west2/us-west2-a", formatDefaultLocation("us-west2", "us-west2-a"))
+	assert.Equal(t, "us-west2", formatDefaultLocation("us-west2", ""))
+	assert.Equal(t, "us-west2-a", formatDefaultLocation("", "us-west2-a"))
+	assert.Equal(t, "-", formatDefaultLocation("", ""))
+}
+
+func TestProcessCPUIncludesDefaultLocationInJSON(t *testing.T) {
+	instances := ProcessInstances([]InstanceType{
+		{
+			Type:               "n2d-standard-2",
+			Location:           "asia-south1",
+			SubLocation:        "asia-south1-a",
+			AvailableLocations: []string{"asia-south1", "us-west2"},
+			Memory:             "8GiB",
+			VCPU:               2,
+		},
+	})
+
+	require.Len(t, instances, 1)
+	assert.Equal(t, "n2d-standard-2", instances[0].Type)
+	assert.Equal(t, "asia-south1", instances[0].Location)
+	assert.Equal(t, "asia-south1-a", instances[0].SubLocation)
+	assert.Equal(t, []string{"asia-south1", "us-west2"}, instances[0].AvailableRegions)
+
+	payload, err := json.Marshal(instances)
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), `"location":"asia-south1"`)
+	assert.Contains(t, string(payload), `"sub_location":"asia-south1-a"`)
+	assert.Contains(t, string(payload), `"available_regions":["asia-south1","us-west2"]`)
+}
+
+func TestPlainSearchTablesPreservePipeColumnsAndShowDefaultLocation(t *testing.T) {
+	gpu := GPUInstanceInfo{
+		Type:        "g5.xlarge",
+		Provider:    "aws",
+		GPUName:     "A10G",
+		GPUCount:    1,
+		Location:    "us-east-1",
+		SubLocation: "us-east-1a",
+	}
+	cpu := GPUInstanceInfo{
+		Type:         "n2d-standard-2",
+		Provider:     "gcp",
+		Location:     "asia-south1",
+		SubLocation:  "asia-south1-a",
+		Manufacturer: "cpu",
+	}
+
+	tests := []struct {
+		name     string
+		location string
+		render   func()
+	}{
+		{name: "gpu", location: "us-east-1/us-east-1a", render: func() { displayGPUTablePlain([]GPUInstanceInfo{gpu}) }},
+		{name: "gpu wide", location: "us-east-1/us-east-1a", render: func() { displayGPUTablePlainWide([]GPUInstanceInfo{gpu}) }},
+		{name: "cpu", location: "asia-south1/asia-south1-a", render: func() { displayCPUTablePlain([]GPUInstanceInfo{cpu}) }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			output := captureSearchStdout(t, tt.render)
+			header := tableHeaderFields(t, output)
+			require.GreaterOrEqual(t, len(header), 4)
+			assert.Equal(t, []string{"TYPE", "TARGET_DISK", "PROVIDER", "DEFAULT_LOCATION"}, header[:4])
+			assert.Contains(t, output, tt.location, "default location and sub-location should render as one pipe-safe field")
+		})
+	}
 }
 
 func TestFilterInstancesByRegion(t *testing.T) {
