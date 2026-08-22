@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -100,6 +102,9 @@ every instance type in the fallback chain and must be supported by the provider.
 
   # Use search filters directly and attach a startup script
   brev create my-instance -g a100 --startup-script @setup.sh
+
+  # Deploy a launchable with setup values
+  brev create --launchable env-abc --param MODEL=llama --param PORT=8080
 `
 )
 
@@ -173,6 +178,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var composeFile string
 	var launchable string
 	var diskSize float64
+	var launchableParams []string
 	var filters searchFilterFlags
 
 	cmd := &cobra.Command{
@@ -207,6 +213,18 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return err
 			}
 
+			parameterValues, err := parseLaunchableParameterValues(launchableParams)
+			if err != nil {
+				return err
+			}
+			if launchableID == "" && len(parameterValues) > 0 {
+				return breverrors.NewValidationError("--param can only be used with --launchable")
+			}
+			parameterBindings, err := resolveLaunchableParameterBindings(launchableInfo, parameterValues)
+			if err != nil {
+				return err
+			}
+
 			// Default workspace name from launchable with random suffix for uniqueness
 			if name == "" && launchableInfo != nil {
 				name = fmt.Sprintf("%s-%05d", ssh.SanitizeNodeName(launchableInfo.Name), rand.IntN(100000)) //nolint:gosec // not security-sensitive
@@ -231,20 +249,21 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			}
 
 			opts := GPUCreateOptions{
-				Name:           name,
-				InstanceTypes:  types,
-				Count:          count,
-				Parallel:       max(1, parallel),
-				Detached:       detached,
-				Timeout:        time.Duration(timeout) * time.Second,
-				StartupScript:  scriptContent,
-				Mode:           mode,
-				Jupyter:        jupyter,
-				JupyterSet:     cmd.Flags().Changed("jupyter"),
-				ContainerImage: containerImage,
-				ComposeFile:    composeFile,
-				LaunchableID:   launchableID,
-				LaunchableInfo: launchableInfo,
+				Name:              name,
+				InstanceTypes:     types,
+				Count:             count,
+				Parallel:          max(1, parallel),
+				Detached:          detached,
+				Timeout:           time.Duration(timeout) * time.Second,
+				StartupScript:     scriptContent,
+				Mode:              mode,
+				Jupyter:           jupyter,
+				JupyterSet:        cmd.Flags().Changed("jupyter"),
+				ContainerImage:    containerImage,
+				ComposeFile:       composeFile,
+				LaunchableID:      launchableID,
+				LaunchableInfo:    launchableInfo,
+				ParameterBindings: parameterBindings,
 			}
 
 			opts.InstanceTypes, err = resolveInstanceTypes(cmd, gpuCreateStore, opts, types, &filters)
@@ -265,7 +284,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &diskSize, &filters)
+	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &launchableParams, &diskSize, &filters)
 
 	return cmd
 }
@@ -282,7 +301,7 @@ func validateArgs(name string, count int) error {
 }
 
 // registerCreateFlags registers all flags for the create command
-func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, diskSize *float64, filters *searchFilterFlags) {
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, launchableParams *[]string, diskSize *float64, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
 	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
@@ -299,6 +318,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().StringVar(containerImage, "container-image", "", "Container image URL (required for container mode)")
 	cmd.Flags().StringVar(composeFile, "compose-file", "", "Docker compose file path or URL (required for compose mode)")
 	cmd.Flags().StringVarP(launchable, "launchable", "l", "", "Launchable ID or URL to deploy (e.g., env-XXX or console URL)")
+	cmd.Flags().StringArrayVar(launchableParams, "param", nil, "Launchable setup value NAME=VALUE (repeatable)")
 
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
@@ -322,20 +342,21 @@ type InstanceSpec struct {
 
 // GPUCreateOptions holds the options for GPU instance creation
 type GPUCreateOptions struct {
-	Name           string
-	InstanceTypes  []InstanceSpec
-	Count          int
-	Parallel       int
-	Detached       bool
-	Timeout        time.Duration
-	StartupScript  string
-	Mode           string
-	Jupyter        bool
-	JupyterSet     bool // whether --jupyter was explicitly set
-	ContainerImage string
-	ComposeFile    string
-	LaunchableID   string
-	LaunchableInfo *store.LaunchableResponse // populated when LaunchableID is set
+	Name              string
+	InstanceTypes     []InstanceSpec
+	Count             int
+	Parallel          int
+	Detached          bool
+	Timeout           time.Duration
+	StartupScript     string
+	Mode              string
+	Jupyter           bool
+	JupyterSet        bool // whether --jupyter was explicitly set
+	ContainerImage    string
+	ComposeFile       string
+	LaunchableID      string
+	LaunchableInfo    *store.LaunchableResponse // populated when LaunchableID is set
+	ParameterBindings []store.ParameterBinding
 }
 
 // parseLaunchableID extracts a launchable ID from either a raw ID (env-XXX) or
@@ -381,6 +402,86 @@ func validateLaunchableID(id string) error {
 		return fmt.Errorf("invalid launchable ID %q — must not contain path or query characters", id)
 	}
 	return nil
+}
+
+func parseLaunchableParameterValues(values []string) (map[string]string, error) {
+	parsed := make(map[string]string, len(values))
+	for _, value := range values {
+		name, parameterValue, ok := strings.Cut(value, "=")
+		name = strings.TrimSpace(name)
+		if !ok || name == "" {
+			return nil, breverrors.NewValidationError(fmt.Sprintf(
+				"invalid --param %q: expected NAME=VALUE", value,
+			))
+		}
+		if _, exists := parsed[name]; exists {
+			return nil, breverrors.NewValidationError(fmt.Sprintf(
+				"launchable parameter %q was provided more than once", name,
+			))
+		}
+		parsed[name] = parameterValue
+	}
+	return parsed, nil
+}
+
+func resolveLaunchableParameterBindings(info *store.LaunchableResponse, values map[string]string) ([]store.ParameterBinding, error) {
+	if info == nil {
+		return nil, nil
+	}
+
+	parameters := info.BuildRequest.Parameters
+	defined := make(map[string]struct{}, len(parameters))
+	for _, parameter := range parameters {
+		defined[parameter.Name] = struct{}{}
+	}
+
+	var problems []string
+	for name := range values {
+		if _, ok := defined[name]; !ok {
+			problems = append(problems, fmt.Sprintf("unknown parameter %q", name))
+		}
+	}
+
+	bindings := make([]store.ParameterBinding, 0, len(parameters))
+	for _, parameter := range parameters {
+		value := values[parameter.Name]
+		if value == "" {
+			value = launchableParameterDefault(parameter)
+		}
+
+		if parameter.Required && value == "" {
+			problems = append(problems, fmt.Sprintf(
+				"missing required parameter %q; provide --param %s=VALUE",
+				parameter.Name, parameter.Name,
+			))
+			continue
+		}
+		if parameter.Choice != nil && value != "" && !slices.Contains(parameter.Choice.Choices, value) {
+			problems = append(problems, fmt.Sprintf(
+				"invalid value %q for %q (allowed: %s)",
+				value, parameter.Name, strings.Join(parameter.Choice.Choices, ", "),
+			))
+			continue
+		}
+		if value != "" {
+			bindings = append(bindings, store.ParameterBinding{Name: parameter.Name, Value: value})
+		}
+	}
+
+	if len(problems) > 0 {
+		return nil, breverrors.NewValidationError("invalid launchable parameters:\n  - " + strings.Join(problems, "\n  - "))
+	}
+	return bindings, nil
+}
+
+func launchableParameterDefault(parameter store.Parameter) string {
+	if parameter.Text != nil {
+		return parameter.Text.DefaultValue
+	}
+	if parameter.Choice != nil {
+		return parameter.Choice.DefaultValue
+	}
+	return ""
 }
 
 // warnLaunchableFlagConflicts warns about flags that conflict with --launchable
@@ -432,9 +533,85 @@ func fetchAndDisplayLaunchable(gpuCreateStore GPUCreateStore, t *terminal.Termin
 		t.Vprintf("Storage: %s\n", info.CreateWorkspaceRequest.Storage)
 	}
 	buildMode := launchableBuildModeName(info)
-	t.Vprintf("Build mode: %s\n\n", buildMode)
+	t.Vprintf("Build mode: %s\n", buildMode)
+	for _, line := range launchableParameterDisplayLines(info.BuildRequest.Parameters) {
+		t.Vprintf("%s\n", line)
+	}
+	t.Vprintf("\n")
 
 	return info, nil
+}
+
+func launchableParameterDisplayLines(parameters []store.Parameter) []string {
+	if len(parameters) == 0 {
+		return nil
+	}
+
+	required, optional := partitionLaunchableParameters(parameters)
+	nameWidth := maxParameterNameWidth(parameters)
+
+	var lines []string
+	if len(required) > 0 {
+		lines = append(lines, "Required Parameters:")
+		lines = append(lines, formatLaunchableParameterLines(required, nameWidth)...)
+	}
+	if len(optional) > 0 {
+		lines = append(lines, "Optional Parameters:")
+		lines = append(lines, formatLaunchableParameterLines(optional, nameWidth)...)
+	}
+	return lines
+}
+
+func partitionLaunchableParameters(parameters []store.Parameter) (required, optional []store.Parameter) {
+	for _, parameter := range parameters {
+		if parameter.Required {
+			required = append(required, parameter)
+		} else {
+			optional = append(optional, parameter)
+		}
+	}
+	sort.Slice(required, func(i, j int) bool { return required[i].Name < required[j].Name })
+	sort.Slice(optional, func(i, j int) bool { return optional[i].Name < optional[j].Name })
+	return required, optional
+}
+
+func maxParameterNameWidth(parameters []store.Parameter) int {
+	width := 0
+	for _, parameter := range parameters {
+		width = max(width, len(parameter.Name))
+	}
+	return width
+}
+
+func formatLaunchableParameterLines(parameters []store.Parameter, nameWidth int) []string {
+	lines := make([]string, 0, len(parameters))
+	for _, parameter := range parameters {
+		line := fmt.Sprintf("    %-*s", nameWidth, parameter.Name)
+		if details := launchableParameterDetails(parameter); details != "" {
+			line += "    " + details
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func launchableParameterDetails(parameter store.Parameter) string {
+	var parts []string
+	if parameter.Description != "" {
+		parts = append(parts, parameter.Description)
+	}
+
+	var meta []string
+	if parameter.Choice != nil && len(parameter.Choice.Choices) > 0 {
+		meta = append(meta, "allowed: "+strings.Join(parameter.Choice.Choices, ", "))
+	}
+	if defaultValue := launchableParameterDefault(parameter); defaultValue != "" {
+		meta = append(meta, "default: "+defaultValue)
+	}
+	if len(meta) > 0 {
+		parts = append(parts, "("+strings.Join(meta, "; ")+")")
+	}
+	return strings.Join(parts, " ")
 }
 
 func inlineLaunchableLifeCycleScript(gpuCreateStore GPUCreateStore, launchableID string, info *store.LaunchableResponse) error {
@@ -727,7 +904,8 @@ func formatInstanceSpecs(specs []InstanceSpec) string {
 	var parts []string
 	for _, spec := range specs {
 		if spec.DiskGB > 0 {
-			parts = append(parts, fmt.Sprintf("%s (%.0fGB disk)", spec.Type, spec.DiskGB))
+			diskGB := strconv.FormatFloat(spec.DiskGB, 'f', -1, 64)
+			parts = append(parts, fmt.Sprintf("%s (%sGB disk)", spec.Type, diskGB))
 		} else {
 			parts = append(parts, spec.Type)
 		}
@@ -1064,7 +1242,7 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 
 	// Apply launchable config or build mode
 	if c.opts.LaunchableID != "" {
-		applyLaunchableConfig(cwOptions, c.opts.LaunchableID, c.opts.LaunchableInfo)
+		applyLaunchableConfig(cwOptions, c.opts.LaunchableID, c.opts.LaunchableInfo, c.opts.ParameterBindings)
 	} else {
 		err := applyBuildMode(cwOptions, c.opts)
 		if err != nil {
@@ -1188,8 +1366,11 @@ func applyBuildMode(cwOptions *store.CreateWorkspacesOptions, opts GPUCreateOpti
 
 // applyLaunchableConfig populates the workspace create request with all launchable
 // configuration, mirroring what the web UI sends when deploying a launchable.
-func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableID string, info *store.LaunchableResponse) {
-	cwOptions.LaunchableConfig = &store.LaunchableConfig{ID: launchableID}
+func applyLaunchableConfig(cwOptions *store.CreateWorkspacesOptions, launchableID string, info *store.LaunchableResponse, parameterBindings []store.ParameterBinding) {
+	cwOptions.LaunchableConfig = &store.LaunchableConfig{
+		ID:                launchableID,
+		ParameterBindings: parameterBindings,
+	}
 
 	if info == nil {
 		return
@@ -1212,6 +1393,9 @@ func applyLaunchableWorkspaceRequest(cwOptions *store.CreateWorkspacesOptions, w
 	}
 	if wsReq.SubLocation != "" {
 		cwOptions.SubLocation = wsReq.SubLocation
+	}
+	if wsReq.ImageID != "" {
+		cwOptions.BaseImage = wsReq.ImageID
 	}
 
 	// Disk storage — the API may return a bare number (e.g., "256") or with

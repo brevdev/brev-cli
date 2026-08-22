@@ -208,6 +208,92 @@ func TestParseLaunchableID(t *testing.T) {
 	}
 }
 
+func TestParseLaunchableParameterValues(t *testing.T) {
+	values, err := parseLaunchableParameterValues([]string{"MODEL=llama=3", "PORT=8080"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"MODEL": "llama=3", "PORT": "8080"}, values)
+
+	_, err = parseLaunchableParameterValues([]string{"MISSING_SEPARATOR"})
+	assert.ErrorContains(t, err, "expected NAME=VALUE")
+
+	_, err = parseLaunchableParameterValues([]string{"MODEL=a", "MODEL=b"})
+	assert.ErrorContains(t, err, "provided more than once")
+}
+
+func TestResolveLaunchableParameterBindings(t *testing.T) {
+	info := &store.LaunchableResponse{
+		BuildRequest: store.LaunchableBuildRequest{
+			Parameters: []store.Parameter{
+				{Name: "MODEL", Required: true, Choice: &store.ChoiceParameter{
+					Choices: []string{"llama", "nemotron"},
+				}},
+				{Name: "REGION", Required: true, Choice: &store.ChoiceParameter{
+					Choices: []string{"us", "eu"},
+				}},
+				{Name: "TAG", Text: &store.TextParameter{DefaultValue: "latest"}},
+				{Name: "OPTIONAL", Text: &store.TextParameter{}},
+			},
+		},
+	}
+
+	bindings, err := resolveLaunchableParameterBindings(info, map[string]string{"MODEL": "nemotron", "REGION": "us"})
+	require.NoError(t, err)
+	assert.Equal(t, []store.ParameterBinding{
+		{Name: "MODEL", Value: "nemotron"},
+		{Name: "REGION", Value: "us"},
+		{Name: "TAG", Value: "latest"},
+	}, bindings)
+
+	_, err = resolveLaunchableParameterBindings(info, map[string]string{
+		"MODEL":  "unknown",
+		"REGION": "asia",
+		"TYPO":   "value",
+	})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `unknown parameter "TYPO"`)
+	assert.ErrorContains(t, err, `invalid value "unknown" for "MODEL"`)
+	assert.ErrorContains(t, err, `invalid value "asia" for "REGION"`)
+
+	_, err = resolveLaunchableParameterBindings(info, nil)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, `missing required parameter "MODEL"; provide --param MODEL=VALUE`)
+	assert.ErrorContains(t, err, `missing required parameter "REGION"; provide --param REGION=VALUE`)
+}
+
+func TestLaunchableParameterDisplayLines(t *testing.T) {
+	parameters := []store.Parameter{
+		{
+			Name:        "B",
+			Description: "Optional parameter",
+			Text:        &store.TextParameter{},
+		},
+		{
+			Name:        "A",
+			Description: "Text parameter",
+			Required:    true,
+			Text:        &store.TextParameter{DefaultValue: "default-a"},
+		},
+		{
+			Name:        "C",
+			Description: "Choice parameter",
+			Required:    true,
+			Choice: &store.ChoiceParameter{
+				Choices:      []string{"one", "two"},
+				DefaultValue: "one",
+			},
+		},
+	}
+
+	assert.Equal(t, []string{
+		"Required Parameters:",
+		"    A    Text parameter (default: default-a)",
+		"    C    Choice parameter (allowed: one, two; default: one)",
+		"Optional Parameters:",
+		"    B    Optional parameter",
+	}, launchableParameterDisplayLines(parameters))
+	assert.Nil(t, launchableParameterDisplayLines(nil))
+}
+
 func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 	t.Run("populates all fields from launchable", func(t *testing.T) {
 		cwOptions := &store.CreateWorkspacesOptions{
@@ -224,6 +310,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 				Storage:      "256",
 				Location:     "us-west1",
 				SubLocation:  "us-west1-b",
+				ImageID:      "projects/example/global/images/custom-image",
 				FirewallRules: []store.CreateFirewallRule{
 					{Port: "8080", AllowedIPs: "all"},
 					{Port: "9000-9100", AllowedIPs: "all"},
@@ -248,13 +335,14 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc123", info)
+		applyLaunchableConfig(cwOptions, "env-abc123", info, nil)
 
 		// Cloud credential from launchable input.
 		assert.Equal(t, "GCP", cwOptions.CloudCredID)
 		// Location / sub-location
 		assert.Equal(t, "us-west1", cwOptions.Location)
 		assert.Equal(t, "us-west1-b", cwOptions.SubLocation)
+		assert.Equal(t, "projects/example/global/images/custom-image", cwOptions.BaseImage)
 		// Storage with Gi suffix
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 		// Build config
@@ -294,7 +382,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "existing-cloud-cred", cwOptions.CloudCredID)
 	})
@@ -307,7 +395,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 	})
@@ -320,7 +408,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
 	})
@@ -333,7 +421,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, "100G", cwOptions.DiskStorage)
 	})
@@ -350,7 +438,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Nil(t, cwOptions.VMBuild)
 		assert.Equal(t, "nvcr.io/nvidia/test:latest", cwOptions.CustomContainer.ContainerURL)
@@ -370,7 +458,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Nil(t, cwOptions.VMBuild)
 		assert.Equal(t, dockerCompose.FileURL, cwOptions.DockerCompose.FileURL)
@@ -394,7 +482,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			},
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		assert.Equal(t, []store.CreateFirewallRule{
 			{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
@@ -480,7 +568,7 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 			CreatedByOrgID:  "org-1",
 		}
 
-		applyLaunchableConfig(cwOptions, "env-abc", info)
+		applyLaunchableConfig(cwOptions, "env-abc", info, nil)
 
 		labels, ok := cwOptions.Labels.(map[string]string)
 		assert.True(t, ok)
@@ -526,6 +614,7 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 			InstanceType: "n2-standard-4",
 			Location:     "us-west1",
 			SubLocation:  "us-west1-b",
+			ImageID:      "projects/example/global/images/custom-image",
 			FirewallRules: []store.CreateFirewallRule{
 				{Port: "8080", AllowedIPs: "all"},
 				{Port: "22", AllowedIPs: "user-ip", ClientIPs: []string{"203.0.113.7/32"}},
@@ -533,20 +622,23 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 		},
 	}
 
-	applyLaunchableConfig(cwOptions, "env-abc", info)
+	applyLaunchableConfig(cwOptions, "env-abc", info, []store.ParameterBinding{
+		{Name: "MODEL", Value: "llama"},
+	})
 
 	body, err := json.Marshal(cwOptions)
 	assert.NoError(t, err)
 	s := string(body)
 
 	assert.Contains(t, s, `"subLocation":"us-west1-b"`)
+	assert.Contains(t, s, `"baseImage":"projects/example/global/images/custom-image"`)
 	assert.Contains(t, s, `"firewallRules":`)
 	assert.Contains(t, s, `"port":"8080"`)
 	assert.Contains(t, s, `"port":"22"`)
 	assert.Contains(t, s, `"allowedIPs":"all"`)
 	assert.Contains(t, s, `"allowedIPs":"user-ip"`)
 	assert.Contains(t, s, `"clientIPs":["203.0.113.7/32"]`)
-	assert.Contains(t, s, `"launchableConfig":{"id":"env-abc"}`)
+	assert.Contains(t, s, `"launchableConfig":{"id":"env-abc","parameterBindings":[{"name":"MODEL","value":"llama"}]}`)
 }
 
 func TestFetchPublicIP(t *testing.T) {
@@ -831,6 +923,55 @@ func TestCreateRejectsInvalidDiskSize(t *testing.T) {
 	assert.Empty(t, mock.CreatedWorkspaces)
 }
 
+func TestCreateRejectsNegativeDiskSize(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"disk-size-test", "--type", "g5.xlarge", "--disk-size=-1"})
+
+	err := cmd.Execute()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "--disk-size must be greater than 0")
+	assert.Empty(t, mock.CreatedWorkspaces)
+}
+
+func TestCreateWithFractionalDiskSize(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.AllInstanceTypes = &gpusearch.AllInstanceTypesResponse{
+		AllInstanceTypes: []gpusearch.InstanceType{
+			{Type: "g5.xlarge", CloudCredID: "cc-1"},
+		},
+	}
+
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"fractional-disk-test", "--type", "g5.xlarge", "--disk-size", "750.5", "--detached"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+	require.Len(t, mock.CreatedOptions, 1)
+	// Fractional GB must be preserved exactly rather than rounded to a whole number.
+	assert.Equal(t, "750.5Gi", mock.CreatedOptions[0].DiskStorage)
+}
+
+func TestCreateDiskSizeOverridesAutoResolvedDisk(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.AllInstanceTypes = &gpusearch.AllInstanceTypesResponse{
+		AllInstanceTypes: []gpusearch.InstanceType{
+			{Type: "g5.xlarge", CloudCredID: "cc-1"},
+		},
+	}
+
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	// No --type: the instance type is auto-resolved to g5.xlarge, which carries a
+	// 500GB disk in the mock catalog. --disk-size must override that resolved disk.
+	cmd.SetArgs([]string{"auto-disk-test", "--disk-size", "750", "--detached"})
+
+	err := cmd.Execute()
+	require.NoError(t, err)
+	require.Len(t, mock.CreatedOptions, 1)
+	assert.Equal(t, "750Gi", mock.CreatedOptions[0].DiskStorage)
+}
+
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
@@ -951,11 +1092,11 @@ func TestFormatInstanceSpecs(t *testing.T) {
 	specs := []InstanceSpec{
 		{Type: "g5.xlarge", DiskGB: 1000},
 		{Type: "p4d.24xlarge", DiskGB: 0},
-		{Type: "g6.xlarge", DiskGB: 500},
+		{Type: "g6.xlarge", DiskGB: 500.5},
 	}
 
 	result := formatInstanceSpecs(specs)
-	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)", result)
+	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500.5GB disk)", result)
 }
 
 func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {

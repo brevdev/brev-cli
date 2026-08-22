@@ -211,8 +211,16 @@ brev search cpu | brev create my-cpu-box
 List instances in active org.
 
 ```bash
-brev ls [flags]
+brev ls [subcommand] [flags]
 ```
+
+**Subcommands:**
+| Subcommand | Lists |
+|---|---|
+| *(none)* | cloud instances |
+| `instances` | cloud instances (explicit form) |
+| `nodes` | external nodes only |
+| `orgs` | organizations |
 
 **Flags:**
 | Flag | Short | Description |
@@ -220,6 +228,37 @@ brev ls [flags]
 | `--org` | `-o` | Override active org |
 | `--all` | | Show all instances in org |
 | `--json` | | Output as JSON |
+
+#### Instances vs. external nodes
+
+Two separate namespaces — an external node never appears in `brev ls`.
+
+```bash
+$ brev ls
+ NAME         STATUS   BUILD      SHELL  ID         MACHINE         GPU
+ my-instance  RUNNING  COMPLETED  READY  jmorx0saw  n2d-standard-2  -
+
+$ brev ls nodes
+ NAME     STATUS
+ my-node  Connected
+```
+
+|  | `brev ls` | `brev ls nodes` |
+|---|---|---|
+| Status values | `RUNNING` / `STOPPED` | `Connected` / `Disconnected` |
+| Columns | NAME, STATUS, BUILD, SHELL, ID, MACHINE, GPU | NAME, STATUS |
+| `stop` / `start` / `delete` | yes | no |
+
+The two `--json` shapes differ — `brev ls nodes --json` returns a top-level
+array, `brev ls --json` wraps rows in `.workspaces`:
+
+```bash
+brev ls nodes --json | jq -r '.[].name'
+brev ls       --json | jq -r '.workspaces[].name'
+
+# Only the nodes that are currently connected
+brev ls nodes --json | jq -r '.[] | select(.status=="Connected") | .name'
+```
 
 When stdout is piped, outputs instance names only (one per line) for chaining.
 
@@ -425,6 +464,51 @@ brev port-forward <instance> -p <local>:<remote>
 ```bash
 brev port-forward my-instance -p 8080:8080
 brev port-forward my-instance -p 3000:3000
+```
+
+### brev ports ls
+List Brev-managed HTTP applications and raw network port mappings for a
+managed instance or registered compute node.
+
+```bash
+brev ports ls <instance-or-node> [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output the port mappings as JSON |
+
+The table output includes endpoint, IP restrictions, public port, destination
+port, and protocol. HTTP applications also include their authorization policy.
+
+For managed instances, this command reads the Brev-managed network
+configuration. It does not synthesize the legacy secure-link or firewall rows
+shown by the Brev console, because those rows do not have real port IDs and
+cannot be used by port-management automation. If the instance is still
+provisioning or uses legacy network access, the command returns an error
+directing the user to the console.
+
+The JSON output is an array with the following stable fields:
+
+| Field | Meaning |
+|------|---------|
+| `port_id` | Unique port mapping ID used by automation |
+| `endpoint` | Public URL or `host:port` endpoint |
+| `public_port` | Externally addressable port |
+| `destination_port` | Port listening on the target machine |
+| `protocol` | `HTTP`, `HTTPS`, `SSH`, `TCP`, `UDP`, or `UNKNOWN` |
+| `allowed_sources` | Allowed IP addresses or CIDR blocks |
+| `authorized_emails` | Identities authorized for an HTTP application |
+| `allow_public_unauthenticated` | Whether an HTTP application is public |
+| `type` | `system`, `user`, `unspecified`, or `unknown` |
+
+**Examples:**
+```bash
+brev ports ls my-instance
+brev ports ls my-node
+brev ports ls my-instance --json
 ```
 
 ## Organization Commands

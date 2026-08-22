@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -111,6 +112,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	}
 	sshName := string(localIdentifier)
 
+	printResolvedSSHTarget(sshName)
 	err = runSSHWithOptions(sshName, host, false)
 	if err == nil {
 		trackShellAnalytics(sstore, workspace)
@@ -132,6 +134,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	printResolvedSSHTarget(sshName)
 	err = util.WaitForSSHToBeAvailable(sshName, s)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -186,8 +189,7 @@ func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1
 }
 
 func runSSHWithPort(target string, port int32, identityFile string) error {
-	sshAgentEval := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
-	cmd := fmt.Sprintf("%s && ssh -i %q -o StrictHostKeyChecking=no -p %d %s", sshAgentEval, identityFile, port, target)
+	cmd := buildSSHWithPortCommand(target, port, identityFile)
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is constructed from API data
 	sshCmd.Stderr = os.Stderr
@@ -204,6 +206,17 @@ func runSSHWithPort(target string, port int32, identityFile string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func buildSSHWithPortCommand(target string, port int32, identityFile string) string {
+	sshAgentEval := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
+	return fmt.Sprintf(
+		"%s && ssh -i %q -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -p %d %s",
+		sshAgentEval,
+		identityFile,
+		port,
+		target,
+	)
 }
 
 func runSSH(sshAlias string, host bool) error {
@@ -246,4 +259,48 @@ func runSSHWithOptions(sshAlias string, host bool, printFailureAdvice bool) erro
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func printResolvedSSHTarget(sshAlias string) {
+	output, err := exec.Command("ssh", "-G", sshAlias).Output() //nolint:gosec // alias is the same internal SSH target passed to ssh
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target: unavailable:", err)
+		return
+	}
+
+	var user, hostname, port, proxyCommand string
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		key, value, found := strings.Cut(scanner.Text(), " ")
+		if !found {
+			continue
+		}
+		switch key {
+		case "user":
+			user = value
+		case "hostname":
+			hostname = value
+		case "port":
+			port = value
+		case "proxycommand":
+			proxyCommand = value
+		}
+	}
+
+	if hostname == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target: unavailable")
+		return
+	}
+
+	target := hostname
+	if user != "" {
+		target = user + "@" + target
+	}
+	if port != "" {
+		target += ":" + port
+	}
+	if proxyCommand != "" && proxyCommand != "none" {
+		target += " via " + proxyCommand
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target:", target)
 }
