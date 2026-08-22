@@ -121,7 +121,11 @@ type GPUSearchStore interface {
 var (
 	searchLong = `Search instance types available on Brev.
 
-Use 'brev search gpu' (default) to find GPU instances.
+The search command has two subcommands:
+  gpu   Search GPU instance types (default when no subcommand is given)
+  cpu   Search CPU-only instance types
+
+Use 'brev search' or 'brev search gpu' to find GPU instances.
 Use 'brev search cpu' to find CPU-only instances.
 
 Features column shows instance capabilities:
@@ -213,9 +217,28 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 		Use:                   "search",
 		Aliases:               []string{},
 		DisableFlagsInUseLine: true,
-		Short:                 "Search and filter instance types",
+		Short:                 "Search GPU and CPU instance types",
 		Long:                  searchLong,
 		Example:               gpuExample,
+		ValidArgs:             []string{"cpu", "gpu"},
+		Args: func(cmd *cobra.Command, args []string) error {
+			// The parent runs GPU search by default when no positional args are
+			// given. Unknown positional tokens (e.g. "cpus", "CPU", "badcmd")
+			// do not match the cpu/gpu subcommands, so cobra falls back to the
+			// parent; reject them with a helpful error instead of silently
+			// running GPU search.
+			if len(args) == 0 {
+				return nil
+			}
+			path := cmd.CommandPath()
+			return breverrors.NewValidationError(fmt.Sprintf(
+				"unknown subcommand %q for %q.\n"+
+					"Available subcommands: cpu, gpu.\n"+
+					"Use %q (default) or %q gpu for GPU instances; use %q cpu for CPU-only instances.\n"+
+					"Run %q --help for more details.",
+				args[0], path, path, path, path, path,
+			))
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Default behavior: GPU search
 			return RunGPUSearch(t, store, gpuName, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
