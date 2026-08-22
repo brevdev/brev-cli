@@ -83,6 +83,9 @@ You can attach a startup script that runs when the instance boots using the
   # Create with a specific GPU type
   brev create my-instance --type g5.xlarge
 
+  # Create in a specific region
+  brev create my-instance --type g5.xlarge --region us-east-1
+
   # Try multiple types in order (fallback chain)
   brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
 
@@ -134,6 +137,7 @@ type CreateResult struct {
 // searchFilterFlags holds the search filter flag values for create
 type searchFilterFlags struct {
 	gpuName       string
+	region        string
 	provider      string
 	minVRAM       float64
 	minTotalVRAM  float64
@@ -145,11 +149,13 @@ type searchFilterFlags struct {
 	flexPorts     bool
 	sortBy        string
 	descending    bool
+	catalogItems  []gpusearch.InstanceType
+	catalogLoaded bool
 }
 
 // hasUserFilters returns true if the user specified any search filter flags
 func (f *searchFilterFlags) hasUserFilters() bool {
-	return f.gpuName != "" || f.provider != "" || f.minVRAM > 0 || f.minTotalVRAM > 0 ||
+	return f.gpuName != "" || f.region != "" || f.provider != "" || f.minVRAM > 0 || f.minTotalVRAM > 0 ||
 		f.minCapability > 0 || f.minDisk > 0 || f.maxBootTime > 0 ||
 		f.stoppable || f.rebootable || f.flexPorts
 }
@@ -231,6 +237,21 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return breverrors.WrapAndTrace(err)
 			}
 
+			if strings.TrimSpace(filters.region) != "" {
+				response, err := gpuCreateStore.GetInstanceTypes(false)
+				if err != nil {
+					return breverrors.WrapAndTrace(err)
+				}
+				filters.catalogLoaded = true
+				if response != nil {
+					filters.catalogItems = response.Items
+				}
+				filters.region, err = canonicalRegion(filters.region, filters.catalogItems)
+				if err != nil {
+					return err
+				}
+			}
+
 			scriptContent, err := parseStartupScript(startupScript)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
@@ -252,10 +273,14 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				LaunchableID:      launchableID,
 				LaunchableInfo:    launchableInfo,
 				ParameterBindings: parameterBindings,
+				Region:            filters.region,
 			}
 
 			opts.InstanceTypes, err = resolveInstanceTypes(cmd, gpuCreateStore, opts, types, &filters)
 			if err != nil {
+				return err
+			}
+			if err := validateTypesSupportRegion(opts.InstanceTypes, filters.region, filters.catalogItems); err != nil {
 				return err
 			}
 
@@ -302,6 +327,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().StringVarP(launchable, "launchable", "l", "", "Launchable ID or URL to deploy (e.g., env-XXX or console URL)")
 	cmd.Flags().StringArrayVar(launchableParams, "param", nil, "Launchable setup value NAME=VALUE (repeatable)")
 
+	cmd.Flags().StringVarP(&filters.region, "region", "r", "", "Region/location to deploy the instance (e.g., us-east-1, us-central1)")
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
 	cmd.Flags().Float64VarP(&filters.minVRAM, "min-vram", "v", 0, "Minimum VRAM per GPU in GB")
@@ -339,6 +365,7 @@ type GPUCreateOptions struct {
 	LaunchableID      string
 	LaunchableInfo    *store.LaunchableResponse // populated when LaunchableID is set
 	ParameterBindings []store.ParameterBinding
+	Region            string
 }
 
 // parseLaunchableID extracts a launchable ID from either a raw ID (env-XXX) or
@@ -481,7 +508,8 @@ func warnLaunchableFlagConflicts(cmd *cobra.Command, t *terminal.Terminal, launc
 	}
 
 	instanceFlagsSet := cmd.Flags().Changed("type") || cmd.Flags().Changed("gpu-name") ||
-		cmd.Flags().Changed("provider") || cmd.Flags().Changed("min-vram")
+		cmd.Flags().Changed("provider") || cmd.Flags().Changed("min-vram") ||
+		cmd.Flags().Changed("region")
 	if instanceFlagsSet {
 		t.Vprintf("Warning: Overriding the launchable's recommended instance configuration. This is not the recommended path and may cause issues.\n\n")
 	}
@@ -674,12 +702,18 @@ func parseStartupScript(value string) (string, error) {
 
 // searchInstances fetches and filters GPU instances using user-provided filters merged with defaults
 func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64, error) {
-	response, err := s.GetInstanceTypes(false)
-	if err != nil {
-		return nil, 0, breverrors.WrapAndTrace(err)
+	items := filters.catalogItems
+	if !filters.catalogLoaded {
+		response, err := s.GetInstanceTypes(false)
+		if err != nil {
+			return nil, 0, breverrors.WrapAndTrace(err)
+		}
+		if response != nil {
+			items = response.Items
+		}
 	}
 
-	if response == nil || len(response.Items) == 0 {
+	if len(items) == 0 {
 		return nil, 0, nil
 	}
 
@@ -695,9 +729,10 @@ func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.
 		sortBy = "price"
 	}
 
-	instances := gpusearch.ProcessInstances(response.Items)
+	instances := gpusearch.ProcessInstances(items)
 	filtered := gpusearch.FilterInstances(instances, filters.gpuName, filters.provider, "", filters.minVRAM,
 		minTotalVRAM, minCapability, 0, minDisk, 0, maxBootTime, filters.stoppable, filters.rebootable, filters.flexPorts, true)
+	filtered = gpusearch.FilterInstancesByRegion(filtered, filters.region)
 	gpusearch.SortInstances(filtered, sortBy, filters.descending)
 
 	return filtered, minDisk, nil
@@ -740,6 +775,70 @@ func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, fil
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+// canonicalRegion returns the catalog spelling for an exact, case-insensitive
+// region match. Create must not forward a partial region name to the provider.
+func canonicalRegion(region string, items []gpusearch.InstanceType) (string, error) {
+	region = strings.TrimSpace(region)
+	for _, item := range items {
+		for _, availableRegion := range item.AvailableLocations {
+			if strings.EqualFold(availableRegion, region) {
+				return availableRegion, nil
+			}
+		}
+	}
+
+	return "", breverrors.NewValidationError(fmt.Sprintf(
+		"region %q is not available; run 'brev search --json' to list valid regions", region,
+	))
+}
+
+func validateTypesSupportRegion(types []InstanceSpec, region string, items []gpusearch.InstanceType) error {
+	if region == "" || len(types) == 0 || len(items) == 0 {
+		return nil
+	}
+
+	var unsupported []string
+	for _, spec := range types {
+		foundType := false
+		supported := false
+		for _, item := range items {
+			if item.Type != spec.Type {
+				continue
+			}
+			foundType = true
+			if instanceTypeSupportsRegion(item, region) {
+				supported = true
+				break
+			}
+		}
+		// A fallback chain remains usable when at least one type supports the
+		// region. Types missing from the public catalog are left for the
+		// authenticated create path to validate.
+		if !foundType || supported {
+			return nil
+		}
+		unsupported = append(unsupported, spec.Type)
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+
+	sort.Strings(unsupported)
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"region %q is not available for instance type(s) %s; run 'brev search --region %s' to find compatible types",
+		region, strings.Join(unsupported, ", "), region,
+	))
+}
+
+func instanceTypeSupportsRegion(item gpusearch.InstanceType, region string) bool {
+	for _, availableRegion := range item.AvailableLocations {
+		if strings.EqualFold(availableRegion, region) {
+			return true
+		}
+	}
+	return false
 }
 
 // orDefault returns val if it's non-zero, otherwise returns def
@@ -968,13 +1067,19 @@ func (c *createContext) validateInstanceTypeAvailability(instanceType string) er
 	if c.allInstanceTypes == nil {
 		return nil
 	}
-	if c.allInstanceTypes.GetCloudCredID(instanceType) != "" {
+	if c.allInstanceTypes.GetCloudCredIDForRegion(instanceType, c.opts.Region) != "" {
 		return nil
 	}
 	if !c.allInstanceTypes.HasInstanceType(instanceType) {
 		return breverrors.NewValidationError(fmt.Sprintf(
 			"instance type %q is not a recognized type; run 'brev search' to see available types",
 			instanceType,
+		))
+	}
+	if c.opts.Region != "" {
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"instance type %q is unavailable in region %q; run 'brev search --region %s' to find a compatible type",
+			instanceType, c.opts.Region, c.opts.Region,
 		))
 	}
 	return breverrors.NewValidationError(fmt.Sprintf(
@@ -1219,8 +1324,13 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	}
 
 	if c.allInstanceTypes != nil {
-		if cloudCredID := c.allInstanceTypes.GetCloudCredID(spec.Type); cloudCredID != "" {
+		if cloudCredID := c.allInstanceTypes.GetCloudCredIDForRegion(spec.Type, c.opts.Region); cloudCredID != "" {
 			cwOptions.WithCloudCredID(cloudCredID)
+		} else if c.opts.Region != "" && c.allInstanceTypes.HasInstanceType(spec.Type) {
+			return nil, breverrors.NewValidationError(fmt.Sprintf(
+				"instance type %q has no available cloud credential in region %q; run 'brev search --region %s' to find a compatible type",
+				spec.Type, c.opts.Region, c.opts.Region,
+			))
 		}
 	}
 
@@ -1232,6 +1342,13 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
+	}
+
+	if c.opts.Region != "" {
+		cwOptions.Location = c.opts.Region
+		// A launchable sub-location belongs to its original location. Let the
+		// provider choose a compatible zone when the CLI overrides the region.
+		cwOptions.SubLocation = ""
 	}
 
 	if cwOptions.CloudCredID == "" {

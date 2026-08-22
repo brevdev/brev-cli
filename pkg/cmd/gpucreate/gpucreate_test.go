@@ -29,6 +29,7 @@ type MockGPUCreateStore struct {
 	CreatedWorkspaces         []*entity.Workspace
 	DeletedWorkspaceIDs       []string
 	FetchedLifeCycleScriptIDs []string
+	AllInstanceTypes          *gpusearch.AllInstanceTypesResponse
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -108,7 +109,7 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 }
 
 func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	return nil, nil
+	return m.AllInstanceTypes, nil
 }
 
 func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
@@ -134,7 +135,8 @@ func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesR
 	return &gpusearch.InstanceTypesResponse{
 		Items: []gpusearch.InstanceType{
 			{
-				Type: "g5.xlarge",
+				Type:               "g5.xlarge",
+				AvailableLocations: []string{"us-east-1", "us-west-2"},
 				SupportedGPUs: []gpusearch.GPU{
 					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
 				},
@@ -893,6 +895,72 @@ func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
 	assert.Empty(t, mock.CreatedWorkspaces)
 }
 
+func TestCreateDryRunAcceptsCanonicalRegion(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"dry-run-region", "--type", "g5.xlarge", "--region", "US-EAST-1", "--dry-run"})
+
+	err := cmd.Execute()
+
+	assert.NoError(t, err)
+	assert.Empty(t, mock.CreatedWorkspaces)
+}
+
+func TestCreateAutoSelectsTypeAndCredentialForRegion(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.AllInstanceTypes = &gpusearch.AllInstanceTypesResponse{
+		AllInstanceTypes: []gpusearch.InstanceType{
+			{
+				Type:               "g5.xlarge",
+				CloudCredID:        "cc-west",
+				AvailableLocations: []string{"us-west-2"},
+			},
+			{
+				Type:               "g5.xlarge",
+				CloudCredID:        "cc-east",
+				AvailableLocations: []string{"us-east-1"},
+			},
+		},
+	}
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"auto-region", "--region", "US-EAST-1", "--detached"})
+
+	err := cmd.Execute()
+
+	require.NoError(t, err)
+	require.Len(t, mock.CreatedOptions, 1)
+	assert.Equal(t, "g5.xlarge", mock.CreatedOptions[0].InstanceType)
+	assert.Equal(t, "us-east-1", mock.CreatedOptions[0].Location)
+	assert.Equal(t, "cc-east", mock.CreatedOptions[0].CloudCredID)
+}
+
+func TestCreateRejectsUnknownRegion(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	cmd := NewCmdGPUCreate(terminal.New(), mock)
+	cmd.SetArgs([]string{"bad-region", "--type", "g5.xlarge", "--region", "moon-1", "--dry-run"})
+
+	err := cmd.Execute()
+
+	assert.ErrorContains(t, err, `region "moon-1" is not available`)
+	assert.Empty(t, mock.CreatedWorkspaces)
+}
+
+func TestRegionValidation(t *testing.T) {
+	items := []gpusearch.InstanceType{
+		{Type: "g5.xlarge", AvailableLocations: []string{"us-west-2"}},
+		{Type: "g5.xlarge", AvailableLocations: []string{"us-east-1"}},
+		{Type: "g6.xlarge", AvailableLocations: []string{"eu-west-1"}},
+	}
+
+	region, err := canonicalRegion(" US-EAST-1 ", items)
+	require.NoError(t, err)
+	assert.Equal(t, "us-east-1", region)
+	assert.NoError(t, validateTypesSupportRegion([]InstanceSpec{{Type: "g5.xlarge"}}, region, items))
+	assert.ErrorContains(t, validateTypesSupportRegion([]InstanceSpec{{Type: "g6.xlarge"}}, region, items), "g6.xlarge")
+	assert.NoError(t, validateTypesSupportRegion([]InstanceSpec{{Type: "g6.xlarge"}, {Type: "g5.xlarge"}}, region, items), "a compatible fallback keeps the chain usable")
+	assert.NoError(t, validateTypesSupportRegion([]InstanceSpec{{Type: "private-type"}}, region, items), "types absent from the public catalog are validated by the authenticated create path")
+}
+
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
@@ -1163,6 +1231,24 @@ func TestValidateInstanceTypeAvailability(t *testing.T) {
 		assert.Contains(t, err.Error(), "brev search")
 	})
 
+	t.Run("returns a region-specific error when credentials exist only elsewhere", func(t *testing.T) {
+		ctx := &createContext{
+			opts: GPUCreateOptions{Region: "us-east-1"},
+			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+				AllInstanceTypes: []gpusearch.InstanceType{
+					{
+						Type:               "hyperstack_H100_sxm5x8",
+						CloudCredID:        "cc-west",
+						AvailableLocations: []string{"us-west-2"},
+					},
+				},
+			},
+		}
+		err := ctx.validateInstanceTypeAvailability("hyperstack_H100_sxm5x8")
+		assert.ErrorContains(t, err, `unavailable in region "us-east-1"`)
+		assert.Contains(t, err.Error(), "brev search --region us-east-1")
+	})
+
 	t.Run("error type is ValidationError so no stack trace is appended", func(t *testing.T) {
 		ctx := &createContext{
 			allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
@@ -1234,15 +1320,21 @@ func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
 	ctx := &createContext{
 		t:     terminal.New(),
 		store: mock,
-		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
+		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4", Region: "us-east-1"},
 		org:   mock.Org,
 		user:  mock.User,
 		piped: true,
 		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
 			AllInstanceTypes: []gpusearch.InstanceType{
 				{
-					Type:        "hyperstack_H100_sxm5x8",
-					CloudCredID: "cc-shadeform",
+					Type:               "hyperstack_H100_sxm5x8",
+					CloudCredID:        "cc-shadeform-west",
+					AvailableLocations: []string{"us-west-2"},
+				},
+				{
+					Type:               "hyperstack_H100_sxm5x8",
+					CloudCredID:        "cc-shadeform-east",
+					AvailableLocations: []string{"us-east-1"},
 				},
 			},
 		},
@@ -1253,7 +1345,8 @@ func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
 
 	assert.False(t, result.hadFailure)
 	require.Len(t, mock.CreatedOptions, 1)
-	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].CloudCredID)
+	assert.Equal(t, "cc-shadeform-east", mock.CreatedOptions[0].CloudCredID)
+	assert.Equal(t, "us-east-1", mock.CreatedOptions[0].Location)
 }
 
 func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
@@ -1266,12 +1359,15 @@ func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
 			Parallel:     1,
 			Name:         "jt-4",
 			LaunchableID: "env-abc",
+			Region:       "us-east-1",
 			LaunchableInfo: &store.LaunchableResponse{
 				ID:   "env-abc",
 				Name: "test-launchable",
 				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
 					CloudCredID:  "cc-from-launchable",
 					InstanceType: "n2-standard-4",
+					Location:     "eu-west-1",
+					SubLocation:  "eu-west-1a",
 				},
 			},
 		},
@@ -1289,4 +1385,48 @@ func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
 	assert.False(t, result.hadFailure, "launchable should not be blocked by pre-flight validation")
 	assert.Len(t, result.successes, 1, "expected the launchable instance to be created")
 	assert.Len(t, mock.CreatedWorkspaces, 1)
+	assert.Equal(t, "cc-from-launchable", mock.CreatedOptions[0].CloudCredID, "private launchable types absent from the catalog keep their configured credential")
+	assert.Equal(t, "us-east-1", mock.CreatedOptions[0].Location, "explicit region should override the launchable default")
+	assert.Empty(t, mock.CreatedOptions[0].SubLocation, "a sub-location from the launchable's original region must not leak into the override")
+}
+
+func TestCreateLaunchableRejectsCredentialFromDifferentRegion(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts: GPUCreateOptions{
+			Count:        1,
+			Parallel:     1,
+			Name:         "jt-4",
+			LaunchableID: "env-abc",
+			Region:       "us-east-1",
+			LaunchableInfo: &store.LaunchableResponse{
+				ID: "env-abc",
+				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+					CloudCredID:  "cc-west",
+					InstanceType: "g5.xlarge",
+					Location:     "us-west-2",
+				},
+			},
+		},
+		org:   mock.Org,
+		user:  mock.User,
+		piped: true,
+		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
+			AllInstanceTypes: []gpusearch.InstanceType{
+				{
+					Type:               "g5.xlarge",
+					CloudCredID:        "cc-west",
+					AvailableLocations: []string{"us-west-2"},
+				},
+			},
+		},
+	}
+	ctx.logf = func(_ string, _ ...interface{}) {}
+
+	result := ctx.createInstancesWithType(InstanceSpec{Type: "g5.xlarge"}, 0, 1)
+
+	assert.True(t, result.hadFailure)
+	assert.Empty(t, mock.CreatedOptions)
 }

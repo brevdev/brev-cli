@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockGPUSearchStore is a mock implementation of GPUSearchStore for testing
@@ -23,7 +24,8 @@ func createTestInstanceTypes() *InstanceTypesResponse {
 	return &InstanceTypesResponse{
 		Items: []InstanceType{
 			{
-				Type: "g5.xlarge",
+				Type:               "g5.xlarge",
+				AvailableLocations: []string{"us-east-1", "us-west-2"},
 				SupportedGPUs: []GPU{
 					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
 				},
@@ -32,7 +34,8 @@ func createTestInstanceTypes() *InstanceTypesResponse {
 				BasePrice: BasePrice{Currency: "USD", Amount: "1.006"},
 			},
 			{
-				Type: "g5.2xlarge",
+				Type:               "g5.2xlarge",
+				AvailableLocations: []string{"eu-west-1"},
 				SupportedGPUs: []GPU{
 					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
 				},
@@ -160,7 +163,23 @@ func TestProcessInstances(t *testing.T) {
 	assert.Equal(t, 24.0, a10gInstance.TotalVRAM)
 	assert.Equal(t, 8.6, a10gInstance.Capability)
 	assert.Equal(t, 4, a10gInstance.VCPUs)
+	assert.Equal(t, []string{"us-east-1", "us-west-2"}, a10gInstance.AvailableRegions)
 	assert.InDelta(t, 1.006, a10gInstance.PricePerHour, 0.001)
+}
+
+func TestFilterInstancesByRegion(t *testing.T) {
+	instances := ProcessInstances(createTestInstanceTypes().Items)
+
+	filtered := FilterInstancesByRegion(instances, "US-EAST")
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "g5.xlarge", filtered[0].Type)
+
+	filtered = FilterInstancesByRegion(instances, "west")
+	require.Len(t, filtered, 2)
+	assert.ElementsMatch(t, []string{"g5.xlarge", "g5.2xlarge"}, []string{filtered[0].Type, filtered[1].Type})
+
+	assert.Len(t, FilterInstancesByRegion(instances, ""), len(instances))
+	assert.Empty(t, FilterInstancesByRegion(instances, "ap-south"))
 }
 
 func TestFilterInstancesByGPUName(t *testing.T) {
@@ -590,8 +609,14 @@ func TestAllInstanceTypesResponseLookup(t *testing.T) {
 	resp := &AllInstanceTypesResponse{
 		AllInstanceTypes: []InstanceType{
 			{
-				Type:        "hyperstack_H100_sxm5x8",
-				CloudCredID: "cc-shadeform",
+				Type:               "hyperstack_H100_sxm5x8",
+				CloudCredID:        "cc-shadeform-east",
+				AvailableLocations: []string{"us-east-1"},
+			},
+			{
+				Type:               "hyperstack_H100_sxm5x8",
+				CloudCredID:        "cc-shadeform-west",
+				AvailableLocations: []string{"us-west-2"},
 			},
 			{
 				Type: "hyperstack_H100x8_NVLINK",
@@ -603,7 +628,12 @@ func TestAllInstanceTypesResponseLookup(t *testing.T) {
 	}
 
 	t.Run("GetCloudCredID returns the cloud credential instead of the workspace group", func(t *testing.T) {
-		assert.Equal(t, "cc-shadeform", resp.GetCloudCredID("hyperstack_H100_sxm5x8"))
+		assert.Equal(t, "cc-shadeform-east", resp.GetCloudCredID("hyperstack_H100_sxm5x8"))
+	})
+
+	t.Run("GetCloudCredIDForRegion selects the credential offering the requested region", func(t *testing.T) {
+		assert.Equal(t, "cc-shadeform-west", resp.GetCloudCredIDForRegion("hyperstack_H100_sxm5x8", "US-WEST-2"))
+		assert.Empty(t, resp.GetCloudCredIDForRegion("hyperstack_H100_sxm5x8", "eu-west-1"))
 	})
 
 	t.Run("GetCloudCredID returns empty when no cloud credential is available", func(t *testing.T) {

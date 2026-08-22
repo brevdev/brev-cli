@@ -90,17 +90,35 @@ type AllInstanceTypesResponse struct {
 
 // GetCloudCredID returns the cloud credential ID for an instance type, or empty string if not found.
 func (r *AllInstanceTypesResponse) GetCloudCredID(instanceType string) string {
+	return r.GetCloudCredIDForRegion(instanceType, "")
+}
+
+// GetCloudCredIDForRegion returns the cloud credential ID for an instance type
+// available in region. Region matching is exact and case-insensitive. An empty
+// region preserves the existing first-match behavior.
+func (r *AllInstanceTypesResponse) GetCloudCredIDForRegion(instanceType, region string) string {
+	region = strings.TrimSpace(region)
 	for _, it := range r.AllInstanceTypes {
-		if it.Type == instanceType {
-			if it.CloudCredID != "" {
-				return it.CloudCredID
-			}
-			if len(it.CloudCreds) > 0 {
-				return it.CloudCreds[0].ID
-			}
+		if it.Type != instanceType || (region != "" && !instanceTypeAvailableInRegion(it, region)) {
+			continue
+		}
+		if it.CloudCredID != "" {
+			return it.CloudCredID
+		}
+		if len(it.CloudCreds) > 0 {
+			return it.CloudCreds[0].ID
 		}
 	}
 	return ""
+}
+
+func instanceTypeAvailableInRegion(instanceType InstanceType, region string) bool {
+	for _, availableRegion := range instanceType.AvailableLocations {
+		if strings.EqualFold(availableRegion, region) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasInstanceType reports whether the type exists in the API listing, independent of capacity.
@@ -137,6 +155,9 @@ Features column shows instance capabilities:
   # Filter by GPU name (case-insensitive, partial match)
   brev search gpu --gpu-name A100
 
+  # Filter by region/location
+  brev search gpu --region us-east-1
+
   # Filter by minimum VRAM per GPU (in GB)
   brev search gpu --min-vram 24
 
@@ -155,6 +176,9 @@ Features column shows instance capabilities:
   # Filter by provider
   brev search cpu --provider aws
 
+  # Filter by region/location
+  brev search cpu --region us-east-1
+
   # Filter by minimum RAM
   brev search cpu --min-ram 64
 
@@ -168,6 +192,7 @@ Features column shows instance capabilities:
 
 // sharedFlags holds flags shared between gpu and cpu subcommands
 type sharedFlags struct {
+	region      string
 	provider    string
 	arch        string
 	minVCPU     int
@@ -184,6 +209,7 @@ type sharedFlags struct {
 
 // addSharedFlags adds common flags to a command
 func addSharedFlags(cmd *cobra.Command, f *sharedFlags) {
+	cmd.Flags().StringVarP(&f.region, "region", "r", "", "Filter by region/location (case-insensitive, partial match)")
 	cmd.Flags().StringVarP(&f.provider, "provider", "p", "", "Filter by provider/cloud (case-insensitive, partial match)")
 	cmd.Flags().StringVar(&f.arch, "arch", "", "Filter by architecture (e.g., x86_64, arm64)")
 	cmd.Flags().IntVar(&f.minVCPU, "min-vcpu", 0, "Minimum number of vCPUs")
@@ -218,7 +244,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 		Example:               gpuExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Default behavior: GPU search
-			return RunGPUSearch(t, store, gpuName, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
+			return RunGPUSearch(t, store, gpuName, shared.region, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
 		},
 	}
 
@@ -252,7 +278,7 @@ func newCmdGPUSubcommand(t *terminal.Terminal, store GPUSearchStore) *cobra.Comm
 		Short:                 "Search GPU instance types",
 		Example:               gpuExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunGPUSearch(t, store, gpuName, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
+			return RunGPUSearch(t, store, gpuName, shared.region, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
 		},
 	}
 
@@ -276,7 +302,7 @@ func newCmdCPUSubcommand(t *terminal.Terminal, store GPUSearchStore) *cobra.Comm
 		Short:                 "Search CPU-only instance types",
 		Example:               cpuExample,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunCPUSearch(t, store, shared.provider, shared.arch, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput)
+			return RunCPUSearch(t, store, shared.region, shared.provider, shared.arch, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput)
 		},
 	}
 
@@ -287,28 +313,29 @@ func newCmdCPUSubcommand(t *terminal.Terminal, store GPUSearchStore) *cobra.Comm
 
 // GPUInstanceInfo holds processed GPU instance information for display
 type GPUInstanceInfo struct {
-	Type           string  `json:"type"`
-	Cloud          string  `json:"cloud"`    // Underlying cloud (e.g., hyperstack, aws, gcp)
-	Provider       string  `json:"provider"` // Provider/aggregator (e.g., shadeform, aws, gcp)
-	GPUName        string  `json:"gpu_name"`
-	GPUCount       int     `json:"gpu_count"`
-	VRAMPerGPU     float64 `json:"vram_per_gpu_gb"`
-	TotalVRAM      float64 `json:"total_vram_gb"`
-	Capability     float64 `json:"capability"`
-	VCPUs          int     `json:"vcpus"`
-	Memory         string  `json:"memory"`
-	RAMInGB        float64 `json:"ram_gb"`
-	Arch           string  `json:"arch"`
-	DiskMin        float64 `json:"disk_min_gb"`
-	DiskMax        float64 `json:"disk_max_gb"`
-	DiskPricePerMo float64 `json:"disk_price_per_gb_mo,omitempty"` // $/GB/month for flexible storage
-	BootTime       int     `json:"boot_time_seconds"`
-	Stoppable      bool    `json:"stoppable"`
-	Rebootable     bool    `json:"rebootable"`
-	FlexPorts      bool    `json:"flex_ports"`
-	TargetDisk     float64 `json:"target_disk_gb,omitempty"`
-	PricePerHour   float64 `json:"price_per_hour"`
-	Manufacturer   string  `json:"-"` // exclude from JSON output
+	Type             string   `json:"type"`
+	Cloud            string   `json:"cloud"`    // Underlying cloud (e.g., hyperstack, aws, gcp)
+	Provider         string   `json:"provider"` // Provider/aggregator (e.g., shadeform, aws, gcp)
+	GPUName          string   `json:"gpu_name"`
+	GPUCount         int      `json:"gpu_count"`
+	VRAMPerGPU       float64  `json:"vram_per_gpu_gb"`
+	TotalVRAM        float64  `json:"total_vram_gb"`
+	Capability       float64  `json:"capability"`
+	VCPUs            int      `json:"vcpus"`
+	Memory           string   `json:"memory"`
+	RAMInGB          float64  `json:"ram_gb"`
+	Arch             string   `json:"arch"`
+	DiskMin          float64  `json:"disk_min_gb"`
+	DiskMax          float64  `json:"disk_max_gb"`
+	DiskPricePerMo   float64  `json:"disk_price_per_gb_mo,omitempty"` // $/GB/month for flexible storage
+	BootTime         int      `json:"boot_time_seconds"`
+	Stoppable        bool     `json:"stoppable"`
+	Rebootable       bool     `json:"rebootable"`
+	FlexPorts        bool     `json:"flex_ports"`
+	AvailableRegions []string `json:"available_regions,omitempty"`
+	TargetDisk       float64  `json:"target_disk_gb,omitempty"`
+	PricePerHour     float64  `json:"price_per_hour"`
+	Manufacturer     string   `json:"-"` // exclude from JSON output
 }
 
 // IsStdoutPiped returns true if stdout is being piped (not a terminal)
@@ -318,7 +345,7 @@ func IsStdoutPiped() bool {
 }
 
 // RunGPUSearch executes the GPU search with filters and sorting
-func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider, arch string, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput, wide bool) error {
+func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, region, provider, arch string, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput, wide bool) error {
 	if err := validateSortOption(sortBy); err != nil {
 		return err
 	}
@@ -338,6 +365,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider,
 
 	// Filter to GPU-only instances
 	filtered := FilterInstances(instances, gpuName, provider, arch, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts, false)
+	filtered = FilterInstancesByRegion(filtered, region)
 
 	if len(filtered) == 0 {
 		return displayEmptyResults(t, "No GPU instances match the specified filters", jsonOutput, piped)
@@ -349,7 +377,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, provider,
 }
 
 // RunCPUSearch executes the CPU search with filters and sorting
-func RunCPUSearch(t *terminal.Terminal, store GPUSearchStore, provider, arch string, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput bool) error {
+func RunCPUSearch(t *terminal.Terminal, store GPUSearchStore, region, provider, arch string, minRAM, minDisk float64, minVCPU, maxBootTime int, stoppable, rebootable, flexPorts bool, sortBy string, descending, jsonOutput bool) error {
 	if err := validateSortOption(sortBy); err != nil {
 		return err
 	}
@@ -369,6 +397,7 @@ func RunCPUSearch(t *terminal.Terminal, store GPUSearchStore, provider, arch str
 
 	// Filter to CPU-only instances
 	filtered := FilterCPUInstances(instances, provider, arch, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts)
+	filtered = FilterInstancesByRegion(filtered, region)
 
 	if len(filtered) == 0 {
 		return displayEmptyResults(t, "No CPU instances match the specified filters", jsonOutput, piped)
@@ -746,24 +775,25 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 		if len(item.SupportedGPUs) == 0 {
 			// CPU-only instance
 			instances = append(instances, GPUInstanceInfo{
-				Type:           item.Type,
-				Cloud:          extractCloud(item.Type, item.Provider),
-				Provider:       item.Provider,
-				GPUName:        "-",
-				GPUCount:       0,
-				VCPUs:          item.VCPU,
-				Memory:         item.Memory,
-				RAMInGB:        ramInGB,
-				Arch:           arch,
-				DiskMin:        diskMin,
-				DiskMax:        diskMax,
-				DiskPricePerMo: diskPricePerMo,
-				BootTime:       bootTime,
-				Stoppable:      item.Stoppable,
-				Rebootable:     item.Rebootable,
-				FlexPorts:      item.CanModifyFirewallRules,
-				PricePerHour:   price,
-				Manufacturer:   "cpu",
+				Type:             item.Type,
+				Cloud:            extractCloud(item.Type, item.Provider),
+				Provider:         item.Provider,
+				GPUName:          "-",
+				GPUCount:         0,
+				VCPUs:            item.VCPU,
+				Memory:           item.Memory,
+				RAMInGB:          ramInGB,
+				Arch:             arch,
+				DiskMin:          diskMin,
+				DiskMax:          diskMax,
+				DiskPricePerMo:   diskPricePerMo,
+				BootTime:         bootTime,
+				Stoppable:        item.Stoppable,
+				Rebootable:       item.Rebootable,
+				FlexPorts:        item.CanModifyFirewallRules,
+				AvailableRegions: item.AvailableLocations,
+				PricePerHour:     price,
+				Manufacturer:     "cpu",
 			})
 			continue
 		}
@@ -779,27 +809,28 @@ func ProcessInstances(items []InstanceType) []GPUInstanceInfo {
 			capability := getGPUCapability(gpu.Name)
 
 			instances = append(instances, GPUInstanceInfo{
-				Type:           item.Type,
-				Cloud:          extractCloud(item.Type, item.Provider),
-				Provider:       item.Provider,
-				GPUName:        gpu.Name,
-				GPUCount:       gpu.Count,
-				VRAMPerGPU:     vramPerGPU,
-				TotalVRAM:      totalVRAM,
-				Capability:     capability,
-				VCPUs:          item.VCPU,
-				Memory:         item.Memory,
-				RAMInGB:        ramInGB,
-				Arch:           arch,
-				DiskMin:        diskMin,
-				DiskMax:        diskMax,
-				DiskPricePerMo: diskPricePerMo,
-				BootTime:       bootTime,
-				Stoppable:      item.Stoppable,
-				Rebootable:     item.Rebootable,
-				FlexPorts:      item.CanModifyFirewallRules,
-				PricePerHour:   price,
-				Manufacturer:   gpu.Manufacturer,
+				Type:             item.Type,
+				Cloud:            extractCloud(item.Type, item.Provider),
+				Provider:         item.Provider,
+				GPUName:          gpu.Name,
+				GPUCount:         gpu.Count,
+				VRAMPerGPU:       vramPerGPU,
+				TotalVRAM:        totalVRAM,
+				Capability:       capability,
+				VCPUs:            item.VCPU,
+				Memory:           item.Memory,
+				RAMInGB:          ramInGB,
+				Arch:             arch,
+				DiskMin:          diskMin,
+				DiskMax:          diskMax,
+				DiskPricePerMo:   diskPricePerMo,
+				BootTime:         bootTime,
+				Stoppable:        item.Stoppable,
+				Rebootable:       item.Rebootable,
+				FlexPorts:        item.CanModifyFirewallRules,
+				AvailableRegions: item.AvailableLocations,
+				PricePerHour:     price,
+				Manufacturer:     gpu.Manufacturer,
 			})
 		}
 	}
@@ -918,6 +949,26 @@ func FilterInstances(instances []GPUInstanceInfo, gpuName, provider, arch string
 		}
 		if opts.matchesFilter(inst) {
 			filtered = append(filtered, inst)
+		}
+	}
+	return filtered
+}
+
+// FilterInstancesByRegion returns instances available in a region. Search uses
+// case-insensitive partial matching so users can discover provider region names.
+func FilterInstancesByRegion(instances []GPUInstanceInfo, region string) []GPUInstanceInfo {
+	region = strings.TrimSpace(region)
+	if region == "" {
+		return instances
+	}
+
+	var filtered []GPUInstanceInfo
+	for _, inst := range instances {
+		for _, availableRegion := range inst.AvailableRegions {
+			if strings.Contains(strings.ToLower(availableRegion), strings.ToLower(region)) {
+				filtered = append(filtered, inst)
+				break
+			}
 		}
 	}
 	return filtered
