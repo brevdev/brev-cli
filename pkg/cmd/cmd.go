@@ -374,7 +374,7 @@ func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
 func accessCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
-		if isAccessCommand(sub) {
+		if sub.IsAvailableCommand() && isAccessCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}

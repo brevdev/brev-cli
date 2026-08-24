@@ -71,16 +71,26 @@ func (s *fakeNodeService) ListNodes(
 	return connect.NewResponse(&devplanev1.ListNodesResponse{Items: s.nodes}), nil
 }
 
-func TestPortsCommandUsesListSubcommand(t *testing.T) {
+func TestPortsCommandUsesSubcommands(t *testing.T) {
 	cmd := NewCmdPorts(&fakeStore{})
-	commands := cmd.Commands()
+	assert.Equal(t, "[beta] Manage ports for an instance or external node", cmd.Short)
+	assert.True(t, cmd.Hidden)
 
-	require.Len(t, commands, 1)
-	assert.Equal(t, "ls", commands[0].Name())
-	assert.Equal(t, "ls <instance-or-node>", commands[0].Use)
-	assert.Contains(t, commands[0].Annotations, "access")
+	listCmd, _, err := cmd.Find([]string{"ls"})
+	require.NoError(t, err)
+	assert.Equal(t, "ls <instance-or-node>", listCmd.Use)
+	assert.Equal(t, "[beta] List Brev-managed ports for an instance or external node", listCmd.Short)
+	assert.True(t, listCmd.Hidden)
+	assert.Contains(t, listCmd.Annotations, "access")
 	assert.Nil(t, cmd.Flags().Lookup("json"))
-	assert.NotNil(t, commands[0].Flags().Lookup("json"))
+	assert.NotNil(t, listCmd.Flags().Lookup("json"))
+
+	createCmd, _, err := cmd.Find([]string{"create"})
+	require.NoError(t, err)
+	assert.Equal(t, "create <instance-or-node> <port>", createCmd.Use)
+	assert.Equal(t, "[beta] Create a public port on an instance or external node", createCmd.Short)
+	assert.True(t, createCmd.Hidden)
+	assert.ElementsMatch(t, []string{"open", "add"}, createCmd.Aliases)
 }
 
 func TestRunEnvironmentJSON(t *testing.T) {
