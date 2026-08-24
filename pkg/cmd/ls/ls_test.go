@@ -112,7 +112,7 @@ func resolveTestCLIAuth(t *testing.T, s *mockLsStore) authpkg.CLIAuth {
 
 func runLs(t *testing.T, term *terminal.Terminal, s *mockLsStore, args []string, showAll bool) error {
 	t.Helper()
-	return RunLs(term, resolveTestCLIAuth(t, s), s, args, "", showAll, true)
+	return RunLs(term, resolveTestCLIAuth(t, s), s, args, showAll, true)
 }
 
 func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
@@ -192,7 +192,7 @@ func TestGetOrgForRunLs_APIKeyUsesActiveOrgDisplayName(t *testing.T) {
 	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-login"}
 	s.org = &entity.Organization{ID: "org-login", Name: "friendly-org"}
 
-	org, err := getOrgForRunLs(resolveTestCLIAuth(t, s), s, "")
+	org, err := getOrgForRunLs(s)
 	if err != nil {
 		t.Fatalf("getOrgForRunLs returned error: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestRunLs_ShowAllTable(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, resolveTestCLIAuth(t, s), s, nil, "", true, false)
+		err := RunLs(term, resolveTestCLIAuth(t, s), s, nil, true, false)
 		if err != nil {
 			t.Fatalf("RunLs --all returned error: %v", err)
 		}

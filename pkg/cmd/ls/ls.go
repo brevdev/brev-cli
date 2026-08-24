@@ -16,7 +16,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
@@ -49,7 +48,6 @@ type LsStore interface {
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
-	var org string
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
@@ -91,7 +89,7 @@ with other commands like stop, start, or delete.`,
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			err = RunLs(t, cliAuth, loginLsStore, args, org, showAll, jsonOutput)
+			err = RunLs(t, cliAuth, loginLsStore, args, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -100,13 +98,6 @@ with other commands like stop, start, or delete.`,
 			}
 			return nil
 		},
-	}
-
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginLsStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and external nodes in org")
@@ -128,53 +119,21 @@ func trackLsAnalytics(cliAuth auth.CLIAuth) {
 	_ = analytics.TrackEvent(data)
 }
 
-func getOrgForRunLs(cliAuth auth.CLIAuth, lsStore LsStore, orgflag string) (*entity.Organization, error) {
-	var org *entity.Organization
-	if cliAuth.IsAPIKey() {
-		if orgflag != "" {
-			return nil, breverrors.NewValidationError("api key auth is scoped to the org saved during login; --org is not supported")
-		}
-		org, err := lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if org == nil {
-			return nil, breverrors.NewValidationError("no orgs exist")
-		}
-		return org, nil
+func getOrgForRunLs(lsStore LsStore) (*entity.Organization, error) {
+	org, err := lsStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
-
-	if orgflag != "" {
-		var orgs []entity.Organization
-		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", orgflag))
-		} else if len(orgs) > 1 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", orgflag))
-		}
-
-		org = &orgs[0]
-	} else {
-		var currOrg *entity.Organization
-		currOrg, err := lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if currOrg == nil {
-			return nil, breverrors.NewValidationError("no orgs exist")
-		}
-		org = currOrg
+	if org == nil {
+		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
+func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
 
-	org, err := getOrgForRunLs(cliAuth, lsStore, orgflag)
+	org, err := getOrgForRunLs(lsStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

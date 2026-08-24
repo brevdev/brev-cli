@@ -52,9 +52,9 @@ type Auth interface {
 }
 
 // loginStore must be a no prompt store
-func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.Command {
+func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, loginAuth Auth) *cobra.Command {
 	opts := LoginOptions{
-		Auth:       auth,
+		Auth:       loginAuth,
 		LoginStore: loginStore,
 	}
 
@@ -75,6 +75,11 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		Args:                  cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			apiKeyLogin := strings.TrimSpace(apiKey) != ""
+			if apiKeyLogin {
+				if orgFlag := cmd.Flags().Lookup("org"); orgFlag != nil && strings.TrimSpace(orgFlag.Value.String()) != "" {
+					return breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+				}
+			}
 			err := opts.RunLogin(t, loginToken, apiKey, apiKeyOrgID, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
 				// if err is ImportIDEConfigError, log err with sentry but continue

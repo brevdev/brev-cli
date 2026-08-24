@@ -131,6 +131,25 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 
 // returns the 'set'/active organization or the default one or nil if no orgs exist
 func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	if (s.organizationOverride != nil || s.organizationOverrideName != "") && auth.IsAPIKeyAuthStore(&s) {
+		return nil, breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+	}
+	if s.organizationOverride != nil {
+		return s.organizationOverride, nil
+	}
+	if s.organizationOverrideName != "" {
+		orgs, err := s.GetOrganizations(&GetOrganizationsOptions{Name: s.organizationOverrideName})
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", s.organizationOverrideName))
+		}
+		if len(orgs) > 1 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", s.organizationOverrideName))
+		}
+		return &orgs[0], nil
+	}
 	org, err := s.GetActiveOrganizationOrNil()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

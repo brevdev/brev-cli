@@ -8,6 +8,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,6 +180,24 @@ func TestNewCmdLoginWithAPIKey_SkipsPostLoginHooks(t *testing.T) {
 	assert.Equal(t, 0, loginStore.getCurrentUserCalls)
 	assert.Equal(t, 0, loginStore.updateUserCalls)
 	assert.Equal(t, 0, loginStore.userHomeDirCalls)
+}
+
+func TestNewCmdLoginWithAPIKeyRejectsGlobalOrgOverride(t *testing.T) {
+	auth := &mockLoginAuth{}
+	loginStore := &mockLoginStore{}
+	loginCmd := NewCmdLogin(terminal.New(), loginStore, auth)
+	rootCmd := &cobra.Command{Use: "brev"}
+	rootCmd.PersistentFlags().String("org", "", "organization")
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.SetOut(&bytes.Buffer{})
+	rootCmd.SetErr(&bytes.Buffer{})
+	rootCmd.SetArgs([]string{"login", "--api-key", testAPIKey, "--org-id", "org-test", "--org", "other"})
+
+	err := rootCmd.Execute()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--org is not supported")
+	assert.Equal(t, 0, auth.apiKeyCalls)
 }
 
 func TestNewCmdLogin_HidesAPIKeyFlagsFromHelp(t *testing.T) {
