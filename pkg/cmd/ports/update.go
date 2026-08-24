@@ -61,6 +61,7 @@ func newCmdUpdatePort(portStore Store, prompter updatePrompter) *cobra.Command {
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "update <instance-or-node>",
 		Aliases:               []string{"edit"},
+		Hidden:                true,
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] Update a public port on an instance or external node",
 		Example: `

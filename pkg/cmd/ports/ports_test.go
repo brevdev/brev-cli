@@ -103,6 +103,7 @@ func TestPortsCommandUsesSubcommands(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "update <instance-or-node>", updateCmd.Use)
 	assert.Equal(t, "[beta] Update a public port on an instance or external node", updateCmd.Short)
+	assert.True(t, updateCmd.Hidden)
 }
 
 func TestRunEnvironmentJSON(t *testing.T) {
