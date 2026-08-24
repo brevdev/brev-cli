@@ -557,6 +557,7 @@ brev ports close <instance-or-node> [flags]
 ```
 
 **Flags:**
+
 | Flag | Description |
 |------|-------------|
 | `--id` | Close the exact mapping with this `port_id` |
