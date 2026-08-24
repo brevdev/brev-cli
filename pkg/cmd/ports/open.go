@@ -29,6 +29,7 @@ func NewCmdCreatePort(portStore Store) *cobra.Command {
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "create <instance-or-node> <port>",
 		Aliases:               []string{"open", "add"},
+		Hidden:                true,
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] Create a public port on an instance or external node",
 		Example: "\n  brev ports create my-instance 8080" +
