@@ -41,6 +41,7 @@ func newCmdClosePort(portStore Store, prompter closePrompter) *cobra.Command {
 		Annotations:           map[string]string{"access": ""},
 		Use:                   "close <instance-or-node>",
 		Aliases:               []string{"remove"},
+		Hidden:                true,
 		DisableFlagsInUseLine: true,
 		Short:                 "[beta] Close public ports on an instance or external node",
 		Example: `

@@ -96,6 +96,7 @@ func TestPortsCommandUsesSubcommands(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "close <instance-or-node>", closeCmd.Use)
 	assert.Equal(t, "[beta] Close public ports on an instance or external node", closeCmd.Short)
+	assert.True(t, closeCmd.Hidden)
 }
 
 func TestRunEnvironmentJSON(t *testing.T) {
