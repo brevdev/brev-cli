@@ -3,6 +3,7 @@ package ports
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 
 	devplanev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -39,6 +40,10 @@ type fakeUpdateEnvironmentService struct {
 	sourcesReq    *devplanev1.EnvironmentServiceSetPortAllowedSourcesRequest
 	protocolReq   *devplanev1.EnvironmentServiceSetHTTPPortProtocolRequest
 	accessReq     *devplanev1.EnvironmentServiceSetHTTPPortAccessRequest
+	failMethod    string
+	nilPortMethod string
+	rpcErr        error
+	calls         []string
 }
 
 func (s *fakeUpdateEnvironmentService) GetNetworkInfo(
@@ -60,7 +65,15 @@ func (s *fakeUpdateEnvironmentService) SetPortTarget(
 	req *connect.Request[devplanev1.EnvironmentServiceSetPortTargetRequest],
 ) (*connect.Response[devplanev1.EnvironmentServiceSetPortTargetResponse], error) {
 	s.targetReq = req.Msg
-	return connect.NewResponse(&devplanev1.EnvironmentServiceSetPortTargetResponse{Port: s.responsePort}), nil
+	s.calls = append(s.calls, "target")
+	if s.failMethod == "target" {
+		return nil, s.rpcErr
+	}
+	port := s.responsePort
+	if s.nilPortMethod == "target" {
+		port = nil
+	}
+	return connect.NewResponse(&devplanev1.EnvironmentServiceSetPortTargetResponse{Port: port}), nil
 }
 
 func (s *fakeUpdateEnvironmentService) SetPortAllowedSources(
@@ -68,7 +81,15 @@ func (s *fakeUpdateEnvironmentService) SetPortAllowedSources(
 	req *connect.Request[devplanev1.EnvironmentServiceSetPortAllowedSourcesRequest],
 ) (*connect.Response[devplanev1.EnvironmentServiceSetPortAllowedSourcesResponse], error) {
 	s.sourcesReq = req.Msg
-	return connect.NewResponse(&devplanev1.EnvironmentServiceSetPortAllowedSourcesResponse{Port: s.responsePort}), nil
+	s.calls = append(s.calls, "sources")
+	if s.failMethod == "sources" {
+		return nil, s.rpcErr
+	}
+	port := s.responsePort
+	if s.nilPortMethod == "sources" {
+		port = nil
+	}
+	return connect.NewResponse(&devplanev1.EnvironmentServiceSetPortAllowedSourcesResponse{Port: port}), nil
 }
 
 func (s *fakeUpdateEnvironmentService) SetHTTPPortProtocol(
@@ -76,7 +97,15 @@ func (s *fakeUpdateEnvironmentService) SetHTTPPortProtocol(
 	req *connect.Request[devplanev1.EnvironmentServiceSetHTTPPortProtocolRequest],
 ) (*connect.Response[devplanev1.EnvironmentServiceSetHTTPPortProtocolResponse], error) {
 	s.protocolReq = req.Msg
-	return connect.NewResponse(&devplanev1.EnvironmentServiceSetHTTPPortProtocolResponse{Port: s.responsePort}), nil
+	s.calls = append(s.calls, "protocol")
+	if s.failMethod == "protocol" {
+		return nil, s.rpcErr
+	}
+	port := s.responsePort
+	if s.nilPortMethod == "protocol" {
+		port = nil
+	}
+	return connect.NewResponse(&devplanev1.EnvironmentServiceSetHTTPPortProtocolResponse{Port: port}), nil
 }
 
 func (s *fakeUpdateEnvironmentService) SetHTTPPortAccess(
@@ -84,7 +113,15 @@ func (s *fakeUpdateEnvironmentService) SetHTTPPortAccess(
 	req *connect.Request[devplanev1.EnvironmentServiceSetHTTPPortAccessRequest],
 ) (*connect.Response[devplanev1.EnvironmentServiceSetHTTPPortAccessResponse], error) {
 	s.accessReq = req.Msg
-	return connect.NewResponse(&devplanev1.EnvironmentServiceSetHTTPPortAccessResponse{Port: s.responsePort}), nil
+	s.calls = append(s.calls, "access")
+	if s.failMethod == "access" {
+		return nil, s.rpcErr
+	}
+	port := s.responsePort
+	if s.nilPortMethod == "access" {
+		port = nil
+	}
+	return connect.NewResponse(&devplanev1.EnvironmentServiceSetHTTPPortAccessResponse{Port: port}), nil
 }
 
 type fakeUpdateNodeService struct {
@@ -234,6 +271,85 @@ func TestUpdateExternalNodeHTTPProtocolAndPublicAccess(t *testing.T) {
 	assert.True(t, service.accessReq.GetAllowPublicUnauthenticated())
 	assert.Contains(t, out.String(), `"protocol": "HTTPS"`)
 	assert.Contains(t, out.String(), `"allow_public_unauthenticated": true`)
+}
+
+func TestUpdateExternalNodeDestinationAndAllowedSources(t *testing.T) {
+	updated := testTCPPort("nport-one", 41001)
+	updated.ServerPort = 9090
+	updated.AllowedSources = []string{"203.0.113.10/32"}
+	service := &fakeUpdateNodeService{
+		node: &devplanev1.ExternalNode{
+			ExternalNodeId: "unode123",
+			Name:           "my-node",
+			Ports:          []*devplanev1.Port{testTCPPort("nport-one", 41001)},
+		},
+		responsePort: updated,
+	}
+	_, handler := devplanev1connect.NewExternalNodeServiceHandler(service)
+	newTestServer(t, handler)
+	store := &fakeStore{
+		user: &entity.User{ID: "user1", Email: "me@example.com"},
+		org:  &entity.Organization{ID: "org1"},
+	}
+	cmd := newCmdUpdatePort(store, &fakeUpdatePrompter{selectIndex: -1})
+	cmd.SetArgs([]string{
+		"my-node", "--id", "nport-one", "--destination-port", "9090",
+		"--allow", "203.0.113.10/32",
+	})
+
+	err := cmd.Execute()
+
+	require.NoError(t, err)
+	require.NotNil(t, service.targetReq)
+	assert.Equal(t, "nport-one", service.targetReq.GetPortId())
+	assert.Equal(t, int32(9090), service.targetReq.GetPortNumber())
+	require.NotNil(t, service.sourcesReq)
+	assert.Equal(t, []string{"203.0.113.10/32"}, service.sourcesReq.GetAllowedSources())
+}
+
+func TestUpdateStopsAfterMutationFailure(t *testing.T) {
+	tests := []struct {
+		name          string
+		failMethod    string
+		nilPortMethod string
+		wantCalls     []string
+		wantErr       string
+	}{
+		{name: "target RPC error", failMethod: "target", wantCalls: []string{"target"}, wantErr: "update destination port"},
+		{name: "target missing port", nilPortMethod: "target", wantCalls: []string{"target"}, wantErr: "set destination port: API returned no port"},
+		{name: "sources RPC error", failMethod: "sources", wantCalls: []string{"target", "sources"}, wantErr: "update allowed sources"},
+		{name: "sources missing port", nilPortMethod: "sources", wantCalls: []string{"target", "sources"}, wantErr: "set allowed sources: API returned no port"},
+		{name: "protocol RPC error", failMethod: "protocol", wantCalls: []string{"target", "sources", "protocol"}, wantErr: "update HTTP protocol"},
+		{name: "protocol missing port", nilPortMethod: "protocol", wantCalls: []string{"target", "sources", "protocol"}, wantErr: "set HTTP protocol: API returned no port"},
+		{name: "access RPC error", failMethod: "access", wantCalls: []string{"target", "sources", "protocol", "access"}, wantErr: "update HTTP access"},
+		{name: "access missing port", nilPortMethod: "access", wantCalls: []string{"target", "sources", "protocol", "access"}, wantErr: "set HTTP access: API returned no port"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &fakeUpdateEnvironmentService{
+				t:             t,
+				expectedEnvID: "env123",
+				ports:         []*devplanev1.Port{testHTTPPort(8080)},
+				responsePort:  testHTTPPort(9090),
+				failMethod:    tt.failMethod,
+				nilPortMethod: tt.nilPortMethod,
+				rpcErr:        connect.NewError(connect.CodeInternal, errors.New("boom")),
+			}
+			_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
+			newTestServer(t, handler)
+			cmd := newCmdUpdatePort(newUpdateEnvironmentStore(), &fakeUpdatePrompter{selectIndex: -1})
+			cmd.SetArgs([]string{
+				"my-instance", "--id", "http-one", "--destination-port", "9090",
+				"--allow", "203.0.113.10/32", "--protocol", "https", "--authorize", "next@example.com",
+			})
+
+			err := cmd.Execute()
+
+			assert.ErrorContains(t, err, tt.wantErr)
+			assert.Equal(t, tt.wantCalls, service.calls)
+		})
+	}
 }
 
 func TestUpdateHTTPAuthorizedEmails(t *testing.T) {
