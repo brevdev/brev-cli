@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -117,11 +115,7 @@ func RunPortforward(t *terminal.Terminal, pfStore PortforwardStore, nameOrID str
 
 	t.Vprintf("Port forwarding...\n")
 	t.Vprintf("localhost:%s -> %s:%s\n", localPort, sshName, remotePort)
-	_, err = RunSSHPortForward("-L", localPort, remotePort, sshName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
+	return runPortForwardWithRefresh(t, pfStore, localPort, remotePort, sshName)
 }
 
 func portForwardExternalNode(t *terminal.Terminal, pfStore PortforwardStore, res *refresh.RefreshRes, node *nodev1.ExternalNode, localPort, remotePort string) error {
@@ -159,42 +153,42 @@ func portForwardExternalNode(t *terminal.Terminal, pfStore PortforwardStore, res
 	// TODO there isn't support for killing the port forward in either case, and no ClosePort for external node
 	alias := info.SSHAlias()
 	t.Vprintf("Setting up local forward: localhost:%s -> %s:%s\n", localPort, alias, remotePort)
-	_, err = RunSSHPortForward("-L", localPort, remotePort, alias)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
+	return runPortForwardWithRefresh(t, pfStore, localPort, remotePort, alias)
 }
 
 func RunSSHPortForward(forwardType string, localPort string, remotePort string, sshName string) (*os.Process, error) {
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, os.Interrupt)
-	defer signal.Stop(signals)
-
 	portMapping := fmt.Sprintf("%s:127.0.0.1:%s", localPort, remotePort)
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, breverrors.Wrap(err, "failed to get user home directory")
-	}
-
-	keyPath := filepath.Join(homeDir, ".brev", "brev.pem")
-
-	if _, err = os.Stat(keyPath); os.IsNotExist(err) {
-		return nil, breverrors.Wrap(err, fmt.Sprintf("SSH key not found at %s. Please ensure your Brev SSH key is properly set up.", keyPath))
-	}
-
-	cmdSHH := exec.Command("ssh", "-i", keyPath, "-T", forwardType, portMapping, sshName, "-N") //nolint:gosec //ok
+	cmdSHH := exec.Command("ssh", "-T", forwardType, portMapping, sshName, "-N") //nolint:gosec //ok
 	cmdSHH.Stdin = os.Stdin
 	cmdSHH.Stdout = os.Stdout
 	cmdSHH.Stderr = os.Stderr
 
-	err = cmdSHH.Start()
-	if err != nil {
+	if err := cmdSHH.Start(); err != nil {
 		return nil, breverrors.Wrap(err, "Failed to start SSH command")
 	}
 
 	return cmdSHH.Process, nil
+}
+
+func runPortForwardWithRefresh(t *terminal.Terminal, pfStore PortforwardStore, localPort, remotePort, sshName string) error {
+	s := t.NewSpinner()
+	if err := util.WaitForSSHToBeAvailable(sshName, s); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "\nConnection failed, refreshing SSH config and retrying...")
+		refreshRes := refresh.RunRefreshAsync(pfStore)
+		if err := refreshRes.Await(); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if err := util.WaitForSSHToBeAvailable(sshName, s); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+	}
+
+	_, err := RunSSHPortForward("-L", localPort, remotePort, sshName)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func startInput(t *terminal.Terminal) string {

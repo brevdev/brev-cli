@@ -26,6 +26,8 @@ import (
 // ExternalNodeSSHEntry holds pre-resolved SSH details for an external node.
 type ExternalNodeSSHEntry struct {
 	Alias    string
+	NodeID   string
+	PortID   string
 	Hostname string
 	Port     int32
 	User     string
@@ -64,27 +66,69 @@ const SSHConfigEntryTemplateNode = `Host {{ .Alias }}
 
 `
 
+const SSHCertRequiredTemplateNode = `Match host {{ .Alias }} exec {{ .ExecCommand }}
+  HostName {{ .Hostname }}
+  User {{ .User }}
+  Port {{ .Port }}
+  IdentityFile {{ .IdentityFile }}
+  IdentitiesOnly yes
+  PasswordAuthentication no
+  AddKeysToAgent yes
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ForwardAgent yes
+
+`
+
 type externalNodeSSHConfigEntry struct {
 	Alias        string
 	Hostname     string
 	User         string
 	Port         int32
 	IdentityFile string
+	ExecCommand  string
 }
 
-func makeSSHConfigEntryForNode(node ExternalNodeSSHEntry, privateKeyPath string) (string, error) {
-	entry := externalNodeSSHConfigEntry{
+func makeSSHConfigEntryForNode(node ExternalNodeSSHEntry, privateKeyPath string, certRequired bool, brevDir string) (string, error) {
+	hostEntry := externalNodeSSHConfigEntry{
 		Alias:        node.Alias,
 		Hostname:     node.Hostname,
 		User:         node.User,
 		Port:         node.Port,
 		IdentityFile: "\"" + privateKeyPath + "\"",
 	}
-	tmpl, err := template.New(node.Alias).Parse(SSHConfigEntryTemplateNode)
+	hostTmpl, err := template.New(node.Alias).Parse(SSHConfigEntryTemplateNode)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	return tmplAndValToString(tmpl, entry)
+	hostVal, err := tmplAndValToString(hostTmpl, hostEntry)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+
+	if certRequired && node.NodeID != "" && node.PortID != "" {
+		certKeyPath := sshcert.KeyPath(brevDir, node.NodeID+"-"+node.User)
+		certEntry := externalNodeSSHConfigEntry{
+			Alias:        node.Alias,
+			Hostname:     node.Hostname,
+			User:         node.User,
+			Port:         node.Port,
+			IdentityFile: "\"" + certKeyPath + "\"",
+			ExecCommand:  strconv.Quote(makeMintCertExecCommandForNode(node.NodeID, node.PortID, node.User, certKeyPath)),
+		}
+		certTmpl, err := template.New(node.Alias).Parse(SSHCertRequiredTemplateNode)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		certVal, err := tmplAndValToString(certTmpl, certEntry)
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		return certVal + hostVal, nil
+	}
+
+	return hostVal, nil
 }
 
 type ConfigUpdaterStore interface {
@@ -253,7 +297,7 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath), toWindowsPath(cloudflaredBinaryPath), WindowsSupport)
+	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath), toWindowsPath(cloudflaredBinaryPath), WindowsSupport, WindowsSupport)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -276,13 +320,16 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace, nodes
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkPath, cloudflaredBinaryPath, true)
+	// call flag once to avoid calling once per env
+	certRequired := isSSHCertRequired()
+	sshConfig, err := makeNewSSHConfig(configPath, workspaces, pkPath, cloudflaredBinaryPath, true, certRequired)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
 
+	brevDir := filepath.Dir(pkPath)
 	for _, node := range nodes {
-		entry, err := makeSSHConfigEntryForNode(node, pkPath)
+		entry, err := makeSSHConfigEntryForNode(node, pkPath, certRequired, brevDir)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -292,11 +339,11 @@ func (s SSHConfigurerV2) CreateNewSSHConfig(workspaces []entity.Workspace, nodes
 	return sshConfig, nil
 }
 
-func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, pkpath string, cloudflaredBinaryPath string, supportsCertHook bool) (string, error) {
+func makeNewSSHConfig(configPath string, workspaces []entity.Workspace, pkpath string, cloudflaredBinaryPath string, supportsCertHook bool, certRequired bool) (string, error) {
 	sshConfig := fmt.Sprintf("# included in %s\n", configPath)
 	for _, w := range workspaces {
 
-		entry, err := makeSSHConfigEntryV2(w, pkpath, cloudflaredBinaryPath, supportsCertHook)
+		entry, err := makeSSHConfigEntryV2(w, pkpath, cloudflaredBinaryPath, supportsCertHook, certRequired)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
@@ -412,7 +459,7 @@ func tmplAndValToString(tmpl *template.Template, val interface{}) (string, error
 
 var isSSHCertRequired = analytics.IsSSHCertRequired
 
-func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string, supportsCertHook bool) (string, error) { //nolint:funlen,gocyclo // ok
+func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, cloudflaredBinaryPath string, supportsCertHook bool, certRequired bool) (string, error) { //nolint:funlen,gocyclo // ok
 	alias := string(workspace.GetLocalIdentifier())
 	brevDir := filepath.Dir(privateKeyPath)
 	privateKeyPath = "\"" + privateKeyPath + "\""
@@ -421,7 +468,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 	hostname := workspace.GetSSHHostname()
 
 	certEligible := supportsCertHook && workspace.SSHCertEligible && workspace.PortID != ""
-	certRequired := certEligible && isSSHCertRequired()
+	useCert := certEligible && certRequired
 	certKeyPath := "\"" + sshcert.KeyPath(brevDir, workspace.ID) + "\""
 	certExec := makeMintCertExecCommand(workspace.ID, workspace.PortID, user, sshcert.KeyPath(brevDir, workspace.ID))
 
@@ -440,7 +487,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 			Port:         port,
 		}
 		tmplStr := SSHConfigEntryTemplateV3
-		if certRequired {
+		if useCert {
 			entry.IdentityFile = certKeyPath
 			entry.ExecCommand = strconv.Quote(certExec)
 			tmplStr = SSHCertRequiredTemplateV3
@@ -467,7 +514,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 			Dir:          projPath,
 		}
 		tmplStr := SSHConfigEntryTemplateV2
-		if certRequired {
+		if useCert {
 			entry.IdentityFile = certKeyPath
 			entry.ExecCommand = strconv.Quote(certExec)
 			tmplStr = SSHCertRequiredTemplateV2
@@ -564,6 +611,20 @@ func makeMintCertExecCommand(envID, portID, linuxUser, outKey string) string {
 	return shellescape.QuoteCommand([]string{
 		brevBin, "mint-cert",
 		"--env", envID,
+		"--port", portID,
+		"--linux-user", linuxUser,
+		"--out-key", outKey,
+	})
+}
+
+func makeMintCertExecCommandForNode(nodeID, portID, linuxUser, outKey string) string {
+	brevBin, err := os.Executable()
+	if err != nil {
+		brevBin = "brev"
+	}
+	return shellescape.QuoteCommand([]string{
+		brevBin, "mint-cert",
+		"--node", nodeID,
 		"--port", portID,
 		"--linux-user", linuxUser,
 		"--out-key", outKey,

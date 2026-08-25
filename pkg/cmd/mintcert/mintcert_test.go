@@ -5,13 +5,13 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/spf13/afero"
 	"golang.org/x/crypto/ssh"
 
@@ -19,11 +19,8 @@ import (
 )
 
 type fakeStore struct {
-	token      string
-	org        *entity.Organization
-	err        error
-	workspaces []entity.Workspace
-	user       *entity.User
+	token string
+	err   error
 }
 
 func (f fakeStore) GetAccessToken() (string, error) {
@@ -33,28 +30,20 @@ func (f fakeStore) GetAccessToken() (string, error) {
 	return f.token, nil
 }
 
-func (f fakeStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
-	return f.org, nil
-}
-
-func (f fakeStore) GetAuthTokens() (*entity.AuthTokens, error) {
-	return nil, nil
-}
-
-func (f fakeStore) GetCurrentUser() (*entity.User, error) {
-	return f.user, nil
-}
-
-func (f fakeStore) GetWorkspaceByNameOrID(_ string, _ string) ([]entity.Workspace, error) {
-	return f.workspaces, nil
-}
-
 type certIssuerFunc struct {
-	fn func(context.Context, certIssueRequest) (string, error)
+	fn     func(context.Context, certIssueRequest) (string, error)
+	nodeFn func(context.Context, nodeCertIssueRequest) (string, error)
 }
 
 func (c *certIssuerFunc) Issue(ctx context.Context, req certIssueRequest) (string, error) {
 	return c.fn(ctx, req)
+}
+
+func (c *certIssuerFunc) IssueNode(ctx context.Context, req nodeCertIssueRequest) (string, error) {
+	if c.nodeFn != nil {
+		return c.nodeFn(ctx, req)
+	}
+	return "", fmt.Errorf("certIssuerFunc: IssueNode not configured")
 }
 
 type fakeEnvCertClient struct {
@@ -64,6 +53,20 @@ type fakeEnvCertClient struct {
 }
 
 func (f *fakeEnvCertClient) IssueEnvironmentSSHCertificate(_ context.Context, req *connect.Request[devplanev1.IssueEnvironmentSSHCertificateRequest]) (*connect.Response[devplanev1.IssueEnvironmentSSHCertificateResponse], error) {
+	f.got = req.Msg
+	if f.err != nil {
+		return nil, f.err
+	}
+	return connect.NewResponse(f.resp), nil
+}
+
+type fakeNodeCertClient struct {
+	resp *devplanev1.IssueExternalNodeSSHCertificateResponse
+	err  error
+	got  *devplanev1.IssueExternalNodeSSHCertificateRequest
+}
+
+func (f *fakeNodeCertClient) IssueExternalNodeSSHCertificate(_ context.Context, req *connect.Request[devplanev1.IssueExternalNodeSSHCertificateRequest]) (*connect.Response[devplanev1.IssueExternalNodeSSHCertificateResponse], error) {
 	f.got = req.Msg
 	if f.err != nil {
 		return nil, f.err
@@ -101,25 +104,14 @@ func mintCertForTest(t *testing.T, pubKeyOpenSSH string) string {
 	return strings.TrimRight(string(ssh.MarshalAuthorizedKey(cert)), "\n")
 }
 
-func testStore(token string) fakeStore {
-	return fakeStore{
-		token: token,
-		user:  &entity.User{ID: "user-1"},
-		org:   &entity.Organization{ID: "org-1"},
-		workspaces: []entity.Workspace{
-			{ID: "env-1", CreatedByUserID: "user-1"},
-		},
-	}
-}
-
 func TestRunMintCert_MintsAndWrites(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outKey := "/home/u/.brev/ssh-certs/env-1"
 	issuer := &certIssuerFunc{fn: func(_ context.Context, req certIssueRequest) (string, error) {
 		return mintCertForTest(t, req.PublicKey), nil
 	}}
-	if err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
-		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	if err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
+		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
 	}); err != nil {
 		t.Fatalf("runMintCertWith: %v", err)
 	}
@@ -157,8 +149,8 @@ func TestRunMintCert_ReusesCachedCert(t *testing.T) {
 		t.Error("issuer should not be called when cache is valid")
 		return "", nil
 	}}
-	if err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
-		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	if err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
+		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
 	}); err != nil {
 		t.Fatalf("expected reuse, got err: %v", err)
 	}
@@ -181,8 +173,8 @@ func TestRunMintCert_RemintsOnMismatchedKey(t *testing.T) {
 		}
 		return mintCertForTest(t, req.PublicKey), nil
 	}}
-	if err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
-		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	if err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
+		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
 	}); err != nil {
 		t.Fatalf("runMintCertWith: %v", err)
 	}
@@ -196,8 +188,8 @@ func TestRunMintCert_FallsBackOnIssueError(t *testing.T) {
 	issuer := &certIssuerFunc{fn: func(_ context.Context, _ certIssueRequest) (string, error) {
 		return "", errors.New("CA unavailable")
 	}}
-	err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
-		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
+	err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
+		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	})
 	if err == nil {
@@ -216,14 +208,14 @@ func TestRunMintCert_FallsBackOnAuthError(t *testing.T) {
 	}}
 	// GetAccessToken error -> auth failure (no prompt, fall back to brev.pem).
 	if err := runMintCertWith(fakeStore{err: errors.New("no token")}, fs, issuer, mintCertRequest{
-		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
+		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	}); err == nil {
 		t.Fatal("expected error on auth failure")
 	}
 	// Empty token (noLoginCmdStore returns "") -> auth failure, NOT a prompt.
-	if err := runMintCertWith(testStore(""), fs, issuer, mintCertRequest{
-		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
+	if err := runMintCertWith(fakeStore{token: ""}, fs, issuer, mintCertRequest{
+		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	}); err == nil {
 		t.Fatal("expected error on empty token (must not prompt)")
@@ -247,5 +239,73 @@ func TestRpcCertIssuer_MapsRequestAndResponse(t *testing.T) {
 	}
 	if client.got.GetEnvironmentId() != "env-1" || client.got.GetPortId() != "port-1" || client.got.GetLinuxUser() != "ubuntu" || client.got.GetPublicKey() != "ssh-ed25519 AAAA pub" {
 		t.Errorf("request fields wrong: %+v", client.got)
+	}
+}
+
+func TestRpcCertIssuer_NodeMapsRequestAndResponse(t *testing.T) {
+	client := &fakeNodeCertClient{resp: &devplanev1.IssueExternalNodeSSHCertificateResponse{
+		Certificate: "ssh-ed25519-cert-v01@openssh.com AAAA node cert",
+		Principal:   "brev:v1:node:node-1:login:ubuntu",
+	}}
+	issuer := rpcCertIssuer{nodeClient: client}
+	cert, err := issuer.IssueNode(context.Background(), nodeCertIssueRequest{
+		ExternalNodeID: "node-1", PortID: "port-1", LinuxUser: "ubuntu", PublicKey: "ssh-ed25519 AAAA pub",
+	})
+	if err != nil {
+		t.Fatalf("IssueNode: %v", err)
+	}
+	if cert != "ssh-ed25519-cert-v01@openssh.com AAAA node cert" {
+		t.Errorf("unexpected certificate: %s", cert)
+	}
+	if client.got.GetExternalNodeId() != "node-1" || client.got.GetPortId() != "port-1" || client.got.GetLinuxUser() != "ubuntu" || client.got.GetPublicKey() != "ssh-ed25519 AAAA pub" {
+		t.Errorf("request fields wrong: %+v", client.got)
+	}
+}
+
+func TestRunMintCert_NodeRoutesToIssueNode(t *testing.T) {
+	fs := afero.NewMemMapFs()
+	outKey := "/home/u/.brev/ssh-certs/node-node-1"
+	var gotReq nodeCertIssueRequest
+	issuer := &certIssuerFunc{
+		fn: func(_ context.Context, _ certIssueRequest) (string, error) {
+			t.Error("Issue should not be called for --node")
+			return "", nil
+		},
+		nodeFn: func(_ context.Context, req nodeCertIssueRequest) (string, error) {
+			gotReq = req
+			return mintCertForTest(t, req.PublicKey), nil
+		},
+	}
+	if err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
+		NodeID: "node-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	}); err != nil {
+		t.Fatalf("runMintCertWith: %v", err)
+	}
+	if gotReq.ExternalNodeID != "node-1" {
+		t.Errorf("ExternalNodeID: got %s, want node-1", gotReq.ExternalNodeID)
+	}
+	if gotReq.PortID != "port-1" {
+		t.Errorf("PortID: got %s, want port-1", gotReq.PortID)
+	}
+	if gotReq.LinuxUser != "ubuntu" {
+		t.Errorf("LinuxUser: got %s, want ubuntu", gotReq.LinuxUser)
+	}
+}
+
+func TestNewCmdMintCert_EnvAndNodeMutuallyExclusive(t *testing.T) {
+	cmd := NewCmdMintCert(fakeStore{token: "tok"})
+	cmd.SetArgs([]string{"--env", "e1", "--node", "n1", "--port", "p1", "--linux-user", "u", "--out-key", "/k"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when both --env and --node are set")
+	}
+}
+
+func TestNewCmdMintCert_RequiresEnvOrNode(t *testing.T) {
+	cmd := NewCmdMintCert(fakeStore{token: "tok"})
+	cmd.SetArgs([]string{"--port", "p1", "--linux-user", "u", "--out-key", "/k"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error when neither --env nor --node is set")
 	}
 }

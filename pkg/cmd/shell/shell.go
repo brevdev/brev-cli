@@ -89,7 +89,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		return breverrors.WrapAndTrace(err)
 	}
 	if target.Node != nil {
-		return shellIntoExternalNode(t, sstore, target.Node)
+		return shellIntoExternalNode(sstore, target.Node)
 	}
 	workspace := target.Workspace
 
@@ -166,57 +166,26 @@ func trackShellAnalytics(sstore ShellStore, workspace *entity.Workspace) {
 	_ = analytics.TrackEvent(data)
 }
 
-func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1.ExternalNode) error {
+func shellIntoExternalNode(sstore ShellStore, node *nodev1.ExternalNode) error {
 	info, err := util.ResolveExternalNodeSSH(sstore, node)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	privateKeyPath, err := sstore.GetPrivateKeyPath()
-	if err != nil {
+	alias := info.SSHAlias()
+	printResolvedSSHTarget(alias)
+	err = runSSHWithOptions(alias, true, false)
+	if err == nil {
+		return nil
+	}
+
+	_, _ = fmt.Fprintln(os.Stderr, "\nConnection failed, refreshing SSH config and retrying...")
+	refreshRes := refresh.RunRefreshAsync(sstore)
+	if err := refreshRes.Await(); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	if _, err := os.Stat(privateKeyPath); os.IsNotExist(err) {
-		t.Vprintf("fetching keys...\n")
-		if refreshErr := refresh.RunRefreshAsync(sstore).Await(); refreshErr != nil {
-			return breverrors.WrapAndTrace(refreshErr)
-		}
-	}
-
-	t.Vprintf("Connecting to external node %q as %s on port %d (key: %s)...\n", node.GetName(), info.LinuxUser, info.Port, privateKeyPath)
-	return runSSHWithPort(info.SSHTarget(), info.Port, privateKeyPath)
-}
-
-func runSSHWithPort(target string, port int32, identityFile string) error {
-	cmd := buildSSHWithPortCommand(target, port, identityFile)
-
-	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is constructed from API data
-	sshCmd.Stderr = os.Stderr
-	sshCmd.Stdout = os.Stdout
-	sshCmd.Stdin = os.Stdin
-
-	err := hello.SetHasRunShell(true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = sshCmd.Run()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
-
-func buildSSHWithPortCommand(target string, port int32, identityFile string) string {
-	sshAgentEval := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
-	return fmt.Sprintf(
-		"%s && ssh -i %q -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -p %d %s",
-		sshAgentEval,
-		identityFile,
-		port,
-		target,
-	)
+	printResolvedSSHTarget(alias)
+	return runSSHWithOptions(alias, true, false)
 }
 
 func runSSH(sshAlias string, host bool) error {

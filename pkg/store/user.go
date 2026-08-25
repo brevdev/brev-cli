@@ -50,10 +50,7 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 
 func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
 	meta, err := s.GetCurrentWorkspaceMeta()
-	if err != nil {
-		return "", nil
-	}
-	if meta.UserID != "" {
+	if err == nil && meta.UserID != "" {
 		return meta.UserID, nil
 	}
 	user, err := s.GetCurrentUser()

@@ -555,7 +555,7 @@ Host testName2-host
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath, true)
+			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath, true, false)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("makeSSHConfigEntryV2() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -616,7 +616,7 @@ func TestMakeSSHConfigEntryForNode(t *testing.T) {
 		User:     "ec2-user",
 	}
 
-	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem")
+	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem", false, "/home/test/.brev")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -634,6 +634,45 @@ func TestMakeSSHConfigEntryForNode(t *testing.T) {
 `
 	if got != want {
 		t.Errorf("makeSSHConfigEntryForNode() mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestMakeSSHConfigEntryForNode_CertRequired(t *testing.T) {
+	entry := ExternalNodeSSHEntry{
+		Alias:    "my-gpu-box",
+		NodeID:   "node-abc",
+		PortID:   "port-xyz",
+		Hostname: "10.0.0.5",
+		Port:     41920,
+		User:     "ec2-user",
+	}
+
+	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem", true, "/home/test/.brev")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(got, "Match host my-gpu-box exec ") {
+		t.Fatalf("expected Match block, got:\n%s", got)
+	}
+	if !strings.Contains(got, "--node node-abc") {
+		t.Errorf("Match exec must use --node flag: %s", got)
+	}
+	if !strings.Contains(got, "/home/test/.brev/ssh-certs/node-abc-ec2-user") {
+		t.Errorf("cert key path must scope to node ID and Linux user: %s", got)
+	}
+	// The Match block must be followed by a Host block carrying the static key
+	// as the fallback, so a failed Match exec still lets ssh connect with the key.
+	if !strings.Contains(got, "Host my-gpu-box\n") {
+		t.Errorf("cert-required mode must keep a Host fallback block: %s", got)
+	}
+	matchIdx := strings.Index(got, "Match host my-gpu-box exec ")
+	hostIdx := strings.Index(got, "Host my-gpu-box\n")
+	if matchIdx < 0 || hostIdx < 0 || matchIdx >= hostIdx {
+		t.Errorf("Match block must precede Host fallback (match=%d host=%d): %s", matchIdx, hostIdx, got)
+	}
+	if !strings.Contains(got, "IdentityFile \"/home/test/.brev/brev.pem\"") {
+		t.Errorf("Host fallback must carry the static key: %s", got)
 	}
 }
 
@@ -1000,7 +1039,7 @@ func TestMakeSSHConfigEntryV2_EligibleWorkspaceIncludesCertMatch(t *testing.T) {
 		SSHCertEligible: true,
 		PortID:          "port-1",
 	}
-	got, err := makeSSHConfigEntryV2(w, "/home/u/.brev/brev.pem", "/tmp/cf", true)
+	got, err := makeSSHConfigEntryV2(w, "/home/u/.brev/brev.pem", "/tmp/cf", true, false)
 	if err != nil {
 		t.Fatalf("makeSSHConfigEntryV2: %v", err)
 	}
