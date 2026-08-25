@@ -197,36 +197,6 @@ func TestCloseByExactIDOnExternalNode(t *testing.T) {
 	assert.Contains(t, out.String(), "global.prd.ga.run.brev.nvidia.com:41001")
 }
 
-func TestCloseAllClosesSnapshot(t *testing.T) {
-	service := &fakeCloseEnvironmentService{
-		t:             t,
-		expectedEnvID: "env123",
-		ports: []*devplanev1.Port{
-			testTCPPort("nport-one", 41001),
-			testTCPPort("nport-two", 52002),
-		},
-	}
-	_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
-	newTestServer(t, handler)
-	prompter := &fakeClosePrompter{selectIndex: -1}
-	var out bytes.Buffer
-
-	err := runClose(
-		context.Background(),
-		&out,
-		newCloseEnvironmentStore(),
-		prompter,
-		"my-instance",
-		closeOptions{all: true, approve: true},
-	)
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"nport-one", "nport-two"}, service.closedPortIDs)
-	assert.Zero(t, prompter.selectCalls)
-	assert.Zero(t, prompter.confirmCalls)
-	assert.Contains(t, out.String(), "Closed 2 ports on my-instance.")
-}
-
 func TestCloseCancellationDoesNotClosePort(t *testing.T) {
 	service := &fakeCloseEnvironmentService{
 		t:             t,
@@ -275,15 +245,12 @@ func TestCloseRejectsUnknownID(t *testing.T) {
 	assert.Empty(t, service.closedPortIDs)
 }
 
-func TestCloseAllReportsPartialFailure(t *testing.T) {
+func TestCloseByExactIDReportsFailure(t *testing.T) {
 	service := &fakeCloseEnvironmentService{
 		t:             t,
 		expectedEnvID: "env123",
-		ports: []*devplanev1.Port{
-			testTCPPort("nport-one", 41001),
-			testTCPPort("nport-two", 52002),
-		},
-		failPortID: "nport-one",
+		ports:         []*devplanev1.Port{testTCPPort("nport-one", 41001)},
+		failPortID:    "nport-one",
 	}
 	_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
 	newTestServer(t, handler)
@@ -295,21 +262,11 @@ func TestCloseAllReportsPartialFailure(t *testing.T) {
 		newCloseEnvironmentStore(),
 		&fakeClosePrompter{},
 		"my-instance",
-		closeOptions{all: true, approve: true},
+		closeOptions{portID: "nport-one", approve: true},
 	)
 
 	assert.ErrorContains(t, err, `close port_id "nport-one"`)
-	assert.Equal(t, []string{"nport-two"}, service.closedPortIDs)
-	assert.Contains(t, out.String(), "Closed 1 port on my-instance.")
-}
-
-func TestCloseCommandRejectsAllWithID(t *testing.T) {
-	cmd := newCmdClosePort(newCloseEnvironmentStore(), &fakeClosePrompter{})
-	cmd.SetArgs([]string{"my-instance", "--all", "--id", "nport-one"})
-
-	err := cmd.Execute()
-
-	assert.ErrorContains(t, err, "--all and --id cannot be used together")
+	assert.Empty(t, service.closedPortIDs)
 }
 
 func TestRemovablePortsRequiresPortID(t *testing.T) {

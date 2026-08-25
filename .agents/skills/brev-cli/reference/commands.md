@@ -548,9 +548,8 @@ brev ports create my-instance 8888 --protocol http --authorize me@example.com
 
 ### Close ports
 
-Select and close one port interactively, close an exact mapping by its
-`port_id`, or close every mapping on the target. `remove` is an alias for
-`close`.
+Select and close one port interactively or close an exact mapping by its
+`port_id`. `remove` is an alias for `close`.
 
 ```bash
 brev ports close <instance-or-node> [flags]
@@ -561,17 +560,16 @@ brev ports close <instance-or-node> [flags]
 | Flag | Description |
 |------|-------------|
 | `--id` | Close the exact mapping with this `port_id` |
-| `--all` | Close every port mapping on the target |
 | `--approve` | Skip the confirmation prompt |
 
 Use `brev ports ls <instance-or-node> --json` to obtain stable `port_id` values
-for automation. `--all` and `--id` cannot be combined.
+for automation.
 
 **Examples:**
 ```bash
 brev ports close my-instance
 brev ports close my-instance --id nport-abc123 --approve
-brev ports remove my-node --all --approve
+brev ports remove my-node --id nport-abc123 --approve
 ```
 
 ## Organization Commands

@@ -97,6 +97,7 @@ func TestPortsCommandUsesSubcommands(t *testing.T) {
 	assert.Equal(t, "close <instance-or-node>", closeCmd.Use)
 	assert.Equal(t, "[beta] Close public ports on an instance or external node", closeCmd.Short)
 	assert.True(t, closeCmd.Hidden)
+	assert.Nil(t, closeCmd.Flags().Lookup("all"))
 }
 
 func TestRunEnvironmentJSON(t *testing.T) {
