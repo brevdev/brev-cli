@@ -91,6 +91,13 @@ func TestPortsCommandUsesSubcommands(t *testing.T) {
 	assert.Equal(t, "[beta] Create a public port on an instance or external node", createCmd.Short)
 	assert.True(t, createCmd.Hidden)
 	assert.ElementsMatch(t, []string{"open", "add"}, createCmd.Aliases)
+
+	closeCmd, _, err := cmd.Find([]string{"close"})
+	require.NoError(t, err)
+	assert.Equal(t, "close <instance-or-node>", closeCmd.Use)
+	assert.Equal(t, "[beta] Close public ports on an instance or external node", closeCmd.Short)
+	assert.True(t, closeCmd.Hidden)
+	assert.Nil(t, closeCmd.Flags().Lookup("all"))
 }
 
 func TestRunEnvironmentJSON(t *testing.T) {
@@ -351,6 +358,7 @@ func TestRunEnvironmentWithoutNetworkMemberReturnsActionableError(t *testing.T) 
 
 			require.Error(t, err)
 			assert.Empty(t, out.String())
+			assert.Contains(t, err.Error(), `cannot manage ports for instance "legacy"`)
 			assert.Contains(t, err.Error(), "no Brev-managed network configuration is available")
 			assert.Contains(t, err.Error(), "may still be provisioning or may use legacy network access")
 			assert.Contains(t, err.Error(), "Brev console")

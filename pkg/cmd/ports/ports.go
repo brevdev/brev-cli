@@ -54,7 +54,7 @@ func NewCmdPorts(portStore Store) *cobra.Command {
   brev ports ls my-instance
   brev ports ls my-node --json`,
 	}
-	cmd.AddCommand(NewCmdPortsLs(portStore), NewCmdCreatePort(portStore))
+	cmd.AddCommand(NewCmdPortsLs(portStore), NewCmdCreatePort(portStore), NewCmdClosePort(portStore))
 	return cmd
 }
 
@@ -86,9 +86,25 @@ func NewCmdPortsLs(portStore Store) *cobra.Command {
 
 // Run resolves a managed instance or registered compute node and displays its ports.
 func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, jsonOutput bool) error {
-	target, err := cmdutil.ResolveWorkspaceOrNodeWithContext(ctx, portStore, nameOrID)
+	_, apiPorts, err := resolveTargetPorts(ctx, portStore, nameOrID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
+	}
+	portInfos := toPortInfos(apiPorts)
+	if jsonOutput {
+		return writeJSON(out, portInfos)
+	}
+	return displayTables(out, nameOrID, portInfos)
+}
+
+func resolveTargetPorts(
+	ctx context.Context,
+	portStore Store,
+	nameOrID string,
+) (*cmdutil.WorkspaceOrNode, []*devplanev1.Port, error) {
+	target, err := cmdutil.ResolveWorkspaceOrNodeWithContext(ctx, portStore, nameOrID)
+	if err != nil {
+		return nil, nil, breverrors.WrapAndTrace(err)
 	}
 
 	var apiPorts []*devplanev1.Port
@@ -98,7 +114,7 @@ func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, j
 			EnvironmentId: target.Workspace.ID,
 		}))
 		if err != nil {
-			return breverrors.WrapAndTrace(fmt.Errorf("get ports for instance %q: %w", nameOrID, err))
+			return nil, nil, breverrors.WrapAndTrace(fmt.Errorf("get ports for instance %q: %w", nameOrID, err))
 		}
 		var networkInfo *devplanev1.EnvironmentNetworkInfo
 		if resp != nil && resp.Msg != nil {
@@ -109,8 +125,8 @@ func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, j
 		if networkInfo == nil ||
 			(networkInfo.GetStatus() == devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_UNSPECIFIED &&
 				len(networkInfo.GetPorts()) == 0) {
-			return breverrors.NewValidationError(fmt.Sprintf(
-				"cannot list ports for instance %q: no Brev-managed network configuration is available; "+
+			return nil, nil, breverrors.NewValidationError(fmt.Sprintf(
+				"cannot manage ports for instance %q: no Brev-managed network configuration is available; "+
 					"the instance may still be provisioning or may use legacy network access. "+
 					"Try again when it is running, or view legacy secure links and firewall rules in the Brev console",
 				nameOrID,
@@ -120,11 +136,7 @@ func Run(ctx context.Context, out io.Writer, portStore Store, nameOrID string, j
 	} else if target.Node != nil {
 		apiPorts = target.Node.GetPorts()
 	}
-	portInfos := toPortInfos(apiPorts)
-	if jsonOutput {
-		return writeJSON(out, portInfos)
-	}
-	return displayTables(out, nameOrID, portInfos)
+	return target, apiPorts, nil
 }
 
 func toPortInfos(apiPorts []*devplanev1.Port) []PortInfo {
