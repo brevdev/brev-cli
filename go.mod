@@ -3,8 +3,8 @@ module github.com/brevdev/brev-cli
 go 1.25.0
 
 require (
-	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260708012811-ecba52f49600.1
-	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.11-20260708012811-ecba52f49600.1
+	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260820222245-1cfc91443320.1
+	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260820222245-1cfc91443320.1
 	connectrpc.com/connect v1.20.0
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/alessio/shellescape v1.4.1
@@ -44,12 +44,13 @@ require (
 	github.com/tweekmonster/luser v0.0.0-20161003172636-3fa38070dbd7
 	github.com/wk8/go-ordered-map/v2 v2.0.0
 	github.com/writeas/go-strip-markdown v2.0.1+incompatible
+	golang.org/x/crypto v0.55.0
 	golang.org/x/text v0.41.0
 	k8s.io/cli-runtime v0.31.1
 )
 
 require (
-	buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.11-20220906235457-8b4922735da5.1 // indirect
+	buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.1 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -100,7 +101,6 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
@@ -152,7 +152,7 @@ require (
 	golang.org/x/sys v0.47.0
 	golang.org/x/term v0.45.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

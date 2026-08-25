@@ -72,6 +72,29 @@ func IsAnalyticsFeatureEnabled() bool {
 	return ok && enabled
 }
 
+func IsSSHCertRequired() bool {
+	anonID := GetOrCreateAnalyticsID()
+	if anonID == "" {
+		return false
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return false
+	}
+
+	result, err := c.IsFeatureEnabled(posthog.FeatureFlagPayload{
+		Key:        "ssh-cert-required-cli",
+		DistinctId: anonID,
+	})
+	if err != nil {
+		return false
+	}
+
+	enabled, ok := result.(bool)
+	return ok && enabled
+}
+
 // RecordCommandStart should be called from PersistentPreRunE to record the start time
 // and store the command context for potential error-path capture.
 func RecordCommandStart(cmd *cobra.Command, args []string) {

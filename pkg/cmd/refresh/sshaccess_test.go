@@ -82,6 +82,8 @@ func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPort(t *testing.T) {
 	want.SSHProxyHostname = ""
 	want.HostSSHHostname = "203.0.113.10"
 	want.HostSSHProxyHostname = ""
+	want.PortID = "ssh-port"
+	want.SSHCertEligible = false // mock environment has no certauth label
 
 	if diff := cmp.Diff([]entity.Workspace{want}, got); diff != "" {
 		t.Fatalf("unexpected workspace (-want +got): %s", diff)
@@ -136,5 +138,38 @@ func TestEnrichWorkspacesWithSSHAccess_FallsBackWithoutPortBackedAccess(t *testi
 	}
 	if client.networkRequest != nil {
 		t.Fatal("network info should not be fetched without port-backed access")
+	}
+}
+
+func TestEnrichWorkspacesWithSSHAccess_MarksCertEligibleFromLabels(t *testing.T) {
+	workspace := entity.Workspace{
+		ID:     "env-1",
+		Name:   "cert-env",
+		Status: entity.Running,
+	}
+	client := &stubEnvironmentSSHClient{
+		environment: &devplanev1.Environment{
+			Labels:   map[string]string{"sshprovider": "certauth"},
+			Instance: &devplanev1.Instance{SshHostname: "203.0.113.10", SshPort: 22, PublicIp: "203.0.113.10"},
+			SshAccess: []*devplanev1.SSHAccess{
+				{UserId: "user-1", LinuxUser: "ubuntu", PortId: "ssh-port"},
+			},
+		},
+		networkInfo: &devplanev1.EnvironmentNetworkInfo{
+			Ports: []*devplanev1.Port{
+				{PortId: "ssh-port", Hostname: strPtr("skybridge.example.com"), PortNumber: 41234, ServerPort: 22},
+			},
+		},
+	}
+
+	got := enrichWorkspacesWithSSHAccess(context.Background(), client, "user-1", []entity.Workspace{workspace})
+	if len(got) != 1 {
+		t.Fatalf("expected 1 workspace, got %d", len(got))
+	}
+	if got[0].PortID != "ssh-port" {
+		t.Errorf("PortID = %q, want %q", got[0].PortID, "ssh-port")
+	}
+	if !got[0].SSHCertEligible {
+		t.Errorf("SSHCertEligible = false, want true (labels have sshprovider=certauth)")
 	}
 }

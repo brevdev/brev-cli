@@ -1,8 +1,13 @@
 package ssh
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -41,6 +46,18 @@ var somePlainWorkspaces = []entity.Workspace{
 type DummyStore struct{}
 
 type DummySSHConfigurerV2Store struct{}
+
+type noHomeSSHConfigurerV2Store struct {
+	DummySSHConfigurerV2Store
+}
+
+func (noHomeSSHConfigurerV2Store) GetPrivateKeyPath() (string, error) {
+	return "/custom/brev-home/brev.pem", nil
+}
+
+func (noHomeSSHConfigurerV2Store) UserHomeDir() (string, error) {
+	return "", errors.New("UserHomeDir should not be needed to locate Brev certificate files")
+}
 
 func (d DummySSHConfigurerV2Store) GetWSLHostUserSSHConfigPath() (string, error) {
 	return "", nil
@@ -123,6 +140,10 @@ func (d DummySSHConfigurerV2Store) WriteWSLUserSSHConfig(_ string) error {
 
 func (d DummySSHConfigurerV2Store) GetBrevCloudflaredBinaryPath() (string, error) {
 	return "", nil
+}
+
+func (d DummySSHConfigurerV2Store) UserHomeDir() (string, error) {
+	return "/home/test-user", nil
 }
 
 func TestCreateNewSSHConfig(t *testing.T) {
@@ -214,6 +235,28 @@ Host %s-host
 	correct = `# included in /my/user/config
 `
 	assert.Equal(t, correct, cStr)
+}
+
+func TestCreateNewSSHConfig_DerivesCertPathFromBrevDirectory(t *testing.T) {
+	w := entity.Workspace{
+		ID:              "env-cert",
+		Name:            "cert-env",
+		Status:          entity.Running,
+		SSHUser:         "ubuntu",
+		SSHPort:         22,
+		SSHHostname:     "10.0.0.1",
+		SSHCertEligible: true,
+		PortID:          "port-1",
+	}
+
+	c := NewSSHConfigurerV2(noHomeSSHConfigurerV2Store{})
+	got, err := c.CreateNewSSHConfig([]entity.Workspace{w}, nil)
+	if err != nil {
+		t.Fatalf("CreateNewSSHConfig should not need UserHomeDir: %v", err)
+	}
+	if !strings.Contains(got, "/custom/brev-home/ssh-certs/env-cert") {
+		t.Fatalf("certificate path should be rooted in the Brev directory: %s", got)
+	}
 }
 
 func TestEnsureConfigHasInclude(t *testing.T) {
@@ -512,7 +555,7 @@ Host testName2-host
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath)
+			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath, true)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("makeSSHConfigEntryV2() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -922,5 +965,163 @@ Host testName1-host
 				}
 			}
 		})
+	}
+}
+
+func TestMakeCertMatchEntry_IneligibleWorkspace(t *testing.T) {
+	// No SSHCertEligible flag -> no Match block.
+	w := entity.Workspace{ID: "env-1", Name: "n", SSHUser: "u", PortID: "p"}
+	if got := makeCertMatchEntry(w, "/home/u/.brev", true); got != "" {
+		t.Errorf("ineligible workspace should produce no Match block, got: %s", got)
+	}
+	// Eligible but no PortID -> no Match block (can't mint without port_id).
+	w2 := entity.Workspace{ID: "env-1", Name: "n", SSHUser: "u", SSHCertEligible: true}
+	if got := makeCertMatchEntry(w2, "/home/u/.brev", true); got != "" {
+		t.Errorf("eligible without PortID should produce no Match block, got: %s", got)
+	}
+	// supportsCertHook=false (WSL/Windows config) -> no Match block even when eligible.
+	// The Windows config is consumed by Windows ssh, but the Match exec would
+	// invoke the WSL-Linux brev binary that Windows can't run; certs are deferred
+	// there and work via the POSIX config path inside WSL instead.
+	w3 := entity.Workspace{ID: "env-1", Name: "n", SSHUser: "u", SSHCertEligible: true, PortID: "p"}
+	if got := makeCertMatchEntry(w3, "/home/u/.brev", false); got != "" {
+		t.Errorf("WSL/Windows config should produce no Match block, got: %s", got)
+	}
+}
+
+func TestMakeSSHConfigEntryV2_EligibleWorkspaceIncludesCertMatch(t *testing.T) {
+	w := entity.Workspace{
+		ID:              "env-cert",
+		Name:            "cert-env",
+		Status:          entity.Running,
+		SSHUser:         "ubuntu",
+		SSHPort:         22,
+		SSHHostname:     "10.0.0.1",
+		SSHCertEligible: true,
+		PortID:          "port-1",
+	}
+	got, err := makeSSHConfigEntryV2(w, "/home/u/.brev/brev.pem", "/tmp/cf", true)
+	if err != nil {
+		t.Fatalf("makeSSHConfigEntryV2: %v", err)
+	}
+	// The Match block must precede the Host block.
+	matchIdx := strings.Index(got, "Match host cert-env exec")
+	hostIdx := strings.Index(got, "Host cert-env")
+	if matchIdx < 0 {
+		t.Fatal("expected Match block for cert-eligible workspace")
+	}
+	if hostIdx < 0 {
+		t.Fatal("expected Host block")
+	}
+	if matchIdx >= hostIdx {
+		t.Errorf("Match block must precede Host block (match=%d host=%d)", matchIdx, hostIdx)
+	}
+	if !strings.Contains(got, "/home/u/.brev/ssh-certs/env-cert") {
+		t.Error("missing cert key path in Match block")
+	}
+	if !strings.Contains(got, "/home/u/.brev/brev.pem") {
+		t.Error("missing static key path in Host block")
+	}
+}
+
+func TestMakeCertMatchEntry_UsesAbsoluteBrevPath(t *testing.T) {
+	// The Match exec must invoke the absolute path to the running brev binary,
+	// not a bare `brev` that could resolve to a stale PATH binary.
+	w := entity.Workspace{
+		ID: "env-abc", Name: "n", SSHUser: "ubuntu",
+		SSHCertEligible: true, PortID: "port-1",
+	}
+	got := makeCertMatchEntry(w, "/home/u/.brev", true)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("os.Executable unavailable; cannot assert path")
+	}
+	want := fmt.Sprintf("%s mint-cert --env env-abc", exe)
+	if !strings.Contains(got, want) {
+		t.Errorf("expected Match exec to use absolute brev path %q; got: %s", want, got)
+	}
+	if strings.Contains(got, " exec \"brev mint-cert") {
+		t.Errorf("Match exec must not use bare `brev`: %s", got)
+	}
+}
+
+func TestSSHCertRequiredTemplateV3_MergesCertIntoMatchBlock(t *testing.T) {
+	rawExec := `'/path/to/brev' mint-cert --env env-1 --port p --linux-user ubuntu --out-key /home/u/.brev/ssh-certs/env-1`
+	entry := SSHConfigEntryV2{
+		Alias:        "my-env",
+		IdentityFile: `"/home/u/.brev/ssh-certs/env-1"`,
+		User:         "ubuntu",
+		HostName:     "10.0.0.5",
+		Port:         34828,
+		ExecCommand:  strconv.Quote(rawExec),
+	}
+	tmpl, err := template.New("m").Parse(SSHCertRequiredTemplateV3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := tmplAndValToString(tmpl, entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "Match host my-env exec ") {
+		t.Errorf("expected Match block, got: %s", got)
+	}
+	// The exec value must be a single quoted token; OpenSSH rejects bare
+	// whitespace-separated commands in Match exec.
+	execLine := "Match host my-env exec " + strconv.Quote(rawExec)
+	if !strings.Contains(got, execLine) {
+		t.Errorf("Match exec must quote the full command:\nwant: %s\ngot:  %s", execLine, got)
+	}
+	if strings.Contains(got, "Host my-env\n") {
+		t.Errorf("cert-required mode must not emit a Host block: %s", got)
+	}
+	if !strings.Contains(got, "10.0.0.5") || !strings.Contains(got, "34828") {
+		t.Errorf("host settings must be in the Match block: %s", got)
+	}
+	if !strings.Contains(got, "/home/u/.brev/ssh-certs/env-1") {
+		t.Errorf("cert IdentityFile must be present: %s", got)
+	}
+	if strings.Contains(got, "brev.pem") {
+		t.Errorf("static key must be absent in cert-required mode: %s", got)
+	}
+}
+
+type recordingWSLStore struct {
+	DummySSHConfigurerV2Store
+	wslWritten bool
+}
+
+func (r *recordingWSLStore) WriteBrevSSHConfigWSL(_ string) error {
+	r.wslWritten = true
+	return nil
+}
+
+func TestUpdate_SkipsWSLConfigWhenCertRequired(t *testing.T) {
+	orig := isSSHCertRequired
+	isSSHCertRequired = func() bool { return true }
+	t.Cleanup(func() { isSSHCertRequired = orig })
+
+	store := &recordingWSLStore{}
+	s := SSHConfigurerV2{store: store}
+	if err := s.Update(nil, nil); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if store.wslWritten {
+		t.Error("WriteBrevSSHConfigWSL must not be called when certs are required")
+	}
+}
+
+func TestUpdate_WritesWSLConfigWhenCertNotRequired(t *testing.T) {
+	orig := isSSHCertRequired
+	isSSHCertRequired = func() bool { return false }
+	t.Cleanup(func() { isSSHCertRequired = orig })
+
+	store := &recordingWSLStore{}
+	s := SSHConfigurerV2{store: store}
+	if err := s.Update(nil, nil); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !store.wslWritten {
+		t.Error("WriteBrevSSHConfigWSL should be called when certs are not required")
 	}
 }
