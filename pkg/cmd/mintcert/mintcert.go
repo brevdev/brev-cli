@@ -128,12 +128,14 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 	}
 
 	certPath := req.OutKey + "-cert.pub"
-	if ok, err := sshcert.HasValidCertAt(fs, certPath, time.Now(), sshcert.DefaultRenewalMargin); err != nil {
+
+	if ok, err := sshcert.HasValidCertAuth(fs, req.OutKey, certPath, time.Now(), sshcert.DefaultRenewalMargin); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "brev: failed to check cached cert: %v\n", err)
 		return breverrors.WrapAndTrace(err)
 	} else if ok {
 		return nil
 	}
+
 	privKeyPEM, pubKeyOpenSSH, err := sshcert.GenerateKeyPair()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "brev: failed to generate keypair: %v\n", err)

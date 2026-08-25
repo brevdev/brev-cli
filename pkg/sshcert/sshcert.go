@@ -3,6 +3,7 @@
 package sshcert
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
@@ -116,23 +117,42 @@ func CertValidAt(cert *ssh.Certificate, now time.Time, margin time.Duration) boo
 	return now.Add(margin).Unix() < notAfter
 }
 
-func HasValidCertAt(fs afero.Fs, certPath string, now time.Time, margin time.Duration) (bool, error) {
-	exists, err := afero.Exists(fs, certPath)
-	if err != nil {
-		return false, breverrors.WrapAndTrace(err)
-	}
-	if !exists {
-		return false, nil
-	}
+func HasValidCertAuth(fs afero.Fs, keyPath, certPath string, now time.Time, margin time.Duration) (bool, error) {
 	certBytes, err := afero.ReadFile(fs, certPath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, breverrors.WrapAndTrace(err)
 	}
 	cert, err := ParseCertificate(string(certBytes))
 	if err != nil {
-		return false, nil // corrupt cert -> mint fresh
+		return false, nil
 	}
-	return CertValidAt(cert, now, margin), nil
+	if !CertValidAt(cert, now, margin) {
+		return false, nil
+	}
+
+	keyBytes, err := afero.ReadFile(fs, keyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, breverrors.WrapAndTrace(err)
+	}
+	signer, err := ssh.ParsePrivateKey(keyBytes)
+	if err != nil {
+		return false, nil
+	}
+
+	if !PublicKeyMatches(signer.PublicKey(), cert.Key) {
+		return false, nil
+	}
+	return true, nil
+}
+
+func PublicKeyMatches(a, b ssh.PublicKey) bool {
+	return bytes.Equal(a.Marshal(), b.Marshal())
 }
 
 func WriteFiles(fs afero.Fs, keyPath, certPath string, privKeyPEM []byte, certOpenSSH string) error {

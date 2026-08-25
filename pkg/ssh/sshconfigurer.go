@@ -36,6 +36,10 @@ var (
 	collapseHyphensRe  = regexp.MustCompile(`-{2,}`)
 )
 
+const (
+	WindowsSupport = false // cannot execute mint-cert on Windows
+)
+
 // SanitizeNodeName converts a node display name into a valid SSH Host alias.
 func SanitizeNodeName(name string) string {
 	s := strings.ToLower(name)
@@ -249,7 +253,7 @@ func (s SSHConfigurerV2) CreateWSLConfig(workspaces []entity.Workspace) (string,
 		return "", breverrors.WrapAndTrace(err)
 	}
 
-	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath), toWindowsPath(cloudflaredBinaryPath), false)
+	sshConfig, err := makeNewSSHConfig(toWindowsPath(configPath), workspaces, toWindowsPath(pkpath), toWindowsPath(cloudflaredBinaryPath), WindowsSupport)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}

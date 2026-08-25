@@ -128,7 +128,7 @@ func TestRunMintCert_MintsAndWrites(t *testing.T) {
 			t.Errorf("not written: %s", p)
 		}
 	}
-	if ok, err := sshcert.HasValidCertAt(fs, outKey+"-cert.pub", time.Now(), 0); err != nil || !ok {
+	if ok, err := sshcert.HasValidCertAuth(fs, outKey, outKey+"-cert.pub", time.Now(), 0); err != nil || !ok {
 		t.Errorf("written cert not valid: ok=%v err=%v", ok, err)
 	}
 	privBytes, err := afero.ReadFile(fs, outKey)
@@ -144,8 +144,13 @@ func TestRunMintCert_MintsAndWrites(t *testing.T) {
 func TestRunMintCert_ReusesCachedCert(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outKey := "/home/u/.brev/ssh-certs/env-1"
-	_, pub, _ := sshcert.GenerateKeyPair()
-	if err := sshcert.WriteFiles(fs, outKey, outKey+"-cert.pub", []byte("priv"), mintCertForTest(t, pub)); err != nil {
+	// Seed a matching keypair: the private key must correspond to the public
+	// key bound into the certificate.
+	privPEM, pub, err := sshcert.GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("generate keypair: %v", err)
+	}
+	if err := sshcert.WriteFiles(fs, outKey, outKey+"-cert.pub", privPEM, mintCertForTest(t, pub)); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	issuer := &certIssuerFunc{fn: func(_ context.Context, _ certIssueRequest) (string, error) {
@@ -156,6 +161,33 @@ func TestRunMintCert_ReusesCachedCert(t *testing.T) {
 		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
 	}); err != nil {
 		t.Fatalf("expected reuse, got err: %v", err)
+	}
+}
+
+func TestRunMintCert_RemintsOnMismatchedKey(t *testing.T) {
+	// A cert paired with a wrong private key must be detected and re-minted,
+	// not silently reused.
+	fs := afero.NewMemMapFs()
+	outKey := "/home/u/.brev/ssh-certs/env-1"
+	_, pub, _ := sshcert.GenerateKeyPair()
+	if err := sshcert.WriteFiles(fs, outKey, outKey+"-cert.pub", []byte("priv"), mintCertForTest(t, pub)); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	minted := false
+	issuer := &certIssuerFunc{fn: func(_ context.Context, req certIssueRequest) (string, error) {
+		minted = true
+		if req.EnvironmentID != "env-1" {
+			t.Errorf("unexpected EnvironmentID: %s", req.EnvironmentID)
+		}
+		return mintCertForTest(t, req.PublicKey), nil
+	}}
+	if err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
+		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	}); err != nil {
+		t.Fatalf("runMintCertWith: %v", err)
+	}
+	if !minted {
+		t.Fatal("expected re-mint when key/cert mismatch")
 	}
 }
 
@@ -190,7 +222,7 @@ func TestRunMintCert_FallsBackOnAuthError(t *testing.T) {
 		t.Fatal("expected error on auth failure")
 	}
 	// Empty token (noLoginCmdStore returns "") -> auth failure, NOT a prompt.
-	if err := runMintCertWith(fakeStore{token: ""}, fs, issuer, mintCertRequest{
+	if err := runMintCertWith(testStore(""), fs, issuer, mintCertRequest{
 		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	}); err == nil {
