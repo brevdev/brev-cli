@@ -116,12 +116,6 @@ func resolveWorkspaceSSH(
 	workspace.SSHPort = int(port.GetPortNumber())
 	workspace.SSHUser = access.GetLinuxUser()
 	workspace.SSHProxyHostname = ""
-
-	// To support the "--host" fallback, preserve the legacy hostname information returned by the initial workspace query.
-	if providerHostname := providerSSHHostname(environment.GetInstance(), port.GetHostname()); providerHostname != "" {
-		workspace.HostSSHHostname = providerHostname
-		workspace.HostSSHProxyHostname = ""
-	}
 	return workspace, nil
 }
 
@@ -144,16 +138,4 @@ func findNetworkPort(networkInfo *devplanev1.EnvironmentNetworkInfo, portID stri
 		}
 	}
 	return nil
-}
-
-func providerSSHHostname(instance *devplanev1.Instance, workloadHostname string) string {
-	if instance == nil {
-		return ""
-	}
-	for _, hostname := range []string{instance.GetPublicIp(), instance.GetPublicDns(), instance.GetHostname()} {
-		if hostname != "" && hostname != workloadHostname {
-			return hostname
-		}
-	}
-	return ""
 }
