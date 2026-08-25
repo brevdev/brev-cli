@@ -126,7 +126,7 @@ func resolveTargetPorts(
 			(networkInfo.GetStatus() == devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_UNSPECIFIED &&
 				len(networkInfo.GetPorts()) == 0) {
 			return nil, nil, breverrors.NewValidationError(fmt.Sprintf(
-				"cannot list ports for instance %q: no Brev-managed network configuration is available; "+
+				"cannot manage ports for instance %q: no Brev-managed network configuration is available; "+
 					"the instance may still be provisioning or may use legacy network access. "+
 					"Try again when it is running, or view legacy secure links and firewall rules in the Brev console",
 				nameOrID,

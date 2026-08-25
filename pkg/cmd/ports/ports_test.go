@@ -357,6 +357,7 @@ func TestRunEnvironmentWithoutNetworkMemberReturnsActionableError(t *testing.T) 
 
 			require.Error(t, err)
 			assert.Empty(t, out.String())
+			assert.Contains(t, err.Error(), `cannot manage ports for instance "legacy"`)
 			assert.Contains(t, err.Error(), "no Brev-managed network configuration is available")
 			assert.Contains(t, err.Error(), "may still be provisioning or may use legacy network access")
 			assert.Contains(t, err.Error(), "Brev console")

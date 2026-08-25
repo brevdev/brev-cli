@@ -546,7 +546,7 @@ brev ports create my-instance 3000 --protocol http --public
 brev ports create my-instance 8888 --protocol http --authorize me@example.com
 ```
 
-#### Close ports
+### Close ports
 
 Select and close one port interactively, close an exact mapping by its
 `port_id`, or close every mapping on the target. `remove` is an alias for
