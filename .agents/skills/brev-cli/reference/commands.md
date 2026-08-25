@@ -546,7 +546,7 @@ brev ports create my-instance 3000 --protocol http --public
 brev ports create my-instance 8888 --protocol http --authorize me@example.com
 ```
 
-#### Update a port
+### Update a port
 
 Update a mapping in place while preserving its `port_id` and public endpoint.
 Omit `--id` to select a mapping interactively. `edit` is an alias for `update`.
@@ -556,6 +556,7 @@ brev ports update <instance-or-node> [flags]
 ```
 
 **Flags:**
+
 | Flag | Description |
 |------|-------------|
 | `--id` | Update the exact mapping with this `port_id`; omit to select interactively |
