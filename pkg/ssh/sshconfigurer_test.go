@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -1045,13 +1046,14 @@ func TestMakeCertMatchEntry_UsesAbsoluteBrevPath(t *testing.T) {
 }
 
 func TestSSHCertRequiredTemplateV3_MergesCertIntoMatchBlock(t *testing.T) {
+	rawExec := `'/path/to/brev' mint-cert --env env-1 --port p --linux-user ubuntu --out-key /home/u/.brev/ssh-certs/env-1`
 	entry := SSHConfigEntryV2{
 		Alias:        "my-env",
 		IdentityFile: `"/home/u/.brev/ssh-certs/env-1"`,
 		User:         "ubuntu",
 		HostName:     "10.0.0.5",
 		Port:         34828,
-		ExecCommand:  `'/path/to/brev' mint-cert --env env-1 --port p --linux-user ubuntu --out-key /home/u/.brev/ssh-certs/env-1`,
+		ExecCommand:  strconv.Quote(rawExec),
 	}
 	tmpl, err := template.New("m").Parse(SSHCertRequiredTemplateV3)
 	if err != nil {
@@ -1063,6 +1065,12 @@ func TestSSHCertRequiredTemplateV3_MergesCertIntoMatchBlock(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "Match host my-env exec ") {
 		t.Errorf("expected Match block, got: %s", got)
+	}
+	// The exec value must be a single quoted token; OpenSSH rejects bare
+	// whitespace-separated commands in Match exec.
+	execLine := "Match host my-env exec " + strconv.Quote(rawExec)
+	if !strings.Contains(got, execLine) {
+		t.Errorf("Match exec must quote the full command:\nwant: %s\ngot:  %s", execLine, got)
 	}
 	if strings.Contains(got, "Host my-env\n") {
 		t.Errorf("cert-required mode must not emit a Host block: %s", got)

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -437,7 +438,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 		tmplStr := SSHConfigEntryTemplateV3
 		if certRequired {
 			entry.IdentityFile = certKeyPath
-			entry.ExecCommand = certExec
+			entry.ExecCommand = strconv.Quote(certExec)
 			tmplStr = SSHCertRequiredTemplateV3
 		}
 		tmpl, err := template.New(alias).Parse(tmplStr)
@@ -464,7 +465,7 @@ func makeSSHConfigEntryV2(workspace entity.Workspace, privateKeyPath string, clo
 		tmplStr := SSHConfigEntryTemplateV2
 		if certRequired {
 			entry.IdentityFile = certKeyPath
-			entry.ExecCommand = certExec
+			entry.ExecCommand = strconv.Quote(certExec)
 			tmplStr = SSHCertRequiredTemplateV2
 		}
 		tmpl, err := template.New(alias).Parse(tmplStr)

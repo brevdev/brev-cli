@@ -12,6 +12,7 @@ import (
 
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
@@ -25,6 +26,7 @@ import (
 const timeout = 15 * time.Second
 
 type Store interface {
+	util.GetWorkspaceByNameOrIDErrStore
 	GetAccessToken() (string, error)
 }
 
@@ -74,14 +76,14 @@ func NewCmdMintCert(store Store) *cobra.Command {
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runMintCert(store, mintCertRequest{
-				EnvironmentID: env,
-				PortID:        port,
-				LinuxUser:     user,
-				OutKey:        outKey,
+				NameOrID:  env,
+				PortID:    port,
+				LinuxUser: user,
+				OutKey:    outKey,
 			})
 		},
 	}
-	cmd.Flags().StringVar(&env, "env", "", "environment ID to mint a certificate for")
+	cmd.Flags().StringVar(&env, "env", "", "name or ID to mint a certificate for")
 	cmd.Flags().StringVar(&port, "port", "", "network-member port ID for the SSH access")
 	cmd.Flags().StringVar(&user, "linux-user", "", "Linux user for the certificate principal")
 	cmd.Flags().StringVar(&outKey, "out-key", "", "private-key path (certificate goes to <path>-cert.pub)")
@@ -93,10 +95,10 @@ func NewCmdMintCert(store Store) *cobra.Command {
 }
 
 type mintCertRequest struct {
-	EnvironmentID string
-	PortID        string
-	LinuxUser     string
-	OutKey        string
+	NameOrID  string
+	PortID    string
+	LinuxUser string
+	OutKey    string
 }
 
 func runMintCert(store Store, req mintCertRequest) error {
@@ -112,7 +114,19 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 		}
 		return fmt.Errorf("not logged in")
 	}
-	_ = token
+	target, err := util.ResolveWorkspaceOrNode(store, req.NameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	var targetId string
+	if target.Workspace != nil {
+		targetId = target.Workspace.ID
+	}
+	if target.Node != nil {
+		// TODO uptake for external node
+		return breverrors.New("registered compute not yet supported for SSH Certs")
+	}
+
 	certPath := req.OutKey + "-cert.pub"
 	if ok, err := sshcert.HasValidCertAt(fs, certPath, time.Now(), sshcert.DefaultRenewalMargin); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "brev: failed to check cached cert: %v\n", err)
@@ -128,7 +142,7 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cert, err := issuer.Issue(ctx, certIssueRequest{
-		EnvironmentID: req.EnvironmentID,
+		EnvironmentID: targetId,
 		PortID:        req.PortID,
 		LinuxUser:     req.LinuxUser,
 		PublicKey:     pubKeyOpenSSH,

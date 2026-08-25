@@ -11,6 +11,7 @@ import (
 
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/spf13/afero"
 	"golang.org/x/crypto/ssh"
 
@@ -18,8 +19,11 @@ import (
 )
 
 type fakeStore struct {
-	token string
-	err   error
+	token      string
+	org        *entity.Organization
+	err        error
+	workspaces []entity.Workspace
+	user       *entity.User
 }
 
 func (f fakeStore) GetAccessToken() (string, error) {
@@ -27,6 +31,22 @@ func (f fakeStore) GetAccessToken() (string, error) {
 		return "", f.err
 	}
 	return f.token, nil
+}
+
+func (f fakeStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	return f.org, nil
+}
+
+func (f fakeStore) GetAuthTokens() (*entity.AuthTokens, error) {
+	return nil, nil
+}
+
+func (f fakeStore) GetCurrentUser() (*entity.User, error) {
+	return f.user, nil
+}
+
+func (f fakeStore) GetWorkspaceByNameOrID(_ string, _ string) ([]entity.Workspace, error) {
+	return f.workspaces, nil
 }
 
 type certIssuerFunc struct {
@@ -81,14 +101,25 @@ func mintCertForTest(t *testing.T, pubKeyOpenSSH string) string {
 	return strings.TrimRight(string(ssh.MarshalAuthorizedKey(cert)), "\n")
 }
 
+func testStore(token string) fakeStore {
+	return fakeStore{
+		token: token,
+		user:  &entity.User{ID: "user-1"},
+		org:   &entity.Organization{ID: "org-1"},
+		workspaces: []entity.Workspace{
+			{ID: "env-1", CreatedByUserID: "user-1"},
+		},
+	}
+}
+
 func TestRunMintCert_MintsAndWrites(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	outKey := "/home/u/.brev/ssh-certs/env-1"
 	issuer := &certIssuerFunc{fn: func(_ context.Context, req certIssueRequest) (string, error) {
 		return mintCertForTest(t, req.PublicKey), nil
 	}}
-	if err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
-		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	if err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
+		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
 	}); err != nil {
 		t.Fatalf("runMintCertWith: %v", err)
 	}
@@ -121,8 +152,8 @@ func TestRunMintCert_ReusesCachedCert(t *testing.T) {
 		t.Error("issuer should not be called when cache is valid")
 		return "", nil
 	}}
-	if err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
-		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
+	if err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
+		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu", OutKey: outKey,
 	}); err != nil {
 		t.Fatalf("expected reuse, got err: %v", err)
 	}
@@ -133,8 +164,8 @@ func TestRunMintCert_FallsBackOnIssueError(t *testing.T) {
 	issuer := &certIssuerFunc{fn: func(_ context.Context, _ certIssueRequest) (string, error) {
 		return "", errors.New("CA unavailable")
 	}}
-	err := runMintCertWith(fakeStore{token: "tok"}, fs, issuer, mintCertRequest{
-		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
+	err := runMintCertWith(testStore("tok"), fs, issuer, mintCertRequest{
+		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	})
 	if err == nil {
@@ -153,14 +184,14 @@ func TestRunMintCert_FallsBackOnAuthError(t *testing.T) {
 	}}
 	// GetAccessToken error -> auth failure (no prompt, fall back to brev.pem).
 	if err := runMintCertWith(fakeStore{err: errors.New("no token")}, fs, issuer, mintCertRequest{
-		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
+		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	}); err == nil {
 		t.Fatal("expected error on auth failure")
 	}
 	// Empty token (noLoginCmdStore returns "") -> auth failure, NOT a prompt.
 	if err := runMintCertWith(fakeStore{token: ""}, fs, issuer, mintCertRequest{
-		EnvironmentID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
+		NameOrID: "env-1", PortID: "port-1", LinuxUser: "ubuntu",
 		OutKey: "/home/u/.brev/ssh-certs/env-1",
 	}); err == nil {
 		t.Fatal("expected error on empty token (must not prompt)")
