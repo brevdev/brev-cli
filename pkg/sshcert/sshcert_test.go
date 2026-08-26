@@ -4,6 +4,9 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"os"
+	"os/user"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -233,4 +236,132 @@ func mustGen(t *testing.T) ([]byte, string) {
 		t.Fatalf("GenerateKeyPair: %v", err)
 	}
 	return priv, pub
+}
+
+func testHomeDir(t *testing.T) *user.User {
+	t.Helper()
+	return &user.User{HomeDir: t.TempDir()}
+}
+
+func Test_RemoveCertAuthorityLine_RemovesMatchingLine(t *testing.T) {
+	u := testHomeDir(t)
+	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	caKey := "ssh-ed25519 AAAAC3Nz dummyCA"
+	entry := `cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ` + caKey
+	content := strings.Join([]string{
+		"ssh-rsa EXISTING user@host",
+		entry,
+		"ssh-ed25519 OTHER admin@server",
+		"",
+	}, "\n")
+
+	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := RemoveCertAuthorityLine(u.HomeDir, "unode_abc", "ubuntu")
+	if err != nil {
+		t.Fatalf("removeCertAuthority: %v", err)
+	}
+	if !removed {
+		t.Fatal("expected line to be removed")
+	}
+
+	data, err := os.ReadFile(filepath.Join(sshDir, "authorized_keys"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result := string(data)
+	if strings.Contains(result, caKey) {
+		t.Errorf("CA key still present:\n%s", result)
+	}
+	if strings.Contains(result, "cert-authority") {
+		t.Errorf("cert-authority line still present:\n%s", result)
+	}
+	if !strings.Contains(result, "ssh-rsa EXISTING user@host") {
+		t.Errorf("non-brev key was removed:\n%s", result)
+	}
+}
+
+func Test_RemoveCertAuthorityLine_NoopWhenFileDoesNotExist(t *testing.T) {
+	u := testHomeDir(t)
+	removed, err := RemoveCertAuthorityLine(u.HomeDir, "unode_abc", "ubuntu")
+	if err != nil {
+		t.Fatalf("expected no error for missing file: %v", err)
+	}
+	if removed {
+		t.Error("expected removed=false for missing file")
+	}
+}
+
+func Test_RemoveCertAuthorityLine_NoopWhenNoMatch(t *testing.T) {
+	u := testHomeDir(t)
+	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	original := "ssh-rsa EXISTING user@host\n"
+	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := RemoveCertAuthorityLine(u.HomeDir, "unode_abc", "ubuntu")
+	if err != nil {
+		t.Fatalf("removeCertAuthority: %v", err)
+	}
+	if removed {
+		t.Error("expected removed=false when no match")
+	}
+
+	data, err := os.ReadFile(filepath.Join(sshDir, "authorized_keys"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != original {
+		t.Errorf("file was modified when it shouldn't have been")
+	}
+}
+
+func Test_RemoveCertAuthorityLine_OnlyRemovesMatchingPrincipal(t *testing.T) {
+	u := testHomeDir(t)
+	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	otherEntry := `cert-authority,principals="brev:v1:vm:other_node:login:ubuntu" ssh-ed25519 OTHER_CA`
+	targetEntry := `cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ssh-ed25519 TARGET_CA`
+	content := strings.Join([]string{
+		otherEntry,
+		targetEntry,
+		"",
+	}, "\n")
+
+	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	removed, err := RemoveCertAuthorityLine(u.HomeDir, "unode_abc", "ubuntu")
+	if err != nil {
+		t.Fatalf("removeCertAuthority: %v", err)
+	}
+	if !removed {
+		t.Fatal("expected line to be removed")
+	}
+
+	data, _ := os.ReadFile(filepath.Join(sshDir, "authorized_keys"))
+	result := string(data)
+
+	if strings.Contains(result, "TARGET_CA") {
+		t.Errorf("target CA still present:\n%s", result)
+	}
+	if !strings.Contains(result, "OTHER_CA") {
+		t.Errorf("other node's CA was removed:\n%s", result)
+	}
 }

@@ -184,7 +184,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		}
 		linuxUserOptions := uniqueLinuxUsersFromNodeSSHAccess(node)
 		if len(linuxUserOptions) == 0 {
-			return fmt.Errorf("no Linux users on this node yet; run with --linux-user to specify one (e.g. after enable-ssh on the node)")
+			return fmt.Errorf("no Linux users on this node yet; run with --linux-user to specify one (e.g. after allow-ssh on the node)")
 		}
 		t.Vprint("")
 		linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
