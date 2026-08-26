@@ -307,6 +307,33 @@ func TestUpdateExternalNodeDestinationAndAllowedSources(t *testing.T) {
 	assert.Equal(t, []string{"203.0.113.10/32"}, service.sourcesReq.GetAllowedSources())
 }
 
+func TestUpdateExternalNodeAllowAnywhere(t *testing.T) {
+	updated := testTCPPort("nport-one", 41001)
+	updated.AllowedSources = []string{"0.0.0.0/0"}
+	service := &fakeUpdateNodeService{
+		node: &devplanev1.ExternalNode{
+			ExternalNodeId: "unode123",
+			Name:           "my-node",
+			Ports:          []*devplanev1.Port{testTCPPort("nport-one", 41001)},
+		},
+		responsePort: updated,
+	}
+	_, handler := devplanev1connect.NewExternalNodeServiceHandler(service)
+	newTestServer(t, handler)
+	store := &fakeStore{
+		user: &entity.User{ID: "user1", Email: "me@example.com"},
+		org:  &entity.Organization{ID: "org1"},
+	}
+	cmd := newCmdUpdatePort(store, &fakeUpdatePrompter{selectIndex: -1})
+	cmd.SetArgs([]string{"my-node", "--id", "nport-one", "--allow-anywhere"})
+
+	err := cmd.Execute()
+
+	require.NoError(t, err)
+	require.NotNil(t, service.sourcesReq)
+	assert.Equal(t, []string{"0.0.0.0/0"}, service.sourcesReq.GetAllowedSources())
+}
+
 func TestUpdateStopsAfterMutationFailure(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -382,7 +409,7 @@ func TestUpdateHTTPAuthorizedEmails(t *testing.T) {
 
 func TestUpdateInteractiveSelectionCanDisambiguateDuplicateDestinations(t *testing.T) {
 	updated := testTCPPort("nport-two", 52002)
-	updated.AllowedSources = []string{}
+	updated.AllowedSources = []string{"0.0.0.0/0"}
 	service := &fakeUpdateEnvironmentService{
 		t:             t,
 		expectedEnvID: "env123",
@@ -407,7 +434,7 @@ func TestUpdateInteractiveSelectionCanDisambiguateDuplicateDestinations(t *testi
 	assert.Contains(t, prompter.items[1], "public 52002 -> destination 8080")
 	require.NotNil(t, service.sourcesReq)
 	assert.Equal(t, "nport-two", service.sourcesReq.GetPortId())
-	assert.Empty(t, service.sourcesReq.GetAllowedSources().GetCidrBlocks())
+	assert.Equal(t, []string{"0.0.0.0/0"}, service.sourcesReq.GetAllowedSources().GetCidrBlocks())
 }
 
 func TestUpdateRejectsUnknownID(t *testing.T) {

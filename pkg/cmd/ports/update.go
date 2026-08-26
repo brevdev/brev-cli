@@ -158,7 +158,7 @@ func allowedSourcesUpdate(opts updateOptions) (*[]string, error) {
 		return &allowedSources, nil
 	}
 	if opts.allowAnywhere {
-		allowedSources := []string{}
+		allowedSources := []string{"0.0.0.0/0"}
 		return &allowedSources, nil
 	}
 	return nil, nil
