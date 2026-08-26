@@ -191,6 +191,9 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		go trackExecAnalytics(sstore, workspaceNameOrID)
 		return nil
 	}
+	if !isSSHConnectionFailure(err) {
+		return breverrors.WrapAndTrace(err)
+	}
 
 	// SSH failed — now check what's going on with the instance
 	fmt.Fprintf(os.Stderr, "Connection failed, checking instance status...\n")
@@ -242,31 +245,14 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 			workspaceNameOrID, workspace.Status))
 	}
 
-	// Instance is RUNNING but SSH failed — maybe still booting, do the wait
-	s := t.NewSpinner()
-	refreshRes := refresh.RunRefreshAsync(sstore)
-	if err = refreshRes.Await(); err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
+	return breverrors.WrapAndTrace(fmt.Errorf(
+		"ssh connection to running instance %q failed; the remote command was not retried because it may already have executed: %w",
+		workspaceNameOrID, err))
+}
 
-	localIdentifier := workspace.GetLocalIdentifier()
-	if host {
-		localIdentifier = workspace.GetHostIdentifier()
-	}
-	sshName = string(localIdentifier)
-
-	err = util.WaitForSSHToBeAvailable(sshName, s)
-	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(
-			"could not connect to instance %q: %w\nPlease check with: brev ls",
-			workspaceNameOrID, err))
-	}
-	err = runSSH(sshName, command)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	go trackExecAnalytics(sstore, workspaceNameOrID)
-	return nil
+func isSSHConnectionFailure(err error) bool {
+	var exitErr *exec.ExitError
+	return breverrors.As(err, &exitErr) && exitErr.ExitCode() == 255
 }
 
 func trackExecAnalytics(sstore ExecStore, workspaceNameOrID string) {
