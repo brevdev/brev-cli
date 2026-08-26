@@ -87,6 +87,8 @@ var (
 	registerLong = `Register your device with NVIDIA Brev
 
 This command registers this machine with Brev and brings up the Brev tunnel.
+Registration does not enable SSH; run 'brev allow-ssh' afterwards to allow SSH
+on this device, then 'brev grant-ssh' to grant users SSH access.
 
 Two modes are supported:
   • Interactive (default): run 'brev register' with no flags and follow prompts for device name and org.
@@ -103,7 +105,10 @@ flow is used.`
   brev register
 
   # Non-interactive (--name and --org required)
-  brev register --name my-node --org my-org`
+  brev register --name my-node --org my-org
+
+  # Allow SSH on this device after registering
+  brev allow-ssh`
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
@@ -319,6 +324,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 		Name:           name,
 		DeviceId:       deviceID,
 		NodeSpec:       toProtoNodeSpec(hwProfile),
+		Labels:         map[string]string{"sshprovider": "certauth"},
 	}))
 	if err != nil {
 		var connectErr *connect.Error

@@ -39,6 +39,24 @@ type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
 	removeNodeFn func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
 	listNodesFn  func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
+	getNodeFn    func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+}
+
+func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
+	if f.getNodeFn == nil {
+		// Default: certauth node (matches registration on this branch).
+		return connect.NewResponse(&nodev1.GetNodeResponse{
+			ExternalNode: &nodev1.ExternalNode{
+				ExternalNodeId: req.Msg.GetExternalNodeId(),
+				Labels:         map[string]string{"sshprovider": "certauth"},
+			},
+		}), nil
+	}
+	resp, err := f.getNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
 }
 
 func (f *fakeNodeService) RemoveNode(_ context.Context, req *connect.Request[nodev1.RemoveNodeRequest]) (*connect.Response[nodev1.RemoveNodeResponse], error) {
@@ -125,10 +143,21 @@ func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider
 type mockSSHKeyRemover struct {
 	called  bool
 	err     error
+	removed bool
+}
+
+func (m *mockSSHKeyRemover) RemoveCertAuthority(_ *user.User, _, _ string) (bool, error) {
+	m.called = true
+	return m.removed, m.err
+}
+
+type mockLegacyKeyRemover struct {
+	called  bool
+	err     error
 	removed []string
 }
 
-func (m *mockSSHKeyRemover) RemoveBrevKeys(_ *user.User) ([]string, error) {
+func (m *mockLegacyKeyRemover) RemoveBrevKeys(_ *user.User) ([]string, error) {
 	m.called = true
 	return m.removed, m.err
 }
@@ -179,6 +208,7 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
 		sshKeys:           &mockSSHKeyRemover{},
+		legacyKeys:        &mockLegacyKeyRemover{},
 	}, server
 }
 
@@ -482,5 +512,98 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 				t.Error("expected registration to be deleted")
 			}
 		})
+	}
+}
+
+func Test_runDeregister_LegacyNodeRemovesKeys(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+		getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return &nodev1.GetNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: req.GetExternalNodeId(),
+					// No sshprovider label — legacy node.
+					Labels: map[string]string{},
+				},
+			}, nil
+		},
+	}
+
+	certMock := &mockSSHKeyRemover{}
+	legacyMock := &mockLegacyKeyRemover{removed: []string{"ssh-rsa OLD user@host"}}
+
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.sshKeys = certMock
+		d.legacyKeys = legacyMock
+	})
+	if err != nil {
+		t.Fatalf("runDeregister failed: %v", err)
+	}
+
+	if !legacyMock.called {
+		t.Error("expected RemoveBrevKeys to be called for legacy node")
+	}
+	if certMock.called {
+		t.Error("expected RemoveCertAuthority NOT to be called for legacy node")
+	}
+}
+
+func Test_runDeregister_CertAuthNodeRemovesCertAuthority(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+	} // default getNodeFn returns a certauth node
+
+	certMock := &mockSSHKeyRemover{removed: true}
+	legacyMock := &mockLegacyKeyRemover{}
+
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.sshKeys = certMock
+		d.legacyKeys = legacyMock
+	})
+	if err != nil {
+		t.Fatalf("runDeregister failed: %v", err)
+	}
+
+	if !certMock.called {
+		t.Error("expected RemoveCertAuthority to be called for certauth node")
+	}
+	if legacyMock.called {
+		t.Error("expected RemoveBrevKeys NOT to be called for certauth node")
+	}
+}
+
+func Test_runDeregister_NodeLookupFailure_CleansBoth(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("backend down"))
+		},
+	}
+
+	certMock := &mockSSHKeyRemover{removed: true}
+	legacyMock := &mockLegacyKeyRemover{removed: []string{"ssh-rsa OLD"}}
+
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.sshKeys = certMock
+		d.legacyKeys = legacyMock
+	})
+	if err != nil {
+		t.Fatalf("runDeregister failed: %v", err)
+	}
+
+	if !certMock.called {
+		t.Error("expected RemoveCertAuthority to be called on lookup failure")
+	}
+	if !legacyMock.called {
+		t.Error("expected RemoveBrevKeys to be called on lookup failure")
 	}
 }

@@ -1,7 +1,8 @@
-package enablessh
+package allowssh
 
 import (
 	"context"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"os/user"
@@ -14,16 +15,16 @@ import (
 	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-// tempUser returns a *user.User whose HomeDir points to a temporary directory.
 func tempUser(t *testing.T) *user.User {
 	t.Helper()
 	return &user.User{HomeDir: t.TempDir()}
 }
 
-// readAuthorizedKeys is a test helper that reads ~/.ssh/authorized_keys.
 func readAuthorizedKeys(t *testing.T, u *user.User) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(u.HomeDir, ".ssh", "authorized_keys"))
@@ -224,17 +225,51 @@ func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider
 	return register.NewNodeServiceClient(provider, m.serverURL)
 }
 
-type mockEnableSSHStore struct {
+type mockAllowSSHStore struct {
 	token string
 }
 
-func (m *mockEnableSSHStore) GetCurrentUser() (interface{}, error) { return nil, nil }
-func (m *mockEnableSSHStore) GetAccessToken() (string, error)      { return m.token, nil }
+func (m *mockAllowSSHStore) GetCurrentUser() (*entity.User, error) { return &entity.User{}, nil }
+func (m *mockAllowSSHStore) GetAccessToken() (string, error)       { return m.token, nil }
 
-// fakeNodeService implements the server side of ExternalNodeService for testing.
+// mockSelector implements terminal.Selector, returning the first item.
+type mockSelector struct{ choice string }
+
+func (m mockSelector) Select(_ string, items []string) string {
+	if m.choice != "" {
+		for _, s := range items {
+			if s == m.choice {
+				return s
+			}
+		}
+	}
+	if len(items) > 0 {
+		return items[0]
+	}
+	return ""
+}
+
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
-	getNodeFn func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+	getNodeFn  func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+	grantCalls int
+	openCalls  int
+}
+
+func (f *fakeNodeService) GrantNodeSSHAccess(_ context.Context, _ *connect.Request[nodev1.GrantNodeSSHAccessRequest]) (*connect.Response[nodev1.GrantNodeSSHAccessResponse], error) {
+	f.grantCalls++
+	return connect.NewResponse(&nodev1.GrantNodeSSHAccessResponse{}), nil
+}
+
+func (f *fakeNodeService) OpenPort(_ context.Context, req *connect.Request[nodev1.OpenPortRequest]) (*connect.Response[nodev1.OpenPortResponse], error) {
+	f.openCalls++
+	return connect.NewResponse(&nodev1.OpenPortResponse{
+		Port: &nodev1.Port{
+			PortId:     fmt.Sprintf("port_%d", req.Msg.GetPortNumber()),
+			Protocol:   req.Msg.GetProtocol(),
+			PortNumber: req.Msg.GetPortNumber(),
+		},
+	}), nil
 }
 
 func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
@@ -245,14 +280,15 @@ func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1
 	return connect.NewResponse(resp), nil
 }
 
-func startFakeServer(t *testing.T, svc *fakeNodeService) (enableSSHDeps, *httptest.Server) {
+func startFakeServer(t *testing.T, svc *fakeNodeService) allowSSHDeps {
 	t.Helper()
 	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	return enableSSHDeps{
+	return allowSSHDeps{
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
-	}, server
+		prompter:    mockSelector{},
+	}
 }
 
 func Test_fetchRegisteredNode(t *testing.T) {
@@ -267,8 +303,8 @@ func Test_fetchRegisteredNode(t *testing.T) {
 			}}, nil
 		},
 	}
-	deps, _ := startFakeServer(t, svc)
-	store := &mockEnableSSHStore{token: "tok"}
+	deps := startFakeServer(t, svc)
+	store := &mockAllowSSHStore{token: "tok"}
 	reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc", OrgID: "org_1"}
 
 	node, err := fetchRegisteredNode(context.Background(), deps, store, reg)
@@ -277,5 +313,118 @@ func Test_fetchRegisteredNode(t *testing.T) {
 	}
 	if len(node.GetPorts()) != 1 || node.GetPorts()[0].GetPortId() != "port_1" {
 		t.Fatalf("unexpected node: %+v", node)
+	}
+}
+
+// --- installCertAuthority ---
+
+func Test_installCertAuthority(t *testing.T) {
+	const (
+		caKey = "ssh-ed25519 AAAAC3Nz dummyCA"
+		node  = "unode_abc"
+		luser = "ubuntu"
+	)
+
+	t.Run("WritesLine", func(t *testing.T) {
+		u := tempUser(t)
+		if err := installCertAuthority(u, caKey, node, luser); err != nil {
+			t.Fatalf("installCertAuthority: %v", err)
+		}
+		want := `cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ssh-ed25519 AAAAC3Nz dummyCA`
+		if result := readAuthorizedKeys(t, u); !strings.Contains(result, want) {
+			t.Errorf("expected cert-authority line not found:\n%s", result)
+		}
+	})
+
+	t.Run("Idempotent", func(t *testing.T) {
+		u := tempUser(t)
+		for i := 0; i < 2; i++ {
+			if err := installCertAuthority(u, caKey, node, luser); err != nil {
+				t.Fatalf("installCertAuthority #%d: %v", i+1, err)
+			}
+		}
+		result := readAuthorizedKeys(t, u)
+		if n := strings.Count(result, "cert-authority"); n != 1 {
+			t.Errorf("expected 1 cert-authority line, got %d:\n%s", n, result)
+		}
+	})
+
+	t.Run("PreservesExistingKeys", func(t *testing.T) {
+		u := tempUser(t)
+		sshDir := filepath.Join(u.HomeDir, ".ssh")
+		if err := os.MkdirAll(sshDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		original := "ssh-rsa EXISTING user@host\n"
+		if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(original), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := installCertAuthority(u, caKey, node, luser); err != nil {
+			t.Fatalf("installCertAuthority: %v", err)
+		}
+
+		result := readAuthorizedKeys(t, u)
+		if !strings.Contains(result, "ssh-rsa EXISTING user@host") {
+			t.Errorf("existing key was removed:\n%s", result)
+		}
+		if !strings.Contains(result, "cert-authority") {
+			t.Errorf("cert-authority line not written:\n%s", result)
+		}
+	})
+
+	t.Run("EmptyKeyErrors", func(t *testing.T) {
+		if err := installCertAuthority(tempUser(t), "", node, luser); err == nil {
+			t.Error("expected error for empty CA key")
+		}
+	})
+}
+
+func Test_allowSSH_LegacyNodeFallsBackToKeys(t *testing.T) {
+	svc := &fakeNodeService{
+		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return &nodev1.GetNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: "unode_legacy",
+					// No sshprovider label — legacy node.
+					Labels: map[string]string{},
+					Ports: []*nodev1.Port{{
+						PortId:     "port_ssh",
+						Protocol:   nodev1.PortProtocol_PORT_PROTOCOL_TCP,
+						PortNumber: 22,
+					}},
+				},
+			}, nil
+		},
+	}
+	deps := startFakeServer(t, svc)
+
+	reg := &register.DeviceRegistration{
+		DisplayName:    "legacy-node",
+		ExternalNodeID: "unode_legacy",
+		OrgID:          "org_1",
+	}
+
+	term := terminal.New()
+	if err := allowSSH(context.Background(), term, deps, &mockAllowSSHStore{}, reg, &entity.User{ID: "user_1"}); err != nil {
+		t.Fatalf("allowSSH failed: %v", err)
+	}
+
+	// Legacy flow must grant SSH access (reflexive grant).
+	if svc.grantCalls == 0 {
+		t.Error("expected GrantNodeSSHAccess to be called for legacy node")
+	}
+
+	// No cert-authority line may be written for a legacy node.
+	realUser, err := user.Current()
+	if err != nil {
+		t.Fatalf("user.Current failed: %v", err)
+	}
+	authKeysPath := filepath.Join(realUser.HomeDir, ".ssh", "authorized_keys")
+	data, readErr := os.ReadFile(authKeysPath) // #nosec G304
+	if readErr == nil {
+		if strings.Contains(string(data), "brev:v1:vm:unode_legacy") {
+			t.Errorf("legacy node must not write a cert-authority line:\n%s", string(data))
+		}
 	}
 }
