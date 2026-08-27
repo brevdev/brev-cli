@@ -25,6 +25,8 @@ import (
 type EnableSSHStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetAccessToken() (string, error)
+	GetCachedLinuxUser() (string, error)
+	SaveCachedLinuxUser(linuxUser string) error
 }
 
 // enableSSHDeps bundles the side-effecting dependencies of runEnableSSH so they
@@ -76,7 +78,7 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return enableSSH(ctx, t, deps, s, reg, brevUser)
+	return enableSSH(ctx, t, s, deps, s, reg, brevUser)
 }
 
 // enableSSH grants SSH access to the given node for the current Brev user.
@@ -84,19 +86,28 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 func enableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
+	s EnableSSHStore,
 	deps enableSSHDeps,
 	tokenProvider externalnode.TokenProvider,
 	reg *register.DeviceRegistration,
 	brevUser *entity.User,
 ) error {
+	// Reuse the Linux user cached by a previous enable-ssh on this machine so
+	// repeat grants stay consistent; fall back to the current OS user.
+	cachedLinuxUser, err := s.GetCachedLinuxUser()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	linuxUser, err := user.Current()
 	if err != nil {
 		return fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
 	linuxUsername := linuxUser.Username
+	if cachedLinuxUser != "" {
+		linuxUsername = cachedLinuxUser
+	}
 
 	checkSSHDaemon(t)
-
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
 	t.Vprint("")
@@ -117,6 +128,11 @@ func enableSSH(
 
 	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, linuxUsername, brevPortID); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
+	}
+
+	// Cache the Linux user so future grant-ssh prompts can pre-select it.
+	if err := s.SaveCachedLinuxUser(linuxUsername); err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not cache Linux user: %v", err)))
 	}
 
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
