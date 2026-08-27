@@ -14,6 +14,8 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mock types for grantSSHDeps interfaces
@@ -68,6 +70,10 @@ type mockGrantSSHStore struct {
 	members []*nodev1.OrganizationMember
 	users   map[string]*entity.User
 	err     error
+
+	cachedLinuxUser   string
+	savedLinuxUsers   []string
+	savedLinuxUserErr error
 }
 
 func (m *mockGrantSSHStore) GetCurrentUser() (*entity.User, error) {
@@ -100,6 +106,78 @@ func (m *mockGrantSSHStore) ListOrganizations() ([]entity.Organization, error) {
 		return nil, nil
 	}
 	return []entity.Organization{*m.org}, nil
+}
+
+func (m *mockGrantSSHStore) GetCachedLinuxUser() (string, error) {
+	return m.cachedLinuxUser, nil
+}
+
+func (m *mockGrantSSHStore) SaveCachedLinuxUser(linuxUser string) error {
+	if m.savedLinuxUserErr != nil {
+		return m.savedLinuxUserErr
+	}
+	m.savedLinuxUsers = append(m.savedLinuxUsers, linuxUser)
+	return nil
+}
+
+func Test_selectCachedLinuxUser_CachedUserConfirmed(t *testing.T) {
+	s := &mockGrantSSHStore{cachedLinuxUser: "ubuntu"}
+	var selectedLabel string
+	prompter := mockSelector{fn: func(label string, _ []string) string {
+		selectedLabel = label
+		return "Yes, use ubuntu"
+	}}
+	linuxUser, err := selectCachedLinuxUser(terminal.New(), prompter, s, []string{"ubuntu", "deploy"})
+	require.NoError(t, err)
+	assert.Equal(t, "ubuntu", linuxUser)
+	assert.Contains(t, selectedLabel, "ubuntu", "cached user must be pre-selected")
+	assert.Empty(t, s.savedLinuxUsers, "no re-save when the cached user is confirmed")
+}
+
+func Test_selectCachedLinuxUser_CachedUserRejectedPromptsAndSaves(t *testing.T) {
+	s := &mockGrantSSHStore{cachedLinuxUser: "ubuntu"}
+	prompter := mockSelector{fn: func(_ string, items []string) string {
+		if len(items) > 0 && items[0] == "No, choose another" {
+			return "No, choose another"
+		}
+		return items[len(items)-1] // picker returns last option
+	}}
+	linuxUser, err := selectCachedLinuxUser(terminal.New(), prompter, s, []string{"ubuntu", "deploy"})
+	require.NoError(t, err)
+	assert.Equal(t, "deploy", linuxUser)
+	require.Equal(t, []string{"deploy"}, s.savedLinuxUsers)
+}
+
+func Test_selectCachedLinuxUser_NoCachedUserPromptsAndSaves(t *testing.T) {
+	s := &mockGrantSSHStore{}
+	prompter := mockSelector{fn: func(_ string, items []string) string {
+		return items[0]
+	}}
+	linuxUser, err := selectCachedLinuxUser(terminal.New(), prompter, s, []string{"ubuntu", "deploy"})
+	require.NoError(t, err)
+	assert.Equal(t, "ubuntu", linuxUser)
+	require.Equal(t, []string{"ubuntu"}, s.savedLinuxUsers)
+}
+
+func Test_selectCachedLinuxUser_StaleCacheFallsBackToPicker(t *testing.T) {
+	s := &mockGrantSSHStore{cachedLinuxUser: "gone-user"}
+	prompter := mockSelector{fn: func(_ string, items []string) string {
+		return items[0]
+	}}
+	linuxUser, err := selectCachedLinuxUser(terminal.New(), prompter, s, []string{"ubuntu", "deploy"})
+	require.NoError(t, err)
+	assert.Equal(t, "ubuntu", linuxUser)
+	require.Equal(t, []string{"ubuntu"}, s.savedLinuxUsers)
+}
+
+func Test_selectCachedLinuxUser_SaveErrorIsNonFatal(t *testing.T) {
+	s := &mockGrantSSHStore{savedLinuxUserErr: fmt.Errorf("disk full")}
+	prompter := mockSelector{fn: func(_ string, items []string) string {
+		return items[0]
+	}}
+	linuxUser, err := selectCachedLinuxUser(terminal.New(), prompter, s, []string{"ubuntu"})
+	require.NoError(t, err, "cache save failure must not fail the grant")
+	assert.Equal(t, "ubuntu", linuxUser)
 }
 
 func (m *mockGrantSSHStore) GetOrganizationsByName(name string) ([]entity.Organization, error) {

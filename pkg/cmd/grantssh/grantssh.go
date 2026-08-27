@@ -32,6 +32,8 @@ type GrantSSHStore interface {
 	GetAccessToken() (string, error)
 	ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error)
 	GetUserByID(userID string) (*entity.User, error)
+	GetCachedLinuxUser() (string, error)
+	SaveCachedLinuxUser(linuxUser string) error
 }
 
 // grantSSHDeps bundles the side-effecting dependencies of runGrantSSH so they
@@ -183,11 +185,12 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 			return err
 		}
 		linuxUserOptions := uniqueLinuxUsersFromNodeSSHAccess(node)
-		if len(linuxUserOptions) > 0 {
-			t.Vprint("")
-			linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
-		} else {
+		if len(linuxUserOptions) == 0 {
 			return fmt.Errorf("no Linux users on this node yet; run with --linux-user to specify one (e.g. after enable-ssh on the node)")
+		}
+		linuxUser, err = selectCachedLinuxUser(t, deps.prompter, s, linuxUserOptions)
+		if err != nil {
+			return err
 		}
 	} else {
 		selectedUser, err = findUserByIDOrEmail(orgMembers, opts.userIDOrEmail)
@@ -278,6 +281,29 @@ func uniqueLinuxUsersFromNodeSSHAccess(node *nodev1.ExternalNode) []string {
 		}
 	}
 	return slices.Collect(maps.Keys(linuxUsers))
+}
+
+// selectCachedLinuxUser prompts for a Linux user from the node's options,
+// pre-selecting the user cached by a previous enable-ssh on this machine, and
+// caches the final choice so repeat grants default to it.
+func selectCachedLinuxUser(t *terminal.Terminal, prompter terminal.Selector, s GrantSSHStore, options []string) (string, error) {
+	cached, err := s.GetCachedLinuxUser()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if cached != "" && slices.Contains(options, cached) {
+		t.Vprint("")
+		confirm := prompter.Select(fmt.Sprintf("Linux user on the node [%s]", cached), []string{"Yes, use " + cached, "No, choose another"})
+		if confirm == "Yes, use "+cached {
+			return cached, nil
+		}
+	}
+	t.Vprint("")
+	selected := prompter.Select("Select Linux user on the node", options)
+	if err := s.SaveCachedLinuxUser(selected); err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not cache Linux user: %v", err)))
+	}
+	return selected, nil
 }
 
 func findUserByIDOrEmail(members []resolvedMember, idOrEmail string) (*entity.User, error) {
