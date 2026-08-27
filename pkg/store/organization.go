@@ -72,26 +72,7 @@ func (f FileStore) GetCachedActiveOrganizationOrNil() (*entity.Organization, err
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
 	if auth.IsAPIKeyAuthStore(&s) {
-		orgID, err := auth.GetAPIKeyOrgID(&s)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		org := &entity.Organization{ID: orgID, Name: orgID}
-		// Name hydration is best-effort; the command itself should surface backend auth errors.
-		freshOrg, err := s.GetOrganization(orgID)
-		if err != nil {
-			return org, nil
-		}
-		if freshOrg == nil {
-			return org, nil
-		}
-		if freshOrg.ID == "" {
-			freshOrg.ID = orgID
-		}
-		if freshOrg.Name == "" {
-			freshOrg.Name = freshOrg.ID
-		}
-		return freshOrg, nil
+		return s.hydrateOrgFromApiKey()
 	}
 
 	workspaceID, err := s.GetCurrentWorkspaceID()
@@ -99,17 +80,7 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
-		var workspace *entity.Workspace
-		workspace, err = s.GetWorkspace(workspaceID)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		var org *entity.Organization
-		org, err = s.GetOrganization(workspace.OrganizationID)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		return org, nil
+		return s.hydrateOrgFromWorkspace(workspaceID)
 	}
 
 	activeOrg, err := s.GetCachedActiveOrganizationOrNil()
@@ -125,6 +96,50 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		if !IsNetwork404Or403Error(err) { // handle because can login with bad cache
 			return nil, breverrors.WrapAndTrace(err)
 		}
+	}
+	return freshOrg, nil
+}
+
+func (s AuthHTTPStore) hydrateOrgFromWorkspace(workspaceID string) (*entity.Organization, error) {
+	var workspace *entity.Workspace
+	workspace, err := s.GetWorkspace(workspaceID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	var org *entity.Organization
+	org, err = s.GetOrganization(workspace.OrganizationID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return org, nil
+}
+
+func (s AuthHTTPStore) hydrateOrgFromApiKey() (*entity.Organization, error) {
+	org, err := auth.ResolveEnvAPIKeyOrg(&s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org != nil {
+		return org, nil
+	}
+	orgID, err := auth.GetAPIKeyOrgID(&s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	org = &entity.Organization{ID: orgID, Name: orgID}
+	// Name hydration is best-effort; the command itself should surface backend auth errors.
+	freshOrg, err := s.GetOrganization(orgID)
+	if err != nil {
+		return org, nil
+	}
+	if freshOrg == nil {
+		return org, nil
+	}
+	if freshOrg.ID == "" {
+		freshOrg.ID = orgID
+	}
+	if freshOrg.Name == "" {
+		freshOrg.Name = freshOrg.ID
 	}
 	return freshOrg, nil
 }

@@ -12,7 +12,9 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -243,7 +245,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	deps.setupRunner = setupRunner
 
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", registrationToken: "ui-token-xyz"}
 	err := runRegister(context.Background(), term, store, opts, deps)
 	if err != nil {
 		t.Fatalf("runRegister failed: %v", err)
@@ -270,6 +272,12 @@ func Test_runRegister_HappyPath(t *testing.T) {
 	}
 	if reg.OrgID != "org_123" {
 		t.Errorf("expected org org_123, got %s", reg.OrgID)
+	}
+	if reg.RegistrationToken != "ui-token-xyz" {
+		t.Errorf("expected RegistrationToken to be persisted, got %q", reg.RegistrationToken)
+	}
+	if reg.Status != RegistrationStatusRegistered {
+		t.Errorf("expected registered status, got %q", reg.Status)
 	}
 
 	// Verify setup command was executed
@@ -774,17 +782,87 @@ func Test_runRegister_ResumesPendingRegistration(t *testing.T) {
 	}
 }
 
-func Test_runRegister_PersistsRegistrationToken(t *testing.T) {
+const testAPIKey = auth.BrevAPIKeyPrefix + "test-key"
+
+func apiKeyAddNodeFn(t *testing.T) func(*nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+	t.Helper()
+	return func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+		if req.GetOrganizationId() != "org_123" {
+			t.Errorf("unexpected org: %s", req.GetOrganizationId())
+		}
+		return &nodev1.AddNodeResponse{
+			ExternalNode: &nodev1.ExternalNode{
+				ExternalNodeId: "unode_abc",
+				OrganizationId: req.GetOrganizationId(),
+				Name:           req.GetName(),
+				DeviceId:       req.GetDeviceId(),
+			},
+		}, nil
+	}
+}
+
+func ensureNoAPIKeyEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv(auth.APIKeyEnvVar, "")
+}
+
+func Test_resolveAPIKey(t *testing.T) {
+	ensureNoAPIKeyEnv(t)
+
+	if got := resolveAPIKey(); got != "" {
+		t.Errorf("expected empty when no env, got %q", got)
+	}
+
+	t.Setenv(auth.APIKeyEnvVar, auth.BrevAPIKeyPrefix+"env-key")
+	if got := resolveAPIKey(); got != auth.BrevAPIKeyPrefix+"env-key" {
+		t.Errorf("expected env value, got %q", got)
+	}
+}
+
+func Test_runRegister_APIKeyInvalid(t *testing.T) {
+	t.Setenv(auth.APIKeyEnvVar, "not-a-brev-key")
+
 	regStore := &mockRegistrationStore{}
 	store := testRegisterStore()
+	svc := &fakeNodeService{addNodeFn: apiKeyAddNodeFn(t)}
+
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+	term := terminal.New()
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg"}
+	err := runRegister(context.Background(), term, store, opts, deps)
+	if err == nil {
+		t.Fatal("expected error for invalid API key")
+	}
+	var ve breverrors.ValidationError
+	if !errors.As(err, &ve) {
+		t.Errorf("expected a ValidationError, got %T: %v", err, err)
+	}
+	if !strings.Contains(err.Error(), auth.BrevAPIKeyPrefix) {
+		t.Errorf("expected error to mention the %s prefix, got: %v", auth.BrevAPIKeyPrefix, err)
+	}
+}
+
+func Test_runRegister_APIKey_SeedsSessionOnAlreadyRegistered(t *testing.T) {
+	t.Setenv(auth.APIKeyEnvVar, testAPIKey)
+
+	regStore := &mockRegistrationStore{
+		reg: &DeviceRegistration{
+			ExternalNodeID: "unode_existing",
+			DisplayName:    "Existing",
+			OrgID:          "org_123",
+			Status:         RegistrationStatusRegistered,
+		},
+	}
+	store := testRegisterStore()
 	svc := &fakeNodeService{
-		addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
-			return &nodev1.AddNodeResponse{
+		getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return &nodev1.GetNodeResponse{
 				ExternalNode: &nodev1.ExternalNode{
-					ExternalNodeId: "unode_abc",
-					OrganizationId: req.GetOrganizationId(),
-					Name:           req.GetName(),
-					DeviceId:       req.GetDeviceId(),
+					ExternalNodeId: req.GetExternalNodeId(),
+					ConnectivityInfo: &nodev1.ConnectivityInfo{
+						Status: nodev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED,
+					},
 				},
 			}, nil
 		},
@@ -792,40 +870,115 @@ func Test_runRegister_PersistsRegistrationToken(t *testing.T) {
 
 	deps, server := testRegisterDeps(t, svc, regStore)
 	defer server.Close()
-
 	term := terminal.New()
-	opts := registerOpts{interactive: false, name: "my-spark", orgName: "TestOrg", registrationToken: "ui-token-xyz"}
-	err := runRegister(context.Background(), term, store, opts, deps)
-	if err != nil {
+	opts := registerOpts{interactive: false, name: "Existing", orgName: "TestOrg"}
+	if err := runRegister(context.Background(), term, store, opts, deps); err != nil {
 		t.Fatalf("runRegister failed: %v", err)
-	}
-
-	reg, loadErr := regStore.Load(true)
-	if loadErr != nil {
-		t.Fatalf("Load failed: %v", loadErr)
-	}
-	if reg.RegistrationToken != "ui-token-xyz" {
-		t.Errorf("expected RegistrationToken to be persisted, got %q", reg.RegistrationToken)
-	}
-	if reg.Status != RegistrationStatusRegistered {
-		t.Errorf("expected registered status, got %q", reg.Status)
 	}
 }
 
-// --- Access key org scoping ---
+// --- API key org scoping ---
+
+func Test_resolveOrgForAPIKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		orgs    []entity.Organization
+		orgName string
+		wantID  string
+		wantErr string
+	}{
+		{"single, name matches", []entity.Organization{{ID: "org_1", Name: "Alpha"}}, "Alpha", "org_1", ""},
+		{"single, no name", []entity.Organization{{ID: "org_1", Name: "Alpha"}}, "", "org_1", ""},
+		{"single, name mismatch", []entity.Organization{{ID: "org_1", Name: "Alpha"}}, "Beta", "", "does not belong to organization"},
+		{"empty", nil, "", "", "api key invalid"},
+		{"multiple, name matches one", []entity.Organization{{ID: "org_1", Name: "Alpha"}, {ID: "org_2", Name: "Beta"}}, "Beta", "", "api key invalid"},
+		{"multiple, no name", []entity.Organization{{ID: "org_1", Name: "Alpha"}, {ID: "org_2", Name: "Beta"}}, "", "", "api key invalid"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &mockRegisterStore{orgs: tt.orgs}
+			got, err := ResolveOrgForAPIKey(s, tt.orgName)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("expected error containing %q, got: %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.ID != tt.wantID {
+				t.Errorf("expected org ID %s, got %s", tt.wantID, got.ID)
+			}
+		})
+	}
+}
+
+func Test_runRegister_APIKey_OrgMismatch(t *testing.T) {
+	t.Setenv(auth.APIKeyEnvVar, testAPIKey)
+
+	regStore := &mockRegistrationStore{}
+	store := testRegisterStore()
+	svc := &fakeNodeService{addNodeFn: apiKeyAddNodeFn(t)}
+
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+	term := terminal.New()
+	opts := registerOpts{interactive: false, name: "my-spark", orgName: "OtherOrg"}
+	err := runRegister(context.Background(), term, store, opts, deps)
+	if err == nil {
+		t.Fatal("expected error when --org doesn't match the API key's org")
+	}
+	if !strings.Contains(err.Error(), "does not belong to organization") {
+		t.Errorf("expected org mismatch error, got: %v", err)
+	}
+}
+
+func Test_runRegister_APIKey_NoOrgFlag_UsesKeyOrg(t *testing.T) {
+	t.Setenv(auth.APIKeyEnvVar, testAPIKey)
+
+	regStore := &mockRegistrationStore{}
+	store := testRegisterStore()
+	var gotOrgID string
+	svc := &fakeNodeService{addNodeFn: func(req *nodev1.AddNodeRequest) (*nodev1.AddNodeResponse, error) {
+		gotOrgID = req.GetOrganizationId()
+		return &nodev1.AddNodeResponse{ExternalNode: &nodev1.ExternalNode{ExternalNodeId: "unode_abc", OrganizationId: req.GetOrganizationId(), Name: req.GetName(), DeviceId: req.GetDeviceId()}}, nil
+	}}
+
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+	term := terminal.New()
+	// No --org; the key's org (org_123) should be used.
+	opts := registerOpts{interactive: false, name: "my-spark"}
+	if err := runRegister(context.Background(), term, store, opts, deps); err != nil {
+		t.Fatalf("runRegister failed: %v", err)
+	}
+	if gotOrgID != "org_123" {
+		t.Errorf("expected AddNode to use the key's org org_123, got %s", gotOrgID)
+	}
+}
 
 func Test_runRegister_OrgMismatch(t *testing.T) {
 	tests := []struct {
 		name        string
 		status      string
+		useAPIKey   bool   // set BREV_API_KEY for the new org
 		useOrgFlag  bool   // pass --org for the new org
 		wantWording string // pending -> "incomplete registration"; registered -> "already registered"
 	}{
-		{"OrgFlag_Pending", RegistrationStatusPending, true, "incomplete registration"},
-		{"OrgFlag_AlreadyRegistered", RegistrationStatusRegistered, true, "already registered"},
+		{"APIKey_Pending", RegistrationStatusPending, true, false, "incomplete registration"},
+		{"OrgFlag_Pending", RegistrationStatusPending, false, true, "incomplete registration"},
+		{"APIKey_AlreadyRegistered", RegistrationStatusRegistered, true, false, "already registered"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ensureNoAPIKeyEnv(t)
+			if tt.useAPIKey {
+				t.Setenv(auth.APIKeyEnvVar, testAPIKey)
+			}
 			regStore := &mockRegistrationStore{reg: &DeviceRegistration{
 				ExternalNodeID: "unode_existing",
 				DisplayName:    "My Spark",
