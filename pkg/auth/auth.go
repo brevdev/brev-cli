@@ -102,10 +102,17 @@ type Auth struct {
 
 const BrevAPIKeyPrefix = "bak-"
 
-const MissingAPIKeyOrgIDMessage = "api key auth requires an org id; run brev login --api-key <api-key> --org-id <org-id>"
+const APIKeyEnvVar = "BREV_API_KEY"
+
+const MissingAPIKeyOrgIDMessage = "auth malformed; run brev login --api-key <api-key>"
 
 type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
+}
+
+// OrgLister lists the organizations available to the current credential.
+type OrgLister interface {
+	ListOrganizations() ([]entity.Organization, error)
 }
 
 type CurrentUserAuthStore interface {
@@ -142,6 +149,9 @@ func IsBrevAPIKey(token string) bool {
 }
 
 func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
+	if strings.TrimSpace(os.Getenv(APIKeyEnvVar)) != "" {
+		return true
+	}
 	tokens, err := authTokensProvider.GetAuthTokens()
 	if err != nil {
 		return false
@@ -150,6 +160,28 @@ func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
 		return false
 	}
 	return IsBrevAPIKey(tokens.APIKey)
+}
+
+func SingleOrgForAPIKey(orgs []entity.Organization) (*entity.Organization, error) {
+	if len(orgs) != 1 {
+		return nil, breverrors.New("api key invalid")
+	}
+	return &orgs[0], nil
+}
+
+func ResolveEnvAPIKeyOrg(orgLister OrgLister) (*entity.Organization, error) {
+	if strings.TrimSpace(os.Getenv(APIKeyEnvVar)) == "" {
+		return nil, nil
+	}
+	orgs, err := orgLister.ListOrganizations()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	org, err := SingleOrgForAPIKey(orgs)
+	if err != nil {
+		return nil, err
+	}
+	return org, nil
 }
 
 func GetAPIKeyOrgID(authTokensProvider APIKeyAuthStore) (string, error) {
@@ -204,6 +236,9 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 
 // Gets fresh access token or returns nil and saves to store
 func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
+	if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
+		return key, nil
+	}
 	tokens, err := t.getSavedTokensOrNil()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -246,6 +281,7 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if !shouldLogin {
+		// Deliberately NOT wrapped, expected outcome
 		return nil, &breverrors.DeclineToLoginError{}
 	}
 
@@ -300,10 +336,6 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	}
 	if !IsBrevAPIKey(apiKey) {
 		return breverrors.NewValidationError(fmt.Sprintf("api key must start with %s", BrevAPIKeyPrefix))
-	}
-	orgID = strings.TrimSpace(orgID)
-	if orgID == "" {
-		return breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
 	}
 
 	tokens, err := t.getSavedTokensOrNil()

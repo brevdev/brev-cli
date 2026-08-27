@@ -135,6 +135,29 @@ func (m *mockSSHKeyRemover) RemoveBrevKeys(_ *user.User) ([]string, error) {
 
 // testDeregisterDeps returns deps with all side-effects stubbed. The
 // prompter defaults to confirming all prompts.
+func registeredReg() *register.DeviceRegistration {
+	return &register.DeviceRegistration{
+		ExternalNodeID: "unode_abc",
+		DisplayName:    "My Spark",
+		OrgID:          "org_123",
+		DeviceID:       "dev-uuid",
+		Status:         register.RegistrationStatusRegistered,
+	}
+}
+
+// runDeregisterCase absorbs scaffolding the tests repeat: the standard
+// store, deps, server lifecycle, terminal, and the non-interactive invocation.
+func runDeregisterCase(t *testing.T, regStore *mockRegistrationStore, svc *fakeNodeService, mutate ...func(*deregisterDeps)) error {
+	t.Helper()
+	store := &mockDeregisterStore{user: &entity.User{ID: "user_1"}, token: "tok"}
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+	for _, m := range mutate {
+		m(&deps)
+	}
+	return runDeregister(context.Background(), terminal.New(), store, deps, false)
+}
+
 func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.RegistrationStore) (deregisterDeps, *httptest.Server) {
 	t.Helper()
 
@@ -160,20 +183,7 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 }
 
 func Test_runDeregister_HappyPath(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-			DeviceID:       "dev-uuid",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	var gotNodeID string
 	svc := &fakeNodeService{
@@ -183,11 +193,7 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err != nil {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
@@ -207,30 +213,12 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 }
 
 func Test_runDeregister_UserCancels(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	svc := &fakeNodeService{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	deps.prompter = mockSelector{fn: func(_ string, _ []string) string {
-		return "No, cancel"
-	}}
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.prompter = mockSelector{fn: func(_ string, _ []string) string { return "No, cancel" }}
+	})
 	if err != nil {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
@@ -248,37 +236,15 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 func Test_runDeregister_NotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
-
 	svc := &fakeNodeService{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err == nil {
 		t.Fatal("expected error when not registered")
 	}
 }
 
 func Test_runDeregister_RemoveNodeFails(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	svc := &fakeNodeService{
 		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
@@ -286,11 +252,7 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err == nil {
 		t.Fatal("expected error when RemoveNode fails")
 	}
@@ -305,18 +267,7 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 }
 
 func Test_runDeregister_RemoveNodeNotFound_ProceedsCleanup(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user:  &entity.User{ID: "user_1"},
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	svc := &fakeNodeService{
 		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
@@ -324,11 +275,7 @@ func Test_runDeregister_RemoveNodeNotFound_ProceedsCleanup(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err != nil {
 		t.Fatalf("NotFound should be treated as success (node already gone), got: %v", err)
 	}
@@ -478,33 +425,16 @@ type storeToken string
 func (t storeToken) GetAccessToken() (string, error) { return string(t), nil }
 
 func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
-
+	netbird := &mockNetBirdManager{}
 	svc := &fakeNodeService{
 		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
 			return &nodev1.RemoveNodeResponse{}, nil
 		},
 	}
 
-	netbird := &mockNetBirdManager{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-	deps.netbird = netbird
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) { d.netbird = netbird })
 	if err != nil {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
@@ -526,19 +456,7 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			regStore := &mockRegistrationStore{
-				reg: &register.DeviceRegistration{
-					ExternalNodeID: "unode_abc",
-					DisplayName:    "My Spark",
-					OrgID:          "org_123",
-				},
-			}
-
-			store := &mockDeregisterStore{
-				user: &entity.User{ID: "user_1"},
-
-				token: "tok",
-			}
+			regStore := &mockRegistrationStore{reg: registeredReg()}
 
 			svc := &fakeNodeService{
 				removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
@@ -546,12 +464,7 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 				},
 			}
 
-			deps, server := testDeregisterDeps(t, svc, regStore)
-			defer server.Close()
-			deps.sshKeys = tt.sshKeys
-
-			term := terminal.New()
-			err := runDeregister(context.Background(), term, store, deps, false)
+			err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) { d.sshKeys = tt.sshKeys })
 			if err != nil {
 				t.Fatalf("runDeregister failed: %v", err)
 			}

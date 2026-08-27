@@ -3,13 +3,16 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+
 	resty "github.com/go-resty/resty/v2"
 )
 
@@ -151,6 +154,64 @@ func WithDebug(debug bool) Option {
 	}
 }
 
+// quietRestyLogger swallows resty's retry WARN/ERROR chatter for expected,
+// user-driven errors (declined login). Everything else logs as before.
+type quietRestyLogger struct {
+	next resty.Logger
+}
+
+func (q quietRestyLogger) Errorf(format string, v ...interface{}) {
+	if isDeclinedLoginMsg(format, v...) {
+		return
+	}
+	q.next.Errorf(format, v...)
+}
+
+func (q quietRestyLogger) Warnf(format string, v ...interface{}) {
+	if isDeclinedLoginMsg(format, v...) {
+		return
+	}
+	q.next.Warnf(format, v...)
+}
+
+func (q quietRestyLogger) Debugf(format string, v ...interface{}) {
+	q.next.Debugf(format, v...)
+}
+
+func isDeclinedLoginMsg(format string, v ...interface{}) bool {
+	if !strings.Contains(format, "%v") { // formatted messages embed the error
+		return false
+	}
+	msg := fmt.Sprintf(format, v...)
+	return strings.Contains(msg, breverrors.DeclineToLoginMessage)
+}
+
+// stderrLogger mirrors resty's default logger (stderr, date+microseconds,
+// "WARN RESTY"/"ERROR RESTY" prefixes) so quietRestyLogger has a real sink.
+type stderrLogger struct {
+	l *log.Logger
+}
+
+func newStderrLogger() stderrLogger {
+	return stderrLogger{l: log.New(os.Stderr, "", log.Ldate|log.Lmicroseconds)}
+}
+
+func (s stderrLogger) Errorf(format string, v ...interface{}) {
+	s.outputf("ERROR RESTY "+format, v...)
+}
+
+func (s stderrLogger) Warnf(format string, v ...interface{}) {
+	s.outputf("WARN RESTY "+format, v...)
+}
+
+func (s stderrLogger) Debugf(format string, v ...interface{}) {
+	s.outputf("DEBUG RESTY "+format, v...)
+}
+
+func (s stderrLogger) outputf(format string, v ...interface{}) {
+	_ = s.l.Output(2, fmt.Sprintf(format, v...))
+}
+
 func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTTPClient {
 	opts := &Options{}
 	for _, o := range options {
@@ -158,6 +219,10 @@ func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTT
 	}
 	restyClient := NewRestyClient(brevAPIURL)
 	restyClient.Debug = opts.Debug
+	// quietRestyLogger wraps a real stderr logger (matching resty's default
+	// format) and swallows only declined-login retry chatter. Everything else
+	// — genuine HTTP errors, debug output when Debug is on — still logs.
+	restyClient.SetLogger(quietRestyLogger{next: newStderrLogger()})
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		token, err := auth.GetAccessToken()
 		if err != nil {
