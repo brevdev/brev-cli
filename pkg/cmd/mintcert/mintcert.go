@@ -12,7 +12,6 @@ import (
 
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
-	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
@@ -26,12 +25,12 @@ import (
 const timeout = 15 * time.Second
 
 type Store interface {
-	util.GetWorkspaceByNameOrIDErrStore
 	GetAccessToken() (string, error)
 }
 
 type CertIssuer interface {
 	Issue(ctx context.Context, req certIssueRequest) (string, error)
+	IssueNode(ctx context.Context, req nodeCertIssueRequest) (string, error)
 }
 
 type certIssueRequest struct {
@@ -41,12 +40,24 @@ type certIssueRequest struct {
 	PublicKey     string
 }
 
+type nodeCertIssueRequest struct {
+	ExternalNodeID string
+	PortID         string
+	LinuxUser      string
+	PublicKey      string
+}
+
 type environmentCertClient interface {
 	IssueEnvironmentSSHCertificate(ctx context.Context, req *connect.Request[devplanev1.IssueEnvironmentSSHCertificateRequest]) (*connect.Response[devplanev1.IssueEnvironmentSSHCertificateResponse], error)
 }
 
+type nodeCertClient interface {
+	IssueExternalNodeSSHCertificate(ctx context.Context, req *connect.Request[devplanev1.IssueExternalNodeSSHCertificateRequest]) (*connect.Response[devplanev1.IssueExternalNodeSSHCertificateResponse], error)
+}
+
 type rpcCertIssuer struct {
-	client environmentCertClient
+	client     environmentCertClient
+	nodeClient nodeCertClient
 }
 
 func (r rpcCertIssuer) Issue(ctx context.Context, req certIssueRequest) (string, error) {
@@ -62,32 +73,53 @@ func (r rpcCertIssuer) Issue(ctx context.Context, req certIssueRequest) (string,
 	return res.Msg.GetCertificate(), nil
 }
 
+func (r rpcCertIssuer) IssueNode(ctx context.Context, req nodeCertIssueRequest) (string, error) {
+	res, err := r.nodeClient.IssueExternalNodeSSHCertificate(ctx, connect.NewRequest(&devplanev1.IssueExternalNodeSSHCertificateRequest{
+		ExternalNodeId: req.ExternalNodeID,
+		LinuxUser:      req.LinuxUser,
+		PortId:         req.PortID,
+		PublicKey:      req.PublicKey,
+	}))
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return res.Msg.GetCertificate(), nil
+}
+
 func NewCmdMintCert(store Store) *cobra.Command {
 	var (
 		env    string
+		node   string
 		port   string
 		user   string
 		outKey string
 	)
 	cmd := &cobra.Command{
 		Use:    "mint-cert",
-		Short:  "Mint a short-lived SSH certificate for an environment",
+		Short:  "Mint a short-lived SSH certificate for an environment or external node",
 		Args:   cobra.NoArgs,
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if env != "" && node != "" {
+				return fmt.Errorf("--env and --node are mutually exclusive")
+			}
+			if env == "" && node == "" {
+				return fmt.Errorf("one of --env or --node is required")
+			}
 			return runMintCert(store, mintCertRequest{
-				NameOrID:  env,
-				PortID:    port,
-				LinuxUser: user,
-				OutKey:    outKey,
+				EnvironmentID: env,
+				NodeID:        node,
+				PortID:        port,
+				LinuxUser:     user,
+				OutKey:        outKey,
 			})
 		},
 	}
-	cmd.Flags().StringVar(&env, "env", "", "name or ID to mint a certificate for")
+	cmd.Flags().StringVar(&env, "env", "", "environment ID to mint a certificate for")
+	cmd.Flags().StringVar(&node, "node", "", "external node ID to mint a certificate for")
 	cmd.Flags().StringVar(&port, "port", "", "network-member port ID for the SSH access")
 	cmd.Flags().StringVar(&user, "linux-user", "", "Linux user for the certificate principal")
 	cmd.Flags().StringVar(&outKey, "out-key", "", "private-key path (certificate goes to <path>-cert.pub)")
-	_ = cmd.MarkFlagRequired("env")
 	_ = cmd.MarkFlagRequired("port")
 	_ = cmd.MarkFlagRequired("linux-user")
 	_ = cmd.MarkFlagRequired("out-key")
@@ -95,10 +127,11 @@ func NewCmdMintCert(store Store) *cobra.Command {
 }
 
 type mintCertRequest struct {
-	NameOrID  string
-	PortID    string
-	LinuxUser string
-	OutKey    string
+	EnvironmentID string
+	NodeID        string
+	PortID        string
+	LinuxUser     string
+	OutKey        string
 }
 
 func runMintCert(store Store, req mintCertRequest) error {
@@ -114,19 +147,6 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 		}
 		return fmt.Errorf("not logged in")
 	}
-	target, err := util.ResolveWorkspaceOrNode(store, req.NameOrID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	var targetId string
-	if target.Workspace != nil {
-		targetId = target.Workspace.ID
-	}
-	if target.Node != nil {
-		// TODO uptake for external node
-		return breverrors.New("registered compute not yet supported for SSH Certs")
-	}
-
 	certPath := req.OutKey + "-cert.pub"
 
 	if ok, err := sshcert.HasValidCertAuth(fs, req.OutKey, certPath, time.Now(), sshcert.DefaultRenewalMargin); err != nil {
@@ -143,12 +163,22 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	cert, err := issuer.Issue(ctx, certIssueRequest{
-		EnvironmentID: targetId,
-		PortID:        req.PortID,
-		LinuxUser:     req.LinuxUser,
-		PublicKey:     pubKeyOpenSSH,
-	})
+	var cert string
+	if req.NodeID != "" {
+		cert, err = issuer.IssueNode(ctx, nodeCertIssueRequest{
+			ExternalNodeID: req.NodeID,
+			PortID:         req.PortID,
+			LinuxUser:      req.LinuxUser,
+			PublicKey:      pubKeyOpenSSH,
+		})
+	} else {
+		cert, err = issuer.Issue(ctx, certIssueRequest{
+			EnvironmentID: req.EnvironmentID,
+			PortID:        req.PortID,
+			LinuxUser:     req.LinuxUser,
+			PublicKey:     pubKeyOpenSSH,
+		})
+	}
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "brev: could not issue ssh certificate: %v\n", err)
 		return breverrors.WrapAndTrace(err)
@@ -161,5 +191,8 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 }
 
 func newCertIssuer(provider externalnode.TokenProvider, baseURL string) CertIssuer {
-	return rpcCertIssuer{client: register.NewEnvironmentServiceClient(provider, baseURL)}
+	return rpcCertIssuer{
+		client:     register.NewEnvironmentServiceClient(provider, baseURL),
+		nodeClient: register.NewNodeServiceClient(provider, baseURL),
+	}
 }

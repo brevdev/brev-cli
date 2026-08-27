@@ -109,6 +109,8 @@ func ResolveNodeSSHEntry(userID string, node *nodev1.ExternalNode) *ssh.External
 
 	return &ssh.ExternalNodeSSHEntry{
 		Alias:    ssh.SanitizeNodeName(node.GetName()),
+		NodeID:   node.GetExternalNodeId(),
+		PortID:   port.GetPortId(),
 		Hostname: port.GetHostname(),
 		Port:     port.GetPortNumber(),
 		User:     access.GetLinuxUser(),

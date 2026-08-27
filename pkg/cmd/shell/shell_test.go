@@ -1,7 +1,6 @@
 package shell
 
 import (
-	"strings"
 	"testing"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -11,22 +10,6 @@ import (
 
 func strPtr(s string) *string { return &s }
 
-func TestBuildSSHWithPortCommandIncludesServerKeepalives(t *testing.T) {
-	cmd := buildSSHWithPortCommand("ubuntu@example.com", 2222, "/tmp/test key")
-
-	for _, option := range []string{
-		"-o ServerAliveInterval=30",
-		"-o ServerAliveCountMax=3",
-	} {
-		if !strings.Contains(cmd, option) {
-			t.Errorf("buildSSHWithPortCommand() = %q, missing %q", cmd, option)
-		}
-	}
-}
-
-// TestResolveExternalNodeSSH_BuildsCorrectInfo tests that the SSH info
-// returned by ResolveNodeSSHEntry has the correct target, alias, and home path —
-// the same values shellIntoExternalNode uses to build its SSH command.
 func TestResolveExternalNodeSSH_BuildsCorrectInfo(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "My GPU Box",
@@ -57,7 +40,7 @@ func TestResolveExternalNodeSSH_BuildsCorrectInfo(t *testing.T) {
 		Port:      entry.Port,
 	}
 
-	// SSHTarget — used by runSSHWithPort
+	// SSHTarget — used by copy/open/port-forward
 	if got := info.SSHTarget(); got != "ec2-user@10.0.0.5" {
 		t.Errorf("SSHTarget() = %q, want %q", got, "ec2-user@10.0.0.5")
 	}
@@ -72,14 +55,12 @@ func TestResolveExternalNodeSSH_BuildsCorrectInfo(t *testing.T) {
 		t.Errorf("HomePath() = %q, want %q", got, "/home/ec2-user")
 	}
 
-	// Port — shellIntoExternalNode passes this to runSSHWithPort
+	// Port — copy/open/port-forward resolve the remote endpoint with this
 	if info.Port != 41920 {
 		t.Errorf("Port = %d, want 41920", info.Port)
 	}
 }
 
-// TestResolveExternalNodeSSH_NoAccess verifies that a node without SSH access
-// for the given user returns nil, which shellIntoExternalNode would treat as an error.
 func TestResolveExternalNodeSSH_NoAccess(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "locked-box",
@@ -97,7 +78,6 @@ func TestResolveExternalNodeSSH_NoAccess(t *testing.T) {
 	}
 }
 
-// TestResolveExternalNodeSSH_NoPorts verifies nil when the user has access but no ports exist.
 func TestResolveExternalNodeSSH_NoPorts(t *testing.T) {
 	node := &nodev1.ExternalNode{
 		Name: "no-ports",
