@@ -15,7 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
-const maxComposeFileSize = 10 << 20
+const maxComposeFileSize = 10 * 1024 * 1024 // 10 MiB
 
 type composeLaunchArgs struct {
 	terminal        *terminal.Terminal
@@ -111,7 +111,7 @@ func fetchComposeFile(ctx context.Context, sourceURL string) ([]byte, error) {
 		return nil, fmt.Errorf("read compose file: %w", err)
 	}
 	if len(contents) > maxComposeFileSize {
-		return nil, fmt.Errorf("compose file exceeds %d MiB", maxComposeFileSize>>20)
+		return nil, fmt.Errorf("compose file exceeds 10 MiB")
 	}
 	return contents, nil
 }
