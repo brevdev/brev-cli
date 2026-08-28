@@ -207,8 +207,8 @@ Build mode: Docker Compose
 
 Parameters:
   MODEL      (required, default: Qwen/Qwen3-8B)
-  VLLM_ARGS  (required, default: --max-model-len 16384 --gpu-memory-utilization 0.9): Additional arguments passed to vLLM.
-  HF_TOKEN   (optional): Hugging Face access token.
+  VLLM_ARGS  (required, default: --max-model-len 16384 --gpu-memory-utilization 0.9)  Additional arguments passed to vLLM.
+  HF_TOKEN   (optional)                                                               Hugging Face access token.
 `, out.String())
 	assert.Equal(t, []string{"env-3IEl5O5SlUAYJ9X1GKjAIZxoSnm"}, launchStore.getCalls)
 	assert.Empty(t, launchStore.created)

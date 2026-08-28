@@ -200,7 +200,7 @@ func parameterDisplayLines(parameters []store.Parameter) []string {
 		}
 		line := fmt.Sprintf("  %s\t(%s)", parameter.Name, details)
 		if description := strings.TrimSpace(parameter.Description); description != "" {
-			line += ": " + description
+			line += "\t" + description
 		}
 		lines = append(lines, line)
 	}
