@@ -61,6 +61,14 @@ func NewEnvironmentServiceClient(provider externalnode.TokenProvider, baseURL st
 	)
 }
 
+// NewManagedSecretServiceClient creates an authenticated ConnectRPC managed-secret client.
+func NewManagedSecretServiceClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.ManagedSecretServiceClient {
+	return nodev1connect.NewManagedSecretServiceClient(
+		newAuthenticatedHTTPClient(provider),
+		baseURL,
+	)
+}
+
 // toProtoNodeSpec converts the local HardwareProfile (used for collection, display,
 // persistence) to the generated proto NodeSpec for RPC calls.
 func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {
