@@ -39,7 +39,7 @@ type MockAuthStore struct {
 func (m *MockAuthStore) SaveAuthTokens(tokens entity.AuthTokens) error {
 	m.saved = tokens
 	m.didSave = true
-	m.authTokens = &tokens // write-then-read consistent (mirrors a real store)
+	m.authTokens = &tokens
 	return nil
 }
 
@@ -121,8 +121,6 @@ func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
 	assert.False(t, IsAPIKeyAuthStore(s))
 	assert.False(t, s.getAccessTokenCalled)
 }
-
-// When the env key matches the persisted key, its persisted org is valid.
 
 type cliAuthStore struct {
 	tokens           *entity.AuthTokens

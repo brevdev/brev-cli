@@ -73,7 +73,18 @@ func (m *mockRegistrationStore) Save(reg *DeviceRegistration) error {
 	return nil
 }
 
-func (m *mockRegistrationStore) Load(bool) (*DeviceRegistration, error) {
+func (m *mockRegistrationStore) Load() (*DeviceRegistration, error) {
+	reg, err := m.LoadAll()
+	if err != nil {
+		return nil, err
+	}
+	if reg.ExternalNodeID == "" || reg.OrgID == "" {
+		return nil, fmt.Errorf("device registration is incomplete")
+	}
+	return reg, nil
+}
+
+func (m *mockRegistrationStore) LoadAll() (*DeviceRegistration, error) {
 	if m.reg == nil {
 		return nil, fmt.Errorf("no registration")
 	}
@@ -253,7 +264,7 @@ func Test_runRegister_HappyPath(t *testing.T) {
 		t.Fatal("expected registration to exist after successful register")
 	}
 
-	reg, err := regStore.Load(false)
+	reg, err := regStore.Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
@@ -471,7 +482,7 @@ func Test_runRegister_WithOrgFlag(t *testing.T) {
 				t.Errorf("expected org %s, got %s", tt.wantOrgID, capturedOrgID)
 			}
 
-			reg, err := regStore.Load(false)
+			reg, err := regStore.Load()
 			if err != nil {
 				t.Fatalf("Load failed: %v", err)
 			}
@@ -523,7 +534,7 @@ func Test_runRegister_AddNodeFailure(t *testing.T) {
 			if !tt.wantPending {
 				return
 			}
-			reg, loadErr := regStore.Load(true)
+			reg, loadErr := regStore.LoadAll()
 			if loadErr != nil {
 				t.Fatalf("Load failed: %v", loadErr)
 			}
@@ -764,7 +775,7 @@ func Test_runRegister_ResumesPendingRegistration(t *testing.T) {
 				t.Errorf("expected AddNode to reuse device ID %q once, got %v", pendingDeviceID, addNodeDeviceIDs)
 			}
 
-			reg, loadErr := regStore.Load(true)
+			reg, loadErr := regStore.LoadAll()
 			if loadErr != nil {
 				t.Fatalf("Load failed: %v", loadErr)
 			}
@@ -868,7 +879,7 @@ func Test_runRegister_ResumeAddNodeFails_StaysPending(t *testing.T) {
 		t.Fatalf("expected AddNode called once, got %d", addNodeCalls)
 	}
 
-	reg, loadErr := regStore.Load(true)
+	reg, loadErr := regStore.LoadAll()
 	if loadErr != nil {
 		t.Fatalf("Load failed: %v", loadErr)
 	}

@@ -100,7 +100,8 @@ func removeNodeFromBrev(ctx context.Context, t *terminal.Terminal, s DeregisterS
 	if externalNodeID == "" && reg.DeviceID != "" {
 		lookedUp, lookupErr := findNodeByDeviceID(ctx, s, deps, reg.OrgID, reg.DeviceID)
 		if lookupErr != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Could not look up pending node by device ID: %v", lookupErr)))
+			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Failed look up by device ID. Please try again: %v", lookupErr)))
+			return fmt.Errorf("failed to find pending node by device ID")
 		}
 		if lookedUp != "" {
 			externalNodeID = lookedUp
@@ -128,18 +129,28 @@ func removeNodeFromBrev(ctx context.Context, t *terminal.Terminal, s DeregisterS
 
 func findNodeByDeviceID(ctx context.Context, s externalnode.TokenProvider, deps deregisterDeps, orgID, deviceID string) (string, error) {
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
-		OrganizationId: orgID,
-	}))
-	if err != nil {
-		return "", fmt.Errorf("failed to list nodes: %w", err)
-	}
-	for _, n := range resp.Msg.GetItems() {
-		if n.GetDeviceId() == deviceID {
-			return n.GetExternalNodeId(), nil
+	pageToken := ""
+	for {
+		resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
+			OrganizationId: orgID,
+			PageParams: &nodev1.PageParams{
+				PageSize:  100,
+				PageToken: pageToken,
+			},
+		}))
+		if err != nil {
+			return "", fmt.Errorf("failed to list nodes: %w", err)
+		}
+		for _, n := range resp.Msg.GetItems() {
+			if n.GetDeviceId() == deviceID {
+				return n.GetExternalNodeId(), nil
+			}
+		}
+		pageToken = resp.Msg.GetNextPageToken()
+		if pageToken == "" {
+			return "", nil
 		}
 	}
-	return "", nil
 }
 
 func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore, deps deregisterDeps, skipConfirm bool) error { //nolint:funlen,gocyclo // deregistration flow
@@ -151,7 +162,7 @@ func runDeregister(ctx context.Context, t *terminal.Terminal, s DeregisterStore,
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
-	reg, err := deps.registrationStore.Load(true) // deregister should still work for pending registrations
+	reg, err := deps.registrationStore.LoadAll() // deregister should still work for pending registrations
 	if err != nil {
 		return err //nolint:wrapcheck // do not present stack trace for this error
 	}

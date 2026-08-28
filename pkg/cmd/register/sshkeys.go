@@ -30,7 +30,7 @@ func SelectNodeFromList(ctx context.Context, t *terminal.Terminal, prompter term
 		return nil, fmt.Errorf("no nodes found in organization")
 	}
 	var thisNodeID string
-	if reg, err := registrationStore.Load(false); err == nil && reg != nil {
+	if reg, err := registrationStore.Load(); err == nil && reg != nil {
 		thisNodeID = reg.ExternalNodeID
 	}
 	t.Vprint("")

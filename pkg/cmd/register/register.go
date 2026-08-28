@@ -170,13 +170,13 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		intendedOrg = o
 	}
 
-	// Check for an existing registration (confirmed or in-progress).
+	// Check for an existing registration
 	exists, err := deps.registrationStore.Exists()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	if exists {
-		reg, err := deps.registrationStore.Load(true)
+		reg, err := deps.registrationStore.LoadAll()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}

@@ -66,7 +66,7 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return fmt.Errorf("brev enable-ssh is only supported on Linux")
 	}
 
-	reg, err := deps.registrationStore.Load(false)
+	reg, err := deps.registrationStore.Load()
 	if err != nil {
 		return fmt.Errorf("failed to read registration file: %w", err)
 	}
@@ -96,6 +96,7 @@ func enableSSH(
 	linuxUsername := linuxUser.Username
 
 	checkSSHDaemon(t)
+
 	t.Vprint("")
 	t.Vprint(t.Green("Enabling SSH access on this device"))
 	t.Vprint("")

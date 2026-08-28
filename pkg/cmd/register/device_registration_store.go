@@ -41,7 +41,8 @@ type DeviceRegistration struct {
 // RegistrationStore defines the contract for persisting device registration data.
 type RegistrationStore interface {
 	Save(reg *DeviceRegistration) error
-	Load(includeAll bool) (*DeviceRegistration, error)
+	Load() (*DeviceRegistration, error)
+	LoadAll() (*DeviceRegistration, error)
 	Delete() error
 	Exists() (bool, error)
 }
@@ -77,7 +78,47 @@ func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
 	return sudoWriteFile(path, data)
 }
 
-func (s *FileRegistrationStore) Load(includeAll bool) (*DeviceRegistration, error) {
+// Load returns the registration only if it is completed, any other status returns an error
+func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
+	reg, err := s.LoadAll()
+	if err != nil {
+		return nil, err
+	}
+	if reg.Status != "" && reg.Status != RegistrationStatusRegistered {
+		return nil, breverrors.New("device registration is incomplete; re-run 'brev register' to finish")
+	}
+	return reg, nil
+}
+
+// LoadAll returns the registration regardless of status
+func (s *FileRegistrationStore) LoadAll() (*DeviceRegistration, error) {
+	reg, err := read(s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if err := validateRegistration(reg); err != nil {
+		return nil, err
+	}
+	return reg, nil
+}
+
+func validateRegistration(reg *DeviceRegistration) error {
+	switch reg.Status {
+	case "", RegistrationStatusRegistered:
+		if reg.ExternalNodeID == "" || reg.OrgID == "" {
+			return breverrors.New("malformed registration, try registering")
+		}
+	case RegistrationStatusPending:
+		if reg.OrgID == "" || reg.DeviceID == "" {
+			return breverrors.New("malformed registration, try re-registering")
+		}
+	default:
+		return fmt.Errorf("unknown registration status %q, try re-registering", reg.Status)
+	}
+	return nil
+}
+
+func read(s *FileRegistrationStore) (*DeviceRegistration, error) {
 	path := s.path()
 	exists, err := s.Exists()
 	if !exists {
@@ -89,18 +130,6 @@ func (s *FileRegistrationStore) Load(includeAll bool) (*DeviceRegistration, erro
 	var reg DeviceRegistration
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
-	}
-	if includeAll {
-		if reg.OrgID == "" && reg.DeviceID == "" {
-			return nil, breverrors.New("malformed registration")
-		}
-		return &reg, nil
-	}
-	if reg.ExternalNodeID == "" || reg.OrgID == "" {
-		if reg.Status == RegistrationStatusPending {
-			return nil, breverrors.New("device registration is incomplete; re-run 'brev register' to finish")
-		}
-		return nil, breverrors.New("malformed registration")
 	}
 	return &reg, nil
 }

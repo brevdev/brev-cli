@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"os/user"
+	"strings"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -66,7 +67,11 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 	return nil
 }
 
-func (m *mockRegistrationStore) Load(bool) (*register.DeviceRegistration, error) {
+func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
+	return nil, fmt.Errorf("unexpected call to Load")
+}
+
+func (m *mockRegistrationStore) LoadAll() (*register.DeviceRegistration, error) {
 	if m.reg == nil {
 		return nil, fmt.Errorf("no registration")
 	}
@@ -351,6 +356,7 @@ func Test_runDeregister_PendingRegistration(t *testing.T) {
 		listNodesFn   func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
 		removeNodeFn  func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
 		wantRemovedID string // empty = RemoveNode must not be called
+		wantRunErr    string // non-empty = runDeregister must fail with this substring
 	}{
 		{
 			name: "no backend node matches: cleans up locally without RemoveNode",
@@ -377,10 +383,11 @@ func Test_runDeregister_PendingRegistration(t *testing.T) {
 			wantRemovedID: "unode_recovered",
 		},
 		{
-			name: "ListNodes failure is non-fatal: local state still deleted",
+			name: "ListNodes failure is fatal: deregister aborts, local state kept",
 			listNodesFn: func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
 				return nil, connect.NewError(connect.CodeInternal, nil)
 			},
+			wantRunErr: "failed to find pending node by device ID",
 		},
 	}
 	for _, tt := range tests {
@@ -405,7 +412,14 @@ func Test_runDeregister_PendingRegistration(t *testing.T) {
 			defer server.Close()
 
 			term := terminal.New()
-			if err := runDeregister(context.Background(), term, store, deps, false); err != nil {
+			err := runDeregister(context.Background(), term, store, deps, false)
+			if tt.wantRunErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantRunErr) {
+					t.Fatalf("expected error containing %q, got: %v", tt.wantRunErr, err)
+				}
+				return
+			}
+			if err != nil {
 				t.Fatalf("deregister failed: %v", err)
 			}
 
@@ -427,6 +441,41 @@ func Test_runDeregister_PendingRegistration(t *testing.T) {
 		})
 	}
 }
+
+func Test_findNodeByDeviceID_PaginatesUntilFound(t *testing.T) {
+	const deviceID = "dev-uuid-pending"
+	deps, server := testDeregisterDeps(t, &fakeNodeService{
+		listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			switch req.GetPageParams().GetPageToken() {
+			case "":
+				return &nodev1.ListNodesResponse{
+					Items:         []*nodev1.ExternalNode{{ExternalNodeId: "unode_page1", DeviceId: "dev-other"}},
+					NextPageToken: "page-2",
+				}, nil
+			case "page-2":
+				return &nodev1.ListNodesResponse{
+					Items:         []*nodev1.ExternalNode{{ExternalNodeId: "unode_page2", DeviceId: deviceID}},
+					NextPageToken: "",
+				}, nil
+			default:
+				return nil, fmt.Errorf("unexpected page token %q", req.GetPageParams().GetPageToken())
+			}
+		},
+	}, &mockRegistrationStore{})
+	defer server.Close()
+
+	nodeID, err := findNodeByDeviceID(context.Background(), storeToken("tok"), deps, "org_123", deviceID)
+	if err != nil {
+		t.Fatalf("findNodeByDeviceID failed: %v", err)
+	}
+	if nodeID != "unode_page2" {
+		t.Errorf("expected node from page 2, got %q", nodeID)
+	}
+}
+
+type storeToken string
+
+func (t storeToken) GetAccessToken() (string, error) { return string(t), nil }
 
 func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
 	regStore := &mockRegistrationStore{

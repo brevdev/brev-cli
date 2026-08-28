@@ -102,7 +102,7 @@ type Auth struct {
 
 const BrevAPIKeyPrefix = "bak-"
 
-const MissingAPIKeyOrgIDMessage = "org id missing, please login again; run 'brev login --api-key <api-key>'"
+const MissingAPIKeyOrgIDMessage = "api key auth requires an org id; run brev login --api-key <api-key> --org-id <org-id>"
 
 type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
@@ -217,6 +217,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		return apiKey, nil
 	}
 
+	// should always at least have access token?
 	if tokens.AccessToken == "" {
 		breverrors.GetDefaultErrorReporter().ReportMessage("access token is an empty string but shouldn't be")
 	}
