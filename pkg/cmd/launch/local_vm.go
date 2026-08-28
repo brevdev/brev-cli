@@ -12,7 +12,7 @@ import (
 
 type vmLaunchArgs struct {
 	terminal  *terminal.Terminal
-	build     *store.VMBuild
+	script    *store.LifeCycleScriptAttr
 	env       []string
 	workspace string
 	options   localOptions
@@ -22,7 +22,7 @@ type vmLaunchArgs struct {
 type confirmFunc func(label string) bool
 
 func runVM(ctx context.Context, args vmLaunchArgs) error {
-	script := args.build.LifeCycleScriptAttr
+	script := args.script
 	if script == nil || strings.TrimSpace(script.Script) == "" {
 		args.terminal.Vprint("This VM launchable has no startup script; there is nothing to run locally.")
 		return nil

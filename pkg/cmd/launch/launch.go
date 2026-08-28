@@ -123,10 +123,13 @@ func runLaunchCommand(ctx context.Context, args launchCommandArgs) error {
 	if err != nil {
 		return err
 	}
+
+	// Explain the launchable without launching it
 	if args.options.explain {
 		return explainLaunchable(args.cmd.OutOrStdout(), args.store, launchableID)
 	}
-	info, err := fetchLaunchable(args.store, launchableID)
+
+	info, err := fetchLaunchableMetadata(args.store, launchableID)
 	if err != nil {
 		return err
 	}
@@ -155,11 +158,16 @@ func runLaunchCommand(ctx context.Context, args launchCommandArgs) error {
 		return err
 	}
 	if args.options.local {
+		startupScript, err := fetchStartupScript(args.store, launchableID, info)
+		if err != nil {
+			return err
+		}
 		return runLocalLaunchable(ctx, localLaunchArgs{
-			terminal:     args.terminal,
-			launchableID: launchableID,
-			info:         info,
-			bindings:     bindings,
+			terminal:      args.terminal,
+			launchableID:  launchableID,
+			info:          info,
+			startupScript: startupScript,
+			bindings:      bindings,
 			options: localOptions{
 				name:     name,
 				detached: args.options.detached,
@@ -300,7 +308,8 @@ func runRemoteLaunch(args remoteLaunchArgs) error {
 
 func remoteInstanceTypes(flagValue string, recommended string) ([]gpucreate.InstanceSpec, error) {
 	if strings.TrimSpace(flagValue) == "" {
-		if strings.TrimSpace(recommended) == "" {
+		recommended = strings.TrimSpace(recommended)
+		if recommended == "" {
 			return nil, breverrors.NewValidationError("launchable has no instance type configured; provide --type")
 		}
 		return []gpucreate.InstanceSpec{{Type: recommended}}, nil
@@ -317,26 +326,22 @@ func remoteInstanceTypes(flagValue string, recommended string) ([]gpucreate.Inst
 	return result, nil
 }
 
-func fetchLaunchable(launchStore Store, launchableID string) (*store.LaunchableResponse, error) {
-	info, err := fetchLaunchableMetadata(launchStore, launchableID)
-	if err != nil {
-		return nil, err
-	}
+func fetchStartupScript(launchStore Store, launchableID string, info *store.LaunchableResponse) (*store.LifeCycleScriptAttr, error) {
 	if info.BuildRequest.VMBuild == nil || info.BuildRequest.VMBuild.LifeCycleScriptAttr == nil {
-		return info, nil
+		return nil, nil
 	}
-	attr := info.BuildRequest.VMBuild.LifeCycleScriptAttr
-	if attr.ID == "" {
-		return info, nil
+	startupScript := *info.BuildRequest.VMBuild.LifeCycleScriptAttr
+	if startupScript.ID == "" {
+		return &startupScript, nil
 	}
-	script, err := launchStore.GetLaunchableLifeCycleScript(launchableID, attr.ID)
+	script, err := launchStore.GetLaunchableLifeCycleScript(launchableID, startupScript.ID)
 	if err != nil {
-		return nil, fmt.Errorf("fetch startup script %q for launchable %q: %w", attr.ID, launchableID, err)
+		return nil, fmt.Errorf("fetch startup script %q for launchable %q: %w", startupScript.ID, launchableID, err)
 	}
 	if script != nil && script.Attrs != nil {
-		attr.Script = script.Attrs.Script
+		startupScript.Script = script.Attrs.Script
 	}
-	return info, nil
+	return &startupScript, nil
 }
 
 func fetchLaunchableMetadata(launchStore Store, launchableID string) (*store.LaunchableResponse, error) {
@@ -360,14 +365,12 @@ func displayLaunchable(t *terminal.Terminal, info *store.LaunchableResponse, loc
 		t.Vprintf("Description: %s\n", info.Description)
 	}
 	t.Vprintf("Build mode: %s\n", buildModeName(info.BuildRequest))
-	for _, line := range parameterDisplayLines(info.BuildRequest.Parameters) {
-		t.Vprintf("%s\n", line)
-	}
 	t.Vprint("")
 }
 
 func validateLaunchableID(id string) (string, error) {
-	if strings.TrimSpace(id) == "" || strings.ContainsAny(id, "/?&#") {
+	id = strings.TrimSpace(id)
+	if id == "" || strings.ContainsAny(id, "/?&#") {
 		return "", fmt.Errorf("invalid launchable ID %q", id)
 	}
 	return id, nil

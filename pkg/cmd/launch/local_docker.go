@@ -33,10 +33,12 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 	if strings.TrimSpace(args.build.ContainerURL) == "" {
 		return breverrors.NewValidationError("container launchable has no image configured")
 	}
+
 	docker, err := localDocker(args.deps.runner)
 	if err != nil {
 		return err
 	}
+
 	if err := dockerLogin(ctx, dockerLoginArgs{
 		docker:   docker,
 		registry: args.build.Registry,
@@ -45,6 +47,7 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 	}); err != nil {
 		return err
 	}
+
 	dockerArgs := []string{"run", "--name", safeLocalName(args.options.name)}
 	if args.options.detached {
 		dockerArgs = append(dockerArgs, "--detach")
@@ -58,10 +61,14 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 		dockerArgs = append(dockerArgs, "--publish", port)
 	}
 	dockerArgs = append(dockerArgs, "--volume", args.workspace+":/workspace", "--workdir", "/workspace")
-	if entrypoint := strings.TrimSpace(args.build.EntryPoint); entrypoint != "" {
-		dockerArgs = append(dockerArgs, "--entrypoint", entrypoint)
+	entrypoint := strings.Fields(args.build.EntryPoint)
+	if len(entrypoint) > 0 {
+		dockerArgs = append(dockerArgs, "--entrypoint", entrypoint[0])
 	}
 	dockerArgs = append(dockerArgs, args.build.ContainerURL)
+	if len(entrypoint) > 1 {
+		dockerArgs = append(dockerArgs, entrypoint[1:]...)
+	}
 
 	args.terminal.Vprintf("Starting %q with Docker.\n", args.options.name)
 	if err := args.deps.runner.Run(ctx, commandSpec{

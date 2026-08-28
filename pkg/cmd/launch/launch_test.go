@@ -101,9 +101,11 @@ type fakeComposeFetcher struct {
 }
 
 type fakeLaunchStore struct {
-	created    []*store.CreateWorkspacesOptions
-	launchable *store.LaunchableResponse
-	getCalls   []string
+	created        []*store.CreateWorkspacesOptions
+	launchable     *store.LaunchableResponse
+	lifecycle      *store.LifeCycleScriptResponse
+	getCalls       []string
+	lifecycleCalls [][2]string
 }
 
 func (f *fakeLaunchStore) GetAccessToken() (string, error) { return "token", nil }
@@ -152,8 +154,12 @@ func (f *fakeLaunchStore) GetLaunchable(id string) (*store.LaunchableResponse, e
 	return f.launchable, nil
 }
 
-func (f *fakeLaunchStore) GetLaunchableLifeCycleScript(string, string) (*store.LifeCycleScriptResponse, error) {
-	return nil, errors.New("not used")
+func (f *fakeLaunchStore) GetLaunchableLifeCycleScript(launchableID string, scriptID string) (*store.LifeCycleScriptResponse, error) {
+	f.lifecycleCalls = append(f.lifecycleCalls, [2]string{launchableID, scriptID})
+	if f.lifecycle == nil {
+		return nil, errors.New("not used")
+	}
+	return f.lifecycle, nil
 }
 
 func (f *fakeLaunchStore) RedeemCouponCode(string, string) (*store.RedeemCouponCodeResponse, error) {
@@ -381,6 +387,45 @@ func TestRemoteLaunchPassesManagedSecretBindingToCreate(t *testing.T) {
 	assert.Equal(t, bindings, launchStore.created[0].LaunchableConfig.ParameterBindings)
 }
 
+func TestRemoteLaunchDoesNotFetchStartupScript(t *testing.T) {
+	launchStore := &fakeLaunchStore{launchable: &store.LaunchableResponse{
+		Name: "remote-launch",
+		CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+			InstanceType: "gpu.test",
+			CloudCredID:  "cloud-cred-1",
+		},
+		BuildRequest: store.LaunchableBuildRequest{VMBuild: &store.VMBuild{
+			LifeCycleScriptAttr: &store.LifeCycleScriptAttr{ID: "script-1"},
+		}},
+	}}
+	cmd := newCmdLaunch(terminal.New(), launchStore, launchDeps{secrets: &fakeSecretResolver{}})
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	cmd.SetArgs([]string{"env-abc", "--detached"})
+
+	err := cmd.Execute()
+
+	require.NoError(t, err)
+	require.Len(t, launchStore.created, 1)
+	assert.Empty(t, launchStore.lifecycleCalls)
+}
+
+func TestFetchStartupScriptDoesNotMutateLaunchable(t *testing.T) {
+	launchStore := &fakeLaunchStore{lifecycle: &store.LifeCycleScriptResponse{
+		Attrs: &store.LifeCycleScriptAttr{Script: "echo hello"},
+	}}
+	info := &store.LaunchableResponse{BuildRequest: store.LaunchableBuildRequest{
+		VMBuild: &store.VMBuild{LifeCycleScriptAttr: &store.LifeCycleScriptAttr{ID: "script-1", Script: "original"}},
+	}}
+
+	startupScript, err := fetchStartupScript(launchStore, "env-abc", info)
+
+	require.NoError(t, err)
+	assert.Equal(t, "echo hello", startupScript.Script)
+	assert.Equal(t, "original", info.BuildRequest.VMBuild.LifeCycleScriptAttr.Script)
+	assert.Equal(t, [][2]string{{"env-abc", "script-1"}}, launchStore.lifecycleCalls)
+}
+
 func TestRunLocalComposeFetchesYAMLAndKeepsSecretsOutOfArguments(t *testing.T) { //nolint:funlen // end-to-end local compose behavior
 	runner := &fakeCommandRunner{paths: map[string]string{"docker": "/usr/bin/docker"}}
 	fetcher := &fakeComposeFetcher{contents: []byte("services:\n  app:\n    image: example/app\n")}
@@ -440,7 +485,7 @@ func TestRunLocalComposeFetchesYAMLAndKeepsSecretsOutOfArguments(t *testing.T) {
 func TestRunLocalContainerPassesParameterNamesThroughDockerEnvironment(t *testing.T) {
 	runner := &fakeCommandRunner{paths: map[string]string{"docker": "/usr/bin/docker"}}
 	info := &store.LaunchableResponse{BuildRequest: store.LaunchableBuildRequest{
-		CustomContainer: &store.CustomContainer{ContainerURL: "example/app:latest", EntryPoint: "/start"},
+		CustomContainer: &store.CustomContainer{ContainerURL: "example/app:latest", EntryPoint: "python -m server"},
 		Ports:           []store.LaunchablePort{{Port: "8080"}},
 	}}
 	bindings := []store.ParameterBinding{{Name: "TOKEN", Value: "secret-ish-direct-value"}}
@@ -464,7 +509,9 @@ func TestRunLocalContainerPassesParameterNamesThroughDockerEnvironment(t *testin
 	t.Cleanup(func() { _ = os.RemoveAll(command.dir) })
 	assert.Contains(t, command.args, "TOKEN")
 	assert.Contains(t, command.args, "8080:8080")
-	assert.Contains(t, command.args, "/start")
+	entrypointIndex := slices.Index(command.args, "--entrypoint")
+	require.NotEqual(t, -1, entrypointIndex)
+	assert.Equal(t, []string{"--entrypoint", "python", "example/app:latest", "-m", "server"}, command.args[entrypointIndex:])
 	assert.Contains(t, command.args, command.dir+":/workspace")
 	assert.Contains(t, command.args, "/workspace")
 	assert.NotContains(t, strings.Join(command.args, " "), "secret-ish-direct-value")
@@ -480,9 +527,10 @@ func TestRunLocalVMRequiresConfirmation(t *testing.T) {
 		runner := &fakeCommandRunner{paths: map[string]string{"bash": "/bin/bash"}}
 		confirmer := &fakeConfirmer{result: false}
 		err := runLocalLaunchable(t.Context(), localLaunchArgs{
-			terminal:     terminal.New(),
-			launchableID: "env-abc",
-			info:         info,
+			terminal:      terminal.New(),
+			launchableID:  "env-abc",
+			info:          info,
+			startupScript: info.BuildRequest.VMBuild.LifeCycleScriptAttr,
 			options: localOptions{
 				name: "vm-test", stdout: io.Discard, stderr: io.Discard,
 			},
@@ -497,9 +545,10 @@ func TestRunLocalVMRequiresConfirmation(t *testing.T) {
 		runner := &fakeCommandRunner{paths: map[string]string{"bash": "/bin/bash"}}
 		confirmer := &fakeConfirmer{result: false}
 		err := runLocalLaunchable(t.Context(), localLaunchArgs{
-			terminal:     terminal.New(),
-			launchableID: "env-abc",
-			info:         info,
+			terminal:      terminal.New(),
+			launchableID:  "env-abc",
+			info:          info,
+			startupScript: info.BuildRequest.VMBuild.LifeCycleScriptAttr,
 			options: localOptions{
 				name: "vm-test", approve: true, stdout: io.Discard, stderr: io.Discard,
 			},
@@ -551,6 +600,10 @@ func TestParseLaunchableID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "env-abc", id)
 
+	id, err = parseLaunchableID(" env-abc ")
+	require.NoError(t, err)
+	assert.Equal(t, "env-abc", id)
+
 	_, err = parseLaunchableID("https://console.brev.dev/launchable/deploy?launchableID=env-abc/../../other")
 	assert.Error(t, err)
 }
@@ -560,6 +613,10 @@ func TestRemoteInstanceTypes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "a100.large", types[0].Type)
 	assert.Equal(t, "h100.large", types[1].Type)
+
+	types, err = remoteInstanceTypes("", " gpu.test ")
+	require.NoError(t, err)
+	assert.Equal(t, "gpu.test", types[0].Type)
 
 	_, err = remoteInstanceTypes("", "")
 	assert.ErrorContains(t, err, "provide --type")

@@ -24,12 +24,13 @@ type localOptions struct {
 }
 
 type localLaunchArgs struct {
-	terminal     *terminal.Terminal
-	launchableID string
-	info         *store.LaunchableResponse
-	bindings     []store.ParameterBinding
-	options      localOptions
-	deps         launchDeps
+	terminal      *terminal.Terminal
+	launchableID  string
+	info          *store.LaunchableResponse
+	startupScript *store.LifeCycleScriptAttr
+	bindings      []store.ParameterBinding
+	options       localOptions
+	deps          launchDeps
 }
 
 type launchDeps struct {
@@ -101,7 +102,7 @@ func runLocalLaunchable(ctx context.Context, args localLaunchArgs) error {
 	case buildModeVM:
 		return runVM(ctx, vmLaunchArgs{
 			terminal:  args.terminal,
-			build:     args.info.BuildRequest.VMBuild,
+			script:    args.startupScript,
 			env:       mergeEnvironment(os.Environ(), parameterValues),
 			workspace: workspace,
 			options:   args.options,
@@ -158,11 +159,7 @@ func detectBuildMode(info *store.LaunchableResponse) (localBuildMode, error) {
 	return modes[0], nil
 }
 
-func localParameterValues(
-	ctx context.Context,
-	bindings []store.ParameterBinding,
-	resolver managedSecretResolver,
-) (map[string]string, error) {
+func localParameterValues(ctx context.Context, bindings []store.ParameterBinding, resolver managedSecretResolver) (map[string]string, error) {
 	values := make(map[string]string, len(bindings))
 	for _, binding := range bindings {
 		if binding.ManagedSecret == nil {
