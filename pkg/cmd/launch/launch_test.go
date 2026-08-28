@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -176,8 +177,8 @@ func TestLaunchableExplainDisplaysBuildModeAndParameters(t *testing.T) {
 		BuildRequest: store.LaunchableBuildRequest{
 			DockerCompose: &store.DockerCompose{YamlString: "services: {}"},
 			Parameters: []store.Parameter{
-				{Name: "HF_TOKEN", Text: &store.TextParameter{}},
-				{Name: "VLLM_ARGS", Required: true, Text: &store.TextParameter{DefaultValue: "--max-model-len 16384 --gpu-memory-utilization 0.9"}},
+				{Name: "HF_TOKEN", Description: "Hugging Face access token.", Text: &store.TextParameter{}},
+				{Name: "VLLM_ARGS", Description: "Additional arguments passed to vLLM.", Required: true, Text: &store.TextParameter{DefaultValue: "--max-model-len 16384 --gpu-memory-utilization 0.9"}},
 				{Name: "MODEL", Required: true, Text: &store.TextParameter{DefaultValue: "Qwen/Qwen3-8B"}},
 			},
 		},
@@ -191,14 +192,17 @@ func TestLaunchableExplainDisplaysBuildModeAndParameters(t *testing.T) {
 	err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.Equal(t, `Name: vLLM Inference Server
-Description: Run an OpenAI-compatible inference server.
+	assert.Equal(t, `vLLM Inference Server
+
+Run an OpenAI-compatible inference server.
+
 URL: https://dev.brev.nvidia.com/launchable/deploy/now?launchableID=env-3IEl5O5SlUAYJ9X1GKjAIZxoSnm
 Build mode: Docker Compose
+
 Parameters:
-  MODEL (required, default: Qwen/Qwen3-8B)
-  VLLM_ARGS (required, default: --max-model-len 16384 --gpu-memory-utilization 0.9)
-  HF_TOKEN (optional)
+  MODEL      (required, default: Qwen/Qwen3-8B)
+  VLLM_ARGS  (required, default: --max-model-len 16384 --gpu-memory-utilization 0.9): Additional arguments passed to vLLM.
+  HF_TOKEN   (optional): Hugging Face access token.
 `, out.String())
 	assert.Equal(t, []string{"env-3IEl5O5SlUAYJ9X1GKjAIZxoSnm"}, launchStore.getCalls)
 	assert.Empty(t, launchStore.created)
@@ -219,9 +223,11 @@ func TestLaunchableExplainOmitsMissingDescription(t *testing.T) {
 	err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.Equal(t, `Name: Local setup
+	assert.Equal(t, `Local setup
+
 URL: https://brev.nvidia.com/launchable/deploy/now?launchableID=env-abc
 Build mode: VM
+
 Parameters: none
 `, out.String())
 }
@@ -420,9 +426,12 @@ func TestRunLocalComposeFetchesYAMLAndKeepsSecretsOutOfArguments(t *testing.T) {
 	assert.NotContains(t, strings.Join(runner.commands[0].spec.args, " "), "registry-password")
 
 	compose := runner.commands[1]
+	t.Cleanup(func() { _ = os.RemoveAll(compose.spec.dir) })
 	assert.Equal(t, fetcher.contents, []byte(compose.composeYAML))
 	assert.Contains(t, compose.spec.args, "--detach")
 	assert.Contains(t, compose.spec.args, "my-launchable")
+	assert.Contains(t, compose.spec.args, compose.spec.dir)
+	assert.Contains(t, compose.spec.args, filepath.Join(compose.spec.dir, "docker-compose.yaml"))
 	assert.NotContains(t, strings.Join(compose.spec.args, " "), "super-secret")
 	assert.Contains(t, compose.spec.env, "API_TOKEN=super-secret")
 	assert.Contains(t, compose.spec.env, "PUBLIC_SETTING=enabled")
@@ -452,9 +461,12 @@ func TestRunLocalContainerPassesParameterNamesThroughDockerEnvironment(t *testin
 	require.NoError(t, err)
 	require.Len(t, runner.commands, 1)
 	command := runner.commands[0].spec
+	t.Cleanup(func() { _ = os.RemoveAll(command.dir) })
 	assert.Contains(t, command.args, "TOKEN")
 	assert.Contains(t, command.args, "8080:8080")
 	assert.Contains(t, command.args, "/start")
+	assert.Contains(t, command.args, command.dir+":/workspace")
+	assert.Contains(t, command.args, "/workspace")
 	assert.NotContains(t, strings.Join(command.args, " "), "secret-ish-direct-value")
 	assert.Contains(t, command.env, "TOKEN=secret-ish-direct-value")
 }
@@ -496,8 +508,34 @@ func TestRunLocalVMRequiresConfirmation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Zero(t, confirmer.calls)
 		require.Len(t, runner.commands, 1)
+		t.Cleanup(func() { _ = os.RemoveAll(runner.commands[0].spec.dir) })
 		assert.Equal(t, []string{"-c", "echo hello"}, runner.commands[0].spec.args)
 	})
+}
+
+func TestPrepareLocalWorkspaceClonesRepositoryIntoRequestedDirectory(t *testing.T) {
+	runner := &fakeCommandRunner{paths: map[string]string{"git": "/usr/bin/git"}}
+	workspace, err := prepareLocalWorkspace(t.Context(), localWorkspaceArgs{
+		terminal:     terminal.New(),
+		launchableID: "env-abc",
+		repository: &store.LaunchableFile{
+			URL:  "https://github.com/example/project.git",
+			Path: "./source",
+		},
+		options: localOptions{stdout: io.Discard, stderr: io.Discard},
+		runner:  runner,
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(workspace) })
+	require.Len(t, runner.commands, 1)
+	assert.Equal(t, "/usr/bin/git", runner.commands[0].spec.name)
+	assert.Equal(t, filepath.Join(workspace, "source"), runner.commands[0].spec.dir)
+	assert.Equal(t, []string{
+		"clone",
+		"https://github.com/example/project.git",
+		filepath.Join(workspace, "source", "project"),
+	}, runner.commands[0].spec.args)
 }
 
 func TestDetectBuildModeRejectsAmbiguousLaunchable(t *testing.T) {

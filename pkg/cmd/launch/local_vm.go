@@ -11,11 +11,12 @@ import (
 )
 
 type vmLaunchArgs struct {
-	terminal *terminal.Terminal
-	build    *store.VMBuild
-	env      []string
-	options  localOptions
-	deps     launchDeps
+	terminal  *terminal.Terminal
+	build     *store.VMBuild
+	env       []string
+	workspace string
+	options   localOptions
+	deps      launchDeps
 }
 
 type confirmFunc func(label string) bool
@@ -42,6 +43,7 @@ func runVM(ctx context.Context, args vmLaunchArgs) error {
 	spec := commandSpec{
 		name:   shell,
 		args:   []string{"-c", script.Script},
+		dir:    args.workspace,
 		env:    args.env,
 		stdin:  args.options.stdin,
 		stdout: args.options.stdout,

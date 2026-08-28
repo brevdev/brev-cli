@@ -198,7 +198,11 @@ func parameterDisplayLines(parameters []store.Parameter) []string {
 		if parameter.Choice != nil {
 			details += ", choices: " + strings.Join(parameter.Choice.Choices, ", ")
 		}
-		lines = append(lines, fmt.Sprintf("  %s (%s)", parameter.Name, details))
+		line := fmt.Sprintf("  %s\t(%s)", parameter.Name, details)
+		if description := strings.TrimSpace(parameter.Description); description != "" {
+			line += ": " + description
+		}
+		lines = append(lines, line)
 	}
 	return lines
 }

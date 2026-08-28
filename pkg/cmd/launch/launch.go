@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"net/url"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpucreate"
@@ -220,24 +221,28 @@ func explainLaunchable(out io.Writer, launchStore Store, launchableID string) er
 	if err != nil {
 		return err
 	}
-	lines := []string{"Name: " + info.Name}
-	if info.Description != "" {
-		lines = append(lines, "Description: "+info.Description)
+	lines := []string{info.Name}
+	if description := strings.TrimSpace(info.Description); description != "" {
+		lines = append(lines, "", description)
 	}
 	definitionURL, err := launchableDefinitionURL(config.GlobalConfig.GetConsoleURL(), launchableID)
 	if err != nil {
 		return err
 	}
-	lines = append(lines, "URL: "+definitionURL, "Build mode: "+buildModeName(info.BuildRequest))
+	lines = append(lines, "", "URL: "+definitionURL, "Build mode: "+buildModeName(info.BuildRequest), "")
 	if parameterLines := parameterDisplayLines(info.BuildRequest.Parameters); len(parameterLines) > 0 {
 		lines = append(lines, parameterLines...)
 	} else {
 		lines = append(lines, "Parameters: none")
 	}
+	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	for _, line := range lines {
-		if _, err := fmt.Fprintln(out, line); err != nil {
+		if _, err := fmt.Fprintln(writer, line); err != nil {
 			return fmt.Errorf("write launchable explanation: %w", err)
 		}
+	}
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("write launchable explanation: %w", err)
 	}
 	return nil
 }

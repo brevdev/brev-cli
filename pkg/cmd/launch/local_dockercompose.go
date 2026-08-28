@@ -20,8 +20,8 @@ const maxComposeFileSize = 10 << 20
 type composeLaunchArgs struct {
 	terminal        *terminal.Terminal
 	build           *store.DockerCompose
-	launchableID    string
 	parameterValues map[string]string
+	workspace       string
 	options         localOptions
 	deps            launchDeps
 }
@@ -37,16 +37,7 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 	if err != nil {
 		return err
 	}
-	workingDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("get local working directory: %w", err)
-	}
-	tempDir, err := os.MkdirTemp("", "brev-launchable-"+safeLocalName(args.launchableID)+"-")
-	if err != nil {
-		return fmt.Errorf("create temporary launchable directory: %w", err)
-	}
-	defer os.RemoveAll(tempDir) //nolint:errcheck // best-effort cleanup
-	composePath := filepath.Join(tempDir, "docker-compose.yaml")
+	composePath := filepath.Join(args.workspace, "docker-compose.yaml")
 	if err := os.WriteFile(composePath, contents, 0o600); err != nil {
 		return fmt.Errorf("write local compose file: %w", err)
 	}
@@ -64,7 +55,7 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 	dockerArgs := []string{
 		"compose",
 		"--project-name", safeLocalName(args.options.name),
-		"--project-directory", workingDir,
+		"--project-directory", args.workspace,
 		"--file", composePath,
 		"up",
 	}
@@ -76,7 +67,7 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 	if err := args.deps.runner.Run(ctx, commandSpec{
 		name:   docker,
 		args:   dockerArgs,
-		dir:    workingDir,
+		dir:    args.workspace,
 		env:    env,
 		stdin:  args.options.stdin,
 		stdout: args.options.stdout,
@@ -84,7 +75,6 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 	}); err != nil {
 		return fmt.Errorf("run Docker Compose launchable: %w", err)
 	}
-	args.terminal.Vprintf("Local launchable %q started successfully.\n", args.options.name)
 	return nil
 }
 

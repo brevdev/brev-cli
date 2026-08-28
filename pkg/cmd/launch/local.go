@@ -82,10 +82,17 @@ func runLocalLaunchable(ctx context.Context, args localLaunchArgs) error {
 	if mode == buildModeVerb {
 		return breverrors.NewValidationError("Verb launchables cannot yet run locally")
 	}
-	if args.info.File != nil {
-		args.terminal.Vprint("Warning: local mode does not copy the launchable's file attachment.")
-	}
 	parameterValues, err := localParameterValues(ctx, args.bindings, args.deps.secrets)
+	if err != nil {
+		return err
+	}
+	workspace, err := prepareLocalWorkspace(ctx, localWorkspaceArgs{
+		terminal:     args.terminal,
+		launchableID: args.launchableID,
+		repository:   args.info.File,
+		options:      args.options,
+		runner:       args.deps.runner,
+	})
 	if err != nil {
 		return err
 	}
@@ -93,11 +100,12 @@ func runLocalLaunchable(ctx context.Context, args localLaunchArgs) error {
 	switch mode {
 	case buildModeVM:
 		return runVM(ctx, vmLaunchArgs{
-			terminal: args.terminal,
-			build:    args.info.BuildRequest.VMBuild,
-			env:      mergeEnvironment(os.Environ(), parameterValues),
-			options:  args.options,
-			deps:     args.deps,
+			terminal:  args.terminal,
+			build:     args.info.BuildRequest.VMBuild,
+			env:       mergeEnvironment(os.Environ(), parameterValues),
+			workspace: workspace,
+			options:   args.options,
+			deps:      args.deps,
 		})
 	case buildModeContainer:
 		return runContainer(ctx, containerLaunchArgs{
@@ -106,6 +114,7 @@ func runLocalLaunchable(ctx context.Context, args localLaunchArgs) error {
 			ports:          args.info.BuildRequest.Ports,
 			parameterNames: sortedKeys(parameterValues),
 			env:            mergeEnvironment(os.Environ(), parameterValues),
+			workspace:      workspace,
 			options:        args.options,
 			deps:           args.deps,
 		})
@@ -113,8 +122,8 @@ func runLocalLaunchable(ctx context.Context, args localLaunchArgs) error {
 		return runCompose(ctx, composeLaunchArgs{
 			terminal:        args.terminal,
 			build:           args.info.BuildRequest.DockerCompose,
-			launchableID:    args.launchableID,
 			parameterValues: parameterValues,
+			workspace:       workspace,
 			options:         args.options,
 			deps:            args.deps,
 		})

@@ -17,6 +17,7 @@ type containerLaunchArgs struct {
 	ports          []store.LaunchablePort
 	parameterNames []string
 	env            []string
+	workspace      string
 	options        localOptions
 	deps           launchDeps
 }
@@ -56,6 +57,7 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 	for _, port := range portMappings(args.ports) {
 		dockerArgs = append(dockerArgs, "--publish", port)
 	}
+	dockerArgs = append(dockerArgs, "--volume", args.workspace+":/workspace", "--workdir", "/workspace")
 	if entrypoint := strings.TrimSpace(args.build.EntryPoint); entrypoint != "" {
 		dockerArgs = append(dockerArgs, "--entrypoint", entrypoint)
 	}
@@ -65,6 +67,7 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 	if err := args.deps.runner.Run(ctx, commandSpec{
 		name:   docker,
 		args:   dockerArgs,
+		dir:    args.workspace,
 		env:    args.env,
 		stdin:  args.options.stdin,
 		stdout: args.options.stdout,
@@ -72,7 +75,6 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 	}); err != nil {
 		return fmt.Errorf("run launchable container: %w", err)
 	}
-	args.terminal.Vprintf("Local launchable %q started successfully.\n", args.options.name)
 	return nil
 }
 
