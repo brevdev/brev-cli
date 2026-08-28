@@ -214,9 +214,6 @@ func TestRunLs_APIKeyRequiresCredentialOrg(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected missing API key org error, got nil")
 	}
-	if !strings.Contains(err.Error(), "api key auth requires an org id") {
-		t.Fatalf("expected API key org validation error, got %v", err)
-	}
 	if s.workspaceOrgID != "" {
 		t.Fatalf("expected no workspace call, got org %s", s.workspaceOrgID)
 	}

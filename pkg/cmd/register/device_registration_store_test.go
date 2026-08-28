@@ -1,6 +1,7 @@
 package register
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/files"
@@ -195,5 +196,130 @@ func Test_DeleteRegistration_FailsWhenMissing(t *testing.T) {
 	err := store.Delete()
 	if err == nil {
 		t.Error("expected error deleting missing registration")
+	}
+}
+
+func Test_Load_IncludeAllReturnsPendingRecord(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	pending := &DeviceRegistration{
+		DisplayName: "My Spark",
+		OrgID:       "org_xyz",
+		DeviceID:    "device-uuid-123",
+		Status:      RegistrationStatusPending,
+	}
+	if err := store.Save(pending); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded, err := store.LoadAll()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if loaded.DeviceID != "device-uuid-123" {
+		t.Errorf("DeviceID mismatch: got %s, want device-uuid-123", loaded.DeviceID)
+	}
+	if loaded.Status != RegistrationStatusPending {
+		t.Errorf("Status mismatch: got %q, want %q", loaded.Status, RegistrationStatusPending)
+	}
+	if loaded.ExternalNodeID != "" {
+		t.Errorf("pending record should have no ExternalNodeID, got %q", loaded.ExternalNodeID)
+	}
+
+	if _, err := store.Load(); err == nil {
+		t.Error("expected Load(false) to error on a pending record")
+	}
+}
+
+func Test_Load_PendingRecordErrorMessage(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	pending := &DeviceRegistration{
+		DisplayName: "My Spark",
+		OrgID:       "org_xyz",
+		DeviceID:    "device-uuid-123",
+		Status:      RegistrationStatusPending,
+	}
+	if err := store.Save(pending); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	_, err := store.Load()
+	if err == nil {
+		t.Fatal("expected Load() to error on a pending record")
+	}
+	if !strings.Contains(err.Error(), "incomplete") {
+		t.Errorf("expected 'incomplete' in error, got: %v", err)
+	}
+}
+
+func Test_LoadAll_ValidateRegistrationStatusCases(t *testing.T) {
+	tests := []struct {
+		name    string
+		reg     *DeviceRegistration
+		loadAll bool
+		wantErr string // empty = should succeed
+	}{
+		{
+			name: "registered, complete",
+			reg:  &DeviceRegistration{Status: RegistrationStatusRegistered, ExternalNodeID: "unode_1", OrgID: "org_1", DeviceID: "dev_1"},
+		},
+		{
+			name:    "registered, missing ExternalNodeID",
+			reg:     &DeviceRegistration{Status: RegistrationStatusRegistered, OrgID: "org_1", DeviceID: "dev_1"},
+			wantErr: "malformed registration, try registering",
+		},
+		{
+			name:    "registered, missing OrgID",
+			reg:     &DeviceRegistration{Status: RegistrationStatusRegistered, ExternalNodeID: "unode_1", DeviceID: "dev_1"},
+			wantErr: "malformed registration, try registering",
+		},
+		{
+			name:    "empty status (legacy), missing fields",
+			reg:     &DeviceRegistration{},
+			wantErr: "malformed registration, try registering",
+		},
+		{
+			name:    "pending, missing DeviceID",
+			reg:     &DeviceRegistration{Status: RegistrationStatusPending, OrgID: "org_1"},
+			wantErr: "malformed registration, try re-registering",
+		},
+		{
+			name:    "pending, missing OrgID",
+			reg:     &DeviceRegistration{Status: RegistrationStatusPending, DeviceID: "dev_1"},
+			wantErr: "malformed registration, try re-registering",
+		},
+		{
+			name:    "unknown status",
+			reg:     &DeviceRegistration{Status: "bogus", ExternalNodeID: "unode_1", OrgID: "org_1", DeviceID: "dev_1"},
+			wantErr: `unknown registration status "bogus"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cleanup := setupTestFs(t)
+			defer cleanup()
+			store := NewFileRegistrationStore()
+			if err := store.Save(tt.reg); err != nil {
+				t.Fatalf("Save failed: %v", err)
+			}
+
+			_, err := store.LoadAll()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("LoadAll should succeed, got: %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("expected error containing %q, got: %v", tt.wantErr, err)
+			}
+		})
 	}
 }
