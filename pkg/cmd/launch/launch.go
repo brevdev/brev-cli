@@ -69,7 +69,7 @@ func newCmdLaunch(t *terminal.Terminal, launchStore Store, deps launchDeps) *cob
 	opts := commandOptions{}
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"workspace": ""},
-		Use:                   "launch <launchable-id-or-url>",
+		Use:                   "launch <launchable-id>",
 		Short:                 "Launch a launchable locally or on a Brev instance",
 		Long:                  `Launch a launchable on its recommended remote Brev instance, or use --local to run its build on this machine. Local mode supports VM startup scripts, custom containers, and Docker Compose builds.`,
 		DisableFlagsInUseLine: true,
@@ -205,21 +205,11 @@ func validateCommandOptions(cmd *cobra.Command, opts commandOptions) error {
 }
 
 func parseLaunchableID(input string) (string, error) {
-	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
-		parsed, err := url.Parse(input)
-		if err != nil {
-			return "", fmt.Errorf("invalid launchable URL: %w", err)
-		}
-		if id := parsed.Query().Get("launchableID"); id != "" {
-			return validateLaunchableID(id)
-		}
-		parts := strings.Split(strings.TrimRight(parsed.Path, "/"), "/")
-		if len(parts) > 0 && strings.HasPrefix(parts[len(parts)-1], "env-") {
-			return validateLaunchableID(parts[len(parts)-1])
-		}
-		return "", fmt.Errorf("could not extract a launchable ID from URL %q", input)
+	id := strings.TrimSpace(input)
+	if len(id) <= len("env-") || !strings.HasPrefix(id, "env-") || strings.ContainsAny(id, "/?&# \t\r\n") {
+		return "", fmt.Errorf("invalid launchable ID %q: expected env-<id>", input)
 	}
-	return validateLaunchableID(input)
+	return id, nil
 }
 
 func explainLaunchable(out io.Writer, launchStore Store, launchableID string) error {
@@ -362,14 +352,6 @@ func displayLaunchable(t *terminal.Terminal, info *store.LaunchableResponse) {
 	t.Vprint("")
 	t.Vprintf("Build mode: %s\n", buildModeName(info.BuildRequest))
 	t.Vprint("")
-}
-
-func validateLaunchableID(id string) (string, error) {
-	id = strings.TrimSpace(id)
-	if id == "" || strings.ContainsAny(id, "/?&#") {
-		return "", fmt.Errorf("invalid launchable ID %q", id)
-	}
-	return id, nil
 }
 
 func buildModeName(build store.LaunchableBuildRequest) string {

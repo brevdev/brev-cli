@@ -255,7 +255,7 @@ func TestLaunchHelpWithIDRemainsCommandHelp(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), "Usage:")
-	assert.Contains(t, out.String(), "launch <launchable-id-or-url>")
+	assert.Contains(t, out.String(), "launch <launchable-id>")
 	assert.Empty(t, launchStore.getCalls)
 }
 
@@ -596,15 +596,17 @@ func TestDetectBuildModeRejectsAmbiguousLaunchable(t *testing.T) {
 }
 
 func TestParseLaunchableID(t *testing.T) {
-	id, err := parseLaunchableID("https://console.brev.dev/launchable/deploy?launchableID=env-abc")
+	id, err := parseLaunchableID(" env-abc ")
 	require.NoError(t, err)
 	assert.Equal(t, "env-abc", id)
 
-	id, err = parseLaunchableID(" env-abc ")
-	require.NoError(t, err)
-	assert.Equal(t, "env-abc", id)
+	_, err = parseLaunchableID("https://console.brev.dev/launchable/deploy?launchableID=env-abc")
+	assert.ErrorContains(t, err, "expected env-<id>")
 
-	_, err = parseLaunchableID("https://console.brev.dev/launchable/deploy?launchableID=env-abc/../../other")
+	_, err = parseLaunchableID("launchable-abc")
+	assert.ErrorContains(t, err, "expected env-<id>")
+
+	_, err = parseLaunchableID("env-")
 	assert.Error(t, err)
 }
 
