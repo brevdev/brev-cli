@@ -68,12 +68,10 @@ func NewCmdLaunch(t *terminal.Terminal, launchStore Store) *cobra.Command {
 func newCmdLaunch(t *terminal.Terminal, launchStore Store, deps launchDeps) *cobra.Command {
 	opts := commandOptions{}
 	cmd := &cobra.Command{
-		Annotations: map[string]string{"workspace": ""},
-		Use:         "launch <launchable-id-or-url>",
-		Short:       "Launch a launchable locally or on a Brev instance",
-		Long: `Launch a launchable on its recommended remote Brev instance, or use
---local to run its build on this machine. Local mode supports VM startup
-scripts, custom containers, and Docker Compose builds.`,
+		Annotations:           map[string]string{"workspace": ""},
+		Use:                   "launch <launchable-id-or-url>",
+		Short:                 "Launch a launchable locally or on a Brev instance",
+		Long:                  `Launch a launchable on its recommended remote Brev instance, or use --local to run its build on this machine. Local mode supports VM startup scripts, custom containers, and Docker Compose builds.`,
 		DisableFlagsInUseLine: true,
 		Args:                  cobra.ExactArgs(1),
 		Example: `  # Provision the launchable on a remote Brev instance
@@ -133,7 +131,7 @@ func runLaunchCommand(ctx context.Context, args launchCommandArgs) error {
 	if err != nil {
 		return err
 	}
-	displayLaunchable(args.terminal, info, args.options.local)
+	displayLaunchable(args.terminal, info)
 
 	values, err := parseParameterValues(args.options.parameters)
 	if err != nil {
@@ -355,15 +353,13 @@ func fetchLaunchableMetadata(launchStore Store, launchableID string) (*store.Lau
 	return info, nil
 }
 
-func displayLaunchable(t *terminal.Terminal, info *store.LaunchableResponse, local bool) {
-	target := "a remote Brev instance"
-	if local {
-		target = "this machine"
+func displayLaunchable(t *terminal.Terminal, info *store.LaunchableResponse) {
+	t.Vprint(info.Name)
+	if description := strings.TrimSpace(info.Description); description != "" {
+		t.Vprint("")
+		t.Vprint(description)
 	}
-	t.Vprintf("Launching %q on %s.\n", info.Name, target)
-	if info.Description != "" {
-		t.Vprintf("Description: %s\n", info.Description)
-	}
+	t.Vprint("")
 	t.Vprintf("Build mode: %s\n", buildModeName(info.BuildRequest))
 	t.Vprint("")
 }
