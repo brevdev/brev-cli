@@ -140,6 +140,14 @@ brev create my-instance --startup-script 'pip install torch'
 brev create my-instance --dry-run
 ```
 
+**Instance lifecycle after create:** BUILDING -> RUNNING -> SHELL `READY`. STATUS `RUNNING`
+alone is not usable - wait for the SHELL column to show `READY` in `brev ls` before
+`exec`/`shell`, and retry the first connection (sshd can refuse for another minute or two
+after `READY`). The create readiness poll can end with a spurious-looking `ErrorForbidden`
+even though the instance provisions fine - treat it as benign and watch `brev ls` instead.
+Stop/start preserves the disk (venv, payload) but can change the **public IP** - re-run
+`brev refresh` and re-resolve any direct endpoints after a restart.
+
 ### Instance Access
 ```bash
 # SSH into instance (interactive shell)
@@ -155,6 +163,14 @@ brev exec my-instance @/path/to/script.sh
 
 # Run on multiple instances
 brev exec instance1 instance2 instance3 "nvidia-smi"
+
+# Long-running commands (training runs etc.): brev exec holds the session until the
+# command exits - even for `nohup ... &` children - so launch long jobs fully detached
+# and poll a completion marker instead of holding the session:
+brev exec my-instance @launch.sh   # launch.sh ends with:
+#   setsid nohup python train.py > train.log 2>&1 < /dev/null & disown
+#   (and the job appends e.g. `echo DONE >> ~/progress.log` when finished)
+brev exec my-instance "grep -c DONE ~/progress.log"   # cheap poll
 
 # Open in editor
 brev open my-instance           # default editor
@@ -285,6 +301,14 @@ brev invite
 
 3. **Instance Cleanup** ([prompts/cleanup.md](prompts/cleanup.md))
    - List instances → Identify unused → Delete
+
+## How Billing Works
+
+- Billing is **per-second** and only while the instance is RUNNING - BUILDING/provisioning
+  time is not billed, and there is no round-up to whole hours.
+- A **STOPPED instance still accrues storage charges** until it is deleted - stopped is not
+  free. Delete instances when the work is done.
+- Usage/billing data lags real time - numbers checked right after teardown may still grow.
 
 ## Safety Rules - CRITICAL
 
