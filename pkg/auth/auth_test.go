@@ -153,7 +153,7 @@ func TestResolveEnvAPIKeyOrg_NoOrgReturnsError(t *testing.T) {
 	s := &sideEffectingTokenStore{}
 	_, err := ResolveEnvAPIKeyOrg(s)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected API key to resolve to exactly one organization, got 0")
+	assert.Contains(t, err.Error(), "api key invalid")
 }
 
 func TestResolveEnvAPIKeyOrg_MultipleOrgsReturnsError(t *testing.T) {
@@ -163,7 +163,7 @@ func TestResolveEnvAPIKeyOrg_MultipleOrgsReturnsError(t *testing.T) {
 	}}
 	_, err := ResolveEnvAPIKeyOrg(s)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "expected API key to resolve to exactly one organization, got 2")
+	assert.Contains(t, err.Error(), "api key invalid")
 }
 
 func TestResolveEnvAPIKeyOrg_ListErrorPropagates(t *testing.T) {

@@ -175,7 +175,7 @@ func ResolveAPIKeyOrganization(orgLister OrgLister) (*entity.Organization, error
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if len(orgs) != 1 {
-		return nil, breverrors.Errorf("expected API key to resolve to exactly one organization, got %d", len(orgs))
+		return nil, breverrors.New("api key invalid")
 	}
 	return &orgs[0], nil
 }
