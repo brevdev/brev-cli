@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -42,12 +43,12 @@ func parseParameterSecrets(values []string) (map[string]store.ManagedSecretRefer
 		selector = strings.TrimSpace(selector)
 		if !ok || name == "" || selector == "" {
 			return nil, breverrors.NewValidationError(fmt.Sprintf(
-				"invalid --param-secret %q: expected NAME=SECRET_ID[:VERSION_ID]", item,
+				"invalid --param-secret %q: expected NAME=SECRET_ID[:VERSION]", item,
 			))
 		}
 		if strings.Contains(selector, "@") {
 			return nil, breverrors.NewValidationError(fmt.Sprintf(
-				"invalid --param-secret %q: use ':' between SECRET_ID and VERSION_ID", item,
+				"invalid --param-secret %q: use ':' between SECRET_ID and VERSION", item,
 			))
 		}
 		if _, exists := parsed[name]; exists {
@@ -149,19 +150,43 @@ func buildParameterBindings(
 func resolveSecretVersions(ctx context.Context, bindings []store.ParameterBinding, resolver managedSecretResolver) error {
 	for i := range bindings {
 		ref := bindings[i].ManagedSecret
-		if ref == nil || ref.VersionID != "" {
+		if ref == nil {
+			continue
+		}
+		versionNumber, canonicalVersion := canonicalSecretVersion(ref.VersionID)
+		if ref.VersionID != "" && !canonicalVersion {
 			continue
 		}
 		if resolver == nil {
 			return fmt.Errorf("managed-secret resolver is not configured")
 		}
-		versionID, err := resolver.LatestVersion(ctx, ref.SecretID)
+		if canonicalVersion {
+			versionID, err := resolver.GetVersionIDForVersionNumber(ctx, ref.SecretID, versionNumber)
+			if err != nil {
+				return fmt.Errorf("resolve v%d for managed secret %q: %w", versionNumber, ref.SecretID, err)
+			}
+			ref.VersionID = versionID
+			continue
+		}
+		versionID, err := resolver.GetLatestVersionID(ctx, ref.SecretID)
 		if err != nil {
 			return fmt.Errorf("resolve latest version for managed secret %q: %w", ref.SecretID, err)
 		}
 		ref.VersionID = versionID
 	}
 	return nil
+}
+
+func canonicalSecretVersion(version string) (int64, bool) {
+	numberText, ok := strings.CutPrefix(version, "v")
+	if !ok {
+		return 0, false
+	}
+	number, err := strconv.ParseInt(numberText, 10, 64)
+	if err != nil || number < 1 {
+		return 0, false
+	}
+	return number, true
 }
 
 func parameterDefault(parameter store.Parameter) string {

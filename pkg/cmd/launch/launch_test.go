@@ -22,12 +22,13 @@ import (
 )
 
 type fakeSecretResolver struct {
-	latest map[string]string
-	values map[string]string
-	calls  []store.ManagedSecretReference
+	latest   map[string]string
+	versions map[string]string
+	values   map[string]string
+	calls    []store.ManagedSecretReference
 }
 
-func (f *fakeSecretResolver) LatestVersion(_ context.Context, secretID string) (string, error) {
+func (f *fakeSecretResolver) GetLatestVersionID(_ context.Context, secretID string) (string, error) {
 	version, ok := f.latest[secretID]
 	if !ok {
 		return "", errors.New("secret not found")
@@ -35,7 +36,15 @@ func (f *fakeSecretResolver) LatestVersion(_ context.Context, secretID string) (
 	return version, nil
 }
 
-func (f *fakeSecretResolver) Value(_ context.Context, ref store.ManagedSecretReference) (string, error) {
+func (f *fakeSecretResolver) GetVersionIDForVersionNumber(_ context.Context, secretID string, versionNumber int64) (string, error) {
+	version, ok := f.versions[fmt.Sprintf("%s:v%d", secretID, versionNumber)]
+	if !ok {
+		return "", errors.New("secret version not found")
+	}
+	return version, nil
+}
+
+func (f *fakeSecretResolver) GetValue(_ context.Context, ref store.ManagedSecretReference) (string, error) {
 	f.calls = append(f.calls, ref)
 	value, ok := f.values[ref.SecretID+"@"+ref.VersionID]
 	if !ok {
@@ -267,10 +276,12 @@ func TestParseParameterInputs(t *testing.T) {
 	secrets, err := parseParameterSecrets([]string{
 		"TOKEN=secret-1",
 		"PINNED=secret-2:version-3",
+		"CANONICAL=secret-3:v1",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, store.ManagedSecretReference{SecretID: "secret-1"}, secrets["TOKEN"])
 	assert.Equal(t, store.ManagedSecretReference{SecretID: "secret-2", VersionID: "version-3"}, secrets["PINNED"])
+	assert.Equal(t, store.ManagedSecretReference{SecretID: "secret-3", VersionID: "v1"}, secrets["CANONICAL"])
 
 	_, err = parseParameterSecrets([]string{"TOKEN=secret-1:"})
 	assert.ErrorContains(t, err, "invalid --param-secret")
@@ -302,6 +313,24 @@ func TestResolveParameterBindingsSupportsValuesDefaultsAndSecrets(t *testing.T) 
 	assert.Equal(t, &store.ManagedSecretReference{SecretID: "secret-1", VersionID: "version-9"}, bindings[0].ManagedSecret)
 	assert.Equal(t, store.ParameterBinding{Name: "MODEL", Value: "large"}, bindings[1])
 	assert.Equal(t, store.ParameterBinding{Name: "PORT", Value: "8080"}, bindings[2])
+}
+
+func TestResolveParameterBindingsResolvesCanonicalSecretVersion(t *testing.T) {
+	resolver := &fakeSecretResolver{versions: map[string]string{"secret-1:v1": "msecv-1"}}
+	bindings, err := resolveParameterBindings(
+		t.Context(),
+		parameterBindingArgs{
+			parameters: []store.Parameter{{Name: "TOKEN", Required: true, Text: &store.TextParameter{}}},
+			secrets: map[string]store.ManagedSecretReference{
+				"TOKEN": {SecretID: "secret-1", VersionID: "v1"},
+			},
+			resolver: resolver,
+		},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, bindings, 1)
+	assert.Equal(t, &store.ManagedSecretReference{SecretID: "secret-1", VersionID: "msecv-1"}, bindings[0].ManagedSecret)
 }
 
 func TestResolveParameterBindingsRejectsInvalidSecretBindings(t *testing.T) {

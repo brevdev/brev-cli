@@ -169,7 +169,7 @@ func localParameterValues(ctx context.Context, bindings []store.ParameterBinding
 		if resolver == nil {
 			return nil, fmt.Errorf("managed-secret resolver is not configured")
 		}
-		value, err := resolver.Value(ctx, *binding.ManagedSecret)
+		value, err := resolver.GetValue(ctx, *binding.ManagedSecret)
 		if err != nil {
 			return nil, fmt.Errorf("resolve managed secret for parameter %q: %w", binding.Name, err)
 		}

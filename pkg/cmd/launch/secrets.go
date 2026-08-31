@@ -10,8 +10,9 @@ import (
 )
 
 type managedSecretResolver interface {
-	LatestVersion(ctx context.Context, secretID string) (string, error)
-	Value(ctx context.Context, ref store.ManagedSecretReference) (string, error)
+	GetLatestVersionID(ctx context.Context, secretID string) (string, error)
+	GetVersionIDForVersionNumber(ctx context.Context, secretID string, versionNumber int64) (string, error)
+	GetValue(ctx context.Context, ref store.ManagedSecretReference) (string, error)
 }
 
 type devplaneManagedSecretResolver struct {
@@ -26,10 +27,14 @@ func newDevplaneManagedSecretResolver(provider Store) managedSecretResolver {
 	}
 }
 
-func (r devplaneManagedSecretResolver) LatestVersion(ctx context.Context, secretID string) (string, error) {
+func (r devplaneManagedSecretResolver) GetLatestVersionID(ctx context.Context, secretID string) (string, error) {
 	return r.client.LatestVersion(ctx, secretID)
 }
 
-func (r devplaneManagedSecretResolver) Value(ctx context.Context, ref store.ManagedSecretReference) (string, error) {
+func (r devplaneManagedSecretResolver) GetVersionIDForVersionNumber(ctx context.Context, secretID string, versionNumber int64) (string, error) {
+	return r.client.GetVersionIDForVersionNumber(ctx, secretID, versionNumber)
+}
+
+func (r devplaneManagedSecretResolver) GetValue(ctx context.Context, ref store.ManagedSecretReference) (string, error) {
 	return r.client.Value(ctx, ref.SecretID, ref.VersionID)
 }

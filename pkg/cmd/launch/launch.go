@@ -88,7 +88,7 @@ func newCmdLaunch(t *terminal.Terminal, launchStore Store, deps launchDeps) *cob
 
   # Bind a text parameter to the latest or a specific managed-secret version
   brev launch env-abc --param-secret API_TOKEN=msec-abc
-  brev launch env-abc --param-secret API_TOKEN=msec-abc:msecv-123`,
+  brev launch env-abc --param-secret API_TOKEN=msec-abc:v1`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runLaunchCommand(cmd.Context(), launchCommandArgs{
 				cmd:        cmd,
@@ -103,7 +103,7 @@ func newCmdLaunch(t *terminal.Terminal, launchStore Store, deps launchDeps) *cob
 	cmd.Flags().StringVarP(&opts.name, "name", "n", "", "Instance, container, or Compose project name")
 	cmd.Flags().StringVarP(&opts.instanceType, "type", "t", "", "Comma-separated remote instance types to try")
 	cmd.Flags().StringArrayVar(&opts.parameters, "param", nil, "Launchable parameter NAME=VALUE (repeatable)")
-	cmd.Flags().StringArrayVar(&opts.secrets, "param-secret", nil, "Text parameter NAME=SECRET_ID[:VERSION_ID] (repeatable)")
+	cmd.Flags().StringArrayVar(&opts.secrets, "param-secret", nil, "Text parameter NAME=SECRET_ID[:VERSION] (repeatable)")
 	cmd.Flags().BoolVar(&opts.local, "local", false, "Run on this machine without provisioning an instance")
 	cmd.Flags().BoolVarP(&opts.detached, "detached", "d", false, "Do not wait for the remote instance or local Docker workload")
 	cmd.Flags().BoolVar(&opts.approve, "approve", false, "Run a local startup script without prompting")
