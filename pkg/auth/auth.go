@@ -162,26 +162,22 @@ func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
 	return IsBrevAPIKey(tokens.APIKey)
 }
 
-func SingleOrgForAPIKey(orgs []entity.Organization) (*entity.Organization, error) {
-	if len(orgs) != 1 {
-		return nil, breverrors.New("api key invalid")
-	}
-	return &orgs[0], nil
-}
-
 func ResolveEnvAPIKeyOrg(orgLister OrgLister) (*entity.Organization, error) {
 	if strings.TrimSpace(os.Getenv(APIKeyEnvVar)) == "" {
 		return nil, nil
 	}
+	return ResolveAPIKeyOrganization(orgLister)
+}
+
+func ResolveAPIKeyOrganization(orgLister OrgLister) (*entity.Organization, error) {
 	orgs, err := orgLister.ListOrganizations()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	org, err := SingleOrgForAPIKey(orgs)
-	if err != nil {
-		return nil, err
+	if len(orgs) != 1 {
+		return nil, breverrors.Errorf("expected API key to resolve to exactly one organization, got %d", len(orgs))
 	}
-	return org, nil
+	return &orgs[0], nil
 }
 
 func GetAPIKeyOrgID(authTokensProvider APIKeyAuthStore) (string, error) {

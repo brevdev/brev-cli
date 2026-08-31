@@ -783,9 +783,9 @@ func Test_resolveOrgForAPIKey(t *testing.T) {
 		{"single, name matches", []entity.Organization{{ID: "org_1", Name: "Alpha"}}, "Alpha", "org_1", ""},
 		{"single, no name", []entity.Organization{{ID: "org_1", Name: "Alpha"}}, "", "org_1", ""},
 		{"single, name mismatch", []entity.Organization{{ID: "org_1", Name: "Alpha"}}, "Beta", "", "does not belong to organization"},
-		{"empty", nil, "", "", "api key invalid"},
-		{"multiple, name matches one", []entity.Organization{{ID: "org_1", Name: "Alpha"}, {ID: "org_2", Name: "Beta"}}, "Beta", "", "api key invalid"},
-		{"multiple, no name", []entity.Organization{{ID: "org_1", Name: "Alpha"}, {ID: "org_2", Name: "Beta"}}, "", "", "api key invalid"},
+		{"empty", nil, "", "", "expected API key to resolve to exactly one organization, got 0"},
+		{"multiple, name matches one", []entity.Organization{{ID: "org_1", Name: "Alpha"}, {ID: "org_2", Name: "Beta"}}, "Beta", "", "expected API key to resolve to exactly one organization, got 2"},
+		{"multiple, no name", []entity.Organization{{ID: "org_1", Name: "Alpha"}, {ID: "org_2", Name: "Beta"}}, "", "", "expected API key to resolve to exactly one organization, got 2"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

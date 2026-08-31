@@ -391,11 +391,7 @@ func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
 }
 
 func ResolveOrgForAPIKey(s auth.OrgLister, orgName string) (*entity.Organization, error) {
-	orgs, err := s.ListOrganizations()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	org, err := auth.SingleOrgForAPIKey(orgs)
+	org, err := auth.ResolveAPIKeyOrganization(s)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
