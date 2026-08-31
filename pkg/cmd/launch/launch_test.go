@@ -567,7 +567,7 @@ func TestPrepareLocalWorkspaceClonesRepositoryIntoRequestedDirectory(t *testing.
 	workspace, err := prepareLocalWorkspace(t.Context(), localWorkspaceArgs{
 		terminal:     terminal.New(),
 		launchableID: "env-abc",
-		repository: &store.LaunchableFile{
+		file: &store.LaunchableFile{
 			URL:  "https://github.com/example/project.git",
 			Path: "./source",
 		},
@@ -584,6 +584,31 @@ func TestPrepareLocalWorkspaceClonesRepositoryIntoRequestedDirectory(t *testing.
 		"clone",
 		"https://github.com/example/project.git",
 		filepath.Join(workspace, "source", "project"),
+	}, runner.commands[0].spec.args)
+}
+
+func TestPrepareLocalWorkspaceDownloadsRawNotebook(t *testing.T) {
+	runner := &fakeCommandRunner{paths: map[string]string{"curl": "/usr/bin/curl"}}
+	fileURL := "https://github.com/brevdev/notebooks/raw/main/oobabooga.ipynb"
+	workspace, err := prepareLocalWorkspace(t.Context(), localWorkspaceArgs{
+		terminal:     terminal.New(),
+		launchableID: "env-abc",
+		file:         &store.LaunchableFile{URL: fileURL},
+		options:      localOptions{stdout: io.Discard, stderr: io.Discard},
+		runner:       runner,
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(workspace) })
+	require.Len(t, runner.commands, 1)
+	assert.Equal(t, "/usr/bin/curl", runner.commands[0].spec.name)
+	assert.Equal(t, workspace, runner.commands[0].spec.dir)
+	assert.Equal(t, []string{
+		"--fail",
+		"--location",
+		"--output",
+		filepath.Join(workspace, "oobabooga.ipynb"),
+		fileURL,
 	}, runner.commands[0].spec.args)
 }
 

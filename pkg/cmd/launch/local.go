@@ -90,7 +90,7 @@ func runLocalLaunchable(ctx context.Context, args localLaunchArgs) error {
 	workspace, err := prepareLocalWorkspace(ctx, localWorkspaceArgs{
 		terminal:     args.terminal,
 		launchableID: args.launchableID,
-		repository:   args.info.File,
+		file:         args.info.File,
 		options:      args.options,
 		runner:       args.deps.runner,
 	})
