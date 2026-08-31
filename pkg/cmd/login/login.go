@@ -14,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
+	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -31,10 +32,11 @@ type LoginOptions struct {
 
 type LoginStore interface {
 	auth.AuthStore
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	ListOrganizations() ([]entity.Organization, error)
 	GetCurrentUser() (*entity.User, error)
 	CreateUser(idToken string) (*entity.User, error)
 	SetDefaultOrganization(org *entity.Organization) error
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 	GetServerSockFile() string
@@ -102,10 +104,12 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, auth Auth) *cobra.
 		},
 	}
 	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
+	analytics.MarkFlagSensitive(cmd.Flags(), "token")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "api key to authenticate CLI requests")
-	cmd.Flags().StringVar(&apiKeyOrgID, "org-id", "", "organization ID for API key auth")
+	cmd.Flags().StringVar(&apiKeyOrgID, "org-id", "", "deprecated")
 	_ = cmd.Flags().MarkHidden("api-key")
-	_ = cmd.Flags().MarkHidden("org-id")
+	analytics.MarkFlagSensitive(cmd.Flags(), "api-key")
+	_ = cmd.Flags().MarkDeprecated("org-id", "the org is now resolved automatically from the API key")
 	cmd.Flags().BoolVar(&skipBrowser, "skip-browser", false, "print url instead of auto opening browser")
 	cmd.Flags().StringVar(&emailFlag, "email", "", "email to use for authentication")
 	cmd.Flags().StringVar(&authProviderFlag, "auth", "", "authentication provider to use (nvidia or legacy, default is nvidia)")
@@ -160,11 +164,16 @@ func (o LoginOptions) getOrCreateOrg(username string) (*entity.Organization, err
 func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, apiKey string, apiKeyOrgID string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey != "" {
-		return o.doApiKeyLogin(t, loginToken, apiKey, apiKeyOrgID, skipBrowser, emailFlag, authProviderFlag)
+		return o.doApiKeyLogin(t, loginToken, apiKey, skipBrowser, emailFlag, authProviderFlag)
 	}
 	if strings.TrimSpace(apiKeyOrgID) != "" {
 		return breverrors.NewValidationError("org-id can only be used with api-key")
 	}
+
+	// login is an explicit action. Clear BREV_API_KEY so the freshly-saved JWT
+	// authenticates post-login calls (GetCurrentUser, org selection, etc.)
+	// GetFreshAccessTokenOrNil returns the env key before consulting saved credentials.
+	_ = os.Unsetenv(auth.APIKeyEnvVar)
 
 	tokens, _ := o.LoginStore.GetAuthTokens()
 
@@ -208,25 +217,25 @@ func (o LoginOptions) RunLogin(t *terminal.Terminal, loginToken string, apiKey s
 	return nil
 }
 
-func (o LoginOptions) doApiKeyLogin(t *terminal.Terminal, loginToken string, apiKey string, apiKeyOrgID string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
+func (o LoginOptions) doApiKeyLogin(t *terminal.Terminal, loginToken string, apiKey string, skipBrowser bool, emailFlag string, authProviderFlag string) error {
 	if loginToken != "" || skipBrowser || emailFlag != "" || authProviderFlag != "" {
 		return breverrors.NewValidationError("api-key cannot be used with token, skip-browser, email, or auth flags")
 	}
 	apiKey = strings.TrimSpace(apiKey)
-	orgID := strings.TrimSpace(apiKeyOrgID)
-	if orgID == "" {
-		return breverrors.NewValidationError(auth.MissingAPIKeyOrgIDMessage)
-	}
-	if err := o.Auth.LoginWithAPIKey(apiKey, orgID); err != nil {
+
+	// Set/overwrite the env key so the org-resolution call and the durable save both authenticate with it
+	_ = os.Setenv(auth.APIKeyEnvVar, apiKey)
+	org, err := register.ResolveOrgForAPIKey(o.LoginStore, "")
+	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if err := o.LoginStore.SetDefaultOrganization(&entity.Organization{
-		ID:   orgID,
-		Name: orgID,
-	}); err != nil {
+	if err := o.Auth.LoginWithAPIKey(apiKey, org.ID); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	t.Vprint(t.Green(fmt.Sprintf("API key saved for org %s", orgID)))
+	if err := o.LoginStore.SetDefaultOrganization(org); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	t.Vprint(t.Green(fmt.Sprintf("API key saved for org %s", org.Name)))
 	return nil
 }
 
@@ -237,25 +246,6 @@ func (o LoginOptions) handleOnboarding(user *entity.User, _ *terminal.Terminal) 
 		return breverrors.WrapAndTrace(err)
 	}
 	newOnboardingStatus := make(map[string]interface{})
-
-	/* Commenting out IDE selection to stop prompting users
-	var ide string
-	if currentOnboardingStatus.Editor == "" {
-		// Check IDE requirements
-		ide = terminal.PromptSelectInput(terminal.PromptSelectContent{
-			Label:    "What is your preferred IDE?",
-			ErrorMsg: "Error: must choose a preferred IDE",
-			Items:    []string{"VSCode", "Vim", "Emacs"},
-		})
-		newOnboardingStatus["editor"] = ide
-	} else {
-		ide = currentOnboardingStatus.Editor
-	}
-	_, err = OnboardUserWithEditors(t, o.LoginStore, ide)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	*/
 
 	if !currentOnboardingStatus.UsedCLI {
 		// by getting this far, we know they have set up the cli
@@ -315,22 +305,6 @@ func CreateNewUser(loginStore LoginStore, idToken string) (bool, error) {
 	return true, nil
 }
 
-// SSH Keys
-
-// t.Eprintf(t.Yellow("\n\tClick here for Gitlab: https://gitlab.com/-/profile/keys\n"))
-
-// t.Vprint(t.Red("\nYou must add your SSH key to pull and push from your repos. "))
-
-func OnboardUserWithEditors(t *terminal.Terminal, _ LoginStore, ide string) (string, error) {
-	if ide == "VSCode" {
-		_ = 0
-	} else {
-		t.Print("To use " + ide + " for your instance. Use the following command to remote into your machine")
-		t.Print(t.Green("Brev Shell"))
-	}
-	return ide, nil
-}
-
 func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organization, user *entity.User) error {
 	orgs, err := o.LoginStore.GetOrganizations(nil)
 	if err != nil {
@@ -373,18 +347,6 @@ func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organiza
 
 	return nil
 }
-
-// Check if Gateway is already installed
-
-// Check if Toolbox is already installed
-
-// Check if Gateway is already installed in Toolbox
-
-// n
-
-// y
-
-// #nosec
 
 func makeFirstOrgName(username string) string {
 	return fmt.Sprintf("%s-hq", username)

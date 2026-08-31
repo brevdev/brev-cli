@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -73,6 +74,7 @@ import (
 
 var (
 	userFlag      string
+	apiKeyFlag    string
 	printVersion  bool
 	noCheckLatest bool
 )
@@ -84,6 +86,9 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
 
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVar(&apiKeyFlag, "api-key", "", "api key to authenticate CLI requests")
+	_ = cmd.PersistentFlags().MarkHidden("api-key")
+	analytics.MarkFlagSensitive(cmd.PersistentFlags(), "api-key")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 
@@ -162,6 +167,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				if v != "" {
 					fmt.Println(v)
 				}
+			}
+			if apiKeyFlag != "" {
+				os.Setenv(auth.APIKeyEnvVar, apiKeyFlag)
 			}
 			if userFlag != "" {
 				_, err := noLoginCmdStore.WithUserID(userFlag)
@@ -244,19 +252,21 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			memAuthenticator = kas
 		}
 	}
-	memAuthStore := &emailCachingAuthStore{
+	memLoginAuth := auth.NewLoginAuth(&emailCachingAuthStore{
 		MemoryAuthStore: store.NewMemoryAuthStore(),
 		fileStore:       fsStore,
-	}
-	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
+	}, memAuthenticator)
 	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
+	nodeAuth := externalNodeAuth{
+		memLoginAuth: memLoginAuth,
+	}
 
 	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
+	).WithAuth(nodeAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
-		_, err1 := memLoginAuth.GetAccessToken()
+		_, err1 := nodeAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
@@ -540,9 +550,19 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
 
+type externalNodeAuth struct {
+	memLoginAuth *auth.LoginAuth
+}
+
+func (a externalNodeAuth) GetAccessToken() (string, error) {
+	token, err := a.memLoginAuth.GetFreshAccessTokenOrLogin()
+	return token, breverrors.WrapAndTrace(err)
+}
+
 var (
 	_ store.Auth     = auth.LoginAuth{}
 	_ store.Auth     = auth.NoLoginAuth{}
+	_ store.Auth     = externalNodeAuth{}
 	_ auth.AuthStore = store.FileStore{}
 	_ auth.AuthStore = &store.MemoryAuthStore{}
 	_ auth.AuthStore = &emailCachingAuthStore{}

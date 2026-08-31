@@ -125,8 +125,10 @@ func (v ValidationError) Error() string {
 
 type DeclineToLoginError struct{}
 
-func (d *DeclineToLoginError) Error() string     { return "declined to login" }
+func (d *DeclineToLoginError) Error() string     { return DeclineToLoginMessage }
 func (d *DeclineToLoginError) Directive() string { return "log in to run this command" }
+
+const DeclineToLoginMessage = "declined to login"
 
 var NetworkErrorMessage = "possible internet connection problem"
 

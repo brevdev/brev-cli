@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -77,8 +79,8 @@ func defaultRegisterDeps() registerDeps {
 	}
 }
 
-type OrgLister interface {
-	ListOrganizations() ([]entity.Organization, error)
+func resolveAPIKey() string {
+	return strings.TrimSpace(os.Getenv(auth.APIKeyEnvVar))
 }
 
 var (
@@ -88,9 +90,14 @@ This command registers this machine with Brev and brings up the Brev tunnel.
 
 Two modes are supported:
   • Interactive (default): run 'brev register' with no flags and follow prompts for device name and org.
-  • Non-interactive: use --name and --org. No prompts; both are required.
-    Use for scripts/CI.
-`
+  • Non-interactive: use --name and --org. No prompts; --name is required, and
+    --org is required unless --api-key is supplied. Use for scripts/CI.
+
+Headless auth (credential chain): pass --api-key (a Brev API key) or set
+the BREV_API_KEY environment variable to authenticate without the login
+link; the key authenticates this register command only — run 'brev login
+--api-key' afterward to stay logged in. If neither is set, the login-link
+flow is used.`
 
 	registerExample = `  # Interactive (prompts for device name, org, confirmations)
   brev register
@@ -151,18 +158,34 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		return fmt.Errorf("sudo issue: %w", err)
 	}
 
-	if !opts.interactive {
-		if opts.name == "" || opts.orgName == "" {
-			return fmt.Errorf("in non-interactive mode --name and --org are required")
+	apiKey := resolveAPIKey()
+	if apiKey != "" {
+		if !auth.IsBrevAPIKey(apiKey) {
+			return breverrors.NewValidationError(fmt.Sprintf("api key must be a Brev API key (expected %s prefix); see 'brev login --api-key'", auth.BrevAPIKeyPrefix))
 		}
 	}
-	// Verify the user is authenticated before performing any local side effects.
-	if _, err := s.GetCurrentUser(); err != nil {
+	if !opts.interactive {
+		if opts.name == "" {
+			return fmt.Errorf("in non-interactive mode --name is required")
+		}
+		if opts.orgName == "" && apiKey == "" {
+			return fmt.Errorf("in non-interactive mode --org is required unless --api-key is supplied")
+		}
+	}
+
+	if err := isAuthenticated(s, apiKey); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	var intendedOrg *entity.Organization
-	if !opts.interactive {
+	switch {
+	case apiKey != "":
+		o, err := ResolveOrgForAPIKey(s, opts.orgName)
+		if err != nil {
+			return err
+		}
+		intendedOrg = o
+	case !opts.interactive:
 		o, err := resolveOrg(s, opts.orgName)
 		if err != nil {
 			return err
@@ -349,10 +372,31 @@ func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerD
 	return org, nil
 }
 
+func isAuthenticated(s RegisterStore, apiKey string) error {
+	if apiKey != "" {
+		return nil
+	}
+	if _, err := s.GetCurrentUser(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
 	org, err := helpers.ResolveOrgByName(s, orgName)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
+	}
+	return org, nil
+}
+
+func ResolveOrgForAPIKey(s auth.OrgLister, orgName string) (*entity.Organization, error) {
+	org, err := auth.ResolveAPIKeyOrganization(s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if orgName != "" && org.Name != orgName {
+		return nil, breverrors.NewValidationError(fmt.Sprintf("api key does not belong to organization %q", orgName))
 	}
 	return org, nil
 }

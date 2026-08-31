@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/google/uuid"
@@ -221,6 +222,42 @@ func CaptureCommandError() {
 	captureEvent(storedUser, storedCmd, storedArgs, false)
 }
 
+// brevFlagSensitive is the pflag annotation key marking a flag whose value
+// must never be sent to analytics in cleartext.
+const brevFlagSensitive = "brev_flag_sensitive"
+
+// MarkFlagSensitive annotates a flag so analytics redacts its value.
+func MarkFlagSensitive(flags *pflag.FlagSet, name string) {
+	if err := flags.SetAnnotation(name, brevFlagSensitive, []string{"true"}); err != nil {
+		// Flag doesn't exist in this set; nothing to annotate.
+		_ = err
+	}
+}
+
+// redactFlagValue replaces credential-shaped values with a presence marker.
+// Non-sensitive values pass through untouched.
+func redactFlagValue(f *pflag.Flag) interface{} {
+	value := f.Value.String()
+	switch {
+	case value == "":
+		return ""
+	case isAnnotatedSensitive(f), auth.IsBrevAPIKey(value), isJWTShape(value):
+		return "[redacted]"
+	}
+	return value
+}
+
+func isAnnotatedSensitive(f *pflag.Flag) bool {
+	vals, ok := f.Annotations[brevFlagSensitive]
+	return ok && len(vals) > 0 && vals[0] == "true"
+}
+
+// isJWTShape cheaply detects a JWT: three non-empty dot-separated segments.
+func isJWTShape(value string) bool {
+	parts := strings.Split(value, ".")
+	return len(parts) == 3 && parts[0] != "" && parts[1] != "" && parts[2] != ""
+}
+
 func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bool) {
 	if !shouldCapturePostHog() {
 		return
@@ -240,10 +277,11 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		return
 	}
 
-	// Flags
+	// Flags — redacted: credential-shaped values (Brev API keys, JWTs) and
+	// flags carrying the sensitive annotation report "[redacted]" only.
 	flagMap := make(map[string]interface{})
 	cmd.Flags().Visit(func(f *pflag.Flag) {
-		flagMap[f.Name] = f.Value.String()
+		flagMap[f.Name] = redactFlagValue(f)
 	})
 
 	// Parent process

@@ -132,7 +132,7 @@ func getOrgForRunLs(cliAuth auth.CLIAuth, lsStore LsStore, orgflag string) (*ent
 	var org *entity.Organization
 	if cliAuth.IsAPIKey() {
 		if orgflag != "" {
-			return nil, breverrors.NewValidationError("api key auth is scoped to the org saved during login; --org is not supported")
+			return nil, breverrors.NewValidationError("api key auth is scoped to the org the key belongs to; --org is not supported")
 		}
 		org, err := lsStore.GetActiveOrganizationOrDefault()
 		if err != nil {

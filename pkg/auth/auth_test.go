@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"io"
 	"os"
 	"testing"
@@ -90,10 +91,17 @@ func TestIsBrevAPIKey(t *testing.T) {
 type sideEffectingTokenStore struct {
 	tokens               *entity.AuthTokens
 	getAccessTokenCalled bool
+
+	orgs                 []entity.Organization
+	listOrganizationsErr error
 }
 
 func (s *sideEffectingTokenStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	return s.tokens, nil
+}
+
+func (s *sideEffectingTokenStore) ListOrganizations() ([]entity.Organization, error) {
+	return s.orgs, s.listOrganizationsErr
 }
 
 func (s *sideEffectingTokenStore) GetAccessToken() (string, error) {
@@ -102,6 +110,7 @@ func (s *sideEffectingTokenStore) GetAccessToken() (string, error) {
 }
 
 func TestIsAPIKeyAuthStore_ReadsSavedTokensWithoutAccessTokenSideEffects(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
 	s := &sideEffectingTokenStore{
 		tokens: &entity.AuthTokens{APIKey: testAPIKey},
 	}
@@ -111,6 +120,7 @@ func TestIsAPIKeyAuthStore_ReadsSavedTokensWithoutAccessTokenSideEffects(t *test
 }
 
 func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
 	s := &sideEffectingTokenStore{
 		tokens: &entity.AuthTokens{
 			AccessToken:  validToken,
@@ -120,6 +130,76 @@ func TestIsAPIKeyAuthStore_LegacyCredentialsAreNotAPIKeyAuth(t *testing.T) {
 
 	assert.False(t, IsAPIKeyAuthStore(s))
 	assert.False(t, s.getAccessTokenCalled)
+}
+
+func TestIsAPIKeyAuthStore_EnvKeyIsAPIKeyEvenWhenNotPersisted(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{tokens: nil} // nothing persisted
+	assert.True(t, IsAPIKeyAuthStore(s))
+}
+
+func TestResolveEnvAPIKeyOrg_ResolvesOrgInRealTime(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{orgs: []entity.Organization{{ID: "org-realtime", Name: "Realtime Org"}}}
+	org, err := ResolveEnvAPIKeyOrg(s)
+	assert.NoError(t, err)
+	require.NotNil(t, org)
+	assert.Equal(t, "org-realtime", org.ID)
+	assert.Equal(t, "Realtime Org", org.Name)
+}
+
+func TestResolveEnvAPIKeyOrg_NoOrgReturnsError(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{}
+	_, err := ResolveEnvAPIKeyOrg(s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "api key invalid")
+}
+
+func TestResolveEnvAPIKeyOrg_MultipleOrgsReturnsError(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{orgs: []entity.Organization{
+		{ID: "org-1", Name: "One"}, {ID: "org-2", Name: "Two"},
+	}}
+	_, err := ResolveEnvAPIKeyOrg(s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "api key invalid")
+}
+
+func TestResolveEnvAPIKeyOrg_ListErrorPropagates(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := &sideEffectingTokenStore{listOrganizationsErr: errors.New("boom")}
+	_, err := ResolveEnvAPIKeyOrg(s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+}
+
+func TestResolveEnvAPIKeyOrg_NoEnvReturnsNil(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := &sideEffectingTokenStore{orgs: []entity.Organization{{ID: "org-realtime", Name: "Realtime Org"}}}
+	org, err := ResolveEnvAPIKeyOrg(s)
+	assert.NoError(t, err)
+	assert.Nil(t, org)
+}
+
+// Without an env key, an established API-key login uses the persisted org.
+func TestGetAPIKeyOrgID_PersistedOrgReturnsOrg(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := &sideEffectingTokenStore{tokens: &entity.AuthTokens{
+		APIKey:      testAPIKey,
+		APIKeyOrgID: "org-test",
+	}}
+	orgID, err := GetAPIKeyOrgID(s)
+	assert.NoError(t, err)
+	assert.Equal(t, "org-test", orgID)
+}
+
+func TestGetAPIKeyOrgID_MissingPersistedOrgReturnsError(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := &sideEffectingTokenStore{tokens: &entity.AuthTokens{APIKey: testAPIKey}}
+	_, err := GetAPIKeyOrgID(s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "auth malformed")
 }
 
 type cliAuthStore struct {
@@ -230,6 +310,40 @@ func TestGetFreshAccessTokenOrNil_APIKeyOnlyCredentialReturnsAPIKey(t *testing.T
 	assert.False(t, s.didSave)
 }
 
+func TestGetFreshAccessTokenOrNil_EnvVarTakesPrecedenceOverSaved(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, BrevAPIKeyPrefix+"env-key")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{APIKey: testAPIKey}}
+	a := Auth{authStore: &s, oauth: &MockOauth{}, accessTokenValidator: func(string) (bool, error) {
+		t.Fatal("env key must short-circuit before touching saved credentials")
+		return false, nil
+	}}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, BrevAPIKeyPrefix+"env-key", res, "BREV_API_KEY must win over saved tokens")
+}
+
+// With no saved credential, BREV_API_KEY authenticates headless/CI commands.
+func TestGetFreshAccessTokenOrNil_EnvVarFallbackWhenNoSavedTokens(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := MockAuthStore{} // no saved tokens
+	a := Auth{authStore: &s, oauth: &MockOauth{}}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, testAPIKey, res, "env var should be used when no credential is saved")
+}
+
+func TestGetFreshAccessTokenOrNil_EnvVarEmptyFallsThroughToSaved(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{APIKey: testAPIKey}}
+	a := Auth{authStore: &s, oauth: &MockOauth{}}
+
+	res, err := a.GetFreshAccessTokenOrNil()
+	assert.NoError(t, err)
+	assert.Equal(t, testAPIKey, res, "empty env var should fall through to saved credentials")
+}
+
 func TestLoginWithAPIKey_SavesTypedCredential(t *testing.T) {
 	s := MockAuthStore{}
 	a := Auth{
@@ -274,18 +388,6 @@ func TestLoginWithAPIKey_EmptyKeyReturnsError(t *testing.T) {
 	}
 
 	err := a.LoginWithAPIKey("", "org-test")
-	assert.Error(t, err)
-	assert.False(t, s.didSave)
-}
-
-func TestLoginWithAPIKey_EmptyOrgIDReturnsError(t *testing.T) {
-	s := MockAuthStore{}
-	a := Auth{
-		authStore: &s,
-		oauth:     &MockOauth{},
-	}
-
-	err := a.LoginWithAPIKey(testAPIKey, "")
 	assert.Error(t, err)
 	assert.False(t, s.didSave)
 }
@@ -436,6 +538,11 @@ func TestDenyLoginGetFreshAccessTokenOrLogin(t *testing.T) {
 		return
 	}
 	if !assert.False(t, s.didSave) {
+		return
+	}
+	// The sentinel must remain findable through whatever wrapping the layers
+	// applied — DisplayAndHandleError matches it with errors.Is.
+	if !assert.True(t, errors.Is(err, de)) {
 		return
 	}
 }

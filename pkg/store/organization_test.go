@@ -162,6 +162,33 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testi
 	assert.Equal(t, expected.Name, org.Name)
 }
 
+func TestGetActiveOrganization_APIKeyEnvResolvesOrgInRealTime(t *testing.T) {
+	apiKey := authpkg.BrevAPIKeyPrefix + "env-key"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
+		APIKey:      authpkg.BrevAPIKeyPrefix + "other-key",
+		APIKeyOrgID: "org-stale",
+	}))
+	t.Setenv(authpkg.APIKeyEnvVar, apiKey)
+
+	expected := []entity.Organization{{ID: "org-real", Name: "Real Org"}}
+	res, err := httpmock.NewJsonResponder(200, expected)
+	require.NoError(t, err)
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, res)
+
+	org, err := s.GetActiveOrganizationOrDefault()
+
+	require.NoError(t, err)
+	require.NotNil(t, org)
+	assert.Equal(t, "org-real", org.ID)
+	assert.Equal(t, "Real Org", org.Name)
+}
+
 func TestGetOrganizationsFiltersNameCaseInsensitive(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
