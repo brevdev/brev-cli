@@ -5,6 +5,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/managedsecret"
 	"github.com/brevdev/brev-cli/pkg/store"
 )
@@ -28,13 +29,25 @@ func newDevplaneManagedSecretResolver(provider Store) managedSecretResolver {
 }
 
 func (r devplaneManagedSecretResolver) GetLatestVersionID(ctx context.Context, secretID string) (string, error) {
-	return r.client.LatestVersion(ctx, secretID)
+	id, err := r.client.LatestVersion(ctx, secretID)
+	if err != nil {
+		breverrors.WrapAndTrace(err)
+	}
+	return id, nil
 }
 
 func (r devplaneManagedSecretResolver) GetVersionIDForVersionNumber(ctx context.Context, secretID string, versionNumber int64) (string, error) {
-	return r.client.GetVersionIDForVersionNumber(ctx, secretID, versionNumber)
+	id, err := r.client.GetVersionIDForVersionNumber(ctx, secretID, versionNumber)
+	if err != nil {
+		breverrors.WrapAndTrace(err)
+	}
+	return id, nil
 }
 
 func (r devplaneManagedSecretResolver) GetValue(ctx context.Context, ref store.ManagedSecretReference) (string, error) {
-	return r.client.Value(ctx, ref.SecretID, ref.VersionID)
+	value, err := r.client.Value(ctx, ref.SecretID, ref.VersionID)
+	if err != nil {
+		breverrors.WrapAndTrace(err)
+	}
+	return value, nil
 }
