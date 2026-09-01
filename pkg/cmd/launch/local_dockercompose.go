@@ -33,6 +33,7 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 	if err != nil {
 		return err
 	}
+	projectName := safeLocalName(args.options.name)
 	contents, err := composeContents(ctx, args.build, args.deps.fetchCompose)
 	if err != nil {
 		return err
@@ -54,7 +55,7 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 	env := mergeEnvironment(os.Environ(), args.build.EnvironmentVariables, args.parameterValues)
 	dockerArgs := []string{
 		"compose",
-		"--project-name", safeLocalName(args.options.name),
+		"--project-name", projectName,
 		"--project-directory", args.workspace,
 		"--file", composePath,
 		"up",
@@ -74,6 +75,16 @@ func runCompose(ctx context.Context, args composeLaunchArgs) error {
 		stderr: args.options.stderr,
 	}); err != nil {
 		return fmt.Errorf("run Docker Compose launchable: %w", err)
+	}
+	if args.options.detached {
+		if _, err := fmt.Fprintf(
+			args.options.stdout,
+			"Detached Docker Compose project %q.\nFind it with: docker compose --project-name %s ps --all\n",
+			projectName,
+			projectName,
+		); err != nil {
+			return fmt.Errorf("write detached Docker Compose details: %w", err)
+		}
 	}
 	return nil
 }

@@ -33,6 +33,7 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 	if strings.TrimSpace(args.build.ContainerURL) == "" {
 		return breverrors.NewValidationError("container launchable has no image configured")
 	}
+	containerName := safeLocalName(args.options.name)
 
 	docker, err := localDocker(args.deps.runner)
 	if err != nil {
@@ -48,7 +49,7 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 		return err
 	}
 
-	dockerArgs := []string{"run", "--name", safeLocalName(args.options.name)}
+	dockerArgs := []string{"run", "--name", containerName}
 	if args.options.detached {
 		dockerArgs = append(dockerArgs, "--detach")
 	} else {
@@ -81,6 +82,16 @@ func runContainer(ctx context.Context, args containerLaunchArgs) error {
 		stderr: args.options.stderr,
 	}); err != nil {
 		return fmt.Errorf("run launchable container: %w", err)
+	}
+	if args.options.detached {
+		if _, err := fmt.Fprintf(
+			args.options.stdout,
+			"Detached Docker container %q.\nFind it with: docker ps --all --filter name=%s\n",
+			containerName,
+			containerName,
+		); err != nil {
+			return fmt.Errorf("write detached container details: %w", err)
+		}
 	}
 	return nil
 }

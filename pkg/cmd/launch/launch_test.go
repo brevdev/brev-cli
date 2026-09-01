@@ -459,6 +459,7 @@ func TestRunLocalComposeFetchesYAMLAndKeepsSecretsOutOfArguments(t *testing.T) {
 	runner := &fakeCommandRunner{paths: map[string]string{"docker": "/usr/bin/docker"}}
 	fetcher := &fakeComposeFetcher{contents: []byte("services:\n  app:\n    image: example/app\n")}
 	resolver := &fakeSecretResolver{values: map[string]string{"secret-1@version-2": "super-secret"}}
+	var stdout bytes.Buffer
 	info := &store.LaunchableResponse{
 		BuildRequest: store.LaunchableBuildRequest{
 			DockerCompose: &store.DockerCompose{
@@ -487,7 +488,7 @@ func TestRunLocalComposeFetchesYAMLAndKeepsSecretsOutOfArguments(t *testing.T) {
 			name:     "My Launchable",
 			detached: true,
 			stdin:    bytes.NewReader(nil),
-			stdout:   io.Discard,
+			stdout:   &stdout,
 			stderr:   io.Discard,
 		},
 		deps: launchDeps{runner: runner, fetchCompose: fetcher.Fetch, secrets: resolver},
@@ -509,6 +510,8 @@ func TestRunLocalComposeFetchesYAMLAndKeepsSecretsOutOfArguments(t *testing.T) {
 	assert.NotContains(t, strings.Join(compose.spec.args, " "), "super-secret")
 	assert.Contains(t, compose.spec.env, "API_TOKEN=super-secret")
 	assert.Contains(t, compose.spec.env, "PUBLIC_SETTING=enabled")
+	assert.Contains(t, stdout.String(), `Detached Docker Compose project "my-launchable".`)
+	assert.Contains(t, stdout.String(), "docker compose --project-name my-launchable ps --all")
 }
 
 func TestRunLocalContainerPassesParameterNamesThroughDockerEnvironment(t *testing.T) {
@@ -545,6 +548,31 @@ func TestRunLocalContainerPassesParameterNamesThroughDockerEnvironment(t *testin
 	assert.Contains(t, command.args, "/workspace")
 	assert.NotContains(t, strings.Join(command.args, " "), "secret-ish-direct-value")
 	assert.Contains(t, command.env, "TOKEN=secret-ish-direct-value")
+}
+
+func TestRunLocalContainerDetachedPrintsLookupCommand(t *testing.T) {
+	runner := &fakeCommandRunner{paths: map[string]string{"docker": "/usr/bin/docker"}}
+	var stdout bytes.Buffer
+
+	err := runContainer(t.Context(), containerLaunchArgs{
+		terminal:  terminal.New(),
+		build:     &store.CustomContainer{ContainerURL: "example/app:latest"},
+		workspace: t.TempDir(),
+		options: localOptions{
+			name:     "My Container",
+			detached: true,
+			stdout:   &stdout,
+			stderr:   io.Discard,
+		},
+		deps: launchDeps{runner: runner},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, runner.commands, 1)
+	assert.Contains(t, runner.commands[0].spec.args, "--detach")
+	assert.Contains(t, runner.commands[0].spec.args, "my-container")
+	assert.Contains(t, stdout.String(), `Detached Docker container "my-container".`)
+	assert.Contains(t, stdout.String(), "docker ps --all --filter name=my-container")
 }
 
 func TestRunLocalVMRequiresConfirmation(t *testing.T) {
