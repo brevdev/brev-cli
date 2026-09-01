@@ -5,13 +5,13 @@ package grantssh
 import (
 	"context"
 	"fmt"
-	"maps"
-	"slices"
+	"os/user"
 	"strings"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -25,6 +25,7 @@ import (
 
 // GrantSSHStore defines the store methods needed by the grant-ssh command.
 type GrantSSHStore interface {
+	auth.APIKeyAuthStore
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetOrganizationsByName(name string) ([]entity.Organization, error)
@@ -38,9 +39,10 @@ type GrantSSHStore interface {
 // can be replaced in tests.
 type grantSSHDeps struct {
 	prompter          terminal.Selector
-	inputter          terminal.Inputter
+	promptLinuxUser   func(*terminal.Terminal, string) (string, error)
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
+	currentUser       func() (*user.User, error)
 }
 
 type resolvedMember struct {
@@ -50,9 +52,10 @@ type resolvedMember struct {
 func defaultGrantSSHDeps() grantSSHDeps {
 	return grantSSHDeps{
 		prompter:          register.TerminalPrompter{},
-		inputter:          register.TerminalPrompter{},
+		promptLinuxUser:   register.PromptLinuxUsername,
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
+		currentUser:       user.Current,
 	}
 }
 
@@ -69,8 +72,8 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		Use:                   "grant-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Grant SSH access to a node for another org member",
-		Long:                  "Grant SSH access to a node for another member of your organization. Interactive: no flags, prompts for org, node, port, user, and Linux user. Non-interactive: --org, --node, --user, --linux-user, and --port-id required.",
-		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --port-id port_abc --approve",
+		Long:                  "Grant SSH access to a node for another member of your organization. Interactive: no flags, prompts for org (unless API-key auth is active), node, port, user, and Linux user. Non-interactive: --node, --user, and --port-id are required; --org is also required unless API-key auth is active. The Linux user defaults to the current user and can be changed with --linux-user.",
+		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --port-id port_abc --approve\n  brev grant-ssh --node my-node --user user@example.com --linux-user ubuntu --port-id port_abc --approve --api-key <api-key>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			interactive := orgFlag == "" && nodeFlag == "" && userFlag == "" && linuxUser == "" && portIDFlag == ""
 			opts := grantSSHOpts{
@@ -86,10 +89,10 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode)")
+	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode unless using API-key auth)")
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to grant (required in non-interactive mode)")
-	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (e.g. after enable-ssh on the node)")
+	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (defaults to the current user)")
 	cmd.Flags().StringVar(&portIDFlag, "port-id", "", "Brev port ID to grant access on (required in non-interactive mode)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
@@ -109,12 +112,13 @@ type grantSSHOpts struct {
 
 // runGrantSSH runs the grant-ssh flow; the only difference by mode is whether we prompt or use opts.
 func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opts grantSSHOpts, deps grantSSHDeps) error { //nolint:gocognit,gocyclo,funlen // ok
+	apiKeyAuth := auth.IsAPIKeyAuthStore(s)
 	if !opts.interactive {
-		if opts.orgName == "" || opts.nodeName == "" || opts.userIDOrEmail == "" {
-			return fmt.Errorf("in non-interactive mode --org, --node, and --user are required")
+		if opts.nodeName == "" || opts.userIDOrEmail == "" {
+			return fmt.Errorf("in non-interactive mode --node and --user are required")
 		}
-		if opts.linuxUser == "" {
-			return fmt.Errorf("--linux-user is required in non-interactive mode")
+		if opts.orgName == "" && !apiKeyAuth {
+			return fmt.Errorf("in non-interactive mode --org is required unless using API-key auth")
 		}
 		if opts.portID == "" {
 			return fmt.Errorf("--port-id is required in non-interactive mode")
@@ -123,13 +127,16 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 
 	var org *entity.Organization
 	var err error
-	if opts.interactive {
+	switch {
+	case apiKeyAuth:
+		org, err = register.ResolveOrgForAPIKey(s, opts.orgName)
+	case opts.interactive:
 		allOrgs, listErr := s.ListOrganizations()
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)
 		}
 		org, err = helpers.SelectOrganizationInteractive(t, allOrgs, deps.prompter)
-	} else {
+	default:
 		org, err = helpers.ResolveOrgByName(s, opts.orgName)
 	}
 	if err != nil {
@@ -169,7 +176,6 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	}
 
 	var selectedUser *entity.User
-	var linuxUser string
 	if opts.interactive {
 		usersToSelect := make([]string, len(orgMembers))
 		for i, r := range orgMembers {
@@ -180,27 +186,24 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		if err != nil {
 			return err
 		}
-		linuxUserOptions := uniqueLinuxUsersFromNodeSSHAccess(node)
-		t.Vprint("")
-		if len(linuxUserOptions) > 0 {
-			linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
-		} else {
-			// No SSH access entries yet (e.g. first grant after enable-ssh):
-			// the node's Linux users aren't known to Brev, and grant-ssh may
-			// run off-box, so ask for the target Linux user.
-			linuxUser = deps.inputter.Input(terminal.PromptContent{
-				Label:      "Linux username on the node",
-				ErrorMsg:   "linux user is required",
-				AllowEmpty: false,
-			})
-			linuxUser = strings.TrimSpace(linuxUser)
-		}
 	} else {
 		selectedUser, err = findUserByIDOrEmail(orgMembers, opts.userIDOrEmail)
 		if err != nil {
 			return err
 		}
-		linuxUser = opts.linuxUser
+	}
+
+	linuxUser, err := resolveLinuxUsername(opts.linuxUser, deps.currentUser)
+	if err != nil {
+		return err
+	}
+	if opts.interactive {
+		t.Vprint("")
+		linuxUser, err = deps.promptLinuxUser(t, linuxUser)
+		if err != nil {
+			return fmt.Errorf("reading Linux username: %w", err)
+		}
+		linuxUser = strings.TrimSpace(linuxUser)
 	}
 
 	t.Vprint("")
@@ -272,18 +275,20 @@ func findPortByID(node *nodev1.ExternalNode, portID string) *nodev1.Port {
 	return nil
 }
 
-// uniqueLinuxUsersFromNodeSSHAccess returns distinct Linux users from the node's existing SSH access (for picker).
-func uniqueLinuxUsersFromNodeSSHAccess(node *nodev1.ExternalNode) []string {
-	if node == nil {
-		return nil
+func resolveLinuxUsername(linuxUsername string, currentUser func() (*user.User, error)) (string, error) {
+	linuxUsername = strings.TrimSpace(linuxUsername)
+	if linuxUsername != "" {
+		return linuxUsername, nil
 	}
-	linuxUsers := make(map[string]struct{})
-	for _, sa := range node.GetSshAccess() {
-		if u := sa.GetLinuxUser(); u != "" {
-			linuxUsers[u] = struct{}{}
-		}
+	linuxUser, err := currentUser()
+	if err != nil {
+		return "", fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
-	return slices.Collect(maps.Keys(linuxUsers))
+	linuxUsername = strings.TrimSpace(linuxUser.Username)
+	if linuxUsername == "" {
+		return "", fmt.Errorf("failed to determine current Linux user: username is empty")
+	}
+	return linuxUsername, nil
 }
 
 func findUserByIDOrEmail(members []resolvedMember, idOrEmail string) (*entity.User, error) {

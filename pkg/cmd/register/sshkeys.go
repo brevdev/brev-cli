@@ -273,7 +273,6 @@ func openPortForSSHAccess(
 }
 
 // OpenSSHPort calls the OpenPort RPC to allocate a port on the node for SSH access.
-// The call is idempotent — if the port is already open, the server returns the existing allocation.
 func OpenSSHPort(
 	ctx context.Context,
 	t *terminal.Terminal,
@@ -389,6 +388,22 @@ func SetTestSSHPort(port int32) { testSSHPort = &port }
 
 // ClearTestSSHPort clears the test port override.
 func ClearTestSSHPort() { testSSHPort = nil }
+
+// PromptLinuxUsername prompts for a Linux username and returns defaultUsername
+// when the user presses Enter without typing a value.
+func PromptLinuxUsername(t *terminal.Terminal, defaultUsername string) (string, error) {
+	t.Vprintf("  %s ", t.Green(fmt.Sprintf("Linux username (default %s):", defaultUsername)))
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("reading input: %w", err)
+	}
+	linuxUsername := strings.TrimSpace(line)
+	if linuxUsername == "" {
+		return defaultUsername, nil
+	}
+	return linuxUsername, nil
+}
 
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
 // they press Enter or leave it empty. Re-prompts on invalid input until a valid

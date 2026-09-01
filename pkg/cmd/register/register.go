@@ -28,6 +28,7 @@ import (
 
 // RegisterStore defines the store methods needed by the register command.
 type RegisterStore interface {
+	auth.APIKeyAuthStore
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetOrganizationsByName(name string) ([]entity.Organization, error)
@@ -93,19 +94,21 @@ on this device, then 'brev grant-ssh' to grant users SSH access.
 Two modes are supported:
   • Interactive (default): run 'brev register' with no flags and follow prompts for device name and org.
   • Non-interactive: use --name and --org. No prompts; --name is required, and
-    --org is required unless --api-key is supplied. Use for scripts/CI.
+    --org is required unless API-key auth is active. Use for scripts/CI.
 
-Headless auth (credential chain): pass --api-key (a Brev API key) or set
-the BREV_API_KEY environment variable to authenticate without the login
-link; the key authenticates this register command only — run 'brev login
---api-key' afterward to stay logged in. If neither is set, the login-link
-flow is used.`
+API-key auth: pass --api-key, set BREV_API_KEY, or first run 'brev login
+--api-key'. A key passed directly authenticates this register command only;
+run 'brev login --api-key' to save it. If no API-key auth is active, the
+login-link flow is used.`
 
 	registerExample = `  # Interactive (prompts for device name, org, confirmations)
   brev register
 
-  # Non-interactive (--name and --org required)
+  # Non-interactive with user auth
   brev register --name my-node --org my-org
+
+  # Non-interactive with API-key auth (the org is derived from the key)
+  brev register --name my-node --api-key <api-key>
 
   # Allow SSH on this device after registering
   brev enable-ssh`
@@ -137,7 +140,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required when using non-interactive mode)")
+	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode unless using API-key auth)")
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")
@@ -169,22 +172,23 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 			return breverrors.NewValidationError(fmt.Sprintf("api key must be a Brev API key (expected %s prefix); see 'brev login --api-key'", auth.BrevAPIKeyPrefix))
 		}
 	}
+	apiKeyAuth := apiKey != "" || auth.IsAPIKeyAuthStore(s)
 	if !opts.interactive {
 		if opts.name == "" {
 			return fmt.Errorf("in non-interactive mode --name is required")
 		}
-		if opts.orgName == "" && apiKey == "" {
-			return fmt.Errorf("in non-interactive mode --org is required unless --api-key is supplied")
+		if opts.orgName == "" && !apiKeyAuth {
+			return fmt.Errorf("in non-interactive mode --org is required unless using API-key auth")
 		}
 	}
 
-	if err := isAuthenticated(s, apiKey); err != nil {
+	if err := isAuthenticated(s, apiKeyAuth); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
 	var intendedOrg *entity.Organization
 	switch {
-	case apiKey != "":
+	case apiKeyAuth:
 		o, err := ResolveOrgForAPIKey(s, opts.orgName)
 		if err != nil {
 			return err
@@ -379,8 +383,8 @@ func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerD
 	return org, nil
 }
 
-func isAuthenticated(s RegisterStore, apiKey string) error {
-	if apiKey != "" {
+func isAuthenticated(s RegisterStore, apiKeyAuth bool) error {
+	if apiKeyAuth {
 		return nil
 	}
 	if _, err := s.GetCurrentUser(); err != nil {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
+	"os/user"
+	"strings"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -71,8 +73,11 @@ type mockGrantSSHStore struct {
 	token   string
 	members []*nodev1.OrganizationMember
 	users   map[string]*entity.User
+	tokens  *entity.AuthTokens
 	err     error
 }
+
+func (m *mockGrantSSHStore) GetAuthTokens() (*entity.AuthTokens, error) { return m.tokens, nil }
 
 func (m *mockGrantSSHStore) GetCurrentUser() (*entity.User, error) {
 	if m.err != nil {
@@ -179,16 +184,14 @@ func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.Regi
 			}
 			return ""
 		}},
-		inputter:          mockInputter{value: "testuser"},
+		promptLinuxUser: func(_ *terminal.Terminal, defaultUsername string) (string, error) {
+			return defaultUsername, nil
+		},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
+		currentUser:       func() (*user.User, error) { return &user.User{Username: "ubuntu"}, nil },
 	}, server
 }
-
-// mockInputter implements terminal.Inputter, returning a fixed value.
-type mockInputter struct{ value string }
-
-func (m mockInputter) Input(_ terminal.PromptContent) string { return m.value }
 
 func Test_runGrantSSH_NotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{} // no registration
@@ -275,6 +278,11 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
+	var linuxUserDefault string
+	deps.promptLinuxUser = func(_ *terminal.Terminal, defaultUsername string) (string, error) {
+		linuxUserDefault = defaultUsername
+		return "dmalin", nil
+	}
 
 	term := terminal.New()
 	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "ubuntu"}
@@ -292,8 +300,11 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	if gotReq.GetUserId() != "user_2" {
 		t.Errorf("expected user ID user_2, got %s", gotReq.GetUserId())
 	}
-	if gotReq.GetLinuxUser() != "ubuntu" {
-		t.Errorf("expected linux user ubuntu, got %s", gotReq.GetLinuxUser())
+	if gotReq.GetLinuxUser() != "dmalin" {
+		t.Errorf("expected selected Linux user dmalin, got %s", gotReq.GetLinuxUser())
+	}
+	if linuxUserDefault != "ubuntu" {
+		t.Errorf("Linux username prompt default = %q, want ubuntu", linuxUserDefault)
 	}
 	if gotReq.GetPortId() != "port_ssh" {
 		t.Errorf("expected port ID port_ssh, got %s", gotReq.GetPortId())
@@ -352,7 +363,6 @@ func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
 		orgName:       "TestOrg",
 		nodeName:      "My Spark",
 		userIDOrEmail: "alice@example.com",
-		linuxUser:     "ubuntu",
 		portID:        "port_ssh",
 		skipConfirm:   true,
 	}
@@ -362,6 +372,87 @@ func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
 	}
 	if gotReq == nil || gotReq.GetPortId() != "port_ssh" {
 		t.Fatalf("expected port_ssh in request, got %+v", gotReq)
+	}
+	if gotReq.GetLinuxUser() != "ubuntu" {
+		t.Fatalf("expected current Linux user ubuntu, got %q", gotReq.GetLinuxUser())
+	}
+}
+
+func Test_runGrantSSH_APIKeyDerivesOrganization(t *testing.T) {
+	targetUser := &entity.User{ID: "user_2", Name: "Alice", Email: "alice@example.com"}
+	store := &mockGrantSSHStore{
+		org:    &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		tokens: &entity.AuthTokens{APIKey: "bak-test", APIKeyOrgID: "org_123"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_2"},
+		},
+		users: map[string]*entity.User{"user_2": targetUser},
+	}
+
+	var gotListReq *nodev1.ListNodesRequest
+	var gotGrantReq *nodev1.GrantNodeSSHAccessRequest
+	svc := &fakeNodeService{
+		listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			gotListReq = req
+			return &nodev1.ListNodesResponse{Items: []*nodev1.ExternalNode{{
+				ExternalNodeId: "unode_abc",
+				Name:           "My Spark",
+				Ports:          []*nodev1.Port{{PortId: "port_ssh", PortNumber: 11640, ServerPort: 22}},
+			}}}, nil
+		},
+		grantSSHFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			gotGrantReq = req
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
+	deps, server := testGrantSSHDeps(t, svc, &mockRegistrationStore{})
+	defer server.Close()
+
+	err := runGrantSSH(context.Background(), terminal.New(), store, grantSSHOpts{
+		interactive:   false,
+		nodeName:      "My Spark",
+		userIDOrEmail: "alice@example.com",
+		portID:        "port_ssh",
+		skipConfirm:   true,
+	}, deps)
+	if err != nil {
+		t.Fatalf("runGrantSSH: %v", err)
+	}
+	if gotListReq == nil || gotListReq.GetOrganizationId() != "org_123" {
+		t.Fatalf("ListNodes organization = %+v, want org_123", gotListReq)
+	}
+	if gotGrantReq == nil || gotGrantReq.GetLinuxUser() != "ubuntu" {
+		t.Fatalf("GrantNodeSSHAccess request = %+v, want Linux user ubuntu", gotGrantReq)
+	}
+}
+
+func Test_runGrantSSH_APIKeyRejectsDifferentOrganization(t *testing.T) {
+	store := &mockGrantSSHStore{
+		org:    &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		tokens: &entity.AuthTokens{APIKey: "bak-test", APIKeyOrgID: "org_123"},
+	}
+	err := runGrantSSH(context.Background(), terminal.New(), store, grantSSHOpts{
+		interactive:   false,
+		orgName:       "OtherOrg",
+		nodeName:      "My Spark",
+		userIDOrEmail: "alice@example.com",
+		portID:        "port_ssh",
+	}, grantSSHDeps{})
+	if err == nil || !strings.Contains(err.Error(), "api key does not belong to organization") {
+		t.Fatalf("expected API-key org mismatch error, got %v", err)
+	}
+}
+
+func Test_resolveLinuxUsername(t *testing.T) {
+	currentUser := func() (*user.User, error) { return &user.User{Username: "dmalin"}, nil }
+
+	got, err := resolveLinuxUsername("", currentUser)
+	if err != nil || got != "dmalin" {
+		t.Fatalf("default username = %q, err = %v", got, err)
+	}
+	got, err = resolveLinuxUsername(" ubuntu ", currentUser)
+	if err != nil || got != "ubuntu" {
+		t.Fatalf("explicit username = %q, err = %v", got, err)
 	}
 }
 

@@ -34,8 +34,11 @@ type enableSSHDeps struct {
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 	prompter          terminal.Selector
+	promptLinuxUser   func(*terminal.Terminal, string) (string, error)
+	promptSSHPort     func(*terminal.Terminal) (int32, error)
 	// currentUser resolves the OS user for authorized_keys operations.
 	currentUser func() (*user.User, error)
+	lookupUser  func(string) (*user.User, error)
 }
 
 func defaultEnableSSHDeps() enableSSHDeps {
@@ -44,29 +47,51 @@ func defaultEnableSSHDeps() enableSSHDeps {
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
 		prompter:          register.TerminalPrompter{},
+		promptLinuxUser:   register.PromptLinuxUsername,
+		promptSSHPort:     register.PromptSSHPort,
 		currentUser:       user.Current,
+		lookupUser:        user.Lookup,
 	}
 }
 
 func NewCmdEnableSSH(t *terminal.Terminal, store EnableSSHStore) *cobra.Command {
+	var linuxUserFlag string
+	var sshPortFlag int32
+
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
 		Use:                   "enable-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Trust the Brev certificate authority on this device for SSH",
-		Long:                  "Writes the Brev certificate authority to authorized_keys, allowing this device to be an SSH target for the current Linux user. Users are granted access with 'brev grant-ssh'.",
-		Example:               "  brev enable-ssh",
+		Long:                  "Writes the Brev certificate authority to authorized_keys, allowing this device to be an SSH target. Interactive mode prompts for the Linux user and SSH port. Non-interactive mode requires both --linux-user and --ssh-port. Users are granted access with 'brev grant-ssh'.",
+		Example:               "  # Interactive\n  brev enable-ssh\n\n  # Non-interactive\n  brev enable-ssh --linux-user ubuntu --ssh-port 22",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps())
+			interactive := !cmd.Flags().Changed("linux-user") && !cmd.Flags().Changed("ssh-port")
+			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps(), enableSSHOpts{
+				interactive:   interactive,
+				linuxUsername: linuxUserFlag,
+				sshPort:       sshPortFlag,
+			})
 		},
 	}
+	cmd.Flags().StringVar(&linuxUserFlag, "linux-user", "", "Linux username to enable SSH for (required in non-interactive mode)")
+	cmd.Flags().Int32Var(&sshPortFlag, "ssh-port", 0, "SSH destination port (required in non-interactive mode)")
 
 	return cmd
 }
 
-func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, deps enableSSHDeps) error {
+type enableSSHOpts struct {
+	interactive   bool
+	linuxUsername string
+	sshPort       int32
+}
+
+func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, deps enableSSHDeps, opts enableSSHOpts) error {
 	if !deps.platform.IsCompatible() {
 		return fmt.Errorf("brev enable-ssh is only supported on Linux")
+	}
+	if err := validateEnableSSHOpts(opts); err != nil {
+		return err
 	}
 
 	reg, err := deps.registrationStore.Load()
@@ -74,7 +99,7 @@ func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, d
 		return fmt.Errorf("failed to read registration file: %w", err)
 	}
 
-	return enableSSH(ctx, t, deps, s, reg)
+	return enableSSH(ctx, t, deps, s, reg, opts)
 }
 
 func enableSSH(
@@ -83,10 +108,11 @@ func enableSSH(
 	deps enableSSHDeps,
 	s EnableSSHStore,
 	reg *register.DeviceRegistration,
+	opts enableSSHOpts,
 ) error {
-	linuxUser, err := deps.currentUser()
+	linuxUser, err := resolveLinuxUser(t, deps, opts)
 	if err != nil {
-		return fmt.Errorf("failed to determine current Linux user: %w", err)
+		return err
 	}
 	linuxUsername := linuxUser.Username
 
@@ -106,7 +132,7 @@ func enableSSH(
 			return fmt.Errorf("enable SSH failed: %w", err)
 		}
 		if node.GetLabels()[sshcert.LabelKeySSHProvider] != sshcert.SSHProviderCertAuth {
-			return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername)
+			return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername, opts)
 		}
 		caPublicKey = node.GetCertificateAuthority()
 	}
@@ -116,7 +142,7 @@ func enableSSH(
 	}
 	t.Vprint(t.Green("  Certificate authority written to authorized_keys."))
 
-	if err := ensureSSHPort(ctx, t, deps, s, reg); err != nil {
+	if err := ensureSSHPort(ctx, t, deps, s, reg, opts); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
@@ -125,35 +151,106 @@ func enableSSH(
 	return nil
 }
 
-func ensureSSHPort(ctx context.Context, t *terminal.Terminal, deps enableSSHDeps, s EnableSSHStore, reg *register.DeviceRegistration) error {
+func ensureSSHPort(ctx context.Context, t *terminal.Terminal, deps enableSSHDeps, s EnableSSHStore, reg *register.DeviceRegistration, opts enableSSHOpts) error {
+	sshPort := opts.sshPort
+	if opts.interactive {
+		var err error
+		sshPort, err = deps.promptSSHPort(t)
+		if err != nil {
+			return fmt.Errorf("reading SSH port: %w", err)
+		}
+	}
+
 	ports, err := fetchRegisteredNode(ctx, deps, s, reg)
 	if err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Note: could not check existing ports: %v", err)))
 	}
 
-	if p := findExistingSSHPort(ports); p != nil {
+	if p := findExistingSSHPort(ports, sshPort); p != nil {
 		t.Vprintf("  SSH port already allocated (%s).\n", register.FormatPortLabel(p))
 		return nil
 	}
 
-	sshPort, err := register.PromptSSHPort(t)
-	if err != nil {
-		return fmt.Errorf("reading SSH port: %w", err)
-	}
-
 	if _, err := register.OpenSSHPort(ctx, t, deps.nodeClients, s, reg, sshPort); err != nil {
+		// A prior invocation or concurrent request may have allocated the port
+		// even when OpenPort returns an error. Confirm the resulting state before
+		// deciding whether the operation failed.
+		refreshed, refreshErr := fetchRegisteredNode(ctx, deps, s, reg)
+		if refreshErr == nil {
+			if p := findExistingSSHPort(refreshed, sshPort); p != nil {
+				t.Vprintf("  SSH port already allocated (%s).\n", register.FormatPortLabel(p))
+				return nil
+			}
+		}
+		if isPortAlreadyAllocatedError(err, sshPort) {
+			t.Vprintf("  SSH port %d already allocated.\n", sshPort)
+			return nil
+		}
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func findExistingSSHPort(node *nodev1.ExternalNode) *nodev1.Port {
+func findExistingSSHPort(node *nodev1.ExternalNode, destinationPort int32) *nodev1.Port {
 	for _, p := range node.GetPorts() {
-		if p.GetPortNumber() == 22 {
+		if p.GetServerPort() == destinationPort || (p.GetServerPort() == 0 && p.GetPortNumber() == destinationPort) {
 			return p
 		}
 	}
 	return nil
+}
+
+func isPortAlreadyAllocatedError(err error, port int32) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), fmt.Sprintf("port %d is already allocated", port))
+}
+
+func validateEnableSSHOpts(opts enableSSHOpts) error {
+	if opts.interactive {
+		return nil
+	}
+	if strings.TrimSpace(opts.linuxUsername) == "" || opts.sshPort == 0 {
+		return fmt.Errorf("in non-interactive mode --linux-user and --ssh-port are required")
+	}
+	if opts.sshPort < 1 || opts.sshPort > 65535 {
+		return fmt.Errorf("invalid --ssh-port %d: port must be between 1 and 65535", opts.sshPort)
+	}
+	return nil
+}
+
+func resolveLinuxUser(t *terminal.Terminal, deps enableSSHDeps, opts enableSSHOpts) (*user.User, error) {
+	if opts.interactive {
+		return promptLinuxUser(t, deps)
+	}
+	linuxUsername := strings.TrimSpace(opts.linuxUsername)
+	linuxUser, err := deps.lookupUser(linuxUsername)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Linux user %q: %w", linuxUsername, err)
+	}
+	return linuxUser, nil
+}
+
+func promptLinuxUser(t *terminal.Terminal, deps enableSSHDeps) (*user.User, error) {
+	currentLinuxUser, err := deps.currentUser()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine current Linux user: %w", err)
+	}
+	linuxUsername, err := deps.promptLinuxUser(t, currentLinuxUser.Username)
+	if err != nil {
+		return nil, fmt.Errorf("reading Linux username: %w", err)
+	}
+	linuxUsername = strings.TrimSpace(linuxUsername)
+	if linuxUsername == currentLinuxUser.Username {
+		return currentLinuxUser, nil
+	}
+
+	linuxUser, err := deps.lookupUser(linuxUsername)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find Linux user %q: %w", linuxUsername, err)
+	}
+	return linuxUser, nil
 }
 
 func legacyEnableSSH(
@@ -164,13 +261,14 @@ func legacyEnableSSH(
 	reg *register.DeviceRegistration,
 	node *nodev1.ExternalNode,
 	linuxUsername string,
+	opts enableSSHOpts,
 ) error {
 	brevUser, err := s.GetCurrentUser()
 	if err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
-	brevPortID, err := register.ResolveSSHAccessPort(ctx, t, deps.prompter, deps.nodeClients, s, reg, node)
+	brevPortID, err := resolveLegacySSHPort(ctx, t, deps, s, reg, node, opts)
 	if err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
@@ -182,6 +280,41 @@ func legacyEnableSSH(
 	t.Vprint("")
 	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
 	return nil
+}
+
+func resolveLegacySSHPort(
+	ctx context.Context,
+	t *terminal.Terminal,
+	deps enableSSHDeps,
+	s EnableSSHStore,
+	reg *register.DeviceRegistration,
+	node *nodev1.ExternalNode,
+	opts enableSSHOpts,
+) (string, error) {
+	if opts.interactive {
+		portID, err := register.ResolveSSHAccessPort(ctx, t, deps.prompter, deps.nodeClients, s, reg, node)
+		if err != nil {
+			return "", fmt.Errorf("resolve SSH access port: %w", err)
+		}
+		return portID, nil
+	}
+	if p := findExistingSSHPort(node, opts.sshPort); p != nil {
+		t.Vprintf("  SSH port already allocated (%s).\n", register.FormatPortLabel(p))
+		return p.GetPortId(), nil
+	}
+
+	portID, err := register.OpenSSHPort(ctx, t, deps.nodeClients, s, reg, opts.sshPort)
+	if err == nil {
+		return portID, nil
+	}
+	refreshed, refreshErr := fetchRegisteredNode(ctx, deps, s, reg)
+	if refreshErr == nil {
+		if p := findExistingSSHPort(refreshed, opts.sshPort); p != nil {
+			t.Vprintf("  SSH port already allocated (%s).\n", register.FormatPortLabel(p))
+			return p.GetPortId(), nil
+		}
+	}
+	return "", fmt.Errorf("open SSH port: %w", err)
 }
 
 func installCertAuthority(osUser *user.User, caPublicKey, nodeID, linuxUser string) error {
