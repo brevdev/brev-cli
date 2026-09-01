@@ -1,4 +1,4 @@
-package disallowssh
+package disablessh
 
 import (
 	"context"
@@ -14,42 +14,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type DisallowSSHStore interface {
+type DisableSSHStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetAccessToken() (string, error)
 }
 
-type disallowSSHDeps struct {
+type disableSSHDeps struct {
 	platform          externalnode.PlatformChecker
 	registrationStore register.RegistrationStore
 }
 
-func defaultDisallowSSHDeps() disallowSSHDeps {
-	return disallowSSHDeps{
+func defaultDisableSSHDeps() disableSSHDeps {
+	return disableSSHDeps{
 		platform:          register.LinuxPlatform{},
 		registrationStore: register.NewFileRegistrationStore(),
 	}
 }
 
-func NewCmdDisallowSSH(t *terminal.Terminal, store DisallowSSHStore) *cobra.Command {
+func NewCmdDisableSSH(t *terminal.Terminal, store DisableSSHStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "disallow-ssh",
+		Use:                   "disable-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Remove Brev SSH access data from this device",
 		Long:                  "Removes the Brev certificate authority line and any Brev-managed SSH keys from authorized_keys, revoking SSH access for all users. The node remains registered.",
-		Example:               "  brev disallow-ssh",
+		Example:               "  brev disable-ssh",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDisallowSSH(cmd.Context(), t, store, defaultDisallowSSHDeps())
+			return runDisableSSH(cmd.Context(), t, store, defaultDisableSSHDeps())
 		},
 	}
 
 	return cmd
 }
 
-func runDisallowSSH(_ context.Context, t *terminal.Terminal, _ DisallowSSHStore, deps disallowSSHDeps) error {
+func runDisableSSH(_ context.Context, t *terminal.Terminal, _ DisableSSHStore, deps disableSSHDeps) error {
 	if !deps.platform.IsCompatible() {
-		return fmt.Errorf("brev disallow-ssh is only supported on Linux")
+		return fmt.Errorf("brev disable-ssh is only supported on Linux")
 	}
 
 	reg, err := deps.registrationStore.Load()
@@ -71,7 +71,7 @@ func runDisallowSSH(_ context.Context, t *terminal.Terminal, _ DisallowSSHStore,
 
 	removed, err := sshcert.RemoveCertAuthorityLine(linuxUser.HomeDir, reg.ExternalNodeID, linuxUser.Username)
 	if err != nil {
-		return fmt.Errorf("disallow SSH failed: %w", err)
+		return fmt.Errorf("disable SSH failed: %w", err)
 	}
 
 	if removed {
@@ -94,6 +94,6 @@ func runDisallowSSH(_ context.Context, t *terminal.Terminal, _ DisallowSSHStore,
 		}
 	}
 
-	t.Vprint(t.Green("SSH disallowed. Run 'brev allow-ssh' to re-enable."))
+	t.Vprint(t.Green("SSH disabled. Run 'brev enable-ssh' to re-enable."))
 	return nil
 }

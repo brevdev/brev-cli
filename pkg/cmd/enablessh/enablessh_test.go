@@ -1,4 +1,4 @@
-package allowssh
+package enablessh
 
 import (
 	"context"
@@ -225,12 +225,12 @@ func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider
 	return register.NewNodeServiceClient(provider, m.serverURL)
 }
 
-type mockAllowSSHStore struct {
+type mockEnableSSHStore struct {
 	token string
 }
 
-func (m *mockAllowSSHStore) GetCurrentUser() (*entity.User, error) { return &entity.User{}, nil }
-func (m *mockAllowSSHStore) GetAccessToken() (string, error)       { return m.token, nil }
+func (m *mockEnableSSHStore) GetCurrentUser() (*entity.User, error) { return &entity.User{}, nil }
+func (m *mockEnableSSHStore) GetAccessToken() (string, error)       { return m.token, nil }
 
 // mockSelector implements terminal.Selector, returning the first item.
 type mockSelector struct{ choice string }
@@ -280,12 +280,12 @@ func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1
 	return connect.NewResponse(resp), nil
 }
 
-func startFakeServer(t *testing.T, svc *fakeNodeService) allowSSHDeps {
+func startFakeServer(t *testing.T, svc *fakeNodeService) enableSSHDeps {
 	t.Helper()
 	_, handler := nodev1connect.NewExternalNodeServiceHandler(svc)
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
-	return allowSSHDeps{
+	return enableSSHDeps{
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
 		prompter:    mockSelector{},
 	}
@@ -304,7 +304,7 @@ func Test_fetchRegisteredNode(t *testing.T) {
 		},
 	}
 	deps := startFakeServer(t, svc)
-	store := &mockAllowSSHStore{token: "tok"}
+	store := &mockEnableSSHStore{token: "tok"}
 	reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc", OrgID: "org_1"}
 
 	node, err := fetchRegisteredNode(context.Background(), deps, store, reg)
@@ -380,7 +380,7 @@ func Test_installCertAuthority(t *testing.T) {
 	})
 }
 
-func Test_allowSSH_LegacyNodeFallsBackToKeys(t *testing.T) {
+func Test_enableSSH_LegacyNodeFallsBackToKeys(t *testing.T) {
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
 			return &nodev1.GetNodeResponse{
@@ -415,7 +415,7 @@ func Test_allowSSH_LegacyNodeFallsBackToKeys(t *testing.T) {
 	}
 
 	term := terminal.New()
-	if err := allowSSH(context.Background(), term, deps, &mockAllowSSHStore{}, reg); err != nil {
+	if err := enableSSH(context.Background(), term, deps, &mockEnableSSHStore{}, reg); err != nil {
 		t.Fatalf("allowSSH failed: %v", err)
 	}
 

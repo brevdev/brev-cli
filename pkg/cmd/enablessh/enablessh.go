@@ -1,5 +1,5 @@
-// Package allowssh implements brev allow-ssh.
-package allowssh
+// Package enablessh implements brev enable-ssh.
+package enablessh
 
 import (
 	"context"
@@ -24,12 +24,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type AllowSSHStore interface {
+type EnableSSHStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetAccessToken() (string, error)
 }
 
-type allowSSHDeps struct {
+type enableSSHDeps struct {
 	platform          externalnode.PlatformChecker
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
@@ -38,8 +38,8 @@ type allowSSHDeps struct {
 	currentUser func() (*user.User, error)
 }
 
-func defaultAllowSSHDeps() allowSSHDeps {
-	return allowSSHDeps{
+func defaultEnableSSHDeps() enableSSHDeps {
+	return enableSSHDeps{
 		platform:          register.LinuxPlatform{},
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
@@ -48,25 +48,25 @@ func defaultAllowSSHDeps() allowSSHDeps {
 	}
 }
 
-func NewCmdAllowSSH(t *terminal.Terminal, store AllowSSHStore) *cobra.Command {
+func NewCmdEnableSSH(t *terminal.Terminal, store EnableSSHStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
-		Use:                   "allow-ssh",
+		Use:                   "enable-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Trust the Brev certificate authority on this device for SSH",
 		Long:                  "Writes the Brev certificate authority to authorized_keys, allowing this device to be an SSH target for the current Linux user. Users are granted access with 'brev grant-ssh'.",
-		Example:               "  brev allow-ssh",
+		Example:               "  brev enable-ssh",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAllowSSH(cmd.Context(), t, store, defaultAllowSSHDeps())
+			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps())
 		},
 	}
 
 	return cmd
 }
 
-func runAllowSSH(ctx context.Context, t *terminal.Terminal, s AllowSSHStore, deps allowSSHDeps) error {
+func runEnableSSH(ctx context.Context, t *terminal.Terminal, s EnableSSHStore, deps enableSSHDeps) error {
 	if !deps.platform.IsCompatible() {
-		return fmt.Errorf("brev allow-ssh is only supported on Linux")
+		return fmt.Errorf("brev enable-ssh is only supported on Linux")
 	}
 
 	reg, err := deps.registrationStore.Load()
@@ -74,14 +74,14 @@ func runAllowSSH(ctx context.Context, t *terminal.Terminal, s AllowSSHStore, dep
 		return fmt.Errorf("failed to read registration file: %w", err)
 	}
 
-	return allowSSH(ctx, t, deps, s, reg)
+	return enableSSH(ctx, t, deps, s, reg)
 }
 
-func allowSSH(
+func enableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
-	deps allowSSHDeps,
-	s AllowSSHStore,
+	deps enableSSHDeps,
+	s EnableSSHStore,
 	reg *register.DeviceRegistration,
 ) error {
 	linuxUser, err := deps.currentUser()
@@ -93,7 +93,7 @@ func allowSSH(
 	checkSSHDaemon(t)
 
 	t.Vprint("")
-	t.Vprint(t.Green("Allowing SSH on this device"))
+	t.Vprint(t.Green("Enabling SSH on this device"))
 	t.Vprint("")
 	t.Vprintf("  Node:       %s (%s)\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprintf("  Linux user: %s\n", linuxUsername)
@@ -103,7 +103,7 @@ func allowSSH(
 	if caPublicKey == "" {
 		node, err := fetchRegisteredNode(ctx, deps, s, reg)
 		if err != nil {
-			return fmt.Errorf("allow SSH failed: %w", err)
+			return fmt.Errorf("enable SSH failed: %w", err)
 		}
 		if node.GetLabels()[sshcert.LabelKeySSHProvider] != sshcert.SSHProviderCertAuth {
 			return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername)
@@ -112,20 +112,20 @@ func allowSSH(
 	}
 
 	if err := installCertAuthority(linuxUser, caPublicKey, reg.ExternalNodeID, linuxUsername); err != nil {
-		return fmt.Errorf("allow SSH failed: %w", err)
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 	t.Vprint(t.Green("  Certificate authority written to authorized_keys."))
 
 	if err := ensureSSHPort(ctx, t, deps, s, reg); err != nil {
-		return fmt.Errorf("allow SSH failed: %w", err)
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
 	t.Vprint("")
-	t.Vprint(t.Green("SSH allowed on this device. No one has SSH access yet — grant it with: brev grant-ssh"))
+	t.Vprint(t.Green("SSH enabled on this device. No one has SSH access yet — grant it with: brev grant-ssh"))
 	return nil
 }
 
-func ensureSSHPort(ctx context.Context, t *terminal.Terminal, deps allowSSHDeps, s AllowSSHStore, reg *register.DeviceRegistration) error {
+func ensureSSHPort(ctx context.Context, t *terminal.Terminal, deps enableSSHDeps, s EnableSSHStore, reg *register.DeviceRegistration) error {
 	ports, err := fetchRegisteredNode(ctx, deps, s, reg)
 	if err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Note: could not check existing ports: %v", err)))
@@ -159,24 +159,24 @@ func findExistingSSHPort(node *nodev1.ExternalNode) *nodev1.Port {
 func legacyEnableSSH(
 	ctx context.Context,
 	t *terminal.Terminal,
-	deps allowSSHDeps,
-	s AllowSSHStore,
+	deps enableSSHDeps,
+	s EnableSSHStore,
 	reg *register.DeviceRegistration,
 	node *nodev1.ExternalNode,
 	linuxUsername string,
 ) error {
 	brevUser, err := s.GetCurrentUser()
 	if err != nil {
-		return fmt.Errorf("allow SSH failed: %w", err)
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
 	brevPortID, err := register.ResolveSSHAccessPort(ctx, t, deps.prompter, deps.nodeClients, s, reg, node)
 	if err != nil {
-		return fmt.Errorf("allow SSH failed: %w", err)
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
 	if err := register.SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, s, reg, brevUser, linuxUsername, brevPortID); err != nil {
-		return fmt.Errorf("allow SSH failed: %w", err)
+		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 
 	t.Vprint("")
@@ -226,7 +226,7 @@ func installCertAuthority(osUser *user.User, caPublicKey, nodeID, linuxUser stri
 
 func fetchRegisteredNode(
 	ctx context.Context,
-	deps allowSSHDeps,
+	deps enableSSHDeps,
 	tokenProvider externalnode.TokenProvider,
 	reg *register.DeviceRegistration,
 ) (*nodev1.ExternalNode, error) {

@@ -87,7 +87,7 @@ var (
 	registerLong = `Register your device with NVIDIA Brev
 
 This command registers this machine with Brev and brings up the Brev tunnel.
-Registration does not enable SSH; run 'brev allow-ssh' afterwards to allow SSH
+Registration does not enable SSH; run 'brev enable-ssh' afterwards to enable SSH
 on this device, then 'brev grant-ssh' to grant users SSH access.
 
 Two modes are supported:
@@ -108,7 +108,7 @@ flow is used.`
   brev register --name my-node --org my-org
 
   # Allow SSH on this device after registering
-  brev allow-ssh`
+  brev enable-ssh`
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
@@ -141,7 +141,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")
-	_ = cmd.Flags().MarkDeprecated("ssh-port", "run 'brev allow-ssh' after registration to allow SSH on this device")
+	_ = cmd.Flags().MarkDeprecated("ssh-port", "use 'brev enable-ssh' after registration to enable SSH access")
 
 	return cmd
 }
@@ -363,7 +363,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	t.Vprintf("%s  Registration complete.\n", t.Green("  ✓"))
 
 	t.Vprint("")
-	t.Vprintf("  %s\n", t.Green("To allow SSH on this device, run: brev allow-ssh"))
+	t.Vprintf("  %s\n", t.Green("To enable SSH access to this device, run: brev enable-ssh"))
 	return nil
 }
 

@@ -89,7 +89,7 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to grant (required in non-interactive mode)")
-	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (e.g. after allow-ssh on the node)")
+	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (e.g. after enable-ssh on the node)")
 	cmd.Flags().StringVar(&portIDFlag, "port-id", "", "Brev port ID to grant access on (required in non-interactive mode)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip confirmation prompt (assume yes)")
 
@@ -185,7 +185,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 		if len(linuxUserOptions) > 0 {
 			linuxUser = deps.prompter.Select("Select Linux user on the node", linuxUserOptions)
 		} else {
-			// No SSH access entries yet (e.g. first grant after allow-ssh):
+			// No SSH access entries yet (e.g. first grant after enable-ssh):
 			// the node's Linux users aren't known to Brev, and grant-ssh may
 			// run off-box, so ask for the target Linux user.
 			linuxUser = deps.inputter.Input(terminal.PromptContent{
