@@ -9,3 +9,8 @@ type Confirmer interface {
 type Selector interface {
 	Select(label string, items []string) string
 }
+
+// Inputter prompts the user for free-form text input.
+type Inputter interface {
+	Input(pc PromptContent) string
+}

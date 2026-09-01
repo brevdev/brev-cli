@@ -179,10 +179,16 @@ func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.Regi
 			}
 			return ""
 		}},
+		inputter:          mockInputter{value: "testuser"},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
 	}, server
 }
+
+// mockInputter implements terminal.Inputter, returning a fixed value.
+type mockInputter struct{ value string }
+
+func (m mockInputter) Input(_ terminal.PromptContent) string { return m.value }
 
 func Test_runGrantSSH_NotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{} // no registration
@@ -397,7 +403,7 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 	}
 }
 
-func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
+func Test_runGrantSSH_SelfGrantAllowed(t *testing.T) {
 	regStore := &mockRegistrationStore{
 		reg: &register.DeviceRegistration{
 			ExternalNodeID: "unode_abc",
@@ -406,24 +412,50 @@ func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
 		},
 	}
 
+	self := &entity.User{ID: "user_1", Name: "Prat", Email: "prat@example.com"}
 	store := &mockGrantSSHStore{
-		user:  &entity.User{ID: "user_1"},
+		user:  self,
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
 		members: []*nodev1.OrganizationMember{
-			{UserId: "user_1"}, // only current user, no others
+			{UserId: "user_1"}, // only the current user
 		},
-		users: map[string]*entity.User{},
+		users: map[string]*entity.User{"user_1": self},
 	}
 
-	svc := &fakeNodeService{}
+	var gotGrantReq *nodev1.GrantNodeSSHAccessRequest
+	svc := &fakeNodeService{
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{{
+					ExternalNodeId: "unode_abc",
+					Name:           "My Spark",
+					Ports: []*nodev1.Port{{
+						PortId:     "port_ssh",
+						PortNumber: 22,
+					}},
+				}},
+			}, nil
+		},
+		grantSSHFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			gotGrantReq = req
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser"}
+	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser", portID: "port_ssh"}
 	err := runGrantSSH(context.Background(), term, store, opts, deps)
-	if err == nil {
-		t.Fatal("expected error when no other members exist")
+	if err != nil {
+		t.Fatalf("runGrantSSH failed: %v", err)
+	}
+
+	if gotGrantReq == nil {
+		t.Fatal("expected GrantNodeSSHAccess to be called for self-grant")
+	}
+	if gotGrantReq.GetUserId() != "user_1" {
+		t.Errorf("expected grant for current user, got %s", gotGrantReq.GetUserId())
 	}
 }

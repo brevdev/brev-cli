@@ -338,14 +338,15 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 
 	node := addResp.Msg.GetExternalNode()
 	reg := &DeviceRegistration{
-		ExternalNodeID:  node.GetExternalNodeId(),
-		DisplayName:     name,
-		OrgID:           org.ID,
-		OrgName:         org.Name,
-		DeviceID:        deviceID,
-		RegisteredAt:    time.Now().UTC().Format(time.RFC3339),
-		HardwareProfile: *hwProfile,
-		Status:          RegistrationStatusRegistered,
+		ExternalNodeID:       node.GetExternalNodeId(),
+		DisplayName:          name,
+		OrgID:                org.ID,
+		OrgName:              org.Name,
+		DeviceID:             deviceID,
+		RegisteredAt:         time.Now().UTC().Format(time.RFC3339),
+		HardwareProfile:      *hwProfile,
+		Status:               RegistrationStatusRegistered,
+		CertificateAuthority: node.GetCertificateAuthority(),
 	}
 
 	t.Vprint("")

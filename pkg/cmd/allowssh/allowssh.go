@@ -12,6 +12,7 @@ import (
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -98,24 +99,60 @@ func allowSSH(
 	t.Vprintf("  Linux user: %s\n", linuxUsername)
 	t.Vprint("")
 
-	node, err := fetchRegisteredNode(ctx, deps, s, reg)
-	if err != nil {
-		return fmt.Errorf("allow SSH failed: %w", err)
+	caPublicKey := reg.CertificateAuthority
+	if caPublicKey == "" {
+		node, err := fetchRegisteredNode(ctx, deps, s, reg)
+		if err != nil {
+			return fmt.Errorf("allow SSH failed: %w", err)
+		}
+		if node.GetLabels()[sshcert.LabelKeySSHProvider] != sshcert.SSHProviderCertAuth {
+			return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername)
+		}
+		caPublicKey = node.GetCertificateAuthority()
 	}
-
-	if node.GetLabels()[sshcert.LabelKeySSHProvider] != sshcert.SSHProviderCertAuth {
-		return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername)
-	}
-
-	caPublicKey := node.GetCertificateAuthority()
 
 	if err := installCertAuthority(linuxUser, caPublicKey, reg.ExternalNodeID, linuxUsername); err != nil {
 		return fmt.Errorf("allow SSH failed: %w", err)
 	}
 	t.Vprint(t.Green("  Certificate authority written to authorized_keys."))
 
+	if err := ensureSSHPort(ctx, t, deps, s, reg); err != nil {
+		return fmt.Errorf("allow SSH failed: %w", err)
+	}
+
 	t.Vprint("")
 	t.Vprint(t.Green("SSH allowed on this device. No one has SSH access yet — grant it with: brev grant-ssh"))
+	return nil
+}
+
+func ensureSSHPort(ctx context.Context, t *terminal.Terminal, deps allowSSHDeps, s AllowSSHStore, reg *register.DeviceRegistration) error {
+	ports, err := fetchRegisteredNode(ctx, deps, s, reg)
+	if err != nil {
+		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Note: could not check existing ports: %v", err)))
+	}
+
+	if p := findExistingSSHPort(ports); p != nil {
+		t.Vprintf("  SSH port already allocated (%s).\n", register.FormatPortLabel(p))
+		return nil
+	}
+
+	sshPort, err := register.PromptSSHPort(t)
+	if err != nil {
+		return fmt.Errorf("reading SSH port: %w", err)
+	}
+
+	if _, err := register.OpenSSHPort(ctx, t, deps.nodeClients, s, reg, sshPort); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+func findExistingSSHPort(node *nodev1.ExternalNode) *nodev1.Port {
+	for _, p := range node.GetPorts() {
+		if p.GetPortNumber() == 22 {
+			return p
+		}
+	}
 	return nil
 }
 

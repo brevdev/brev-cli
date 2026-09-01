@@ -35,6 +35,11 @@ func (TerminalPrompter) Select(label string, items []string) string {
 	})
 }
 
+// Input prompts for free-form text input.
+func (TerminalPrompter) Input(pc terminal.PromptContent) string {
+	return terminal.PromptGetInput(pc)
+}
+
 // Netbird handles NetBird installation and uninstallation.
 type Netbird struct{}
 
