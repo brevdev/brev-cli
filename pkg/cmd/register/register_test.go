@@ -21,12 +21,15 @@ import (
 
 // mockRegisterStore satisfies RegisterStore for orchestration tests.
 type mockRegisterStore struct {
-	user  *entity.User
-	org   *entity.Organization
-	orgs  []entity.Organization
-	token string
-	err   error
+	user   *entity.User
+	org    *entity.Organization
+	orgs   []entity.Organization
+	token  string
+	tokens *entity.AuthTokens
+	err    error
 }
+
+func (m *mockRegisterStore) GetAuthTokens() (*entity.AuthTokens, error) { return m.tokens, nil }
 
 func (m *mockRegisterStore) GetCurrentUser() (*entity.User, error) {
 	if m.err != nil {
@@ -847,6 +850,26 @@ func Test_runRegister_APIKey(t *testing.T) {
 	}
 }
 
+func Test_runRegister_SavedAPIKeyUsesKeyOrganization(t *testing.T) {
+	ensureNoAPIKeyEnv(t)
+	regStore := &mockRegistrationStore{}
+	var gotOrgs []string
+	svc := &fakeNodeService{addNodeFn: okAddNodeFn(&gotOrgs)}
+	deps, server := testRegisterDeps(t, svc, regStore)
+	defer server.Close()
+	store := testRegisterStore()
+	store.tokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org_123"}
+
+	err := runRegister(context.Background(), terminal.New(), store,
+		registerOpts{interactive: false, name: "my-spark"}, deps)
+	if err != nil {
+		t.Fatalf("runRegister: %v", err)
+	}
+	if len(gotOrgs) != 1 || gotOrgs[0] != "org_123" {
+		t.Fatalf("expected API-key org org_123, got %v", gotOrgs)
+	}
+}
+
 func Test_runRegister_OrgMismatch(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -938,21 +961,21 @@ func Test_isAuthenticated(t *testing.T) {
 		store := &mockRegisterStore{
 			err: fmt.Errorf("GetCurrentUser must not be called when a key is present"),
 		}
-		if err := isAuthenticated(store, testAPIKey); err != nil {
+		if err := isAuthenticated(store, true); err != nil {
 			t.Fatalf("expected nil error with api key, got %v", err)
 		}
 	})
 
 	t.Run("no api key verifies via GetCurrentUser", func(t *testing.T) {
 		store := &mockRegisterStore{user: &entity.User{ID: "user_1"}}
-		if err := isAuthenticated(store, ""); err != nil {
+		if err := isAuthenticated(store, false); err != nil {
 			t.Fatalf("expected nil error with valid user, got %v", err)
 		}
 	})
 
 	t.Run("no api key and GetCurrentUser fails", func(t *testing.T) {
 		store := &mockRegisterStore{err: fmt.Errorf("not logged in")}
-		err := isAuthenticated(store, "")
+		err := isAuthenticated(store, false)
 		if err == nil {
 			t.Fatal("expected error when GetCurrentUser fails")
 		}

@@ -191,3 +191,58 @@ func writeAtomic(fs afero.Fs, path string, data []byte, mode os.FileMode) error 
 	}
 	return breverrors.WrapAndTrace(fs.Rename(tmpName, path))
 }
+
+// CertAuthorityPrincipal returns the SSH certificate principal for a node and
+// Linux user
+func CertAuthorityPrincipal(nodeID, linuxUser string) string {
+	return fmt.Sprintf("brev:v1:vm:%s:login:%s", nodeID, linuxUser)
+}
+
+// RemoveCertAuthorityLine removes the cert-authority line for the given node
+// and Linux user from ~/.ssh/authorized_keys. Returns true if a line was
+// removed. Missing file is treated as nothing-to-remove.
+func RemoveCertAuthorityLine(homeDir, nodeID, linuxUser string) (bool, error) {
+	prefix := fmt.Sprintf("cert-authority,principals=%q ", CertAuthorityPrincipal(nodeID, linuxUser))
+
+	authKeysPath := filepath.Join(homeDir, ".ssh", "authorized_keys")
+
+	existing, err := os.ReadFile(authKeysPath) // #nosec G304
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("reading authorized_keys: %w", err)
+	}
+
+	var kept []string
+	var removed bool
+	for line := range strings.SplitSeq(string(existing), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, prefix) && strings.Contains(trimmed, "cert-authority") {
+			removed = true
+			continue
+		}
+		kept = append(kept, line)
+	}
+
+	if !removed {
+		return false, nil
+	}
+
+	result := strings.Join(kept, "\n")
+	if err := os.WriteFile(authKeysPath, []byte(result), 0o600); err != nil {
+		return false, fmt.Errorf("writing authorized_keys: %w", err)
+	}
+
+	return true, nil
+}
+
+// HasCertAuthorityLine reports whether authorized_keys contains a Brev
+// cert-authority line for the given node (any Linux user).
+func HasCertAuthorityLine(homeDir, nodeID string) bool {
+	data, err := os.ReadFile(filepath.Join(homeDir, ".ssh", "authorized_keys")) // #nosec G304
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), "brev:v1:vm:"+nodeID+":")
+}
