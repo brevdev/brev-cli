@@ -14,3 +14,8 @@ type Selector interface {
 type Inputter interface {
 	Input(pc PromptContent) string
 }
+
+// LineInputter reads one line without an interactive terminal UI.
+type LineInputter interface {
+	InputLine(t *Terminal, label string) (string, error)
+}

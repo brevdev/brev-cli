@@ -21,11 +21,25 @@ import (
 // mock types for grantSSHDeps interfaces
 
 type mockSelector struct {
-	fn func(label string, items []string) string
+	fn            func(label string, items []string) string
+	inputLineFunc func(*terminal.Terminal, string) (string, error)
 }
 
 func (m mockSelector) Select(label string, items []string) string {
-	return m.fn(label, items)
+	if m.fn != nil {
+		return m.fn(label, items)
+	}
+	if len(items) > 0 {
+		return items[0]
+	}
+	return ""
+}
+
+func (m mockSelector) InputLine(t *terminal.Terminal, label string) (string, error) {
+	if m.inputLineFunc != nil {
+		return m.inputLineFunc(t, label)
+	}
+	return "", nil
 }
 
 type mockNodeClientFactory struct {
@@ -184,9 +198,6 @@ func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.Regi
 			}
 			return ""
 		}},
-		promptLinuxUser: func(_ *terminal.Terminal, defaultUsername string) (string, error) {
-			return defaultUsername, nil
-		},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
 		currentUser:       func() (*user.User, error) { return &user.User{Username: "ubuntu"}, nil },
@@ -278,10 +289,12 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
-	var linuxUserDefault string
-	deps.promptLinuxUser = func(_ *terminal.Terminal, defaultUsername string) (string, error) {
-		linuxUserDefault = defaultUsername
-		return "dmalin", nil
+	var linuxUserPromptLabel string
+	deps.prompter = mockSelector{
+		inputLineFunc: func(_ *terminal.Terminal, label string) (string, error) {
+			linuxUserPromptLabel = label
+			return "dmalin", nil
+		},
 	}
 
 	term := terminal.New()
@@ -303,8 +316,8 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	if gotReq.GetLinuxUser() != "dmalin" {
 		t.Errorf("expected selected Linux user dmalin, got %s", gotReq.GetLinuxUser())
 	}
-	if linuxUserDefault != "ubuntu" {
-		t.Errorf("Linux username prompt default = %q, want ubuntu", linuxUserDefault)
+	if linuxUserPromptLabel != "Linux username (default ubuntu):" {
+		t.Errorf("Linux username prompt label = %q", linuxUserPromptLabel)
 	}
 	if gotReq.GetPortId() != "port_ssh" {
 		t.Errorf("expected port ID port_ssh, got %s", gotReq.GetPortId())

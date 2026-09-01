@@ -38,8 +38,7 @@ type GrantSSHStore interface {
 // grantSSHDeps bundles the side-effecting dependencies of runGrantSSH so they
 // can be replaced in tests.
 type grantSSHDeps struct {
-	prompter          terminal.Selector
-	promptLinuxUser   func(*terminal.Terminal, string) (string, error)
+	prompter          register.SSHAccessPrompter
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
 	currentUser       func() (*user.User, error)
@@ -52,7 +51,6 @@ type resolvedMember struct {
 func defaultGrantSSHDeps() grantSSHDeps {
 	return grantSSHDeps{
 		prompter:          register.TerminalPrompter{},
-		promptLinuxUser:   register.PromptLinuxUsername,
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
 		currentUser:       user.Current,
@@ -199,7 +197,7 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	}
 	if opts.interactive {
 		t.Vprint("")
-		linuxUser, err = deps.promptLinuxUser(t, linuxUser)
+		linuxUser, err = register.PromptLinuxUsername(t, deps.prompter, linuxUser)
 		if err != nil {
 			return fmt.Errorf("reading Linux username: %w", err)
 		}

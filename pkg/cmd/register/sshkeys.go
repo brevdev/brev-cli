@@ -1,7 +1,6 @@
 package register
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -83,11 +82,17 @@ const (
 	PortChoiceOpenNew = "Open a new port"
 )
 
+// SSHAccessPrompter supports SSH selection menus and plain-line input.
+type SSHAccessPrompter interface {
+	terminal.Selector
+	terminal.LineInputter
+}
+
 // ResolveSSHAccessPort prompts for an existing or new port and returns its Brev port ID.
 func ResolveSSHAccessPort(
 	ctx context.Context,
 	t *terminal.Terminal,
-	prompter terminal.Selector,
+	prompter SSHAccessPrompter,
 	nodeClients externalnode.NodeClientFactory,
 	tokenProvider externalnode.TokenProvider,
 	reg *DeviceRegistration,
@@ -95,7 +100,7 @@ func ResolveSSHAccessPort(
 ) (string, error) {
 	ports := node.GetPorts()
 	if len(ports) == 0 {
-		return openPortForSSHAccess(ctx, t, nodeClients, tokenProvider, reg)
+		return openPortForSSHAccess(ctx, t, prompter, nodeClients, tokenProvider, reg)
 	}
 
 	t.Vprint("")
@@ -109,7 +114,7 @@ func ResolveSSHAccessPort(
 		t.Vprintf("  Using port %s.\n", FormatPortLabel(selected))
 		return selected.GetPortId(), nil
 	case PortChoiceOpenNew:
-		return openPortForSSHAccess(ctx, t, nodeClients, tokenProvider, reg)
+		return openPortForSSHAccess(ctx, t, prompter, nodeClients, tokenProvider, reg)
 	default:
 		return "", fmt.Errorf("invalid port choice %q", choice)
 	}
@@ -260,12 +265,13 @@ func RemoveAuthorizedKeyLine(u *user.User, line string) error {
 func openPortForSSHAccess(
 	ctx context.Context,
 	t *terminal.Terminal,
+	inputter terminal.LineInputter,
 	nodeClients externalnode.NodeClientFactory,
 	tokenProvider externalnode.TokenProvider,
 	reg *DeviceRegistration,
 ) (string, error) {
 	t.Vprint("")
-	port, err := PromptSSHPort(t)
+	port, err := PromptSSHPort(t, inputter)
 	if err != nil {
 		return "", fmt.Errorf("invalid port: %w", err)
 	}
@@ -378,25 +384,12 @@ func SetupAndRegisterNodeSSHAccess(
 
 const defaultSSHPort = 22
 
-// testSSHPort is set by tests to avoid blocking on stdin. When non-nil,
-// PromptSSHPort returns this value without prompting.
-var testSSHPort *int32
-
-// SetTestSSHPort sets the port returned by PromptSSHPort without prompting.
-// Only for use in tests; call ClearTestSSHPort when done.
-func SetTestSSHPort(port int32) { testSSHPort = &port }
-
-// ClearTestSSHPort clears the test port override.
-func ClearTestSSHPort() { testSSHPort = nil }
-
 // PromptLinuxUsername prompts for a Linux username and returns defaultUsername
 // when the user presses Enter without typing a value.
-func PromptLinuxUsername(t *terminal.Terminal, defaultUsername string) (string, error) {
-	t.Vprintf("  %s ", t.Green(fmt.Sprintf("Linux username (default %s):", defaultUsername)))
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
+func PromptLinuxUsername(t *terminal.Terminal, inputter terminal.LineInputter, defaultUsername string) (string, error) {
+	line, err := inputter.InputLine(t, fmt.Sprintf("Linux username (default %s):", defaultUsername))
 	if err != nil {
-		return "", fmt.Errorf("reading input: %w", err)
+		return "", fmt.Errorf("prompting for Linux username: %w", err)
 	}
 	linuxUsername := strings.TrimSpace(line)
 	if linuxUsername == "" {
@@ -408,16 +401,11 @@ func PromptLinuxUsername(t *terminal.Terminal, defaultUsername string) (string, 
 // PromptSSHPort prompts the user for the target SSH port, defaulting to 22 if
 // they press Enter or leave it empty. Re-prompts on invalid input until a valid
 // port is provided. Only returns an error for unrecoverable I/O failures.
-func PromptSSHPort(t *terminal.Terminal) (int32, error) {
-	if testSSHPort != nil {
-		return *testSSHPort, nil
-	}
-	reader := bufio.NewReader(os.Stdin)
+func PromptSSHPort(t *terminal.Terminal, inputter terminal.LineInputter) (int32, error) {
 	for {
-		t.Vprintf("  %s ", t.Green("SSH port (default 22):"))
-		line, err := reader.ReadString('\n')
+		line, err := inputter.InputLine(t, "SSH port (default 22):")
 		if err != nil {
-			return 0, fmt.Errorf("reading input: %w", err)
+			return 0, fmt.Errorf("prompting for SSH port: %w", err)
 		}
 		portStr := strings.TrimSpace(line)
 		if portStr == "" {

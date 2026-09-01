@@ -33,9 +33,7 @@ type enableSSHDeps struct {
 	platform          externalnode.PlatformChecker
 	nodeClients       externalnode.NodeClientFactory
 	registrationStore register.RegistrationStore
-	prompter          terminal.Selector
-	promptLinuxUser   func(*terminal.Terminal, string) (string, error)
-	promptSSHPort     func(*terminal.Terminal) (int32, error)
+	prompter          register.SSHAccessPrompter
 	// currentUser resolves the OS user for authorized_keys operations.
 	currentUser func() (*user.User, error)
 	lookupUser  func(string) (*user.User, error)
@@ -47,8 +45,6 @@ func defaultEnableSSHDeps() enableSSHDeps {
 		nodeClients:       register.DefaultNodeClientFactory{},
 		registrationStore: register.NewFileRegistrationStore(),
 		prompter:          register.TerminalPrompter{},
-		promptLinuxUser:   register.PromptLinuxUsername,
-		promptSSHPort:     register.PromptSSHPort,
 		currentUser:       user.Current,
 		lookupUser:        user.Lookup,
 	}
@@ -155,7 +151,7 @@ func ensureSSHPort(ctx context.Context, t *terminal.Terminal, deps enableSSHDeps
 	sshPort := opts.sshPort
 	if opts.interactive {
 		var err error
-		sshPort, err = deps.promptSSHPort(t)
+		sshPort, err = register.PromptSSHPort(t, deps.prompter)
 		if err != nil {
 			return fmt.Errorf("reading SSH port: %w", err)
 		}
@@ -237,7 +233,7 @@ func promptLinuxUser(t *terminal.Terminal, deps enableSSHDeps) (*user.User, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine current Linux user: %w", err)
 	}
-	linuxUsername, err := deps.promptLinuxUser(t, currentLinuxUser.Username)
+	linuxUsername, err := register.PromptLinuxUsername(t, deps.prompter, currentLinuxUser.Username)
 	if err != nil {
 		return nil, fmt.Errorf("reading Linux username: %w", err)
 	}

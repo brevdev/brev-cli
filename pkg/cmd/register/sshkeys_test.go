@@ -257,14 +257,44 @@ func TestRemoveAuthorizedKey_ByPublicKeyMaterial(t *testing.T) {
 
 // --- PromptSSHPort ---
 
+type mockLineInputter struct {
+	inputs []string
+	labels []string
+}
+
+func (m *mockLineInputter) InputLine(_ *terminal.Terminal, label string) (string, error) {
+	m.labels = append(m.labels, label)
+	input := m.inputs[0]
+	m.inputs = m.inputs[1:]
+	return input, nil
+}
+
 func TestPromptSSHPort(t *testing.T) {
-	SetTestSSHPort(2222)
-	defer ClearTestSSHPort()
-	port, err := PromptSSHPort(terminal.New())
+	inputter := &mockLineInputter{inputs: []string{"not-a-port", "2222"}}
+	port, err := PromptSSHPort(terminal.New(), inputter)
 	if err != nil {
 		t.Fatalf("PromptSSHPort: %v", err)
 	}
 	if port != 2222 {
 		t.Errorf("expected 2222, got %d", port)
+	}
+	if len(inputter.labels) != 2 || inputter.labels[0] != "SSH port (default 22):" {
+		t.Errorf("unexpected prompt labels: %v", inputter.labels)
+	}
+}
+
+func TestPromptLinuxUsername(t *testing.T) {
+	inputter := &mockLineInputter{inputs: []string{"", "ubuntu"}}
+
+	username, err := PromptLinuxUsername(terminal.New(), inputter, "dmalin")
+	if err != nil || username != "dmalin" {
+		t.Fatalf("default username = %q, err = %v", username, err)
+	}
+	username, err = PromptLinuxUsername(terminal.New(), inputter, "dmalin")
+	if err != nil || username != "ubuntu" {
+		t.Fatalf("entered username = %q, err = %v", username, err)
+	}
+	if len(inputter.labels) != 2 || inputter.labels[0] != "Linux username (default dmalin):" {
+		t.Errorf("unexpected prompt labels: %v", inputter.labels)
 	}
 }

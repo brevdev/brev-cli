@@ -232,8 +232,10 @@ type mockEnableSSHStore struct {
 func (m *mockEnableSSHStore) GetCurrentUser() (*entity.User, error) { return &entity.User{}, nil }
 func (m *mockEnableSSHStore) GetAccessToken() (string, error)       { return m.token, nil }
 
-// mockSelector implements terminal.Selector, returning the first item.
-type mockSelector struct{ choice string }
+type mockSelector struct {
+	choice        string
+	inputLineFunc func(*terminal.Terminal, string) (string, error)
+}
 
 func (m mockSelector) Select(_ string, items []string) string {
 	if m.choice != "" {
@@ -247,6 +249,13 @@ func (m mockSelector) Select(_ string, items []string) string {
 		return items[0]
 	}
 	return ""
+}
+
+func (m mockSelector) InputLine(t *terminal.Terminal, label string) (string, error) {
+	if m.inputLineFunc != nil {
+		return m.inputLineFunc(t, label)
+	}
+	return "", nil
 }
 
 type fakeNodeService struct {
@@ -297,10 +306,6 @@ func startFakeServer(t *testing.T, svc *fakeNodeService) enableSSHDeps {
 	return enableSSHDeps{
 		nodeClients: mockNodeClientFactory{serverURL: server.URL},
 		prompter:    mockSelector{},
-		promptLinuxUser: func(_ *terminal.Terminal, defaultUsername string) (string, error) {
-			return defaultUsername, nil
-		},
-		promptSSHPort: register.PromptSSHPort,
 	}
 }
 
@@ -355,9 +360,6 @@ func Test_isPortAlreadyAllocatedError(t *testing.T) {
 }
 
 func Test_ensureSSHPortPromptsThenReusesSelectedPort(t *testing.T) {
-	register.SetTestSSHPort(22)
-	defer register.ClearTestSSHPort()
-
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{Ports: []*nodev1.Port{
@@ -377,9 +379,6 @@ func Test_ensureSSHPortPromptsThenReusesSelectedPort(t *testing.T) {
 }
 
 func Test_ensureSSHPortDoesNotAssumeExistingDifferentPort(t *testing.T) {
-	register.SetTestSSHPort(2222)
-	defer register.ClearTestSSHPort()
-
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{Ports: []*nodev1.Port{
@@ -388,6 +387,9 @@ func Test_ensureSSHPortDoesNotAssumeExistingDifferentPort(t *testing.T) {
 		},
 	}
 	deps := startFakeServer(t, svc)
+	deps.prompter = mockSelector{inputLineFunc: func(*terminal.Terminal, string) (string, error) {
+		return "2222", nil
+	}}
 	reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc", OrgID: "org_1"}
 
 	if err := ensureSSHPort(context.Background(), terminal.New(), deps, &mockEnableSSHStore{}, reg, enableSSHOpts{interactive: true}); err != nil {
@@ -399,9 +401,6 @@ func Test_ensureSSHPortDoesNotAssumeExistingDifferentPort(t *testing.T) {
 }
 
 func Test_ensureSSHPortTreatsCreateErrorAsSuccessWhenPortNowExists(t *testing.T) {
-	register.SetTestSSHPort(22)
-	defer register.ClearTestSSHPort()
-
 	getCalls := 0
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
@@ -436,9 +435,11 @@ func Test_ensureSSHPortNonInteractiveDoesNotPrompt(t *testing.T) {
 		},
 	}
 	deps := startFakeServer(t, svc)
-	deps.promptSSHPort = func(*terminal.Terminal) (int32, error) {
-		t.Fatal("non-interactive mode must not prompt for the SSH port")
-		return 0, nil
+	deps.prompter = mockSelector{
+		inputLineFunc: func(*terminal.Terminal, string) (string, error) {
+			t.Fatal("non-interactive mode must not prompt for input")
+			return "", nil
+		},
 	}
 	reg := &register.DeviceRegistration{ExternalNodeID: "unode_abc", OrgID: "org_1"}
 
@@ -486,13 +487,15 @@ func Test_promptLinuxUser(t *testing.T) {
 	current := &user.User{Username: "current", HomeDir: "/current"}
 	target := &user.User{Username: "ubuntu", HomeDir: "/home/ubuntu"}
 	promptCalls := 0
-	var promptDefault string
+	var promptLabel string
 	deps := enableSSHDeps{
 		currentUser: func() (*user.User, error) { return current, nil },
-		promptLinuxUser: func(_ *terminal.Terminal, defaultUsername string) (string, error) {
-			promptCalls++
-			promptDefault = defaultUsername
-			return defaultUsername, nil
+		prompter: mockSelector{
+			inputLineFunc: func(_ *terminal.Terminal, label string) (string, error) {
+				promptCalls++
+				promptLabel = label
+				return "", nil
+			},
 		},
 		lookupUser: func(username string) (*user.User, error) {
 			if username != "ubuntu" {
@@ -510,13 +513,15 @@ func Test_promptLinuxUser(t *testing.T) {
 	if promptCalls != 1 {
 		t.Fatalf("interactive prompt calls = %d, want 1", promptCalls)
 	}
-	if promptDefault != "current" {
-		t.Fatalf("prompt default = %q, want current", promptDefault)
+	if promptLabel != "Linux username (default current):" {
+		t.Fatalf("prompt label = %q", promptLabel)
 	}
 
-	deps.promptLinuxUser = func(_ *terminal.Terminal, defaultUsername string) (string, error) {
-		promptCalls++
-		return "ubuntu", nil
+	deps.prompter = mockSelector{
+		inputLineFunc: func(_ *terminal.Terminal, _ string) (string, error) {
+			promptCalls++
+			return "ubuntu", nil
+		},
 	}
 	got, err = promptLinuxUser(term, deps)
 	if err != nil || got != target {
@@ -652,9 +657,12 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 	deps := startFakeServer(t, svc)
 	targetUser := &user.User{Username: "ubuntu", HomeDir: t.TempDir()}
 	promptCalls := 0
-	deps.promptLinuxUser = func(*terminal.Terminal, string) (string, error) {
-		promptCalls++
-		return "", nil
+	deps.prompter = mockSelector{
+		inputLineFunc: func(*terminal.Terminal, string) (string, error) {
+			promptCalls++
+			t.Fatal("non-interactive mode must not prompt for input")
+			return "", nil
+		},
 	}
 	deps.currentUser = func() (*user.User, error) {
 		t.Fatal("non-interactive mode must not resolve the current Linux user")
@@ -665,10 +673,6 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 			t.Fatalf("lookup username = %q, want ubuntu", username)
 		}
 		return targetUser, nil
-	}
-	deps.promptSSHPort = func(*terminal.Terminal) (int32, error) {
-		t.Fatal("non-interactive mode must not prompt for the SSH port")
-		return 0, nil
 	}
 	reg := &register.DeviceRegistration{
 		ExternalNodeID:       "unode_abc",
