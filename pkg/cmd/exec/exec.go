@@ -58,7 +58,7 @@ func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecSto
 	var host bool
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"access": ""},
-		Use:                   "exec [instance...] <command>",
+		Use:                   `exec [instance...] "<command>"`,
 		DisableFlagsInUseLine: true,
 		Short:                 "Execute a command on instance(s)",
 		Long:                  execLong,
