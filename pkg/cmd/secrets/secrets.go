@@ -249,7 +249,7 @@ func newCmdSecretGet(t *terminal.Terminal, store SecretStore) *cobra.Command {
 	return cmd
 }
 
-func newCmdSecretGetValue(t *terminal.Terminal, store SecretStore) *cobra.Command {
+func newCmdSecretGetValue(_ *terminal.Terminal, store SecretStore) *cobra.Command {
 	var id string
 	var name string
 	var version string
@@ -361,14 +361,22 @@ func resolveSecret(store SecretStore, id string, name string) (*nodev1.ManagedSe
 		return nil, breverrors.NewValidationError("provide either --id or --name, not both")
 	}
 	if id != "" {
-		return store.GetManagedSecret(id)
+		secret, err := store.GetManagedSecret(id)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return secret, nil
 	}
 	if name != "" {
 		orgID, err := getOrgID(store)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		return store.GetManagedSecretByName(orgID, name)
+		secret, err := store.GetManagedSecretByName(orgID, name)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return secret, nil
 	}
 	return nil, breverrors.NewValidationError("provide --id or --name")
 }
@@ -398,6 +406,7 @@ func getSecretTableOptions() table.Options {
 	options.SeparateHeader = false
 	return options
 }
+
 func formatTimestamp(ts *timestamppb.Timestamp) string {
 	if ts == nil || !ts.IsValid() {
 		return ""
