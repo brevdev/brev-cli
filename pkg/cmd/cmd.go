@@ -48,6 +48,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/revokessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/runtasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/scale"
+	"github.com/brevdev/brev-cli/pkg/cmd/secrets"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/cmd/shell"
@@ -341,10 +342,10 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
-
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 	cmd.AddCommand(feedback.NewCmdFeedback(t, noLoginCmdStore))
+	cmd.AddCommand(secrets.NewCmdSecrets(t, loginCmdStore))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {
