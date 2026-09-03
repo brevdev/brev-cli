@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"math/rand/v2"
 	"net"
 	"net/http"
@@ -74,7 +75,11 @@ You can attach a startup script that runs when the instance boots using the
 --startup-script flag. The script can be provided as:
   - An inline string: --startup-script 'pip install torch'
   - A file path (prefix with @): --startup-script @setup.sh
-  - An absolute file path: --startup-script @/path/to/setup.sh`
+  - An absolute file path: --startup-script @/path/to/setup.sh
+
+Disk Size:
+Use --disk-size to request a disk size in GB. The requested size applies to
+every instance type in the fallback chain and must be supported by the provider.`
 
 	example = `
   # Create an instance using smart defaults (sorted by price)
@@ -82,6 +87,9 @@ You can attach a startup script that runs when the instance boots using the
 
   # Create with a specific GPU type
   brev create my-instance --type g5.xlarge
+
+  # Create with a 1TB disk
+  brev create my-instance --type g5.xlarge --disk-size 1000
 
   # Try multiple types in order (fallback chain)
   brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
@@ -169,6 +177,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 	var containerImage string
 	var composeFile string
 	var launchable string
+	var diskSize float64
 	var launchableParams []string
 	var filters searchFilterFlags
 
@@ -225,6 +234,9 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			if err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("disk-size") && (diskSize <= 0 || math.IsNaN(diskSize) || math.IsInf(diskSize, 0)) {
+				return breverrors.NewValidationError("--disk-size must be greater than 0")
+			}
 
 			types, err := parseInstanceTypes(instanceTypes)
 			if err != nil {
@@ -258,6 +270,11 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			if err != nil {
 				return err
 			}
+			if cmd.Flags().Changed("disk-size") {
+				for i := range opts.InstanceTypes {
+					opts.InstanceTypes[i].DiskGB = diskSize
+				}
+			}
 
 			if dryRun {
 				return runDryRun(t, gpuCreateStore, opts.InstanceTypes, &filters)
@@ -267,7 +284,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &launchableParams, &filters)
+	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &launchableParams, &diskSize, &filters)
 
 	return cmd
 }
@@ -284,7 +301,7 @@ func validateArgs(name string, count int) error {
 }
 
 // registerCreateFlags registers all flags for the create command
-func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, launchableParams *[]string, filters *searchFilterFlags) {
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, launchableParams *[]string, diskSize *float64, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
 	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
@@ -293,6 +310,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count,
 	cmd.Flags().IntVar(timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
 	cmd.Flags().StringVarP(startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
 	cmd.Flags().BoolVar(dryRun, "dry-run", false, "Show matching instance types without creating anything")
+	cmd.Flags().Float64Var(diskSize, "disk-size", 0, "Disk size to provision in GB")
 
 	// Build mode flags
 	cmd.Flags().StringVarP(mode, "mode", "m", "vm", "Build mode: vm (default), k8s, container, compose")
@@ -481,7 +499,8 @@ func warnLaunchableFlagConflicts(cmd *cobra.Command, t *terminal.Terminal, launc
 	}
 
 	instanceFlagsSet := cmd.Flags().Changed("type") || cmd.Flags().Changed("gpu-name") ||
-		cmd.Flags().Changed("provider") || cmd.Flags().Changed("min-vram")
+		cmd.Flags().Changed("provider") || cmd.Flags().Changed("min-vram") ||
+		cmd.Flags().Changed("disk-size")
 	if instanceFlagsSet {
 		t.Vprintf("Warning: Overriding the launchable's recommended instance configuration. This is not the recommended path and may cause issues.\n\n")
 	}
@@ -885,7 +904,8 @@ func formatInstanceSpecs(specs []InstanceSpec) string {
 	var parts []string
 	for _, spec := range specs {
 		if spec.DiskGB > 0 {
-			parts = append(parts, fmt.Sprintf("%s (%.0fGB disk)", spec.Type, spec.DiskGB))
+			diskGB := strconv.FormatFloat(spec.DiskGB, 'f', -1, 64)
+			parts = append(parts, fmt.Sprintf("%s (%sGB disk)", spec.Type, diskGB))
 		} else {
 			parts = append(parts, spec.Type)
 		}
@@ -1214,10 +1234,6 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	cwOptions.WithInstanceType(spec.Type)
 	cwOptions = resolveWorkspaceUserOptions(cwOptions, c.user)
 
-	if spec.DiskGB > 0 {
-		cwOptions.DiskStorage = fmt.Sprintf("%.0fGi", spec.DiskGB)
-	}
-
 	if c.allInstanceTypes != nil {
 		if cloudCredID := c.allInstanceTypes.GetCloudCredID(spec.Type); cloudCredID != "" {
 			cwOptions.WithCloudCredID(cloudCredID)
@@ -1232,6 +1248,10 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
+	}
+
+	if spec.DiskGB > 0 {
+		cwOptions.DiskStorage = fmt.Sprintf("%sGi", strconv.FormatFloat(spec.DiskGB, 'f', -1, 64))
 	}
 
 	if cwOptions.CloudCredID == "" {
