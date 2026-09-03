@@ -119,6 +119,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	var nameFlag string
 	var sshPort int // deprecated
 	var approveFlag bool
+	var registrationTokenFlag string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": ""},
@@ -131,10 +132,11 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			interactive := nameFlag == "" && orgFlag == "" && sshPort == 0
 			opts := registerOpts{
-				interactive: interactive,
-				name:        nameFlag,
-				orgName:     orgFlag,
-				skipConfirm: approveFlag,
+				interactive:       interactive,
+				name:              nameFlag,
+				orgName:           orgFlag,
+				skipConfirm:       approveFlag,
+				registrationToken: registrationTokenFlag,
 			}
 			return runRegister(cmd.Context(), t, store, opts, defaultRegisterDeps())
 		},
@@ -144,6 +146,7 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")
+	cmd.Flags().StringVar(&registrationTokenFlag, "registration-token", "", "optional registration token passed to the register node API")
 	_ = cmd.Flags().MarkDeprecated("ssh-port", "use 'brev enable-ssh' after registration to enable SSH access")
 
 	return cmd
@@ -151,10 +154,11 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 
 // registerOpts carries mode and inputs: when interactive, name/orgName are from prompts; otherwise from flags.
 type registerOpts struct {
-	interactive bool
-	name        string
-	orgName     string
-	skipConfirm bool
+	interactive       bool
+	name              string
+	orgName           string
+	skipConfirm       bool
+	registrationToken string
 }
 
 func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit,gocyclo,funlen // ok
@@ -216,7 +220,7 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 			return orgMismatchError(reg, intendedOrg)
 		}
 		if reg.Status == RegistrationStatusPending {
-			return resumeRegistration(ctx, t, s, deps, reg)
+			return resumeRegistration(ctx, t, s, deps, reg, opts.registrationToken)
 		}
 		return checkExistingRegistration(ctx, t, s, deps, reg)
 	}
@@ -278,11 +282,11 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 
 	// Generate the device ID here so a retry reuses it (AddNode is idempotent on device_id).
 	deviceID := uuid.New().String()
-	return runRegisterSteps(ctx, t, s, name, org, deps, deviceID)
+	return runRegisterSteps(ctx, t, s, name, org, deps, deviceID, opts.registrationToken)
 }
 
 // runRegisterSteps runs tunnel install, hardware profile, AddNode, persist, and setup
-func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps, deviceID string) error {
+func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps, deviceID, registrationToken string) error {
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 1/5] Downloading and installing Brev tunnel..."))
@@ -323,13 +327,18 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	}
 
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
+	addReq := &nodev1.AddNodeRequest{
 		OrganizationId: org.ID,
 		Name:           name,
 		DeviceId:       deviceID,
 		NodeSpec:       toProtoNodeSpec(hwProfile),
 		Labels:         map[string]string{"sshprovider": "certauth"},
-	}))
+	}
+	// RegistrationToken is an optional API field; only set it when provided.
+	if registrationToken != "" {
+		addReq.SetRegistrationToken(registrationToken)
+	}
+	addResp, err := client.AddNode(ctx, connect.NewRequest(addReq))
 	if err != nil {
 		var connectErr *connect.Error
 		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeAlreadyExists {
@@ -490,7 +499,7 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 // resumeRegistration reuses the pending record's device ID. AddNode is
 // idempotent on device_id, so this recovers when AddNode succeeded backend-side
 // but the CLI never confirmed the ExternalNodeID.
-func resumeRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps, pending *DeviceRegistration) error {
+func resumeRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps, pending *DeviceRegistration, registrationToken string) error {
 	t.Vprint("")
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint(t.White("  Resuming incomplete registration"))
@@ -503,5 +512,5 @@ func resumeRegistration(ctx context.Context, t *terminal.Terminal, s RegisterSto
 	t.Vprint("  A previous registration attempt did not finish. Resuming.")
 
 	org := &entity.Organization{ID: pending.OrgID, Name: pending.OrgName}
-	return runRegisterSteps(ctx, t, s, pending.DisplayName, org, deps, pending.DeviceID)
+	return runRegisterSteps(ctx, t, s, pending.DisplayName, org, deps, pending.DeviceID, registrationToken)
 }
