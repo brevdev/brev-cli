@@ -20,6 +20,8 @@ const (
 	globalRegistrationDir = "/etc/brev"
 )
 
+var ErrRegistrationNotFound = breverrors.New("device registration not found, run 'brev register' first")
+
 const (
 	RegistrationStatusPending    = "pending"
 	RegistrationStatusRegistered = "registered"
@@ -91,10 +93,13 @@ func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
 	return reg, nil
 }
 
-// LoadAll returns the registration regardless of status
+// LoadAll returns the registration regardless of status.
 func (s *FileRegistrationStore) LoadAll() (*DeviceRegistration, error) {
 	reg, err := read(s)
 	if err != nil {
+		if errors.Is(err, ErrRegistrationNotFound) {
+			return nil, err
+		}
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if err := validateRegistration(reg); err != nil {
@@ -126,7 +131,7 @@ func read(s *FileRegistrationStore) (*DeviceRegistration, error) {
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		return nil, breverrors.New("device registration not found, run 'brev register' first")
+		return nil, ErrRegistrationNotFound
 	}
 	var reg DeviceRegistration
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
