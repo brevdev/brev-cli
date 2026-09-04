@@ -59,8 +59,8 @@ func NewCmdEnableSSH(t *terminal.Terminal, store EnableSSHStore) *cobra.Command 
 		Use:                   "enable-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Trust the Brev certificate authority on this device for SSH",
-		Long:                  "Writes the Brev certificate authority to authorized_keys, allowing this device to be an SSH target. Interactive mode prompts for the Linux user and SSH port. Non-interactive mode requires both --linux-user and --ssh-port. Users are granted access with 'brev grant-ssh'.",
-		Example:               "  # Interactive\n  brev enable-ssh\n\n  # Non-interactive\n  brev enable-ssh --linux-user ubuntu --ssh-port 22",
+		Long:                  "Writes the Brev certificate authority to authorized_keys, allowing this device to be an SSH target. Interactive mode prompts for the Linux user and SSH port. Non-interactive mode requires --ssh-port; --linux-user defaults to the current user. Users are granted access with 'brev grant-ssh'.",
+		Example:               "  # Interactive\n  brev enable-ssh\n\n  # Non-interactive (SSH port required; --linux-user defaults to the current user)\n  brev enable-ssh --ssh-port 22\n  brev enable-ssh --linux-user ubuntu --ssh-port 22",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			interactive := !cmd.Flags().Changed("linux-user") && !cmd.Flags().Changed("ssh-port")
 			return runEnableSSH(cmd.Context(), t, store, defaultEnableSSHDeps(), enableSSHOpts{
@@ -70,7 +70,7 @@ func NewCmdEnableSSH(t *terminal.Terminal, store EnableSSHStore) *cobra.Command 
 			})
 		},
 	}
-	cmd.Flags().StringVar(&linuxUserFlag, "linux-user", "", "Linux username to enable SSH for (required in non-interactive mode)")
+	cmd.Flags().StringVar(&linuxUserFlag, "linux-user", "", "Linux username to enable SSH for (defaults to the current user in non-interactive mode)")
 	cmd.Flags().Int32Var(&sshPortFlag, "ssh-port", 0, "SSH destination port (required in non-interactive mode)")
 
 	return cmd
@@ -207,8 +207,8 @@ func validateEnableSSHOpts(opts enableSSHOpts) error {
 	if opts.interactive {
 		return nil
 	}
-	if strings.TrimSpace(opts.linuxUsername) == "" || opts.sshPort == 0 {
-		return fmt.Errorf("in non-interactive mode --linux-user and --ssh-port are required")
+	if opts.sshPort == 0 {
+		return fmt.Errorf("in non-interactive mode --ssh-port is required")
 	}
 	if opts.sshPort < 1 || opts.sshPort > 65535 {
 		return fmt.Errorf("invalid --ssh-port %d: port must be between 1 and 65535", opts.sshPort)
@@ -221,6 +221,13 @@ func resolveLinuxUser(t *terminal.Terminal, deps enableSSHDeps, opts enableSSHOp
 		return promptLinuxUser(t, deps)
 	}
 	linuxUsername := strings.TrimSpace(opts.linuxUsername)
+	if linuxUsername == "" {
+		currentUser, err := deps.currentUser()
+		if err != nil {
+			return nil, fmt.Errorf("failed to determine current Linux user: %w", err)
+		}
+		return currentUser, nil
+	}
 	linuxUser, err := deps.lookupUser(linuxUsername)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find Linux user %q: %w", linuxUsername, err)
