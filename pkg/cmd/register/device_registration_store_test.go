@@ -1,6 +1,7 @@
 package register
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -142,6 +143,25 @@ func Test_LoadRegistration_FailsWhenMissing(t *testing.T) {
 	_, err := store.Load()
 	if err == nil {
 		t.Error("expected error loading missing registration")
+	}
+}
+
+func Test_LoadAll_MissingRegistration_ReturnsCleanSentinel(t *testing.T) {
+	cleanup := setupTestFs(t)
+	defer cleanup()
+
+	store := NewFileRegistrationStore()
+
+	_, err := store.LoadAll()
+	if err == nil {
+		t.Fatal("expected error loading missing registration")
+	}
+	if !errors.Is(err, ErrRegistrationNotFound) {
+		t.Fatalf("expected ErrRegistrationNotFound, got: %v", err)
+	}
+	// The error is user-facing: it must not carry a stack-trace prefix.
+	if strings.Contains(err.Error(), "[error]") || strings.Contains(err.Error(), ".go:") {
+		t.Errorf("expected clean error without stack trace, got: %v", err)
 	}
 }
 

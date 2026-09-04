@@ -2,6 +2,7 @@ package deregister
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"os"
@@ -94,7 +95,7 @@ func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
 
 func (m *mockRegistrationStore) LoadAll() (*register.DeviceRegistration, error) {
 	if m.reg == nil {
-		return nil, fmt.Errorf("no registration")
+		return nil, register.ErrRegistrationNotFound
 	}
 	return m.reg, nil
 }
@@ -278,6 +279,9 @@ func Test_runDeregister_NotRegistered(t *testing.T) {
 	err := runDeregisterCase(t, regStore, svc)
 	if err == nil {
 		t.Fatal("expected error when not registered")
+	}
+	if !errors.Is(err, register.ErrRegistrationNotFound) {
+		t.Fatalf("expected ErrRegistrationNotFound, got: %v", err)
 	}
 }
 
