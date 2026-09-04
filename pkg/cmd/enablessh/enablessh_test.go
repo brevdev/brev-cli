@@ -463,8 +463,8 @@ func Test_validateEnableSSHOpts(t *testing.T) {
 	}{
 		{name: "interactive", opts: enableSSHOpts{interactive: true}},
 		{name: "non-interactive", opts: enableSSHOpts{linuxUsername: "ubuntu", sshPort: 22}},
-		{name: "missing user", opts: enableSSHOpts{sshPort: 22}, wantErr: "--linux-user and --ssh-port are required"},
-		{name: "missing port", opts: enableSSHOpts{linuxUsername: "ubuntu"}, wantErr: "--linux-user and --ssh-port are required"},
+		{name: "non-interactive defaults linux user", opts: enableSSHOpts{sshPort: 22}},
+		{name: "missing port", opts: enableSSHOpts{linuxUsername: "ubuntu"}, wantErr: "--ssh-port is required"},
 		{name: "invalid port", opts: enableSSHOpts{linuxUsername: "ubuntu", sshPort: 65536}, wantErr: "port must be between 1 and 65535"},
 	}
 	for _, tt := range tests {
