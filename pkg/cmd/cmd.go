@@ -29,6 +29,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
+	"github.com/brevdev/brev-cli/pkg/cmd/launch"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
@@ -313,6 +314,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
 	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
 	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
+	cmd.AddCommand(launch.NewCmdLaunch(t, loginCmdStore))
 	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
 	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))

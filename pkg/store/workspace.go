@@ -130,9 +130,16 @@ type LaunchableConfig struct {
 }
 
 type ParameterBinding struct {
-	Name         string `json:"name"`
-	Value        string `json:"value,omitempty"`
-	BrevSecretID string `json:"brevSecretId,omitempty"`
+	Name          string                  `json:"name"`
+	Value         string                  `json:"value,omitempty"`
+	BrevSecretID  string                  `json:"brevSecretId,omitempty"` // Deprecated: retained for API compatibility.
+	ManagedSecret *ManagedSecretReference `json:"managedSecret,omitempty"`
+}
+
+// ManagedSecretReference selects an immutable DevPlane managed-secret version.
+type ManagedSecretReference struct {
+	SecretID  string `json:"secretId"`
+	VersionID string `json:"versionId,omitempty"`
 }
 
 type LaunchableResponse struct {
@@ -158,11 +165,16 @@ type LaunchableWorkspaceRequest struct {
 }
 
 type LaunchableBuildRequest struct {
+	VerbBuild       *VerbBuild       `json:"verbBuild,omitempty"`
 	VMBuild         *VMBuild         `json:"vmBuild,omitempty"`
 	CustomContainer *CustomContainer `json:"containerBuild,omitempty"`
 	DockerCompose   *DockerCompose   `json:"dockerCompose,omitempty"`
 	Ports           []LaunchablePort `json:"ports"`
 	Parameters      []Parameter      `json:"parameters,omitempty"`
+}
+
+type VerbBuild struct {
+	VerbYAML string `json:"verbYaml"`
 }
 
 type Parameter struct {
