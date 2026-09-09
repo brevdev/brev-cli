@@ -1,61 +1,109 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -euo pipefail
 
-# Detect OS and architecture
-OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-ARCH="$(uname -m)"
-case "${ARCH}" in
-    x86_64) ARCH="amd64" ;;
-    aarch64) ARCH="arm64" ;;
-esac
+# Keep all installation work inside main so a truncated `curl | bash` download
+# cannot execute a partial installer.
 
-# GitHub API token: GITHUB_TOKEN env, else gh auth token.
-GITHUB_TOKEN="${GITHUB_TOKEN:-}"
-if [ -z "${GITHUB_TOKEN}" ] && command -v gh >/dev/null 2>&1; then
-    GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
-fi
-
-# Fetch release metadata from GitHub API
-API_RESPONSE="$(curl -sf ${GITHUB_TOKEN:+-H "Authorization: token ${GITHUB_TOKEN}"} https://api.github.com/repos/brevdev/brev-cli/releases/latest)" || {
-    echo "Error: Failed to fetch release info from GitHub API." >&2
-    echo "This is often caused by rate limiting when many requests come from the same IP." >&2
-    echo "If you are using a VPN, try turning it off and running this script again." >&2
-    echo "You can also set GITHUB_TOKEN to avoid rate limits." >&2
-    echo "For more details, see: https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting" >&2
-    exit 1
+get_release_arch() {
+    case "$(uname -m)" in
+        x86_64|amd64) printf '%s\n' "amd64" ;;
+        aarch64|arm64) printf '%s\n' "arm64" ;;
+        *) return 1 ;;
+    esac
 }
 
-# Extract the download URL for this platform
-DOWNLOAD_URL="$(echo "${API_RESPONSE}" | grep "browser_download_url.*${OS}.*${ARCH}" | cut -d '"' -f 4 || true)"
-if [ -z "${DOWNLOAD_URL}" ]; then
-    echo "Error: Could not find release for ${OS} ${ARCH}" >&2
-    echo "GitHub API response (truncated): ${API_RESPONSE:0:200}" >&2
-    exit 1
-fi
+get_latest_release_tag() {
+    # Use GitHub's web redirect instead of its REST API so installations from
+    # shared egress IPs are not subject to the unauthenticated API quota.
+    local release_url release_tag
+    release_url="$(curl \
+        --fail \
+        --silent \
+        --show-error \
+        --location \
+        --proto '=https' \
+        --proto-redir '=https' \
+        --connect-timeout 10 \
+        --max-time 30 \
+        --output /dev/null \
+        --write-out '%{url_effective}' \
+        "https://github.com/brevdev/brev-cli/releases/latest")" || return 1
+    release_tag="${release_url##*/}"
+    [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+    printf '%s\n' "$release_tag"
+}
 
-# Create temporary directory and ensure cleanup
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "${TMP_DIR}"' EXIT
+main() {
+    local os release_arch release_tag release_version archive_name archive_path install_dir
 
-# Download and extract the release
-curl -sL "${DOWNLOAD_URL}" -o "${TMP_DIR}/brev.tar.gz"
-tar -xzf "${TMP_DIR}/brev.tar.gz" -C "${TMP_DIR}"
+    os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+    case "$os" in
+        darwin|linux) ;;
+        *)
+            printf 'Error: Unsupported operating system: %s\n' "$os" >&2
+            return 1
+            ;;
+    esac
 
-# Install the binary to the user's local bin
-INSTALL_DIR="${HOME}/.local/bin"
-mkdir -p "${INSTALL_DIR}"
-mv "${TMP_DIR}/brev" "${INSTALL_DIR}/brev"
-chmod +x "${INSTALL_DIR}/brev"
+    if [[ -z "${BREV_INSTALL_DIR:-}" ]] && command -v brew >/dev/null 2>&1; then
+        if brew install brevdev/homebrew-brev/brev; then
+            return 0
+        fi
+        printf 'Warning: Homebrew installation failed; falling back to the release archive.\n' >&2
+    fi
 
-echo "Successfully installed brev CLI to ${INSTALL_DIR}/brev"
+    if ! release_arch="$(get_release_arch)"; then
+        printf 'Error: Unsupported architecture: %s\n' "$(uname -m)" >&2
+        return 1
+    fi
 
-case ":${PATH}:" in
-    *":${INSTALL_DIR}:"*) ;;
-    *)
-        echo
-        echo "Warning: ${INSTALL_DIR} is not in your PATH." >&2
-        echo "Add it by appending the following line to your shell profile (e.g. ~/.bashrc, ~/.zshrc):" >&2
-        echo "    export PATH=\"\${HOME}/.local/bin:\${PATH}\"" >&2
-        echo "Then restart your shell or run 'source' on the profile to pick up the change." >&2
-        ;;
-esac
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf -- "$TMP_DIR"' EXIT
+
+    if ! release_tag="$(get_latest_release_tag)"; then
+        printf 'Error: Could not determine the latest Brev CLI release.\n' >&2
+        return 1
+    fi
+
+    release_version="${release_tag#v}"
+    archive_name="brev-cli_${release_version}_${os}_${release_arch}.tar.gz"
+    archive_path="${TMP_DIR}/${archive_name}"
+
+    # The archive has no total time limit; slow but progressing downloads may
+    # take as long as needed.
+    curl \
+        --fail \
+        --silent \
+        --show-error \
+        --location \
+        --proto '=https' \
+        --proto-redir '=https' \
+        --connect-timeout 10 \
+        --output "$archive_path" \
+        "https://github.com/brevdev/brev-cli/releases/download/${release_tag}/${archive_name}"
+    tar -xzf "$archive_path" -C "$TMP_DIR" -- brev
+
+    if [[ ! -f "${TMP_DIR}/brev" || -L "${TMP_DIR}/brev" ]]; then
+        printf 'Error: Release archive did not contain a regular brev executable.\n' >&2
+        return 1
+    fi
+
+    install_dir="${BREV_INSTALL_DIR:-${HOME}/.local/bin}"
+    mkdir -p "$install_dir"
+    mv "${TMP_DIR}/brev" "${install_dir}/brev"
+    chmod 0755 "${install_dir}/brev"
+
+    printf 'Successfully installed Brev CLI to %s/brev\n' "$install_dir"
+
+    case ":${PATH}:" in
+        *":${install_dir}:"*) ;;
+        *)
+            printf '\nWarning: %s is not in your PATH.\n' "$install_dir" >&2
+            printf 'Add it to your shell profile, then restart your shell:\n' >&2
+            printf '    export PATH="%s:%s"\n' "$install_dir" "\$PATH" >&2
+            ;;
+    esac
+}
+
+TMP_DIR=""
+main "$@"
