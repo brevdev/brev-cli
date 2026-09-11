@@ -1,15 +1,13 @@
 package set
 
 import (
-	"strings"
 	"testing"
 
-	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-const testAPIKey = authpkg.BrevAPIKeyPrefix + "test-key"
 
 type mockSetStore struct {
 	authTokens          *entity.AuthTokens
@@ -55,24 +53,31 @@ func (m *mockSetStore) GetAuthTokens() (*entity.AuthTokens, error) {
 	return m.authTokens, nil
 }
 
-func TestSetRejectsAPIKeyAuth(t *testing.T) {
-	s := &mockSetStore{
-		authTokens: &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-test"},
-		orgs:       []entity.Organization{{ID: "org-other", Name: "other-org"}},
-	}
+func TestSetSwitchesOrg(t *testing.T) {
+	s := &mockSetStore{orgs: []entity.Organization{{ID: "org-dm", Name: "dm"}}}
 
-	err := set("other-org", s)
+	err := set("dm", s)
+	require.NoError(t, err)
+	assert.Equal(t, 1, s.getOrganizations)
+	assert.Equal(t, 1, s.setDefaultOrgCalls)
+	assert.Equal(t, "org-dm", s.defaultOrganization.ID)
+}
 
-	if err == nil {
-		t.Fatal("expected API key auth set error, got nil")
-	}
-	if !strings.Contains(err.Error(), "api key auth is scoped") {
-		t.Fatalf("expected API key auth validation error, got %v", err)
-	}
-	if s.getOrganizations != 0 {
-		t.Fatalf("expected set to skip org lookup, got %d calls", s.getOrganizations)
-	}
-	if s.setDefaultOrgCalls != 0 {
-		t.Fatalf("expected set to skip default org write, got %d calls", s.setDefaultOrgCalls)
-	}
+func TestSetNoOrgsFound(t *testing.T) {
+	s := &mockSetStore{} // name filter yields no orgs
+
+	err := set("dm", s)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no orgs exist with name dm")
+	assert.Equal(t, 1, s.getOrganizations)
+	assert.Equal(t, 0, s.setDefaultOrgCalls)
+}
+
+func TestSetRejectsInsideWorkspace(t *testing.T) {
+	s := &mockSetStore{workspaceID: "ws-1"}
+
+	err := set("dm", s)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "can not set orgs in a workspace")
+	assert.Equal(t, 0, s.getOrganizations)
 }

@@ -3,11 +3,13 @@ package logout
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -77,5 +79,15 @@ func (o *LogoutOptions) RunLogout() error {
 	if allErr != nil {
 		return breverrors.WrapAndTrace(allErr)
 	}
+
+	// A child process can't clear an env var in the parent shell. If
+	// BREV_API_KEY is set, saved credentials are gone but the env key still
+	// authenticates every command, so surface that instead of pretending the
+	// logout was complete. Unset in-process for this session.
+	if strings.TrimSpace(os.Getenv(auth.APIKeyEnvVar)) != "" {
+		fmt.Println("BREV_API_KEY may still be set in your shell. Run 'unset BREV_API_KEY' to fully log out.")
+		_ = os.Unsetenv(auth.APIKeyEnvVar)
+	}
+
 	return nil
 }

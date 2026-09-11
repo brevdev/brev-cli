@@ -344,6 +344,202 @@ func TestGetFreshAccessTokenOrNil_EnvVarEmptyFallsThroughToSaved(t *testing.T) {
 	assert.Equal(t, testAPIKey, res, "empty env var should fall through to saved credentials")
 }
 
+func TestGetUserAccessTokenOrLogin_EnvAPIKeyIgnoredPromptsLogin(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := MockAuthStore{} // no saved user credential
+	o := MockOauth{loginTokens: &LoginTokens{
+		AuthTokens: entity.AuthTokens{AccessToken: validToken, RefreshToken: "rt"},
+	}}
+	a := Auth{
+		authStore:            &s,
+		oauth:                &o,
+		accessTokenValidator: func(string) (bool, error) { return false, nil },
+		shouldLogin:          func() (bool, error) { return true, nil },
+	}
+
+	res, err := a.GetUserAccessTokenOrLogin()
+	assert.NoError(t, err)
+	assert.Equal(t, validToken, res)
+	assert.True(t, o.flowDone, "env API key must not satisfy a user-scoped login")
+	assert.True(t, s.didSave)
+}
+
+func TestGetUserAccessTokenOrLogin_SavedAPIKeyIgnoredPromptsLogin(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{APIKey: testAPIKey}}
+	o := MockOauth{loginTokens: &LoginTokens{
+		AuthTokens: entity.AuthTokens{AccessToken: validToken, RefreshToken: "rt"},
+	}}
+	a := Auth{
+		authStore:            &s,
+		oauth:                &o,
+		accessTokenValidator: func(string) (bool, error) { return false, nil },
+		shouldLogin:          func() (bool, error) { return true, nil },
+	}
+
+	res, err := a.GetUserAccessTokenOrLogin()
+	assert.NoError(t, err)
+	assert.Equal(t, validToken, res)
+	assert.True(t, o.flowDone, "saved API key must not satisfy a user-scoped login")
+}
+
+func TestGetUserAccessTokenOrLogin_ReusesSavedUserJWT(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey) // env API key is present but must be skipped
+	s := MockAuthStore{authTokens: &entity.AuthTokens{AccessToken: validToken, RefreshToken: "rt"}}
+	o := MockOauth{}
+	a := Auth{
+		authStore:            &s,
+		oauth:                &o,
+		accessTokenValidator: func(string) (bool, error) { return true, nil },
+		shouldLogin:          func() (bool, error) { return true, nil },
+	}
+
+	res, err := a.GetUserAccessTokenOrLogin()
+	assert.NoError(t, err)
+	assert.Equal(t, validToken, res)
+	assert.False(t, o.flowDone, "valid saved user JWT must not trigger a login prompt")
+}
+
+func TestGetUserAccessTokenOrLogin_DeclineLogin(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	s := MockAuthStore{}
+	o := MockOauth{}
+	a := Auth{
+		authStore:            &s,
+		oauth:                &o,
+		accessTokenValidator: func(string) (bool, error) { return false, nil },
+		shouldLogin:          func() (bool, error) { return false, nil },
+	}
+
+	_, err := a.GetUserAccessTokenOrLogin()
+	de := &breverrors.DeclineToLoginError{}
+	assert.ErrorAs(t, err, &de)
+	assert.False(t, o.flowDone)
+	assert.False(t, s.didSave)
+}
+
+// UserLoginAuth is what org-switch commands authenticate through: a saved
+// JWT must be used even when a saved API key is also present (the API key is
+// scoped to one org and can't switch orgs).
+func TestUserLoginAuth_ValidJWTOverSavedAPIKey(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{
+		AccessToken:  validToken,
+		RefreshToken: "rt",
+		APIKey:       testAPIKey,
+		APIKeyOrgID:  "org-test",
+	}}
+	o := MockOauth{}
+	a := UserLoginAuth{LoginAuth: LoginAuth{
+		Auth: Auth{
+			authStore:            &s,
+			oauth:                &o,
+			accessTokenValidator: func(string) (bool, error) { return true, nil },
+			shouldLogin:          func() (bool, error) { return true, nil },
+		},
+	}}
+
+	res, err := a.GetAccessToken()
+	assert.NoError(t, err)
+	assert.Equal(t, validToken, res, "valid user JWT must be used, not the saved API key")
+	assert.False(t, o.flowDone, "a valid JWT must not trigger a login prompt")
+}
+
+// With only an API key saved, UserLoginAuth has no user credential and must
+// prompt for an interactive login.
+func TestUserLoginAuth_APIKeyOnlyPromptsLogin(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := MockAuthStore{authTokens: &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-test"}}
+	o := MockOauth{loginTokens: &LoginTokens{
+		AuthTokens: entity.AuthTokens{AccessToken: validToken, RefreshToken: "rt"},
+	}}
+	a := UserLoginAuth{LoginAuth: LoginAuth{
+		Auth: Auth{
+			authStore:            &s,
+			oauth:                &o,
+			accessTokenValidator: func(string) (bool, error) { return false, nil },
+			shouldLogin:          func() (bool, error) { return true, nil },
+		},
+	}}
+
+	res, err := a.GetAccessToken()
+	assert.NoError(t, err)
+	assert.Equal(t, validToken, res)
+	assert.True(t, o.flowDone, "API key only must fall back to an interactive login")
+}
+
+// Without any credential, UserLoginAuth must still prompt for login.
+func TestUserLoginAuth_NoCredentialPromptsLogin(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	s := MockAuthStore{}
+	o := MockOauth{loginTokens: &LoginTokens{
+		AuthTokens: entity.AuthTokens{AccessToken: validToken, RefreshToken: "rt"},
+	}}
+	a := UserLoginAuth{LoginAuth: LoginAuth{
+		Auth: Auth{
+			authStore:            &s,
+			oauth:                &o,
+			accessTokenValidator: func(string) (bool, error) { return false, nil },
+			shouldLogin:          func() (bool, error) { return true, nil },
+		},
+	}}
+
+	res, err := a.GetAccessToken()
+	assert.NoError(t, err)
+	assert.Equal(t, validToken, res)
+	assert.True(t, o.flowDone)
+}
+
+// The tailored "can't switch orgs" message must only appear when an API key is
+// actually present; a logged-out user gets the plain login prompt.
+func TestGetUserAccessTokenOrLogin_ExplainsOnlyWhenAPIKeyPresent(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	o := MockOauth{loginTokens: &LoginTokens{
+		AuthTokens: entity.AuthTokens{AccessToken: validToken, RefreshToken: "rt"},
+	}}
+	a := Auth{
+		authStore:            &MockAuthStore{},
+		oauth:                &o,
+		accessTokenValidator: func(string) (bool, error) { return false, nil },
+		shouldLogin:          func() (bool, error) { return true, nil },
+	}
+	out := captureAuthStdout(t, func() {
+		_, err := a.GetUserAccessTokenOrLogin()
+		require.NoError(t, err)
+	})
+	assert.NotContains(t, out, "can't switch orgs", "no API key present, so no API-key explanation")
+
+	t.Setenv(APIKeyEnvVar, testAPIKey)
+	a2 := Auth{
+		authStore:            &MockAuthStore{},
+		oauth:                &o,
+		accessTokenValidator: func(string) (bool, error) { return false, nil },
+		shouldLogin:          func() (bool, error) { return true, nil },
+	}
+	out2 := captureAuthStdout(t, func() {
+		_, err := a2.GetUserAccessTokenOrLogin()
+		require.NoError(t, err)
+	})
+	assert.Contains(t, out2, "can't switch orgs", "API key present, so the explanation must print")
+}
+
+func captureAuthStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+
+	fn()
+
+	require.NoError(t, w.Close())
+	os.Stdout = old
+	b, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(b)
+}
+
 func TestLoginWithAPIKey_SavesTypedCredential(t *testing.T) {
 	s := MockAuthStore{}
 	a := Auth{

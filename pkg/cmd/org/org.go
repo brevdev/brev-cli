@@ -33,7 +33,7 @@ type OrgCmdStore interface {
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 }
 
-func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
+func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, userOrgCmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"organization": ""},
 		Use:         "org",
@@ -63,7 +63,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 		},
 	}
 
-	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
+	cmd.AddCommand(NewCmdOrgSet(t, userOrgCmdStore, noorgcmdStore))
 	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore))
 	cmd.AddCommand(NewCmdOrgCreate(t, orgcmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))

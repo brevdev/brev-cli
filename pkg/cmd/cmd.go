@@ -119,10 +119,21 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	loginAuth := auth.NewLoginAuth(fsStore, authenticator)
 	noLoginAuth := auth.NewNoLoginAuth(fsStore, authenticator)
 
+	// userLoginAuth never authenticates with an API key (env var or saved):
+	// it uses the logged-in user's JWT or prompts for login. Org-switch
+	// commands (brev set / brev org set) operate through it because API keys
+	// are scoped to a single org and can't switch orgs.
+	userLoginAuth := auth.UserLoginAuth{LoginAuth: *loginAuth}
+
 	loginCmdStore := fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).
 		WithAuth(loginAuth, store.WithDebug(conf.GetDebugHTTP()))
+
+	userLoginCmdStore := fsStore.WithNoAuthHTTPClient(
+		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
+	).
+		WithAuth(userLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
 		_, err1 := loginAuth.GetAccessToken()
@@ -279,15 +290,15 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		fmt.Printf("%v\n", err)
 	}
 
-	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)
+	createCmdTree(cmds, t, loginCmdStore, userLoginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)
 
 	return cmds
 }
 
-func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth, externalNodeCmdStore *store.AuthHTTPStore) { //nolint:funlen // define brev command
-	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
+func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, userLoginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth, externalNodeCmdStore *store.AuthHTTPStore) { //nolint:funlen // define brev command
+	cmd.AddCommand(set.NewCmdSet(t, userLoginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, userLoginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))

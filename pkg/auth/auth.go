@@ -232,8 +232,46 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 
 // Gets fresh access token or returns nil and saves to store
 func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
-	if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
-		return key, nil
+	return t.getFreshAccessTokenOrNil(false)
+}
+
+// UserLoginAuth authenticates only with the logged-in user credential,
+// ignoring API keys (env var or saved).
+type UserLoginAuth struct {
+	LoginAuth
+}
+
+func (a UserLoginAuth) GetAccessToken() (string, error) {
+	token, err := a.GetUserAccessTokenOrLogin()
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	return token, nil
+}
+
+// GetUserAccessTokenOrLogin returns a fresh user access token, ignoring any
+// API-key credential (env var or saved store) and prompting for an interactive
+// login when no user credential is available
+func (t Auth) GetUserAccessTokenOrLogin() (string, error) {
+	token, err := t.getFreshAccessTokenOrNil(true)
+	if err != nil {
+		return "", breverrors.WrapAndTrace(err)
+	}
+	if token == "" {
+		lt, err := t.PromptForLogin()
+		if err != nil {
+			return "", breverrors.WrapAndTrace(err)
+		}
+		token = lt.AccessToken
+	}
+	return token, nil
+}
+
+func (t Auth) getFreshAccessTokenOrNil(skipAPIKey bool) (string, error) {
+	if !skipAPIKey {
+		if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
+			return key, nil
+		}
 	}
 	tokens, err := t.getSavedTokensOrNil()
 	if err != nil {
@@ -243,12 +281,22 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		return "", nil
 	}
 
-	apiKey := strings.TrimSpace(tokens.APIKey)
-	if apiKey != "" {
-		return apiKey, nil
+	if !skipAPIKey {
+		apiKey := strings.TrimSpace(tokens.APIKey)
+		if apiKey != "" {
+			return apiKey, nil
+		}
+	} else if tokens.AccessToken == "" && tokens.RefreshToken == "" {
+		// API-key-only credentials can't authenticate a user-scoped operation.
+		return "", nil
 	}
 
-	// should always at least have access token?
+	return t.resolveUserAccessToken(tokens)
+}
+
+// resolveUserAccessToken returns a valid user access token from saved tokens,
+// refreshing it when expired, or nil when no usable token exists.
+func (t Auth) resolveUserAccessToken(tokens *entity.AuthTokens) (string, error) {
 	if tokens.AccessToken == "" {
 		breverrors.GetDefaultErrorReporter().ReportMessage("access token is an empty string but shouldn't be")
 	}
