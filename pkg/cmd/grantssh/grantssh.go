@@ -147,6 +147,9 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 			OrganizationId: org.ID,
+			Options: &nodev1.ListNodesOptions{
+				ExcludeConnectivityInfo: true,
+			},
 		}))
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)
