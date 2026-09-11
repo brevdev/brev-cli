@@ -56,12 +56,14 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 	return cmd
 }
 
+// set switches the active org. The caller must pass a store authenticated as a
+// user (auth.UserLoginAuth): API keys are scoped to a single org and can't
+// switch orgs, so the store resolves a valid JWT or prompts for login.
 func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
 	workspaceID, err := setStore.GetCurrentWorkspaceID()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	fmt.Println(workspaceID)
 
 	if workspaceID != "" {
 		return breverrors.NewValidationError("can not set orgs in a workspace")

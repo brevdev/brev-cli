@@ -4,7 +4,6 @@ package set
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
@@ -61,9 +60,6 @@ func set(orgName string, setStore SetStore) error {
 	if workspaceID != "" {
 		return fmt.Errorf("can not set orgs in a workspace")
 	}
-	if auth.IsAPIKeyAuthStore(setStore) {
-		return breverrors.NewValidationError("api key auth is scoped to the org saved during login; run brev login --api-key <api-key> to change it")
-	}
 	orgs, err := setStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -80,8 +76,6 @@ func set(orgName string, setStore SetStore) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	// Print workspaces within org
 
 	return nil
 }
