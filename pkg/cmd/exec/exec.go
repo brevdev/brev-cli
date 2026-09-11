@@ -2,6 +2,7 @@ package exec
 
 import (
 	"bufio"
+	stderrors "errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -52,6 +53,7 @@ type ExecStore interface {
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
+	GetAuthTokens() (*entity.AuthTokens, error)
 }
 
 func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecStore) *cobra.Command {
@@ -86,6 +88,11 @@ func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecSto
 				return breverrors.NewValidationError("command is required")
 			}
 
+			// Heads-up only: exec can still succeed without credentials if the SSH config is warm.
+			if hasNoSavedCredentials(store) {
+				fmt.Fprintf(os.Stderr, "No saved Brev credentials. Trying with your existing SSH config; you'll be prompted to log in if it fails.\n")
+			}
+
 			// Run on each instance
 			var errors error
 			for _, instanceName := range instanceNames {
@@ -107,7 +114,7 @@ func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecSto
 				}
 			}
 			if errors != nil {
-				return breverrors.WrapAndTrace(errors)
+				return breverrors.WrapAndTrace(flattenMultiInstanceErr(errors))
 			}
 			return nil
 		},
@@ -172,7 +179,44 @@ func parseCommand(command string) (string, error) {
 	return command, nil
 }
 
+// flattenMultiInstanceErr drops error types so one instance's exit code can't become the process's.
+func flattenMultiInstanceErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return stderrors.New(err.Error())
+}
+
+type authTokenGetter interface {
+	GetAuthTokens() (*entity.AuthTokens, error)
+}
+
+// hasNoSavedCredentials reports whether credentials are missing or empty; it does not validate them.
+func hasNoSavedCredentials(sstore authTokenGetter) bool {
+	tokens, err := sstore.GetAuthTokens()
+	if err != nil {
+		var notFound *breverrors.CredentialsFileNotFound
+		return stderrors.As(err, &notFound)
+	}
+	if tokens == nil {
+		return true
+	}
+	return tokens.AccessToken == "" && tokens.RefreshToken == "" && strings.TrimSpace(tokens.APIKey) == ""
+}
+
 const pollTimeout = 10 * time.Minute
+
+// sshConnectionFailedExitCode is ssh's own failure code; any other code is the remote command's.
+const sshConnectionFailedExitCode = 255
+
+// exitCodeOf returns the process exit code for err, or -1 if err is not an exit error.
+func exitCodeOf(err error) int {
+	var exitErr *exec.ExitError
+	if stderrors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
+}
 
 func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID string, host bool, command string) error {
 	// Determine SSH alias: use the workspace name directly (with -host suffix if needed)
@@ -190,6 +234,12 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		// Success — fire analytics in background and return
 		go trackExecAnalytics(sstore, workspaceNameOrID)
 		return nil
+	}
+
+	// The connection worked and the command itself failed, so skip the recovery path.
+	var remoteErr breverrors.RemoteExitError
+	if stderrors.As(err, &remoteErr) {
+		return remoteErr
 	}
 
 	// SSH failed — now check what's going on with the instance
@@ -228,12 +278,7 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		err = runSSH(sshName, command)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		go trackExecAnalytics(sstore, workspaceNameOrID)
-		return nil
+		return runAndTrack(sstore, sshName, workspaceNameOrID, command)
 	}
 
 	if workspace.Status != "RUNNING" {
@@ -261,12 +306,22 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 			"could not connect to instance %q: %w\nPlease check with: brev ls",
 			workspaceNameOrID, err))
 	}
-	err = runSSH(sshName, command)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	return runAndTrack(sstore, sshName, workspaceNameOrID, command)
+}
+
+// runAndTrack runs the command after recovery.
+func runAndTrack(sstore ExecStore, sshName string, workspaceNameOrID string, command string) error {
+	err := runSSH(sshName, command)
+	if err == nil {
+		go trackExecAnalytics(sstore, workspaceNameOrID)
+		return nil
 	}
-	go trackExecAnalytics(sstore, workspaceNameOrID)
-	return nil
+
+	var remoteErr breverrors.RemoteExitError
+	if stderrors.As(err, &remoteErr) {
+		return remoteErr
+	}
+	return breverrors.WrapAndTrace(err)
 }
 
 func trackExecAnalytics(sstore ExecStore, workspaceNameOrID string) {
@@ -296,18 +351,26 @@ func runSSHWithTimeout(sshAlias string, command string, connectTimeoutSecs int) 
 	// -T disables pseudo-terminal allocation (no "Pseudo-terminal will not be allocated" warning)
 	// Only start ssh-agent if one isn't already running (avoids orphaned agent processes)
 	agentCmd := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
-	cmd := fmt.Sprintf("%s && ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", agentCmd, connectTimeoutSecs, sshAlias, escapedCmd)
+	// exec replaces bash with ssh so the exit code we see is ssh's own, not bash's.
+	cmd := fmt.Sprintf("%s && exec ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", agentCmd, connectTimeoutSecs, sshAlias, escapedCmd)
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	// Don't attach stdin - exec is non-interactive
 
-	err := sshCmd.Run()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	return classifySSHError(sshCmd.Run())
+}
+
+// classifySSHError separates a remote command failure from an ssh connection failure.
+func classifySSHError(err error) error {
+	if err == nil {
+		return nil
 	}
-	return nil
+	if code := exitCodeOf(err); code > 0 && code != sshConnectionFailedExitCode {
+		return breverrors.RemoteExitError{Code: code}
+	}
+	return breverrors.WrapAndTrace(err)
 }
 
 func runSSH(sshAlias string, command string) error {
