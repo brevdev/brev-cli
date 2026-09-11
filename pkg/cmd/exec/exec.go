@@ -88,9 +88,9 @@ func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecSto
 				return breverrors.NewValidationError("command is required")
 			}
 
-			// Heads-up only: exec can still succeed logged out if the SSH config is warm.
-			if isLoggedOut(store) {
-				fmt.Fprintf(os.Stderr, "You are logged out. Trying with your existing SSH config; you'll be prompted to log in if it fails.\n")
+			// Heads-up only: exec can still succeed without credentials if the SSH config is warm.
+			if hasNoSavedCredentials(store) {
+				fmt.Fprintf(os.Stderr, "No saved Brev credentials. Trying with your existing SSH config; you'll be prompted to log in if it fails.\n")
 			}
 
 			// Run on each instance
@@ -179,9 +179,7 @@ func parseCommand(command string) (string, error) {
 	return command, nil
 }
 
-// flattenMultiInstanceErr drops the error types from a multi-instance failure.
-// One remote exit code cannot represent several instances, so the process exits
-// 1 instead of picking whichever RemoteExitError happens to be first.
+// flattenMultiInstanceErr drops error types so one instance's exit code can't become the process's.
 func flattenMultiInstanceErr(err error) error {
 	if err == nil {
 		return nil
@@ -193,8 +191,8 @@ type authTokenGetter interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
 }
 
-// isLoggedOut reports whether no credentials are saved. Local file read, no network.
-func isLoggedOut(sstore authTokenGetter) bool {
+// hasNoSavedCredentials reports whether credentials are missing or empty; it does not validate them.
+func hasNoSavedCredentials(sstore authTokenGetter) bool {
 	tokens, err := sstore.GetAuthTokens()
 	if err != nil {
 		var notFound *breverrors.CredentialsFileNotFound
@@ -208,20 +206,8 @@ func isLoggedOut(sstore authTokenGetter) bool {
 
 const pollTimeout = 10 * time.Minute
 
-// sshConnectionFailedExitCode is the exit code ssh reserves for its own
-// failures (unreachable host, auth rejected). Any other non-zero code is the
-// remote command's own exit status, which means the connection worked.
+// sshConnectionFailedExitCode is ssh's own failure code; any other code is the remote command's.
 const sshConnectionFailedExitCode = 255
-
-// RemoteExitError means we connected and ran the command successfully, and the
-// command itself exited non-zero. It is not a connection failure.
-type RemoteExitError struct {
-	Code int
-}
-
-func (e RemoteExitError) Error() string {
-	return fmt.Sprintf("command exited with status %d", e.Code)
-}
 
 // exitCodeOf returns the process exit code for err, or -1 if err is not an exit error.
 func exitCodeOf(err error) int {
@@ -250,11 +236,9 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		return nil
 	}
 
-	// We connected fine and the command exited non-zero. Surface its exit code
-	// rather than treating a healthy connection as a failure.
-	var remoteErr RemoteExitError
+	// The connection worked and the command itself failed, so skip the recovery path.
+	var remoteErr breverrors.RemoteExitError
 	if stderrors.As(err, &remoteErr) {
-		go trackExecAnalytics(sstore, workspaceNameOrID)
 		return remoteErr
 	}
 
@@ -325,8 +309,7 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	return runAndTrack(sstore, sshName, workspaceNameOrID, command)
 }
 
-// runAndTrack runs the command after recovery. A non-zero exit from the remote
-// command is returned as RemoteExitError, not as a connection failure.
+// runAndTrack runs the command after recovery.
 func runAndTrack(sstore ExecStore, sshName string, workspaceNameOrID string, command string) error {
 	err := runSSH(sshName, command)
 	if err == nil {
@@ -334,9 +317,8 @@ func runAndTrack(sstore ExecStore, sshName string, workspaceNameOrID string, com
 		return nil
 	}
 
-	var remoteErr RemoteExitError
+	var remoteErr breverrors.RemoteExitError
 	if stderrors.As(err, &remoteErr) {
-		go trackExecAnalytics(sstore, workspaceNameOrID)
 		return remoteErr
 	}
 	return breverrors.WrapAndTrace(err)
@@ -369,8 +351,7 @@ func runSSHWithTimeout(sshAlias string, command string, connectTimeoutSecs int) 
 	// -T disables pseudo-terminal allocation (no "Pseudo-terminal will not be allocated" warning)
 	// Only start ssh-agent if one isn't already running (avoids orphaned agent processes)
 	agentCmd := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
-	// `exec` replaces bash with ssh so the exit code we observe is ssh's own,
-	// not bash's, which keeps the 255 check below meaningful.
+	// exec replaces bash with ssh so the exit code we see is ssh's own, not bash's.
 	cmd := fmt.Sprintf("%s && exec ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", agentCmd, connectTimeoutSecs, sshAlias, escapedCmd)
 
 	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
@@ -381,16 +362,13 @@ func runSSHWithTimeout(sshAlias string, command string, connectTimeoutSecs int) 
 	return classifySSHError(sshCmd.Run())
 }
 
-// classifySSHError maps an ssh process error to a RemoteExitError when the code
-// came from the remote command, or a wrapped error when ssh itself failed.
+// classifySSHError separates a remote command failure from an ssh connection failure.
 func classifySSHError(err error) error {
 	if err == nil {
 		return nil
 	}
-	// ssh uses 255 for its own failures; any other code came from the remote
-	// command, which means the connection itself was fine.
 	if code := exitCodeOf(err); code > 0 && code != sshConnectionFailedExitCode {
-		return RemoteExitError{Code: code}
+		return breverrors.RemoteExitError{Code: code}
 	}
 	return breverrors.WrapAndTrace(err)
 }

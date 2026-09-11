@@ -27,14 +27,14 @@ func TestClassifySSHError(t *testing.T) {
 
 	// A remote command's own exit code means the connection worked.
 	for _, code := range []int{1, 2, 7, 127} {
-		var remoteErr RemoteExitError
+		var remoteErr breverrors.RemoteExitError
 		err := classifySSHError(exitErrWithCode(t, code))
 		require.True(t, stderrors.As(err, &remoteErr), "code %d should be a RemoteExitError", code)
 		assert.Equal(t, code, remoteErr.Code)
 	}
 
 	// 255 is ssh's own failure code, so it must stay a connection error.
-	var remoteErr RemoteExitError
+	var remoteErr breverrors.RemoteExitError
 	err := classifySSHError(exitErrWithCode(t, sshConnectionFailedExitCode))
 	require.Error(t, err)
 	assert.False(t, stderrors.As(err, &remoteErr), "255 must not be treated as a remote exit")
@@ -50,10 +50,10 @@ func TestExitCodeOf(t *testing.T) {
 func TestFlattenMultiInstanceErr(t *testing.T) {
 	assert.NoError(t, flattenMultiInstanceErr(nil))
 
-	agg := multierror.Append(nil, RemoteExitError{Code: 3}, RemoteExitError{Code: 7})
+	agg := multierror.Append(nil, breverrors.RemoteExitError{Code: 3}, breverrors.RemoteExitError{Code: 7})
 	flat := flattenMultiInstanceErr(agg)
 
-	var remoteErr RemoteExitError
+	var remoteErr breverrors.RemoteExitError
 	require.Error(t, flat)
 	assert.False(t, stderrors.As(flat, &remoteErr), "no exit code may leak from a multi-instance run")
 	// The per-instance detail is still readable in the message.
@@ -68,7 +68,7 @@ type fakeTokenStore struct {
 
 func (f fakeTokenStore) GetAuthTokens() (*entity.AuthTokens, error) { return f.tokens, f.err }
 
-func TestIsLoggedOut(t *testing.T) {
+func TestHasNoSavedCredentials(t *testing.T) {
 	cases := map[string]struct {
 		store fakeTokenStore
 		want  bool
@@ -80,31 +80,30 @@ func TestIsLoggedOut(t *testing.T) {
 		"has access token":    {fakeTokenStore{tokens: &entity.AuthTokens{AccessToken: "a"}}, false},
 		"has refresh token":   {fakeTokenStore{tokens: &entity.AuthTokens{RefreshToken: "r"}}, false},
 		"has api key":         {fakeTokenStore{tokens: &entity.AuthTokens{APIKey: "k"}}, false},
-		// An unrelated read error must not claim the user is logged out.
+		// An unrelated read error must not be reported as missing credentials.
 		"other error": {fakeTokenStore{err: stderrors.New("permission denied")}, false},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.want, isLoggedOut(tc.store))
+			assert.Equal(t, tc.want, hasNoSavedCredentials(tc.store))
 		})
 	}
 }
 
-// RemoteExitError must survive the wrapping every return path applies, because
-// main.go recovers the exit code with errors.As.
+// RemoteExitError must survive wrapping, since main.go recovers the code with errors.As.
 func TestRemoteExitErrorSurvivesWrapping(t *testing.T) {
 	cases := map[string]error{
-		"unwrapped":    RemoteExitError{Code: 4},
-		"wrapped":      breverrors.WrapAndTrace(RemoteExitError{Code: 4}),
-		"doubleWrap":   breverrors.WrapAndTrace(breverrors.WrapAndTrace(RemoteExitError{Code: 4})),
-		"multierror":   multierror.Append(nil, RemoteExitError{Code: 4}),
-		"multiWrapped": multierror.Append(nil, breverrors.WrapAndTrace(RemoteExitError{Code: 4})),
+		"unwrapped":    breverrors.RemoteExitError{Code: 4},
+		"wrapped":      breverrors.WrapAndTrace(breverrors.RemoteExitError{Code: 4}),
+		"doubleWrap":   breverrors.WrapAndTrace(breverrors.WrapAndTrace(breverrors.RemoteExitError{Code: 4})),
+		"multierror":   multierror.Append(nil, breverrors.RemoteExitError{Code: 4}),
+		"multiWrapped": multierror.Append(nil, breverrors.WrapAndTrace(breverrors.RemoteExitError{Code: 4})),
 	}
 
 	for name, err := range cases {
 		t.Run(name, func(t *testing.T) {
-			var remoteErr RemoteExitError
+			var remoteErr breverrors.RemoteExitError
 			require.True(t, stderrors.As(err, &remoteErr), "errors.As must match through %s", name)
 			assert.Equal(t, 4, remoteErr.Code)
 		})
