@@ -152,6 +152,9 @@ func findNodeByDeviceID(ctx context.Context, s externalnode.TokenProvider, deps 
 				PageSize:  100,
 				PageToken: pageToken,
 			},
+			Options: &nodev1.ListNodesOptions{
+				ExcludeConnectivityInfo: true,
+			},
 		}))
 		if err != nil {
 			return "", fmt.Errorf("failed to list nodes: %w", err)

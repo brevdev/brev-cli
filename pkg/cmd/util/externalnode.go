@@ -159,6 +159,9 @@ func FindExternalNodeWithContext(ctx context.Context, store ExternalNodeStore, n
 	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 		OrganizationId: org.ID,
+		Options: &nodev1.ListNodesOptions{
+			ExcludeConnectivityInfo: true,
+		},
 	}))
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

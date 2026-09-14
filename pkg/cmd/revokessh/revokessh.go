@@ -131,6 +131,9 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 			OrganizationId: selectedOrg.ID,
+			Options: &nodev1.ListNodesOptions{
+				ExcludeConnectivityInfo: true,
+			},
 		}))
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)
