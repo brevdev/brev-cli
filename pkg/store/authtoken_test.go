@@ -55,3 +55,23 @@ func TestFileStore_SaveAuthTokens_WritesAPIKey(t *testing.T) {
 	assert.Equal(t, testAPIKey, got.APIKey)
 	assert.Equal(t, "org-test", got.APIKeyOrgID)
 }
+
+// The preferred credential must survive a disk round-trip: resolution reads it
+// back to pick the active credential.
+func TestFileStore_AuthTokensRoundTripPreferredCredential(t *testing.T) {
+	s, _, _ := newAuthTokenTestStore(t)
+
+	err := s.SaveAuthTokens(entity.AuthTokens{
+		AccessToken:         "jwt-token",
+		RefreshToken:        "refresh-token",
+		APIKey:              testAPIKey,
+		APIKeyOrgID:         "org-test",
+		PreferredCredential: authpkg.CredentialUserPreference,
+	})
+	require.NoError(t, err)
+
+	got, err := s.GetAuthTokens()
+	require.NoError(t, err)
+	assert.Equal(t, authpkg.CredentialUserPreference, got.PreferredCredential)
+	assert.Equal(t, testAPIKey, got.APIKey)
+}

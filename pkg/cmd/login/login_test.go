@@ -16,11 +16,12 @@ import (
 const testAPIKey = authpkg.BrevAPIKeyPrefix + "test-key"
 
 type mockLoginAuth struct {
-	apiKeyCalls int
-	apiKey      string
-	apiKeyOrgID string
-	tokenCalls  int
-	loginCalls  int
+	apiKeyCalls   int
+	apiKey        string
+	apiKeyOrgID   string
+	tokenCalls    int
+	loginCalls    int
+	activateCalls int
 }
 
 func (m *mockLoginAuth) Login(_ bool) (*authpkg.LoginTokens, error) {
@@ -37,6 +38,11 @@ func (m *mockLoginAuth) LoginWithAPIKey(apiKey string, orgID string) error {
 	m.apiKeyCalls++
 	m.apiKey = apiKey
 	m.apiKeyOrgID = orgID
+	return nil
+}
+
+func (m *mockLoginAuth) ActivateUserCredential() error {
+	m.activateCalls++
 	return nil
 }
 
@@ -280,6 +286,20 @@ func TestRunLogin_TokenLoginSuppressesEnvAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "", os.Getenv(authpkg.APIKeyEnvVar), "browser/token login must clear BREV_API_KEY so the saved JWT is used")
 	assert.Equal(t, 0, auth.apiKeyCalls, "token login must not take the --api-key path")
+}
+
+// loginAndGetOrCreateUser is the explicit-login path: it must activate the user
+// credential exactly once after a successful login. (RunLogin rebuilds
+// o.Auth, so this is asserted against the options directly.)
+func TestLoginAndGetOrCreateUser_ActivatesUserCredential(t *testing.T) {
+	auth := &mockLoginAuth{}
+	opts := LoginOptions{Auth: auth, LoginStore: &mockLoginStore{}}
+
+	_, err := opts.loginAndGetOrCreateUser("some-login-token", false)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, auth.tokenCalls)
+	assert.Equal(t, 1, auth.activateCalls, "explicit login must activate the user credential once")
 }
 
 func TestRunLoginWithOrgIDWithoutAPIKeyRejects(t *testing.T) {

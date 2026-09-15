@@ -4,9 +4,9 @@ package set
 import (
 	"fmt"
 
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -17,15 +17,13 @@ import (
 )
 
 type SetStore interface {
-	completions.CompletionStore
-	SetDefaultOrganization(org *entity.Organization) error
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
-	GetServerSockFile() string
 	GetCurrentWorkspaceID() (string, error)
-	GetAuthTokens() (*entity.AuthTokens, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	SetDefaultOrganization(org *entity.Organization) error
+	ActivateUserCredential() error
 }
 
-func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore SetStore) *cobra.Command {
+func NewCmdSet(t *terminal.Terminal, loginSetStore SetStore, noLoginSetStore completions.CompletionStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:       map[string]string{"organization": ""},
 		Use:               "set",
@@ -61,9 +59,6 @@ func set(orgName string, setStore SetStore) error {
 	if workspaceID != "" {
 		return fmt.Errorf("can not set orgs in a workspace")
 	}
-	if auth.IsAPIKeyAuthStore(setStore) {
-		return breverrors.NewValidationError("api key auth is scoped to the org saved during login; run brev login --api-key <api-key> to change it")
-	}
 	orgs, err := setStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -81,7 +76,10 @@ func set(orgName string, setStore SetStore) error {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Print workspaces within org
-
+	// The switch succeeded as a user; persist that preference so subsequent
+	// commands authenticate with the JWT. The API key (if any) is preserved.
+	if err := util.ActivateUserCredentialAfterOrgSwitch(setStore, org.Name); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }

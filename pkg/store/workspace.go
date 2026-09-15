@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -415,7 +414,11 @@ func FilterNonFailedWorkspaces(workspaces []entity.Workspace) []entity.Workspace
 }
 
 func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
-	if auth.IsAPIKeyAuthStore(&s) {
+	apiKey, err := s.activeCredentialIsAPIKey()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if apiKey {
 		return s.GetWorkspaces(orgID, &GetWorkspacesOptions{Name: nameOrID})
 	}
 
@@ -441,7 +444,11 @@ func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if auth.IsAPIKeyAuthStore(&s) {
+	apiKey, err := s.activeCredentialIsAPIKey()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if apiKey {
 		return s.GetWorkspaces(org.ID, nil)
 	}
 

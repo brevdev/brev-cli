@@ -51,6 +51,7 @@ type Auth interface {
 	Login(skipBrowser bool) (*auth.LoginTokens, error)
 	LoginWithToken(token string) error
 	LoginWithAPIKey(apiKey string, orgID string) error
+	ActivateUserCredential() error
 }
 
 // loginStore must be a no prompt store
@@ -132,6 +133,12 @@ func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, skipBrowser boo
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
+	}
+
+	// An explicit interactive/token login is a deliberate choice to use the
+	// user credential; activate it (the API key, if any, is preserved).
+	if err := o.Auth.ActivateUserCredential(); err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
 
 	user, err := o.LoginStore.GetCurrentUser()

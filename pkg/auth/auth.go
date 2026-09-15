@@ -18,20 +18,50 @@ import (
 
 type LoginAuth struct {
 	Auth
+	policy credentialPolicy
 }
 
+// NewLoginAuth returns a login auth that resolves the active credential
+// (policyPreferActive) and prompts for login when none is available.
 func NewLoginAuth(authStore AuthStore, oauth OAuth) *LoginAuth {
 	return &LoginAuth{
-		Auth: *NewAuth(authStore, oauth),
+		Auth:   *NewAuth(authStore, oauth),
+		policy: policyPreferActive,
 	}
+}
+
+// NewUserLoginAuth returns a login auth that resolves only the user credential
+// (policyRequireUser) and prompts for login when none is available. Operations
+// that need a full user (e.g. switching orgs) use this: an API key, scoped to
+// a single org, can never satisfy them.
+func NewUserLoginAuth(authStore AuthStore, oauth OAuth) *LoginAuth {
+	return &LoginAuth{
+		Auth:   *NewAuth(authStore, oauth),
+		policy: policyRequireUser,
+	}
+}
+
+func (l LoginAuth) GetCredential() (Credential, error) {
+	cred, err := l.resolveCredential(l.policy)
+	if err != nil {
+		return Credential{}, breverrors.WrapAndTrace(err)
+	}
+	if cred.Token == "" {
+		lt, err := l.PromptForLogin()
+		if err != nil {
+			return Credential{}, breverrors.WrapAndTrace(err)
+		}
+		cred = Credential{Token: lt.AccessToken, Kind: CredentialUserJWT}
+	}
+	return cred, nil
 }
 
 func (l LoginAuth) GetAccessToken() (string, error) {
-	token, err := l.GetFreshAccessTokenOrLogin()
+	cred, err := l.GetCredential()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	return token, nil
+	return cred.Token, nil
 }
 
 type NoLoginAuth struct {
@@ -44,12 +74,20 @@ func NewNoLoginAuth(authStore AuthStore, oauth OAuth) *NoLoginAuth {
 	}
 }
 
+func (l NoLoginAuth) GetCredential() (Credential, error) {
+	cred, err := l.resolveCredential(policyPreferActive)
+	if err != nil {
+		return Credential{}, breverrors.WrapAndTrace(err)
+	}
+	return cred, nil
+}
+
 func (l NoLoginAuth) GetAccessToken() (string, error) {
-	token, err := l.GetFreshAccessTokenOrNil()
+	cred, err := l.GetCredential()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	return token, nil
+	return cred.Token, nil
 }
 
 type AuthStore interface {
@@ -104,6 +142,37 @@ const BrevAPIKeyPrefix = "bak-"
 
 const APIKeyEnvVar = "BREV_API_KEY"
 
+// CredentialKind identifies what a credential is, so callers can branch on the
+// credential actually in use rather than inferring from the token store.
+type CredentialKind int
+
+const (
+	CredentialUserJWT CredentialKind = iota
+	CredentialAPIKey
+)
+
+type Credential struct {
+	Token string
+	Kind  CredentialKind
+}
+
+// credentialPolicy selects how a token is resolved.
+type credentialPolicy int
+
+const (
+	// policyPreferActive uses whichever credential the user has activated
+	policyPreferActive credentialPolicy = iota
+	// policyRequireUser resolves only a user JWT, ignoring API keys entirely
+	// useful for cross org commands like "set"
+	policyRequireUser
+)
+
+// PreferredCredential values stored in entity.AuthTokens.PreferredCredential.
+const (
+	CredentialUserPreference   = "user"
+	CredentialAPIKeyPreference = "api_key"
+)
+
 const MissingAPIKeyOrgIDMessage = "auth malformed; run brev login --api-key <api-key>"
 
 type APIKeyAuthStore interface {
@@ -153,10 +222,10 @@ func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
 		return true
 	}
 	tokens, err := authTokensProvider.GetAuthTokens()
-	if err != nil {
+	if err != nil || tokens == nil {
 		return false
 	}
-	if tokens == nil {
+	if strings.TrimSpace(tokens.PreferredCredential) == CredentialUserPreference {
 		return false
 	}
 	return IsBrevAPIKey(tokens.APIKey)
@@ -232,23 +301,116 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 
 // Gets fresh access token or returns nil and saves to store
 func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
-	if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
-		return key, nil
-	}
-	tokens, err := t.getSavedTokensOrNil()
+	cred, err := t.resolveCredential(policyPreferActive)
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
+	return cred.Token, nil
+}
+
+// resolveCredential selects the credential to use for the given policy.
+// It never prompts for login; callers decide whether to prompt when it returns
+// an empty credential.
+//
+//	policyPreferActive: BREV_API_KEY env var, else the preferred_credential
+//	saved in the token store. Legacy files (no preference field) keep the old
+//	rule: an API key wins over a JWT.
+//	policyRequireUser: a user JWT only, skipping API keys entirely.
+func (t Auth) resolveCredential(policy credentialPolicy) (Credential, error) {
+	if policy != policyRequireUser {
+		if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
+			return Credential{Token: key, Kind: CredentialAPIKey}, nil
+		}
+	}
+
+	tokens, err := t.getSavedTokensOrNil()
+	if err != nil {
+		return Credential{}, breverrors.WrapAndTrace(err)
+	}
 	if tokens == nil {
-		return "", nil
+		return Credential{}, nil
 	}
 
 	apiKey := strings.TrimSpace(tokens.APIKey)
-	if apiKey != "" {
-		return apiKey, nil
+
+	// policyRequireUser: only a user JWT counts.
+	if policy == policyRequireUser {
+		if tokens.AccessToken == "" && tokens.RefreshToken == "" {
+			return Credential{}, nil
+		}
+		userToken, err := t.resolveUserAccessToken(tokens)
+		if err != nil {
+			return Credential{}, breverrors.WrapAndTrace(err)
+		}
+		if userToken == "" {
+			return Credential{}, nil // no usable user JWT: caller prompts
+		}
+		return Credential{Token: userToken, Kind: CredentialUserJWT}, nil
 	}
 
-	// should always at least have access token?
+	// policyPreferActive. An explicitly preferred user always wants the JWT;
+	// otherwise an API key wins without ever touching JWT validation.
+	if strings.TrimSpace(tokens.PreferredCredential) != CredentialUserPreference && apiKey != "" {
+		return Credential{Token: apiKey, Kind: CredentialAPIKey}, nil
+	}
+
+	// The JWT is the active candidate (preferred user, or no API key).
+	if tokens.AccessToken == "" && tokens.RefreshToken == "" {
+		return Credential{}, nil
+	}
+	userToken, err := t.resolveUserAccessToken(tokens)
+	if err != nil {
+		return Credential{}, breverrors.WrapAndTrace(err)
+	}
+	if userToken == "" {
+		// Preferred user with an unusable JWT must not silently cross into
+		// API-key mode; return nothing so the caller prompts for login.
+		return Credential{}, nil
+	}
+	return Credential{Token: userToken, Kind: CredentialUserJWT}, nil
+}
+
+func (t Auth) ActivateUserCredential() error {
+	return t.setPreferredCredential(CredentialUserPreference)
+}
+
+// setPreferredCredential persists which saved credential should authenticate requests
+func (t Auth) setPreferredCredential(preference string) error {
+	tokens, err := t.getSavedTokensOrNil()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if tokens == nil {
+		tokens = &entity.AuthTokens{}
+	}
+	tokens.PreferredCredential = preference
+	if err := t.authStore.SaveAuthTokens(*tokens); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+// saveMergedTokens stores freshly-obtained JWT fields while preserving any
+// saved API key (and its org) and the current preferred_credential
+func (t Auth) saveMergedTokens(fresh entity.AuthTokens) error {
+	existing, err := t.getSavedTokensOrNil()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if existing == nil {
+		existing = &entity.AuthTokens{}
+	}
+	existing.AccessToken = fresh.AccessToken
+	existing.RefreshToken = fresh.RefreshToken
+	if err := t.authStore.SaveAuthTokens(*existing); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
+// resolveUserAccessToken returns a valid user access token from saved tokens,
+// refreshing it when expired, or "" when no usable token exists.
+func (t Auth) resolveUserAccessToken(tokens *entity.AuthTokens) (string, error) {
 	if tokens.AccessToken == "" {
 		breverrors.GetDefaultErrorReporter().ReportMessage("access token is an empty string but shouldn't be")
 	}
@@ -256,7 +418,11 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	if !isAccessTokenValid && tokens.RefreshToken != "" {
+	if !isAccessTokenValid {
+		if tokens.RefreshToken == "" {
+			// Expired with no way to refresh: no usable user token.
+			return "", nil
+		}
 		tokens, err = t.getNewTokensWithRefreshOrNil(tokens.RefreshToken)
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
@@ -264,8 +430,6 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 		if tokens == nil {
 			return "", nil
 		}
-	} else if tokens.RefreshToken == "" && tokens.AccessToken == "" {
-		return "", nil
 	}
 	return tokens.AccessToken, nil
 }
@@ -306,21 +470,18 @@ func (t Auth) LoginWithToken(token string) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	if valid {
-		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
+		err = t.saveMergedTokens(entity.AuthTokens{
 			AccessToken:  token,
 			RefreshToken: "auto-login",
 		})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
 	} else {
-		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
+		err = t.saveMergedTokens(entity.AuthTokens{
 			AccessToken:  "auto-login",
 			RefreshToken: token,
 		})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	}
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
@@ -343,6 +504,7 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	}
 	tokens.APIKey = apiKey
 	tokens.APIKeyOrgID = orgID
+	tokens.PreferredCredential = CredentialAPIKeyPreference
 
 	err = t.authStore.SaveAuthTokens(*tokens)
 	if err != nil {
@@ -398,8 +560,10 @@ func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	err = t.authStore.SaveAuthTokens(tokens.AuthTokens)
-	if err != nil {
+	// Merge the fresh JWT into the saved record so an API key credential is
+	// preserved. Do NOT change preferred_credential here: only the explicit
+	// login flow or a successful org switch may activate the user credential.
+	if err := t.saveMergedTokens(tokens.AuthTokens); err != nil {
 		fmt.Println("failed.")
 		fmt.Println("")
 		return nil, breverrors.WrapAndTrace(err)
@@ -458,7 +622,7 @@ func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTok
 		tokens.RefreshToken = refreshToken
 	}
 
-	err = t.authStore.SaveAuthTokens(*tokens)
+	err = t.saveMergedTokens(*tokens)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
