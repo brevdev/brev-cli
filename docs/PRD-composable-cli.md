@@ -72,7 +72,7 @@ brev search --json
 ### Filter and Create
 ```bash
 # Find stoppable H100s with 500GB disk, create first match
-brev search --min-disk 500 --stoppable | grep H100 | head -1 | brev create --name my-gpu
+brev search --min-disk 500 --stoppable | grep H100 | head -1 | brev create --name my-gpu --stdin
 ```
 
 ### Batch Operations
@@ -87,7 +87,7 @@ brev ls | grep STOPPED | awk '{print $1}' | brev delete
 ### Chained Lifecycle
 ```bash
 # Create, use, cleanup
-brev search --gpu-name A100 | head -1 | brev create --name job-1 | brev shell -c "python train.py" && brev delete job-1
+brev search --gpu-name A100 | head -1 | brev create --name job-1 --stdin | brev shell -c "python train.py" && brev delete job-1
 ```
 
 ### JSON Processing
@@ -111,7 +111,7 @@ Without skills, an agent must:
 - Handle error messages and retry logic
 - Understand which commands can be piped together
 
-Skills encode this domain knowledge, turning "spin up a cheap GPU for testing" into the correct `brev search --stoppable --sort price | head -1 | brev create` pipeline.
+Skills encode this domain knowledge, turning "spin up a cheap GPU for testing" into the correct `brev search --stoppable --sort price | head -1 | brev create --stdin` pipeline.
 
 ### Skill Capabilities
 
@@ -154,7 +154,7 @@ With composable CLI + skills, agents can autonomously:
 User: "Train my model on an H100, save checkpoints every hour"
 
 Agent:
-1. brev search --gpu-name H100 --stoppable --min-disk 500 | head -1 | brev create --name training-job
+1. brev search --gpu-name H100 --stoppable --min-disk 500 | head -1 | brev create --name training-job --stdin
 2. brev wait training-job --state ready
 3. tar czf - ./src | brev cp - training-job:/app/
 4. brev shell training-job -c "cd /app && python train.py --checkpoint-interval 3600"

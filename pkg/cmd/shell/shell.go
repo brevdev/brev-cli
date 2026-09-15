@@ -34,7 +34,7 @@ var (
   brev shell $(brev create my-instance)
 
   # Create with specific GPU and connect
-  brev shell $(brev search --gpu-name A100 | brev create ml-box)
+  brev shell $(brev search --gpu-name A100 | brev create ml-box --stdin)
 
   # SSH into the host machine instead of the container
   brev shell my-instance --host
