@@ -233,6 +233,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cobra.AddTemplateFunc("providerDependentCommands", providerDependentCommands)
 	cobra.AddTemplateFunc("hasAccessCommands", hasAccessCommands)
 	cobra.AddTemplateFunc("accessCommands", accessCommands)
+	cobra.AddTemplateFunc("hasNetworkingCommands", hasNetworkingCommands)
+	cobra.AddTemplateFunc("networkingCommands", networkingCommands)
 	cobra.AddTemplateFunc("hasOrganizationCommands", hasOrganizationCommands)
 	cobra.AddTemplateFunc("organizationCommands", organizationCommands)
 	cobra.AddTemplateFunc("hasConfigurationCommands", hasConfigurationCommands)
@@ -358,6 +360,10 @@ func hasAccessCommands(cmd *cobra.Command) bool {
 	return len(accessCommands(cmd)) > 0
 }
 
+func hasNetworkingCommands(cmd *cobra.Command) bool {
+	return len(networkingCommands(cmd)) > 0
+}
+
 func hasOrganizationCommands(cmd *cobra.Command) bool {
 	return len(organizationCommands(cmd)) > 0
 }
@@ -392,6 +398,16 @@ func accessCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
 		if sub.IsAvailableCommand() && isAccessCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func networkingCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isNetworkingCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -458,6 +474,11 @@ func isAccessCommand(cmd *cobra.Command) bool {
 	return ok
 }
 
+func isNetworkingCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["networking"]
+	return ok
+}
+
 func isOrganizationCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["organization"]
 	return ok
@@ -517,6 +538,13 @@ Instance Commands:
 
 Instance Access:
 {{- range accessCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
+{{- if hasNetworkingCommands . }}
+
+Networking:
+{{- range networkingCommands . }}
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 

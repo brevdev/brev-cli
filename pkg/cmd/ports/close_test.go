@@ -3,7 +3,6 @@ package ports
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
 
 	devplanev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -15,35 +14,12 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 )
 
-type fakeClosePrompter struct {
-	selectIndex  int
-	confirm      bool
-	selectCalls  int
-	confirmCalls int
-	items        []string
-}
-
-func (p *fakeClosePrompter) Select(_ string, items []string) string {
-	p.selectCalls++
-	p.items = append([]string{}, items...)
-	if p.selectIndex < 0 || p.selectIndex >= len(items) {
-		return ""
-	}
-	return items[p.selectIndex]
-}
-
-func (p *fakeClosePrompter) ConfirmYesNo(_ string) bool {
-	p.confirmCalls++
-	return p.confirm
-}
-
 type fakeCloseEnvironmentService struct {
 	devplanev1connect.UnimplementedEnvironmentServiceHandler
 	t             *testing.T
 	expectedEnvID string
 	ports         []*devplanev1.Port
 	closedPortIDs []string
-	failPortID    string
 }
 
 func (s *fakeCloseEnvironmentService) GetNetworkInfo(
@@ -65,9 +41,6 @@ func (s *fakeCloseEnvironmentService) ClosePort(
 	req *connect.Request[devplanev1.EnvironmentServiceClosePortRequest],
 ) (*connect.Response[devplanev1.EnvironmentServiceClosePortResponse], error) {
 	s.t.Helper()
-	if req.Msg.GetPortId() == s.failPortID {
-		return nil, connect.NewError(connect.CodeInternal, errors.New("close failed"))
-	}
 	s.closedPortIDs = append(s.closedPortIDs, req.Msg.GetPortId())
 	return connect.NewResponse(&devplanev1.EnvironmentServiceClosePortResponse{}), nil
 }
@@ -117,50 +90,35 @@ func testTCPPort(id string, publicPort int32) *devplanev1.Port {
 	}
 }
 
-func TestCloseInteractivelySelectsOnePort(t *testing.T) {
+func TestRemoveByDestinationPort(t *testing.T) {
+	second := testTCPPort("nport-two", 52002)
+	second.ServerPort = 9090
 	service := &fakeCloseEnvironmentService{
 		t:             t,
 		expectedEnvID: "env123",
 		ports: []*devplanev1.Port{
 			testTCPPort("nport-one", 41001),
-			testTCPPort("nport-two", 52002),
+			second,
 		},
 	}
 	_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
 	newTestServer(t, handler)
-	prompter := &fakeClosePrompter{selectIndex: 1, confirm: true}
 	var out bytes.Buffer
 
-	err := runClose(
+	err := runRemoveByDestination(
 		context.Background(),
 		&out,
 		newCloseEnvironmentStore(),
-		prompter,
 		"my-instance",
-		closeOptions{},
+		"9090",
 	)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"nport-two"}, service.closedPortIDs)
-	assert.Equal(t, 1, prompter.selectCalls)
-	assert.Equal(t, 1, prompter.confirmCalls)
-	require.Len(t, prompter.items, 2)
-	assert.Contains(t, prompter.items[0], "public 41001 -> destination 8080")
-	assert.Contains(t, prompter.items[1], "public 52002 -> destination 8080")
-	assert.Contains(t, out.String(), "Closed 1 port on my-instance.")
+	assert.Equal(t, "Removed TCP port 9090 on my-instance.\n", out.String())
 }
 
-func TestCloseSelectionLabelMissingDestinationDoesNotUsePublicPort(t *testing.T) {
-	label := closeSelectionLabel(0, &devplanev1.Port{
-		Protocol:   devplanev1.PortProtocol_PORT_PROTOCOL_TCP,
-		PortNumber: 443,
-	})
-
-	assert.Contains(t, label, "public 443 -> destination -")
-	assert.NotContains(t, label, "destination 443")
-}
-
-func TestCloseByExactIDOnExternalNode(t *testing.T) {
+func TestRemoveByExactIDOnBrevConnectMachine(t *testing.T) {
 	service := &fakeCloseNodeService{
 		t: t,
 		node: &devplanev1.ExternalNode{
@@ -174,30 +132,25 @@ func TestCloseByExactIDOnExternalNode(t *testing.T) {
 	}
 	_, handler := devplanev1connect.NewExternalNodeServiceHandler(service)
 	newTestServer(t, handler)
-	prompter := &fakeClosePrompter{selectIndex: -1}
 	store := &fakeStore{
 		user: &entity.User{ID: "user1"},
 		org:  &entity.Organization{ID: "org1"},
 	}
 	var out bytes.Buffer
 
-	err := runClose(
+	err := runRemoveByID(
 		context.Background(),
 		&out,
 		store,
-		prompter,
-		"unode123",
-		closeOptions{portID: "nport-one", approve: true},
+		"nport-one",
 	)
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"nport-one"}, service.closedPortIDs)
-	assert.Zero(t, prompter.selectCalls)
-	assert.Zero(t, prompter.confirmCalls)
-	assert.Contains(t, out.String(), "global.prd.ga.run.brev.nvidia.com:41001")
+	assert.Equal(t, "Removed TCP port 8080 on my-node.\n", out.String())
 }
 
-func TestCloseCancellationDoesNotClosePort(t *testing.T) {
+func TestRemoveRejectsUnknownDestination(t *testing.T) {
 	service := &fakeCloseEnvironmentService{
 		t:             t,
 		expectedEnvID: "env123",
@@ -205,77 +158,27 @@ func TestCloseCancellationDoesNotClosePort(t *testing.T) {
 	}
 	_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
 	newTestServer(t, handler)
-	prompter := &fakeClosePrompter{selectIndex: 0, confirm: false}
-	var out bytes.Buffer
 
-	err := runClose(
-		context.Background(),
-		&out,
-		newCloseEnvironmentStore(),
-		prompter,
-		"my-instance",
-		closeOptions{},
-	)
+	err := runRemoveByDestination(context.Background(), &bytes.Buffer{}, newCloseEnvironmentStore(), "my-instance", "9090")
 
-	require.NoError(t, err)
+	assert.ErrorContains(t, err, "destination port 9090 is not open on this target")
 	assert.Empty(t, service.closedPortIDs)
-	assert.Contains(t, out.String(), "No ports were closed.")
 }
 
-func TestCloseRejectsUnknownID(t *testing.T) {
+func TestRemoveRejectsAmbiguousDestination(t *testing.T) {
 	service := &fakeCloseEnvironmentService{
 		t:             t,
 		expectedEnvID: "env123",
-		ports:         []*devplanev1.Port{testTCPPort("nport-one", 41001)},
+		ports: []*devplanev1.Port{
+			testTCPPort("nport-one", 41001),
+			testTCPPort("nport-two", 52002),
+		},
 	}
 	_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
 	newTestServer(t, handler)
-	var out bytes.Buffer
 
-	err := runClose(
-		context.Background(),
-		&out,
-		newCloseEnvironmentStore(),
-		&fakeClosePrompter{},
-		"my-instance",
-		closeOptions{portID: "nport-missing", approve: true},
-	)
+	err := runRemoveByDestination(context.Background(), &bytes.Buffer{}, newCloseEnvironmentStore(), "my-instance", "8080")
 
-	assert.ErrorContains(t, err, `port_id "nport-missing" is not open on this target`)
+	assert.ErrorContains(t, err, "destination port 8080 matches multiple ports (nport-one, nport-two); use an exact port_id from `brev ports ls`")
 	assert.Empty(t, service.closedPortIDs)
-}
-
-func TestCloseByExactIDReportsFailure(t *testing.T) {
-	service := &fakeCloseEnvironmentService{
-		t:             t,
-		expectedEnvID: "env123",
-		ports:         []*devplanev1.Port{testTCPPort("nport-one", 41001)},
-		failPortID:    "nport-one",
-	}
-	_, handler := devplanev1connect.NewEnvironmentServiceHandler(service)
-	newTestServer(t, handler)
-	var out bytes.Buffer
-
-	err := runClose(
-		context.Background(),
-		&out,
-		newCloseEnvironmentStore(),
-		&fakeClosePrompter{},
-		"my-instance",
-		closeOptions{portID: "nport-one", approve: true},
-	)
-
-	assert.ErrorContains(t, err, `close port_id "nport-one"`)
-	assert.Empty(t, service.closedPortIDs)
-}
-
-func TestRemovablePortsRequiresPortID(t *testing.T) {
-	got := removablePorts([]*devplanev1.Port{
-		nil,
-		{PortNumber: 1234},
-		testTCPPort("nport-one", 41001),
-	})
-
-	require.Len(t, got, 1)
-	assert.Equal(t, "nport-one", got[0].GetPortId())
 }

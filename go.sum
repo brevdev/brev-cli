@@ -1,9 +1,9 @@
-buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260911001103-64122a9c386c.1 h1:nrPJ9Iw5plC+jbx2szj9CvdDRaYkg+dgGHms7Jsb500=
-buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260911001103-64122a9c386c.1/go.mod h1:K41bEH5jxz70cfjH6X8P5ykdEpM/+iT2TMr1sYdnPLk=
-buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260911001103-64122a9c386c.1 h1:lpcaoFSjHRkbcehomGsn6JlRGqt+gzFyK+VjlN5zgIE=
-buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260911001103-64122a9c386c.1/go.mod h1:N18pnR0HL6srurI7G19FpSEki71wA1u4e2c5zbfeTV8=
-buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.1 h1:Qk/4GJyWVWvWsfEFeX4T+k7KouZdRUxxUnIUwJ3hmZg=
-buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.1/go.mod h1:SacJAYqnICCQAsBA46cSA/hxhqhxYkiYzseucf6/fhQ=
+buf.build/gen/go/brevdev/devplane/connectrpc/go v1.21.0-20260915224432-6a5d0c858507.1 h1:CFXTDUzEoMYQzJXAG+hnMO5Cs6h3zVq734k/VnyWuCM=
+buf.build/gen/go/brevdev/devplane/connectrpc/go v1.21.0-20260915224432-6a5d0c858507.1/go.mod h1:dS34xJi+QXqWDdKwUHTBfzkcbQFNK3u4UH3F3L6izx0=
+buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260915224432-6a5d0c858507.2 h1:CjGsO8kcUR0YcKzjKy/L5m2jIhnNW6VW6ArYliA2p6o=
+buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260915224432-6a5d0c858507.2/go.mod h1:SBVLUYGc/4vgMlhOJL5SkwIrSh/FL9EEimlpI8zQSXo=
+buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.2 h1:W5SVs96P8ZgLElYzL93rJu+S+XmkdGQSaVWzPvR5lvg=
+buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.2/go.mod h1:SacJAYqnICCQAsBA46cSA/hxhqhxYkiYzseucf6/fhQ=
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.34.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 cloud.google.com/go v0.38.0/go.mod h1:990N+gfupTy94rShfmMCWGDn0LpTmnzTp2qbd1dvSRU=
@@ -41,8 +41,8 @@ cloud.google.com/go/storage v1.6.0/go.mod h1:N7U0C8pVQ/+NIKOBQyamJIeKQKkZ+mxpohl
 cloud.google.com/go/storage v1.8.0/go.mod h1:Wv1Oy7z6Yz3DshWRJFhqM/UCfaWIRTdp0RXyy7KQOVs=
 cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9ullr3+Kg0=
 cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3fOKtUw0Xmo=
-connectrpc.com/connect v1.20.0 h1:6TNDAB+WeNd2uolWNlYczB5E0KNNaVMNUEx8JEUsPmQ=
-connectrpc.com/connect v1.20.0/go.mod h1:A2ygJrukXwWy32vkCAAHNVguZrqZ+jeZ9rGRnGR4dN4=
+connectrpc.com/connect v1.21.0 h1:LhqSJt7jHf5NJBo9Jq/t/9FjcYAideif0mg+qe2jCUs=
+connectrpc.com/connect v1.21.0/go.mod h1:A2ygJrukXwWy32vkCAAHNVguZrqZ+jeZ9rGRnGR4dN4=
 dario.cat/mergo v1.0.0 h1:AGCNq9Evsj31mOgNPcLyXc+4PNABt905YmuqPYYpBWk=
 dario.cat/mergo v1.0.0/go.mod h1:uNxQE+84aUszobStD9th8a29P2fMDhsBdgRYvZOxGmk=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
