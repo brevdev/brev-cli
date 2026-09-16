@@ -787,6 +787,10 @@ func TestParseInstanceTypesStdin(t *testing.T) {
 	// --stdin set but nothing arrives on stdin: fail loudly.
 	_, err = parseInstanceTypes("", true, strings.NewReader("   \n"))
 	assert.Error(t, err)
+
+	// --stdin input that parses to zero instance types (e.g. JSON []): fail loudly.
+	_, err = parseInstanceTypes("", true, strings.NewReader("[]"))
+	assert.Error(t, err)
 }
 
 func TestGPUCreateOptions(t *testing.T) {

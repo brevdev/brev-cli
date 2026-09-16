@@ -800,6 +800,10 @@ func parseInstanceTypes(flagValue string, readStdin bool, stdin io.Reader) ([]In
 		specs = append(specs, parseTableInput(inputStr)...)
 	}
 
+	if len(specs) == 0 {
+		return nil, breverrors.NewValidationError("--stdin input contained no valid instance types; pass --type or pipe types from 'brev search'")
+	}
+
 	return specs, nil
 }
 
