@@ -15,7 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/ssh"
 )
 
-// ExternalNodeStore is the minimal interface needed for external node lookup and SSH resolution.
+// ExternalNodeStore is the minimal interface needed for Brev Connect machine lookup and SSH resolution.
 type ExternalNodeStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetAccessToken() (string, error)
@@ -33,7 +33,7 @@ type WorkspaceOrNode struct {
 	Node      *nodev1.ExternalNode
 }
 
-// ResolveWorkspaceOrNode looks up a workspace first; if not found, falls back to external nodes.
+// ResolveWorkspaceOrNode looks up a workspace first; if not found, falls back to Brev Connect machines.
 // The store must satisfy both GetWorkspaceByNameOrIDErrStore and ExternalNodeStore.
 func ResolveWorkspaceOrNode(store WorkspaceOrNodeResolver, nameOrID string,
 ) (*WorkspaceOrNode, error) {
@@ -41,7 +41,7 @@ func ResolveWorkspaceOrNode(store WorkspaceOrNodeResolver, nameOrID string,
 }
 
 // ResolveWorkspaceOrNodeWithContext looks up a workspace first; if not found, falls back to
-// external nodes. The context is used for the external-node service request.
+// Brev Connect machines. The context is used for the machine service request.
 func ResolveWorkspaceOrNodeWithContext(ctx context.Context, store WorkspaceOrNodeResolver, nameOrID string,
 ) (*WorkspaceOrNode, error) {
 	workspace, workspaceFound, err := findUserWorkspaceByNameOrID(store, nameOrID)
@@ -57,14 +57,14 @@ func ResolveWorkspaceOrNodeWithContext(ctx context.Context, store WorkspaceOrNod
 	}
 	if node == nil {
 		return nil, breverrors.NewValidationError(fmt.Sprintf(
-			"instance or external node with id/name %q not found",
+			"instance or Brev Connect machine with id/name %q not found",
 			nameOrID,
 		))
 	}
 	return &WorkspaceOrNode{Node: node}, nil
 }
 
-// ExternalNodeSSHInfo holds resolved SSH connection details for an external node.
+// ExternalNodeSSHInfo holds resolved SSH connection details for a Brev Connect machine.
 type ExternalNodeSSHInfo struct {
 	Node      *nodev1.ExternalNode
 	LinuxUser string
@@ -127,7 +127,7 @@ func resolvePortForSSHAccess(node *nodev1.ExternalNode, access *nodev1.SSHAccess
 	return nil
 }
 
-// OpenPort calls the OpenPort RPC to open a port on an external node via netbird.
+// OpenPort calls the OpenPort RPC to open a port on a Brev Connect machine via netbird.
 // This must be called before attempting to connect to a non-SSH port on a node.
 func OpenPort(store ExternalNodeStore, nodeID string, portNumber int32, protocol nodev1.PortProtocol) (*nodev1.Port, error) {
 	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
@@ -142,13 +142,13 @@ func OpenPort(store ExternalNodeStore, nodeID string, portNumber int32, protocol
 	return resp.Msg.GetPort(), nil
 }
 
-// FindExternalNode searches for an external node by name or ID in the user's active organization.
+// FindExternalNode searches for a Brev Connect machine by name or ID in the user's active organization.
 // Returns (nil, nil) if no matching node is found.
 func FindExternalNode(store ExternalNodeStore, nameOrID string) (*nodev1.ExternalNode, error) {
 	return FindExternalNodeWithContext(context.Background(), store, nameOrID)
 }
 
-// FindExternalNodeWithContext searches for an external node by name or ID in the user's active
+// FindExternalNodeWithContext searches for a Brev Connect machine by name or ID in the user's active
 // organization. Exact IDs take precedence over case-insensitive names.
 // Returns (nil, nil) if no matching node is found.
 func FindExternalNodeWithContext(ctx context.Context, store ExternalNodeStore, nameOrID string) (*nodev1.ExternalNode, error) {
@@ -184,7 +184,7 @@ func findExternalNode(nodes []*nodev1.ExternalNode, nameOrID string) *nodev1.Ext
 	return nil
 }
 
-// ResolveExternalNodeSSH resolves the SSH connection details for an external node
+// ResolveExternalNodeSSH resolves the SSH connection details for a Brev Connect machine
 // by finding the current user's SSH access and the allocated port for that access.
 func ResolveExternalNodeSSH(store ExternalNodeStore, node *nodev1.ExternalNode) (*ExternalNodeSSHInfo, error) {
 	user, err := store.GetCurrentUser()

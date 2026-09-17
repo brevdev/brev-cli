@@ -3,9 +3,9 @@ module github.com/brevdev/brev-cli
 go 1.25.0
 
 require (
-	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.20.0-20260911001103-64122a9c386c.1
-	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260911001103-64122a9c386c.1
-	connectrpc.com/connect v1.20.0
+	buf.build/gen/go/brevdev/devplane/connectrpc/go v1.21.0-20260915224432-6a5d0c858507.1
+	buf.build/gen/go/brevdev/devplane/protocolbuffers/go v1.36.12-20260915224432-6a5d0c858507.2
+	connectrpc.com/connect v1.21.0
 	github.com/NVIDIA/go-nvml v0.13.0-1
 	github.com/alessio/shellescape v1.4.1
 	github.com/brevdev/parse v0.0.11
@@ -50,7 +50,7 @@ require (
 )
 
 require (
-	buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.1 // indirect
+	buf.build/gen/go/brevdev/protoc-gen-gotag/protocolbuffers/go v1.36.12-20220906235457-8b4922735da5.2 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
