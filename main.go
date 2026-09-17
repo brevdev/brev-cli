@@ -1,6 +1,7 @@
 package main
 
 import (
+	stderrors "errors"
 	"os"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
@@ -16,6 +17,12 @@ func main() {
 	command := cmd.NewDefaultBrevCommand()
 
 	if err := command.Execute(); err != nil {
+		// Not a CLI error: pass the remote command's exit code straight through.
+		var remoteErr errors.RemoteExitError
+		if stderrors.As(err, &remoteErr) {
+			done()
+			os.Exit(remoteErr.Code) //nolint:gocritic // manually call done
+		}
 		analytics.CaptureCommandError()
 		cmderrors.DisplayAndHandleError(err)
 		done()
