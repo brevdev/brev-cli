@@ -2,12 +2,28 @@ package util
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 )
+
+type UserCredentialActivator interface {
+	ActivateUserCredential() error
+}
+
+func ActivateUserCredentialAfterOrgSwitch(store UserCredentialActivator, orgName string) error {
+	if err := store.ActivateUserCredential(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if key := strings.TrimSpace(os.Getenv(auth.APIKeyEnvVar)); key != "" {
+		fmt.Printf("Default user organization set to %s. BREV_API_KEY is still set in this shell and will keep authenticating commands; run 'unset BREV_API_KEY' to use %s.\n", orgName, orgName)
+	}
+	return nil
+}
 
 type GetWorkspaceByNameOrIDErrStore interface {
 	auth.APIKeyAuthStore

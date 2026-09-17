@@ -33,7 +33,18 @@ type OrgCmdStore interface {
 	CreateOrganization(req store.CreateOrganizationRequest) (*entity.Organization, error)
 }
 
-func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
+// OrgSetStore is what `brev org set` needs to switch orgs. The caller must
+// pass a user-authenticated store (auth.NewUserLoginAuth): API keys are
+// scoped to a single org and can't switch orgs, so the store resolves a valid
+// JWT or prompts for login.
+type OrgSetStore interface {
+	GetCurrentWorkspaceID() (string, error)
+	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
+	SetDefaultOrganization(org *entity.Organization) error
+	ActivateUserCredential() error
+}
+
+func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, userOrgCmdStore OrgSetStore, noorgcmdStore OrgCmdStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"organization": ""},
 		Use:         "org",
@@ -63,7 +74,7 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 		},
 	}
 
-	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
+	cmd.AddCommand(NewCmdOrgSet(t, userOrgCmdStore, noorgcmdStore))
 	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore))
 	cmd.AddCommand(NewCmdOrgCreate(t, orgcmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))

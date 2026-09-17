@@ -5,6 +5,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
+	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -13,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
+func NewCmdOrgSet(t *terminal.Terminal, orgSetStore OrgSetStore, noorgcmdStore OrgCmdStore) *cobra.Command {
 	var showAll bool
 	var org string
 
@@ -36,7 +37,7 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 		Args: cmderrors.TransformToValidationError(cobra.MinimumNArgs(1)),
 		// ValidArgs: []string{"new", "ls"},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := set(args[0], orgcmdStore, t)
+			err := set(args[0], orgSetStore, t)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -56,12 +57,11 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 	return cmd
 }
 
-func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
+func set(orgName string, setStore OrgSetStore, t *terminal.Terminal) error {
 	workspaceID, err := setStore.GetCurrentWorkspaceID()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	fmt.Println(workspaceID)
 
 	if workspaceID != "" {
 		return breverrors.NewValidationError("can not set orgs in a workspace")
@@ -84,7 +84,10 @@ func set(orgName string, setStore OrgCmdStore, t *terminal.Terminal) error {
 	}
 	t.Vprintf("Org %s is now active 🤙\n", t.Green(org.Name))
 
-	// Print workspaces within org
-
+	// The switch succeeded as a user; persist that preference so subsequent
+	// commands authenticate with the JWT. The API key (if any) is preserved.
+	if err := util.ActivateUserCredentialAfterOrgSwitch(setStore, org.Name); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
 	return nil
 }

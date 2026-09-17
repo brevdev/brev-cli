@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -66,11 +67,30 @@ func (s *AuthHTTPStore) GetWindowsDir() (string, error) {
 
 // GetAccessToken returns a fresh access token, refreshing if needed.
 func (s *AuthHTTPStore) GetAccessToken() (string, error) {
-	token, err := s.authHTTPClient.auth.GetAccessToken()
+	cred, err := s.authHTTPClient.auth.GetCredential()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
-	return token, nil
+	return cred.Token, nil
+}
+
+func (s *AuthHTTPStore) activeCredentialIsAPIKey() (bool, error) {
+	cred, err := s.authHTTPClient.auth.GetCredential()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return cred.Kind == auth.CredentialAPIKey, nil
+}
+
+func (s *AuthHTTPStore) ActivateUserCredential() error {
+	a, ok := s.authHTTPClient.auth.(interface{ ActivateUserCredential() error })
+	if !ok {
+		return breverrors.New("auth does not persist credentials; cannot activate the user credential")
+	}
+	if err := a.ActivateUserCredential(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
 }
 
 func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
@@ -134,7 +154,7 @@ type AuthHTTPClient struct {
 }
 
 type Auth interface {
-	GetAccessToken() (string, error)
+	GetCredential() (auth.Credential, error)
 }
 
 func (s *AuthHTTPStore) WithStaticHeader(header string, value string) *AuthHTTPStore {
@@ -224,11 +244,11 @@ func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTT
 	// — genuine HTTP errors, debug output when Debug is on — still logs.
 	restyClient.SetLogger(quietRestyLogger{next: newStderrLogger()})
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
-		token, err := auth.GetAccessToken()
+		cred, err := auth.GetCredential()
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		r.SetAuthToken(token)
+		r.SetAuthToken(cred.Token)
 		return nil
 	})
 	return &AuthHTTPClient{restyClient, auth}

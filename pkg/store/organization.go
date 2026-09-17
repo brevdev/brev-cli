@@ -71,7 +71,11 @@ func (f FileStore) GetCachedActiveOrganizationOrNil() (*entity.Organization, err
 
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
-	if auth.IsAPIKeyAuthStore(&s) {
+	apiKey, err := s.activeCredentialIsAPIKey()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if apiKey {
 		return s.hydrateOrgFromApiKey()
 	}
 

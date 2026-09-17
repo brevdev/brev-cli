@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,11 +18,16 @@ import (
 
 type MockAuth struct{ token *string }
 
-func (a MockAuth) GetAccessToken() (string, error) {
-	if a.token == nil {
-		return "mock-token", nil
+func (a MockAuth) GetCredential() (auth.Credential, error) {
+	token := "mock-token"
+	if a.token != nil {
+		token = *a.token
 	}
-	return *a.token, nil
+	kind := auth.CredentialUserJWT
+	if auth.IsBrevAPIKey(token) {
+		kind = auth.CredentialAPIKey
+	}
+	return auth.Credential{Token: token, Kind: kind}, nil
 }
 
 func MakeMockNoHTTPStore() *NoAuthHTTPStore {
@@ -83,8 +89,8 @@ func (t *testLogger) writef(format string, v ...interface{}) {
 // declineAuth simulates a user answering "n" at the login prompt.
 type declineAuth struct{}
 
-func (declineAuth) GetAccessToken() (string, error) {
-	return "", &breverrors.DeclineToLoginError{}
+func (declineAuth) GetCredential() (auth.Credential, error) {
+	return auth.Credential{}, &breverrors.DeclineToLoginError{}
 }
 
 // The exact scenario from the bug report: a command runs, the user declines
@@ -158,6 +164,6 @@ func TestNewAuthHTTPClient_LoggerForwardsUnrelatedErrors(t *testing.T) {
 // errorAuth fails auth with a non-decline error: must be loud.
 type errorAuth struct{}
 
-func (errorAuth) GetAccessToken() (string, error) {
-	return "", errors.New("boom-auth")
+func (errorAuth) GetCredential() (auth.Credential, error) {
+	return auth.Credential{}, errors.New("boom-auth")
 }
