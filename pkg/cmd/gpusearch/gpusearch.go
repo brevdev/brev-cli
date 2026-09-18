@@ -1146,7 +1146,7 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 
 // displayGPUTablePlain renders the GPU instances as a plain table without colors for piping
 // Includes TARGET_DISK column for passing disk size to brev create
-// Enables: brev search --min-disk 500 | grep H100 | brev create
+// Enables: brev search --min-disk 500 | grep H100 | brev create <name> --stdin
 func displayGPUTablePlain(instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)

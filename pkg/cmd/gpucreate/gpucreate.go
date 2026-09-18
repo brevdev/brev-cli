@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -37,11 +39,11 @@ var (
 
 This command attempts to create GPU instances, trying different instance types
 until the desired number of instances are successfully created. Instance types
-can be specified directly, piped from 'brev search', or auto-selected using defaults.
+can be specified directly, piped from 'brev search' (with --stdin), or auto-selected using defaults.
 
 Search Filters:
 You can use the same filter flags as 'brev search' to control which GPU types
-are considered. If no instance types are specified (no --type flag and no piped input),
+are considered. If no instance types are specified (no --type flag and no --stdin input),
 the command automatically searches for GPUs matching either your filters or defaults:
   - Minimum 20GB total VRAM (--min-total-vram)
   - Minimum 500GB disk (--min-disk)
@@ -50,7 +52,7 @@ the command automatically searches for GPUs matching either your filters or defa
 Results are sorted by price (cheapest first) unless --sort is specified.
 
 Retry and Fallback Logic:
-When multiple instance types are provided (via --type or piped input), the command
+When multiple instance types are provided (via --type or piped --stdin input), the command
 tries to create ALL instances using the first type before falling back to the next:
 
   1. Try first type for all instances (using --parallel workers if specified)
@@ -86,8 +88,8 @@ You can attach a startup script that runs when the instance boots using the
   # Try multiple types in order (fallback chain)
   brev create my-instance --type g5.xlarge,g5.2xlarge,g4dn.xlarge
 
-  # Pipe from search for automatic fallback
-  brev search --gpu-name A100 | brev create my-instance
+  # Pipe from search for automatic fallback (requires --stdin)
+  brev search --gpu-name A100 | brev create my-instance --stdin
 
   # Create multiple instances in parallel
   brev create my-cluster --count 3 --type g5.xlarge --parallel 3
@@ -158,6 +160,7 @@ func (f *searchFilterFlags) hasUserFilters() bool {
 func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra.Command { //nolint:gocognit,gocyclo,funlen // easier to read as one function
 	var name string
 	var instanceTypes string
+	var readStdin bool
 	var count int
 	var parallel int
 	var detached bool
@@ -226,7 +229,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return err
 			}
 
-			types, err := parseInstanceTypes(instanceTypes)
+			types, err := parseInstanceTypes(instanceTypes, readStdin, os.Stdin)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -267,7 +270,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 		},
 	}
 
-	registerCreateFlags(cmd, &name, &instanceTypes, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &launchableParams, &filters)
+	registerCreateFlags(cmd, &name, &instanceTypes, &readStdin, &count, &parallel, &detached, &timeout, &startupScript, &dryRun, &mode, &jupyter, &containerImage, &composeFile, &launchable, &launchableParams, &filters)
 
 	return cmd
 }
@@ -284,9 +287,10 @@ func validateArgs(name string, count int) error {
 }
 
 // registerCreateFlags registers all flags for the create command
-func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, launchableParams *[]string, filters *searchFilterFlags) {
+func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, readStdin *bool, count, parallel *int, detached *bool, timeout *int, startupScript *string, dryRun *bool, mode *string, jupyter *bool, containerImage, composeFile, launchable *string, launchableParams *[]string, filters *searchFilterFlags) {
 	cmd.Flags().StringVarP(name, "name", "n", "", "Base name for the instances (or pass as first argument)")
 	cmd.Flags().StringVarP(instanceTypes, "type", "t", "", "Comma-separated list of instance types to try")
+	cmd.Flags().BoolVar(readStdin, "stdin", false, "Read instance types from stdin (opt-in; e.g. brev search | brev create <name> --stdin)")
 	cmd.Flags().IntVarP(count, "count", "c", 1, "Number of instances to create")
 	cmd.Flags().IntVarP(parallel, "parallel", "p", 1, "Number of parallel creation attempts")
 	cmd.Flags().BoolVarP(detached, "detached", "d", false, "Don't wait for instances to be ready")
@@ -750,51 +754,76 @@ func orDefault(val, def float64) float64 {
 	return def
 }
 
-// parseInstanceTypes parses instance types from flag value or stdin
-// Returns InstanceSpec with type and optional disk size (from JSON input)
-func parseInstanceTypes(flagValue string) ([]InstanceSpec, error) {
-	var specs []InstanceSpec
-
-	// First check if there's a flag value
+// parseInstanceTypes returns instance types from --type, or from stdin only when readStdin is set (opt-in so an open pipe can't block the command).
+func parseInstanceTypes(flagValue string, readStdin bool, stdin io.Reader) ([]InstanceSpec, error) {
 	if flagValue != "" {
-		parts := strings.Split(flagValue, ",")
-		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			if p != "" {
+		if readStdin {
+			fmt.Fprintln(os.Stderr, "ignoring piped stdin because --type was set; using the instance types from --type")
+		}
+		var specs []InstanceSpec
+		for _, p := range strings.Split(flagValue, ",") {
+			if p = strings.TrimSpace(p); p != "" {
 				specs = append(specs, InstanceSpec{Type: p})
 			}
 		}
+		return specs, nil
 	}
 
-	// Check if there's piped input from stdin
-	stat, _ := os.Stdin.Stat()
-	if (stat.Mode() & os.ModeCharDevice) == 0 {
-		// Data is being piped to stdin - read all input first
-		input, err := io.ReadAll(os.Stdin)
+	if !readStdin {
+		if util.IsStdinPiped() {
+			fmt.Fprintln(os.Stderr, "ignoring piped input and falling back to the default GPU search; pass --stdin to use the piped instance types")
+		}
+		return nil, nil
+	}
+
+	fmt.Fprintln(os.Stderr, "Waiting for instance types on stdin (Ctrl-D / close the pipe to finish)...")
+	stop := handleStdinWaitSignals()
+	input, err := io.ReadAll(stdin)
+	stop()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+
+	inputStr := strings.TrimSpace(string(input))
+	if inputStr == "" {
+		return nil, breverrors.NewValidationError("--stdin was set but no instance types were received on stdin; pass --type or pipe types from 'brev search'")
+	}
+
+	var specs []InstanceSpec
+	if strings.HasPrefix(inputStr, "[") {
+		jsonSpecs, err := parseJSONInput(inputStr)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
+		specs = append(specs, jsonSpecs...)
+	} else {
+		specs = append(specs, parseTableInput(inputStr)...)
+	}
 
-		inputStr := strings.TrimSpace(string(input))
-		if inputStr == "" {
-			return specs, nil
-		}
-
-		// Check if input is JSON (starts with '[')
-		if strings.HasPrefix(inputStr, "[") {
-			jsonSpecs, err := parseJSONInput(inputStr)
-			if err != nil {
-				return nil, breverrors.WrapAndTrace(err)
-			}
-			specs = append(specs, jsonSpecs...)
-		} else {
-			// Parse as table format
-			tableSpecs := parseTableInput(inputStr)
-			specs = append(specs, tableSpecs...)
-		}
+	if len(specs) == 0 {
+		return nil, breverrors.NewValidationError("--stdin input contained no valid instance types; pass --type or pipe types from 'brev search'")
 	}
 
 	return specs, nil
+}
+
+// handleStdinWaitSignals exits cleanly if interrupted while waiting on stdin.
+func handleStdinWaitSignals() (stop func()) {
+	sigCh := make(chan os.Signal, 1)
+	done := make(chan struct{})
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-sigCh:
+			fmt.Fprintln(os.Stderr, "\ncanceled while waiting for instance types on stdin")
+			os.Exit(130)
+		case <-done:
+		}
+	}()
+	return func() {
+		signal.Stop(sigCh)
+		close(done)
+	}
 }
 
 // parseJSONInput parses JSON array input from gpu-search --json

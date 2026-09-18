@@ -740,7 +740,7 @@ func TestParseInstanceTypesFromFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := parseInstanceTypes(tt.input)
+			result, err := parseInstanceTypes(tt.input, false, strings.NewReader(""))
 			assert.NoError(t, err)
 
 			// Handle nil vs empty slice
@@ -756,6 +756,41 @@ func TestParseInstanceTypesFromFlag(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseInstanceTypesStdin(t *testing.T) {
+	// --type is authoritative: stdin (even with data) is ignored and never read.
+	specs, err := parseInstanceTypes("g5.xlarge", true, strings.NewReader("should-be-ignored\n"))
+	assert.NoError(t, err)
+	assert.Equal(t, []InstanceSpec{{Type: "g5.xlarge"}}, specs)
+
+	// No --type and no --stdin: stdin is not read; caller falls back to the default GPU search.
+	specs, err = parseInstanceTypes("", false, strings.NewReader("g5.xlarge\n"))
+	assert.NoError(t, err)
+	assert.Empty(t, specs)
+
+	// --stdin with piped table data: types are parsed from stdin.
+	specs, err = parseInstanceTypes("", true, strings.NewReader("g5.xlarge\ng4dn.xlarge\n"))
+	assert.NoError(t, err)
+	var got []string
+	for _, s := range specs {
+		got = append(got, s.Type)
+	}
+	assert.Equal(t, []string{"g5.xlarge", "g4dn.xlarge"}, got)
+
+	// --stdin with piped JSON data: types are parsed from stdin.
+	specs, err = parseInstanceTypes("", true, strings.NewReader(`[{"type":"p4d.24xlarge"}]`))
+	assert.NoError(t, err)
+	require.Len(t, specs, 1)
+	assert.Equal(t, "p4d.24xlarge", specs[0].Type)
+
+	// --stdin set but nothing arrives on stdin: fail loudly.
+	_, err = parseInstanceTypes("", true, strings.NewReader("   \n"))
+	assert.Error(t, err)
+
+	// --stdin input that parses to zero instance types (e.g. JSON []): fail loudly.
+	_, err = parseInstanceTypes("", true, strings.NewReader("[]"))
+	assert.Error(t, err)
 }
 
 func TestGPUCreateOptions(t *testing.T) {
