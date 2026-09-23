@@ -2,6 +2,7 @@ package ssh
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -645,6 +646,178 @@ func TestCreateNewSSHConfig_WorkspacesAndNodes(t *testing.T) {
 	if !assert.Contains(t, cStr, "Port 33000\n") {
 		return
 	}
+}
+
+func TestSSHConfigurerV2UpdateRenameReplacesManagedAliasesAndPreservesConnectionFields(t *testing.T) {
+	tests := []struct {
+		name                   string
+		workspace              entity.Workspace
+		expectedConnectionLine []string
+	}{
+		{
+			name: "direct endpoints",
+			workspace: entity.Workspace{
+				ID:               "environment-1",
+				Name:             "old-instance-name",
+				Status:           entity.Running,
+				SSHUser:          "workload-user",
+				SSHHostname:      "198.51.100.10",
+				SSHPort:          2200,
+				HostSSHUser:      "host-user",
+				HostSSHHostname:  "198.51.100.11",
+				HostSSHPort:      2201,
+				IDEConfig:        entity.IDEConfig{DefaultWorkingDir: "/mnt/persisted/old-instance-name"},
+				WorkspaceClassID: "2x8",
+				OrganizationID:   "org-1",
+				CreatedByUserID:  "user-1",
+			},
+			expectedConnectionLine: []string{
+				"Hostname 198.51.100.10", "User workload-user", "Port 2200",
+				"Hostname 198.51.100.11", "User host-user", "Port 2201",
+			},
+		},
+		{
+			name: "proxied endpoints",
+			workspace: entity.Workspace{
+				ID:                   "environment-1",
+				Name:                 "old-instance-name",
+				Status:               entity.Running,
+				SSHUser:              "workload-user",
+				SSHProxyHostname:     "workload.example.com",
+				HostSSHUser:          "host-user",
+				HostSSHProxyHostname: "host.example.com",
+				IDEConfig:            entity.IDEConfig{DefaultWorkingDir: "/mnt/persisted/old-instance-name"},
+				WorkspaceClassID:     "2x8",
+				OrganizationID:       "org-1",
+				CreatedByUserID:      "user-1",
+			},
+			expectedConnectionLine: []string{
+				"ProxyCommand /home/test/.brev/cloudflared access ssh --hostname workload.example.com", "User workload-user",
+				"ProxyCommand /home/test/.brev/cloudflared access ssh --hostname host.example.com", "User host-user",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fs := makeMockFS()
+			userConfig := "Host personal-box\n  Hostname personal.example\n"
+			assert.NoError(t, fs.WriteUserSSHConfig(userConfig))
+			configurer := NewSSHConfigurerV2(fs)
+			assert.NoError(t, configurer.Update([]entity.Workspace{tt.workspace}, nil))
+
+			before, err := fs.GetFileAsString("/home/test/.brev/ssh_config")
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Contains(t, before, "Host old-instance-name\n")
+			assert.Contains(t, before, "Host old-instance-name-host\n")
+			for _, expectedLine := range tt.expectedConnectionLine {
+				assert.Contains(t, before, expectedLine)
+			}
+			beforeWorkingDir, err := tt.workspace.GetProjectFolderPath()
+			if !assert.NoError(t, err) {
+				return
+			}
+
+			tt.workspace.Name = "new-instance-name"
+			assert.NoError(t, configurer.Update([]entity.Workspace{tt.workspace}, nil))
+
+			after, err := fs.GetFileAsString("/home/test/.brev/ssh_config")
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.NotContains(t, after, "Host old-instance-name\n")
+			assert.NotContains(t, after, "Host old-instance-name-host\n")
+			assert.Contains(t, after, "Host new-instance-name\n")
+			assert.Contains(t, after, "Host new-instance-name-host\n")
+			assert.Equal(t, normalizeSSHConfigHostHeaders(before), normalizeSSHConfigHostHeaders(after))
+			afterWorkingDir, err := tt.workspace.GetProjectFolderPath()
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Equal(t, "/mnt/persisted/old-instance-name", beforeWorkingDir)
+			assert.Equal(t, beforeWorkingDir, afterWorkingDir)
+
+			updatedUserConfig, err := fs.GetFileAsString("/home/test/.ssh/config")
+			if !assert.NoError(t, err) {
+				return
+			}
+			assert.Contains(t, updatedUserConfig, userConfig)
+			assert.Equal(t, 1, strings.Count(updatedUserConfig, "Include \"/home/test/.brev/ssh_config\""))
+		})
+	}
+}
+
+func normalizeSSHConfigHostHeaders(config string) string {
+	lines := strings.Split(config, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "Host ") {
+			lines[i] = "Host <alias>"
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+type renameConfigUpdaterStore struct {
+	workspaces []entity.Workspace
+	privateKey string
+}
+
+func (s *renameConfigUpdaterStore) CopyBin(string) error                { return nil }
+func (s *renameConfigUpdaterStore) WriteString(string, string) error    { return nil }
+func (s *renameConfigUpdaterStore) GetOSUser() string                   { return "test" }
+func (s *renameConfigUpdaterStore) UserHomeDir() (string, error)        { return "/home/test", nil }
+func (s *renameConfigUpdaterStore) Remove(string) error                 { return nil }
+func (s *renameConfigUpdaterStore) FileExists(string) (bool, error)     { return false, nil }
+func (s *renameConfigUpdaterStore) DownloadBinary(string, string) error { return nil }
+func (s *renameConfigUpdaterStore) GetContextWorkspaces() ([]entity.Workspace, error) {
+	return s.workspaces, nil
+}
+func (s *renameConfigUpdaterStore) WritePrivateKey(key string) error {
+	s.privateKey = key
+	return nil
+}
+
+type capturedWorkspaceConfig struct {
+	updates [][]entity.Workspace
+}
+
+func (c *capturedWorkspaceConfig) Update(workspaces []entity.Workspace, _ []ExternalNodeSSHEntry) error {
+	c.updates = append(c.updates, append([]entity.Workspace(nil), workspaces...))
+	return nil
+}
+
+func TestConfigUpdaterOmitsStoppedRenameUntilRenamedWorkspaceIsRunning(t *testing.T) {
+	store := &renameConfigUpdaterStore{workspaces: []entity.Workspace{{
+		ID:     "environment-1",
+		Name:   "old-instance-name",
+		Status: entity.Stopped,
+	}}}
+	config := &capturedWorkspaceConfig{}
+	updater := NewConfigUpdater(store, []Config{config}, "private-key")
+
+	assert.NoError(t, updater.Run())
+	if !assert.Len(t, config.updates, 1) {
+		return
+	}
+	assert.Empty(t, config.updates[0])
+
+	store.workspaces[0].Name = "new-instance-name"
+	assert.NoError(t, updater.Run())
+	if !assert.Len(t, config.updates, 2) {
+		return
+	}
+	assert.Empty(t, config.updates[1])
+
+	store.workspaces[0].Status = entity.Running
+	assert.NoError(t, updater.Run())
+	if !assert.Len(t, config.updates, 3) || !assert.Len(t, config.updates[2], 1) {
+		return
+	}
+	assert.Equal(t, "environment-1", config.updates[2][0].ID)
+	assert.Equal(t, "new-instance-name", config.updates[2][0].Name)
+	assert.Equal(t, "private-key", store.privateKey)
 }
 
 func makeMockFS() SSHConfigurerV2Store {
