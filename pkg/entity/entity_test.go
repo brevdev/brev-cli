@@ -19,26 +19,13 @@ func TestGetProjectFolderPathUsesSSHUser(t *testing.T) {
 	assert.Equal(t, "/home/ubuntu/example", projectFolderPath)
 }
 
-func TestWorkspaceRenameChangesLocalIdentifiersButPreservesProjectFolder(t *testing.T) {
+// Editor paths use saved configuration even when the display name changes.
+func TestRenamedWorkspaceUsesStoredProjectFolder(t *testing.T) {
 	workspace := Workspace{
-		ID:        "workspace-1",
-		Name:      "old-instance-name",
-		SSHUser:   "ubuntu",
+		Name: "new-instance-name", SSHUser: "ubuntu",
 		IDEConfig: IDEConfig{DefaultWorkingDir: "/mnt/persisted/old-instance-name"},
 	}
-
-	beforeProjectFolderPath, err := workspace.GetProjectFolderPath()
+	folder, err := workspace.GetProjectFolderPath()
 	require.NoError(t, err)
-	assert.Equal(t, WorkspaceLocalID("old-instance-name"), workspace.GetLocalIdentifier())
-	assert.Equal(t, WorkspaceLocalID("old-instance-name-host"), workspace.GetHostIdentifier())
-
-	workspace.Name = "new-instance-name"
-
-	afterProjectFolderPath, err := workspace.GetProjectFolderPath()
-	require.NoError(t, err)
-	assert.Equal(t, "workspace-1", workspace.ID)
-	assert.Equal(t, WorkspaceLocalID("new-instance-name"), workspace.GetLocalIdentifier())
-	assert.Equal(t, WorkspaceLocalID("new-instance-name-host"), workspace.GetHostIdentifier())
-	assert.Equal(t, "/mnt/persisted/old-instance-name", beforeProjectFolderPath)
-	assert.Equal(t, beforeProjectFolderPath, afterProjectFolderPath)
+	assert.Equal(t, "/mnt/persisted/old-instance-name", folder)
 }

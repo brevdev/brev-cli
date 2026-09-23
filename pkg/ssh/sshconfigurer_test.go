@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var somePlainWorkspaces = []entity.Workspace{
@@ -666,7 +667,6 @@ func TestSSHConfigurerV2UpdateRenameReplacesManagedAliasesAndPreservesConnection
 				HostSSHUser:      "host-user",
 				HostSSHHostname:  "198.51.100.11",
 				HostSSHPort:      2201,
-				IDEConfig:        entity.IDEConfig{DefaultWorkingDir: "/mnt/persisted/old-instance-name"},
 				WorkspaceClassID: "2x8",
 				OrganizationID:   "org-1",
 				CreatedByUserID:  "user-1",
@@ -686,7 +686,6 @@ func TestSSHConfigurerV2UpdateRenameReplacesManagedAliasesAndPreservesConnection
 				SSHProxyHostname:     "workload.example.com",
 				HostSSHUser:          "host-user",
 				HostSSHProxyHostname: "host.example.com",
-				IDEConfig:            entity.IDEConfig{DefaultWorkingDir: "/mnt/persisted/old-instance-name"},
 				WorkspaceClassID:     "2x8",
 				OrganizationID:       "org-1",
 				CreatedByUserID:      "user-1",
@@ -715,10 +714,6 @@ func TestSSHConfigurerV2UpdateRenameReplacesManagedAliasesAndPreservesConnection
 			for _, expectedLine := range tt.expectedConnectionLine {
 				assert.Contains(t, before, expectedLine)
 			}
-			beforeWorkingDir, err := tt.workspace.GetProjectFolderPath()
-			if !assert.NoError(t, err) {
-				return
-			}
 
 			tt.workspace.Name = "new-instance-name"
 			assert.NoError(t, configurer.Update([]entity.Workspace{tt.workspace}, nil))
@@ -732,12 +727,6 @@ func TestSSHConfigurerV2UpdateRenameReplacesManagedAliasesAndPreservesConnection
 			assert.Contains(t, after, "Host new-instance-name\n")
 			assert.Contains(t, after, "Host new-instance-name-host\n")
 			assert.Equal(t, normalizeSSHConfigHostHeaders(before), normalizeSSHConfigHostHeaders(after))
-			afterWorkingDir, err := tt.workspace.GetProjectFolderPath()
-			if !assert.NoError(t, err) {
-				return
-			}
-			assert.Equal(t, "/mnt/persisted/old-instance-name", beforeWorkingDir)
-			assert.Equal(t, beforeWorkingDir, afterWorkingDir)
 
 			updatedUserConfig, err := fs.GetFileAsString("/home/test/.ssh/config")
 			if !assert.NoError(t, err) {
@@ -779,45 +768,40 @@ func (s *renameConfigUpdaterStore) WritePrivateKey(key string) error {
 	return nil
 }
 
-type capturedWorkspaceConfig struct {
-	updates [][]entity.Workspace
-}
-
-func (c *capturedWorkspaceConfig) Update(workspaces []entity.Workspace, _ []ExternalNodeSSHEntry) error {
-	c.updates = append(c.updates, append([]entity.Workspace(nil), workspaces...))
-	return nil
-}
-
-func TestConfigUpdaterOmitsStoppedRenameUntilRenamedWorkspaceIsRunning(t *testing.T) {
+// Exercise the real updater and renderer together: a stopped rename must
+// remove the old alias, and restart must publish only the new one.
+func TestConfigUpdaterRefreshesAliasesAcrossStoppedRename(t *testing.T) {
 	store := &renameConfigUpdaterStore{workspaces: []entity.Workspace{{
-		ID:     "environment-1",
-		Name:   "old-instance-name",
-		Status: entity.Stopped,
+		ID: "environment-1", Name: "old-instance-name", Status: entity.Running,
+		SSHUser: "ubuntu", SSHHostname: "192.0.2.10", SSHPort: 22,
 	}}}
-	config := &capturedWorkspaceConfig{}
-	updater := NewConfigUpdater(store, []Config{config}, "private-key")
-
-	assert.NoError(t, updater.Run())
-	if !assert.Len(t, config.updates, 1) {
-		return
+	fs := makeMockFS()
+	updater := NewConfigUpdater(store, []Config{NewSSHConfigurerV2(fs)}, "private-key")
+	for _, step := range []struct {
+		name      string
+		status    string
+		wantAlias string
+	}{
+		{"old-instance-name", entity.Running, "old-instance-name"},
+		{"old-instance-name", entity.Stopped, ""},
+		{"new-instance-name", entity.Stopped, ""},
+		{"new-instance-name", entity.Running, "new-instance-name"},
+	} {
+		store.workspaces[0].Name = step.name
+		store.workspaces[0].Status = step.status
+		require.NoError(t, updater.Run())
+		config, err := fs.GetFileAsString("/home/test/.brev/ssh_config")
+		require.NoError(t, err)
+		for _, alias := range []string{"old-instance-name", "new-instance-name"} {
+			if alias == step.wantAlias {
+				assert.Contains(t, config, "Host "+alias+"\n")
+				assert.Contains(t, config, "Host "+alias+"-host\n")
+			} else {
+				assert.NotContains(t, config, "Host "+alias+"\n")
+				assert.NotContains(t, config, "Host "+alias+"-host\n")
+			}
+		}
 	}
-	assert.Empty(t, config.updates[0])
-
-	store.workspaces[0].Name = "new-instance-name"
-	assert.NoError(t, updater.Run())
-	if !assert.Len(t, config.updates, 2) {
-		return
-	}
-	assert.Empty(t, config.updates[1])
-
-	store.workspaces[0].Status = entity.Running
-	assert.NoError(t, updater.Run())
-	if !assert.Len(t, config.updates, 3) || !assert.Len(t, config.updates[2], 1) {
-		return
-	}
-	assert.Equal(t, "environment-1", config.updates[2][0].ID)
-	assert.Equal(t, "new-instance-name", config.updates[2][0].Name)
-	assert.Equal(t, "private-key", store.privateKey)
 }
 
 func makeMockFS() SSHConfigurerV2Store {
