@@ -14,6 +14,11 @@ import (
 type mockPortSelector struct {
 	choices []string
 	idx     int
+	input   string
+}
+
+func (m *mockPortSelector) InputLine(*terminal.Terminal, string) (string, error) {
+	return m.input, nil
 }
 
 func (m *mockPortSelector) Select(_ string, items []string) string {
@@ -59,14 +64,11 @@ func startPortOpenTestServer(t *testing.T) (mockNodeClientFactory, *openPortCapt
 }
 
 func TestResolveSSHAccessPort_noPortsOpensNew(t *testing.T) {
-	SetTestSSHPort(2222)
-	defer ClearTestSSHPort()
-
 	clients, cap := startPortOpenTestServer(t)
 	portID, err := ResolveSSHAccessPort(
 		context.Background(),
 		terminal.New(),
-		&mockPortSelector{},
+		&mockPortSelector{input: "2222"},
 		clients,
 		portOpenTestStore{token: "tok"},
 		&DeviceRegistration{ExternalNodeID: "unode_abc", OrgID: "org_1"},
@@ -111,11 +113,8 @@ func TestResolveSSHAccessPort_useExisting(t *testing.T) {
 }
 
 func TestResolveSSHAccessPort_openNewWhenPortsExist(t *testing.T) {
-	SetTestSSHPort(2222)
-	defer ClearTestSSHPort()
-
 	clients, cap := startPortOpenTestServer(t)
-	sel := &mockPortSelector{choices: []string{PortChoiceOpenNew}}
+	sel := &mockPortSelector{choices: []string{PortChoiceOpenNew}, input: "2222"}
 	portID, err := ResolveSSHAccessPort(
 		context.Background(),
 		terminal.New(),

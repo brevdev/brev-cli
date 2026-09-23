@@ -20,27 +20,36 @@ const (
 	globalRegistrationDir = "/etc/brev"
 )
 
+var ErrRegistrationNotFound = breverrors.New("device registration not found, run 'brev register' first")
+
+const (
+	RegistrationStatusPending    = "pending"
+	RegistrationStatusRegistered = "registered"
+)
+
 // DeviceRegistration is the persistent identity file for a registered device.
 // Fields align with the AddNodeResponse from dev-plane.
 type DeviceRegistration struct {
-	ExternalNodeID  string          `json:"external_node_id"`
-	DisplayName     string          `json:"display_name"`
-	OrgID           string          `json:"org_id"`
-	OrgName         string          `json:"org_name"`
-	DeviceID        string          `json:"device_id"`
-	RegisteredAt    string          `json:"registered_at"`
-	HardwareProfile HardwareProfile `json:"hardware_profile"`
+	ExternalNodeID       string          `json:"external_node_id"`
+	DisplayName          string          `json:"display_name"`
+	OrgID                string          `json:"org_id"`
+	OrgName              string          `json:"org_name"`
+	DeviceID             string          `json:"device_id"`
+	RegisteredAt         string          `json:"registered_at"`
+	HardwareProfile      HardwareProfile `json:"hardware_profile"`
+	Status               string          `json:"status,omitempty"`
+	CertificateAuthority string          `json:"certificate_authority,omitempty"`
 }
 
 // RegistrationStore defines the contract for persisting device registration data.
 type RegistrationStore interface {
 	Save(reg *DeviceRegistration) error
 	Load() (*DeviceRegistration, error)
+	LoadAll() (*DeviceRegistration, error)
 	Delete() error
 	Exists() (bool, error)
 }
 
-// FileRegistrationStore implements RegistrationStore using the global /etc/brev/ path.
 type FileRegistrationStore struct{}
 
 // NewFileRegistrationStore returns a FileRegistrationStore that reads/writes
@@ -72,22 +81,61 @@ func (s *FileRegistrationStore) Save(reg *DeviceRegistration) error {
 	return sudoWriteFile(path, data)
 }
 
-// Load reads the registration file and returns the parsed DeviceRegistration
+// Load returns the registration only if it is completed, any other status returns an error
 func (s *FileRegistrationStore) Load() (*DeviceRegistration, error) {
+	reg, err := s.LoadAll()
+	if err != nil {
+		return nil, err
+	}
+	if reg.Status != "" && reg.Status != RegistrationStatusRegistered {
+		return nil, breverrors.New("device registration is incomplete; re-run 'brev register' to finish")
+	}
+	return reg, nil
+}
+
+// LoadAll returns the registration regardless of status.
+func (s *FileRegistrationStore) LoadAll() (*DeviceRegistration, error) {
+	reg, err := read(s)
+	if err != nil {
+		if errors.Is(err, ErrRegistrationNotFound) {
+			return nil, err
+		}
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if err := validateRegistration(reg); err != nil {
+		return nil, err
+	}
+	return reg, nil
+}
+
+func validateRegistration(reg *DeviceRegistration) error {
+	switch reg.Status {
+	case "", RegistrationStatusRegistered:
+		if reg.ExternalNodeID == "" || reg.OrgID == "" {
+			return breverrors.New("malformed registration, try registering")
+		}
+	case RegistrationStatusPending:
+		if reg.OrgID == "" || reg.DeviceID == "" {
+			return breverrors.New("malformed registration, try re-registering")
+		}
+	default:
+		return fmt.Errorf("unknown registration status %q, try re-registering", reg.Status)
+	}
+	return nil
+}
+
+func read(s *FileRegistrationStore) (*DeviceRegistration, error) {
 	path := s.path()
 	exists, err := s.Exists()
 	if !exists {
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
-		return nil, breverrors.New("device registration not found, run 'brev register' first")
+		return nil, ErrRegistrationNotFound
 	}
 	var reg DeviceRegistration
 	if err := files.ReadJSON(files.AppFs, path, &reg); err != nil {
 		return nil, breverrors.WrapAndTrace(err)
-	}
-	if reg.ExternalNodeID == "" || reg.OrgID == "" {
-		return nil, breverrors.New("malformed registration")
 	}
 	return &reg, nil
 }

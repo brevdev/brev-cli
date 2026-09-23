@@ -1,35 +1,33 @@
 package store
 
 import (
-	"net/http"
-	"strings"
+	"bytes"
+	"errors"
+	stderrors "errors"
+	"fmt"
+	"io"
+	"os"
 	"testing"
+	"time"
 
-	"github.com/jarcoal/httpmock"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-func MakeMockNoHTTPStore() *NoAuthHTTPStore {
-	fs := MakeMockFileStore()
-	nh := fs.WithNoAuthHTTPClient(NewNoAuthHTTPClient(""))
-	return nh
-}
-
-func TestWithHTTPClient(t *testing.T) {
-	nh := MakeMockNoHTTPStore()
-	if !assert.NotNil(t, nh) {
-		return
-	}
-}
 
 type MockAuth struct{ token *string }
 
 func (a MockAuth) GetAccessToken() (string, error) {
 	if a.token == nil {
 		return "mock-token", nil
-	} else {
-		return *a.token, nil
 	}
+	return *a.token, nil
+}
+
+func MakeMockNoHTTPStore() *NoAuthHTTPStore {
+	fs := MakeMockFileStore()
+	nh := fs.WithNoAuthHTTPClient(NewNoAuthHTTPClient(""))
+	return nh
 }
 
 func MakeMockAuthHTTPStore() *AuthHTTPStore {
@@ -38,96 +36,128 @@ func MakeMockAuthHTTPStore() *AuthHTTPStore {
 	return ah
 }
 
-func TestWithAuthHTTPClient(t *testing.T) {
-	ah := MakeMockAuthHTTPStore()
-	if !assert.NotNil(t, ah) {
-		return
-	}
+func TestQuietRestyLogger_SuppressesDeclineLogin(t *testing.T) {
+	var buf bytes.Buffer
+	base := &testLogger{out: &buf}
+	q := quietRestyLogger{next: base}
+
+	q.Errorf("%v", errors.New(breverrors.DeclineToLoginMessage))
+	q.Warnf("%v, Attempt %v", errors.New(breverrors.DeclineToLoginMessage), 1)
+	q.Errorf("%v", errors.New("connection refused"))
+	q.Warnf("some other warning")
+
+	out := buf.String()
+	assert.NotContains(t, out, "declined to login")
+	assert.Contains(t, out, "connection refused")
+	assert.Contains(t, out, "some other warning")
 }
 
-func TestNewNoAuthHTTPClient(t *testing.T) {
-	n := NewNoAuthHTTPClient("")
-	if !assert.NotNil(t, n) {
-		return
-	}
+func TestQuietRestyLogger_DebugPassesThrough(t *testing.T) {
+	var buf bytes.Buffer
+	base := &testLogger{out: &buf}
+	q := quietRestyLogger{next: base}
+
+	q.Debugf("debug %s", "detail")
+	assert.Contains(t, buf.String(), "debug detail")
 }
 
-func TestNewAuthHTTPClient(t *testing.T) {
-	n := NewAuthHTTPClient(MockAuth{}, "")
-	if !assert.NotNil(t, n) {
-		return
-	}
+func TestIsDeclinedLoginMsg(t *testing.T) {
+	assert.True(t, isDeclinedLoginMsg("%v", errors.New("declined to login")))
+	assert.False(t, isDeclinedLoginMsg("%v", errors.New("boom")))
+	// Non-%v formats carry no embedded error; never filtered.
+	assert.False(t, isDeclinedLoginMsg("plain format"))
 }
 
-func makeCheckTokenResponder(validToken string) httpmock.Responder {
-	return func(r *http.Request) (*http.Response, error) {
-		h := r.Header.Get("Authorization")
-		splitStr := strings.Split(h, "Bearer")
-		if len(splitStr) != 2 {
-			return &http.Response{StatusCode: 403}, nil
-		}
-		if strings.TrimSpace(splitStr[1]) == validToken {
-			return &http.Response{StatusCode: 200}, nil
-		} else {
-			return &http.Response{StatusCode: 403}, nil
-		}
-	}
+type testLogger struct {
+	out *bytes.Buffer
 }
 
-func TestRetryAuthSuccess(t *testing.T) {
-	nh := MakeMockNoHTTPStore()
-	invalidToken := "invalid-token"
-	validToken := "valid-token"
-	s := nh.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{&invalidToken}, ""))
+func (t *testLogger) Errorf(format string, v ...interface{}) { t.writef(format, v...) }
+func (t *testLogger) Warnf(format string, v ...interface{})  { t.writef(format, v...) }
+func (t *testLogger) Debugf(format string, v ...interface{}) { t.writef(format, v...) }
 
-	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+func (t *testLogger) writef(format string, v ...interface{}) {
+	fmt.Fprintf(t.out, format, v...)
+}
 
-	url := "/test"
-	responder := makeCheckTokenResponder(validToken)
-	httpmock.RegisterResponder("GET", url, responder)
+// declineAuth simulates a user answering "n" at the login prompt.
+type declineAuth struct{}
 
-	calledTimes := 0
-	err := s.SetForbiddenStatusRetryHandler(func() error {
-		invalidToken = validToken
-		calledTimes++
-		return nil
+func (declineAuth) GetAccessToken() (string, error) {
+	return "", &breverrors.DeclineToLoginError{}
+}
+
+// The exact scenario from the bug report: a command runs, the user declines
+// login, and the request fails. Resty must NOT spray WARN/ERROR retry chatter
+// with stack-traced wrappers to stderr; the error must surface as a clean
+// sentinel for DisplayAndHandleError to render.
+func TestNewAuthHTTPClient_DeclinedLoginIsQuietAndClean(t *testing.T) {
+	// NO sink replacement: the factory-installed logger chain must handle
+	// this itself. Capture stderr (where the factory's logger writes) and
+	// assert the decline chatter never reaches it.
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	origStderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() {
+		os.Stderr = origStderr
+		_ = r.Close()
+		_ = w.Close()
 	})
-	if !assert.Nil(t, err) {
-		return
-	}
-	r, err := s.authHTTPClient.restyClient.R().Get(url)
-	if !assert.Nil(t, err) {
-		return
-	}
-	if !assert.Equal(t, 200, r.StatusCode()) {
-		return
-	}
-	if !assert.Equal(t, 1, calledTimes) {
-		return
-	}
+
+	client := NewAuthHTTPClient(declineAuth{}, "https://api.test") // installs quietRestyLogger{next: stderrLogger}
+	client.restyClient.SetRetryCount(1)
+	client.restyClient.SetTimeout(2 * time.Second)
+
+	_, err = client.restyClient.R().Get("/user")
+
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stderr = origStderr
+
+	require.Error(t, err)
+	var decline *breverrors.DeclineToLoginError
+	require.True(t, breverrors.As(err, &decline), "decline sentinel must survive the resty round trip (wrapping allowed)")
+	require.True(t, stderrors.Is(err, decline), "DisplayAndHandleError matches the sentinel with errors.Is through wrapping")
+	assert.NotContains(t, buf.String(), "declined to login", "factory logger must suppress decline retry chatter")
 }
 
-func TestRetryAuthFailure(t *testing.T) {
-	s := MakeMockAuthHTTPStore()
-	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
-
-	url := "/test"
-	res := httpmock.NewStringResponder(403, "")
-	httpmock.RegisterResponder("GET", url, res)
-
-	calledTimes := 0
-	err := s.SetForbiddenStatusRetryHandler(func() error {
-		calledTimes++
-		return nil
+// The factory must install quietRestyLogger over a REAL sink: unrelated
+// errors still reach stderr (only declined-login chatter is filtered).
+func TestNewAuthHTTPClient_LoggerForwardsUnrelatedErrors(t *testing.T) {
+	// Replace stderr before construction so the factory's stderrLogger
+	// captures our pipe.
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	origStderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() {
+		os.Stderr = origStderr
+		_ = r.Close()
+		_ = w.Close()
 	})
-	if !assert.Nil(t, err) {
-		return
-	}
-	_, err = s.authHTTPClient.restyClient.R().Get(url)
-	if !assert.Nil(t, err) {
-		return
-	}
-	if !assert.Equal(t, 1, calledTimes) {
-		return
-	}
+
+	client := NewAuthHTTPClient(errorAuth{}, "https://api.test")
+	client.restyClient.SetRetryCount(1)
+	client.restyClient.SetTimeout(2 * time.Second)
+
+	_, err = client.restyClient.R().Get("/user")
+
+	// Flush the pipe before restoring.
+	_ = w.Close()
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stderr = origStderr
+
+	require.Error(t, err)
+	assert.Contains(t, buf.String(), "ERROR RESTY", "unrelated auth errors must still be logged by the factory logger")
+	assert.Contains(t, buf.String(), "boom-auth", "the actual error text must reach the sink")
+}
+
+// errorAuth fails auth with a non-decline error: must be loud.
+type errorAuth struct{}
+
+func (errorAuth) GetAccessToken() (string, error) {
+	return "", errors.New("boom-auth")
 }

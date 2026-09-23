@@ -18,7 +18,10 @@ func IsStdoutPiped() bool {
 
 // IsStdinPiped returns true if stdin is being piped from another command
 func IsStdinPiped() bool {
-	stat, _ := os.Stdin.Stat()
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
 	return (stat.Mode() & os.ModeCharDevice) == 0
 }
 

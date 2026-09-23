@@ -17,36 +17,56 @@ type GetWorkspaceByNameOrIDErrStore interface {
 }
 
 func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
+	workspace, found, err := findUserWorkspaceByNameOrID(storeQ, workspaceNameOrID)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
+	}
+	return workspace, nil
+}
+
+// findUserWorkspaceByNameOrID distinguishes a missing workspace from lookup failures so callers
+// that support other target types only fall back after a confirmed absence.
+func findUserWorkspaceByNameOrID(
+	storeQ GetWorkspaceByNameOrIDErrStore,
+	workspaceNameOrID string,
+) (*entity.Workspace, bool, error) {
 	if auth.IsAPIKeyAuthStore(storeQ) {
 		org, err := storeQ.GetActiveOrganizationOrDefault()
 		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
+			return nil, false, breverrors.WrapAndTrace(err)
 		}
 		workspaces, err := storeQ.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
 		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
+			return nil, false, breverrors.WrapAndTrace(err)
 		}
-		return selectWorkspaceByNameOrID(workspaces, workspaceNameOrID)
+		if len(workspaces) == 0 {
+			return nil, false, nil
+		}
+		workspace, err := selectWorkspaceByNameOrID(workspaces, workspaceNameOrID)
+		return workspace, true, err
 	}
 
 	user, err := storeQ.GetCurrentUser()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, false, breverrors.WrapAndTrace(err)
 	}
 	org, err := storeQ.GetActiveOrganizationOrDefault()
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, false, breverrors.WrapAndTrace(err)
 	}
 	workspaces, err := storeQ.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
 	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+		return nil, false, breverrors.WrapAndTrace(err)
 	}
 
 	workspaces = store.FilterForUserWorkspaces(workspaces, user.ID)
 	if len(workspaces) == 0 {
-		return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
+		return nil, false, nil
 	}
-	return &workspaces[0], nil
+	return &workspaces[0], true, nil
 }
 
 func GetAnyWorkspaceByIDOrNameInActiveOrgErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {

@@ -154,6 +154,9 @@ func getExternalNodeSSHEntries(store RefreshStore) []ssh.ExternalNodeSSHEntry {
 	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
 		OrganizationId: org.ID,
+		Options: &nodev1.ListNodesOptions{
+			ExcludeConnectivityInfo: true,
+		},
 	}))
 	if err != nil {
 		return nil

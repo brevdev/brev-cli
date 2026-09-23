@@ -62,7 +62,7 @@ func set(orgName string, setStore SetStore) error {
 		return fmt.Errorf("can not set orgs in a workspace")
 	}
 	if auth.IsAPIKeyAuthStore(setStore) {
-		return breverrors.NewValidationError("api key auth is scoped to the org saved during login; run brev login --api-key <api-key> --org-id <org-id> to change it")
+		return breverrors.NewValidationError("api key auth is scoped to the org saved during login; run brev login --api-key <api-key> to change it")
 	}
 	orgs, err := setStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
 	if err != nil {

@@ -2,9 +2,13 @@ package deregister
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptest"
+	"os"
 	"os/user"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -14,6 +18,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/sshcert"
 	"github.com/brevdev/brev-cli/pkg/sudo"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
@@ -37,10 +42,37 @@ func (m *mockDeregisterStore) GetAccessToken() (string, error) { return m.token,
 type fakeNodeService struct {
 	nodev1connect.UnimplementedExternalNodeServiceHandler
 	removeNodeFn func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
+	listNodesFn  func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
+	getNodeFn    func(*nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error)
+}
+
+func (f *fakeNodeService) GetNode(_ context.Context, req *connect.Request[nodev1.GetNodeRequest]) (*connect.Response[nodev1.GetNodeResponse], error) {
+	if f.getNodeFn == nil {
+		// Default: certauth node (matches registration on this branch).
+		return connect.NewResponse(&nodev1.GetNodeResponse{
+			ExternalNode: &nodev1.ExternalNode{
+				ExternalNodeId: req.Msg.GetExternalNodeId(),
+				Labels:         map[string]string{"sshprovider": "certauth"},
+			},
+		}), nil
+	}
+	resp, err := f.getNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
 }
 
 func (f *fakeNodeService) RemoveNode(_ context.Context, req *connect.Request[nodev1.RemoveNodeRequest]) (*connect.Response[nodev1.RemoveNodeResponse], error) {
 	resp, err := f.removeNodeFn(req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
+
+func (f *fakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+	resp, err := f.listNodesFn(req.Msg)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +90,12 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 }
 
 func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
+	return nil, fmt.Errorf("unexpected call to Load")
+}
+
+func (m *mockRegistrationStore) LoadAll() (*register.DeviceRegistration, error) {
 	if m.reg == nil {
-		return nil, fmt.Errorf("no registration")
+		return nil, register.ErrRegistrationNotFound
 	}
 	return m.reg, nil
 }
@@ -111,16 +147,50 @@ func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider
 type mockSSHKeyRemover struct {
 	called  bool
 	err     error
+	removed bool
+}
+
+func (m *mockSSHKeyRemover) RemoveCertAuthority(_ *user.User, _, _ string) (bool, error) {
+	m.called = true
+	return m.removed, m.err
+}
+
+type mockLegacyKeyRemover struct {
+	called  bool
+	err     error
 	removed []string
 }
 
-func (m *mockSSHKeyRemover) RemoveBrevKeys(_ *user.User) ([]string, error) {
+func (m *mockLegacyKeyRemover) RemoveBrevKeys(_ *user.User) ([]string, error) {
 	m.called = true
 	return m.removed, m.err
 }
 
 // testDeregisterDeps returns deps with all side-effects stubbed. The
 // prompter defaults to confirming all prompts.
+func registeredReg() *register.DeviceRegistration {
+	return &register.DeviceRegistration{
+		ExternalNodeID: "unode_abc",
+		DisplayName:    "My Spark",
+		OrgID:          "org_123",
+		DeviceID:       "dev-uuid",
+		Status:         register.RegistrationStatusRegistered,
+	}
+}
+
+// runDeregisterCase absorbs scaffolding the tests repeat: the standard
+// store, deps, server lifecycle, terminal, and the non-interactive invocation.
+func runDeregisterCase(t *testing.T, regStore *mockRegistrationStore, svc *fakeNodeService, mutate ...func(*deregisterDeps)) error {
+	t.Helper()
+	store := &mockDeregisterStore{user: &entity.User{ID: "user_1"}, token: "tok"}
+	deps, server := testDeregisterDeps(t, svc, regStore)
+	defer server.Close()
+	for _, m := range mutate {
+		m(&deps)
+	}
+	return runDeregister(context.Background(), terminal.New(), store, deps, false)
+}
+
 func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.RegistrationStore) (deregisterDeps, *httptest.Server) {
 	t.Helper()
 
@@ -142,24 +212,17 @@ func testDeregisterDeps(t *testing.T, svc *fakeNodeService, regStore register.Re
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
 		sshKeys:           &mockSSHKeyRemover{},
+		legacyKeys:        &mockLegacyKeyRemover{},
+		currentUser: func() (*user.User, error) {
+			// Temp home: tests must never touch the developer's real
+			// authorized_keys.
+			return &user.User{HomeDir: t.TempDir(), Username: "testuser"}, nil
+		},
 	}, server
 }
 
 func Test_runDeregister_HappyPath(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-			DeviceID:       "dev-uuid",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	var gotNodeID string
 	svc := &fakeNodeService{
@@ -169,11 +232,7 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err != nil {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
@@ -193,30 +252,12 @@ func Test_runDeregister_HappyPath(t *testing.T) {
 }
 
 func Test_runDeregister_UserCancels(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	svc := &fakeNodeService{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	deps.prompter = mockSelector{fn: func(_ string, _ []string) string {
-		return "No, cancel"
-	}}
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.prompter = mockSelector{fn: func(_ string, _ []string) string { return "No, cancel" }}
+	})
 	if err != nil {
 		t.Fatalf("expected nil error on cancel, got: %v", err)
 	}
@@ -234,37 +275,18 @@ func Test_runDeregister_UserCancels(t *testing.T) {
 func Test_runDeregister_NotRegistered(t *testing.T) {
 	regStore := &mockRegistrationStore{}
 
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
-
 	svc := &fakeNodeService{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err == nil {
 		t.Fatal("expected error when not registered")
+	}
+	if !errors.Is(err, register.ErrRegistrationNotFound) {
+		t.Fatalf("expected ErrRegistrationNotFound, got: %v", err)
 	}
 }
 
 func Test_runDeregister_RemoveNodeFails(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
-		},
-	}
-
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
-	}
+	regStore := &mockRegistrationStore{reg: registeredReg()}
 
 	svc := &fakeNodeService{
 		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
@@ -272,16 +294,11 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 		},
 	}
 
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc)
 	if err == nil {
 		t.Fatal("expected error when RemoveNode fails")
 	}
 
-	// Registration should still exist (server-side removal failed)
 	exists, err := regStore.Exists()
 	if err != nil {
 		t.Fatalf("Exists error: %v", err)
@@ -291,34 +308,175 @@ func Test_runDeregister_RemoveNodeFails(t *testing.T) {
 	}
 }
 
-func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
-	regStore := &mockRegistrationStore{
-		reg: &register.DeviceRegistration{
-			ExternalNodeID: "unode_abc",
-			DisplayName:    "My Spark",
-			OrgID:          "org_123",
+func Test_runDeregister_RemoveNodeNotFound_ProceedsCleanup(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return nil, connect.NewError(connect.CodeNotFound, nil)
 		},
 	}
 
-	store := &mockDeregisterStore{
-		user: &entity.User{ID: "user_1"},
-
-		token: "tok",
+	err := runDeregisterCase(t, regStore, svc)
+	if err != nil {
+		t.Fatalf("NotFound should be treated as success (node already gone), got: %v", err)
 	}
 
+	exists, err := regStore.Exists()
+	if err != nil {
+		t.Fatalf("Exists error: %v", err)
+	}
+	if exists {
+		t.Error("expected local registration to be deleted even when RemoveNode returns NotFound")
+	}
+}
+
+func Test_runDeregister_PendingRegistration(t *testing.T) {
+	const deviceID = "dev-uuid-pending"
+	reg := &register.DeviceRegistration{
+		DisplayName: "My Spark",
+		OrgID:       "org_123",
+		DeviceID:    deviceID,
+		Status:      register.RegistrationStatusPending,
+	}
+
+	tests := []struct {
+		name          string
+		listNodesFn   func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error)
+		removeNodeFn  func(*nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error)
+		wantRemovedID string // empty = RemoveNode must not be called
+		wantRunErr    string // non-empty = runDeregister must fail with this substring
+	}{
+		{
+			name: "no backend node matches: cleans up locally without RemoveNode",
+			listNodesFn: func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+				return &nodev1.ListNodesResponse{}, nil
+			},
+			removeNodeFn: func(req *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+				return nil, fmt.Errorf("RemoveNode should not be called with empty ID %q", req.GetExternalNodeId())
+			},
+		},
+		{
+			name: "backend node recovered by device ID: removed",
+			listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+				return &nodev1.ListNodesResponse{
+					Items: []*nodev1.ExternalNode{
+						{ExternalNodeId: "unode_other", DeviceId: "dev-different"},
+						{ExternalNodeId: "unode_recovered", DeviceId: deviceID},
+					},
+				}, nil
+			},
+			removeNodeFn: func(req *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+				return &nodev1.RemoveNodeResponse{}, nil
+			},
+			wantRemovedID: "unode_recovered",
+		},
+		{
+			name: "ListNodes failure is fatal: deregister aborts, local state kept",
+			listNodesFn: func(*nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+				return nil, connect.NewError(connect.CodeInternal, nil)
+			},
+			wantRunErr: "failed to find pending node by device ID",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regStore := &mockRegistrationStore{reg: reg}
+			store := &mockDeregisterStore{user: &entity.User{ID: "user_1"}, token: "tok"}
+
+			var gotOrgID string
+			var removedNodeID string
+			svc := &fakeNodeService{
+				listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+					gotOrgID = req.GetOrganizationId()
+					return tt.listNodesFn(req)
+				},
+				removeNodeFn: func(req *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+					removedNodeID = req.GetExternalNodeId()
+					return tt.removeNodeFn(req)
+				},
+			}
+
+			deps, server := testDeregisterDeps(t, svc, regStore)
+			defer server.Close()
+
+			term := terminal.New()
+			err := runDeregister(context.Background(), term, store, deps, false)
+			if tt.wantRunErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantRunErr) {
+					t.Fatalf("expected error containing %q, got: %v", tt.wantRunErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("deregister failed: %v", err)
+			}
+
+			if gotOrgID != "org_123" {
+				t.Errorf("expected ListNodes scoped to org_123, got %q", gotOrgID)
+			}
+			if tt.wantRemovedID == "" {
+				if removedNodeID != "" {
+					t.Errorf("RemoveNode should not be called, got %q", removedNodeID)
+				}
+			} else if removedNodeID != tt.wantRemovedID {
+				t.Errorf("expected RemoveNode called with %q, got %q", tt.wantRemovedID, removedNodeID)
+			}
+
+			exists, _ := regStore.Exists()
+			if exists {
+				t.Error("expected local registration to be deleted")
+			}
+		})
+	}
+}
+
+func Test_findNodeByDeviceID_PaginatesUntilFound(t *testing.T) {
+	const deviceID = "dev-uuid-pending"
+	deps, server := testDeregisterDeps(t, &fakeNodeService{
+		listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			switch req.GetPageParams().GetPageToken() {
+			case "":
+				return &nodev1.ListNodesResponse{
+					Items:         []*nodev1.ExternalNode{{ExternalNodeId: "unode_page1", DeviceId: "dev-other"}},
+					NextPageToken: "page-2",
+				}, nil
+			case "page-2":
+				return &nodev1.ListNodesResponse{
+					Items:         []*nodev1.ExternalNode{{ExternalNodeId: "unode_page2", DeviceId: deviceID}},
+					NextPageToken: "",
+				}, nil
+			default:
+				return nil, fmt.Errorf("unexpected page token %q", req.GetPageParams().GetPageToken())
+			}
+		},
+	}, &mockRegistrationStore{})
+	defer server.Close()
+
+	nodeID, err := findNodeByDeviceID(context.Background(), storeToken("tok"), deps, "org_123", deviceID)
+	if err != nil {
+		t.Fatalf("findNodeByDeviceID failed: %v", err)
+	}
+	if nodeID != "unode_page2" {
+		t.Errorf("expected node from page 2, got %q", nodeID)
+	}
+}
+
+type storeToken string
+
+func (t storeToken) GetAccessToken() (string, error) { return string(t), nil }
+
+func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+
+	netbird := &mockNetBirdManager{}
 	svc := &fakeNodeService{
 		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
 			return &nodev1.RemoveNodeResponse{}, nil
 		},
 	}
 
-	netbird := &mockNetBirdManager{}
-	deps, server := testDeregisterDeps(t, svc, regStore)
-	defer server.Close()
-	deps.netbird = netbird
-
-	term := terminal.New()
-	err := runDeregister(context.Background(), term, store, deps, false)
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) { d.netbird = netbird })
 	if err != nil {
 		t.Fatalf("runDeregister failed: %v", err)
 	}
@@ -326,6 +484,22 @@ func Test_runDeregister_AlwaysUninstallsNetbird(t *testing.T) {
 	if !netbird.called {
 		t.Error("expected Brev tunnel uninstall to always be called during deregistration")
 	}
+}
+
+// seedAuthorizedKeys writes a cert-authority line for the given node into a
+// fresh temp authorized_keys file and returns the fake user pointing at it.
+func seedCertAuthorityUser(t *testing.T, nodeID string) *user.User {
+	t.Helper()
+	u := &user.User{HomeDir: t.TempDir(), Username: "testuser"}
+	sshDir := filepath.Join(u.HomeDir, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	line := fmt.Sprintf("cert-authority,principals=%q ssh-ed25519 TESTCA", sshcert.CertAuthorityPrincipal(nodeID, u.Username))
+	if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(line+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return u
 }
 
 func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
@@ -340,19 +514,11 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			regStore := &mockRegistrationStore{
-				reg: &register.DeviceRegistration{
-					ExternalNodeID: "unode_abc",
-					DisplayName:    "My Spark",
-					OrgID:          "org_123",
-				},
-			}
+			// Seed a local cert-authority line so mode detection picks the
+			// cert-authority cleanup path this test targets.
+			tempUser := seedCertAuthorityUser(t, "unode_abc")
 
-			store := &mockDeregisterStore{
-				user: &entity.User{ID: "user_1"},
-
-				token: "tok",
-			}
+			regStore := &mockRegistrationStore{reg: registeredReg()}
 
 			svc := &fakeNodeService{
 				removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
@@ -360,12 +526,10 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 				},
 			}
 
-			deps, server := testDeregisterDeps(t, svc, regStore)
-			defer server.Close()
-			deps.sshKeys = tt.sshKeys
-
-			term := terminal.New()
-			err := runDeregister(context.Background(), term, store, deps, false)
+			err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+				d.sshKeys = tt.sshKeys
+				d.currentUser = func() (*user.User, error) { return tempUser, nil }
+			})
 			if err != nil {
 				t.Fatalf("runDeregister failed: %v", err)
 			}
@@ -383,5 +547,103 @@ func Test_runDeregister_RemoveBrevKeysHandling(t *testing.T) {
 				t.Error("expected registration to be deleted")
 			}
 		})
+	}
+}
+
+func Test_runDeregister_LegacyNodeRemovesKeys(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+		getNodeFn: func(req *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return &nodev1.GetNodeResponse{
+				ExternalNode: &nodev1.ExternalNode{
+					ExternalNodeId: req.GetExternalNodeId(),
+					// No sshprovider label — legacy node.
+					Labels: map[string]string{},
+				},
+			}, nil
+		},
+	}
+
+	certMock := &mockSSHKeyRemover{}
+	legacyMock := &mockLegacyKeyRemover{removed: []string{"ssh-rsa OLD user@host"}}
+
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.sshKeys = certMock
+		d.legacyKeys = legacyMock
+	})
+	if err != nil {
+		t.Fatalf("runDeregister failed: %v", err)
+	}
+
+	if !legacyMock.called {
+		t.Error("expected RemoveBrevKeys to be called for legacy node")
+	}
+	if certMock.called {
+		t.Error("expected RemoveCertAuthority NOT to be called for legacy node")
+	}
+}
+
+func Test_runDeregister_CertAuthNodeRemovesCertAuthority(t *testing.T) {
+	// Mode detection is local: seed a cert-authority line in a temp
+	// authorized_keys.
+	tempUser := seedCertAuthorityUser(t, "unode_abc")
+
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+	}
+
+	certMock := &mockSSHKeyRemover{removed: true}
+	legacyMock := &mockLegacyKeyRemover{}
+
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.sshKeys = certMock
+		d.legacyKeys = legacyMock
+		d.currentUser = func() (*user.User, error) { return tempUser, nil }
+	})
+	if err != nil {
+		t.Fatalf("runDeregister failed: %v", err)
+	}
+
+	if !certMock.called {
+		t.Error("expected RemoveCertAuthority to be called for certauth node")
+	}
+	if legacyMock.called {
+		t.Error("expected RemoveBrevKeys NOT to be called for certauth node")
+	}
+}
+
+func Test_runDeregister_NodeLookupFailure_FallsBackToLocal(t *testing.T) {
+	regStore := &mockRegistrationStore{reg: registeredReg()}
+	svc := &fakeNodeService{
+		removeNodeFn: func(_ *nodev1.RemoveNodeRequest) (*nodev1.RemoveNodeResponse, error) {
+			return &nodev1.RemoveNodeResponse{}, nil
+		},
+		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
+			return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("backend down"))
+		},
+	}
+
+	certMock := &mockSSHKeyRemover{removed: true}
+	legacyMock := &mockLegacyKeyRemover{removed: []string{"ssh-rsa OLD"}}
+
+	err := runDeregisterCase(t, regStore, svc, func(d *deregisterDeps) {
+		d.sshKeys = certMock
+		d.legacyKeys = legacyMock
+	})
+	if err != nil {
+		t.Fatalf("runDeregister failed: %v", err)
+	}
+
+	if certMock.called {
+		t.Error("expected RemoveCertAuthority NOT to be called when no local cert-authority line exists")
+	}
+	if !legacyMock.called {
+		t.Error("expected RemoveBrevKeys to be called on lookup failure")
 	}
 }

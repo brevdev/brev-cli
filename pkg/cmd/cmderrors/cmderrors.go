@@ -1,6 +1,7 @@
 package cmderrors
 
 import (
+	stderrors "errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,11 @@ import (
 // determines if should print error stack trace and/or send to crash monitor
 
 func DisplayAndHandleError(err error) {
+	// A declined login prompt is not an error
+	if stderrors.Is(err, &breverrors.DeclineToLoginError{}) {
+		return
+	}
+
 	er := breverrors.GetDefaultErrorReporter()
 	er.AddBreadCrumb(breverrors.ErrReportBreadCrumb{
 		Type:     "default",
@@ -36,14 +42,14 @@ func DisplayAndHandleError(err error) {
 		switch errors.Cause(err).(type) {
 		case breverrors.ValidationError:
 			// do not report error
-			prettyErr = (t.Yellow(errors.Cause(err).Error()))
+			prettyErr = t.Yellow(errors.Cause(err).Error())
 		case breverrors.WorkspaceNotRunning: // report error to track when this occurs, but don't print stacktrace to user unless in dev mode
 			er.ReportError(err)
-			prettyErr = (t.Yellow(errors.Cause(err).Error()))
+			prettyErr = t.Yellow(errors.Cause(err).Error())
 		case *breverrors.NvidiaMigrationError:
 			// Handle nvidia migration error
 			if nvErr, ok := errors.Cause(err).(*breverrors.NvidiaMigrationError); ok {
-				fmt.Fprintln(os.Stderr, "\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
+				_, _ = fmt.Fprintln(os.Stderr, "\n This account has been migrated to NVIDIA Auth. Attempting to log in with NVIDIA account...")
 				brevBin, err1 := os.Executable()
 				if err1 == nil {
 					cmd := exec.Command(brevBin, "login", "--auth", "nvidia") // #nosec G204
@@ -73,9 +79,9 @@ func DisplayAndHandleError(err error) {
 			}
 		}
 		if showTrace && (featureflag.Debug() || featureflag.IsDev()) {
-			fmt.Fprintln(os.Stderr, err)
+			_, _ = fmt.Fprintln(os.Stderr, err)
 		} else {
-			fmt.Fprintln(os.Stderr, prettyErr)
+			_, _ = fmt.Fprintln(os.Stderr, prettyErr)
 		}
 	}
 }

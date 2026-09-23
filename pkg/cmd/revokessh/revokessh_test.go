@@ -44,10 +44,14 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 }
 
 func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
-	if m.reg == nil {
-		return nil, fmt.Errorf("no registration")
+	if m.reg == nil || m.reg.ExternalNodeID == "" || m.reg.OrgID == "" {
+		return nil, fmt.Errorf("no completed registration")
 	}
 	return m.reg, nil
+}
+
+func (m *mockRegistrationStore) LoadAll() (*register.DeviceRegistration, error) {
+	return nil, fmt.Errorf("unexpected call to LoadAll")
 }
 
 func (m *mockRegistrationStore) Delete() error {

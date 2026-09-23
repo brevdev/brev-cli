@@ -1,7 +1,9 @@
 package register
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -33,6 +35,20 @@ func (TerminalPrompter) Select(label string, items []string) string {
 		Label: label,
 		Items: items,
 	})
+}
+
+func (TerminalPrompter) InputLine(t *terminal.Terminal, label string) (string, error) {
+	t.Vprintf("  %s ", t.Green(label))
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("reading input: %w", err)
+	}
+	return line, nil
+}
+
+// Input prompts for free-form text input.
+func (TerminalPrompter) Input(pc terminal.PromptContent) string {
+	return terminal.PromptGetInput(pc)
 }
 
 // Netbird handles NetBird installation and uninstallation.

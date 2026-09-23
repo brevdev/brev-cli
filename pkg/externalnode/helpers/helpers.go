@@ -67,6 +67,9 @@ func ResolveNodeByName(ctx context.Context, nodeClient devplaneapiv1connect.Exte
 	// Fetch the list of nodes in the organization
 	resp, err := nodeClient.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 		OrganizationId: orgID,
+		Options: &nodev1.ListNodesOptions{
+			ExcludeConnectivityInfo: true,
+		},
 	}))
 	if err != nil {
 		return nil, fmt.Errorf("failed to list nodes: %w", err)

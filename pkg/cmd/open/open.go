@@ -89,7 +89,7 @@ You must have the editor installed in your path.`
   brev create my-cluster --count 3 | brev open
 
   # Create with specific GPU and open in Cursor
-  brev search --gpu-name A100 | brev create ml-box | brev open cursor
+  brev search --gpu-name A100 | brev create ml-box --stdin | brev open cursor
 
   # Open in a new terminal window with SSH
   brev create my-instance | brev open terminal

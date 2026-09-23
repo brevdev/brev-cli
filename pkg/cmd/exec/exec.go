@@ -34,6 +34,9 @@ var (
   brev exec my-instance @setup.sh
   brev exec my-instance @scripts/deploy.sh
 
+  # Run a background job
+  brev exec my-instance "nohup python train.py > /dev/null 2>&1 &"
+
   # Chain: create and run a command (reads instance names from stdin)
   brev create my-instance | brev exec "nvidia-smi"
 
@@ -57,8 +60,9 @@ type ExecStore interface {
 func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecStore) *cobra.Command {
 	var host bool
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"access": ""},
-		Use:                   "exec [instance...] <command>",
+		Annotations: map[string]string{"access": ""},
+		Use: `exec [instance...] "<command>"
+  brev exec [instance...] @<script-file-present-on-local>`,
 		DisableFlagsInUseLine: true,
 		Short:                 "Execute a command on instance(s)",
 		Long:                  execLong,

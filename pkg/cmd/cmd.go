@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
@@ -17,6 +18,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/deregister"
+	"github.com/brevdev/brev-cli/pkg/cmd/disablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/exec"
@@ -29,14 +31,17 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
+	"github.com/brevdev/brev-cli/pkg/cmd/launch"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
+	"github.com/brevdev/brev-cli/pkg/cmd/mintcert"
 	"github.com/brevdev/brev-cli/pkg/cmd/notebook"
 	"github.com/brevdev/brev-cli/pkg/cmd/ollama"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
+	"github.com/brevdev/brev-cli/pkg/cmd/ports"
 	"github.com/brevdev/brev-cli/pkg/cmd/profile"
 	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
 	"github.com/brevdev/brev-cli/pkg/cmd/redeem"
@@ -46,6 +51,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/revokessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/runtasks"
 	"github.com/brevdev/brev-cli/pkg/cmd/scale"
+	"github.com/brevdev/brev-cli/pkg/cmd/secrets"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/cmd/shell"
@@ -74,6 +80,7 @@ import (
 var (
 	userFlag      string
 	orgFlag       string
+	apiKeyFlag    string
 	printVersion  bool
 	noCheckLatest bool
 )
@@ -92,6 +99,9 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
 
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVar(&apiKeyFlag, "api-key", "", "api key to authenticate CLI requests")
+	_ = cmd.PersistentFlags().MarkHidden("api-key")
+	analytics.MarkFlagSensitive(cmd.PersistentFlags(), "api-key")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 
@@ -175,6 +185,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 					fmt.Println(v)
 				}
 			}
+			if apiKeyFlag != "" {
+				os.Setenv(auth.APIKeyEnvVar, apiKeyFlag)
+			}
 			if userFlag != "" {
 				_, err := noLoginCmdStore.WithUserID(userFlag)
 				if err != nil {
@@ -249,6 +262,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cobra.AddTemplateFunc("providerDependentCommands", providerDependentCommands)
 	cobra.AddTemplateFunc("hasAccessCommands", hasAccessCommands)
 	cobra.AddTemplateFunc("accessCommands", accessCommands)
+	cobra.AddTemplateFunc("hasNetworkingCommands", hasNetworkingCommands)
+	cobra.AddTemplateFunc("networkingCommands", networkingCommands)
 	cobra.AddTemplateFunc("hasOrganizationCommands", hasOrganizationCommands)
 	cobra.AddTemplateFunc("organizationCommands", organizationCommands)
 	cobra.AddTemplateFunc("hasConfigurationCommands", hasConfigurationCommands)
@@ -271,19 +286,21 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			memAuthenticator = kas
 		}
 	}
-	memAuthStore := &emailCachingAuthStore{
+	memLoginAuth := auth.NewLoginAuth(&emailCachingAuthStore{
 		MemoryAuthStore: store.NewMemoryAuthStore(),
 		fileStore:       fsStore,
-	}
-	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
+	}, memAuthenticator)
 	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
+	nodeAuth := externalNodeAuth{
+		memLoginAuth: memLoginAuth,
+	}
 
 	externalNodeCmdStore = fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
+	).WithAuth(nodeAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
-		_, err1 := memLoginAuth.GetAccessToken()
+		_, err1 := nodeAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
@@ -312,6 +329,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore))
 	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
+	cmd.AddCommand(ports.NewCmdPorts(loginCmdStore))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
 	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))
 	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
@@ -334,9 +352,11 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
 	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
 	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
+	cmd.AddCommand(launch.NewCmdLaunch(t, loginCmdStore))
 	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
 	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(mintcert.NewCmdMintCert(noLoginCmdStore))
 	cmd.AddCommand(exec.NewCmdExec(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(copy.NewCmdCopy(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
@@ -356,15 +376,16 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(deregister.NewCmdDeregister(t, externalNodeCmdStore))
 	cmd.AddCommand(upgrade.NewCmdUpgrade(t, noLoginCmdStore))
 	cmd.AddCommand(enablessh.NewCmdEnableSSH(t, externalNodeCmdStore))
+	cmd.AddCommand(disablessh.NewCmdDisableSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(grantssh.NewCmdGrantSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(revokessh.NewCmdRevokeSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
 	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
 	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
-
 	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
 	cmd.AddCommand(feedback.NewCmdFeedback(t, noLoginCmdStore))
+	cmd.AddCommand(secrets.NewCmdSecrets(t, loginCmdStore))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {
@@ -373,6 +394,10 @@ func hasWorkspaceCommands(cmd *cobra.Command) bool {
 
 func hasAccessCommands(cmd *cobra.Command) bool {
 	return len(accessCommands(cmd)) > 0
+}
+
+func hasNetworkingCommands(cmd *cobra.Command) bool {
+	return len(networkingCommands(cmd)) > 0
 }
 
 func hasOrganizationCommands(cmd *cobra.Command) bool {
@@ -408,7 +433,17 @@ func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
 func accessCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
-		if isAccessCommand(sub) {
+		if sub.IsAvailableCommand() && isAccessCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func networkingCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isNetworkingCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -475,6 +510,11 @@ func isAccessCommand(cmd *cobra.Command) bool {
 	return ok
 }
 
+func isNetworkingCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["networking"]
+	return ok
+}
+
 func isOrganizationCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["organization"]
 	return ok
@@ -537,6 +577,13 @@ Instance Access:
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
+{{- if hasNetworkingCommands . }}
+
+Networking:
+{{- range networkingCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
 {{- if hasOrganizationCommands . }}
 
 Organization Management:
@@ -572,9 +619,19 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
 
+type externalNodeAuth struct {
+	memLoginAuth *auth.LoginAuth
+}
+
+func (a externalNodeAuth) GetAccessToken() (string, error) {
+	token, err := a.memLoginAuth.GetFreshAccessTokenOrLogin()
+	return token, breverrors.WrapAndTrace(err)
+}
+
 var (
 	_ store.Auth     = auth.LoginAuth{}
 	_ store.Auth     = auth.NoLoginAuth{}
+	_ store.Auth     = externalNodeAuth{}
 	_ auth.AuthStore = store.FileStore{}
 	_ auth.AuthStore = &store.MemoryAuthStore{}
 	_ auth.AuthStore = &emailCachingAuthStore{}

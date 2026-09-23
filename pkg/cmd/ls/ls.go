@@ -59,7 +59,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 Subcommands:
   instances  List cloud instances
-  nodes      List external nodes only
+  nodes      List Brev Connect machines only
   orgs       List organizations
 
 When stdout is piped, outputs instance names only (one per line) for easy chaining
@@ -100,7 +100,7 @@ with other commands like stop, start, or delete.`,
 		},
 	}
 
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and external nodes in org")
+	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and Brev Connect machines in org")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
@@ -433,7 +433,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 			nodes, err = ls.listNodes(org)
 			if err != nil {
 				if featureflag.Debug() {
-					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list external nodes: %v\n", err)
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list Brev Connect machines: %v\n", err)
 				}
 			}
 		}()
@@ -481,7 +481,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	if showAll {
 		ls.ShowAllWorkspaces(org, orgs, workspacesToShow, gpuLookup)
 		if len(nodes) > 0 {
-			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+			ls.terminal.Vprintf("\nYou have %d Brev Connect machine(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 			displayNodesTable(ls.terminal, nodes, ls.piped)
 		}
 	} else {
@@ -720,7 +720,7 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-// NodeInfo represents external node data for JSON output.
+// NodeInfo represents Brev Connect machine data for JSON output.
 type NodeInfo struct {
 	Name   string `json:"name"`
 	OrgID  string `json:"org_id"`
@@ -738,7 +738,7 @@ func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error)
 	return resp.Msg.GetItems(), nil
 }
 
-// RunNodes lists external nodes for the given org.
+// RunNodes lists Brev Connect machines for the given org.
 func (ls Ls) RunNodes(org *entity.Organization) error {
 	nodes, err := ls.listNodes(org)
 	if err != nil {
@@ -753,7 +753,7 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 		if ls.piped {
 			return nil
 		}
-		ls.terminal.Vprint(ls.terminal.Yellow("No external nodes in this org."))
+		ls.terminal.Vprint(ls.terminal.Yellow("No Brev Connect machines in this org."))
 		return nil
 	}
 
@@ -761,7 +761,7 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 		return ls.outputNodesJSON(nodes)
 	}
 	if !ls.piped {
-		ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+		ls.terminal.Vprintf("\nYou have %d Brev Connect machine(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 	}
 	displayNodesTable(ls.terminal, nodes, ls.piped)
 	return nil

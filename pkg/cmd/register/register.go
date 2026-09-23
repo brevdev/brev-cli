@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/user"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +13,7 @@ import (
 	"connectrpc.com/connect"
 	"github.com/google/uuid"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -27,6 +28,7 @@ import (
 
 // RegisterStore defines the store methods needed by the register command.
 type RegisterStore interface {
+	auth.APIKeyAuthStore
 	GetCurrentUser() (*entity.User, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetOrganizationsByName(name string) ([]entity.Organization, error)
@@ -78,27 +80,45 @@ func defaultRegisterDeps() registerDeps {
 	}
 }
 
+func resolveAPIKey() string {
+	return strings.TrimSpace(os.Getenv(auth.APIKeyEnvVar))
+}
+
 var (
 	registerLong = `Register your device with NVIDIA Brev
 
-This command sets up network connectivity and registers this machine with Brev.
+This command registers this machine with Brev and brings up the Brev tunnel.
+Registration does not enable SSH; run 'brev enable-ssh' afterwards to enable SSH
+on this device, then 'brev grant-ssh' to grant users SSH access.
 
 Two modes are supported:
-  • Interactive (default): run 'brev register' with no flags and follow prompts for device name, org, and options.
-  • Non-interactive: use any of --name, --org, or --ssh-port. No prompts; --name and --org are required. Use for scripts/CI.`
+  • Interactive (default): run 'brev register' with no flags and follow prompts for device name and org.
+  • Non-interactive: use --name and --org. No prompts; --name is required, and
+    --org is required unless API-key auth is active. Use for scripts/CI.
+
+API-key auth: pass --api-key, set BREV_API_KEY, or first run 'brev login
+--api-key'. A key passed directly authenticates this register command only;
+run 'brev login --api-key' to save it. If no API-key auth is active, the
+login-link flow is used.`
 
 	registerExample = `  # Interactive (prompts for device name, org, confirmations)
   brev register
 
-  # Non-interactive (any flag implies no prompts; --name and --org required)
+  # Non-interactive with user auth
   brev register --name my-node --org my-org
-  brev register --name my-node --org my-org --ssh-port 22`
+
+  # Non-interactive with API-key auth (the org is derived from the key)
+  brev register --name my-node --api-key <api-key>
+
+  # Allow SSH on this device after registering
+  brev enable-ssh`
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	var nameFlag string
-	var sshPort int
+	var sshPort int // deprecated
 	var approveFlag bool
+	var registrationTokenFlag string
 
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
@@ -115,11 +135,11 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 			}
 			interactive := nameFlag == "" && orgFlag == "" && sshPort == 0
 			opts := registerOpts{
-				interactive: interactive,
-				name:        nameFlag,
-				orgName:     orgFlag,
-				sshPort:     int32(sshPort),
-				skipConfirm: approveFlag,
+				interactive:       interactive,
+				name:              nameFlag,
+				orgName:           orgFlag,
+				skipConfirm:       approveFlag,
+				registrationToken: registrationTokenFlag,
 			}
 			return runRegister(cmd.Context(), t, store, opts, defaultRegisterDeps())
 		},
@@ -128,22 +148,22 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")
+	cmd.Flags().StringVar(&registrationTokenFlag, "registration-token", "", "optional registration token passed to the register node API")
+	_ = cmd.Flags().MarkDeprecated("ssh-port", "use 'brev enable-ssh' after registration to enable SSH access")
 
 	return cmd
 }
 
-// registerOpts carries mode and inputs: when interactive, name/orgName/sshPort are from prompts; otherwise from flags.
+// registerOpts carries mode and inputs: when interactive, name/orgName are from prompts; otherwise from flags.
 type registerOpts struct {
-	interactive bool
-	name        string
-	orgName     string
-	sshPort     int32
-	skipConfirm bool
+	interactive       bool
+	name              string
+	orgName           string
+	skipConfirm       bool
+	registrationToken string
 }
 
-// runRegister runs a single registration flow; the only difference by mode is whether we prompt or use opts.
 func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opts registerOpts, deps registerDeps) error { //nolint:gocognit,gocyclo,funlen // ok
-	// Basic validation
 	if !deps.platform.IsCompatible() {
 		return breverrors.New("brev register is only supported on Linux")
 	}
@@ -151,28 +171,62 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 	if err := deps.gater.Gate(t, deps.prompter, "Device registration", !opts.interactive || opts.skipConfirm); err != nil {
 		return fmt.Errorf("sudo issue: %w", err)
 	}
+
+	apiKey := resolveAPIKey()
+	if apiKey != "" {
+		if !auth.IsBrevAPIKey(apiKey) {
+			return breverrors.NewValidationError(fmt.Sprintf("api key must be a Brev API key (expected %s prefix); see 'brev login --api-key'", auth.BrevAPIKeyPrefix))
+		}
+	}
+	apiKeyAuth := apiKey != "" || auth.IsAPIKeyAuthStore(s)
 	if !opts.interactive {
-		if opts.name == "" || opts.orgName == "" {
-			return fmt.Errorf("in non-interactive mode --name and --org are required")
+		if opts.name == "" {
+			return fmt.Errorf("in non-interactive mode --name is required")
+		}
+		if opts.orgName == "" && !apiKeyAuth {
+			return fmt.Errorf("in non-interactive mode --org is required unless using API-key auth")
 		}
 	}
 
-	// Run through the login flow
-	brevUser, err := s.GetCurrentUser()
-	if err != nil {
+	if err := isAuthenticated(s, apiKeyAuth); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	// Check if the device is already registered
-	alreadyRegistered, err := deps.registrationStore.Exists()
+	var intendedOrg *entity.Organization
+	switch {
+	case apiKeyAuth:
+		o, err := ResolveOrgForAPIKey(s, opts.orgName)
+		if err != nil {
+			return err
+		}
+		intendedOrg = o
+	case !opts.interactive:
+		o, err := resolveOrg(s, opts.orgName)
+		if err != nil {
+			return err
+		}
+		intendedOrg = o
+	}
+
+	// Check for an existing registration
+	exists, err := deps.registrationStore.Exists()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if alreadyRegistered {
-		return checkExistingRegistration(ctx, t, s, deps)
+	if exists {
+		reg, err := deps.registrationStore.LoadAll()
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if intendedOrg != nil && intendedOrg.ID != reg.OrgID {
+			return orgMismatchError(reg, intendedOrg)
+		}
+		if reg.Status == RegistrationStatusPending {
+			return resumeRegistration(ctx, t, s, deps, reg, opts.registrationToken)
+		}
+		return checkExistingRegistration(ctx, t, s, deps, reg)
 	}
 
-	// Capture the device name
 	var name string
 	if opts.interactive {
 		t.Vprint("")
@@ -189,13 +243,13 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
-	// Capture the target organization
+	// Non-interactive already resolved intendedOrg above; interactive prompts.
 	var org *entity.Organization
-	if opts.interactive {
+	if intendedOrg != nil {
+		org = intendedOrg
+	} else {
 		t.Vprint("")
 		org, err = resolveOrgInteractive(t, s, deps)
-	} else {
-		org, err = resolveOrg(s, opts.orgName)
 	}
 	if err != nil {
 		return err
@@ -228,48 +282,19 @@ func runRegister(ctx context.Context, t *terminal.Terminal, s RegisterStore, opt
 		}
 	}
 
-	// Perform the registration steps
-	reg, err := runRegisterSteps(ctx, t, s, name, org, deps)
-	if err != nil {
-		return err
-	}
-
-	// Determine if SSH access should be enabled
-	enableSSH := false
-	sshPortForGrant := int32(0)
-	if opts.interactive {
-		enableSSH = deps.prompter.ConfirmYesNo("Would you like to enable SSH access to this device?")
-		if enableSSH {
-			sshPortForGrant = 0 // prompt for port
-		}
-	} else if opts.sshPort != 0 {
-		enableSSH = true
-		sshPortForGrant = opts.sshPort
-	}
-
-	// Grant SSH access if requested
-	if enableSSH {
-		osUser, err := user.Current()
-		if err != nil {
-			return fmt.Errorf("failed to determine current Linux user: %w", err)
-		}
-		if err := grantSSHAccessWithPort(ctx, t, deps, s, reg, brevUser, osUser, sshPortForGrant, opts.interactive, opts.skipConfirm); err != nil {
-			t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: %v", err)))
-		}
-	}
-
-	return nil
+	// Generate the device ID here so a retry reuses it (AddNode is idempotent on device_id).
+	deviceID := uuid.New().String()
+	return runRegisterSteps(ctx, t, s, name, org, deps, deviceID, opts.registrationToken)
 }
 
-// runRegisterSteps performs netbird install, hardware profile, AddNode, save registration, and runSetup.
-// It does not prompt or enable SSH. Used by both flag-driven and prompt-driven flows.
-func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps) (*DeviceRegistration, error) {
+// runRegisterSteps runs tunnel install, hardware profile, AddNode, persist, and setup
+func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore, name string, org *entity.Organization, deps registerDeps, deviceID, registrationToken string) error {
 	t.Vprint("")
 
 	t.Vprint(t.Yellow("[Step 1/5] Downloading and installing Brev tunnel..."))
 	err := deps.netbird.Install()
 	if err != nil {
-		return nil, fmt.Errorf("brev tunnel setup failed: %w", err)
+		return fmt.Errorf("brev tunnel setup failed: %w", err)
 	}
 	t.Vprintf("%s  Brev tunnel ready.\n", t.Green("  ✓"))
 
@@ -277,7 +302,7 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 	t.Vprint(t.Yellow("[Step 2/5] Collecting hardware profile..."))
 	hwProfile, err := deps.hardwareProfiler.Profile()
 	if err != nil {
-		return nil, fmt.Errorf("failed to collect hardware profile: %w", err)
+		return fmt.Errorf("failed to collect hardware profile: %w", err)
 	}
 	t.Vprintf("%s  Hardware profile collected.\n", t.Green("  ✓"))
 	t.Vprint("")
@@ -286,39 +311,63 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 3/5] Registering device with Brev..."))
-	deviceID := uuid.New().String()
-	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	addResp, err := client.AddNode(ctx, connect.NewRequest(&nodev1.AddNodeRequest{
-		OrganizationId: org.ID,
-		Name:           name,
-		DeviceId:       deviceID,
-		NodeSpec:       toProtoNodeSpec(hwProfile),
-	}))
-	if err != nil {
-		// dev-plane returns CodeAlreadyExists for a duplicate node name; surface
-		// its message directly, which already reads as "node already exists".
-		var connectErr *connect.Error
-		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeAlreadyExists {
-			return nil, errors.New(connectErr.Message())
-		}
-		return nil, fmt.Errorf("failed to register node: %w", err)
-	}
 
-	node := addResp.Msg.GetExternalNode()
-	reg := &DeviceRegistration{
-		ExternalNodeID:  node.GetExternalNodeId(),
+	// A pending record written before AddNode (see resumeRegistration) makes the
+	// flow resumable: a crash/timeout after the node exists is retried with the
+	// same device ID, and AddNode is idempotent on device_id.
+	pending := &DeviceRegistration{
 		DisplayName:     name,
 		OrgID:           org.ID,
 		OrgName:         org.Name,
 		DeviceID:        deviceID,
-		RegisteredAt:    time.Now().UTC().Format(time.RFC3339),
 		HardwareProfile: *hwProfile,
+		Status:          RegistrationStatusPending,
+		RegisteredAt:    time.Now().UTC().Format(time.RFC3339),
+	}
+	if err := deps.registrationStore.Save(pending); err != nil {
+		return fmt.Errorf("failed to write pending registration: %w", err)
+	}
+
+	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	addReq := &nodev1.AddNodeRequest{
+		OrganizationId: org.ID,
+		Name:           name,
+		DeviceId:       deviceID,
+		NodeSpec:       toProtoNodeSpec(hwProfile),
+		Labels:         map[string]string{"sshprovider": "certauth"},
+	}
+	// RegistrationToken is an optional API field; only set it when provided.
+	if registrationToken != "" {
+		addReq.SetRegistrationToken(registrationToken)
+	}
+	addResp, err := client.AddNode(ctx, connect.NewRequest(addReq))
+	if err != nil {
+		var connectErr *connect.Error
+		if errors.As(err, &connectErr) && connectErr.Code() == connect.CodeAlreadyExists {
+			// delete pending registration to prevent stale dupe name
+			_ = deps.registrationStore.Delete()
+			return errors.New(connectErr.Message())
+		}
+		return fmt.Errorf("failed to register node: %w", err)
+	}
+
+	node := addResp.Msg.GetExternalNode()
+	reg := &DeviceRegistration{
+		ExternalNodeID:       node.GetExternalNodeId(),
+		DisplayName:          name,
+		OrgID:                org.ID,
+		OrgName:              org.Name,
+		DeviceID:             deviceID,
+		RegisteredAt:         time.Now().UTC().Format(time.RFC3339),
+		HardwareProfile:      *hwProfile,
+		Status:               RegistrationStatusRegistered,
+		CertificateAuthority: node.GetCertificateAuthority(),
 	}
 
 	t.Vprint("")
 	t.Vprint(t.Yellow("[Step 4/5] Storing registration data..."))
 	if err := deps.registrationStore.Save(reg); err != nil {
-		return nil, fmt.Errorf("node registered but failed to save locally: %w", err)
+		return fmt.Errorf("node registered but failed to save locally: %w", err)
 	}
 
 	t.Vprint("")
@@ -327,7 +376,10 @@ func runRegisterSteps(ctx context.Context, t *terminal.Terminal, s RegisterStore
 
 	t.Vprintf("%s  Node registered.\n", t.Green("  ✓"))
 	t.Vprintf("%s  Registration complete.\n", t.Green("  ✓"))
-	return reg, nil
+
+	t.Vprint("")
+	t.Vprintf("  %s\n", t.Green("To enable SSH access to this device, run: brev enable-ssh"))
+	return nil
 }
 
 func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerDeps) (*entity.Organization, error) {
@@ -342,6 +394,16 @@ func resolveOrgInteractive(t *terminal.Terminal, s RegisterStore, deps registerD
 	return org, nil
 }
 
+func isAuthenticated(s RegisterStore, apiKeyAuth bool) error {
+	if apiKeyAuth {
+		return nil
+	}
+	if _, err := s.GetCurrentUser(); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	return nil
+}
+
 func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
 	org, err := helpers.ResolveOrgByName(s, orgName)
 	if err != nil {
@@ -350,26 +412,36 @@ func resolveOrg(s RegisterStore, orgName string) (*entity.Organization, error) {
 	return org, nil
 }
 
-// checkExistingRegistration verifies connectivity for an already-registered node.
-// It calls GetNode to check the server-side NetworkMemberStatus and ensures the
-// local netbird service is running, starting it if necessary. Returns nil if
-// the node is healthy, or an error describing what's wrong.
-func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps) error {
-	reg, loadErr := deps.registrationStore.Load()
-	if loadErr != nil {
-		return fmt.Errorf("this machine is already registered but the registration file could not be read: %w", loadErr)
+func ResolveOrgForAPIKey(s auth.OrgLister, orgName string) (*entity.Organization, error) {
+	org, err := auth.ResolveAPIKeyOrganization(s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
+	if orgName != "" && org.Name != orgName {
+		return nil, breverrors.NewValidationError(fmt.Sprintf("api key does not belong to organization %q", orgName))
+	}
+	return org, nil
+}
 
+func orgMismatchError(reg *DeviceRegistration, intended *entity.Organization) error {
+	existing := "this device is already registered in org"
+	if reg.Status == RegistrationStatusPending {
+		existing = "an incomplete registration exists for org"
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"%s %s (%s), not %s (%s); run 'brev deregister' first to register in a different org",
+		existing, reg.OrgName, reg.OrgID, intended.Name, intended.ID))
+}
+
+func checkExistingRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps, reg *DeviceRegistration) error {
 	t.Vprint("")
 	t.Vprintf("  This machine is already registered as %s (%s).\n", reg.DisplayName, reg.ExternalNodeID)
 	t.Vprint("  Checking connectivity...")
 	t.Vprint("")
 
-	// Check server-side connectivity status via GetNode.
 	client := deps.nodeClients.NewNodeClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
 		ExternalNodeId: reg.ExternalNodeID,
-		OrganizationId: reg.OrgID,
 	}))
 	if err != nil {
 		t.Vprintf("  %s\n", t.Yellow(fmt.Sprintf("Warning: could not fetch node status: %v", err)))
@@ -426,58 +498,21 @@ func runSetup(node *nodev1.ExternalNode, t *terminal.Terminal, deps registerDeps
 	}
 }
 
-// grantSSHAccessWithPort enables SSH: shows confirm table, uses port or prompts if port is 0, then allocates port and grants access.
-func grantSSHAccessWithPort(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32, interactive bool, skipConfirm bool) error {
-	brevUserName := brevUser.Username
-	if brevUserName == "" {
-		brevUserName = brevUser.Email
-	}
-	if brevUserName == "" {
-		brevUserName = brevUser.ID
-	}
-
+// resumeRegistration reuses the pending record's device ID. AddNode is
+// idempotent on device_id, so this recovers when AddNode succeeded backend-side
+// but the CLI never confirmed the ExternalNodeID.
+func resumeRegistration(ctx context.Context, t *terminal.Terminal, s RegisterStore, deps registerDeps, pending *DeviceRegistration, registrationToken string) error {
 	t.Vprint("")
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
-	t.Vprint(t.White("  Enabling SSH access on this device"))
+	t.Vprint(t.White("  Resuming incomplete registration"))
 	t.Vprint(t.White("══════════════════════════════════════════════════"))
 	t.Vprint("")
-	if interactive && !skipConfirm {
-		t.Vprint(t.Green("  Please confirm before continuing:"))
-		t.Vprint("")
-	}
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(reg.DisplayName+" ("+reg.ExternalNodeID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(reg.OrgName+" ("+reg.OrgID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Brev user:")), t.BoldBlue(brevUserName+" ("+brevUser.ID+")"))
-	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Linux user:")), t.BoldBlue(osUser.Username))
-
-	var err error
-	if port == 0 {
-		t.Vprint("")
-		port, err = PromptSSHPort(t)
-		if err != nil {
-			return fmt.Errorf("invalid SSH port: %w", err)
-		}
-	} else {
-		t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "SSH port:")), t.BoldBlue(fmt.Sprintf("%d", port)))
-	}
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device:")), t.BoldBlue(pending.DisplayName))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Organization:")), t.BoldBlue(pending.OrgName+" ("+pending.OrgID+")"))
+	t.Vprintf("  %s %s\n", t.Green(fmt.Sprintf("%-14s", "Device ID:")), t.BoldBlue(pending.DeviceID))
 	t.Vprint("")
+	t.Vprint("  A previous registration attempt did not finish. Resuming.")
 
-	return grantSSHAccess(ctx, t, deps, tokenProvider, reg, brevUser, osUser, port)
-}
-
-func grantSSHAccess(ctx context.Context, t *terminal.Terminal, deps registerDeps, tokenProvider externalnode.TokenProvider, reg *DeviceRegistration, brevUser *entity.User, osUser *user.User, port int32) error {
-	brevPortID, err := OpenSSHPort(ctx, t, deps.nodeClients, tokenProvider, reg, port)
-	if err != nil {
-		return fmt.Errorf("allocate SSH port failed: %w", err)
-	}
-
-	err = SetupAndRegisterNodeSSHAccess(ctx, t, deps.nodeClients, tokenProvider, reg, brevUser, osUser.Username, brevPortID)
-	if err != nil {
-		return fmt.Errorf("grant SSH failed: %w", err)
-	}
-
-	t.Vprint("")
-	t.Vprint(t.Green(fmt.Sprintf("SSH access enabled. You can now SSH to this device via: brev shell %s", reg.DisplayName)))
-	t.Vprint("")
-	return nil
+	org := &entity.Organization{ID: pending.OrgID, Name: pending.OrgName}
+	return runRegisterSteps(ctx, t, s, pending.DisplayName, org, deps, pending.DeviceID, registrationToken)
 }
