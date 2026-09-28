@@ -125,6 +125,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		WithAuth(loginAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err := loginCmdStore.SetForbiddenStatusRetryHandler(func() error {
+		// A 403 may mean our memoized token is no longer accepted; drop it so
+		// the retry resolves credentials again instead of replaying the same one.
+		loginAuth.InvalidateAccessTokenCache()
 		_, err1 := loginAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
@@ -271,6 +274,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	).WithAuth(nodeAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
+		nodeAuth.memLoginAuth.InvalidateAccessTokenCache()
 		_, err1 := nodeAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)

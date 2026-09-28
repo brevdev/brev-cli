@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -98,6 +100,72 @@ type Auth struct {
 	oauth                OAuth
 	accessTokenValidator func(string) (bool, error)
 	shouldLogin          func() (bool, error)
+	// cache memoizes credential resolution for the lifetime of the process so
+	// that each HTTP request does not re-read credentials.json and re-parse the
+	// JWT. It is a pointer because LoginAuth/NoLoginAuth embed Auth by value;
+	// the pointer keeps every copy sharing one cache.
+	cache *tokenCache
+}
+
+// accessTokenSkew is how long before the JWT expiry a cached token is treated
+// as stale, so a request never leaves with a token that expires mid-flight.
+const accessTokenSkew = 30 * time.Second
+
+// tokenCache memoizes one credential resolution. Only a usable credential (an
+// API key or a valid access token) is ever cached: a "no credential" result is
+// deliberately not cached, because another part of the process (for example the
+// login that just ran) may write credentials to the same store afterwards.
+// A zero expires means the credential does not expire on its own.
+type tokenCache struct {
+	mu       sync.Mutex
+	resolved bool
+	token    string
+	expires  time.Time
+}
+
+// get returns the cached token and whether a usable resolution was cached.
+func (c *tokenCache) get(now time.Time) (string, bool) {
+	if c == nil {
+		return "", false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.resolved || c.token == "" {
+		return "", false
+	}
+	if !c.expires.IsZero() && !now.Before(c.expires) {
+		return "", false
+	}
+	return c.token, true
+}
+
+func (c *tokenCache) set(token string, expires time.Time) {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resolved = true
+	c.token = token
+	c.expires = expires
+}
+
+func (c *tokenCache) invalidate() {
+	if c == nil {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.resolved = false
+	c.token = ""
+	c.expires = time.Time{}
+}
+
+// InvalidateAccessTokenCache drops the memoized credential so the next request
+// resolves it again. Callers use it when a request failed in a way that a fresh
+// token (or a fresh read of credentials.json) could fix.
+func (t Auth) InvalidateAccessTokenCache() {
+	t.cache.invalidate()
 }
 
 const BrevAPIKeyPrefix = "bak-"
@@ -201,6 +269,7 @@ func NewAuth(authStore AuthStore, oauth OAuth) *Auth {
 		oauth:                oauth,
 		accessTokenValidator: isAccessTokenValid,
 		shouldLogin:          shouldLogin,
+		cache:                &tokenCache{},
 	}
 }
 
@@ -225,6 +294,7 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 		if err != nil {
 			return "", breverrors.WrapAndTrace(err)
 		}
+		t.cache.set(lt.AccessToken, cachedTokenExpiry(lt.AccessToken))
 		token = lt.AccessToken
 	}
 	return token, nil
@@ -235,6 +305,13 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 	if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
 		return key, nil
 	}
+	// The credentials file read and JWT parse below are pure functions of local
+	// state, so one resolution per process is enough. Every mutating path
+	// invalidates the cache.
+	if token, ok := t.cache.get(time.Now()); ok {
+		return token, nil
+	}
+
 	tokens, err := t.getSavedTokensOrNil()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -245,6 +322,7 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 
 	apiKey := strings.TrimSpace(tokens.APIKey)
 	if apiKey != "" {
+		t.cache.set(apiKey, time.Time{})
 		return apiKey, nil
 	}
 
@@ -262,12 +340,35 @@ func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
 			return "", breverrors.WrapAndTrace(err)
 		}
 		if tokens == nil {
+			// Do not cache: a later call in this process may still succeed once
+			// the credential is fixed.
 			return "", nil
 		}
+		t.cache.set(tokens.AccessToken, cachedTokenExpiry(tokens.AccessToken))
+		return tokens.AccessToken, nil
 	} else if tokens.RefreshToken == "" && tokens.AccessToken == "" {
 		return "", nil
 	}
+	if isAccessTokenValid {
+		t.cache.set(tokens.AccessToken, cachedTokenExpiry(tokens.AccessToken))
+	}
 	return tokens.AccessToken, nil
+}
+
+// cachedTokenExpiry converts a token's exp claim into the time the token stops
+// being safe to reuse, applying a skew so expiry mid-request cannot happen.
+// A zero result means "no expiry known"; the caller then does not cache it.
+func cachedTokenExpiry(token string) time.Time {
+	parser := jwt.Parser{}
+	claims := jwt.MapClaims{}
+	if _, _, err := parser.ParseUnverified(token, &claims); err != nil {
+		return time.Time{}
+	}
+	exp, err := claims.GetExpirationTime()
+	if err != nil || exp == nil {
+		return time.Time{}
+	}
+	return exp.Time.Add(-accessTokenSkew)
 }
 
 // Prompts for login and returns tokens, and saves to store
@@ -305,6 +406,7 @@ func (t Auth) LoginWithToken(token string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	t.cache.invalidate()
 	if valid {
 		err := t.authStore.SaveAuthTokens(entity.AuthTokens{
 			AccessToken:  token,
@@ -348,6 +450,7 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	t.cache.set(apiKey, time.Time{})
 	return nil
 }
 
@@ -404,6 +507,7 @@ func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
 		fmt.Println("")
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	t.cache.set(tokens.AccessToken, cachedTokenExpiry(tokens.AccessToken))
 
 	caretType := color.New(color.FgGreen, color.Bold).SprintFunc()
 	fmt.Println("")
@@ -413,6 +517,7 @@ func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
 }
 
 func (t Auth) Logout() error {
+	t.cache.invalidate()
 	err := t.authStore.DeleteAuthTokens()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -462,6 +567,8 @@ func (t Auth) getNewTokensWithRefreshOrNil(refreshToken string) (*entity.AuthTok
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
+	// The new token replaces whatever was cached from the old one.
+	t.cache.set(tokens.AccessToken, cachedTokenExpiry(tokens.AccessToken))
 
 	return tokens, nil
 }
