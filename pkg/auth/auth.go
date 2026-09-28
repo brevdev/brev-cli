@@ -100,11 +100,12 @@ type Auth struct {
 	shouldLogin          func() (bool, error)
 }
 
-const BrevAPIKeyPrefix = "bak-"
-
-const APIKeyEnvVar = "BREV_API_KEY"
-
-const MissingAPIKeyOrgIDMessage = "auth malformed; run brev login --api-key <api-key>"
+const (
+	BrevAPIKeyPrefix                              = "bak-"
+	APIKeyEnvVar                                  = "BREV_API_KEY"
+	MissingAPIKeyOrgIDMessage                     = "auth malformed; run brev login --api-key <api-key>"
+	APIKeyOrganizationOverrideNotSupportedMessage = "api key auth is scoped to the org saved during login; --org is not supported"
+)
 
 type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)

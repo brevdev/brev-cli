@@ -115,14 +115,13 @@ login-link flow is used.`
 )
 
 func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
-	var orgFlag string
 	var nameFlag string
 	var sshPort int // deprecated
 	var approveFlag bool
 	var registrationTokenFlag string
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
 		Use:                   "register",
 		DisableFlagsInUseLine: true,
 		Short:                 "Register this device with Brev",
@@ -130,6 +129,10 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		Example:               registerExample,
 		Args:                  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			orgFlag, err := cmd.Flags().GetString("org")
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			interactive := nameFlag == "" && orgFlag == "" && sshPort == 0
 			opts := registerOpts{
 				interactive:       interactive,
@@ -142,7 +145,6 @@ func NewCmdRegister(t *terminal.Terminal, store RegisterStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode unless using API-key auth)")
 	cmd.Flags().StringVarP(&nameFlag, "name", "n", "", "device name (required when using non-interactive mode)")
 	cmd.Flags().IntVarP(&sshPort, "ssh-port", "p", 0, "SSH port (if ssh access is desired)")
 	cmd.Flags().BoolVar(&approveFlag, "approve", false, "skip all confirmation prompts (assume yes)")

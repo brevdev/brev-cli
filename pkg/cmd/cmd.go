@@ -4,6 +4,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -11,6 +12,7 @@ import (
 	analyticscmd "github.com/brevdev/brev-cli/pkg/cmd/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/background"
 	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
@@ -77,10 +79,18 @@ import (
 
 var (
 	userFlag      string
+	orgFlag       string
 	apiKeyFlag    string
 	printVersion  bool
 	noCheckLatest bool
 )
+
+const externalNodeAuthAnnotation = "external-node-auth"
+
+func allowsOrgOverrideWithExternalAuth(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations[externalNodeAuthAnnotation]
+	return ok
+}
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
@@ -141,6 +151,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	analytics.SetUserStore(noLoginCmdStore)
 
+	var externalNodeCmdStore *store.AuthHTTPStore
 	cmds := &cobra.Command{
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -158,6 +169,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			analytics.RecordCommandStart(cmd, args)
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
+			if strings.TrimSpace(orgFlag) != "" && !allowsOrgOverrideWithExternalAuth(cmd) && auth.IsAPIKeyAuthStore(loginCmdStore) {
+				return breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+			}
 			// version info gets in the way of the output for
 			// configure-env-vars, since shells are going to eval it
 			if featureflag.ShowVersionOnRun() && !printVersion && cmd.Name() != "configure-env-vars" {
@@ -188,6 +202,21 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 					return breverrors.WrapAndTrace(err)
 				}
 
+			}
+			loginCmdStore.SetOrganizationOverride(nil)
+			noLoginCmdStore.SetOrganizationOverride(nil)
+			if externalNodeCmdStore != nil {
+				externalNodeCmdStore.SetOrganizationOverride(nil)
+			}
+			if strings.TrimSpace(orgFlag) != "" {
+				// Resolve the override lazily so commands using an in-memory
+				// authenticator (such as register) do not authenticate through
+				// loginCmdStore before their command handler runs.
+				loginCmdStore.SetOrganizationOverrideName(orgFlag)
+				noLoginCmdStore.SetOrganizationOverrideName(orgFlag)
+				if externalNodeCmdStore != nil {
+					externalNodeCmdStore.SetOrganizationOverrideName(orgFlag)
+				}
 			}
 			home, err := fsStore.GetBrevHomePath()
 			if err != nil {
@@ -266,7 +295,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		memLoginAuth: memLoginAuth,
 	}
 
-	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
+	externalNodeCmdStore = fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
 	).WithAuth(nodeAuth, store.WithDebug(conf.GetDebugHTTP()))
 
@@ -281,6 +310,13 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		fmt.Printf("%v\n", err)
 	}
 
+	cmds.PersistentFlags().StringVarP(&orgFlag, "org", "o", "", "Organization to use for this command (does not change the active organization)")
+	err = cmds.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(loginCmdStore, t))
+	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
+	}
+
 	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)
 
 	return cmds
@@ -290,8 +326,8 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore))
+	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
 	cmd.AddCommand(ports.NewCmdPorts(loginCmdStore))
 	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))

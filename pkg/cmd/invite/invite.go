@@ -2,30 +2,24 @@
 package invite
 
 import (
-	"fmt"
-
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 
 	"github.com/spf13/cobra"
 )
 
 type InviteStore interface {
-	completions.CompletionStore
 	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	CreateInviteLink(organizationID string) (string, error)
+	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 }
 
-func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInviteStore InviteStore) *cobra.Command {
-	var org string
-
+func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"organization": ""},
 		Use:         "invite",
@@ -45,7 +39,7 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 		},
 		Args: cmderrors.TransformToValidationError(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunInvite(t, loginInviteStore, org)
+			err := RunInvite(t, loginInviteStore)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -53,39 +47,16 @@ func NewCmdInvite(t *terminal.Terminal, loginInviteStore InviteStore, noLoginInv
 		},
 	}
 
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginInviteStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
-	}
-
 	return cmd
 }
 
-func RunInvite(t *terminal.Terminal, inviteStore InviteStore, orgflag string) error {
-	var org *entity.Organization
-	if orgflag != "" {
-		orgs, err := inviteStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return fmt.Errorf("no org found with name %s", orgflag)
-		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org found with name %s", orgflag)
-		}
-
-		org = &orgs[0]
-	} else {
-		currOrg, err := inviteStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if currOrg == nil {
-			return fmt.Errorf("no orgs exist")
-		}
-		org = currOrg
+func RunInvite(t *terminal.Terminal, inviteStore InviteStore) error {
+	org, err := inviteStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return breverrors.NewValidationError("no orgs exist")
 	}
 
 	token, err := inviteStore.CreateInviteLink(org.ID)

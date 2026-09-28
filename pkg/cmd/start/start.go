@@ -49,7 +49,6 @@ type StartStore interface {
 }
 
 func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore StartStore) *cobra.Command {
-	var org string
 	var name string
 	var detached bool
 	var empty bool
@@ -81,11 +80,11 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 
 			// If stdin is piped, handle multiple instances (only start existing stopped instances)
 			if stdinPiped && len(names) > 0 {
-				return runBatchStart(t, names, org, setupScript, setupRepo, setupPath, cpu, gpu, piped, startStore)
+				return runBatchStart(t, names, setupScript, setupRepo, setupPath, cpu, gpu, piped, startStore)
 			}
 
 			// Single instance mode (original behavior)
-			return runSingleStart(t, names, name, org, setupScript, setupRepo, setupPath, cpu, gpu, detached, piped, startStore)
+			return runSingleStart(t, names, name, setupScript, setupRepo, setupPath, cpu, gpu, detached, piped, startStore)
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -96,21 +95,14 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "takes a raw gist url to an env setup script")
 	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "repo that holds env setup script. you must pass in --setup-path if you use this argument")
 	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to env setup script. If you include --setup-repo we will apply this argument to that repo")
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	// GPU options
 	cmd.Flags().StringVarP(&gpu, "gpu", "g", "n1-highmem-4:nvidia-tesla-t4:1", "GPU instance type. Refer to https://docs.nvidia.com/brev/latest/quick-start.html#select-your-compute for more information")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
-	}
 	return cmd
 }
 
 type StartOptions struct {
 	RepoOrPathOrNameOrID string // todo make invidual options
 	Name                 string
-	OrgName              string
 	SetupScript          string
 	SetupRepo            string
 	SetupPath            string
@@ -291,30 +283,16 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 
 	// ensure org
 	var orgID string
-	if options.OrgName == "" {
-		activeorg, err := startStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if activeorg == nil {
-			return breverrors.NewValidationError("no org exist")
-		}
-		orgID = activeorg.ID
-	} else {
-		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: options.OrgName})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", options.OrgName))
-		} else if len(orgs) > 1 {
-			return breverrors.NewValidationError(fmt.Sprintf("more than one org with name %s", options.OrgName))
-		}
-		orgID = orgs[0].ID
+	activeorg, err := startStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+	if activeorg == nil {
+		return breverrors.NewValidationError("no org exist")
+	}
+	orgID = activeorg.ID
 
 	var setupScriptContents string
-	var err error
 	if len(options.SetupScript) > 0 {
 		contents, err1 := startStore.GetSetupScriptContentsByURL(options.SetupScript)
 		setupScriptContents += "\n" + contents
@@ -490,27 +468,14 @@ func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.T
 	}
 
 	var orgID string
-	if startOptions.OrgName == "" {
-		activeorg, err2 := startStore.GetActiveOrganizationOrDefault()
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
-		}
-		if activeorg == nil {
-			return breverrors.NewValidationError("no org exist")
-		}
-		orgID = activeorg.ID
-	} else {
-		orgs, err2 := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: startOptions.OrgName})
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err2)
-		}
-		if len(orgs) == 0 {
-			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", startOptions.OrgName))
-		} else if len(orgs) > 1 {
-			return breverrors.NewValidationError(fmt.Sprintf("more than one org with name %s", startOptions.OrgName))
-		}
-		orgID = orgs[0].ID
+	activeorg, err2 := startStore.GetActiveOrganizationOrDefault()
+	if err2 != nil {
+		return breverrors.WrapAndTrace(err2)
 	}
+	if activeorg == nil {
+		return breverrors.NewValidationError("no org exist")
+	}
+	orgID = activeorg.ID
 
 	err := createWorkspace(user, apiKeyAuth, t, newWorkspace, orgID, startStore, startOptions)
 	if err != nil {
@@ -650,14 +615,13 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 
 // runBatchStart handles starting multiple instances when stdin is piped.
 // Exit codes: 0 = all succeeded, 1 = all failed, 2 = partial failure.
-func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
+func runBatchStart(t *terminal.Terminal, names []string, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
 	var startedNames []string
 	var errs error
 	for _, instanceName := range names {
 		err := runStartWorkspace(t, StartOptions{
 			RepoOrPathOrNameOrID: instanceName,
 			Name:                 "",
-			OrgName:              org,
 			SetupScript:          setupScript,
 			SetupRepo:            setupRepo,
 			SetupPath:            setupPath,
@@ -685,7 +649,7 @@ func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setup
 }
 
 // runSingleStart handles starting a single instance (original behavior)
-func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript, setupRepo, setupPath, cpu, gpu string, detached, piped bool, startStore StartStore) error {
+func runSingleStart(t *terminal.Terminal, names []string, name, setupScript, setupRepo, setupPath, cpu, gpu string, detached, piped bool, startStore StartStore) error {
 	repoOrPathOrNameOrID := ""
 	if len(names) > 0 {
 		repoOrPathOrNameOrID = names[0]
@@ -694,7 +658,6 @@ func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript
 	err := runStartWorkspace(t, StartOptions{
 		RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
 		Name:                 name,
-		OrgName:              org,
 		SetupScript:          setupScript,
 		SetupRepo:            setupRepo,
 		SetupPath:            setupPath,

@@ -44,6 +44,31 @@ func TestGetActiveOrganization(t *testing.T) {
 	}
 }
 
+func TestGetActiveOrganizationOrDefault_UsesInvocationOverride(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	override := &entity.Organization{ID: "org-other", Name: "other"}
+	fs.SetOrganizationOverride(override)
+
+	org, err := fs.GetActiveOrganizationOrDefault()
+	require.NoError(t, err)
+	assert.Same(t, override, org)
+}
+
+func TestGetActiveOrganizationOrDefault_ResolvesNamedInvocationOverride(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	fs.SetOrganizationOverrideName("other")
+	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	expected := entity.Organization{ID: "org-other", Name: "other"}
+	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, httpmock.NewJsonResponderOrPanic(http.StatusOK, []entity.Organization{expected}))
+
+	org, err := fs.GetActiveOrganizationOrDefault()
+	require.NoError(t, err)
+	assert.Equal(t, &expected, org)
+}
+
 func TestGetOrganizations(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
@@ -132,6 +157,23 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {
 	require.NotNil(t, org)
 	assert.Equal(t, "org-api-key", org.ID)
 	assert.Equal(t, "org-api-key", org.Name)
+}
+
+func TestGetActiveOrganization_APIKeyRejectsInvocationOverride(t *testing.T) {
+	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
+	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
+		APIKey:      apiKey,
+		APIKeyOrgID: "org-api-key",
+	}))
+	s.SetOrganizationOverrideName("other")
+
+	org, err := s.GetActiveOrganizationOrDefault()
+
+	assert.Nil(t, org)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "api key auth is scoped")
 }
 
 func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testing.T) {

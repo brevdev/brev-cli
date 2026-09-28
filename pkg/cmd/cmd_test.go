@@ -32,6 +32,24 @@ func newTestFileStore(t *testing.T) *store.FileStore {
 	)
 }
 
+func TestNewDefaultBrevCommandRegistersGlobalOrgFlag(t *testing.T) {
+	cmd := NewDefaultBrevCommand()
+	flag := cmd.PersistentFlags().Lookup("org")
+	require.NotNil(t, flag)
+	assert.Equal(t, "o", flag.Shorthand)
+	_, registered := cmd.GetFlagCompletionFunc("org")
+	assert.True(t, registered)
+}
+
+func TestAllowsOrgOverrideWithExternalAuth(t *testing.T) {
+	for _, commandName := range []string{"register", "grant-ssh", "revoke-ssh"} {
+		assert.True(t, allowsOrgOverrideWithExternalAuth(&cobra.Command{Use: commandName, Annotations: map[string]string{externalNodeAuthAnnotation: ""}}))
+	}
+	for _, commandName := range []string{"deregister", "enable-ssh", "start"} {
+		assert.False(t, allowsOrgOverrideWithExternalAuth(&cobra.Command{Use: commandName}))
+	}
+}
+
 func newEmailCachingAuthStore(fs *store.FileStore) *emailCachingAuthStore {
 	return &emailCachingAuthStore{
 		MemoryAuthStore: store.NewMemoryAuthStore(),
