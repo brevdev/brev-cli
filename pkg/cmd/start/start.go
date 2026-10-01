@@ -372,9 +372,21 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 	return options
 }
 
+func validateWorkspaceStartable(workspace *entity.Workspace) error {
+	if workspace.InstanceTypeInfo != nil && workspace.InstanceTypeInfo.Stoppable {
+		return nil
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"instance %q does not support start.",
+		workspace.Name))
+}
+
 func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
 	if workspace.Status != entity.Stopped {
 		return breverrors.NewValidationError(fmt.Sprintf("Instance is not stopped status=%s", workspace.Status))
+	}
+	if err := validateWorkspaceStartable(workspace); err != nil {
+		return err
 	}
 	if startOptions.WorkspaceClass != "" {
 		return breverrors.NewValidationError("Instance already exists. Can not pass instance class flag to start stopped instance")
