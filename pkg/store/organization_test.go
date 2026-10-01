@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -13,6 +15,7 @@ import (
 	"connectrpc.com/connect"
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/jarcoal/httpmock"
 
@@ -69,6 +72,40 @@ func TestGetActiveOrganizationOrDefault_ResolvesNamedInvocationOverride(t *testi
 	assert.Equal(t, &expected, org)
 }
 
+// A cached active org that no longer resolves must not fail the command: the
+// first org in the list wins and the stale cache is repaired.
+func TestGetActiveOrganizationOrNil_StaleCachedOrgFallsBackToFirstOrg(t *testing.T) {
+	t.Setenv(authpkg.APIKeyEnvVar, "")
+	for _, status := range []int{404, 403} {
+		t.Run(fmt.Sprintf("cached org returns %d", status), func(t *testing.T) {
+			fileStore, _, _ := newAuthTokenTestStore(t)
+			s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{}, "https://api.test"))
+			httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+			defer httpmock.DeactivateAndReset()
+
+			require.NoError(t, s.SetDefaultOrganization(&entity.Organization{ID: "org-gone", Name: "gone"}))
+			base := s.authHTTPClient.restyClient.BaseURL
+			httpmock.RegisterResponder("GET", base+"/api/organizations/org-gone",
+				httpmock.NewStringResponder(status, `{"errors":[{"type":"NotFoundError","message":"organization not found"}]}`))
+			httpmock.RegisterResponder("GET", base+"/api/organizations",
+				httpmock.NewJsonResponderOrPanic(200, []entity.Organization{
+					{ID: "org-1", Name: "one"},
+					{ID: "org-2", Name: "two"},
+				}))
+
+			org, err := s.GetActiveOrganizationOrDefault()
+			require.NoError(t, err)
+			require.NotNil(t, org)
+			assert.Equal(t, "org-1", org.ID)
+
+			cached, err := s.GetCachedActiveOrganizationOrNil()
+			require.NoError(t, err)
+			require.NotNil(t, cached, "the stale cache should be replaced, not left behind")
+			assert.Equal(t, "org-1", cached.ID)
+		})
+	}
+}
+
 func TestGetOrganizations(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
 	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
@@ -114,7 +151,11 @@ func TestListOrganizationMembersUsesDevPlaneRPC(t *testing.T) {
 		},
 	}
 	_, handler := nodev1connect.NewOrganizationServiceHandler(svc)
-	server := httptest.NewServer(handler)
+	var gotQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		handler.ServeHTTP(w, r)
+	}))
 	defer server.Close()
 	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
 
@@ -133,6 +174,11 @@ func TestListOrganizationMembersUsesDevPlaneRPC(t *testing.T) {
 	assert.Equal(t, "org_123", gotOrgID)
 	assert.Equal(t, "user_1", members[0].GetUserId())
 	assert.True(t, strings.Contains(members[1].GetDefaultEmail(), "@"))
+
+	// dev-plane requests carry the same CLI attribution as the REST client.
+	assert.Equal(t, "cli", gotQuery.Get("utm_source"))
+	assert.Equal(t, version.Version, gotQuery.Get("cli_version"))
+	assert.Equal(t, runtime.GOOS, gotQuery.Get("os"))
 }
 
 func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {

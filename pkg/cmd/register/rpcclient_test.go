@@ -4,11 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"runtime"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 )
 
 type mockTokenProvider struct {
@@ -40,6 +44,39 @@ func Test_bearerTokenTransport_InjectsHeader(t *testing.T) {
 
 	if gotAuth != "Bearer test-token-123" {
 		t.Errorf("expected 'Bearer test-token-123', got %q", gotAuth)
+	}
+}
+
+func Test_bearerTokenTransport_AddsCLIAttributionParams(t *testing.T) {
+	var gotQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := newAuthenticatedHTTPClient(&mockTokenProvider{token: "t"})
+
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, server.URL+"/devplaneapi.v1.ExternalNodeService/ListNodes?connect=v1", nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // test
+
+	// Same attribution the REST client sends, so dev-plane sees one CLI identity.
+	if got := gotQuery.Get("utm_source"); got != "cli" {
+		t.Errorf("expected utm_source=cli, got %q", got)
+	}
+	if got := gotQuery.Get("cli_version"); got != version.Version {
+		t.Errorf("expected cli_version=%q, got %q", version.Version, got)
+	}
+	if got := gotQuery.Get("os"); got != runtime.GOOS {
+		t.Errorf("expected os=%q, got %q", runtime.GOOS, got)
+	}
+	// ConnectRPC's own protocol params must survive.
+	if got := gotQuery.Get("connect"); got != "v1" {
+		t.Errorf("expected existing query param to be preserved, got %q", got)
 	}
 }
 

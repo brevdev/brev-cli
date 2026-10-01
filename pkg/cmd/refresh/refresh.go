@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"sync"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
@@ -30,6 +31,7 @@ type RefreshStore interface {
 	GetCurrentUser() (*entity.User, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
+	GetContextWorkspacesFor(orgID string, userID string) ([]entity.Workspace, error)
 	GetAccessToken() (string, error)
 	Chmod(string, fs.FileMode) error
 	MkdirAll(string, fs.FileMode) error
@@ -110,14 +112,12 @@ func RunRefreshAsync(rstore RefreshStore) *RefreshRes {
 
 	res := RefreshRes{wg: &wg}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		err := RunRefresh(rstore)
 		if err != nil {
 			res.er = err
 		}
-	}()
+	})
 	return &res
 }
 
@@ -132,24 +132,49 @@ func GetConfigUpdater(store RefreshStore) (*ssh.ConfigUpdater, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	cu := ssh.NewConfigUpdater(workspaceSSHStore{RefreshStore: store}, configs, keys.PrivateKey)
-	cu.ExternalNodes = getExternalNodeSSHEntries(store)
+	identity := resolveRefreshIdentity(store)
+
+	cu := ssh.NewConfigUpdater(
+		workspaceSSHStore{RefreshStore: store, org: identity.org, user: identity.user},
+		configs,
+		keys.PrivateKey,
+	)
+	cu.ExternalNodes = getExternalNodeSSHEntries(store, identity)
 
 	return cu, nil
 }
 
-// getExternalNodeSSHEntries fetches external nodes and resolves their SSH details.
-// This is best-effort: if anything fails, it returns nil so workspace SSH config is unaffected.
-func getExternalNodeSSHEntries(store RefreshStore) []ssh.ExternalNodeSSHEntry {
+// refreshIdentity is the per-refresh identity
+type refreshIdentity struct {
+	org  *entity.Organization
+	user *entity.User
+}
+
+// resolveRefreshIdentity best-effort resolves the org and user. A nil org or user just means the steps that need them are skipped.
+func resolveRefreshIdentity(store RefreshStore) refreshIdentity {
+	var identity refreshIdentity
 	org, err := store.GetActiveOrganizationOrDefault()
 	if err != nil {
-		return nil
+		log.Printf("refresh: could not resolve active organization: %v", err)
+	} else {
+		identity.org = org
 	}
-
 	user, err := store.GetCurrentUser()
 	if err != nil {
+		log.Printf("refresh: could not resolve current user: %v", err)
+	} else {
+		identity.user = user
+	}
+	return identity
+}
+
+// getExternalNodeSSHEntries fetches external nodes and resolves their SSH details.
+// This is best-effort: if anything fails, it returns nil so workspace SSH config is unaffected.
+func getExternalNodeSSHEntries(store RefreshStore, identity refreshIdentity) []ssh.ExternalNodeSSHEntry {
+	if identity.org == nil || identity.user == nil {
 		return nil
 	}
+	org, user := identity.org, identity.user
 
 	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{

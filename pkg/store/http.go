@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
@@ -44,10 +46,54 @@ func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
 func NewRestyClient(brevAPIURL string) *resty.Client {
 	restyClient := resty.New()
 	restyClient.SetBaseURL(brevAPIURL)
-	restyClient.SetQueryParam("utm_source", "cli")
-	restyClient.SetQueryParam("cli_version", version.Version)
-	restyClient.SetQueryParam("os", runtime.GOOS)
+	for _, param := range cliAttributionParams {
+		restyClient.SetQueryParam(param[0], param[1])
+	}
 	return restyClient
+}
+
+// cliAttributionParams are the query parameters every Brev API request carries
+// so backend traffic can be attributed to a CLI build
+var cliAttributionParams = [][2]string{
+	{"utm_source", "cli"},
+	{"cli_version", version.Version},
+	{"os", runtime.GOOS},
+}
+
+// AddCLIAttributionParams adds the CLI attribution query params to an outbound
+// Brev API request, preserving whatever query string the caller already set.
+// Params already present are left alone.
+func AddCLIAttributionParams(req *http.Request) {
+	if req.URL == nil {
+		return
+	}
+	query := req.URL.RawQuery
+	for _, param := range cliAttributionParams {
+		if strings.Contains(query, param[0]+"=") {
+			continue
+		}
+		if query != "" {
+			query += "&"
+		}
+		query += param[0] + "=" + url.QueryEscape(param[1])
+	}
+	req.URL.RawQuery = query
+}
+
+// attributionTransport adds the CLI attribution params to requests that need no
+// authentication (for example the public instance-type API).
+type attributionTransport struct {
+	base http.RoundTripper
+}
+
+func (t attributionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	AddCLIAttributionParams(req)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp, nil
 }
 
 type AuthHTTPStore struct {
@@ -299,12 +345,7 @@ func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
 	switch err := err.(type) {
 	case *HTTPResponseError:
 		statusCode := err.Response.StatusCode()
-		for _, c := range statusCodes {
-			if c == statusCode {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(statusCodes, statusCode)
 	default:
 		return false
 	}
