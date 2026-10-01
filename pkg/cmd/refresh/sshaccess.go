@@ -25,18 +25,24 @@ type environmentSSHClient interface {
 
 type workspaceSSHStore struct {
 	RefreshStore
+	org  *entity.Organization
+	user *entity.User
 }
 
 func (s workspaceSSHStore) GetContextWorkspaces() ([]entity.Workspace, error) {
-	workspaces, err := s.RefreshStore.GetContextWorkspaces()
+	workspaces, err := s.contextWorkspaces()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	user, err := s.GetCurrentUser()
-	if err != nil {
-		log.Printf("workspace SSH access: using legacy configuration (current user lookup failed): %v", err)
-		return workspaces, nil
+	user := s.user
+	if user == nil {
+		var err error
+		user, err = s.GetCurrentUser()
+		if err != nil {
+			log.Printf("current user lookup failed: %v", err)
+			return workspaces, nil
+		}
 	}
 
 	client := register.NewEnvironmentServiceClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
@@ -44,6 +50,24 @@ func (s workspaceSSHStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	defer cancel()
 
 	return enrichWorkspacesWithSSHAccess(ctx, client, user.ID, workspaces), nil
+}
+
+// contextWorkspaces lists the workspaces for this refresh, reusing the identity
+// it already resolved instead of looking it up again inside the store.
+func (s workspaceSSHStore) contextWorkspaces() ([]entity.Workspace, error) {
+	if s.org != nil && s.user != nil {
+		workspaces, err := s.GetContextWorkspacesFor(s.org.ID, s.user.ID)
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return workspaces, nil
+	}
+
+	workspaces, err := s.RefreshStore.GetContextWorkspaces()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return workspaces, nil
 }
 
 func enrichWorkspacesWithSSHAccess(ctx context.Context, client environmentSSHClient, userID string, workspaces []entity.Workspace) []entity.Workspace {

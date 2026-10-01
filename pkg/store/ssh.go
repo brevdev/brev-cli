@@ -260,7 +260,23 @@ func VerifyPrivateKey(key []byte) error {
 	return nil
 }
 
-// Decide whether VM is still booting or something quite wrong is happening...
+// Determine whether VM is still booting or is broken. Only the "host is not accepting connections yet" class
+// of failures is worth retrying. Deliberately not matching on "Warning:", which also appears on
+// unrelated output and would mask permanent failures.
 func SatisfactorySSHErrMessage(stdErr string) bool {
-	return strings.Contains(stdErr, "Connection refused") || strings.Contains(stdErr, "Operation timed out") || strings.Contains(stdErr, "Warning:") || strings.Contains(stdErr, "Connection timed out")
+	retryable := []string{
+		"Connection refused",
+		"Connection timed out",
+		"Operation timed out",
+		"No route to host",
+		"Connection reset by peer",
+		"Connection closed by remote host",
+		"kex_exchange_identification",
+	}
+	for _, m := range retryable {
+		if strings.Contains(stdErr, m) {
+			return true
+		}
+	}
+	return false
 }
