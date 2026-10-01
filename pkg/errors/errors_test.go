@@ -234,3 +234,15 @@ func Test_combine(t *testing.T) {
 
 	assert.Equal(t, "my error 1", cerr.Error())
 }
+
+func TestIsTraced(t *testing.T) {
+	err := New("boom")
+	assert.False(t, IsTraced(err))
+	assert.False(t, IsTraced(nil))
+
+	// WrapAndTrace embeds the frames, so logging with %v prints the chain.
+	traced := WrapAndTrace(err)
+	assert.True(t, IsTraced(traced))
+	assert.True(t, IsTraced(WrapAndTrace(traced)), "still spotted through nested wraps")
+	assert.Equal(t, "boom", pkgerrors.Cause(traced).Error())
+}

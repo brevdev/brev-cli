@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	stderrors "errors"
@@ -264,6 +265,10 @@ func WrapAndTraceInMsg(err error) error {
 	return pkgerrors.Wrap(err, makeErrorMessage("", 0)) // this wrap also adds a stacktrace which can be nice
 }
 
+// traceMessagePrefix heads every makeErrorMessage. WrapAndTrace keeps its
+// frames in the message, so printing a wrapped error with %v dumps the chain.
+const traceMessagePrefix = "[error] "
+
 func makeErrorMessage(message string, skip int) string {
 	skip += 2
 	pc, file, line, _ := runtime.Caller(skip)
@@ -275,7 +280,13 @@ func makeErrorMessage(message string, skip int) string {
 	}
 
 	lineNum := strconv.Itoa(line)
-	return fmt.Sprintf("[error] %s\n%s\n%s:%s\n", message, funcName, file, lineNum)
+	return fmt.Sprintf("%s%s\n%s\n%s:%s\n", traceMessagePrefix, message, funcName, file, lineNum)
+}
+
+// IsTraced reports whether WrapAndTrace touched err, i.e. its message embeds
+// stack frames and is unfit to print raw. Print Cause(err) instead.
+func IsTraced(err error) bool {
+	return err != nil && strings.Contains(err.Error(), traceMessagePrefix)
 }
 
 // logger.L().Error("", zap.Error(err))
