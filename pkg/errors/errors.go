@@ -295,3 +295,12 @@ func (e NvidiaMigrationError) Directive() string {
 func NewNvidiaMigrationError(msg string) *NvidiaMigrationError {
 	return &NvidiaMigrationError{Message: msg}
 }
+
+// RemoteExitError means a command ran over SSH and exited non-zero; Code is its exit status.
+type RemoteExitError struct {
+	Code int
+}
+
+func (e RemoteExitError) Error() string {
+	return fmt.Sprintf("command exited with status %d", e.Code)
+}
