@@ -119,12 +119,7 @@ func (s AuthHTTPStore) UpdateUser(userID string, updatedUser *entity.UpdateUser)
 	return &result, nil
 }
 
-// 	userIDParamName = "userID"
-// 	userIDParamStr  = fmt.Sprintf("{%s}", userIDParamName)
-
 var usersIDPathPattern = fmt.Sprintf("%s/%s", usersPath, "%s")
-
-// usersIDPath        = fmt.Sprintf(usersIDPathPattern, fmt.Sprintf("{%s}", userIDParamStr))
 
 func (s AuthHTTPStore) GetUserByID(userID string) (*entity.User, error) {
 	var result entity.User

@@ -413,6 +413,38 @@ func TestStandardLogin_APIKeyCredentialDoesNotProbeOAuthProviders(t *testing.T) 
 	assert.Empty(t, string(out))
 }
 
+func TestStandardLogin_UnknownCredentialDoesNotPrint(t *testing.T) {
+	for _, token := range []string{BrevAPIKeyPrefix + "legacy-key", "auto-login"} {
+		t.Run(token, func(t *testing.T) {
+			oldStdout := os.Stdout
+			t.Cleanup(func() {
+				os.Stdout = oldStdout
+			})
+			readPipe, writePipe, err := os.Pipe()
+			require.NoError(t, err)
+			os.Stdout = writePipe
+
+			authenticator := StandardLogin("", "", &entity.AuthTokens{
+				AccessToken:  token,
+				RefreshToken: "refresh-token",
+			})
+
+			assert.NoError(t, writePipe.Close())
+			os.Stdout = oldStdout
+			out, err := io.ReadAll(readPipe)
+			assert.NoError(t, err)
+			assert.Empty(t, string(out))
+			_, ok := authenticator.(KasAuthenticator)
+			assert.True(t, ok, "unrecognized credential must fall back to the default provider")
+		})
+	}
+}
+
+func TestOAuthRetrieverGetByToken_NoMatchReturnsSentinel(t *testing.T) {
+	_, err := NewOAuthRetriever(nil).GetByToken("not-a-jwt")
+	assert.ErrorIs(t, err, ErrNoOAuthForToken)
+}
+
 func TestSuccessNoRefreshGetFreshAccessTokenOrLogin(t *testing.T) {
 	s := MockAuthStore{authTokens: &entity.AuthTokens{
 		AccessToken:  validToken,
