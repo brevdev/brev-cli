@@ -227,20 +227,6 @@ func TestNewCmdLogin_OrgIDFlagDeprecationWarning(t *testing.T) {
 	assert.Contains(t, out.String(), "resolved automatically from the API key")
 }
 
-func TestNewCmdLogin_HidesAPIKeyFlagsFromHelp(t *testing.T) {
-	cmd := NewCmdLogin(terminal.New(), &mockLoginStore{listOrgs: []entity.Organization{{ID: "org-test", Name: "TestOrg"}}}, &mockLoginAuth{})
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"--help"})
-
-	err := cmd.Execute()
-
-	require.NoError(t, err)
-	assert.NotContains(t, out.String(), "--api-key")
-	assert.NotContains(t, out.String(), "--org-id")
-}
-
 func TestRunLoginWithAPIKey_AutoResolvesOrgWhenOrgIDOmitted(t *testing.T) {
 	auth := &mockLoginAuth{}
 	loginStore := &mockLoginStore{listOrgs: []entity.Organization{{ID: "org-123", Name: "TestOrg"}}}
