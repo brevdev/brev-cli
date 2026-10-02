@@ -9,8 +9,6 @@ import (
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/sshcert"
@@ -45,7 +43,7 @@ func (s workspaceSSHStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 		}
 	}
 
-	client := register.NewEnvironmentServiceClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	client := s.DevPlane().Environments
 	ctx, cancel := context.WithTimeout(context.Background(), sshAccessLookupTimeout)
 	defer cancel()
 

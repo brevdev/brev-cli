@@ -10,6 +10,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -24,6 +25,7 @@ type MockGPUCreateStore struct {
 	Workspaces                map[string]*entity.Workspace
 	CreateError               error
 	CreateErrorTypes          map[string]error // Errors for specific instance types
+	EnvironmentStatuses       map[string]environment.Status
 	DeleteError               error
 	CreatedOptions            []*store.CreateWorkspacesOptions
 	CreatedWorkspaces         []*entity.Workspace
@@ -43,6 +45,7 @@ func NewMockGPUCreateStore() *MockGPUCreateStore {
 		},
 		Workspaces:          make(map[string]*entity.Workspace),
 		CreateErrorTypes:    make(map[string]error),
+		EnvironmentStatuses: make(map[string]environment.Status),
 		CreatedWorkspaces:   []*entity.Workspace{},
 		DeletedWorkspaceIDs: []string{},
 	}
@@ -60,14 +63,11 @@ func (m *MockGPUCreateStore) GetActiveOrganizationOrDefault() (*entity.Organizat
 	return m.Org, nil
 }
 
-func (m *MockGPUCreateStore) GetWorkspace(workspaceID string) (*entity.Workspace, error) {
-	if ws, ok := m.Workspaces[workspaceID]; ok {
-		return ws, nil
+func (m *MockGPUCreateStore) GetEnvironmentStatus(environmentID string) (environment.Status, error) {
+	if status, ok := m.EnvironmentStatuses[environmentID]; ok {
+		return status, nil
 	}
-	return &entity.Workspace{
-		ID:     workspaceID,
-		Status: entity.Running,
-	}, nil
+	return environment.Status{}, nil
 }
 
 func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error) {
@@ -108,7 +108,12 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 }
 
 func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	return nil, nil
+	return &gpusearch.AllInstanceTypesResponse{
+		AllInstanceTypes: []gpusearch.InstanceType{
+			{Type: "test.fail.quota", CloudCredID: "testkube-brev-test"},
+			{Type: "g5.xlarge", CloudCredID: "cc-shadeform"},
+		},
+	}, nil
 }
 
 func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
@@ -1057,11 +1062,11 @@ func TestFormatInstanceSpecs(t *testing.T) {
 
 func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {
 	store := NewMockGPUCreateStore()
-	store.Workspaces["ws-failed"] = &entity.Workspace{
-		ID:            "ws-failed",
-		Name:          "test",
-		Status:        entity.Failure,
-		StatusMessage: "unexpected end of JSON input",
+	store.EnvironmentStatuses["ws-failed"] = environment.Status{
+		Name:    "test",
+		Display: entity.Failure,
+		Failed:  true,
+		Message: "unexpected end of JSON input",
 	}
 
 	ctx := &createContext{
@@ -1072,6 +1077,130 @@ func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {
 	err := ctx.pollUntilReady("ws-failed")
 
 	assert.ErrorContains(t, err, "instance test failed: unexpected end of JSON input")
+}
+
+func TestWaitForInstancesReturnsErrorOnTerminalFailure(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	failed := &entity.Workspace{ID: "ws-failed", Name: "failed-instance"}
+	mock.EnvironmentStatuses[failed.ID] = environment.Status{
+		Name:    failed.Name,
+		Display: entity.Failure,
+		Failed:  true,
+		Message: "out of quota in the region fulfill the request, InsufficientQuota",
+	}
+
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Timeout: time.Second},
+		logf:  func(string, ...interface{}) {},
+	}
+
+	err := ctx.waitForInstances([]*entity.Workspace{failed})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "1/1 instance(s) failed to become ready")
+	assert.ErrorContains(t, err, "failed-instance")
+	assert.ErrorContains(t, err, "InsufficientQuota")
+}
+
+func TestWaitForInstancesTreatsTimeoutAsWarning(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	pending := &entity.Workspace{ID: "ws-pending", Name: "pending"}
+
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Timeout: 0}, // deadline already elapsed: immediate timeout
+		logf:  func(string, ...interface{}) {},
+	}
+
+	assert.NoError(t, ctx.waitForInstances([]*entity.Workspace{pending}))
+}
+
+func TestRunGPUCreateReturnsErrorWhenProvisioningFails(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.EnvironmentStatuses["ws-repro"] = environment.Status{
+		Name:    "repro",
+		Display: entity.Failure,
+		Failed:  true,
+		Message: "out of quota in the region fulfill the request, InsufficientQuota",
+	}
+
+	err := RunGPUCreate(terminal.New(), mock, GPUCreateOptions{
+		Name:          "repro",
+		Count:         1,
+		Parallel:      1,
+		InstanceTypes: []InstanceSpec{{Type: "test.fail.quota"}},
+		Timeout:       time.Second,
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "failed to become ready")
+	assert.ErrorContains(t, err, "InsufficientQuota")
+}
+
+func TestRunGPUCreateSucceedsWhenWorkspaceBecomesReady(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.EnvironmentStatuses["ws-ok"] = environment.Status{
+		Name:    "ok",
+		Display: entity.Running,
+		Ready:   true,
+	}
+
+	err := RunGPUCreate(terminal.New(), mock, GPUCreateOptions{
+		Name:          "ok",
+		Count:         1,
+		Parallel:      1,
+		InstanceTypes: []InstanceSpec{{Type: "g5.xlarge"}},
+		Timeout:       time.Second,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, mock.CreatedWorkspaces, 1)
+}
+
+func TestPollUntilReadyUsesDevPlaneEnvironmentStatus(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.EnvironmentStatuses["ws-x"] = environment.Status{
+		Name:    "x",
+		Display: entity.Failure,
+		Failed:  true,
+		Message: "out of quota",
+	}
+
+	ctx := &createContext{
+		t:     terminal.New(),
+		store: mock,
+		opts:  GPUCreateOptions{Timeout: time.Second},
+		logf:  func(string, ...interface{}) {},
+	}
+
+	err := ctx.pollUntilReady("ws-x")
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "instance x failed: out of quota")
+}
+
+func TestRunGPUCreateFailsWhenDevPlaneEnvironmentFails(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	mock.EnvironmentStatuses["ws-repro"] = environment.Status{
+		Name:    "repro",
+		Display: entity.Failure,
+		Failed:  true,
+		Message: "out of quota in the region fulfill the request, InsufficientQuota",
+	}
+
+	err := RunGPUCreate(terminal.New(), mock, GPUCreateOptions{
+		Name:          "repro",
+		Count:         1,
+		Parallel:      1,
+		InstanceTypes: []InstanceSpec{{Type: "test.fail.quota"}},
+		Timeout:       time.Second,
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "InsufficientQuota")
 }
 
 func TestInlineLaunchableLifeCycleScript(t *testing.T) {

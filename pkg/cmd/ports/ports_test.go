@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 type fakeStore struct {
@@ -43,6 +45,10 @@ func (s *fakeStore) GetCurrentUser() (*entity.User, error) {
 
 func (s *fakeStore) GetAccessToken() (string, error) {
 	return "test-token", nil
+}
+
+func (s *fakeStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 }
 
 type fakeEnvironmentService struct {

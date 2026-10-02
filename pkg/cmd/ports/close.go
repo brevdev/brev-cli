@@ -11,9 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -146,14 +144,14 @@ func closePort(
 	portID string,
 ) error {
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		_, err := client.ClosePort(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceClosePortRequest{
 			PortId: portID,
 		}))
 		return breverrors.WrapAndTrace(err)
 	}
 	if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		_, err := client.ClosePort(ctx, connect.NewRequest(&devplanev1.ClosePortRequest{
 			PortId: portID,
 		}))
