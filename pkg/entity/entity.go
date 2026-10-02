@@ -147,12 +147,11 @@ const (
 )
 
 type UpdateUser struct {
-	Username          string                 `json:"username,omitempty"`
-	Name              string                 `json:"name,omitempty"`
-	Email             string                 `json:"email,omitempty"`
-	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
-	OnboardingData    map[string]interface{} `json:"onboardingData,omitempty"`
-	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
+	Username       string                 `json:"username,omitempty"`
+	Name           string                 `json:"name,omitempty"`
+	Email          string                 `json:"email,omitempty"`
+	OnboardingData map[string]interface{} `json:"onboardingData,omitempty"`
+	IdeConfig      IDEConfig              `json:"ideConfig,omitempty"`
 }
 
 type GlobalUserType string
@@ -175,7 +174,6 @@ type User struct {
 	Name               string                 `json:"name"`
 	Email              string                 `json:"email"`
 	WorkspacePassword  string                 `json:"workspacePassword"`
-	BaseWorkspaceRepo  string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType     GlobalUserType         `json:"globalUserType"`
 	IdeConfig          IDEConfig              `json:"ideConfig,omitempty"`
 	OnboardingData     map[string]interface{} `json:"onboardingData"`

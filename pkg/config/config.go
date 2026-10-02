@@ -15,7 +15,6 @@ const (
 	coordURL                 EnvVarName = "BREV_COORD_URL"
 	version                  EnvVarName = "VERSION"
 	clusterID                EnvVarName = "DEFAULT_CLUSTER_ID"
-	defaultWorkspaceClass    EnvVarName = "DEFAULT_WORKSPACE_CLASS"
 	defaultWorkspaceTemplate EnvVarName = "DEFAULT_WORKSPACE_TEMPLATE"
 	sentryURL                EnvVarName = "DEFAULT_SENTRY_URL"
 	debugHTTP                EnvVarName = "DEBUG_HTTP"
@@ -61,10 +60,6 @@ func (c ConstantsConfig) GetOllamaAPIURL() string {
 
 func (c ConstantsConfig) GetDefaultClusterID() string {
 	return getEnvOrDefault(clusterID, "devplane-brev-1")
-}
-
-func (c ConstantsConfig) GetDefaultWorkspaceClass() string {
-	return getEnvOrDefault(defaultWorkspaceClass, "")
 }
 
 func (c ConstantsConfig) GetDefaultWorkspaceTemplate() string {
