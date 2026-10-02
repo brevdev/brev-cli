@@ -206,27 +206,14 @@ type LaunchableFile struct {
 }
 
 var (
-	DefaultWorkspaceClassID = config.GlobalConfig.GetDefaultWorkspaceClass()
-	UserWorkspaceClassID    = "2x8"
-	DevWorkspaceClassID     = "4x16"
+	UserWorkspaceClassID = "2x8"
+	DevWorkspaceClassID  = "4x16"
 
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
 	UserWorkspaceTemplateID    = "4nbb4lg2s"
 	DevWorkspaceTemplateID     = "v7nd45zsc"
 	DefaultDiskStorage         = "120Gi"
 )
-
-var (
-	DefaultApplicationID = "92f59a4yf"
-	DefaultApplication   = entity.Application{
-		ID:           DefaultApplicationID,
-		Name:         "VSCode",
-		Port:         22778,
-		StartCommand: "",
-		Version:      "1.57.1",
-	}
-)
-var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
 	isStoppable := false
@@ -522,31 +509,6 @@ func (s AuthHTTPStore) GetWorkspace(workspaceID string) (*entity.Workspace, erro
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
-	return &result, nil
-}
-
-func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, options *ModifyWorkspaceRequest) (*entity.Workspace, error) {
-	if options == nil {
-		return nil, fmt.Errorf("options can not be nil")
-	}
-
-	var result entity.Workspace
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetPathParam(workspaceIDParamName, workspaceID).
-		SetResult(&result).
-		SetBody(options).
-		Put(workspacePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-	// fmt.Printf("name %s\n", result.Name)
-	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
-	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
-	// fmt.Printf("instance %s\n", result.InstanceType)
 	return &result, nil
 }
 
