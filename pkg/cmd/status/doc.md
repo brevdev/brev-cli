@@ -199,9 +199,6 @@ Connect to running workspace:
  solidity-nextjs-starter           1
  akka-http-quickstart-scala        1
 
-Join a project:
-	brev start new-docs
-
 ```
 
 join the project new-docs
