@@ -186,7 +186,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				}
 			}
 			if apiKeyFlag != "" {
-				os.Setenv(auth.APIKeyEnvVar, apiKeyFlag)
+				_ = os.Setenv(auth.APIKeyEnvVar, apiKeyFlag)
 			}
 			if userFlag != "" {
 				_, err := noLoginCmdStore.WithUserID(userFlag)
