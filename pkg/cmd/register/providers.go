@@ -11,6 +11,7 @@ import (
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -93,5 +94,5 @@ func (ShellSetupRunner) RunSetup(script string) error { return runSetupCommand(s
 type DefaultNodeClientFactory struct{}
 
 func (DefaultNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
-	return NewNodeServiceClient(provider, baseURL)
+	return store.NewDevPlaneClient(provider, baseURL).ExternalNodes
 }

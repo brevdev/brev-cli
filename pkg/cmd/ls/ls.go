@@ -18,11 +18,11 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -41,6 +41,7 @@ type LsStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	externalnode.TokenProvider
+	DevPlane() *store.DevPlaneClient
 	GetAuthTokens() (*entity.AuthTokens, error)
 	GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error)
 	hello.HelloStore
@@ -128,6 +129,38 @@ func getOrgForRunLs(lsStore LsStore) (*entity.Organization, error) {
 		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 	return org, nil
+}
+
+// It is a package var so tests can stub
+var listDevPlaneEnvironments = func(lsStore LsStore, orgID string) (map[string]environment.Status, error) {
+	devPlane := lsStore.DevPlane()
+	client := environment.NewClient(devPlane.Environments, devPlane.Organizations)
+	return client.EnvironmentStatusByOrg(context.Background(), orgID)
+}
+
+// overlayDevPlaneStatuses applies authoritative dev-plane status, returning an
+// error instead of silently falling back to brev-deploy's derived status.
+func (ls Ls) overlayDevPlaneStatuses(workspaces []entity.Workspace, statuses map[string]environment.Status, fetchErr error) error {
+	if fetchErr != nil {
+		return breverrors.WrapAndTrace(fetchErr)
+	}
+	applyDevPlaneStatuses(workspaces, statuses)
+	return nil
+}
+
+func applyDevPlaneStatuses(workspaces []entity.Workspace, statuses map[string]environment.Status) {
+	for i := range workspaces {
+		status, ok := statuses[workspaces[i].ID]
+		if !ok {
+			continue
+		}
+		if status.Display != "" {
+			workspaces[i].Status = status.Display
+		}
+		if status.Message != "" {
+			workspaces[i].StatusMessage = status.Message
+		}
+	}
 }
 
 func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, showAll bool, jsonOutput bool) error {
@@ -411,9 +444,11 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	var wsErr error
 	var gpuLookup map[string]string
 	var nodes []*nodev1.ExternalNode
+	var environmentStatuses map[string]environment.Status
+	var envErr error
 
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	if showAll {
 		wg.Add(1)
 	}
@@ -424,6 +459,10 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	go func() {
 		defer wg.Done()
 		gpuLookup = buildGPULookup(ls.lsStore)
+	}()
+	go func() {
+		defer wg.Done()
+		environmentStatuses, envErr = listDevPlaneEnvironments(ls.lsStore, org.ID)
 	}()
 	if showAll {
 		go func() {
@@ -441,6 +480,10 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 
 	if wsErr != nil {
 		return breverrors.WrapAndTrace(wsErr)
+	}
+
+	if err := ls.overlayDevPlaneStatuses(allWorkspaces, environmentStatuses, envErr); err != nil {
+		return err
 	}
 
 	// Determine which workspaces to show
@@ -727,7 +770,7 @@ type NodeInfo struct {
 }
 
 func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
-	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	client := ls.lsStore.DevPlane().ExternalNodes
 	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
 		OrganizationId: org.ID,
 	}))

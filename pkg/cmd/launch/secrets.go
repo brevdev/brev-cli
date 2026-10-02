@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/managedsecret"
@@ -23,7 +22,7 @@ type devplaneManagedSecretResolver struct {
 func newDevplaneManagedSecretResolver(provider Store) managedSecretResolver {
 	return devplaneManagedSecretResolver{
 		client: managedsecret.NewClient(
-			register.NewManagedSecretServiceClient(provider, config.GlobalConfig.GetBrevPublicAPIURL()),
+			store.NewDevPlaneClient(provider, config.GlobalConfig.GetBrevPublicAPIURL()).ManagedSecrets,
 		),
 	}
 }

@@ -2,9 +2,7 @@ package store
 
 import (
 	"context"
-	"net/http"
 
-	"buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	devplaneapiv1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
@@ -29,10 +27,7 @@ func (s AuthHTTPStore) GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTyp
 
 // fetchInstanceTypes fetches instance types from dev-plane's public Connect API.
 func fetchInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
-	client := devplaneapiv1connect.NewInstanceServiceClient(
-		&http.Client{Transport: attributionTransport{base: http.DefaultTransport}},
-		config.NewConstants().GetBrevPublicAPIURL(),
-	)
+	client := NewPublicDevPlaneClient(config.GlobalConfig.GetBrevPublicAPIURL()).Instances
 	skipAccessFilter := false
 	res, err := client.ListPublicInstanceType(context.Background(), connect.NewRequest(&devplaneapiv1.ListPublicInstanceTypeRequest{
 		Options: &devplaneapiv1.ListInstanceTypeOptions{
@@ -50,10 +45,7 @@ func fetchInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, erro
 
 // GetAllInstanceTypesWithCloudCreds fetches org-scoped instance types from dev-plane's public Connect API.
 func (s AuthHTTPStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	client := devplaneapiv1connect.NewInstanceServiceClient(
-		&http.Client{Transport: &authHTTPStoreTransport{store: &s, base: http.DefaultTransport}},
-		config.NewConstants().GetBrevPublicAPIURL(),
-	)
+	client := s.DevPlane().Instances
 	includeUnavailable := false
 	includePreemptible := false
 	includeCPU := true
