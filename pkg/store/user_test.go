@@ -105,10 +105,9 @@ func TestUpdateUser(t *testing.T) {
 	httpmock.RegisterResponder("PUT", url, res)
 
 	u, err := s.UpdateUser(expected.ID, &entity.UpdateUser{
-		Username:          "",
-		Name:              "",
-		Email:             "",
-		BaseWorkspaceRepo: "",
+		Username: "",
+		Name:     "",
+		Email:    "",
 	})
 	if !assert.Nil(t, err) {
 		return
