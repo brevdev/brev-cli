@@ -218,21 +218,21 @@ func WithDebug(debug bool) Option {
 	}
 }
 
-// quietRestyLogger swallows resty's retry WARN/ERROR chatter for expected,
-// user-driven errors (declined login). Everything else logs as before.
+// quietRestyLogger swallows resty's retry WARN/ERROR chatter for errors the CLI
+// already reports itself. Errors resty raises on its own still log.
 type quietRestyLogger struct {
 	next resty.Logger
 }
 
 func (q quietRestyLogger) Errorf(format string, v ...interface{}) {
-	if isDeclinedLoginMsg(format, v...) {
+	if isSelfReportedErr(format, v...) {
 		return
 	}
 	q.next.Errorf(format, v...)
 }
 
 func (q quietRestyLogger) Warnf(format string, v ...interface{}) {
-	if isDeclinedLoginMsg(format, v...) {
+	if isSelfReportedErr(format, v...) {
 		return
 	}
 	q.next.Warnf(format, v...)
@@ -240,6 +240,23 @@ func (q quietRestyLogger) Warnf(format string, v ...interface{}) {
 
 func (q quietRestyLogger) Debugf(format string, v ...interface{}) {
 	q.next.Debugf(format, v...)
+}
+
+// isSelfReportedErr reports whether resty is about to log an error the CLI
+// surfaces on its own, making the log line a duplicate at best.
+func isSelfReportedErr(format string, v ...interface{}) bool {
+	return isTracedErr(v...) || isDeclinedLoginMsg(format, v...)
+}
+
+// isTracedErr reports whether a log arg is an error our own middleware wrapped.
+// Those always reach cmderrors.DisplayAndHandleError, which prints the cause.
+func isTracedErr(v ...interface{}) bool {
+	for _, arg := range v {
+		if err, ok := arg.(error); ok && breverrors.IsTraced(err) {
+			return true
+		}
+	}
+	return false
 }
 
 func isDeclinedLoginMsg(format string, v ...interface{}) bool {
@@ -283,9 +300,6 @@ func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTT
 	}
 	restyClient := NewRestyClient(brevAPIURL)
 	restyClient.Debug = opts.Debug
-	// quietRestyLogger wraps a real stderr logger (matching resty's default
-	// format) and swallows only declined-login retry chatter. Everything else
-	// — genuine HTTP errors, debug output when Debug is on — still logs.
 	restyClient.SetLogger(quietRestyLogger{next: newStderrLogger()})
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		token, err := auth.GetAccessToken()

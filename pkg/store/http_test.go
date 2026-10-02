@@ -6,11 +6,14 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	pkgerrors "github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,6 +62,25 @@ func TestQuietRestyLogger_DebugPassesThrough(t *testing.T) {
 
 	q.Debugf("debug %s", "detail")
 	assert.Contains(t, buf.String(), "debug detail")
+}
+
+// Middleware errors are WrapAndTrace'd, so resty logged the chain twice.
+func TestQuietRestyLogger_SuppressesTracedErrors(t *testing.T) {
+	var buf bytes.Buffer
+	base := &testLogger{out: &buf}
+	q := quietRestyLogger{next: base}
+
+	traced := breverrors.WrapAndTrace(errors.New("unexpected newline"))
+	require.True(t, breverrors.IsTraced(traced))
+
+	q.Warnf("%v, Attempt %v", traced, 1)
+	q.Errorf("%v", traced)
+	q.Errorf("%v", errors.New("connection refused"))
+
+	out := buf.String()
+	assert.NotContains(t, out, "unexpected newline", "the wrapped chain must not reach the sink")
+	assert.NotContains(t, out, "pkg/store/http_test.go", "no stack frames either")
+	assert.Contains(t, out, "connection refused", "untraced errors stay loud")
 }
 
 func TestIsDeclinedLoginMsg(t *testing.T) {
@@ -123,11 +145,9 @@ func TestNewAuthHTTPClient_DeclinedLoginIsQuietAndClean(t *testing.T) {
 	assert.NotContains(t, buf.String(), "declined to login", "factory logger must suppress decline retry chatter")
 }
 
-// The factory must install quietRestyLogger over a REAL sink: unrelated
-// errors still reach stderr (only declined-login chatter is filtered).
-func TestNewAuthHTTPClient_LoggerForwardsUnrelatedErrors(t *testing.T) {
-	// Replace stderr before construction so the factory's stderrLogger
-	// captures our pipe.
+// Same guarantee for auth errors that are not the decline sentinel: the command
+// prints the cause once at exit, and the logger stays out of the way.
+func TestNewAuthHTTPClient_AuthErrorTraceStaysOffStderr(t *testing.T) {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	origStderr := os.Stderr
@@ -144,6 +164,43 @@ func TestNewAuthHTTPClient_LoggerForwardsUnrelatedErrors(t *testing.T) {
 
 	_, err = client.restyClient.R().Get("/user")
 
+	require.NoError(t, w.Close())
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	os.Stderr = origStderr
+
+	require.Error(t, err)
+	assert.Equal(t, "boom-auth", pkgerrors.Cause(err).Error(), "the cause must survive for DisplayAndHandleError")
+	assert.NotContains(t, buf.String(), "boom-auth", "the wrapped chain must not be logged on top of it")
+	assert.NotContains(t, buf.String(), "pkg/store/http.go", "no stack frames on stderr")
+}
+
+// The factory must install quietRestyLogger over a REAL sink, not io.Discard:
+// errors resty raises itself are nobody else's to report, so they still log.
+func TestNewAuthHTTPClient_LoggerForwardsUnrelatedErrors(t *testing.T) {
+	// A server we immediately close gives a deterministic dial failure.
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	deadURL := srv.URL
+	srv.Close()
+
+	// Replace stderr before construction so the factory's stderrLogger
+	// captures our pipe.
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	origStderr := os.Stderr
+	os.Stderr = w
+	t.Cleanup(func() {
+		os.Stderr = origStderr
+		_ = r.Close()
+		_ = w.Close()
+	})
+
+	client := NewAuthHTTPClient(MockAuth{}, deadURL)
+	client.restyClient.SetRetryCount(1)
+	client.restyClient.SetTimeout(2 * time.Second)
+
+	_, err = client.restyClient.R().Get("/user")
+
 	// Flush the pipe before restoring.
 	_ = w.Close()
 	var buf bytes.Buffer
@@ -151,11 +208,10 @@ func TestNewAuthHTTPClient_LoggerForwardsUnrelatedErrors(t *testing.T) {
 	os.Stderr = origStderr
 
 	require.Error(t, err)
-	assert.Contains(t, buf.String(), "ERROR RESTY", "unrelated auth errors must still be logged by the factory logger")
-	assert.Contains(t, buf.String(), "boom-auth", "the actual error text must reach the sink")
+	assert.Contains(t, buf.String(), "ERROR RESTY", "transport errors must still reach the factory logger's sink")
 }
 
-// errorAuth fails auth with a non-decline error: must be loud.
+// errorAuth fails auth with a non-decline error.
 type errorAuth struct{}
 
 func (errorAuth) GetAccessToken() (string, error) {
