@@ -2,8 +2,6 @@ package errors
 
 import (
 	"fmt"
-	"runtime"
-	"strconv"
 	"time"
 
 	stderrors "errors"
@@ -255,27 +253,16 @@ func CombineByString(err error) error {
 
 var Is = stderrors.Is
 
-var WrapAndTrace = WrapAndTraceInMsg
-
-func WrapAndTraceInMsg(err error) error {
+// WrapAndTrace attaches a stack trace to err for debugging and error reporting.
+//
+// The message of the returned error is unchanged, so errors surfaced to users
+// never carry stack frames. Use %+v (for example in dev/debug builds) to print
+// the captured stack.
+func WrapAndTrace(err error) error {
 	if err == nil {
 		return nil
 	}
-	return pkgerrors.Wrap(err, makeErrorMessage("", 0)) // this wrap also adds a stacktrace which can be nice
-}
-
-func makeErrorMessage(message string, skip int) string {
-	skip += 2
-	pc, file, line, _ := runtime.Caller(skip)
-
-	funcName := "unknown"
-	fn := runtime.FuncForPC(pc)
-	if fn != nil {
-		funcName = fn.Name()
-	}
-
-	lineNum := strconv.Itoa(line)
-	return fmt.Sprintf("[error] %s\n%s\n%s:%s\n", message, funcName, file, lineNum)
+	return pkgerrors.WithStack(err) //nolint:wrapcheck // this is a wrapper
 }
 
 // logger.L().Error("", zap.Error(err))

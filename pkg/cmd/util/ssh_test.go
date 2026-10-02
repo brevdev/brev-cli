@@ -240,9 +240,7 @@ func TestWaitForSSHToBeAvailable_FailuresRenderWithoutStackFrames(t *testing.T) 
 	viper.Set("feature.debug", true)
 	t.Cleanup(viper.Reset)
 
-	control := captureStderr(t, func() {
-		cmderrors.DisplayAndHandleError(breverrors.WrapAndTrace(errors.New("unexpected boom")))
-	})
+	control := fmt.Sprintf("%+v", breverrors.WrapAndTrace(errors.New("unexpected boom")))
 	require.Contains(t, control, "ssh_test.go", "control must reproduce the stack-frame dump")
 
 	dir := t.TempDir()
