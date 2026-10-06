@@ -210,6 +210,30 @@ func TestVerifyPrivateKey(t *testing.T) {
 	}
 }
 
+// Only failures that waiting can fix are retryable. In particular a plain
+// "Warning:" line (unrelated ssh chatter) must not restart the wait loop.
+func TestSatisfactorySSHErrMessage(t *testing.T) {
+	tests := []struct {
+		name   string
+		stdErr string
+		want   bool
+	}{
+		{name: "connection refused while sshd starts", stdErr: "ssh: connect to host box port 22: Connection refused", want: true},
+		{name: "connection timed out", stdErr: "ssh: connect to host box port 22: Connection timed out", want: true},
+		{name: "no route to host", stdErr: "ssh: connect to host box port 22: No route to host", want: true},
+		{name: "kex not ready", stdErr: "kex_exchange_identification: Connection closed by remote host", want: true},
+		{name: "host key mismatch is permanent", stdErr: "Host key verification failed.", want: false},
+		{name: "auth failure is permanent", stdErr: "Permission denied (publickey).", want: false},
+		{name: "bare warning is not retryable", stdErr: "Warning: something unrelated", want: false},
+		{name: "empty output means no ssh binary", stdErr: "exec: \"ssh\": executable file not found in $PATH", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, SatisfactorySSHErrMessage(tt.stdErr))
+		})
+	}
+}
+
 func TestFileStore_GetWSLHostUserSSHConfigPath(t *testing.T) {
 	type fields struct {
 		BasicStore BasicStore

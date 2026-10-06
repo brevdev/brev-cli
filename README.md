@@ -23,6 +23,12 @@ Installs to `~/.local/bin`. If it's not on your `PATH`, add this to your shell p
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+To install somewhere else, set `BREV_INSTALL_DIR` for the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/brevdev/brev-cli/main/bin/install-latest.sh | BREV_INSTALL_DIR="$HOME/bin" bash
+```
+
 ### Windows
 **Using Brev With Windows Subsystem for Linux (WSL)**
 

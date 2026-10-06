@@ -4,11 +4,103 @@ import (
 	"testing"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/entity"
 )
 
 func strPtr(s string) *string { return &s }
+
+type identityCountingStore struct {
+	RefreshStore
+	org         *entity.Organization
+	user        *entity.User
+	activeOrgs  int
+	currentUser int
+	workspaces  []entity.Workspace
+
+	forIdentity []string
+	resolving   int
+}
+
+func (s *identityCountingStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	s.activeOrgs++
+	return s.org, nil
+}
+
+func (s *identityCountingStore) GetCurrentUser() (*entity.User, error) {
+	s.currentUser++
+	return s.user, nil
+}
+
+func (s *identityCountingStore) GetContextWorkspaces() ([]entity.Workspace, error) {
+	s.resolving++
+	return s.workspaces, nil
+}
+
+func (s *identityCountingStore) GetContextWorkspacesFor(orgID, userID string) ([]entity.Workspace, error) {
+	s.forIdentity = append(s.forIdentity, orgID+"/"+userID)
+	return s.workspaces, nil
+}
+
+func TestResolveRefreshIdentity_ResolvesOrgAndUserOnce(t *testing.T) {
+	s := &identityCountingStore{
+		org:  &entity.Organization{ID: "org_1"},
+		user: &entity.User{ID: "user_1"},
+	}
+
+	identity := resolveRefreshIdentity(s)
+
+	require.NotNil(t, identity.org)
+	require.NotNil(t, identity.user)
+	assert.Equal(t, "org_1", identity.org.ID)
+	assert.Equal(t, "user_1", identity.user.ID)
+	assert.Equal(t, 1, s.activeOrgs)
+	assert.Equal(t, 1, s.currentUser)
+}
+
+func TestWorkspaceSSHStore_ReusesResolvedIdentity(t *testing.T) {
+	user := &entity.User{ID: "user_1"}
+	org := &entity.Organization{ID: "org_1"}
+	s := &identityCountingStore{
+		org:        org,
+		user:       user,
+		workspaces: []entity.Workspace{{ID: "ws_1", Status: entity.Stopped}},
+	}
+
+	got, err := workspaceSSHStore{RefreshStore: s, org: org, user: user}.GetContextWorkspaces()
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, 0, s.currentUser, "the resolved user must be reused, not fetched again")
+	assert.Equal(t, 0, s.activeOrgs, "the resolved org must be reused, not fetched again")
+	assert.Equal(t, []string{"org_1/user_1"}, s.forIdentity, "listing must use the refresh identity")
+	assert.Equal(t, 0, s.resolving, "listing must not fall back to re-resolving org and user")
+}
+
+func TestWorkspaceSSHStore_FallsBackWhenIdentityMissing(t *testing.T) {
+	s := &identityCountingStore{
+		user:       &entity.User{ID: "user_1"},
+		workspaces: []entity.Workspace{{ID: "ws_1", Status: entity.Stopped}},
+	}
+
+	got, err := workspaceSSHStore{RefreshStore: s}.GetContextWorkspaces()
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, 1, s.resolving, "expected the store's own resolution to be used")
+	assert.Equal(t, 1, s.currentUser, "the enrichment falls back to resolving the user")
+}
+
+func TestGetExternalNodeSSHEntries_NoIdentitySkipsLookups(t *testing.T) {
+	s := &identityCountingStore{}
+
+	assert.Nil(t, getExternalNodeSSHEntries(s, refreshIdentity{}))
+	assert.Equal(t, 0, s.activeOrgs)
+	assert.Equal(t, 0, s.currentUser)
+}
 
 func TestResolveNodeSSHEntry_HappyPath(t *testing.T) {
 	node := &nodev1.ExternalNode{

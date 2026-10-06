@@ -33,6 +33,10 @@ func (s *fakeStore) GetWorkspaceByNameOrID(_ string, _ string) ([]entity.Workspa
 	return s.workspaces, nil
 }
 
+func (s *fakeStore) GetContextWorkspaces() ([]entity.Workspace, error) {
+	return s.workspaces, nil
+}
+
 func (s *fakeStore) GetCurrentUser() (*entity.User, error) {
 	return s.user, nil
 }
@@ -73,37 +77,25 @@ func (s *fakeNodeService) ListNodes(
 
 func TestPortsCommandUsesSubcommands(t *testing.T) {
 	cmd := NewCmdPorts(&fakeStore{})
-	assert.Equal(t, "[beta] Manage ports for an instance or external node", cmd.Short)
-	assert.True(t, cmd.Hidden)
+	assert.Equal(t, "Manage ports for environments or Brev Connect machines.", cmd.Short)
+	assert.Contains(t, cmd.Annotations, "networking")
 
-	listCmd, _, err := cmd.Find([]string{"ls"})
-	require.NoError(t, err)
-	assert.Equal(t, "ls <instance-or-node>", listCmd.Use)
-	assert.Equal(t, "[beta] List Brev-managed ports for an instance or external node", listCmd.Short)
-	assert.True(t, listCmd.Hidden)
-	assert.Contains(t, listCmd.Annotations, "access")
-	assert.Nil(t, cmd.Flags().Lookup("json"))
-	assert.NotNil(t, listCmd.Flags().Lookup("json"))
+	uses := map[string]string{
+		"get":    "get <port-id>",
+		"ls":     "ls <instance-or-brev-connect-machine>",
+		"open":   "open <instance-or-brev-connect-machine> <port-or-range>",
+		"remove": "remove <port-id> | <instance-or-brev-connect-machine> <destination-port>",
+		"update": "update <port-id>",
+	}
+	for name, use := range uses {
+		subcommand, _, err := cmd.Find([]string{name})
+		require.NoError(t, err)
+		assert.Equal(t, use, subcommand.Use)
+	}
 
-	createCmd, _, err := cmd.Find([]string{"create"})
+	removeCmd, _, err := cmd.Find([]string{"remove"})
 	require.NoError(t, err)
-	assert.Equal(t, "create <instance-or-node> <port>", createCmd.Use)
-	assert.Equal(t, "[beta] Create a public port on an instance or external node", createCmd.Short)
-	assert.True(t, createCmd.Hidden)
-	assert.ElementsMatch(t, []string{"open", "add"}, createCmd.Aliases)
-
-	closeCmd, _, err := cmd.Find([]string{"close"})
-	require.NoError(t, err)
-	assert.Equal(t, "close <instance-or-node>", closeCmd.Use)
-	assert.Equal(t, "[beta] Close public ports on an instance or external node", closeCmd.Short)
-	assert.True(t, closeCmd.Hidden)
-	assert.Nil(t, closeCmd.Flags().Lookup("all"))
-
-	updateCmd, _, err := cmd.Find([]string{"update"})
-	require.NoError(t, err)
-	assert.Equal(t, "update <instance-or-node>", updateCmd.Use)
-	assert.Equal(t, "[beta] Update a public port on an instance or external node", updateCmd.Short)
-	assert.True(t, updateCmd.Hidden)
+	assert.Equal(t, []string{"rm"}, removeCmd.Aliases)
 }
 
 func TestRunEnvironmentJSON(t *testing.T) {
@@ -158,7 +150,7 @@ func TestRunEnvironmentJSON(t *testing.T) {
 	]`, out.String())
 }
 
-func TestRunExternalNodeByIDDisplaysTables(t *testing.T) {
+func TestRunBrevConnectMachineDisplaysPorts(t *testing.T) {
 	httpHostname := "jupyter-node.apps.run.brev.nvidia.com"
 	tcpHostname := "global.prd.ga.run.brev.nvidia.com"
 	service := &fakeNodeService{nodes: []*devplanev1.ExternalNode{
@@ -199,49 +191,10 @@ func TestRunExternalNodeByIDDisplaysTables(t *testing.T) {
 	err := Run(context.Background(), &out, store, "unode123", false)
 
 	require.NoError(t, err)
-	assert.Contains(t, out.String(), "HTTP APPLICATIONS")
+	assert.Contains(t, out.String(), "port-http")
 	assert.Contains(t, out.String(), "https://jupyter-node.apps.run.brev.nvidia.com")
-	assert.Contains(t, out.String(), "user@example.com")
-	assert.Contains(t, out.String(), "NETWORK PORTS")
-	assert.Contains(t, out.String(), "PUBLIC PORT")
-	assert.Contains(t, out.String(), "DESTINATION PORT")
+	assert.Contains(t, out.String(), "port-tcp")
 	assert.Contains(t, out.String(), "global.prd.ga.run.brev.nvidia.com:18928")
-	assert.Contains(t, out.String(), "Anywhere")
-	assert.Contains(t, out.String(), "22")
-	assert.Contains(t, out.String(), "TCP")
-}
-
-func TestDisplayTablesSSHUsesNetworkHeading(t *testing.T) {
-	var out bytes.Buffer
-	ports := []PortInfo{
-		{
-			Endpoint:        "gateway.example.com:18928",
-			PublicPort:      18928,
-			DestinationPort: 22,
-			Protocol:        "SSH",
-		},
-	}
-
-	err := displayTables(&out, "ssh-node", ports)
-
-	require.NoError(t, err)
-	assert.Contains(t, out.String(), "NETWORK PORTS")
-	assert.Contains(t, out.String(), "gateway.example.com:18928")
-	assert.Contains(t, out.String(), "SSH")
-	assert.NotContains(t, out.String(), "TCP/UDP PORTS")
-}
-
-func TestDisplayHTTPTableMissingDestinationDoesNotUsePublicPort(t *testing.T) {
-	var out bytes.Buffer
-
-	displayHTTPTable(&out, []PortInfo{{
-		Endpoint:   "https://app.example.com",
-		PublicPort: 443,
-		Protocol:   "HTTP",
-	}})
-
-	assert.Regexp(t, `443\s+-\s+HTTP`, out.String())
-	assert.NotRegexp(t, `443\s+443\s+HTTP`, out.String())
 }
 
 func TestToPortInfosHandlesPublicHTTPAndRestrictedUDP(t *testing.T) {
@@ -271,17 +224,33 @@ func TestToPortInfosHandlesPublicHTTPAndRestrictedUDP(t *testing.T) {
 	})
 
 	require.Len(t, got, 2)
-	assert.True(t, got[0].isHTTP)
 	assert.Equal(t, "HTTPS", got[0].Protocol)
 	assert.Equal(t, "https://app.example.com", got[0].Endpoint)
 	assert.True(t, got[0].AllowPublicUnauthenticated)
-	assert.False(t, got[1].isHTTP)
 	assert.Equal(t, "UDP", got[1].Protocol)
 	assert.Equal(t, "gateway.example.com:5000", got[1].Endpoint)
 	assert.Equal(t, []string{"10.0.0.0/8"}, got[1].AllowedSources)
 	assert.Equal(t, "user", got[1].Type)
 	assert.Equal(t, "unspecified", portTypeLabel(devplanev1.PortType_PORT_TYPE_UNSPECIFIED))
 	assert.Equal(t, "unknown", portTypeLabel(devplanev1.PortType(99)))
+}
+
+func TestToPortInfosSortsByProtocolThenDestinationPort(t *testing.T) {
+	hostname := "example.com"
+	ports := []*devplanev1.Port{
+		{PortId: "ssh", Protocol: devplanev1.PortProtocol_PORT_PROTOCOL_SSH, ServerPort: 22},
+		{PortId: "udp", Protocol: devplanev1.PortProtocol_PORT_PROTOCOL_UDP, ServerPort: 53},
+		{PortId: "tcp-later", Protocol: devplanev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 9000},
+		{PortId: "http", HttpProtocol: devplanev1.HttpPortProtocol_HTTP_PORT_PROTOCOL_HTTP, ServerPort: 80, Hostname: &hostname},
+		{PortId: "https", HttpProtocol: devplanev1.HttpPortProtocol_HTTP_PORT_PROTOCOL_HTTPS, ServerPort: 443, Hostname: &hostname},
+		{PortId: "tcp-first", Protocol: devplanev1.PortProtocol_PORT_PROTOCOL_TCP, ServerPort: 8000},
+	}
+
+	got := toPortInfos(ports)
+
+	assert.Equal(t, []string{"https", "http", "tcp-first", "tcp-later", "udp", "ssh"}, []string{
+		got[0].PortID, got[1].PortID, got[2].PortID, got[3].PortID, got[4].PortID, got[5].PortID,
+	})
 }
 
 func TestRunEmptyPortsJSONIsArray(t *testing.T) {
@@ -405,52 +374,4 @@ func TestRunEnvironmentWithPortsAndUnspecifiedStatusStillLists(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Contains(t, out.String(), `"port_id": "port-http"`)
-}
-
-func TestRunExternalNodeJSONContract(t *testing.T) {
-	hostname := "global.prd.ga.run.brev.nvidia.com"
-	service := &fakeNodeService{nodes: []*devplanev1.ExternalNode{
-		{
-			ExternalNodeId: "unode-json",
-			Name:           "json-node",
-			Ports: []*devplanev1.Port{
-				{
-					PortId:         "port-ssh",
-					Protocol:       devplanev1.PortProtocol_PORT_PROTOCOL_SSH,
-					PortNumber:     18928,
-					ServerPort:     22,
-					Hostname:       &hostname,
-					AllowedSources: []string{"10.0.0.0/8"},
-					Type:           devplanev1.PortType_PORT_TYPE_USER,
-				},
-			},
-		},
-	}}
-	_, handler := devplanev1connect.NewExternalNodeServiceHandler(service)
-	server := httptest.NewServer(handler)
-	t.Cleanup(server.Close)
-	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
-
-	store := &fakeStore{
-		user: &entity.User{ID: "user1"},
-		org:  &entity.Organization{ID: "org1"},
-	}
-	var out bytes.Buffer
-
-	err := Run(context.Background(), &out, store, "unode-json", true)
-
-	require.NoError(t, err)
-	assert.JSONEq(t, `[
-		{
-			"port_id": "port-ssh",
-			"endpoint": "global.prd.ga.run.brev.nvidia.com:18928",
-			"public_port": 18928,
-			"destination_port": 22,
-			"protocol": "SSH",
-			"allowed_sources": ["10.0.0.0/8"],
-			"authorized_emails": [],
-			"allow_public_unauthenticated": false,
-			"type": "user"
-		}
-	]`, out.String())
 }

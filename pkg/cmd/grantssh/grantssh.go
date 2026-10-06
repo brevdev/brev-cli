@@ -58,7 +58,6 @@ func defaultGrantSSHDeps() grantSSHDeps {
 }
 
 func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
-	var orgFlag string
 	var nodeFlag string
 	var userFlag string
 	var linuxUser string
@@ -66,13 +65,17 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 	var approveFlag bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
 		Use:                   "grant-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Grant SSH access to a node for another org member",
 		Long:                  "Grant SSH access to a node for another member of your organization. Interactive: no flags, prompts for org (unless API-key auth is active), node, port, user, and Linux user. Non-interactive: --node, --user, and --port-id are required; --org is also required unless API-key auth is active. The Linux user defaults to the current user and can be changed with --linux-user.",
 		Example:               "  brev grant-ssh\n  brev grant-ssh --org my-org --node my-node --user user@example.com --port-id port_abc --approve\n  brev grant-ssh --node my-node --user user@example.com --linux-user ubuntu --port-id port_abc --approve --api-key <api-key>",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			orgFlag, err := cmd.Flags().GetString("org")
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			interactive := orgFlag == "" && nodeFlag == "" && userFlag == "" && linuxUser == "" && portIDFlag == ""
 			opts := grantSSHOpts{
 				interactive:   interactive,
@@ -87,7 +90,6 @@ func NewCmdGrantSSH(t *terminal.Terminal, store GrantSSHStore) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode unless using API-key auth)")
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to grant (required in non-interactive mode)")
 	cmd.Flags().StringVar(&linuxUser, "linux-user", "", "Linux username on the target node (defaults to the current user)")
@@ -147,6 +149,9 @@ func runGrantSSH(ctx context.Context, t *terminal.Terminal, s GrantSSHStore, opt
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 			OrganizationId: org.ID,
+			Options: &nodev1.ListNodesOptions{
+				ExcludeConnectivityInfo: true,
+			},
 		}))
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)

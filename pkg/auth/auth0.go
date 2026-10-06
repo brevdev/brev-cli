@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,8 +19,6 @@ import (
 const (
 	audiencePath           = "/api/v2/"
 	waitThresholdInSeconds = 1
-	// namespace used to set/get values from the keychain.
-	SecNamespace = "auth0-cli"
 )
 
 var requiredScopes = []string{
@@ -321,13 +320,7 @@ func (a Auth0Authenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*e
 }
 
 func ErrorIfBadHTTP(r *http.Response, exceptStatus ...int) error {
-	shouldExcept := false
-	for _, s := range exceptStatus {
-		if r.StatusCode == s {
-			shouldExcept = true
-			break
-		}
-	}
+	shouldExcept := slices.Contains(exceptStatus, r.StatusCode)
 
 	if IsError(r.StatusCode) && !shouldExcept {
 		return NewHTTPResponseError(r)

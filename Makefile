@@ -39,15 +39,25 @@ ifdef env
 	@echo 'export BREV_CONSOLE_URL="https://dev.brev.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev
+ifeq ($(env),local-stack)
+	@echo 'export BREV_API_URL="http://localhost:8080"' >> brev
+	@echo 'export BREV_PUBLIC_API_URL="http://localhost:8081"' >> brev
+	@echo 'export BREV_GRPC_URL="localhost:8081"' >> brev
+else
 	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
 	@echo 'export BREV_PUBLIC_API_URL="https://api.$(env).brev.nvidia.com"' >> brev
 	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev
+endif
 	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev-local" "$$@"' >> brev
 	@chmod +x brev
 else
 	@echo "Building without environment overrides (using config.go defaults)..."
 	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 endif
+
+.PHONY: local-stack
+local-stack: ## build a CLI wrapper configured for a running local Brev stack
+	$(MAKE) local env=local-stack
 
 .PHONY: install-dev
 install-dev: fast-build ## go install

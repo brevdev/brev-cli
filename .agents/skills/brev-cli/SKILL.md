@@ -47,7 +47,7 @@ brev create my-instance --type g5.xlarge
 # List your instances
 brev ls
 
-# List external nodes (a separate list from `brev ls`)
+# List Brev Connect machines (a separate list from `brev ls`)
 brev ls nodes
 
 # SSH into an instance (interactive)
@@ -171,34 +171,39 @@ brev copy my-instance:/remote/file ./local-path/
 # Port forward
 brev port-forward my-instance -p 8080:8080
 
-# List Brev-managed HTTP and network ports for an instance or external node
+# List Brev-managed ports for an instance or Brev Connect machine
 brev ports ls my-instance
-brev ports ls my-node --json
+brev ports ls my-connect-machine --json
 
-# Create a public port (TCP by default)
-brev ports create my-instance 8080
-brev ports create my-node 53 --protocol udp --allow 203.0.113.10/32
-brev ports create my-instance 3000 --protocol http --public
-brev ports create my-instance 8888 --protocol http --authorize me@example.com
+# Get all data for one port by exact ID
+brev ports get nport-abc123
+brev ports get nport-abc123 --json
 
-# Update one mapping interactively or by exact ID
-brev ports update my-instance --destination-port 8081
-brev ports update my-instance --id nport-abc123 --allow 203.0.113.10/32
-brev ports update my-instance --id nport-abc123 --public
+# Open a port or an inclusive sequential TCP/UDP range (TCP by default)
+brev ports open my-instance 8080
+brev ports open my-instance 8000-8031
+brev ports open my-connect-machine 53 --protocol udp --allow 203.0.113.10/32
+brev ports open my-instance 3000 --protocol http --public
+brev ports open my-instance 8888 --protocol http --authorize me@example.com
 
-# Close one port interactively or by exact ID
-brev ports close my-instance
-brev ports close my-instance --id nport-abc123 --approve
+# Update one mapping by its globally unique ID
+brev ports update nport-abc123 --destination-port 8081
+brev ports update nport-abc123 --allow 203.0.113.10/32
+brev ports update nport-abc123 --public
+
+# Remove one port by destination port or exact ID
+brev ports remove my-instance 8080
+brev ports rm nport-abc123
 ```
 
 ### Listing Instances and Nodes
-`brev ls` covers two separate namespaces. External nodes never appear in
+`brev ls` covers two separate namespaces. Brev Connect machines never appear in
 `brev ls`, so check `brev ls nodes` before concluding a machine doesn't exist.
 
 ```bash
 brev ls              # cloud instances
 brev ls instances    # same as above, explicit
-brev ls nodes        # external nodes only (machines registered to the org)
+brev ls nodes        # Brev Connect machines only
 brev ls orgs         # organizations
 brev ls --json       # machine-readable
 brev ls nodes --json
@@ -319,7 +324,7 @@ Do this proactively when:
 
 **"Instance not found":**
 - Run `brev ls` to see available instances
-- Run `brev ls nodes` — external nodes are a separate list and never show up in `brev ls`
+- Run `brev ls nodes` — Brev Connect machines are a separate list and never show up in `brev ls`
 - Check if you're in the correct org: `brev org ls`
 
 **"Failed to create instance":**

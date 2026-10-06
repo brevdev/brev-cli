@@ -173,13 +173,13 @@ func RunSSHPortForward(forwardType string, localPort string, remotePort string, 
 
 func runPortForwardWithRefresh(t *terminal.Terminal, pfStore PortforwardStore, localPort, remotePort, sshName string) error {
 	s := t.NewSpinner()
-	if err := util.WaitForSSHToBeAvailable(sshName, s); err != nil {
+	if err := util.WaitForSSHToBeAvailable(sshName, s, func() error { return refresh.RunRefreshAsync(pfStore).Await() }); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "\nConnection failed, refreshing SSH config and retrying...")
 		refreshRes := refresh.RunRefreshAsync(pfStore)
 		if err := refreshRes.Await(); err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
-		if err := util.WaitForSSHToBeAvailable(sshName, s); err != nil {
+		if err := util.WaitForSSHToBeAvailable(sshName, s, func() error { return refresh.RunRefreshAsync(pfStore).Await() }); err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	}

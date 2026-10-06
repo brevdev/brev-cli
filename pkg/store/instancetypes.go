@@ -30,7 +30,7 @@ func (s AuthHTTPStore) GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTyp
 // fetchInstanceTypes fetches instance types from dev-plane's public Connect API.
 func fetchInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
 	client := devplaneapiv1connect.NewInstanceServiceClient(
-		http.DefaultClient,
+		&http.Client{Transport: attributionTransport{base: http.DefaultTransport}},
 		config.NewConstants().GetBrevPublicAPIURL(),
 	)
 	skipAccessFilter := false

@@ -219,7 +219,7 @@ brev ls [subcommand] [flags]
 |---|---|
 | *(none)* | cloud instances |
 | `instances` | cloud instances (explicit form) |
-| `nodes` | external nodes only |
+| `nodes` | Brev Connect machines only |
 | `orgs` | organizations |
 
 **Flags:**
@@ -229,9 +229,9 @@ brev ls [subcommand] [flags]
 | `--all` | | Show all instances in org |
 | `--json` | | Output as JSON |
 
-#### Instances vs. external nodes
+#### Instances vs. Brev Connect machines
 
-Two separate namespaces — an external node never appears in `brev ls`.
+Two separate namespaces — a Brev Connect machine never appears in `brev ls`.
 
 ```bash
 $ brev ls
@@ -467,11 +467,10 @@ brev port-forward my-instance -p 3000:3000
 ```
 
 ### brev ports ls
-List Brev-managed HTTP applications and raw network port mappings for a
-managed instance or registered compute node.
+List Brev-managed ports for a managed instance or Brev Connect machine.
 
 ```bash
-brev ports ls <instance-or-node> [flags]
+brev ports ls <instance-or-brev-connect-machine> [flags]
 ```
 
 **Flags:**
@@ -480,8 +479,10 @@ brev ports ls <instance-or-node> [flags]
 |------|-------------|
 | `--json` | Output the port mappings as JSON |
 
-The table output includes endpoint, IP restrictions, public port, destination
-port, and protocol. HTTP applications also include their authorization policy.
+The compact table output includes ID, endpoint, public port, destination port,
+and protocol. Ports are ordered by protocol (`HTTPS`, `HTTP`, `TCP`, `UDP`,
+`SSH`), then by ascending destination port. Use `brev ports get` to inspect
+authorization, IP restrictions, and the remaining data for one mapping.
 
 For managed instances, this command reads the Brev-managed network
 configuration. It does not synthesize the legacy secure-link or firewall rows
@@ -507,18 +508,41 @@ The JSON output is an array with the following stable fields:
 **Examples:**
 ```bash
 brev ports ls my-instance
-brev ports ls my-node
+brev ports ls my-connect-machine
 brev ports ls my-instance --json
 ```
 
-### Create a port
+### Get a port
 
-Create a raw TCP, UDP, or SSH port, or an HTTP application endpoint, on a
-managed instance or registered compute node. `open` and `add` are aliases for
-`create`.
+Get all data for one port mapping by its exact `port_id`.
 
 ```bash
-brev ports create <instance-or-node> <port> [flags]
+brev ports get <port-id> [flags]
+```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output the port mapping as a JSON object |
+
+Human-readable output includes ID, endpoint, public and destination ports,
+protocol, allowed sources, authorized emails, public-access state, and type.
+The JSON object uses the same stable fields documented for `brev ports ls`.
+
+**Examples:**
+```bash
+brev ports get nport-abc123
+brev ports get nport-abc123 --json
+```
+
+### Open a port
+
+Open a TCP, UDP, SSH, HTTP, or HTTPS port on a managed instance or Brev
+Connect machine. TCP and UDP also accept inclusive sequential ranges.
+
+```bash
+brev ports open <instance-or-brev-connect-machine> <port-or-range> [flags]
 ```
 
 **Flags:**
@@ -529,7 +553,7 @@ brev ports create <instance-or-node> <port> [flags]
 | `--authorize` | Email authorized for an HTTP endpoint; repeat to add more than one |
 | `--hostname` | HTTP endpoint hostname prefix; defaults to the destination port |
 | `--public` | Disable authentication for an HTTP endpoint |
-| `--json` | Output the created port as JSON |
+| `--json` | Output the opened port as JSON |
 
 Omit `--allow` to allow raw-port connections from any source. HTTP endpoints
 default to authorizing the current user's email; use `--public` to make one
@@ -538,28 +562,29 @@ endpoint to a plain-HTTP service, while `https` expects TLS on the destination.
 
 **Examples:**
 ```bash
-brev ports create my-instance 8080
-brev ports create my-node 53 --protocol udp
-brev ports create my-instance 8080 --allow 203.0.113.10/32
-brev ports create my-node 2222 --protocol ssh --json
-brev ports create my-instance 3000 --protocol http --public
-brev ports create my-instance 8888 --protocol http --authorize me@example.com
+brev ports open my-instance 8080
+brev ports open my-instance 8000-8031
+brev ports open my-connect-machine 53 --protocol udp
+brev ports open my-instance 8080 --allow 203.0.113.10/32
+brev ports open my-connect-machine 2222 --protocol ssh --json
+brev ports open my-instance 3000 --protocol http --public
+brev ports open my-instance 8888 --protocol http --authorize me@example.com
 ```
 
 ### Update a port
 
-Update a mapping in place while preserving its `port_id` and public endpoint.
-Omit `--id` to select a mapping interactively. `edit` is an alias for `update`.
+Update a mapping in place while preserving its globally unique `port_id` and
+public endpoint. The CLI resolves the owning environment or Brev Connect
+machine automatically. `edit` is an alias for `update`.
 
 ```bash
-brev ports update <instance-or-node> [flags]
+brev ports update <port-id> [flags]
 ```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--id` | Update the exact mapping with this `port_id`; omit to select interactively |
 | `--destination-port` | Change the destination port (1-65535) |
 | `--allow` | Replace source restrictions with this CIDR; repeat to add more than one |
 | `--allow-anywhere` | Clear all source restrictions |
@@ -576,38 +601,37 @@ separate mutations are not transactional.
 
 **Examples:**
 ```bash
-brev ports update my-instance --destination-port 8081
-brev ports update my-instance --id nport-abc123 --allow 203.0.113.10/32
-brev ports edit my-node --id nport-abc123 --allow-anywhere
-brev ports update my-instance --id nport-abc123 --protocol https
-brev ports update my-instance --id nport-abc123 --authorize me@example.com
-brev ports update my-instance --id nport-abc123 --public --json
+brev ports update nport-abc123 --destination-port 8081
+brev ports update nport-abc123 --allow 203.0.113.10/32
+brev ports edit nport-abc123 --allow-anywhere
+brev ports update nport-abc123 --protocol https
+brev ports update nport-abc123 --authorize me@example.com
+brev ports update nport-abc123 --public --json
 ```
 
-### Close ports
+### Remove ports
 
-Select and close one port interactively or close an exact mapping by its
-`port_id`. `remove` is an alias for `close`.
+Remove one port by its globally unique `port_id` without specifying its owner.
+To identify a port by destination number instead, also provide the environment
+or Brev Connect machine. If multiple mappings use that destination, use an
+exact `port_id`. `rm` is an alias for `remove`.
 
 ```bash
-brev ports close <instance-or-node> [flags]
+brev ports remove <port-id>
+brev ports remove <instance-or-brev-connect-machine> <destination-port>
 ```
 
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--id` | Close the exact mapping with this `port_id` |
-| `--approve` | Skip the confirmation prompt |
-
-Use `brev ports ls <instance-or-node> --json` to obtain stable `port_id` values
+Use `brev ports ls <instance-or-brev-connect-machine> --json` to find port IDs
 for automation.
+
+On success, the command reports the protocol, destination port, and owning
+machine, for example: `Removed TCP port 8080 on my-instance.`
 
 **Examples:**
 ```bash
-brev ports close my-instance
-brev ports close my-instance --id nport-abc123 --approve
-brev ports remove my-node --id nport-abc123 --approve
+brev ports remove my-instance 8080
+brev ports rm nport-abc123
+brev ports remove nport-abc123
 ```
 
 ## Organization Commands

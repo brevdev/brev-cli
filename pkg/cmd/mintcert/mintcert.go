@@ -96,7 +96,7 @@ func NewCmdMintCert(store Store) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:    "mint-cert",
-		Short:  "Mint a short-lived SSH certificate for an environment or external node",
+		Short:  "Mint a short-lived SSH certificate for an environment or Brev Connect machine",
 		Args:   cobra.NoArgs,
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -116,7 +116,7 @@ func NewCmdMintCert(store Store) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&env, "env", "", "environment ID to mint a certificate for")
-	cmd.Flags().StringVar(&node, "node", "", "external node ID to mint a certificate for")
+	cmd.Flags().StringVar(&node, "node", "", "Brev Connect machine ID to mint a certificate for")
 	cmd.Flags().StringVar(&port, "port", "", "network-member port ID for the SSH access")
 	cmd.Flags().StringVar(&user, "linux-user", "", "Linux user for the certificate principal")
 	cmd.Flags().StringVar(&outKey, "out-key", "", "private-key path (certificate goes to <path>-cert.pub)")

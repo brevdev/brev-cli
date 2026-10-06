@@ -96,8 +96,27 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		if !IsNetwork404Or403Error(err) { // handle because can login with bad cache
 			return nil, breverrors.WrapAndTrace(err)
 		}
+		return s.fallbackToFirstOrganization()
 	}
 	return freshOrg, nil
+}
+
+// fallbackToFirstOrganization picks the first organization available to the
+// current credential and records it as active, replacing a cached active org
+// that no longer resolves. Returns (nil, nil) when the credential has no orgs.
+func (s AuthHTTPStore) fallbackToFirstOrganization() (*entity.Organization, error) {
+	orgs, err := s.GetOrganizations(nil)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	org := GetDefaultOrNilOrg(orgs)
+	if org == nil {
+		return nil, nil
+	}
+	// Best-effort cache repair: failing to persist must not fail the command,
+	// it only costs one extra lookup next time.
+	_ = s.SetDefaultOrganization(org)
+	return org, nil
 }
 
 func (s AuthHTTPStore) hydrateOrgFromWorkspace(workspaceID string) (*entity.Organization, error) {
@@ -146,6 +165,25 @@ func (s AuthHTTPStore) hydrateOrgFromApiKey() (*entity.Organization, error) {
 
 // returns the 'set'/active organization or the default one or nil if no orgs exist
 func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	if (s.organizationOverride != nil || s.organizationOverrideName != "") && auth.IsAPIKeyAuthStore(&s) {
+		return nil, breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+	}
+	if s.organizationOverride != nil {
+		return s.organizationOverride, nil
+	}
+	if s.organizationOverrideName != "" {
+		orgs, err := s.GetOrganizations(&GetOrganizationsOptions{Name: s.organizationOverrideName})
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", s.organizationOverrideName))
+		}
+		if len(orgs) > 1 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", s.organizationOverrideName))
+		}
+		return &orgs[0], nil
+	}
 	org, err := s.GetActiveOrganizationOrNil()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -285,6 +323,7 @@ func (t *authHTTPStoreTransport) RoundTrip(req *http.Request) (*http.Response, e
 	}
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+token)
+	AddCLIAttributionParams(req)
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)

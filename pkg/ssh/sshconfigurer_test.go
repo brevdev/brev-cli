@@ -768,6 +768,10 @@ func makeMockWSLFS() SSHConfigurerV2Store {
 }
 
 func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
+	orig := isSSHCertRequired
+	isSSHCertRequired = func() bool { return false }
+	t.Cleanup(func() { isSSHCertRequired = orig })
+
 	type fields struct {
 		store        SSHConfigurerV2Store
 		runRemoteCMD bool

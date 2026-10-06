@@ -182,7 +182,7 @@ func TestResolveWorkspaceOrNodeWithContext_NoMatchesReturnsWorkspaceError(t *tes
 	if err == nil {
 		t.Fatalf("expected not-found error, got %+v", resolved)
 	}
-	if !strings.Contains(err.Error(), `instance or external node with id/name "missing" not found`) {
+	if !strings.Contains(err.Error(), `instance or Brev Connect machine with id/name "missing" not found`) {
 		t.Fatalf("expected a combined target not-found error, got %v", err)
 	}
 	var validationErr breverrors.ValidationError

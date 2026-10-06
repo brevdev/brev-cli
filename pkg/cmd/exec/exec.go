@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -35,6 +34,9 @@ var (
   brev exec my-instance @setup.sh
   brev exec my-instance @scripts/deploy.sh
 
+  # Run a background job
+  brev exec my-instance "nohup python train.py > /dev/null 2>&1 &"
+
   # Chain: create and run a command (reads instance names from stdin)
   brev create my-instance | brev exec "nvidia-smi"
 
@@ -49,7 +51,7 @@ var (
 )
 
 type ExecStore interface {
-	util.WorkspaceStartStore
+	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -59,8 +61,9 @@ type ExecStore interface {
 func NewCmdExec(t *terminal.Terminal, store ExecStore, noLoginStartStore ExecStore) *cobra.Command {
 	var host bool
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"access": ""},
-		Use:                   "exec [instance...] <command>",
+		Annotations: map[string]string{"access": ""},
+		Use: `exec [instance...] "<command>"
+  brev exec [instance...] @<script-file-present-on-local>`,
 		DisableFlagsInUseLine: true,
 		Short:                 "Execute a command on instance(s)",
 		Long:                  execLong,
@@ -204,8 +207,6 @@ func hasNoSavedCredentials(sstore authTokenGetter) bool {
 	return tokens.AccessToken == "" && tokens.RefreshToken == "" && strings.TrimSpace(tokens.APIKey) == ""
 }
 
-const pollTimeout = 10 * time.Minute
-
 // sshConnectionFailedExitCode is ssh's own failure code; any other code is the remote command's.
 const sshConnectionFailedExitCode = 255
 
@@ -247,47 +248,17 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 
 	workspace, lookupErr := util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
 	if lookupErr != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(
-			"ssh connection failed and could not look up instance %q: %w\nPlease check your instances with: brev ls",
-			workspaceNameOrID, err))
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"could not look up instance %q: %s\ncheck your instances with: brev ls",
+			workspaceNameOrID, breverrors.Root(lookupErr)))
 	}
 
-	if workspace.Status == "STOPPED" {
-		s := t.NewSpinner()
-		startErr := util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
-		if startErr != nil {
-			return breverrors.WrapAndTrace(startErr)
-		}
-		err = util.PollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...", pollTimeout)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		// Refresh SSH config so the host entry is up to date
-		refreshRes := refresh.RunRefreshAsync(sstore)
-		if err = refreshRes.Await(); err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-
-		localIdentifier := workspace.GetLocalIdentifier()
-		if host {
-			localIdentifier = workspace.GetHostIdentifier()
-		}
-		sshName = string(localIdentifier)
-
-		err = util.WaitForSSHToBeAvailable(sshName, s)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		return runAndTrack(sstore, sshName, workspaceNameOrID, command)
+	if err := util.RequireRunning(workspace); err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
-	if workspace.Status != "RUNNING" {
-		return breverrors.WrapAndTrace(fmt.Errorf(
-			"instance %q is in state %q — please check with: brev ls",
-			workspaceNameOrID, workspace.Status))
-	}
-
-	// Instance is RUNNING but SSH failed — maybe still booting, do the wait
+	// Instance is RUNNING but SSH failed — maybe still booting, refresh and retry
+	// a few times.
 	s := t.NewSpinner()
 	refreshRes := refresh.RunRefreshAsync(sstore)
 	if err = refreshRes.Await(); err != nil {
@@ -300,11 +271,12 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	}
 	sshName = string(localIdentifier)
 
-	err = util.WaitForSSHToBeAvailable(sshName, s)
+	err = util.WaitForSSHToBeAvailable(sshName, s, func() error { return refresh.RunRefreshAsync(sstore).Await() })
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf(
-			"could not connect to instance %q: %w\nPlease check with: brev ls",
-			workspaceNameOrID, err))
+		// Wrapping here would sever the error type the renderer uses to decide
+		// whether to dump a stack trace, and the message already names the
+		// instance and what to check.
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 	return runAndTrack(sstore, sshName, workspaceNameOrID, command)
 }

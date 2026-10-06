@@ -2,10 +2,8 @@ package ports
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"strings"
 
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
@@ -16,11 +14,9 @@ import (
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 type updateOptions struct {
-	portID           string
 	destinationPort  string
 	allowedSources   []string
 	allowAnywhere    bool
@@ -45,31 +41,22 @@ type portUpdates struct {
 	public           bool
 }
 
-type updatePrompter interface {
-	terminal.Selector
-}
-
 // NewCmdUpdatePort creates the `brev ports update` command.
 func NewCmdUpdatePort(portStore Store) *cobra.Command {
-	return newCmdUpdatePort(portStore, register.TerminalPrompter{})
-}
-
-func newCmdUpdatePort(portStore Store, prompter updatePrompter) *cobra.Command {
 	var opts updateOptions
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"access": ""},
-		Use:                   "update <instance-or-node>",
+		Annotations:           map[string]string{"networking": ""},
+		Use:                   "update <port-id>",
 		Aliases:               []string{"edit"},
-		Hidden:                true,
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] Update a public port on an instance or external node",
+		Short:                 "Update a Brev-managed port by ID",
 		Example: `
-  brev ports update my-instance --id nport-abc123 --destination-port 8081
-  brev ports update my-instance --id nport-abc123 --allow 203.0.113.10/32
-  brev ports update my-node --id nport-abc123 --allow-anywhere
-  brev ports update my-instance --id nport-abc123 --protocol https
-  brev ports update my-instance --id nport-abc123 --public`,
+  brev ports update nport-abc123 --destination-port 8081
+  brev ports update nport-abc123 --allow 203.0.113.10/32
+  brev ports update nport-abc123 --allow-anywhere
+  brev ports update nport-abc123 --protocol https
+  brev ports update nport-abc123 --public`,
 		Args: cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.destinationPortSet = cmd.Flags().Changed("destination-port")
@@ -84,12 +71,11 @@ func newCmdUpdatePort(portStore Store, prompter updatePrompter) *cobra.Command {
 				return breverrors.WrapAndTrace(err)
 			}
 			return breverrors.WrapAndTrace(runUpdate(
-				cmd.Context(), cmd.OutOrStdout(), portStore, prompter, args[0], opts.portID, updates, opts.jsonOutput,
+				cmd.Context(), cmd.OutOrStdout(), portStore, args[0], updates, opts.jsonOutput,
 			))
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.portID, "id", "", "update the exact port mapping with this port_id (omit to select interactively)")
 	cmd.Flags().StringVar(&opts.destinationPort, "destination-port", "", "new destination port (1-65535)")
 	cmd.Flags().StringArrayVar(&opts.allowedSources, "allow", nil, "replace source restrictions with this CIDR (repeatable)")
 	cmd.Flags().BoolVar(&opts.allowAnywhere, "allow-anywhere", false, "clear all source restrictions")
@@ -207,18 +193,11 @@ func runUpdate(
 	ctx context.Context,
 	out io.Writer,
 	portStore Store,
-	prompter updatePrompter,
-	nameOrID string,
 	portID string,
 	updates portUpdates,
 	jsonOutput bool,
 ) error {
-	target, apiPorts, err := resolveTargetPorts(ctx, portStore, nameOrID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	port, err := selectPortToUpdate(prompter, apiPorts, strings.TrimSpace(portID))
+	target, port, err := resolvePortID(ctx, portStore, portID)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -230,38 +209,7 @@ func runUpdate(
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	return writeUpdateResult(out, nameOrID, updated, jsonOutput)
-}
-
-func selectPortToUpdate(
-	prompter terminal.Selector,
-	apiPorts []*devplanev1.Port,
-	portID string,
-) (*devplanev1.Port, error) {
-	ports := removablePorts(apiPorts)
-	if len(ports) == 0 {
-		return nil, fmt.Errorf("no updatable ports are open on this target")
-	}
-	if portID != "" {
-		for _, port := range ports {
-			if port.GetPortId() == portID {
-				return port, nil
-			}
-		}
-		return nil, fmt.Errorf("port_id %q is not open on this target", portID)
-	}
-
-	labels := make([]string, len(ports))
-	for i, port := range ports {
-		labels[i] = closeSelectionLabel(i, port)
-	}
-	chosen := prompter.Select("Select a port to update", labels)
-	for i, label := range labels {
-		if label == chosen {
-			return ports[i], nil
-		}
-	}
-	return nil, fmt.Errorf("selected item did not match any open port")
+	return writeUpdateResult(out, updated, jsonOutput)
 }
 
 func isHTTPPort(port *devplanev1.Port) bool {
@@ -343,7 +291,7 @@ func setPortTarget(
 		}
 		return resp.Msg.GetPort(), nil
 	}
-	return nil, fmt.Errorf("resolved target has no instance or external node")
+	return nil, fmt.Errorf("resolved target has no instance or Brev Connect machine")
 }
 
 func setPortAllowedSources(
@@ -382,7 +330,7 @@ func setPortAllowedSources(
 		}
 		return resp.Msg.GetPort(), nil
 	}
-	return nil, fmt.Errorf("resolved target has no instance or external node")
+	return nil, fmt.Errorf("resolved target has no instance or Brev Connect machine")
 }
 
 //nolint:dupl // Environment and node RPCs intentionally have parallel request types.
@@ -419,7 +367,7 @@ func setHTTPPortProtocol(
 		}
 		return resp.Msg.GetPort(), nil
 	}
-	return nil, fmt.Errorf("resolved target has no instance or external node")
+	return nil, fmt.Errorf("resolved target has no instance or Brev Connect machine")
 }
 
 func setHTTPPortAccess(
@@ -462,22 +410,18 @@ func setHTTPPortAccess(
 		}
 		return resp.Msg.GetPort(), nil
 	}
-	return nil, fmt.Errorf("resolved target has no instance or external node")
+	return nil, fmt.Errorf("resolved target has no instance or Brev Connect machine")
 }
 
-func writeUpdateResult(out io.Writer, nameOrID string, port *devplanev1.Port, jsonOutput bool) error {
+func writeUpdateResult(out io.Writer, port *devplanev1.Port, jsonOutput bool) error {
 	portInfo := toPortInfos([]*devplanev1.Port{port})[0]
 	if jsonOutput {
-		encoded, err := json.MarshalIndent(portInfo, "", "  ")
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		_, err = fmt.Fprintln(out, string(encoded))
-		return breverrors.WrapAndTrace(err)
+		return writePortJSON(out, portInfo)
 	}
 
-	if _, err := fmt.Fprintf(out, "Updated port %s on %s.\n", port.GetPortId(), nameOrID); err != nil {
+	if _, err := fmt.Fprintf(out, "Updated port %s.\n", port.GetPortId()); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	return displayTables(out, nameOrID, []PortInfo{portInfo})
+	displayPortTable(out, []PortInfo{portInfo})
+	return nil
 }

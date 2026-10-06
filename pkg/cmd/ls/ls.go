@@ -16,7 +16,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
@@ -49,7 +48,6 @@ type LsStore interface {
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
-	var org string
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
@@ -61,7 +59,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 Subcommands:
   instances  List cloud instances
-  nodes      List external nodes only
+  nodes      List Brev Connect machines only
   orgs       List organizations
 
 When stdout is piped, outputs instance names only (one per line) for easy chaining
@@ -91,7 +89,7 @@ with other commands like stop, start, or delete.`,
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			err = RunLs(t, cliAuth, loginLsStore, args, org, showAll, jsonOutput)
+			err = RunLs(t, cliAuth, loginLsStore, args, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -102,14 +100,7 @@ with other commands like stop, start, or delete.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginLsStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
-	}
-
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and external nodes in org")
+	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and Brev Connect machines in org")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
@@ -128,53 +119,21 @@ func trackLsAnalytics(cliAuth auth.CLIAuth) {
 	_ = analytics.TrackEvent(data)
 }
 
-func getOrgForRunLs(cliAuth auth.CLIAuth, lsStore LsStore, orgflag string) (*entity.Organization, error) {
-	var org *entity.Organization
-	if cliAuth.IsAPIKey() {
-		if orgflag != "" {
-			return nil, breverrors.NewValidationError("api key auth is scoped to the org the key belongs to; --org is not supported")
-		}
-		org, err := lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if org == nil {
-			return nil, breverrors.NewValidationError("no orgs exist")
-		}
-		return org, nil
+func getOrgForRunLs(lsStore LsStore) (*entity.Organization, error) {
+	org, err := lsStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
-
-	if orgflag != "" {
-		var orgs []entity.Organization
-		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", orgflag))
-		} else if len(orgs) > 1 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", orgflag))
-		}
-
-		org = &orgs[0]
-	} else {
-		var currOrg *entity.Organization
-		currOrg, err := lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if currOrg == nil {
-			return nil, breverrors.NewValidationError("no orgs exist")
-		}
-		org = currOrg
+	if org == nil {
+		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
+func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
 
-	org, err := getOrgForRunLs(cliAuth, lsStore, orgflag)
+	org, err := getOrgForRunLs(lsStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -388,7 +347,6 @@ func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Orga
 
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, false, gpuLookup)
 }
 
@@ -410,7 +368,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf("%s", ls.terminal.Green("See teammates' instances:\n"))
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
-			ls.terminal.Vprintf("%s", ls.terminal.Green("Start a new instance:\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Green("Create a new instance:\n"))
 		}
 		if len(otherOrgs) > 1 {
 			ls.terminal.Vprintf("%s", ls.terminal.Green("Switch to another org:\n"))
@@ -474,7 +432,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 			nodes, err = ls.listNodes(org)
 			if err != nil {
 				if featureflag.Debug() {
-					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list external nodes: %v\n", err)
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list Brev Connect machines: %v\n", err)
 				}
 			}
 		}()
@@ -522,7 +480,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	if showAll {
 		ls.ShowAllWorkspaces(org, orgs, workspacesToShow, gpuLookup)
 		if len(nodes) > 0 {
-			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+			ls.terminal.Vprintf("\nYou have %d Brev Connect machine(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 			displayNodesTable(ls.terminal, nodes, ls.piped)
 		}
 	} else {
@@ -761,7 +719,7 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-// NodeInfo represents external node data for JSON output.
+// NodeInfo represents Brev Connect machine data for JSON output.
 type NodeInfo struct {
 	Name   string `json:"name"`
 	OrgID  string `json:"org_id"`
@@ -779,7 +737,7 @@ func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error)
 	return resp.Msg.GetItems(), nil
 }
 
-// RunNodes lists external nodes for the given org.
+// RunNodes lists Brev Connect machines for the given org.
 func (ls Ls) RunNodes(org *entity.Organization) error {
 	nodes, err := ls.listNodes(org)
 	if err != nil {
@@ -794,7 +752,7 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 		if ls.piped {
 			return nil
 		}
-		ls.terminal.Vprint(ls.terminal.Yellow("No external nodes in this org."))
+		ls.terminal.Vprint(ls.terminal.Yellow("No Brev Connect machines in this org."))
 		return nil
 	}
 
@@ -802,7 +760,7 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 		return ls.outputNodesJSON(nodes)
 	}
 	if !ls.piped {
-		ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+		ls.terminal.Vprintf("\nYou have %d Brev Connect machine(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 	}
 	displayNodesTable(ls.terminal, nodes, ls.piped)
 	return nil

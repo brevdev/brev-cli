@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
@@ -34,7 +33,7 @@ var (
   brev shell $(brev create my-instance)
 
   # Create with specific GPU and connect
-  brev shell $(brev search --gpu-name A100 | brev create ml-box)
+  brev shell $(brev search --gpu-name A100 | brev create ml-box --stdin)
 
   # SSH into the host machine instead of the container
   brev shell my-instance --host
@@ -44,7 +43,7 @@ var (
 )
 
 type ShellStore interface {
-	util.WorkspaceStartStore
+	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -77,8 +76,6 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	return cmd
 }
 
-const pollTimeout = 10 * time.Minute
-
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool) error {
 	if _, err := sstore.GetAccessToken(); err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -93,17 +90,8 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	}
 	workspace := target.Workspace
 
-	if workspace.Status == "STOPPED" { // we start the env for the user
-		err = util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	if workspace.Status != "RUNNING" {
-		err = util.PollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...", pollTimeout)
-	}
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	if err := util.RequireRunning(workspace); err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	localIdentifier := workspace.GetLocalIdentifier()
@@ -126,8 +114,8 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	if workspace.Status != "RUNNING" {
-		return breverrors.New("Instance is not running")
+	if err := util.RequireRunning(workspace); err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	err = refreshRes.Await()
@@ -135,7 +123,7 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		return breverrors.WrapAndTrace(err)
 	}
 	printResolvedSSHTarget(sshName)
-	err = util.WaitForSSHToBeAvailable(sshName, s)
+	err = util.WaitForSSHToBeAvailable(sshName, s, func() error { return refresh.RunRefreshAsync(sstore).Await() })
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}

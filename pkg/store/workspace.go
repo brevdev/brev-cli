@@ -130,9 +130,16 @@ type LaunchableConfig struct {
 }
 
 type ParameterBinding struct {
-	Name         string `json:"name"`
-	Value        string `json:"value,omitempty"`
-	BrevSecretID string `json:"brevSecretId,omitempty"`
+	Name          string                  `json:"name"`
+	Value         string                  `json:"value,omitempty"`
+	BrevSecretID  string                  `json:"brevSecretId,omitempty"` // Deprecated: retained for API compatibility.
+	ManagedSecret *ManagedSecretReference `json:"managedSecret,omitempty"`
+}
+
+// ManagedSecretReference selects an immutable DevPlane managed-secret version.
+type ManagedSecretReference struct {
+	SecretID  string `json:"secretId"`
+	VersionID string `json:"versionId,omitempty"`
 }
 
 type LaunchableResponse struct {
@@ -158,11 +165,16 @@ type LaunchableWorkspaceRequest struct {
 }
 
 type LaunchableBuildRequest struct {
+	VerbBuild       *VerbBuild       `json:"verbBuild,omitempty"`
 	VMBuild         *VMBuild         `json:"vmBuild,omitempty"`
 	CustomContainer *CustomContainer `json:"containerBuild,omitempty"`
 	DockerCompose   *DockerCompose   `json:"dockerCompose,omitempty"`
 	Ports           []LaunchablePort `json:"ports"`
 	Parameters      []Parameter      `json:"parameters,omitempty"`
+}
+
+type VerbBuild struct {
+	VerbYAML string `json:"verbYaml"`
 }
 
 type Parameter struct {
@@ -423,21 +435,34 @@ func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]
 	return workspaces, nil
 }
 
-// get user workspaces in org, like brev ls
 func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if auth.IsAPIKeyAuthStore(&s) {
-		return s.GetWorkspaces(org.ID, nil)
+
+	userID := ""
+	if !auth.IsAPIKeyAuthStore(&s) {
+		user, err := s.GetCurrentUser()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		userID = user.ID
 	}
 
-	user, err := s.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	return s.GetContextWorkspacesFor(org.ID, userID)
+}
+
+// GetContextWorkspacesFor lists the workspaces the given user can see in the
+// given organization without resolving either again, to prevent repeat lookups. An empty
+// userID lists the whole org
+func (s AuthHTTPStore) GetContextWorkspacesFor(orgID string, userID string) ([]entity.Workspace, error) {
+	var options *GetWorkspacesOptions
+	if userID != "" && !auth.IsAPIKeyAuthStore(&s) {
+		options = &GetWorkspacesOptions{UserID: userID}
 	}
-	workspaces, err := s.GetWorkspaces(org.ID, &GetWorkspacesOptions{UserID: user.ID})
+
+	workspaces, err := s.GetWorkspaces(orgID, options)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}

@@ -75,6 +75,8 @@ func NewOAuthRetriever(oauths []OAuth) *OAuthRetriever {
 	}
 }
 
+var ErrNoOAuthForToken = errors.New("no oauth found for token")
+
 func (o *OAuthRetriever) GetByProvider(provider entity.CredentialProvider) (OAuth, error) {
 	for _, oauth := range o.oauths {
 		if oauth.GetCredentialProvider() == provider {
@@ -90,7 +92,7 @@ func (o *OAuthRetriever) GetByToken(token string) (OAuth, error) {
 			return oauth, nil
 		}
 	}
-	return nil, fmt.Errorf("no oauth found for token")
+	return nil, ErrNoOAuthForToken
 }
 
 type Auth struct {
@@ -100,11 +102,12 @@ type Auth struct {
 	shouldLogin          func() (bool, error)
 }
 
-const BrevAPIKeyPrefix = "bak-"
-
-const APIKeyEnvVar = "BREV_API_KEY"
-
-const MissingAPIKeyOrgIDMessage = "auth malformed; run brev login --api-key <api-key>"
+const (
+	BrevAPIKeyPrefix                              = "bak-"
+	APIKeyEnvVar                                  = "BREV_API_KEY"
+	MissingAPIKeyOrgIDMessage                     = "auth malformed; run brev login --api-key <api-key>"
+	APIKeyOrganizationOverrideNotSupportedMessage = "api key auth is scoped to the org saved during login; --org is not supported"
+)
 
 type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
@@ -567,11 +570,14 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 	})
 
 	if tokens != nil && tokens.AccessToken != "" && tokens.APIKey == "" {
-		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
-		if errr != nil {
-			fmt.Printf("%v\n", errr)
-		} else {
+		authenticatorFromToken, err := authRetriever.GetByToken(tokens.AccessToken)
+		switch {
+		case err == nil:
 			authenticator = authenticatorFromToken
+		case errors.Is(err, ErrNoOAuthForToken):
+			// make user re-authenticate rather than printing an error.
+		default:
+			breverrors.GetDefaultErrorReporter().ReportError(err)
 		}
 	}
 

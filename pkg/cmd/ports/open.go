@@ -21,21 +21,26 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
-// NewCmdCreatePort creates the `brev ports create` command.
+// NewCmdCreatePort creates the `brev ports open` command.
 func NewCmdCreatePort(portStore Store) *cobra.Command {
 	var opts openOptions
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"access": ""},
-		Use:                   "create <instance-or-node> <port>",
-		Aliases:               []string{"open", "add"},
-		Hidden:                true,
+		Annotations:           map[string]string{"networking": ""},
+		Use:                   "open <instance-or-brev-connect-machine> <port-or-range>",
 		DisableFlagsInUseLine: true,
-		Short:                 "[beta] Create a public port on an instance or external node",
-		Example: "\n  brev ports create my-instance 8080" +
-			"\n  brev ports create my-node 53 --protocol udp" +
-			"\n  brev ports create my-instance 8080 --allow 203.0.113.10/32" +
-			"\n  brev ports create my-instance 3000 --protocol http --public",
+		Short:                 "Open a public port on an instance or Brev Connect machine",
+		Long: `Open a Brev-managed port on an instance or Brev Connect machine.
+
+TCP is the default protocol. Use --protocol to open UDP, SSH, HTTP, or HTTPS.
+TCP and UDP accept an inclusive FROM-TO range.
+Use --allow for TCP, UDP, and SSH source restrictions. Use --authorize,
+--hostname, or --public only with HTTP and HTTPS ports.`,
+		Example: "\n  brev ports open my-instance 8080" +
+			"\n  brev ports open my-instance 8000-8031" +
+			"\n  brev ports open my-connect-machine 53 --protocol udp" +
+			"\n  brev ports open my-instance 8080 --allow 203.0.113.10/32" +
+			"\n  brev ports open my-instance 3000 --protocol http --public",
 		Args: cmderrors.TransformToValidationError(cobra.ExactArgs(2)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runOpenCommand(cmd.Context(), cmd.OutOrStdout(), portStore, args[0], args[1], opts)
@@ -47,7 +52,7 @@ func NewCmdCreatePort(portStore Store) *cobra.Command {
 	cmd.Flags().StringArrayVar(&opts.authorizedEmails, "authorize", nil, "email authorized for an HTTP port (repeatable; defaults to you)")
 	cmd.Flags().StringVar(&opts.customHostname, "hostname", "", "hostname prefix for an HTTP port (defaults to the destination port)")
 	cmd.Flags().BoolVar(&opts.allowPublicUnauthenticated, "public", false, "disable authentication for an HTTP port")
-	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "output the created port as JSON")
+	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "output the opened port as JSON")
 	_ = cmd.RegisterFlagCompletionFunc("protocol", cobra.FixedCompletions(
 		[]string{"tcp", "udp", "ssh", "http", "https"},
 		cobra.ShellCompDirectiveNoFileComp,
@@ -73,14 +78,17 @@ func runOpenCommand(
 	portValue string,
 	opts openOptions,
 ) error {
-	portNumber, err := parsePortNumber(portValue)
+	fromPort, toPort, isRange, err := parsePortRange(portValue)
 	if err != nil {
 		return err
 	}
 	if isHTTPProtocol(opts.protocol) {
-		return runOpenHTTPCommand(ctx, out, portStore, nameOrID, portNumber, opts)
+		if isRange {
+			return breverrors.NewValidationError("port ranges are only supported for tcp and udp ports")
+		}
+		return runOpenHTTPCommand(ctx, out, portStore, nameOrID, fromPort, opts)
 	}
-	return runOpenNetworkCommand(ctx, out, portStore, nameOrID, portNumber, opts)
+	return runOpenNetworkCommand(ctx, out, portStore, nameOrID, fromPort, toPort, isRange, opts)
 }
 
 func runOpenHTTPCommand(
@@ -119,26 +127,34 @@ func runOpenNetworkCommand(
 	out io.Writer,
 	portStore Store,
 	nameOrID string,
-	portNumber int32,
+	fromPort int32,
+	toPort int32,
+	isRange bool,
 	opts openOptions,
 ) error {
-	if opts.customHostname != "" || len(opts.authorizedEmails) > 0 || opts.allowPublicUnauthenticated {
-		return breverrors.NewValidationError("--hostname, --authorize, and --public are only supported for http and https ports")
-	}
 	portProtocol, err := parseProtocol(opts.protocol)
 	if err != nil {
 		return err
+	}
+	if opts.customHostname != "" || len(opts.authorizedEmails) > 0 || opts.allowPublicUnauthenticated {
+		return breverrors.NewValidationError("--hostname, --authorize, and --public are only supported for http and https ports")
+	}
+	if isRange && portProtocol == devplanev1.PortProtocol_PORT_PROTOCOL_SSH {
+		return breverrors.NewValidationError("port ranges are only supported for tcp and udp ports")
 	}
 	allowedSources, err := normalizeAllowedSources(opts.allowedSources)
 	if err != nil {
 		return err
 	}
-	return breverrors.WrapAndTrace(Open(
-		ctx, out, portStore, nameOrID, portNumber, portProtocol, allowedSources, opts.jsonOutput,
-	))
+	if isRange {
+		return breverrors.WrapAndTrace(OpenSequential(
+			ctx, out, portStore, nameOrID, fromPort, toPort, portProtocol, allowedSources, opts.jsonOutput,
+		))
+	}
+	return breverrors.WrapAndTrace(Open(ctx, out, portStore, nameOrID, fromPort, portProtocol, allowedSources, opts.jsonOutput))
 }
 
-// OpenHTTP resolves a managed instance or registered compute node and creates
+// OpenHTTP resolves a managed instance or Brev Connect machine and creates
 // an authenticated or public HTTP application endpoint.
 func OpenHTTP(
 	ctx context.Context,
@@ -204,7 +220,7 @@ func OpenHTTP(
 			AllowPublicUnauthenticated: allowPublicUnauthenticated,
 		}))
 		if err != nil {
-			return fmt.Errorf("open HTTP port on external node %q: %w", nameOrID, err)
+			return fmt.Errorf("open HTTP port on Brev Connect machine %q: %w", nameOrID, err)
 		}
 		if resp != nil {
 			openedPort = resp.Msg.GetPort()
@@ -217,7 +233,7 @@ func OpenHTTP(
 	return writeOpenResult(out, nameOrID, openedPort, jsonOutput)
 }
 
-// Open resolves a managed instance or registered compute node and opens a port.
+// Open resolves a managed instance or Brev Connect machine and opens a port.
 func Open(
 	ctx context.Context,
 	out io.Writer,
@@ -257,7 +273,7 @@ func Open(
 			AllowedSources: allowedSources,
 		}))
 		if err != nil {
-			return fmt.Errorf("open port on external node %q: %w", nameOrID, err)
+			return fmt.Errorf("open port on Brev Connect machine %q: %w", nameOrID, err)
 		}
 		if resp != nil && resp.Msg != nil {
 			openedPort = resp.Msg.GetPort()
@@ -268,6 +284,87 @@ func Open(
 		return fmt.Errorf("open port on %q: API returned no port", nameOrID)
 	}
 	return writeOpenResult(out, nameOrID, openedPort, jsonOutput)
+}
+
+// OpenSequential resolves a managed instance or Brev Connect machine and
+// opens an inclusive range whose public ports are allocated sequentially.
+func OpenSequential(
+	ctx context.Context,
+	out io.Writer,
+	portStore Store,
+	nameOrID string,
+	fromPort int32,
+	toPort int32,
+	protocol devplanev1.PortProtocol,
+	allowedSources []string,
+	jsonOutput bool,
+) error {
+	target, err := cmdutil.ResolveWorkspaceOrNodeWithContext(ctx, portStore, nameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+
+	var openedPorts []*devplanev1.Port
+	if target.Workspace != nil {
+		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		resp, err := client.OpenSequentialPorts(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceOpenSequentialPortsRequest{
+			EnvironmentId:  target.Workspace.ID,
+			Protocol:       protocol,
+			FromPortNumber: fromPort,
+			ToPortNumber:   toPort,
+			AllowedSources: allowedSources,
+		}))
+		if err != nil {
+			return fmt.Errorf("open sequential ports on instance %q: %w", nameOrID, err)
+		}
+		if resp != nil && resp.Msg != nil {
+			openedPorts = resp.Msg.GetPorts()
+		}
+	} else if target.Node != nil {
+		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		resp, err := client.OpenSequentialPorts(ctx, connect.NewRequest(&devplanev1.OpenSequentialPortsRequest{
+			ExternalNodeId: target.Node.GetExternalNodeId(),
+			Protocol:       protocol,
+			FromPortNumber: fromPort,
+			ToPortNumber:   toPort,
+			AllowedSources: allowedSources,
+		}))
+		if err != nil {
+			return fmt.Errorf("open sequential ports on Brev Connect machine %q: %w", nameOrID, err)
+		}
+		if resp != nil && resp.Msg != nil {
+			openedPorts = resp.Msg.GetPorts()
+		}
+	}
+
+	if len(openedPorts) == 0 {
+		return fmt.Errorf("open sequential ports on %q: API returned no ports", nameOrID)
+	}
+	return writeOpenResults(out, nameOrID, openedPorts, jsonOutput)
+}
+
+func parsePortRange(value string) (int32, int32, bool, error) {
+	value = strings.TrimSpace(value)
+	fromValue, toValue, found := strings.Cut(value, "-")
+	if !found {
+		portNumber, err := parsePortNumber(value)
+		return portNumber, portNumber, false, err
+	}
+	if strings.Contains(toValue, "-") {
+		return 0, 0, false, fmt.Errorf("invalid port range %q: use FROM-TO, for example 8000-8031", value)
+	}
+	fromPort, err := parsePortNumber(fromValue)
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("invalid port range %q: start port must be between 1 and 65535", value)
+	}
+	toPort, err := parsePortNumber(toValue)
+	if err != nil {
+		return 0, 0, false, fmt.Errorf("invalid port range %q: end port must be between 1 and 65535", value)
+	}
+	if fromPort >= toPort {
+		return 0, 0, false, fmt.Errorf("invalid port range %q: start port must be less than end port", value)
+	}
+	return fromPort, toPort, true, nil
 }
 
 func parsePortNumber(value string) (int32, error) {
@@ -381,9 +478,17 @@ func buildHTTPHostname(value string, portNumber int32, targetID string) (string,
 }
 
 func writeOpenResult(out io.Writer, nameOrID string, port *devplanev1.Port, jsonOutput bool) error {
-	portInfo := toPortInfos([]*devplanev1.Port{port})[0]
+	return writeOpenResults(out, nameOrID, []*devplanev1.Port{port}, jsonOutput)
+}
+
+func writeOpenResults(out io.Writer, nameOrID string, ports []*devplanev1.Port, jsonOutput bool) error {
+	portInfos := toPortInfos(ports)
 	if jsonOutput {
-		encoded, err := json.MarshalIndent(portInfo, "", "  ")
+		var value any = portInfos
+		if len(portInfos) == 1 {
+			value = portInfos[0]
+		}
+		encoded, err := json.MarshalIndent(value, "", "  ")
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -391,9 +496,23 @@ func writeOpenResult(out io.Writer, nameOrID string, port *devplanev1.Port, json
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_, err := fmt.Fprintf(out, "Created %s port %d on %s.\n", portInfo.Protocol, port.GetServerPort(), nameOrID)
+	if len(portInfos) == 0 {
+		return fmt.Errorf("API returned no ports")
+	}
+	if len(portInfos) == 1 {
+		_, err := fmt.Fprintf(out, "Opened %s port %d on %s.\n", portInfos[0].Protocol, portInfos[0].DestinationPort, nameOrID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		return displayTables(out, nameOrID, portInfos)
+	}
+	_, err := fmt.Fprintf(
+		out, "Opened %d %s ports %d-%d on %s.\n",
+		len(portInfos), portInfos[0].Protocol, portInfos[0].DestinationPort,
+		portInfos[len(portInfos)-1].DestinationPort, nameOrID,
+	)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	return displayTables(out, nameOrID, []PortInfo{portInfo})
+	return displayTables(out, nameOrID, portInfos)
 }

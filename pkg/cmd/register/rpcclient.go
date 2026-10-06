@@ -8,6 +8,7 @@ import (
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 // bearerTokenTransport injects a Bearer token into every request.
@@ -26,6 +27,7 @@ func (t *bearerTokenTransport) RoundTrip(req *http.Request) (*http.Response, err
 	}
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+token)
+	store.AddCLIAttributionParams(req)
 	resp, err := t.base.RoundTrip(req)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -56,6 +58,14 @@ func NewNodeServiceClient(provider externalnode.TokenProvider, baseURL string) n
 // NewEnvironmentServiceClient creates an authenticated ConnectRPC EnvironmentServiceClient.
 func NewEnvironmentServiceClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.EnvironmentServiceClient {
 	return nodev1connect.NewEnvironmentServiceClient(
+		newAuthenticatedHTTPClient(provider),
+		baseURL,
+	)
+}
+
+// NewManagedSecretServiceClient creates an authenticated ConnectRPC managed-secret client.
+func NewManagedSecretServiceClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.ManagedSecretServiceClient {
+	return nodev1connect.NewManagedSecretServiceClient(
 		newAuthenticatedHTTPClient(provider),
 		baseURL,
 	)
