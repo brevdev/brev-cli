@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -317,7 +318,16 @@ func NewHTTPResponseError(response *resty.Response) *HTTPResponseError {
 	}
 }
 
+const expiredAPIKeyMessage = "Your API key is invalid or has expired. Generate a new API key and run 'brev login --api-key <new-api-key>' (or pass --api-key <new-api-key>)"
+
 func (e HTTPResponseError) Error() string {
+	if e.Response.StatusCode() == http.StatusUnauthorized && e.Response.Request != nil && auth.IsBrevAPIKey(e.Response.Request.Token) {
+		return expiredAPIKeyMessage + "\n" + e.baseError()
+	}
+	return e.baseError()
+}
+
+func (e HTTPResponseError) baseError() string {
 	body := e.Response.Body()
 	if featureflag.Debug() {
 		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
