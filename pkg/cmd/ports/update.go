@@ -10,9 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -266,7 +264,7 @@ func setPortTarget(
 	destinationPort int32,
 ) (*devplanev1.Port, error) {
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.SetPortTarget(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceSetPortTargetRequest{
 			PortId: portID, PortNumber: destinationPort,
 		}))
@@ -279,7 +277,7 @@ func setPortTarget(
 		return resp.Msg.GetPort(), nil
 	}
 	if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.SetPortTarget(ctx, connect.NewRequest(&devplanev1.SetPortTargetRequest{
 			PortId: portID, PortNumber: destinationPort,
 		}))
@@ -302,7 +300,7 @@ func setPortAllowedSources(
 	allowedSources []string,
 ) (*devplanev1.Port, error) {
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.SetPortAllowedSources(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceSetPortAllowedSourcesRequest{
 			PortId: portID,
 			AllowedSources: &devplanev1.EnvironmentServiceSetPortAllowedSourcesRequestAllowedSources{
@@ -318,7 +316,7 @@ func setPortAllowedSources(
 		return resp.Msg.GetPort(), nil
 	}
 	if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.SetPortAllowedSources(ctx, connect.NewRequest(&devplanev1.SetPortAllowedSourcesRequest{
 			PortId: portID, AllowedSources: allowedSources,
 		}))
@@ -342,7 +340,7 @@ func setHTTPPortProtocol(
 	protocol devplanev1.HttpPortProtocol,
 ) (*devplanev1.Port, error) {
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.SetHTTPPortProtocol(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceSetHTTPPortProtocolRequest{
 			PortId: portID, HttpProtocol: protocol,
 		}))
@@ -355,7 +353,7 @@ func setHTTPPortProtocol(
 		return resp.Msg.GetPort(), nil
 	}
 	if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.SetHTTPPortProtocol(ctx, connect.NewRequest(&devplanev1.SetHTTPPortProtocolRequest{
 			PortId: portID, HttpProtocol: protocol,
 		}))
@@ -379,7 +377,7 @@ func setHTTPPortAccess(
 	public bool,
 ) (*devplanev1.Port, error) {
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.SetHTTPPortAccess(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceSetHTTPPortAccessRequest{
 			PortId: portID,
 			AuthorizedEmails: &devplanev1.EnvironmentServiceSetHTTPPortAccessRequestAuthorizedEmails{
@@ -396,7 +394,7 @@ func setHTTPPortAccess(
 		return resp.Msg.GetPort(), nil
 	}
 	if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.SetHTTPPortAccess(ctx, connect.NewRequest(&devplanev1.SetHTTPPortAccessRequest{
 			PortId:                     portID,
 			AuthorizedEmails:           authorizedEmails,

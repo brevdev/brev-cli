@@ -12,10 +12,8 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
@@ -37,6 +35,7 @@ type RefreshStore interface {
 	MkdirAll(string, fs.FileMode) error
 	GetBrevCloudflaredBinaryPath() (string, error)
 	Create(string) (io.WriteCloser, error)
+	DevPlane() *store.DevPlaneClient
 }
 
 func NewCmdRefresh(t *terminal.Terminal, store RefreshStore) *cobra.Command {
@@ -176,7 +175,7 @@ func getExternalNodeSSHEntries(store RefreshStore, identity refreshIdentity) []s
 	}
 	org, user := identity.org, identity.user
 
-	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
+	client := store.DevPlane().ExternalNodes
 	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
 		OrganizationId: org.ID,
 		Options: &nodev1.ListNodesOptions{

@@ -12,8 +12,10 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 // mockExternalNodeStore satisfies the shared node and workspace lookup interfaces.
@@ -30,6 +32,10 @@ func (m *mockExternalNodeStore) GetActiveOrganizationOrDefault() (*entity.Organi
 }
 
 func (m *mockExternalNodeStore) GetAccessToken() (string, error) { return "tok", nil }
+
+func (m *mockExternalNodeStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(m, config.GlobalConfig.GetBrevPublicAPIURL())
+}
 
 func (m *mockExternalNodeStore) GetAuthTokens() (*entity.AuthTokens, error) { return nil, nil }
 

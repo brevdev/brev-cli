@@ -4,21 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
 func (s *AuthHTTPStore) newManagedSecretServiceClient() nodev1connect.ManagedSecretServiceClient {
-	return nodev1connect.NewManagedSecretServiceClient(
-		&http.Client{Transport: &authHTTPStoreTransport{store: s, base: http.DefaultTransport}},
-		config.GlobalConfig.GetBrevPublicAPIURL(),
-	)
+	return s.DevPlane().ManagedSecrets
 }
 
 func (s *AuthHTTPStore) CreateManagedSecret(organizationID, name, value string) (*nodev1.ManagedSecret, error) {

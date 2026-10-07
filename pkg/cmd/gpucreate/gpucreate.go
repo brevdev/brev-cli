@@ -3,6 +3,7 @@ package gpucreate
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -25,6 +26,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/names"
@@ -109,7 +111,7 @@ type GPUCreateStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetAuthTokens() (*entity.AuthTokens, error)
 	GetCurrentUser() (*entity.User, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetEnvironmentStatus(environmentID string) (environment.Status, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
@@ -1130,25 +1132,49 @@ func (c *createContext) cleanupExtraInstances(workspaces []*entity.Workspace) []
 	return workspaces[:c.opts.Count]
 }
 
-// waitForInstances waits for all instances to be ready
-func (c *createContext) waitForInstances(workspaces []*entity.Workspace) {
+// errReadyTimeout marks a pollUntilReady timeout. It is non-fatal: waiting is a
+// convenience and the instance may still finish provisioning after the window.
+var errReadyTimeout = errors.New("timeout waiting for instance to be ready")
+
+// workspaceFailedError reports a workspace that reached a terminal failure.
+type workspaceFailedError struct{ message string }
+
+func (e *workspaceFailedError) Error() string { return e.message }
+
+// waitForInstances blocks until each workspace is ready. It returns an error
+// when any instance reaches a terminal failure so the command exits non-zero;
+// timeouts and transient polling errors are reported but remain non-fatal.
+func (c *createContext) waitForInstances(workspaces []*entity.Workspace) error {
 	if c.opts.Detached {
-		return
+		return nil
 	}
 
 	c.logf("\nWaiting for instance(s) to be ready...\n")
 	c.logf("You can safely ctrl+c to exit\n")
 
+	var failed []string
 	for _, ws := range workspaces {
 		err := c.pollUntilReady(ws.ID)
-		if err != nil {
-			if strings.Contains(err.Error(), "timeout waiting") {
-				c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
-			} else {
-				c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
-			}
+		var failedErr *workspaceFailedError
+		switch {
+		case err == nil:
+		case errors.Is(err, errReadyTimeout):
+			c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
+		case errors.As(err, &failedErr):
+			c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
+			failed = append(failed, err.Error())
+		default:
+			c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
 		}
 	}
+
+	if len(failed) > 0 {
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"%d/%d instance(s) failed to become ready: %s",
+			len(failed), len(workspaces), strings.Join(failed, "; "),
+		))
+	}
+	return nil
 }
 
 // printSummary outputs the final creation summary
@@ -1230,7 +1256,9 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	}
 
 	successfulWorkspaces = ctx.cleanupExtraInstances(successfulWorkspaces)
-	ctx.waitForInstances(successfulWorkspaces)
+	if err := ctx.waitForInstances(successfulWorkspaces); err != nil {
+		return err
+	}
 	ctx.printSummary(successfulWorkspaces)
 
 	return nil
@@ -1608,32 +1636,41 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 	return options
 }
 
-// pollUntilReady waits for a workspace to reach the running state
+// pollUntilReady waits for a workspace to reach the running state, using
+// dev-plane's environment status as the single source of truth.
 func (c *createContext) pollUntilReady(wsID string) error {
 	deadline := time.Now().Add(c.opts.Timeout)
 
 	for time.Now().Before(deadline) {
-		ws, err := c.store.GetWorkspace(wsID)
+		status, err := c.store.GetEnvironmentStatus(wsID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 
-		if ws.Status == entity.Running {
-			c.logf("  %s: %s\n", ws.Name, c.colorize("Ready", c.t.Green))
-			return nil
+		name := status.Name
+		if name == "" {
+			name = wsID
 		}
 
-		if ws.Status == entity.Failure {
-			if ws.StatusMessage != "" {
-				return breverrors.NewValidationError(fmt.Sprintf("instance %s failed: %s", ws.Name, ws.StatusMessage))
-			}
-			return breverrors.NewValidationError(fmt.Sprintf("instance %s failed", ws.Name))
+		switch {
+		case status.Ready:
+			c.logf("  %s: %s\n", name, c.colorize("Ready", c.t.Green))
+			return nil
+		case status.Failed:
+			return &workspaceFailedError{message: instanceFailureMessage(name, status.Message)}
 		}
 
 		time.Sleep(5 * time.Second)
 	}
 
-	return breverrors.NewValidationError("timeout waiting for instance to be ready")
+	return errReadyTimeout
+}
+
+func instanceFailureMessage(name, statusMessage string) string {
+	if statusMessage != "" {
+		return fmt.Sprintf("instance %s failed: %s", name, statusMessage)
+	}
+	return fmt.Sprintf("instance %s failed", name)
 }
 
 // displayConnectBreadCrumb shows connection instructions

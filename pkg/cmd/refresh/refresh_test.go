@@ -8,7 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 func strPtr(s string) *string { return &s }
@@ -38,6 +40,10 @@ func (s *identityCountingStore) GetCurrentUser() (*entity.User, error) {
 func (s *identityCountingStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	s.resolving++
 	return s.workspaces, nil
+}
+
+func (s *identityCountingStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
 }
 
 func (s *identityCountingStore) GetContextWorkspacesFor(orgID, userID string) ([]entity.Workspace, error) {

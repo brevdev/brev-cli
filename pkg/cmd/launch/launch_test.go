@@ -15,6 +15,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
@@ -118,6 +119,10 @@ type fakeLaunchStore struct {
 }
 
 func (f *fakeLaunchStore) GetAccessToken() (string, error) { return "token", nil }
+
+func (f *fakeLaunchStore) GetEnvironmentStatus(string) (environment.Status, error) {
+	return environment.Status{}, nil
+}
 
 func (f *fakeLaunchStore) GetCurrentUser() (*entity.User, error) {
 	return &entity.User{ID: "user-1", GlobalUserType: "Standard"}, nil

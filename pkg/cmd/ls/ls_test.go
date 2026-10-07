@@ -14,13 +14,45 @@ import (
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/stretchr/testify/assert"
 )
 
 const testAPIKey = authpkg.BrevAPIKeyPrefix + "test-key"
+
+// TestMain stubs the dev-plane status source so unit tests never make network calls.
+func TestMain(m *testing.M) {
+	listDevPlaneEnvironments = func(LsStore, string) (map[string]environment.Status, error) {
+		return nil, nil
+	}
+	os.Exit(m.Run())
+}
+
+func TestApplyDevPlaneStatusesOverridesDivergentStatus(t *testing.T) {
+	workspaces := []entity.Workspace{
+		{ID: "env-failed", Name: "failed", Status: entity.Running},
+		{ID: "env-running", Name: "running", Status: entity.Deploying},
+		{ID: "env-unknown", Name: "unknown", Status: entity.Deploying},
+	}
+	statuses := map[string]environment.Status{
+		"env-failed":  {Name: "failed", Display: entity.Failure, Failed: true, Message: "out of quota"},
+		"env-running": {Name: "running", Display: entity.Running, Ready: true},
+	}
+
+	applyDevPlaneStatuses(workspaces, statuses)
+
+	// Instance-derived status said RUNNING, but the environment failed.
+	assert.Equal(t, entity.Failure, workspaces[0].Status)
+	assert.Equal(t, "out of quota", workspaces[0].StatusMessage)
+	assert.Equal(t, entity.Running, workspaces[1].Status)
+	// Environments absent from the dev-plane response keep their existing status.
+	assert.Equal(t, entity.Deploying, workspaces[2].Status)
+}
 
 // mockLsStore implements LsStore (including the embedded hello.HelloStore) for
 // testing the ls command routing without real API calls.
@@ -46,6 +78,10 @@ func (m *mockLsStore) GetAuthTokens() (*entity.AuthTokens, error) {
 
 func (m *mockLsStore) GetAccessToken() (string, error) {
 	return "tok", nil
+}
+
+func (m *mockLsStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(m, config.GlobalConfig.GetBrevPublicAPIURL())
 }
 
 func (m *mockLsStore) GetWorkspace(_ string) (*entity.Workspace, error) {

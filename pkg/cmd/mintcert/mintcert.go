@@ -15,11 +15,11 @@ import (
 	"github.com/spf13/afero"
 	"github.com/spf13/cobra"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 	"github.com/brevdev/brev-cli/pkg/sshcert"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 const timeout = 15 * time.Second
@@ -191,8 +191,9 @@ func runMintCertWith(store Store, fs afero.Fs, issuer CertIssuer, req mintCertRe
 }
 
 func newCertIssuer(provider externalnode.TokenProvider, baseURL string) CertIssuer {
+	devPlane := store.NewDevPlaneClient(provider, baseURL)
 	return rpcCertIssuer{
-		client:     register.NewEnvironmentServiceClient(provider, baseURL),
-		nodeClient: register.NewNodeServiceClient(provider, baseURL),
+		client:     devPlane.Environments,
+		nodeClient: devPlane.ExternalNodes,
 	}
 }
