@@ -16,7 +16,10 @@ import (
 	"github.com/brevdev/brev-cli/pkg/sshcert"
 )
 
-const sshAccessLookupTimeout = 10 * time.Second
+const (
+	sshAccessLookupTimeout = 10 * time.Second
+	sshAccessRefreshBudget = 30 * time.Second
+)
 
 type environmentSSHClient interface {
 	GetEnvironment(context.Context, *connect.Request[devplanev1.GetEnvironmentRequest]) (*connect.Response[devplanev1.GetEnvironmentResponse], error)
@@ -46,7 +49,7 @@ func (s workspaceSSHStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	}
 
 	client := register.NewEnvironmentServiceClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
-	ctx, cancel := context.WithTimeout(context.Background(), sshAccessLookupTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), sshAccessRefreshBudget)
 	defer cancel()
 
 	return enrichWorkspacesWithSSHAccess(ctx, client, user.ID, workspaces), nil
@@ -76,7 +79,14 @@ func enrichWorkspacesWithSSHAccess(ctx context.Context, client environmentSSHCli
 			continue
 		}
 
-		workspace, err := resolveWorkspaceSSH(ctx, client, userID, workspaces[i])
+		if ctx.Err() != nil {
+			log.Printf("workspace SSH access: lookup budget exhausted, using legacy configuration for the remaining instances")
+			break
+		}
+
+		lookupCtx, cancel := context.WithTimeout(ctx, sshAccessLookupTimeout)
+		workspace, err := resolveWorkspaceSSH(lookupCtx, client, userID, workspaces[i])
+		cancel()
 		if err != nil {
 			log.Printf("workspace SSH access: using legacy configuration for %s: %v", workspaces[i].ID, err)
 			continue
