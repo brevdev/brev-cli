@@ -6,11 +6,15 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	resty "github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -160,4 +164,80 @@ type errorAuth struct{}
 
 func (errorAuth) GetAccessToken() (string, error) {
 	return "", errors.New("boom-auth")
+}
+
+// newErrResponse spins up a one-shot server returning the given status + body and
+// returns the resty response, so tests exercise the real HTTPResponseError path.
+// authToken, if set, is applied via SetAuthToken (populating Request.Token, which
+// is how requestUsedBrevAPIKey detects a bak- API key).
+func newErrResponse(t *testing.T, status int, body, authToken string) *resty.Response {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+
+	req := resty.New().SetBaseURL(srv.URL).R()
+	if authToken != "" {
+		req.SetAuthToken(authToken)
+	}
+	resp, err := req.Get("/api/organizations")
+	if err != nil {
+		t.Fatalf("transport error (not under test): %v", err)
+	}
+	return resp
+}
+
+// Control-plane 401 via interactive login: typed-but-messageless body, non-API-key
+// token -> friendly "brev login" message.
+func TestHTTPResponseError_ControlPlane401_Interactive(t *testing.T) {
+	resp := newErrResponse(t, http.StatusUnauthorized, `{"errors":[{"type":"UnauthorizedError"}]}`, "header.payload.sig")
+	got := NewHTTPResponseError(resp).Error()
+
+	if !strings.Contains(got, "brev login") {
+		t.Fatalf("want a `brev login` hint, got: %q", got)
+	}
+	if strings.Contains(got, "API key") {
+		t.Fatalf("interactive-login failure must not mention API key, got: %q", got)
+	}
+}
+
+// Same control-plane 401 but authed with a bak- API key -> API-key message,
+// not "logged out / brev login".
+func TestHTTPResponseError_ControlPlane401_APIKey(t *testing.T) {
+	resp := newErrResponse(t, http.StatusUnauthorized, `{"errors":[{"type":"UnauthorizedError"}]}`, "bak-not-a-real-key")
+	got := NewHTTPResponseError(resp).Error()
+
+	if !strings.Contains(got, "API key") {
+		t.Fatalf("want an API-key message, got: %q", got)
+	}
+	if strings.Contains(got, "logged out") {
+		t.Fatalf("API-key failure must not say 'logged out', got: %q", got)
+	}
+}
+
+// GitHub's bad-credentials 401 (top-level message, no errors[].type) must NOT be
+// mapped to a brev-login message; it should surface GitHub's own error (the
+// `brev upgrade` false positive).
+func TestHTTPResponseError_GitHub401_NotBrevLogin(t *testing.T) {
+	resp := newErrResponse(t, http.StatusUnauthorized, `{"message":"Bad credentials","status":"401"}`, "")
+	got := NewHTTPResponseError(resp).Error()
+
+	if strings.Contains(got, "brev login") {
+		t.Fatalf("GitHub 401 must not be mapped to `brev login`, got: %q", got)
+	}
+	if !strings.Contains(got, "Bad credentials") {
+		t.Fatalf("GitHub 401 should surface its own message, got: %q", got)
+	}
+}
+
+// A real server message must still pass through unchanged (regression guard).
+func TestHTTPResponseError_ServerMessage_PassesThrough(t *testing.T) {
+	resp := newErrResponse(t, http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","message":"instance type invalid"}]}`, "")
+	got := NewHTTPResponseError(resp).Error()
+
+	if !strings.Contains(got, "instance type invalid") {
+		t.Fatalf("server-provided message should pass through, got: %q", got)
+	}
 }
