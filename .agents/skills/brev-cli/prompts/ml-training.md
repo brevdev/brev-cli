@@ -93,7 +93,14 @@ brev exec <name> "python -c 'import torch; print(torch.cuda.is_available())'"
 
 Options:
 1. **Interactive:** `brev shell <name>` then run manually
-2. **Background:** `brev exec <name> "nohup python train.py > training.log 2>&1 &"`
+2. **Background:** launch fully detached - `brev exec` holds the session until the command
+   exits, even for `nohup ... &` children, so a plain `nohup ... &` hangs the exec call for
+   the whole training run. Use a launcher script that detaches and writes a completion marker:
+   ```bash
+   # launch.sh (run with: brev exec <name> @launch.sh)
+   setsid nohup python train.py > training.log 2>&1 < /dev/null & disown
+   ```
+   with the training command appending `echo DONE >> ~/progress.log` when finished.
 3. **Editor:** `brev open <name> cursor`
 
 ## Step 8: Monitor
@@ -102,8 +109,11 @@ Options:
 # Check GPU usage
 brev exec <name> "nvidia-smi"
 
-# Check training logs
-brev exec <name> "tail -f training.log"
+# Check recent training logs (avoid tail -f via exec - it never exits)
+brev exec <name> "tail -n 50 training.log"
+
+# Check for completion
+brev exec <name> "grep -c DONE ~/progress.log"
 ```
 
 ## Cleanup Reminder

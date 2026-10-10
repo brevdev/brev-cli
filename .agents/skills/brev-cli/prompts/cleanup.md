@@ -17,7 +17,8 @@ Parse output to identify:
 ## Step 2: Identify Candidates for Cleanup
 
 Look for:
-- Stopped instances (not in use)
+- Stopped instances (not in use) - note: **stopped instances still accrue storage charges**
+  until deleted, so surface them even if they look parked deliberately
 - Old instances (name suggests temporary use)
 - Test/dev instances
 
