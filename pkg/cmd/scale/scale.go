@@ -62,6 +62,9 @@ func Runscale(t *terminal.Terminal, args []string, gpu string, cpu string, sstor
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
+	if err = validateWorkspaceScalable(workspace); err != nil {
+		return err
+	}
 
 	var modifyBody store.ModifyWorkspaceRequest
 
@@ -97,4 +100,14 @@ func Runscale(t *terminal.Terminal, args []string, gpu string, cpu string, sstor
 	t.Vprintf("\n%s", t.Yellow("Your instance might still be rebooting.  Check the status with `brev ls`\n"))
 
 	return nil
+}
+
+// Dev-plane sets SubLocationTypeChangeable only when the provider can change an existing instance's type.
+func validateWorkspaceScalable(workspace *entity.Workspace) error {
+	if workspace.InstanceTypeInfo != nil && workspace.InstanceTypeInfo.SubLocationTypeChangeable {
+		return nil
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"instance %q does not support scale; create a new instance with the desired type instead",
+		workspace.Name))
 }
