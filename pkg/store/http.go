@@ -342,9 +342,25 @@ func (e HTTPResponseError) baseError() string {
 		msg = msg + e.Message + "\n"
 	}
 	if strings.TrimSpace(msg) == "" {
+		// Match on the control plane's own typed discriminator (the "type" field)
+		// rather than the HTTP status: it only fires on the control plane's
+		// typed-but-messageless auth error, so it won't misfire on non-control-plane
+		// 401s like GitHub's {"message":"Bad credentials"} during `brev upgrade`.
+		if len(errors.Errors) > 0 && errors.Errors[0].Kind == "UnauthorizedError" {
+			if requestUsedBrevAPIKey(e.Response.Request) {
+				return "your Brev API key is invalid or expired — check BREV_API_KEY or re-run `brev login --api-key <key>`"
+			}
+			return "you're logged out — run `brev login` to authenticate"
+		}
 		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
 	}
 	return msg
+}
+
+// requestUsedBrevAPIKey reports whether the failed request authenticated with a
+// Brev API key. resty stores the SetAuthToken value on Request.Token.
+func requestUsedBrevAPIKey(req *resty.Request) bool {
+	return req != nil && auth.IsBrevAPIKey(req.Token)
 }
 
 func IsNetwork404Or403Error(err error) bool {
