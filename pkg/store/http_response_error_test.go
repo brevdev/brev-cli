@@ -38,10 +38,11 @@ func TestHTTPResponseError_UnauthorizedWithAPIKeyShowsHintThenOriginalMessage(t 
 	msg := err.Error()
 	assert.True(t, strings.HasPrefix(msg, expiredAPIKeyMessage+"\n"), "hint should come first: %q", msg)
 	assert.Contains(t, msg, "brev login --api-key")
-	// the original error is preserved after the hint
+	// The base error is preserved after the hint. baseError() renders the
+	// typed-but-messageless control-plane 401 as the friendly key-expired copy
+	// (see the UnauthorizedError branch), not the raw "401 Unauthorized" line.
 	assert.True(t, strings.HasSuffix(msg, err.baseError()))
-	assert.Contains(t, msg, "401 Unauthorized")
-	assert.Contains(t, msg, "UnauthorizedError")
+	assert.Contains(t, msg, "your Brev API key is invalid or expired")
 }
 
 func TestHTTPResponseError_UnauthorizedWithoutAPIKeyKeepsOriginalMessage(t *testing.T) {
@@ -50,8 +51,9 @@ func TestHTTPResponseError_UnauthorizedWithoutAPIKeyKeepsOriginalMessage(t *test
 
 	msg := err.Error()
 	assert.NotContains(t, msg, expiredAPIKeyMessage)
-	assert.Contains(t, msg, "401")
-	assert.Contains(t, msg, "UnauthorizedError")
+	// A messageless typed 401 renders the friendly logged-out copy; the raw
+	// status line only appears for bodies the control-plane mapping can't interpret.
+	assert.Contains(t, msg, "you're logged out")
 }
 
 func TestHTTPResponseError_UnauthorizedWithNoTokenKeepsOriginalMessage(t *testing.T) {
