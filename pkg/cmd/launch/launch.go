@@ -27,6 +27,7 @@ const defaultLaunchTimeoutSeconds = 300
 type Store interface {
 	gpucreate.GPUCreateStore
 	GetAccessToken() (string, error)
+	DevPlane() *store.DevPlaneClient
 }
 
 type commandOptions struct {
@@ -51,6 +52,7 @@ type launchCommandArgs struct {
 }
 
 type remoteLaunchArgs struct {
+	ctx          context.Context
 	terminal     *terminal.Terminal
 	store        Store
 	launchableID string
@@ -178,6 +180,7 @@ func runLaunchCommand(ctx context.Context, args launchCommandArgs) error {
 		})
 	}
 	return runRemoteLaunch(remoteLaunchArgs{
+		ctx:          ctx,
 		terminal:     args.terminal,
 		store:        args.store,
 		launchableID: launchableID,
@@ -277,7 +280,7 @@ func runRemoteLaunch(args remoteLaunchArgs) error {
 	if err != nil {
 		return err
 	}
-	err = gpucreate.RunGPUCreate(args.terminal, args.store, gpucreate.GPUCreateOptions{
+	err = gpucreate.RunGPUCreate(args.ctx, args.terminal, args.store, gpucreate.GPUCreateOptions{
 		Name:              args.name,
 		InstanceTypes:     instanceTypes,
 		Count:             1,

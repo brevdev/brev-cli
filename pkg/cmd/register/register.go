@@ -516,3 +516,76 @@ func resumeRegistration(ctx context.Context, t *terminal.Terminal, s RegisterSto
 	org := &entity.Organization{ID: pending.OrgID, Name: pending.OrgName}
 	return runRegisterSteps(ctx, t, s, pending.DisplayName, org, deps, pending.DeviceID, registrationToken)
 }
+
+// toProtoNodeSpec converts the local HardwareProfile (used for collection, display,
+// persistence) to the generated proto NodeSpec for RPC calls.
+func toProtoNodeSpec(hw *HardwareProfile) *nodev1.NodeSpec {
+	if hw == nil {
+		return nil
+	}
+
+	proto := &nodev1.NodeSpec{
+		RamBytes: hw.RAMBytes,
+		CpuCount: hw.CPUCount,
+	}
+
+	for _, st := range hw.Storage {
+		storageSpec := &nodev1.StorageSpec{
+			StorageBytes: st.StorageBytes,
+			StorageType:  st.StorageType,
+		}
+		if st.Name != "" {
+			storageSpec.Device = &st.Name
+		}
+		proto.Storage = append(proto.Storage, storageSpec)
+	}
+
+	if hw.Architecture != "" {
+		proto.Architecture = &hw.Architecture
+	}
+	if hw.OS != "" {
+		proto.Os = &hw.OS
+	}
+	if hw.OSVersion != "" {
+		proto.OsVersion = &hw.OSVersion
+	}
+
+	if hw.ProductName != "" {
+		proto.ProductName = &hw.ProductName
+	}
+
+	for _, g := range hw.GPUs {
+		pg := &nodev1.GPUSpec{
+			Model:       g.Model,
+			Count:       g.Count,
+			MemoryBytes: g.MemoryBytes,
+		}
+		if g.Architecture != "" {
+			pg.GpuArchitecture = &g.Architecture
+		}
+		proto.Gpus = append(proto.Gpus, pg)
+	}
+
+	for _, ic := range hw.Interconnects {
+		spec := &nodev1.InterconnectSpec{Device: ic.Device}
+		switch ic.Type {
+		case "NVLink":
+			spec.Details = &nodev1.InterconnectSpec_Nvlink{
+				Nvlink: &nodev1.NVLinkDetails{
+					ActiveLinks: int32(ic.ActiveLinks),
+					Version:     ic.Version,
+				},
+			}
+		case "PCIe":
+			spec.Details = &nodev1.InterconnectSpec_Pcie{
+				Pcie: &nodev1.PCIeDetails{
+					Generation: int32(ic.Generation),
+					Width:      int32(ic.Width),
+				},
+			}
+		}
+		proto.Interconnects = append(proto.Interconnects, spec)
+	}
+
+	return proto
+}

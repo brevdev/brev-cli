@@ -42,11 +42,9 @@ ifdef env
 ifeq ($(env),local-stack)
 	@echo 'export BREV_API_URL="http://localhost:8080"' >> brev
 	@echo 'export BREV_PUBLIC_API_URL="http://localhost:8081"' >> brev
-	@echo 'export BREV_GRPC_URL="localhost:8081"' >> brev
 else
 	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
 	@echo 'export BREV_PUBLIC_API_URL="https://api.$(env).brev.nvidia.com"' >> brev
-	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev
 endif
 	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev-local" "$$@"' >> brev
 	@chmod +x brev

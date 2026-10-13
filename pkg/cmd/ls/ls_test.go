@@ -8,19 +8,46 @@ import (
 	"strings"
 	"testing"
 
-	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
-	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	devplanev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/stretchr/testify/assert"
 )
 
 const testAPIKey = authpkg.BrevAPIKeyPrefix + "test-key"
+
+func TestApplyStatusesFeedsDisplayFromEnvironment(t *testing.T) {
+	workspaces := []entity.Workspace{
+		{ID: "env-failed", Name: "failed", Status: entity.Running},
+		{ID: "env-running", Name: "running", Status: entity.Deploying},
+		{ID: "env-unknown", Name: "unknown", Status: entity.Deploying},
+	}
+	failedEnv := &devplanev1.Environment{EnvironmentId: "env-failed", Status: devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED}
+	failedEnv.Instance = &devplanev1.Instance{
+		ProvisionStatus: &devplanev1.CreateAttemptStatus{Message: "out of quota"},
+	}
+	environments := []*devplanev1.Environment{
+		failedEnv,
+		{EnvironmentId: "env-running", Status: devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_RUNNING},
+	}
+
+	applyStatuses(workspaces, environments)
+
+	// The environment status wins even when the workspace row said otherwise.
+	assert.Equal(t, entity.Failure, workspaces[0].Status)
+	assert.Equal(t, "out of quota", workspaces[0].StatusMessage)
+	assert.Equal(t, entity.Running, workspaces[1].Status)
+	// Workspaces without a matching environment keep their (stale) row status.
+	assert.Equal(t, entity.Deploying, workspaces[2].Status)
+}
 
 // mockLsStore implements LsStore (including the embedded hello.HelloStore) for
 // testing the ls command routing without real API calls.
@@ -46,6 +73,14 @@ func (m *mockLsStore) GetAuthTokens() (*entity.AuthTokens, error) {
 
 func (m *mockLsStore) GetAccessToken() (string, error) {
 	return "tok", nil
+}
+
+func (m *mockLsStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(m, config.GlobalConfig.GetBrevPublicAPIURL())
+}
+
+func (m *mockLsStore) GetEnvironmentsByOrg(_ context.Context, _ string) ([]*devplanev1.Environment, error) {
+	return nil, nil
 }
 
 func (m *mockLsStore) GetWorkspace(_ string) (*entity.Workspace, error) {
@@ -112,7 +147,7 @@ func resolveTestCLIAuth(t *testing.T, s *mockLsStore) authpkg.CLIAuth {
 
 func runLs(t *testing.T, term *terminal.Terminal, s *mockLsStore, args []string, showAll bool) error {
 	t.Helper()
-	return RunLs(term, resolveTestCLIAuth(t, s), s, args, showAll, true)
+	return RunLs(context.Background(), term, resolveTestCLIAuth(t, s), s, args, showAll, true)
 }
 
 func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
@@ -424,7 +459,7 @@ func TestRunLs_ShowAllTable(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, resolveTestCLIAuth(t, s), s, nil, true, false)
+		err := RunLs(context.Background(), term, resolveTestCLIAuth(t, s), s, nil, true, false)
 		if err != nil {
 			t.Fatalf("RunLs --all returned error: %v", err)
 		}
@@ -598,7 +633,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 		"workspace", "workspaces",
 	}
 	for _, arg := range successArgs {
-		if err := handleLsArg(ls, resolveTestCLIAuth(t, s), arg, s.org, false); err != nil {
+		if err := handleLsArg(context.Background(), ls, resolveTestCLIAuth(t, s), arg, s.org, false); err != nil {
 			t.Errorf("handleLsArg(%q) returned unexpected error: %v", arg, err)
 		}
 	}
@@ -606,7 +641,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 	// "node"/"nodes" route to RunNodes which calls the gRPC client — verify
 	// it attempts the path (error expected due to no real client).
 	for _, arg := range []string{"node", "nodes"} {
-		_ = handleLsArg(ls, resolveTestCLIAuth(t, s), arg, s.org, false)
+		_ = handleLsArg(context.Background(), ls, resolveTestCLIAuth(t, s), arg, s.org, false)
 	}
 }
 
@@ -626,7 +661,7 @@ func TestOutputWorkspacesJSON_WithNodes(t *testing.T) {
 			CreatedByUserID: "u1",
 		},
 	}
-	nodes := []*nodev1.ExternalNode{
+	nodes := []*devplanev1.ExternalNode{
 		{
 			Name:           "gpu-node-1",
 			ExternalNodeId: "en-123",
@@ -711,15 +746,15 @@ func TestOutputWorkspacesJSON_NoNodes(t *testing.T) {
 }
 
 type lsFakeNodeService struct {
-	nodev1connect.UnimplementedExternalNodeServiceHandler
+	devplanev1connect.UnimplementedExternalNodeServiceHandler
 }
 
-func (f *lsFakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+func (f *lsFakeNodeService) ListNodes(_ context.Context, req *connect.Request[devplanev1.ListNodesRequest]) (*connect.Response[devplanev1.ListNodesResponse], error) {
 	if req.Msg.GetOrganizationId() != "org1" {
-		return connect.NewResponse(&nodev1.ListNodesResponse{}), nil
+		return connect.NewResponse(&devplanev1.ListNodesResponse{}), nil
 	}
-	return connect.NewResponse(&nodev1.ListNodesResponse{
-		Items: []*nodev1.ExternalNode{
+	return connect.NewResponse(&devplanev1.ListNodesResponse{
+		Items: []*devplanev1.ExternalNode{
 			{Name: "gpu-node-1", ExternalNodeId: "en-123", OrganizationId: "org1"},
 			{Name: "gpu-node-2", ExternalNodeId: "en-456", OrganizationId: "org1"},
 		},
@@ -728,7 +763,7 @@ func (f *lsFakeNodeService) ListNodes(_ context.Context, req *connect.Request[no
 
 func withFakeNodeAPI(t *testing.T, fn func()) {
 	t.Helper()
-	_, handler := nodev1connect.NewExternalNodeServiceHandler(&lsFakeNodeService{})
+	_, handler := devplanev1connect.NewExternalNodeServiceHandler(&lsFakeNodeService{})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	t.Setenv("BREV_PUBLIC_API_URL", server.URL)

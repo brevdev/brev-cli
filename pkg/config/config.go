@@ -8,7 +8,6 @@ type EnvVarName string // should be caps with underscore
 
 const (
 	brevAPIURL               EnvVarName = "BREV_API_URL"
-	brevGRPCURL              EnvVarName = "BREV_GRPC_URL"
 	brevAuthURL              EnvVarName = "BREV_AUTH_URL"
 	brevAuthIssuerURL        EnvVarName = "BREV_AUTH_ISSUER_URL"
 	brevConsoleURL           EnvVarName = "BREV_CONSOLE_URL"
@@ -33,14 +32,11 @@ func (c ConstantsConfig) GetBrevAPIURl() string {
 	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
 }
 
-// GetBrevPublicAPIURL returns the public REST API URL (no auth required)
+// GetBrevPublicAPIURL returns the base URL of dev-plane's public API server
+// (BREV_PUBLIC_API_URL). That server serves both the public HTTP routes (/v1/...)
+// and the ConnectRPC services the CLI calls (pkg/cmd/register, pkg/environment).
 func (c ConstantsConfig) GetBrevPublicAPIURL() string {
 	return getEnvOrDefault(brevPublicAPIURL, "https://api.brev.dev")
-}
-
-func (c ConstantsConfig) GetBrevGRPCURL() string {
-	// GRPC does not use https:// prefix
-	return getEnvOrDefault(brevGRPCURL, "api.brev.dev:443")
 }
 
 func (c ConstantsConfig) GetBrevAuthURL() string {

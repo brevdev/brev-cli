@@ -17,6 +17,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -222,7 +223,7 @@ func Test_RemoveAuthorizedKey_DoesNotRemoveOtherBrevKeys(t *testing.T) {
 type mockNodeClientFactory struct{ serverURL string }
 
 func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
-	return register.NewNodeServiceClient(provider, m.serverURL)
+	return store.NewDevPlaneClient(provider, m.serverURL).ExternalNodes
 }
 
 type mockEnableSSHStore struct {

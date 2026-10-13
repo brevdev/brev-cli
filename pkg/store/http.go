@@ -13,6 +13,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -103,6 +104,7 @@ type AuthHTTPStore struct {
 	isRefreshTokenHandlerSet bool
 	organizationOverride     *entity.Organization
 	organizationOverrideName string
+	devPlaneClient           *DevPlaneClient
 	BasicStore
 }
 
@@ -145,7 +147,9 @@ func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 		c.restyClient.SetQueryParam("local", "true")
 	}
 	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
-	return &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
+	s := &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
+	s.devPlaneClient = NewDevPlaneClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	return s
 }
 
 func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
@@ -154,7 +158,9 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	if id == "" {
 		c.restyClient.SetQueryParam("local", "true")
 	}
-	return &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
+	s := &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
+	s.devPlaneClient = NewDevPlaneClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	return s
 }
 
 func (n *NoAuthHTTPStore) WithAuth(auth Auth, options ...Option) *AuthHTTPStore {

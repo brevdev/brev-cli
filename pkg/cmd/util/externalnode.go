@@ -8,11 +8,10 @@ import (
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/ssh"
+	"github.com/brevdev/brev-cli/pkg/store"
 )
 
 // ExternalNodeStore is the minimal interface needed for Brev Connect machine lookup and SSH resolution.
@@ -20,6 +19,7 @@ type ExternalNodeStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetAccessToken() (string, error)
 	GetCurrentUser() (*entity.User, error)
+	DevPlane() *store.DevPlaneClient
 }
 
 type WorkspaceOrNodeResolver interface {
@@ -129,8 +129,8 @@ func resolvePortForSSHAccess(node *nodev1.ExternalNode, access *nodev1.SSHAccess
 
 // OpenPort calls the OpenPort RPC to open a port on a Brev Connect machine via netbird.
 // This must be called before attempting to connect to a non-SSH port on a node.
-func OpenPort(store ExternalNodeStore, nodeID string, portNumber int32, protocol nodev1.PortProtocol) (*nodev1.Port, error) {
-	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
+func OpenPort(nodeStore ExternalNodeStore, nodeID string, portNumber int32, protocol nodev1.PortProtocol) (*nodev1.Port, error) {
+	client := nodeStore.DevPlane().ExternalNodes
 	resp, err := client.OpenPort(context.Background(), connect.NewRequest(&nodev1.OpenPortRequest{
 		ExternalNodeId: nodeID,
 		Protocol:       protocol,
@@ -151,12 +151,12 @@ func FindExternalNode(store ExternalNodeStore, nameOrID string) (*nodev1.Externa
 // FindExternalNodeWithContext searches for a Brev Connect machine by name or ID in the user's active
 // organization. Exact IDs take precedence over case-insensitive names.
 // Returns (nil, nil) if no matching node is found.
-func FindExternalNodeWithContext(ctx context.Context, store ExternalNodeStore, nameOrID string) (*nodev1.ExternalNode, error) {
-	org, err := store.GetActiveOrganizationOrDefault()
+func FindExternalNodeWithContext(ctx context.Context, nodeStore ExternalNodeStore, nameOrID string) (*nodev1.ExternalNode, error) {
+	org, err := nodeStore.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	client := register.NewNodeServiceClient(store, config.GlobalConfig.GetBrevPublicAPIURL())
+	client := nodeStore.DevPlane().ExternalNodes
 	resp, err := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 		OrganizationId: org.ID,
 		Options: &nodev1.ListNodesOptions{

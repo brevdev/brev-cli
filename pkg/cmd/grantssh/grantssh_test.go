@@ -15,6 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -47,7 +48,7 @@ type mockNodeClientFactory struct {
 }
 
 func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
-	return register.NewNodeServiceClient(provider, m.serverURL)
+	return store.NewDevPlaneClient(provider, m.serverURL).ExternalNodes
 }
 
 // mockRegistrationStore satisfies register.RegistrationStore.

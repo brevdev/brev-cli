@@ -17,9 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
@@ -121,7 +119,7 @@ func resolveTargetPorts(
 
 	var apiPorts []*devplanev1.Port
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.GetNetworkInfo(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceGetNetworkInfoRequest{
 			EnvironmentId: target.Workspace.ID,
 		}))
@@ -167,7 +165,7 @@ func resolvePortID( //nolint:gocyclo // A port may belong to either supported ow
 	if err != nil {
 		return nil, nil, breverrors.WrapAndTrace(err)
 	}
-	environmentClient := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	environmentClient := portStore.DevPlane().Environments
 	var lookupErr error
 	for i := range workspaces {
 		workspace := &workspaces[i]
@@ -192,7 +190,7 @@ func resolvePortID( //nolint:gocyclo // A port may belong to either supported ow
 	if err != nil {
 		return nil, nil, breverrors.WrapAndTrace(err)
 	}
-	nodeClient := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	nodeClient := portStore.DevPlane().ExternalNodes
 	nodesResp, err := nodeClient.ListNodes(ctx, connect.NewRequest(&devplanev1.ListNodesRequest{
 		OrganizationId: org.ID,
 		Options: &devplanev1.ListNodesOptions{
