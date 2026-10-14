@@ -18,7 +18,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
@@ -46,10 +46,10 @@ jobs:
           flags: ${{ runner.os }}
 
       - name: Report Status
-        if: always()
-        uses: ravsamhq/notify-slack-action@v1
+        if: failure()
+        uses: 8398a7/action-slack@77eaa4f1c608a7d68b38af4e3f739dcd8cba273e
         with:
           status: ${{ job.status }}
-          notify_when: "failure"
+          fields: repo,workflow,job
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
