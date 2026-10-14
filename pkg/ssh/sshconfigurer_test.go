@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -268,23 +270,135 @@ func TestEnsureConfigHasInclude(t *testing.T) {
 }
 
 func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
-	bscp, err := c.store.GetBrevSSHConfigPath()
-	if !assert.Nil(t, err) {
-		return
+	const path = "/my/brev/config"
+	const include = "Include \"/my/brev/config\""
+	tests := []struct {
+		name string
+		conf string
+		want bool
+	}{
+		{"missing", "", false},
+		{"global", include + "\nHost unrelated\n", true},
+		{"global without final newline", include, true},
+		{"global with whitespace and comments", "# Host unrelated\n\n  " + include + "\r\n", true},
+		{"commented include", "# " + include + "\n", false},
+		{"host scoped", "Host unrelated\n  " + include + "\n", false},
+		{"match scoped", "Match host unrelated\n  " + include + "\n", false},
+		{"case insensitive host", "hOsT unrelated\n" + include + "\n", false},
+		{"equals host", "Host=unrelated\n" + include + "\n", false},
+		{"equals match", "Match=host unrelated\n" + include + "\n", false},
+		{"different path", "Include \"/another/config\"\n", false},
+		{"windows path", makeIncludeBrevStr(toWindowsPath(path)), true},
+		{"scoped windows path", "Host unrelated\n" + makeIncludeBrevStr(toWindowsPath(path)), false},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, doesUserSSHConfigIncludeBrevConfig(tt.conf, path))
+		})
+	}
+}
 
-	userConf := ``
-	assert.False(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+type includeSSHConfigurerStore struct {
+	DummySSHConfigurerV2Store
+	conf   string
+	path   string
+	writes int
+}
 
-	userConf = `Include "/my/brev/config"
-`
-	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+func (s *includeSSHConfigurerStore) GetUserSSHConfig() (string, error) {
+	return s.conf, nil
+}
 
-	userConf = `# blahdlkfadlfa
-Include "/my/brev/config"
-# baldfhaldjf`
-	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+func (s *includeSSHConfigurerStore) WriteUserSSHConfig(conf string) error {
+	s.conf = conf
+	s.writes++
+	return nil
+}
+
+func (s *includeSSHConfigurerStore) GetBrevSSHConfigPath() (string, error) {
+	if s.path != "" {
+		return s.path, nil
+	}
+	return s.DummySSHConfigurerV2Store.GetBrevSSHConfigPath()
+}
+
+func (s *includeSSHConfigurerStore) GetWSLHostBrevSSHConfigPath() (string, error) {
+	return s.path, nil
+}
+
+func (s *includeSSHConfigurerStore) GetWSLUserSSHConfig() (string, error) {
+	return s.conf, nil
+}
+
+func (s *includeSSHConfigurerStore) WriteWSLUserSSHConfig(conf string) error {
+	return s.WriteUserSSHConfig(conf)
+}
+
+func TestEnsureWSLConfigHasInclude_RepairsScopedIncludeOnce(t *testing.T) {
+	const path = "/mnt/c/Users/test/.brev/ssh_config"
+	original := "Host unrelated\n  User custom\n" + makeIncludeBrevStr(toWindowsPath(path))
+	s := &includeSSHConfigurerStore{conf: original, path: path}
+	c := NewSSHConfigurerV2(s)
+	assert.NoError(t, c.EnsureWSLConfigHasInclude())
+	assert.Equal(t, makeIncludeBrevStr(toWindowsPath(path))+original, s.conf)
+	assert.Equal(t, 1, s.writes)
+	assert.NoError(t, c.EnsureWSLConfigHasInclude())
+	assert.Equal(t, 1, s.writes)
+}
+
+func TestEnsureConfigHasInclude_RestoresSSHResolution(t *testing.T) {
+	ssh, err := exec.LookPath("ssh")
+	if err != nil {
+		t.Skip("OpenSSH is required to verify Include scope")
+	}
+	dir := t.TempDir()
+	brevPath := filepath.Join(dir, "brev-config")
+	configPath := filepath.Join(dir, "user-config")
+	const alias = "brev-include-fixture"
+	brevConfig := "Host " + alias + "\n  HostName gateway.example.invalid\n  Port 24361\n  User ubuntu\n  IdentitiesOnly yes\n  PasswordAuthentication no\n"
+	if err := os.WriteFile(brevPath, []byte(brevConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	original := "ServerAliveInterval 7\nHost unrelated\n  User custom\n" + makeIncludeBrevStr(brevPath)
+	s := &includeSSHConfigurerStore{conf: original, path: brevPath}
+	c := NewSSHConfigurerV2(s)
+	if err := os.WriteFile(configPath, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := exec.Command(ssh, "-F", configPath, "-G", alias).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Contains(t, string(before), "hostname "+alias+"\n")
+	assert.NoError(t, c.EnsureConfigHasInclude())
+	if err := os.WriteFile(configPath, []byte(s.conf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := exec.Command(ssh, "-F", configPath, "-G", alias).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"hostname gateway.example.invalid\n", "port 24361\n", "user ubuntu\n", "identitiesonly yes\n", "passwordauthentication no\n"} {
+		assert.Contains(t, string(after), want)
+	}
+	other, err := exec.Command(ssh, "-F", configPath, "-G", "unrelated").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Contains(t, string(other), "user custom\n")
+	assert.Contains(t, string(other), "serveraliveinterval 7\n")
+	assert.Equal(t, makeIncludeBrevStr(brevPath)+original, s.conf)
+}
+
+func TestEnsureConfigHasInclude_RepairsScopedIncludeOnce(t *testing.T) {
+	const original = "# Keep custom settings\nHost unrelated\n  User custom\n  Include \"/my/brev/config\"\n"
+	s := &includeSSHConfigurerStore{conf: original}
+	c := NewSSHConfigurerV2(s)
+	assert.NoError(t, c.EnsureConfigHasInclude())
+	assert.Equal(t, makeIncludeBrevStr("/my/brev/config")+original, s.conf)
+	assert.Equal(t, 1, s.writes)
+	assert.NoError(t, c.EnsureConfigHasInclude())
+	assert.Equal(t, 1, s.writes, "refresh must not repeatedly rewrite the user's config")
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {

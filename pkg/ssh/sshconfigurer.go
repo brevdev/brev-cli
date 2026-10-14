@@ -698,11 +698,23 @@ func makeIncludeBrevStr(brevSSHConfigPath string) string {
 }
 
 func doesUserSSHConfigIncludeBrevConfig(conf string, brevConfigPath string) bool {
-	if strings.Contains(conf, makeIncludeBrevStr(brevConfigPath)) {
-		return true
-	}
-	if strings.Contains(conf, makeIncludeBrevStr(toWindowsPath(brevConfigPath))) {
-		return true
+	include := strings.TrimSpace(makeIncludeBrevStr(brevConfigPath))
+	windowsInclude := strings.TrimSpace(makeIncludeBrevStr(toWindowsPath(brevConfigPath)))
+	for _, line := range strings.Split(conf, "\n") {
+		line = strings.TrimSpace(line)
+		fields := strings.FieldsFunc(line, func(r rune) bool {
+			return r == ' ' || r == '\t' || r == '='
+		})
+		if len(fields) == 0 {
+			continue
+		}
+		// Includes after Host or Match inherit that scope and may not apply to Brev aliases.
+		if strings.EqualFold(fields[0], "Host") || strings.EqualFold(fields[0], "Match") {
+			return false
+		}
+		if line == include || line == windowsInclude {
+			return true
+		}
 	}
 	return false
 }
