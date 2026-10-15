@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
@@ -429,7 +431,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 		go func() {
 			defer wg.Done()
 			var err error
-			nodes, err = ls.listNodes(org)
+			nodes, err = ls.listNodesWithConnectivity(org)
 			if err != nil {
 				if featureflag.Debug() {
 					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list Brev Connect machines: %v\n", err)
@@ -726,6 +728,57 @@ type NodeInfo struct {
 	Status string `json:"status"`
 }
 
+const nodeStatusFetchConcurrency = 5
+
+// nodeStatusFetchTimeout bounds the whole call so the user isn't waiting forever. Nodes that miss the deadline
+// keep their list-provided status.
+const nodeStatusFetchTimeout = 10 * time.Second
+
+// enrichNodesWithConnectivity re-fetches each node via GetNode, which returns
+// live connectivity info that ListNodes cannot provide. Fetches run in parallel
+// with at most nodeStatusFetchConcurrency in flight. Nodes whose GetNode fails
+// or times out keep their list-provided connectivity info.
+func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*nodev1.ExternalNode) []*nodev1.ExternalNode {
+	if len(nodes) == 0 {
+		return nodes
+	}
+	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	ctx, cancel := context.WithTimeout(ctx, nodeStatusFetchTimeout)
+	defer cancel()
+
+	sem := make(chan struct{}, nodeStatusFetchConcurrency)
+	var wg sync.WaitGroup
+	for _, node := range nodes {
+		wg.Add(1)
+		go func(node *nodev1.ExternalNode) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				if featureflag.Debug() {
+					_, _ = fmt.Fprintf(os.Stderr, "debug: connectivity fetch canceled for node %s: %v\n", node.GetExternalNodeId(), ctx.Err())
+				}
+				return
+			}
+			defer func() { <-sem }()
+			resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
+				ExternalNodeId: node.GetExternalNodeId(),
+			}))
+			if err != nil {
+				if featureflag.Debug() {
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to fetch connectivity for node %s: %v\n", node.GetExternalNodeId(), err)
+				}
+				return
+			}
+			if enriched := resp.Msg.GetExternalNode(); enriched != nil {
+				proto.Merge(node, enriched)
+			}
+		}(node)
+	}
+	wg.Wait()
+	return nodes
+}
+
 func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
 	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
 	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
@@ -737,9 +790,18 @@ func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error)
 	return resp.Msg.GetItems(), nil
 }
 
+// TODO should this be optional?
+func (ls Ls) listNodesWithConnectivity(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
+	nodes, err := ls.listNodes(org)
+	if err != nil {
+		return nil, err
+	}
+	return ls.enrichNodesWithConnectivity(context.Background(), nodes), nil
+}
+
 // RunNodes lists Brev Connect machines for the given org.
 func (ls Ls) RunNodes(org *entity.Organization) error {
-	nodes, err := ls.listNodes(org)
+	nodes, err := ls.listNodesWithConnectivity(org)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
