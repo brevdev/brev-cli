@@ -15,9 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
-	"github.com/brevdev/brev-cli/pkg/config"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 )
 
@@ -190,7 +188,7 @@ func OpenHTTP(
 		if err != nil {
 			return err
 		}
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.OpenHTTPPort(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceOpenHTTPPortRequest{
 			EnvironmentId:              target.Workspace.ID,
 			PortNumber:                 portNumber,
@@ -210,7 +208,7 @@ func OpenHTTP(
 		if err != nil {
 			return err
 		}
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.OpenHTTPPort(ctx, connect.NewRequest(&devplanev1.OpenHTTPPortRequest{
 			ExternalNodeId:             target.Node.GetExternalNodeId(),
 			PortNumber:                 portNumber,
@@ -251,7 +249,7 @@ func Open(
 
 	var openedPort *devplanev1.Port
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.OpenPort(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceOpenPortRequest{
 			EnvironmentId:  target.Workspace.ID,
 			Protocol:       protocol,
@@ -265,7 +263,7 @@ func Open(
 			openedPort = resp.Msg.GetPort()
 		}
 	} else if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.OpenPort(ctx, connect.NewRequest(&devplanev1.OpenPortRequest{
 			ExternalNodeId: target.Node.GetExternalNodeId(),
 			Protocol:       protocol,
@@ -306,7 +304,7 @@ func OpenSequential(
 
 	var openedPorts []*devplanev1.Port
 	if target.Workspace != nil {
-		client := register.NewEnvironmentServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().Environments
 		resp, err := client.OpenSequentialPorts(ctx, connect.NewRequest(&devplanev1.EnvironmentServiceOpenSequentialPortsRequest{
 			EnvironmentId:  target.Workspace.ID,
 			Protocol:       protocol,
@@ -321,7 +319,7 @@ func OpenSequential(
 			openedPorts = resp.Msg.GetPorts()
 		}
 	} else if target.Node != nil {
-		client := register.NewNodeServiceClient(portStore, config.GlobalConfig.GetBrevPublicAPIURL())
+		client := portStore.DevPlane().ExternalNodes
 		resp, err := client.OpenSequentialPorts(ctx, connect.NewRequest(&devplanev1.OpenSequentialPortsRequest{
 			ExternalNodeId: target.Node.GetExternalNodeId(),
 			Protocol:       protocol,

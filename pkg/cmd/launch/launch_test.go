@@ -13,7 +13,10 @@ import (
 	"strings"
 	"testing"
 
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
@@ -118,6 +121,14 @@ type fakeLaunchStore struct {
 }
 
 func (f *fakeLaunchStore) GetAccessToken() (string, error) { return "token", nil }
+
+func (f *fakeLaunchStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(f, config.GlobalConfig.GetBrevPublicAPIURL())
+}
+
+func (f *fakeLaunchStore) GetEnvironment(_ context.Context, environmentID string) (*devplanev1.Environment, error) {
+	return &devplanev1.Environment{EnvironmentId: environmentID}, nil
+}
 
 func (f *fakeLaunchStore) GetCurrentUser() (*entity.User, error) {
 	return &entity.User{ID: "user-1", GlobalUserType: "Standard"}, nil

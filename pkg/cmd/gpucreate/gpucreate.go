@@ -2,7 +2,9 @@
 package gpucreate
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -20,11 +22,14 @@ import (
 	"time"
 	"unicode"
 
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/names"
@@ -109,7 +114,7 @@ type GPUCreateStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
 	GetAuthTokens() (*entity.AuthTokens, error)
 	GetCurrentUser() (*entity.User, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
+	GetEnvironment(ctx context.Context, environmentID string) (*devplanev1.Environment, error)
 	CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error)
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error)
@@ -266,7 +271,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 				return runDryRun(t, gpuCreateStore, opts.InstanceTypes, &filters)
 			}
 
-			return RunGPUCreate(t, gpuCreateStore, opts)
+			return RunGPUCreate(cmd.Context(), t, gpuCreateStore, opts)
 		},
 	}
 
@@ -1130,25 +1135,53 @@ func (c *createContext) cleanupExtraInstances(workspaces []*entity.Workspace) []
 	return workspaces[:c.opts.Count]
 }
 
-// waitForInstances waits for all instances to be ready
-func (c *createContext) waitForInstances(workspaces []*entity.Workspace) {
+// errReadyTimeout marks a pollUntilReady timeout. It is non-fatal: waiting is a
+// convenience and the instance may still finish provisioning after the window.
+var errReadyTimeout = errors.New("timeout waiting for instance to be ready")
+
+type workspaceFailedError struct{ message string }
+
+func (e *workspaceFailedError) Error() string { return e.message }
+
+// waitForInstances blocks until each workspace is ready. It returns an error
+// when any instance reaches a terminal failure so the command exits non-zero;
+// timeouts and transient polling errors are reported but remain non-fatal.
+func (c *createContext) waitForInstances(parentCtx context.Context, workspaces []*entity.Workspace) error {
 	if c.opts.Detached {
-		return
+		return nil
 	}
 
 	c.logf("\nWaiting for instance(s) to be ready...\n")
 	c.logf("You can safely ctrl+c to exit\n")
 
+	var failed []string
 	for _, ws := range workspaces {
-		err := c.pollUntilReady(ws.ID)
-		if err != nil {
-			if strings.Contains(err.Error(), "timeout waiting") {
-				c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
-			} else {
-				c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
-			}
+		err := c.pollUntilReady(parentCtx, ws.ID)
+		var failedErr *workspaceFailedError
+		switch {
+		case err == nil:
+		case errors.Is(err, errReadyTimeout):
+			c.logf("  %s: Timeout waiting for ready state\n", ws.Name)
+		case parentCtx.Err() != nil:
+			// The parent context expired or was canceled while waiting.
+			// Propagate instead of logging, or a dead parent deadline would
+			// still produce a success summary.
+			return err
+		case errors.As(err, &failedErr):
+			c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
+			failed = append(failed, err.Error())
+		default:
+			c.logf("  %s: %s\n", ws.Name, c.colorize(err.Error(), c.t.Red))
 		}
 	}
+
+	if len(failed) > 0 {
+		return breverrors.NewValidationError(fmt.Sprintf(
+			"%d/%d instance(s) failed to become ready: %s",
+			len(failed), len(workspaces), strings.Join(failed, "; "),
+		))
+	}
+	return nil
 }
 
 // printSummary outputs the final creation summary
@@ -1172,8 +1205,9 @@ func (c *createContext) printSummary(workspaces []*entity.Workspace) {
 	}
 }
 
-// RunGPUCreate executes the GPU create with retry logic
-func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUCreateOptions) error {
+// RunGPUCreate executes the GPU create with retry logic. parentCtx carries the
+// caller's deadline into the readiness polls.
+func RunGPUCreate(parentCtx context.Context, t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUCreateOptions) error {
 	ctx, err := newCreateContext(t, gpuCreateStore, opts)
 	if err != nil {
 		return err
@@ -1230,7 +1264,9 @@ func RunGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore, opts GPUC
 	}
 
 	successfulWorkspaces = ctx.cleanupExtraInstances(successfulWorkspaces)
-	ctx.waitForInstances(successfulWorkspaces)
+	if err := ctx.waitForInstances(parentCtx, successfulWorkspaces); err != nil {
+		return err
+	}
 	ctx.printSummary(successfulWorkspaces)
 
 	return nil
@@ -1609,31 +1645,55 @@ func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *e
 }
 
 // pollUntilReady waits for a workspace to reach the running state
-func (c *createContext) pollUntilReady(wsID string) error {
+func (c *createContext) pollUntilReady(parentCtx context.Context, wsID string) error {
 	deadline := time.Now().Add(c.opts.Timeout)
 
-	for time.Now().Before(deadline) {
-		ws, err := c.store.GetWorkspace(wsID)
+	pollCtx, cancel := context.WithDeadline(parentCtx, deadline)
+	defer cancel()
+
+	for {
+		// An expired parent deadline (or cancellation) must propagate as an
+		// error, not be classified as this instance's nonfatal readiness
+		// timeout — the caller's context ran out, not the per-instance wait.
+		if err := parentCtx.Err(); err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if err := pollCtx.Err(); err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return errReadyTimeout
+			}
+			return breverrors.WrapAndTrace(err)
+		}
+
+		env, err := c.store.GetEnvironment(pollCtx, wsID)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 
-		if ws.Status == entity.Running {
-			c.logf("  %s: %s\n", ws.Name, c.colorize("Ready", c.t.Green))
+		name := wsID
+
+		switch {
+		case env.GetStatus() == devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_RUNNING:
+			c.logf("  %s: %s\n", name, c.colorize("Ready", c.t.Green))
 			return nil
+		case environment.IsFailed(env):
+			return &workspaceFailedError{message: instanceFailureMessage(name, environment.FailureMessage(env))}
 		}
 
-		if ws.Status == entity.Failure {
-			if ws.StatusMessage != "" {
-				return breverrors.NewValidationError(fmt.Sprintf("instance %s failed: %s", ws.Name, ws.StatusMessage))
-			}
-			return breverrors.NewValidationError(fmt.Sprintf("instance %s failed", ws.Name))
+		// Wait for the next poll interval; cancellation and deadline are
+		// handled by the pollCtx check at the top of the loop.
+		select {
+		case <-time.After(5 * time.Second):
+		case <-pollCtx.Done():
 		}
-
-		time.Sleep(5 * time.Second)
 	}
+}
 
-	return breverrors.NewValidationError("timeout waiting for instance to be ready")
+func instanceFailureMessage(name, statusMessage string) string {
+	if statusMessage != "" {
+		return fmt.Sprintf("instance %s failed: %s", name, statusMessage)
+	}
+	return fmt.Sprintf("instance %s failed", name)
 }
 
 // displayConnectBreadCrumb shows connection instructions

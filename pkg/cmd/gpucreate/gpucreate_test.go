@@ -1,12 +1,15 @@
 package gpucreate
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -17,14 +20,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// backgroundContext and canceledContext are context builders for table-driven
+// tests that vary the parent context.
+func backgroundContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.Background())
+}
+
+func canceledContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx, cancel
+}
+
+// expiredDeadlineContext returns a parent whose deadline has already passed.
+func expiredDeadlineContext() (context.Context, context.CancelFunc) {
+	return context.WithDeadline(context.Background(), time.Now().Add(-time.Minute))
+}
+
 // MockGPUCreateStore is a mock implementation of GPUCreateStore for testing
 type MockGPUCreateStore struct {
 	User                      *entity.User
 	Org                       *entity.Organization
-	Workspaces                map[string]*entity.Workspace
-	CreateError               error
 	CreateErrorTypes          map[string]error // Errors for specific instance types
-	DeleteError               error
+	EnvironmentStatuses       map[string]devplanev1.EnvironmentStatus
+	EnvironmentStatusMessages map[string]string
 	CreatedOptions            []*store.CreateWorkspacesOptions
 	CreatedWorkspaces         []*entity.Workspace
 	DeletedWorkspaceIDs       []string
@@ -41,8 +60,8 @@ func NewMockGPUCreateStore() *MockGPUCreateStore {
 			ID:   "org-123",
 			Name: "test-org",
 		},
-		Workspaces:          make(map[string]*entity.Workspace),
 		CreateErrorTypes:    make(map[string]error),
+		EnvironmentStatuses: make(map[string]devplanev1.EnvironmentStatus),
 		CreatedWorkspaces:   []*entity.Workspace{},
 		DeletedWorkspaceIDs: []string{},
 	}
@@ -60,14 +79,17 @@ func (m *MockGPUCreateStore) GetActiveOrganizationOrDefault() (*entity.Organizat
 	return m.Org, nil
 }
 
-func (m *MockGPUCreateStore) GetWorkspace(workspaceID string) (*entity.Workspace, error) {
-	if ws, ok := m.Workspaces[workspaceID]; ok {
-		return ws, nil
+func (m *MockGPUCreateStore) GetEnvironment(_ context.Context, environmentID string) (*devplanev1.Environment, error) {
+	env := &devplanev1.Environment{EnvironmentId: environmentID}
+	if status, ok := m.EnvironmentStatuses[environmentID]; ok {
+		env.Status = status
 	}
-	return &entity.Workspace{
-		ID:     workspaceID,
-		Status: entity.Running,
-	}, nil
+	if msg, ok := m.EnvironmentStatusMessages[environmentID]; ok {
+		env.Instance = &devplanev1.Instance{
+			ProvisionStatus: &devplanev1.CreateAttemptStatus{Message: msg},
+		}
+	}
+	return env, nil
 }
 
 func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error) {
@@ -76,31 +98,20 @@ func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *sto
 		return nil, err
 	}
 
-	if m.CreateError != nil {
-		return nil, m.CreateError
-	}
-
 	ws := &entity.Workspace{
 		ID:           "ws-" + options.Name,
 		Name:         options.Name,
 		InstanceType: options.InstanceType,
 		Status:       entity.Running,
 	}
-	m.Workspaces[ws.ID] = ws
 	m.CreatedOptions = append(m.CreatedOptions, options)
 	m.CreatedWorkspaces = append(m.CreatedWorkspaces, ws)
 	return ws, nil
 }
 
 func (m *MockGPUCreateStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, error) {
-	if m.DeleteError != nil {
-		return nil, m.DeleteError
-	}
-
 	m.DeletedWorkspaceIDs = append(m.DeletedWorkspaceIDs, workspaceID)
-	ws := m.Workspaces[workspaceID]
-	delete(m.Workspaces, workspaceID)
-	return ws, nil
+	return nil, nil
 }
 
 func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
@@ -108,7 +119,12 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 }
 
 func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
-	return nil, nil
+	return &gpusearch.AllInstanceTypesResponse{
+		AllInstanceTypes: []gpusearch.InstanceType{
+			{Type: "test.fail.quota", CloudCredID: "testkube-brev-test"},
+			{Type: "g5.xlarge", CloudCredID: "cc-shadeform"},
+		},
+	}, nil
 }
 
 func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
@@ -793,129 +809,58 @@ func TestParseInstanceTypesStdin(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGPUCreateOptions(t *testing.T) {
-	opts := GPUCreateOptions{
-		Name: "my-instance",
-		InstanceTypes: []InstanceSpec{
-			{Type: "g5.xlarge", DiskGB: 500},
-			{Type: "g5.2xlarge"},
+func TestResolveWorkspaceUserOptions(t *testing.T) {
+	cases := []struct {
+		name           string
+		globalUserType string
+		existing       *store.CreateWorkspacesOptions
+		wantTemplate   string
+		wantClass      string
+	}{
+		{
+			name:           "standard user gets user template",
+			globalUserType: "Standard",
+			wantTemplate:   store.UserWorkspaceTemplateID,
+			wantClass:      store.UserWorkspaceClassID,
 		},
-		Count:    2,
-		Parallel: 3,
-		Detached: true,
+		{
+			name:           "admin user gets dev template",
+			globalUserType: "Admin",
+			wantTemplate:   store.DevWorkspaceTemplateID,
+			wantClass:      store.DevWorkspaceClassID,
+		},
+		{
+			name:           "existing values are preserved",
+			globalUserType: "Standard",
+			existing: &store.CreateWorkspacesOptions{
+				WorkspaceTemplateID: "custom-template",
+				WorkspaceClassID:    "custom-class",
+			},
+			wantTemplate: "custom-template",
+			wantClass:    "custom-class",
+		},
 	}
 
-	assert.Equal(t, "my-instance", opts.Name)
-	assert.Len(t, opts.InstanceTypes, 2)
-	assert.Equal(t, "g5.xlarge", opts.InstanceTypes[0].Type)
-	assert.Equal(t, 500.0, opts.InstanceTypes[0].DiskGB)
-	assert.Equal(t, "g5.2xlarge", opts.InstanceTypes[1].Type)
-	assert.Equal(t, 0.0, opts.InstanceTypes[1].DiskGB)
-	assert.Equal(t, 2, opts.Count)
-	assert.Equal(t, 3, opts.Parallel)
-	assert.True(t, opts.Detached)
-}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			options := tc.existing
+			if options == nil {
+				options = &store.CreateWorkspacesOptions{}
+			}
 
-func TestResolveWorkspaceUserOptionsStandard(t *testing.T) {
-	user := &entity.User{
-		ID:             "user-123",
-		GlobalUserType: "Standard",
+			result := resolveWorkspaceUserOptions(options, &entity.User{
+				ID:             "user-123",
+				GlobalUserType: entity.GlobalUserType(tc.globalUserType),
+			})
+
+			assert.Equal(t, tc.wantTemplate, result.WorkspaceTemplateID)
+			assert.Equal(t, tc.wantClass, result.WorkspaceClassID)
+		})
 	}
-
-	options := &store.CreateWorkspacesOptions{}
-	result := resolveWorkspaceUserOptions(options, user)
-
-	assert.Equal(t, store.UserWorkspaceTemplateID, result.WorkspaceTemplateID)
-	assert.Equal(t, store.UserWorkspaceClassID, result.WorkspaceClassID)
 }
 
-func TestResolveWorkspaceUserOptionsAdmin(t *testing.T) {
-	user := &entity.User{
-		ID:             "user-123",
-		GlobalUserType: "Admin",
-	}
-
-	options := &store.CreateWorkspacesOptions{}
-	result := resolveWorkspaceUserOptions(options, user)
-
-	assert.Equal(t, store.DevWorkspaceTemplateID, result.WorkspaceTemplateID)
-	assert.Equal(t, store.DevWorkspaceClassID, result.WorkspaceClassID)
-}
-
-func TestResolveWorkspaceUserOptionsPreserveExisting(t *testing.T) {
-	user := &entity.User{
-		ID:             "user-123",
-		GlobalUserType: "Standard",
-	}
-
-	options := &store.CreateWorkspacesOptions{
-		WorkspaceTemplateID: "custom-template",
-		WorkspaceClassID:    "custom-class",
-	}
-	result := resolveWorkspaceUserOptions(options, user)
-
-	// Should preserve existing values
-	assert.Equal(t, "custom-template", result.WorkspaceTemplateID)
-	assert.Equal(t, "custom-class", result.WorkspaceClassID)
-}
-
-func TestMockGPUCreateStoreBasics(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-
-	user, err := mock.GetCurrentUser()
-	assert.NoError(t, err)
-	assert.Equal(t, "user-123", user.ID)
-
-	org, err := mock.GetActiveOrganizationOrDefault()
-	assert.NoError(t, err)
-	assert.Equal(t, "org-123", org.ID)
-}
-
-func TestMockGPUCreateStoreCreateWorkspace(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-
-	options := store.NewCreateWorkspacesOptions("cluster-1", "test-instance")
-	options.WithInstanceType("g5.xlarge")
-
-	ws, err := mock.CreateWorkspace("org-123", options)
-	assert.NoError(t, err)
-	assert.Equal(t, "test-instance", ws.Name)
-	assert.Equal(t, "g5.xlarge", ws.InstanceType)
-	assert.Len(t, mock.CreatedWorkspaces, 1)
-}
-
-func TestMockGPUCreateStoreDeleteWorkspace(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-
-	// First create a workspace
-	options := store.NewCreateWorkspacesOptions("cluster-1", "test-instance")
-	ws, _ := mock.CreateWorkspace("org-123", options)
-
-	// Then delete it
-	_, err := mock.DeleteWorkspace(ws.ID)
-	assert.NoError(t, err)
-	assert.Contains(t, mock.DeletedWorkspaceIDs, ws.ID)
-}
-
-func TestMockGPUCreateStoreTypeSpecificError(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-	mock.CreateErrorTypes["g5.xlarge"] = assert.AnError
-
-	options := store.NewCreateWorkspacesOptions("cluster-1", "test-instance")
-	options.WithInstanceType("g5.xlarge")
-
-	_, err := mock.CreateWorkspace("org-123", options)
-	assert.Error(t, err)
-
-	// Different type should work
-	options2 := store.NewCreateWorkspacesOptions("cluster-1", "test-instance-2")
-	options2.WithInstanceType("g5.2xlarge")
-
-	ws, err := mock.CreateWorkspace("org-123", options2)
-	assert.NoError(t, err)
-	assert.NotNil(t, ws)
-}
-
+// TestCreateDryRunWithExplicitTypesDoesNotProvision covers --dry-run end to
+// end: flags parse, no CreateWorkspace call is made.
 func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 	term := terminal.New()
@@ -962,47 +907,52 @@ func TestGetFilteredInstanceTypesNoMatch(t *testing.T) {
 	assert.Len(t, specs, 0)
 }
 
+// TestParseTableInput covers both `brev search` table shapes (GPU and CPU).
 func TestParseTableInput(t *testing.T) {
-	tableInput := strings.Join([]string{
-		"TYPE           TARGET_DISK  GPU    COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR",
-		"g5.xlarge      500          A10G   1      24 GB     24 GB       8.6         4      $1.01",
-		"g5.2xlarge     500          A10G   1      24 GB     24 GB       8.6         8      $1.21",
-		"p4d.24xlarge   1000         A100   8      40 GB     320 GB      8.0         96     $32.77",
-		"",
-		"Found 3 GPU instance types",
-	}, "\n")
+	cases := []struct {
+		name  string
+		input string
+		want  []InstanceSpec
+	}{
+		{
+			name: "gpu table",
+			input: strings.Join([]string{
+				"TYPE           TARGET_DISK  GPU    COUNT  VRAM/GPU  TOTAL VRAM  CAPABILITY  VCPUs  $/HR",
+				"g5.xlarge      500          A10G   1      24 GB     24 GB       8.6         4      $1.01",
+				"g5.2xlarge     500          A10G   1      24 GB     24 GB       8.6         8      $1.21",
+				"p4d.24xlarge   1000         A100   8      40 GB     320 GB      8.0         96     $32.77",
+				"",
+				"Found 3 GPU instance types",
+			}, "\n"),
+			want: []InstanceSpec{
+				{Type: "g5.xlarge", DiskGB: 500},
+				{Type: "g5.2xlarge", DiskGB: 500},
+				{Type: "p4d.24xlarge", DiskGB: 1000},
+			},
+		},
+		{
+			name: "cpu table",
+			input: strings.Join([]string{
+				" TYPE                   TARGET_DISK  PROVIDER  VCPUS  RAM   ARCH    DISK       $/GB/MO  BOOT  FEATURES  $/HR",
+				" n2d-highcpu-2          10           gcp           2  2     x86_64  10GB-16TB  $0.13    7m    SP        $0.05",
+				" n1-standard-1          10           gcp           1  4     x86_64  10GB-16TB  $0.14    7m    SP        $0.06",
+				" m8i-flex.8xlarge       500          aws          32  128   x86_64  10GB-16TB  $0.10    7m    SRP       $1.93",
+				"",
+				"Found 3 CPU instance types",
+			}, "\n"),
+			want: []InstanceSpec{
+				{Type: "n2d-highcpu-2", DiskGB: 10},
+				{Type: "n1-standard-1", DiskGB: 10},
+				{Type: "m8i-flex.8xlarge", DiskGB: 500},
+			},
+		},
+	}
 
-	specs := parseTableInput(tableInput)
-
-	assert.Len(t, specs, 3)
-	assert.Equal(t, "g5.xlarge", specs[0].Type)
-	assert.Equal(t, 500.0, specs[0].DiskGB)
-	assert.Equal(t, "g5.2xlarge", specs[1].Type)
-	assert.Equal(t, 500.0, specs[1].DiskGB)
-	assert.Equal(t, "p4d.24xlarge", specs[2].Type)
-	assert.Equal(t, 1000.0, specs[2].DiskGB)
-}
-
-func TestParseTableInputCPU(t *testing.T) {
-	// Simulated plain table output from `brev search cpu`
-	tableInput := strings.Join([]string{
-		" TYPE                   TARGET_DISK  PROVIDER  VCPUS  RAM   ARCH    DISK       $/GB/MO  BOOT  FEATURES  $/HR",
-		" n2d-highcpu-2          10           gcp           2  2     x86_64  10GB-16TB  $0.13    7m    SP        $0.05",
-		" n1-standard-1          10           gcp           1  4     x86_64  10GB-16TB  $0.14    7m    SP        $0.06",
-		" m8i-flex.8xlarge       500          aws          32  128   x86_64  10GB-16TB  $0.10    7m    SRP       $1.93",
-		"",
-		"Found 3 CPU instance types",
-	}, "\n")
-
-	specs := parseTableInput(tableInput)
-
-	assert.Len(t, specs, 3)
-	assert.Equal(t, "n2d-highcpu-2", specs[0].Type)
-	assert.Equal(t, 10.0, specs[0].DiskGB)
-	assert.Equal(t, "n1-standard-1", specs[1].Type)
-	assert.Equal(t, 10.0, specs[1].DiskGB)
-	assert.Equal(t, "m8i-flex.8xlarge", specs[2].Type)
-	assert.Equal(t, 500.0, specs[2].DiskGB)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, parseTableInput(tc.input))
+		})
+	}
 }
 
 func TestParseJSONInput(t *testing.T) {
@@ -1055,23 +1005,230 @@ func TestFormatInstanceSpecs(t *testing.T) {
 	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)", result)
 }
 
-func TestPollUntilReadyReportsWorkspaceFailureMessage(t *testing.T) {
-	store := NewMockGPUCreateStore()
-	store.Workspaces["ws-failed"] = &entity.Workspace{
-		ID:            "ws-failed",
-		Name:          "test",
-		Status:        entity.Failure,
-		StatusMessage: "unexpected end of JSON input",
+// TestPollUntilReady covers the readiness-wait behavior across ctx states and
+// environment status outcomes.
+func TestPollUntilReady(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      devplanev1.EnvironmentStatus
+		instanceMsg string
+		parentCtx   func() (context.Context, context.CancelFunc)
+		wantErrIs   error
+		wantErrHas  string
+	}{
+		{
+			name:      "cancellation propagates immediately",
+			status:    devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_BUILDING,
+			parentCtx: canceledContext,
+			wantErrIs: context.Canceled,
+		},
+		{
+			name:      "expired parent deadline is not a readiness timeout",
+			status:    devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_BUILDING,
+			parentCtx: expiredDeadlineContext,
+			wantErrIs: context.DeadlineExceeded,
+		},
+		{
+			name:        "terminal failure returns message",
+			status:      devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED,
+			instanceMsg: "unexpected end of JSON input",
+			parentCtx:   backgroundContext,
+			wantErrHas:  "instance ws-1 failed: unexpected end of JSON input",
+		},
+		{
+			name:       "failure without provider message falls back to label",
+			status:     devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED,
+			parentCtx:  backgroundContext,
+			wantErrHas: "instance ws-1 failed",
+		},
 	}
 
-	ctx := &createContext{
-		store: store,
-		opts:  GPUCreateOptions{Timeout: time.Second},
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := NewMockGPUCreateStore()
+			store.EnvironmentStatuses["ws-1"] = tc.status
+			if tc.instanceMsg != "" {
+				store.EnvironmentStatusMessages = map[string]string{"ws-1": tc.instanceMsg}
+			}
+
+			ctx := &createContext{
+				t:     terminal.New(),
+				store: store,
+				opts:  GPUCreateOptions{Timeout: time.Minute},
+				logf:  func(string, ...interface{}) {},
+			}
+
+			parentCtx, cancel := tc.parentCtx()
+			defer cancel()
+
+			err := ctx.pollUntilReady(parentCtx, "ws-1")
+
+			require.Error(t, err)
+			if tc.wantErrIs != nil {
+				assert.ErrorIs(t, err, tc.wantErrIs)
+			} else {
+				assert.ErrorContains(t, err, tc.wantErrHas)
+			}
+		})
+	}
+}
+
+// TestWaitForInstances covers how the wait aggregates per-instance outcomes.
+func TestWaitForInstances(t *testing.T) {
+	quietLogf := func(string, ...interface{}) {}
+
+	cases := []struct {
+		name         string
+		workspaces   []*entity.Workspace
+		statuses     map[string]devplanev1.EnvironmentStatus
+		instanceMsgs map[string]string
+		timeout      time.Duration
+		parentCtx    func() (context.Context, context.CancelFunc)
+		wantErr      error
+		wantErrHas   []string
+		wantNoError  bool
+	}{
+		{
+			name:        "timeout on every instance is a warning, not an error",
+			workspaces:  []*entity.Workspace{{ID: "ws-1", Name: "one"}},
+			timeout:     0, // deadline already elapsed: immediate timeout
+			parentCtx:   backgroundContext,
+			wantNoError: true,
+		},
+		{
+			name:       "terminal failure is reported with instance and message",
+			workspaces: []*entity.Workspace{{ID: "ws-failed", Name: "failed-instance"}},
+			statuses: map[string]devplanev1.EnvironmentStatus{
+				"ws-failed": devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED,
+			},
+			instanceMsgs: map[string]string{
+				"ws-failed": "out of quota in the region fulfill the request, InsufficientQuota",
+			},
+			timeout:    time.Second,
+			parentCtx:  backgroundContext,
+			wantErrHas: []string{"1/1 instance(s) failed to become ready", "ws-failed", "InsufficientQuota"},
+		},
+		{
+			name:       "cancellation aborts remaining instances",
+			workspaces: []*entity.Workspace{{ID: "ws-1", Name: "first"}, {ID: "ws-2", Name: "second"}},
+			timeout:    time.Minute,
+			parentCtx:  canceledContext,
+			wantErr:    context.Canceled,
+		},
+		{
+			name:       "expired parent deadline is not swallowed as warning",
+			workspaces: []*entity.Workspace{{ID: "ws-1", Name: "one"}},
+			timeout:    time.Minute,
+			parentCtx:  expiredDeadlineContext,
+			wantErr:    context.DeadlineExceeded,
+		},
 	}
 
-	err := ctx.pollUntilReady("ws-failed")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := NewMockGPUCreateStore()
+			store.EnvironmentStatuses = tc.statuses
+			store.EnvironmentStatusMessages = tc.instanceMsgs
 
-	assert.ErrorContains(t, err, "instance test failed: unexpected end of JSON input")
+			ctx := &createContext{
+				t:     terminal.New(),
+				store: store,
+				opts:  GPUCreateOptions{Timeout: tc.timeout},
+				logf:  quietLogf,
+			}
+
+			parentCtx, cancel := tc.parentCtx()
+			defer cancel()
+
+			err := ctx.waitForInstances(parentCtx, tc.workspaces)
+
+			if tc.wantNoError {
+				assert.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			if tc.wantErr != nil {
+				assert.ErrorIs(t, err, tc.wantErr)
+			}
+			for _, want := range tc.wantErrHas {
+				assert.ErrorContains(t, err, want)
+			}
+		})
+	}
+}
+
+// TestRunGPUCreateLifecycle covers the end-to-end create flow per environment
+// status outcome, including how ctx cancellation surfaces.
+func TestRunGPUCreateLifecycle(t *testing.T) {
+	cases := []struct {
+		name        string
+		status      devplanev1.EnvironmentStatus
+		instanceMsg string
+		parentCtx   func() (context.Context, context.CancelFunc)
+		wantErrIs   error
+		wantErrHas  []string
+		wantNoError bool
+	}{
+		{
+			name:        "ready environment succeeds",
+			status:      devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_RUNNING,
+			parentCtx:   backgroundContext,
+			wantNoError: true,
+		},
+		{
+			name:        "failed environment reports failure",
+			status:      devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED,
+			instanceMsg: "out of quota in the region fulfill the request, InsufficientQuota",
+			parentCtx:   backgroundContext,
+			wantErrHas:  []string{"failed to become ready", "InsufficientQuota"},
+		},
+		{
+			name:      "canceled context aborts before the success summary",
+			status:    devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_BUILDING,
+			parentCtx: canceledContext,
+			wantErrIs: context.Canceled,
+		},
+		{
+			name:      "expired parent deadline aborts before the success summary",
+			status:    devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_BUILDING,
+			parentCtx: expiredDeadlineContext,
+			wantErrIs: context.DeadlineExceeded,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := NewMockGPUCreateStore()
+			mock.EnvironmentStatuses["ws-repro"] = tc.status
+			if tc.instanceMsg != "" {
+				mock.EnvironmentStatusMessages = map[string]string{"ws-repro": tc.instanceMsg}
+			}
+
+			parentCtx, cancel := tc.parentCtx()
+			defer cancel()
+
+			err := RunGPUCreate(parentCtx, terminal.New(), mock, GPUCreateOptions{
+				Name:          "repro",
+				Count:         1,
+				Parallel:      1,
+				InstanceTypes: []InstanceSpec{{Type: "g5.xlarge"}},
+				Timeout:       time.Minute,
+			})
+
+			if tc.wantNoError {
+				require.NoError(t, err)
+				require.Len(t, mock.CreatedWorkspaces, 1)
+				return
+			}
+			require.Error(t, err)
+			if tc.wantErrIs != nil {
+				assert.ErrorIs(t, err, tc.wantErrIs)
+			}
+			for _, want := range tc.wantErrHas {
+				assert.ErrorContains(t, err, want)
+			}
+		})
+	}
 }
 
 func TestInlineLaunchableLifeCycleScript(t *testing.T) {
@@ -1212,116 +1369,93 @@ func TestValidateInstanceTypeAvailability(t *testing.T) {
 	})
 }
 
-func TestCreateInstancesWithTypeSkipsInvalidType(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-	ctx := &createContext{
-		t:     terminal.New(),
-		store: mock,
-		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
-		org:   mock.Org,
-		user:  mock.User,
-		piped: true,
-		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
-			AllInstanceTypes: []gpusearch.InstanceType{
-				{
-					Type:        "hyperstack_H100_sxm5x8",
-					CloudCredID: "cc-shadeform",
+// TestCreateInstancesWithType covers per-type pre-flight validation outcomes
+// and how the cloud credential is chosen.
+func TestCreateInstancesWithType(t *testing.T) {
+	catalog := func(types ...gpusearch.InstanceType) *gpusearch.AllInstanceTypesResponse {
+		return &gpusearch.AllInstanceTypesResponse{AllInstanceTypes: types}
+	}
+
+	cases := []struct {
+		name          string
+		spec          InstanceSpec
+		opts          GPUCreateOptions
+		catalogTypes  *gpusearch.AllInstanceTypesResponse
+		wantHadFail   bool
+		wantSuccesses int
+		wantCreated   int
+		wantCredID    string
+	}{
+		{
+			name:         "unrecognized type fails without creating",
+			spec:         InstanceSpec{Type: "hyperstack_H100x8_one"},
+			catalogTypes: catalog(gpusearch.InstanceType{Type: "hyperstack_H100_sxm5x8", CloudCredID: "cc-shadeform"}),
+			wantHadFail:  true,
+		},
+		{
+			name:         "type without cloud credential fails without creating",
+			spec:         InstanceSpec{Type: "hyperstack_H100x8_NVLINK"},
+			catalogTypes: catalog(gpusearch.InstanceType{Type: "hyperstack_H100x8_NVLINK"}),
+			wantHadFail:  true,
+		},
+		{
+			name:          "catalog credential is applied to the create request",
+			spec:          InstanceSpec{Type: "hyperstack_H100_sxm5x8"},
+			catalogTypes:  catalog(gpusearch.InstanceType{Type: "hyperstack_H100_sxm5x8", CloudCredID: "cc-shadeform"}),
+			wantSuccesses: 1,
+			wantCreated:   1,
+			wantCredID:    "cc-shadeform",
+		},
+		{
+			name: "launchable bypasses validation and uses launchable credential",
+			spec: InstanceSpec{Type: "n2-standard-4"},
+			opts: GPUCreateOptions{
+				LaunchableID: "env-abc",
+				LaunchableInfo: &store.LaunchableResponse{
+					ID:   "env-abc",
+					Name: "test-launchable",
+					CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+						CloudCredID:  "cc-from-launchable",
+						InstanceType: "n2-standard-4",
+					},
 				},
 			},
+			catalogTypes:  catalog(), // launchable's type is not in the org listing
+			wantSuccesses: 1,
+			wantCreated:   1,
+			wantCredID:    "cc-from-launchable",
 		},
 	}
-	ctx.logf = func(_ string, _ ...interface{}) {}
 
-	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100x8_one"}, 0, 1)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := NewMockGPUCreateStore()
+			opts := tc.opts
+			opts.Count, opts.Parallel, opts.Name = 1, 1, "jt-4"
 
-	assert.True(t, result.hadFailure, "expected hadFailure for an invalid instance type")
-	assert.Empty(t, result.successes, "expected no successes for invalid type")
-	assert.NoError(t, result.fatalError, "invalid type should not be fatal — caller may try the next type")
-	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when the type is unrecognized")
-}
+			ctx := &createContext{
+				t:                terminal.New(),
+				store:            mock,
+				opts:             opts,
+				org:              mock.Org,
+				user:             mock.User,
+				piped:            true,
+				allInstanceTypes: tc.catalogTypes,
+				logf:             func(string, ...interface{}) {},
+			}
 
-func TestCreateInstancesWithTypeSkipsUnavailableType(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-	ctx := &createContext{
-		t:     terminal.New(),
-		store: mock,
-		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
-		org:   mock.Org,
-		user:  mock.User,
-		piped: true,
-		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
-			AllInstanceTypes: []gpusearch.InstanceType{
-				{Type: "hyperstack_H100x8_NVLINK"},
-			},
-		},
+			result := ctx.createInstancesWithType(tc.spec, 0, 1)
+
+			assert.Equal(t, tc.wantHadFail, result.hadFailure)
+			assert.Len(t, result.successes, tc.wantSuccesses)
+			assert.Len(t, mock.CreatedWorkspaces, tc.wantCreated)
+			if tc.wantCredID != "" {
+				require.Len(t, mock.CreatedOptions, 1)
+				assert.Equal(t, tc.wantCredID, mock.CreatedOptions[0].CloudCredID)
+			}
+			if tc.wantHadFail {
+				assert.NoError(t, result.fatalError, "per-type failure should not be fatal — caller may try the next type")
+			}
+		})
 	}
-	ctx.logf = func(_ string, _ ...interface{}) {}
-
-	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100x8_NVLINK"}, 0, 1)
-
-	assert.True(t, result.hadFailure, "expected hadFailure for an unavailable instance type")
-	assert.Empty(t, result.successes)
-	assert.Empty(t, mock.CreatedWorkspaces, "CreateWorkspace must not be called when no cloud credential is available")
-}
-
-func TestCreateInstancesWithTypeSetsCloudCredIDFromCatalog(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-	ctx := &createContext{
-		t:     terminal.New(),
-		store: mock,
-		opts:  GPUCreateOptions{Count: 1, Parallel: 1, Name: "jt-4"},
-		org:   mock.Org,
-		user:  mock.User,
-		piped: true,
-		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
-			AllInstanceTypes: []gpusearch.InstanceType{
-				{
-					Type:        "hyperstack_H100_sxm5x8",
-					CloudCredID: "cc-shadeform",
-				},
-			},
-		},
-	}
-	ctx.logf = func(_ string, _ ...interface{}) {}
-
-	result := ctx.createInstancesWithType(InstanceSpec{Type: "hyperstack_H100_sxm5x8"}, 0, 1)
-
-	assert.False(t, result.hadFailure)
-	require.Len(t, mock.CreatedOptions, 1)
-	assert.Equal(t, "cc-shadeform", mock.CreatedOptions[0].CloudCredID)
-}
-
-func TestCreateInstancesWithTypeBypassesValidationForLaunchable(t *testing.T) {
-	mock := NewMockGPUCreateStore()
-	ctx := &createContext{
-		t:     terminal.New(),
-		store: mock,
-		opts: GPUCreateOptions{
-			Count:        1,
-			Parallel:     1,
-			Name:         "jt-4",
-			LaunchableID: "env-abc",
-			LaunchableInfo: &store.LaunchableResponse{
-				ID:   "env-abc",
-				Name: "test-launchable",
-				CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
-					CloudCredID:  "cc-from-launchable",
-					InstanceType: "n2-standard-4",
-				},
-			},
-		},
-		org:   mock.Org,
-		user:  mock.User,
-		piped: true,
-		allInstanceTypes: &gpusearch.AllInstanceTypesResponse{
-			AllInstanceTypes: []gpusearch.InstanceType{}, // launchable's type is not in the org listing
-		},
-	}
-	ctx.logf = func(_ string, _ ...interface{}) {}
-
-	result := ctx.createInstancesWithType(InstanceSpec{Type: "n2-standard-4"}, 0, 1)
-
-	assert.False(t, result.hadFailure, "launchable should not be blocked by pre-flight validation")
-	assert.Len(t, result.successes, 1, "expected the launchable instance to be created")
-	assert.Len(t, mock.CreatedWorkspaces, 1)
 }

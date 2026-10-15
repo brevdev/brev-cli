@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/proto"
 
@@ -20,11 +20,11 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -43,6 +43,8 @@ type LsStore interface {
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	externalnode.TokenProvider
+	DevPlane() *store.DevPlaneClient
+	GetEnvironmentsByOrg(ctx context.Context, orgID string) ([]*devplanev1.Environment, error)
 	GetAuthTokens() (*entity.AuthTokens, error)
 	GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error)
 	hello.HelloStore
@@ -91,7 +93,7 @@ with other commands like stop, start, or delete.`,
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			err = RunLs(t, cliAuth, loginLsStore, args, showAll, jsonOutput)
+			err = RunLs(cmd.Context(), t, cliAuth, loginLsStore, args, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -132,7 +134,39 @@ func getOrgForRunLs(lsStore LsStore) (*entity.Organization, error) {
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, showAll bool, jsonOutput bool) error {
+// overlayStatuses applies the environment lifecycle status to the workspace
+// rows, returning any status-fetch error rather than reporting a stale or
+// missing status.
+func (ls Ls) overlayStatuses(workspaces []entity.Workspace, environments []*devplanev1.Environment, fetchErr error) error {
+	if fetchErr != nil {
+		return breverrors.WrapAndTrace(fetchErr)
+	}
+	applyStatuses(workspaces, environments)
+	return nil
+}
+
+// applyStatuses sets each workspace's status and message from the matching
+// environment, keyed by workspace ID.
+func applyStatuses(workspaces []entity.Workspace, environments []*devplanev1.Environment) {
+	byID := make(map[string]*devplanev1.Environment, len(environments))
+	for _, env := range environments {
+		byID[env.GetEnvironmentId()] = env
+	}
+	for i := range workspaces {
+		env, ok := byID[workspaces[i].ID]
+		if !ok {
+			continue
+		}
+		if display := environment.Display(env); display != "" {
+			workspaces[i].Status = display
+		}
+		if message := environment.FailureMessage(env); message != "" {
+			workspaces[i].StatusMessage = message
+		}
+	}
+}
+
+func RunLs(ctx context.Context, t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
 
 	org, err := getOrgForRunLs(lsStore)
@@ -144,12 +178,12 @@ func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []s
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, cliAuth, args[0], org, showAll)
+		err = handleLsArg(ctx, ls, cliAuth, args[0], org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(cliAuth, org, showAll)
+		err = ls.RunWorkspaces(ctx, cliAuth, org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -160,7 +194,7 @@ func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []s
 	return nil
 }
 
-func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organization, showAll bool) error {
+func handleLsArg(ctx context.Context, ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organization, showAll bool) error {
 	switch classifyLsArg(arg) {
 	case lsArgOrgs:
 		if cliAuth.IsAPIKey() {
@@ -168,7 +202,7 @@ func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organizat
 		}
 		return wrapLsRun(ls.RunOrgs())
 	case lsArgWorkspaces:
-		return wrapLsRun(ls.RunWorkspaces(cliAuth, org, showAll))
+		return wrapLsRun(ls.RunWorkspaces(ctx, cliAuth, org, showAll))
 	case lsArgUsers:
 		return runAdminLsArg(cliAuth, "users", func() error {
 			return ls.RunUser(showAll)
@@ -180,7 +214,7 @@ func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organizat
 	case lsArgNodes:
 		return wrapLsRun(ls.RunNodes(org))
 	case lsArgInstances:
-		return wrapLsRun(ls.RunInstances(cliAuth, org, showAll))
+		return wrapLsRun(ls.RunInstances(ctx, cliAuth, org, showAll))
 	default:
 		return nil
 	}
@@ -407,15 +441,16 @@ func buildGPULookup(s LsStore) map[string]string {
 	return lookup
 }
 
-func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+func (ls Ls) RunWorkspaces(ctx context.Context, cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
 	// Fetch workspaces and instance types concurrently
 	var allWorkspaces []entity.Workspace
 	var wsErr error
 	var gpuLookup map[string]string
-	var nodes []*nodev1.ExternalNode
-
+	var nodes []*devplanev1.ExternalNode
+	var environments []*devplanev1.Environment
+	var envErr error
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	if showAll {
 		wg.Add(1)
 	}
@@ -426,6 +461,10 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	go func() {
 		defer wg.Done()
 		gpuLookup = buildGPULookup(ls.lsStore)
+	}()
+	go func() {
+		defer wg.Done()
+		environments, envErr = ls.lsStore.GetEnvironmentsByOrg(ctx, org.ID)
 	}()
 	if showAll {
 		go func() {
@@ -443,6 +482,10 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 
 	if wsErr != nil {
 		return breverrors.WrapAndTrace(wsErr)
+	}
+
+	if err := ls.overlayStatuses(allWorkspaces, environments, envErr); err != nil {
+		return err
 	}
 
 	// Determine which workspaces to show
@@ -492,8 +535,8 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	return nil
 }
 
-func (ls Ls) RunInstances(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
-	if err := ls.RunWorkspaces(cliAuth, org, showAll); err != nil {
+func (ls Ls) RunInstances(ctx context.Context, cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+	if err := ls.RunWorkspaces(ctx, cliAuth, org, showAll); err != nil {
 		return err
 	}
 	return nil
@@ -541,7 +584,7 @@ func getInstanceTypeAndKind(w entity.Workspace, gpuLookup map[string]string) (st
 	return "", ""
 }
 
-func toNodeInfos(nodes []*nodev1.ExternalNode) []NodeInfo {
+func toNodeInfos(nodes []*devplanev1.ExternalNode) []NodeInfo {
 	var infos []NodeInfo
 	for _, n := range nodes {
 		infos = append(infos, NodeInfo{
@@ -553,7 +596,7 @@ func toNodeInfos(nodes []*nodev1.ExternalNode) []NodeInfo {
 	return infos
 }
 
-func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string, nodes []*nodev1.ExternalNode) error {
+func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string, nodes []*devplanev1.ExternalNode) error {
 	var wsInfos []WorkspaceInfo
 	for _, w := range workspaces {
 		instanceType, instanceKind := getInstanceTypeAndKind(w, gpuLookup)
@@ -738,11 +781,11 @@ const nodeStatusFetchTimeout = 10 * time.Second
 // live connectivity info that ListNodes cannot provide. Fetches run in parallel
 // with at most nodeStatusFetchConcurrency in flight. Nodes whose GetNode fails
 // or times out keep their list-provided connectivity info.
-func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*nodev1.ExternalNode) []*nodev1.ExternalNode {
+func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*devplanev1.ExternalNode) []*devplanev1.ExternalNode {
 	if len(nodes) == 0 {
 		return nodes
 	}
-	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
+	client := ls.lsStore.DevPlane().ExternalNodes
 	ctx, cancel := context.WithTimeout(ctx, nodeStatusFetchTimeout)
 	defer cancel()
 
@@ -750,7 +793,7 @@ func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*nodev1.Ex
 	var wg sync.WaitGroup
 	for _, node := range nodes {
 		wg.Add(1)
-		go func(node *nodev1.ExternalNode) {
+		go func(node *devplanev1.ExternalNode) {
 			defer wg.Done()
 			select {
 			case sem <- struct{}{}:
@@ -761,7 +804,7 @@ func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*nodev1.Ex
 				return
 			}
 			defer func() { <-sem }()
-			resp, err := client.GetNode(ctx, connect.NewRequest(&nodev1.GetNodeRequest{
+			resp, err := client.GetNode(ctx, connect.NewRequest(&devplanev1.GetNodeRequest{
 				ExternalNodeId: node.GetExternalNodeId(),
 			}))
 			if err != nil {
@@ -779,9 +822,9 @@ func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*nodev1.Ex
 	return nodes
 }
 
-func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
-	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
-	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
+func (ls Ls) listNodes(org *entity.Organization) ([]*devplanev1.ExternalNode, error) {
+	client := ls.lsStore.DevPlane().ExternalNodes
+	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&devplanev1.ListNodesRequest{
 		OrganizationId: org.ID,
 	}))
 	if err != nil {
@@ -791,7 +834,7 @@ func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error)
 }
 
 // TODO should this be optional?
-func (ls Ls) listNodesWithConnectivity(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
+func (ls Ls) listNodesWithConnectivity(org *entity.Organization) ([]*devplanev1.ExternalNode, error) {
 	nodes, err := ls.listNodes(org)
 	if err != nil {
 		return nil, err
@@ -828,7 +871,7 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 	return nil
 }
 
-func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
+func (ls Ls) outputNodesJSON(nodes []*devplanev1.ExternalNode) error {
 	output, err := json.MarshalIndent(toNodeInfos(nodes), "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -837,7 +880,7 @@ func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
 	return nil
 }
 
-func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode, isPiped bool) {
+func displayNodesTable(t *terminal.Terminal, nodes []*devplanev1.ExternalNode, isPiped bool) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
@@ -852,7 +895,7 @@ func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode, isPip
 	ta.Render()
 }
 
-func nodeConnectionStatus(n *nodev1.ExternalNode) string {
+func nodeConnectionStatus(n *devplanev1.ExternalNode) string {
 	ci := n.GetConnectivityInfo()
 	if ci == nil {
 		return "Unknown"
