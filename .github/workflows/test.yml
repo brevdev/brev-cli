@@ -44,12 +44,3 @@ jobs:
         with:
           file: ./coverage.out
           flags: ${{ runner.os }}
-
-      - name: Report Status
-        if: failure()
-        uses: 8398a7/action-slack@77eaa4f1c608a7d68b38af4e3f739dcd8cba273e
-        with:
-          status: ${{ job.status }}
-          fields: repo,workflow,job
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.ACTION_MONITORING_SLACK }}
