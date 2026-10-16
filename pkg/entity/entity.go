@@ -260,7 +260,8 @@ const (
 )
 
 type InstanceTypeInfo struct {
-	Stoppable bool `json:"stoppable"`
+	Stoppable                 bool `json:"stoppable"`
+	SubLocationTypeChangeable bool `json:"sub_location_type_changeable"`
 }
 
 type Workspace struct {
