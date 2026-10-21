@@ -3,6 +3,7 @@ package start
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -331,6 +332,7 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
 	s.Start()
+	defer s.Stop()
 	w, err := startStore.CreateWorkspace(orgID, cwOptions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -678,7 +680,7 @@ func runSingleStart(t *terminal.Terminal, names []string, name, setupScript, set
 		InstanceType:         gpu,
 	}, startStore)
 	if err != nil {
-		if strings.Contains(err.Error(), "duplicate instance with name") {
+		if store.IsHTTPErrorCode(err, http.StatusBadRequest, "WORKSPACE_ALREADY_EXISTS") {
 			t.Vprint(t.Yellow("try running:"))
 			t.Vprint(t.Yellow("\tbrev start --name [different name] [repo] # or"))
 			t.Vprint(t.Yellow("\tbrev delete [name]"))
