@@ -2,6 +2,9 @@ package login
 
 import (
 	"bytes"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
@@ -9,6 +12,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/go-resty/resty/v2"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +48,7 @@ func (m *mockLoginAuth) LoginWithAPIKey(apiKey string, orgID string) error {
 type mockLoginStore struct {
 	getCurrentUserCalls     int
 	createUserCalls         int
+	createUserErr           error
 	getOrCreateOrgCalls     int
 	createOrganizationCalls int
 	setDefaultOrgCalls      int
@@ -66,7 +71,84 @@ func (m *mockLoginStore) GetCurrentUser() (*entity.User, error) {
 
 func (m *mockLoginStore) CreateUser(_ string) (*entity.User, error) {
 	m.createUserCalls++
+	if m.createUserErr != nil {
+		return nil, m.createUserErr
+	}
 	return &entity.User{}, nil
+}
+
+func accountCreationHTTPError(t *testing.T, status int, body string) error {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	response, err := resty.New().R().Post(server.URL)
+	require.NoError(t, err)
+	return store.NewHTTPResponseError(response)
+}
+
+func TestLoginAndGetOrCreateUser_CreationOutcomes(t *testing.T) {
+	tests := []struct {
+		name        string
+		createError func(*testing.T) error
+		wantUser    bool
+	}{
+		{name: "successful account API response", wantUser: true},
+		{
+			name: "conflict without a recovery contract",
+			createError: func(t *testing.T) error {
+				return accountCreationHTTPError(t, http.StatusConflict, `{"errors":[{"type":"AlreadyExistsError","message":"Conflict"}]}`)
+			},
+		},
+		{
+			name: "unrelated bad request",
+			createError: func(t *testing.T) error {
+				return accountCreationHTTPError(t, http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","message":"Bad Request"}]}`)
+			},
+		},
+		{
+			name: "uncoded collision text",
+			createError: func(_ *testing.T) error {
+				return errors.New("duplicate username")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loginStore := &mockLoginStore{}
+			if tt.createError != nil {
+				loginStore.createUserErr = tt.createError(t)
+			}
+			auth := &mockLoginAuth{}
+			user, err := (LoginOptions{Auth: auth, LoginStore: loginStore}).loginAndGetOrCreateUser("", false)
+			if tt.wantUser {
+				require.NoError(t, err)
+				require.Equal(t, "user-1", user.ID)
+				require.Equal(t, 1, loginStore.getCurrentUserCalls)
+			} else {
+				require.Error(t, err)
+				require.Nil(t, user)
+				require.Equal(t, 0, loginStore.getCurrentUserCalls)
+			}
+			require.Equal(t, 1, auth.loginCalls)
+			require.Equal(t, 1, loginStore.createUserCalls)
+		})
+	}
+}
+
+func TestLoginAndGetOrCreateUser_WithTokenUsesExistingAccount(t *testing.T) {
+	loginStore := &mockLoginStore{}
+	auth := &mockLoginAuth{}
+	user, err := (LoginOptions{Auth: auth, LoginStore: loginStore}).loginAndGetOrCreateUser("login-token", false)
+	require.NoError(t, err)
+	require.Equal(t, "user-1", user.ID)
+	require.Equal(t, 1, auth.tokenCalls)
+	require.Equal(t, 0, auth.loginCalls)
+	require.Equal(t, 0, loginStore.createUserCalls)
+	require.Equal(t, 1, loginStore.getCurrentUserCalls)
 }
 
 func (m *mockLoginStore) SetDefaultOrganization(org *entity.Organization) error {
