@@ -159,14 +159,14 @@ func (a KasAuthenticator) maybePromptForEmail() (string, error) {
 	} else if a.Email != "" {
 		return a.Email, nil
 	} else {
-		t := terminal.New()
-		fmt.Print(t.Green("Enter your email: "))
-		_, err := fmt.Scanln(&email)
-		if err != nil {
-			return "", breverrors.WrapAndTrace(err)
-		}
+		// PromptGetInput validates and re-prompts on empty input, so hitting
+		// enter with no email no longer surfaces a raw "unexpected newline" error.
+		email = terminal.PromptGetInput(terminal.PromptContent{
+			Label:    "Enter your email:",
+			ErrorMsg: "please enter a valid email address",
+		})
 	}
-	return email, nil
+	return strings.TrimSpace(email), nil
 }
 
 func (a KasAuthenticator) pollForTokens(sessionKey, id string) (*LoginTokens, error) {
