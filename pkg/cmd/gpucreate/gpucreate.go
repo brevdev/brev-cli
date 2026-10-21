@@ -1102,7 +1102,7 @@ func (c *createContext) handleCreateError(workerID int, instanceType, instanceNa
 	c.logf("[Worker %d] %s Failed: %s\n", workerID+1, c.colorize(instanceType, c.t.Yellow), errStr)
 
 	result.hadFailure = true
-	if strings.Contains(errStr, "duplicate workspace") {
+	if store.IsHTTPErrorCode(err, http.StatusBadRequest, "WORKSPACE_ALREADY_EXISTS") {
 		result.fatalError = fmt.Errorf("workspace '%s' already exists. Use a different name or delete the existing workspace", instanceName)
 	}
 }
