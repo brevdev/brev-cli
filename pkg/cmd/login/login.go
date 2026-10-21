@@ -133,7 +133,7 @@ func (o LoginOptions) loginAndGetOrCreateUser(loginToken string, skipBrowser boo
 			return nil, breverrors.WrapAndTrace(err)
 		}
 
-		_, err = CreateNewUser(o.LoginStore, tokens.IDToken)
+		_, err = o.LoginStore.CreateUser(tokens.IDToken)
 		if err != nil {
 			return nil, breverrors.WrapAndTrace(err)
 		}
@@ -294,20 +294,6 @@ func RunTasksForUser(t *terminal.Terminal) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
-}
-
-// returns if the user is indeed new
-func CreateNewUser(loginStore LoginStore, idToken string) (bool, error) {
-	_, err := loginStore.CreateUser(idToken)
-	if err != nil {
-		if !(strings.Contains(err.Error(), "duplicate username") || strings.Contains(err.Error(), "duplicate external auth id") || strings.Contains(err.Error(), "identity already exists")) {
-			// This is a real error
-			return false, breverrors.WrapAndTrace(err)
-		}
-		return false, nil
-	}
-
-	return true, nil
 }
 
 func (o LoginOptions) showBreadCrumbs(t *terminal.Terminal, org *entity.Organization, user *entity.User) error {
