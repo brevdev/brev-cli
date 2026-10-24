@@ -317,12 +317,13 @@ func resolveLegacySSHPort(
 }
 
 func installCertAuthority(osUser *user.User, caPublicKey, nodeID, linuxUser string) error {
+	caPublicKey = strings.TrimSpace(caPublicKey)
 	if caPublicKey == "" {
 		return fmt.Errorf("certificate authority public key is required")
 	}
 
-	principal := fmt.Sprintf("brev:v1:vm:%s:login:%s", nodeID, linuxUser)
-	entry := fmt.Sprintf("cert-authority,principals=\"%s\" %s", principal, strings.TrimSpace(caPublicKey))
+	prefix := fmt.Sprintf("cert-authority,principals=%q ", sshcert.CertAuthorityPrincipal(nodeID, linuxUser))
+	entry := prefix + caPublicKey
 
 	sshDir := filepath.Join(osUser.HomeDir, ".ssh")
 	if err := os.MkdirAll(sshDir, 0o700); err != nil {
@@ -336,20 +337,23 @@ func installCertAuthority(osUser *user.User, caPublicKey, nodeID, linuxUser stri
 		return fmt.Errorf("reading authorized_keys: %w", err)
 	}
 
-	// skip if the entry already exists.
-	for line := range strings.SplitSeq(string(existing), "\n") {
-		if strings.TrimSpace(line) == entry {
-			return nil
+	var content strings.Builder
+	for line := range strings.SplitAfterSeq(string(existing), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			continue
 		}
+		content.WriteString(line)
+	}
+	if content.Len() > 0 && !strings.HasSuffix(content.String(), "\n") {
+		content.WriteByte('\n')
+	}
+	content.WriteString(entry + "\n")
+	result := content.String()
+	if string(existing) == result {
+		return nil
 	}
 
-	content := string(existing)
-	if content != "" && !strings.HasSuffix(content, "\n") {
-		content += "\n"
-	}
-	content += entry + "\n"
-
-	if err := os.WriteFile(authKeysPath, []byte(content), 0o600); err != nil {
+	if err := os.WriteFile(authKeysPath, []byte(result), 0o600); err != nil {
 		return fmt.Errorf("writing authorized_keys: %w", err)
 	}
 

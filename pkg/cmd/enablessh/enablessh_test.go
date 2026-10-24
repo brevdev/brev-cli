@@ -589,7 +589,10 @@ func Test_installCertAuthority(t *testing.T) {
 		if err := os.MkdirAll(sshDir, 0o700); err != nil {
 			t.Fatal(err)
 		}
-		original := "ssh-rsa EXISTING user@host\n"
+		original := "ssh-rsa EXISTING user@host\n" +
+			`cert-authority,principals="brev:v1:vm:other_node:login:ubuntu" ssh-ed25519 OTHER otherCA` + "\n" +
+			`cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ssh-ed25519 OLD oldCA` + "\n" +
+			`cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ` + caKey + "\n"
 		if err := os.WriteFile(filepath.Join(sshDir, "authorized_keys"), []byte(original), 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -604,6 +607,12 @@ func Test_installCertAuthority(t *testing.T) {
 		}
 		if !strings.Contains(result, "cert-authority") {
 			t.Errorf("cert-authority line not written:\n%s", result)
+		}
+		if strings.Contains(result, "oldCA") || strings.Count(result, caKey) != 1 {
+			t.Errorf("expected only the current CA for this principal:\n%s", result)
+		}
+		if !strings.Contains(result, "otherCA") {
+			t.Errorf("another principal's CA was removed:\n%s", result)
 		}
 	})
 
@@ -647,7 +656,7 @@ func Test_resolveLegacySSHPortNonInteractiveUsesProvidedPort(t *testing.T) {
 }
 
 func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
-	const caKey = "ssh-ed25519 AAAAC3Nz dummyCA"
+	caKey := "ssh-ed25519 AAAAC3Nz dummyCA"
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
@@ -679,9 +688,8 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 		return targetUser, nil
 	}
 	reg := &register.DeviceRegistration{
-		ExternalNodeID:       "unode_abc",
-		OrgID:                "org_1",
-		CertificateAuthority: "ssh-ed25519 OLD cachedCA",
+		ExternalNodeID: "unode_abc",
+		OrgID:          "org_1",
 	}
 
 	err := enableSSH(context.Background(), terminal.New(), deps, &mockEnableSSHStore{}, reg, enableSSHOpts{
@@ -702,8 +710,21 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 	if !strings.Contains(authorizedKeys, wantPrincipal) {
 		t.Fatalf("authorized_keys missing %s:\n%s", wantPrincipal, authorizedKeys)
 	}
-	if !strings.Contains(authorizedKeys, caKey) || strings.Contains(authorizedKeys, reg.CertificateAuthority) {
-		t.Fatalf("authorized_keys must contain the current CA instead of the cached CA:\n%s", authorizedKeys)
+	if !strings.Contains(authorizedKeys, caKey) {
+		t.Fatalf("authorized_keys must contain the current CA:\n%s", authorizedKeys)
+	}
+
+	oldCA := caKey
+	caKey = "ssh-ed25519 NEW rotatedCA"
+	if err := enableSSH(context.Background(), terminal.New(), deps, &mockEnableSSHStore{}, reg, enableSSHOpts{
+		linuxUsername: "ubuntu",
+		sshPort:       22,
+	}); err != nil {
+		t.Fatalf("enableSSH after CA rotation: %v", err)
+	}
+	authorizedKeys = readAuthorizedKeys(t, targetUser)
+	if strings.Contains(authorizedKeys, oldCA) || strings.Count(authorizedKeys, caKey) != 1 {
+		t.Fatalf("enableSSH must replace the old CA with the current CA:\n%s", authorizedKeys)
 	}
 }
 
