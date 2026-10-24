@@ -650,9 +650,12 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 	const caKey = "ssh-ed25519 AAAAC3Nz dummyCA"
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
-			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{Ports: []*nodev1.Port{
-				{PortId: "port_ssh", PortNumber: 11640, ServerPort: 22},
-			}}}, nil
+			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{
+				Labels:               map[string]string{"sshprovider": "certauth"},
+				CertificateAuthority: caKey,
+				Ports: []*nodev1.Port{
+					{PortId: "port_ssh", PortNumber: 11640, ServerPort: 22},
+				}}}, nil
 		},
 	}
 	deps := startFakeServer(t, svc)
@@ -678,7 +681,7 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 	reg := &register.DeviceRegistration{
 		ExternalNodeID:       "unode_abc",
 		OrgID:                "org_1",
-		CertificateAuthority: caKey,
+		CertificateAuthority: "ssh-ed25519 OLD cachedCA",
 	}
 
 	err := enableSSH(context.Background(), terminal.New(), deps, &mockEnableSSHStore{}, reg, enableSSHOpts{
@@ -695,8 +698,12 @@ func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
 		t.Fatalf("OpenPort called %d times, want 0", svc.openCalls)
 	}
 	wantPrincipal := `principals="brev:v1:vm:unode_abc:login:ubuntu"`
-	if authorizedKeys := readAuthorizedKeys(t, targetUser); !strings.Contains(authorizedKeys, wantPrincipal) {
+	authorizedKeys := readAuthorizedKeys(t, targetUser)
+	if !strings.Contains(authorizedKeys, wantPrincipal) {
 		t.Fatalf("authorized_keys missing %s:\n%s", wantPrincipal, authorizedKeys)
+	}
+	if !strings.Contains(authorizedKeys, caKey) || strings.Contains(authorizedKeys, reg.CertificateAuthority) {
+		t.Fatalf("authorized_keys must contain the current CA instead of the cached CA:\n%s", authorizedKeys)
 	}
 }
 

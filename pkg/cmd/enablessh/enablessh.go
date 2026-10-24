@@ -121,19 +121,15 @@ func enableSSH(
 	t.Vprintf("  Linux user: %s\n", linuxUsername)
 	t.Vprint("")
 
-	caPublicKey := reg.CertificateAuthority
-	if caPublicKey == "" {
-		node, err := fetchRegisteredNode(ctx, deps, s, reg)
-		if err != nil {
-			return fmt.Errorf("enable SSH failed: %w", err)
-		}
-		if node.GetLabels()[sshcert.LabelKeySSHProvider] != sshcert.SSHProviderCertAuth {
-			return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername, opts)
-		}
-		caPublicKey = node.GetCertificateAuthority()
+	node, err := fetchRegisteredNode(ctx, deps, s, reg)
+	if err != nil {
+		return fmt.Errorf("enable SSH failed: %w", err)
+	}
+	if node.GetLabels()[sshcert.LabelKeySSHProvider] != sshcert.SSHProviderCertAuth {
+		return legacyEnableSSH(ctx, t, deps, s, reg, node, linuxUsername, opts)
 	}
 
-	if err := installCertAuthority(linuxUser, caPublicKey, reg.ExternalNodeID, linuxUsername); err != nil {
+	if err := installCertAuthority(linuxUser, node.GetCertificateAuthority(), reg.ExternalNodeID, linuxUsername); err != nil {
 		return fmt.Errorf("enable SSH failed: %w", err)
 	}
 	t.Vprint(t.Green("  Certificate authority written to authorized_keys."))
