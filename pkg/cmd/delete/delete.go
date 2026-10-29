@@ -1,15 +1,18 @@
 package delete
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
 	"strings"
 
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/hashicorp/go-multierror"
@@ -27,6 +30,7 @@ type DeleteStore interface {
 	completions.CompletionStore
 	DeleteWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error)
+	GetEnvironment(ctx context.Context, environmentID string) (*devplanev1.Environment, error)
 }
 
 func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDeleteStore DeleteStore) *cobra.Command {
@@ -47,7 +51,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 			var allError error
 			var deletedNames []string
 			for _, workspace := range names {
-				err := deleteWorkspace(workspace, t, loginDeleteStore, piped)
+				err := deleteWorkspace(cmd.Context(), workspace, t, loginDeleteStore, piped)
 				if err != nil {
 					allError = multierror.Append(allError, err)
 				} else {
@@ -70,7 +74,7 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 	return cmd
 }
 
-func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore DeleteStore, piped bool) error {
+func deleteWorkspace(ctx context.Context, workspaceName string, t *terminal.Terminal, deleteStore DeleteStore, piped bool) error {
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(deleteStore, workspaceName)
 	if err != nil {
 		err1 := handleAdminUser(err, deleteStore, piped)
@@ -81,6 +85,15 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 
 	var workspaceID string
 	if workspace != nil {
+		env, err := deleteStore.GetEnvironment(ctx, workspace.ID)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
+		}
+		if phase := setupPhase(workspace, env); phase != "" {
+			return breverrors.NewValidationError(fmt.Sprintf(
+				"instance %q is still %s and can't be deleted yet. Run 'brev ls' and try again once it's running.",
+				workspace.Name, phase))
+		}
 		workspaceID = workspace.ID
 	} else {
 		workspaceID = workspaceName
@@ -96,6 +109,13 @@ func deleteWorkspace(workspaceName string, t *terminal.Terminal, deleteStore Del
 	}
 
 	return nil
+}
+
+func setupPhase(workspace *entity.Workspace, env *devplanev1.Environment) string {
+	if env.GetStatus() == devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_UNSPECIFIED && workspace.Status == entity.Deploying {
+		return "deploying"
+	}
+	return environment.SetupPhase(env)
 }
 
 func handleAdminUser(err error, deleteStore DeleteStore, piped bool) error {

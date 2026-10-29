@@ -74,3 +74,16 @@ func IsFailed(env *devplanev1.Environment) bool {
 	}
 	return false
 }
+
+// SetupPhase returns the setup phase the environment is in, or "" once setup is over.
+func SetupPhase(env *devplanev1.Environment) string {
+	switch env.GetStatus() {
+	case devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PENDING:
+		return "pending"
+	case devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PREPARING:
+		return "preparing"
+	case devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING:
+		return "provisioning"
+	}
+	return ""
+}
