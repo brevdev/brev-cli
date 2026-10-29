@@ -47,6 +47,30 @@ func TestStatusDisplayMapsEnvironmentStatuses(t *testing.T) {
 	}
 }
 
+func TestSetupPhase(t *testing.T) {
+	cases := []struct {
+		name   string
+		status devplanev1.EnvironmentStatus
+		want   string
+	}{
+		{"pending", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PENDING, "pending"},
+		{"preparing", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PREPARING, "preparing"},
+		{"provisioning", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING, "provisioning"},
+		{"preparing_failed", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PREPARING_FAILED, ""},
+		{"provisioning_failed", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED, ""},
+		{"building", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_BUILDING, ""},
+		{"starting", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_STARTING, ""},
+		{"running", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_RUNNING, ""},
+		{"unspecified", devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_UNSPECIFIED, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, SetupPhase(&devplanev1.Environment{Status: tc.status}))
+		})
+	}
+}
+
 // TestFailureMessage covers the provider-message preference and fallbacks.
 func TestFailureMessage(t *testing.T) {
 	cases := []struct {
