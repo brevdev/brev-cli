@@ -12,9 +12,7 @@ import (
 	"os/user"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
@@ -1320,54 +1318,6 @@ type CommandGroup struct {
 }
 
 // TODO batch
-
-func CmdAsUser(cmd *exec.Cmd, user *user.User) error {
-	uid, err := strconv.ParseInt(user.Uid, 10, 32)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	gid, err := strconv.ParseInt(user.Gid, 10, 32)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	cmd.SysProcAttr = &syscall.SysProcAttr{}
-	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: uint32(uid), Gid: uint32(gid)}
-	cmd.Env = append(os.Environ(), "USER="+user.Username, "HOME="+user.HomeDir, "SHELL=/bin/bash") // TODO get shell from user
-	return nil
-}
-
-func ChownFileToUser(file *os.File, user *user.User) error {
-	uid, err := strconv.ParseInt(user.Uid, 10, 32)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	gid, err := strconv.ParseInt(user.Gid, 10, 32)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = file.Chown(int(uid), int(gid))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	return nil
-}
-
-func ChownFilePathToUser(filePath string, user *user.User) error {
-	uid, err := strconv.ParseInt(user.Uid, 10, 32)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	gid, err := strconv.ParseInt(user.Gid, 10, 32)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = os.Chown(filePath, int(uid), int(gid))
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
-}
 
 // similar to redirect operator '>'
 func AppendToOrCreateFile(filePath string, toAppend string) error {

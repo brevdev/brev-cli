@@ -1,0 +1,125 @@
+name: WSL Parity (prototype)
+
+# Prototype: verify the CLI behaves inside WSL the same as on native linux.
+# The CLI targets WSL as a linux binary (GOOS=linux, runtime.GOOS != "windows"),
+# so this runs the same statically-linked linux/amd64 artifact on ubuntu-22.04
+# and inside an Ubuntu-22.04 WSL distro, then diffs their deterministic outputs.
+#
+# Manual dispatch until green; uncomment the pull_request block when stable.
+#
+# Note: actions here are pinned to commit SHAs (with version comments) unlike
+# the rest of the repo's workflows (which use floating major tags). If this
+# workflow graduates to required CI, either keep the pins and set up a
+# dependabot/renovate bump path, or align with repo convention.
+on:
+  workflow_dispatch:
+  # pull_request:
+  #   branches: [main]
+
+jobs:
+  linux-baseline:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.25.0"
+          cache: true
+
+      # Statically linked so the artifact runs in the WSL distro regardless
+      # of its glibc.
+      - name: Build
+        run: CGO_ENABLED=0 go build -o brev-linux -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=dev-parity" .
+
+      - name: Unit tests (linux baseline)
+        run: go test -count=1 ./pkg/...
+
+      - name: Capture parity outputs (linux)
+        run: BREV_BIN=$PWD/brev-linux scripts/parity-capture.sh parity-out/linux
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: parity-linux
+          path: parity-out/linux
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: brev-linux-bin
+          path: brev-linux
+
+  wsl:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Installs Ubuntu-22.04 (image ships WSL2 but no distro), caches the
+      # installer, and provides the `wsl-bash {0}` shell used below.
+      # Pinned: v7.2.0
+      - uses: Vampire/setup-wsl@e707f0b61a07f8ea48a64d83edfcbd4a7af45926 # v7.2.0
+        with:
+          distribution: Ubuntu-22.04
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: brev-linux-bin
+          path: artifact
+
+      # Copy the prebuilt static binary into the distro's ext4 (fast exec,
+      # no /mnt 9p penalty). No Go toolchain needed inside WSL.
+      - name: Install binary into the distro
+        shell: wsl-bash {0}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/bin
+          cp "$(wslpath '${{ github.workspace }}')/artifact/brev-linux" ~/bin/brev
+          chmod +x ~/bin/brev
+          ~/bin/brev --version
+
+      # Only the capture script is read from /mnt (tiny file); outputs are
+      # written to the distro filesystem.
+      - name: Capture parity outputs (WSL)
+        shell: wsl-bash {0}
+        run: |
+          set -euo pipefail
+          script="$(wslpath '${{ github.workspace }}')/scripts/parity-capture.sh"
+          BREV_BIN=$HOME/bin/brev bash "$script" ~/parity-out/wsl
+
+      - name: Copy captures to workspace for upload
+        shell: pwsh
+        run: |
+          wsl.exe -d Ubuntu-22.04 -- bash -c 'cp -r ~/parity-out/wsl "$(wslpath "$WSL_PARITY_OUT")"'
+        env:
+          WSL_PARITY_OUT: ${{ github.workspace }}\parity-out
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: parity-wsl
+          path: parity-out/wsl
+
+  compare:
+    needs: [linux-baseline, wsl]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: parity-linux
+          path: parity/linux
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: parity-wsl
+          path: parity/wsl
+
+      - name: Diff linux vs WSL outputs
+        run: |
+          set -e
+          fail=0
+          for f in parity/linux/*.txt; do
+            name=$(basename "$f")
+            if ! diff -u "parity/linux/$name" "parity/wsl/$name"; then
+              echo "::error::parity mismatch in $name"
+              fail=1
+            fi
+          done
+          exit $fail
