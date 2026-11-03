@@ -370,12 +370,17 @@ func showLoginURL(url string) {
 	fmt.Println(urlType(url))
 }
 
-func defaultAuthFunc(url, code string) {
-	codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
-	if code != "" {
-		fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
-		fmt.Print("\n")
+func printDeviceCode(code string) {
+	if code == "" {
+		return
 	}
+	codeType := color.New(color.FgWhite, color.Bold).SprintFunc()
+	fmt.Println("Your Device Confirmation Code is 👉", codeType(code), "👈")
+	fmt.Print("\n")
+}
+
+func defaultAuthFunc(url, code string) {
+	printDeviceCode(code)
 
 	// Best-effort: try to open the browser, but always show the URL below so
 	// the user is never stranded if it doesn't open.
@@ -384,7 +389,8 @@ func defaultAuthFunc(url, code string) {
 	fmt.Println("\nWaiting for login to complete...")
 }
 
-func skipBrowserAuthFunc(url, _ string) {
+func skipBrowserAuthFunc(url, code string) {
+	printDeviceCode(code)
 	showLoginURL(url)
 	fmt.Println("\nWaiting for login to complete...")
 }
