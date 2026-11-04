@@ -14,6 +14,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/hashicorp/go-multierror"
 	"github.com/spf13/cobra"
@@ -23,7 +24,7 @@ import (
 var (
 	//go:embed doc.md
 	deleteLong    string
-	deleteExample = "brev delete <ws_name>...\necho instance-name | brev delete"
+	deleteExample = "brev delete <instance_name_or_id>...\necho instance-name | brev delete"
 )
 
 type DeleteStore interface {
@@ -76,6 +77,9 @@ func NewCmdDelete(t *terminal.Terminal, loginDeleteStore DeleteStore, noLoginDel
 
 func deleteWorkspace(ctx context.Context, workspaceName string, t *terminal.Terminal, deleteStore DeleteStore, piped bool) error {
 	workspace, err := util.GetUserWorkspaceByNameOrIDErr(deleteStore, workspaceName)
+	if isNotFound(err) && !auth.IsAPIKeyAuthStore(deleteStore) {
+		workspace, err = getOrgWorkspace(deleteStore, workspaceName, piped)
+	}
 	if err != nil {
 		err1 := handleAdminUser(err, deleteStore, piped)
 		if err1 != nil {
@@ -93,6 +97,9 @@ func deleteWorkspace(ctx context.Context, workspaceName string, t *terminal.Term
 			return breverrors.NewValidationError(fmt.Sprintf(
 				"instance %q is still %s and can't be deleted yet. Run 'brev ls' and try again once it's running.",
 				workspace.Name, phase))
+		}
+		if isDeleting(workspace, env) {
+			return breverrors.NewValidationError(fmt.Sprintf("instance %q is already being deleted", workspace.Name))
 		}
 		workspaceID = workspace.ID
 	} else {
@@ -118,6 +125,13 @@ func setupPhase(workspace *entity.Workspace, env *devplanev1.Environment) string
 	return environment.SetupPhase(env)
 }
 
+func isDeleting(workspace *entity.Workspace, env *devplanev1.Environment) bool {
+	if env.GetStatus() == devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_UNSPECIFIED {
+		return workspace.Status == entity.Deleting
+	}
+	return environment.Display(env) == entity.Deleting
+}
+
 func handleAdminUser(err error, deleteStore DeleteStore, piped bool) error {
 	if strings.Contains(err.Error(), "not found") {
 		if auth.IsAPIKeyAuthStore(deleteStore) {
@@ -141,4 +155,30 @@ func handleAdminUser(err error, deleteStore DeleteStore, piped bool) error {
 	}
 
 	return nil
+}
+
+func getOrgWorkspace(deleteStore DeleteStore, workspaceName string, piped bool) (*entity.Workspace, error) {
+	org, err := deleteStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	workspaces, err := deleteStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{Name: workspaceName})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	switch len(workspaces) {
+	case 0:
+		return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceName))
+	case 1:
+		if !piped {
+			fmt.Fprintf(os.Stderr, "%s belongs to another member of the org\n", workspaces[0].Name)
+		}
+		return &workspaces[0], nil
+	default:
+		return nil, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s; use the instance ID from 'brev ls --all'", workspaceName))
+	}
+}
+
+func isNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not found")
 }
