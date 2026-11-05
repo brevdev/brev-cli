@@ -11,7 +11,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -84,18 +83,14 @@ type CreateOptions struct {
 }
 
 func runCreateWorkspace(t *terminal.Terminal, options CreateOptions, createStore CreateStore) error {
-	user, err := createStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	err = createEmptyWorkspace(user, t, options, createStore)
+	err := createEmptyWorkspace(t, options, createStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
 }
 
-func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options CreateOptions, createStore CreateStore) error {
+func createEmptyWorkspace(t *terminal.Terminal, options CreateOptions, createStore CreateStore) error {
 	// ensure name
 	if len(options.Name) == 0 {
 		return breverrors.NewValidationError("A name field is required to create a workspace!")
@@ -119,7 +114,7 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 		cwOptions.WithClassID(options.WorkspaceClass)
 	}
 
-	cwOptions = resolveWorkspaceUserOptions(cwOptions, user)
+	cwOptions = resolveWorkspaceOptions(cwOptions)
 
 	if options.InstanceType != "" {
 		cwOptions.WithInstanceType(options.InstanceType)
@@ -158,20 +153,12 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 	}
 }
 
-func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
+func resolveWorkspaceOptions(options *store.CreateWorkspacesOptions) *store.CreateWorkspacesOptions {
 	if options.WorkspaceTemplateID == "" {
-		if featureflag.IsAdmin(user.GlobalUserType) {
-			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
-		} else {
-			options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
-		}
+		options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
 	}
 	if options.WorkspaceClassID == "" {
-		if featureflag.IsAdmin(user.GlobalUserType) {
-			options.WorkspaceClassID = store.DevWorkspaceClassID
-		} else {
-			options.WorkspaceClassID = store.UserWorkspaceClassID
-		}
+		options.WorkspaceClassID = store.UserWorkspaceClassID
 	}
 	return options
 }

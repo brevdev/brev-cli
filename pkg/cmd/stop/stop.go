@@ -3,7 +3,6 @@ package stop
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
@@ -132,18 +131,6 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool) er
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, piped bool) error {
-	user := &entity.User{}
-	apiKeyAuth := false
-	var err error
-	if auth.IsAPIKeyAuthStore(stopStore) {
-		apiKeyAuth = true
-	} else {
-		user, err = stopStore.GetCurrentUser()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-
 	var workspaceID string
 
 	if workspaceName == "self" {
@@ -156,23 +143,9 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		}
 		workspaceID = wsID
 	} else {
-		workspace, err3 := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
-		if err3 != nil {
-			if !strings.Contains(err3.Error(), "not found") {
-				return breverrors.WrapAndTrace(err3)
-			} else {
-				if !apiKeyAuth && user.GlobalUserType == entity.Admin {
-					if !piped {
-						fmt.Println("admin trying to stop any instance")
-					}
-					workspace, err = util.GetAnyWorkspaceByIDOrNameInActiveOrgErr(stopStore, workspaceName)
-					if err != nil {
-						return breverrors.WrapAndTrace(err)
-					}
-				} else {
-					return breverrors.WrapAndTrace(err3)
-				}
-			}
+		workspace, err := util.GetUserWorkspaceByNameOrIDErr(stopStore, workspaceName)
+		if err != nil {
+			return breverrors.WrapAndTrace(err)
 		}
 		if err = validateWorkspaceStoppable(workspace); err != nil {
 			return err
@@ -180,8 +153,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		workspaceID = workspace.ID
 	}
 
-	_, err = stopStore.StopWorkspace(workspaceID)
-	if err != nil {
+	if _, err := stopStore.StopWorkspace(workspaceID); err != nil {
 		return breverrors.WrapAndTrace(err)
 	} else if !piped {
 		if workspaceName == "self" {

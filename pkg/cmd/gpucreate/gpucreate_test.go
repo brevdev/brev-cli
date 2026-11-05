@@ -809,29 +809,20 @@ func TestParseInstanceTypesStdin(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestResolveWorkspaceUserOptions(t *testing.T) {
+func TestResolveWorkspaceOptions(t *testing.T) {
 	cases := []struct {
-		name           string
-		globalUserType string
-		existing       *store.CreateWorkspacesOptions
-		wantTemplate   string
-		wantClass      string
+		name         string
+		existing     *store.CreateWorkspacesOptions
+		wantTemplate string
+		wantClass    string
 	}{
 		{
-			name:           "standard user gets user template",
-			globalUserType: "Standard",
-			wantTemplate:   store.UserWorkspaceTemplateID,
-			wantClass:      store.UserWorkspaceClassID,
+			name:         "uses user template",
+			wantTemplate: store.UserWorkspaceTemplateID,
+			wantClass:    store.UserWorkspaceClassID,
 		},
 		{
-			name:           "admin user gets dev template",
-			globalUserType: "Admin",
-			wantTemplate:   store.DevWorkspaceTemplateID,
-			wantClass:      store.DevWorkspaceClassID,
-		},
-		{
-			name:           "existing values are preserved",
-			globalUserType: "Standard",
+			name: "existing values are preserved",
 			existing: &store.CreateWorkspacesOptions{
 				WorkspaceTemplateID: "custom-template",
 				WorkspaceClassID:    "custom-class",
@@ -848,10 +839,7 @@ func TestResolveWorkspaceUserOptions(t *testing.T) {
 				options = &store.CreateWorkspacesOptions{}
 			}
 
-			result := resolveWorkspaceUserOptions(options, &entity.User{
-				ID:             "user-123",
-				GlobalUserType: entity.GlobalUserType(tc.globalUserType),
-			})
+			result := resolveWorkspaceOptions(options)
 
 			assert.Equal(t, tc.wantTemplate, result.WorkspaceTemplateID)
 			assert.Equal(t, tc.wantClass, result.WorkspaceClassID)
@@ -1438,7 +1426,6 @@ func TestCreateInstancesWithType(t *testing.T) {
 				store:            mock,
 				opts:             opts,
 				org:              mock.Org,
-				user:             mock.User,
 				piped:            true,
 				allInstanceTypes: tc.catalogTypes,
 				logf:             func(string, ...interface{}) {},

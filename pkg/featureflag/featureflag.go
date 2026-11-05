@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/spf13/viper"
 )
 
@@ -15,16 +14,6 @@ func IsDev() bool {
 		return strings.HasPrefix(version.Version, "dev")
 	}
 }
-
-func IsAdmin(userType entity.GlobalUserType) bool {
-	if viper.IsSet("feature.not_admin") && viper.GetBool("feature.not_admin") {
-		return false
-	} else {
-		return userType == "Admin"
-	}
-}
-
-// use feature flag if not provided default true for admin but not others
 
 func DisableSSHProxyVersionCheck() bool {
 	return viper.GetBool("feature.disable_ssh_proxy_version_check")

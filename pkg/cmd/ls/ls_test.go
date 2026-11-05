@@ -111,10 +111,6 @@ func (m *mockLsStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]enti
 	return m.orgs, nil
 }
 
-func (m *mockLsStore) GetUsers(_ map[string]string) ([]entity.User, error) {
-	return nil, nil
-}
-
 func (m *mockLsStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
 	return &gpusearch.InstanceTypesResponse{}, nil
 }
