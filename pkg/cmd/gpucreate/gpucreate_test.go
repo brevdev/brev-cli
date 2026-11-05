@@ -1426,7 +1426,6 @@ func TestCreateInstancesWithType(t *testing.T) {
 				store:            mock,
 				opts:             opts,
 				org:              mock.Org,
-				user:             mock.User,
 				piped:            true,
 				allInstanceTypes: tc.catalogTypes,
 				logf:             func(string, ...interface{}) {},
