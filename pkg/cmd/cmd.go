@@ -163,11 +163,11 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
       Find more information at:
             https://brev.nvidia.com`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			analytics.CaptureCommand("", cmd, args)
+			analytics.CaptureCommand("", cmd)
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			analytics.RecordCommandStart(cmd, args)
+			analytics.RecordCommandStart(cmd)
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
 			if strings.TrimSpace(orgFlag) != "" && !allowsOrgOverrideWithExternalAuth(cmd) && auth.IsAPIKeyAuthStore(loginCmdStore) {
 				return breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
