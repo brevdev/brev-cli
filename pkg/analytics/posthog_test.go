@@ -3,7 +3,6 @@ package analytics
 import (
 	"testing"
 
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/files"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -127,7 +126,7 @@ func buildFlaggedCmd(t *testing.T, setFlags func(*pflag.FlagSet)) *cobra.Command
 	return cmd
 }
 
-func TestCaptureEvent_RedactsSensitiveFlagValues(t *testing.T) {
+func TestCaptureFlagPresenceNeverIncludesValues(t *testing.T) {
 	tests := []struct {
 		name      string
 		setFlags  func(*pflag.FlagSet)
@@ -135,67 +134,45 @@ func TestCaptureEvent_RedactsSensitiveFlagValues(t *testing.T) {
 		wantValue interface{}
 	}{
 		{
-			name: "annotated flag is redacted",
+			name: "annotated secret flag",
 			setFlags: func(fs *pflag.FlagSet) {
-				fs.String("api-key", "bak-secret-value", "")
-				MarkFlagSensitive(fs, "api-key")
+				fs.String("value", "arbitrary provider password", "")
+				MarkFlagSensitive(fs, "value")
 			},
-			flagName:  "api-key",
+			flagName:  "value",
 			wantValue: "[redacted]",
 		},
 		{
-			name: "brev api key shape is redacted even unannotated",
+			name: "unannotated secret flag",
 			setFlags: func(fs *pflag.FlagSet) {
-				fs.String("something", auth.BrevAPIKeyPrefix+"raw-key", "")
+				fs.String("value", "arbitrary provider password", "")
 			},
-			flagName:  "something",
+			flagName:  "value",
 			wantValue: "[redacted]",
 		},
 		{
-			name: "jwt shape is redacted even unannotated",
+			name: "empty flag value",
 			setFlags: func(fs *pflag.FlagSet) {
-				fs.String("token", "eyJhbGciOi.J123.abc_sig", "")
+				fs.String("value", "", "")
 			},
-			flagName:  "token",
+			flagName:  "value",
 			wantValue: "[redacted]",
 		},
 		{
-			name: "benign flag passes through",
+			name: "ordinary flag value is also omitted",
 			setFlags: func(fs *pflag.FlagSet) {
 				fs.Bool("show-all", true, "")
 				fs.String("org", "my-org", "")
 			},
 			flagName:  "org",
-			wantValue: "my-org",
+			wantValue: "[redacted]",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cmd := buildFlaggedCmd(t, tt.setFlags)
-			got := visitedFlagMap(cmd)
+			got := captureFlagPresence(cmd)
 			assert.Equal(t, tt.wantValue, got[tt.flagName])
 		})
 	}
-}
-
-func visitedFlagMap(cmd *cobra.Command) map[string]interface{} {
-	flagMap := make(map[string]interface{})
-	cmd.Flags().Visit(func(f *pflag.Flag) {
-		flagMap[f.Name] = redactFlagValue(f)
-	})
-	return flagMap
-}
-
-func TestCaptureCommandError_UsesRedactedFlags(t *testing.T) {
-	cmd := buildFlaggedCmd(t, func(fs *pflag.FlagSet) {
-		fs.String("api-key", "bak-live-secret", "")
-		MarkFlagSensitive(fs, "api-key")
-	})
-	storedCmd = cmd // what CaptureCommandError reads
-	t.Cleanup(func() { storedCmd = nil })
-
-	// The redaction itself is asserted via visitedFlagMap; this test pins the
-	// contract that CaptureCommandError consults the same visitor.
-	got := visitedFlagMap(cmd)
-	assert.Equal(t, "[redacted]", got["api-key"])
 }

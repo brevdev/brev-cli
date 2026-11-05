@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -165,6 +166,7 @@ The value can be passed with --value or piped via stdin:
 	}
 	cmd.Flags().StringVar(&name, "name", "", "secret name")
 	cmd.Flags().StringVar(&value, "value", "", "secret value (reads from stdin if omitted)")
+	analytics.MarkFlagSensitive(cmd.Flags(), "value")
 	return cmd
 }
 
@@ -202,6 +204,7 @@ The value can be passed with --value or piped via stdin:
 	cmd.Flags().StringVar(&id, "id", "", "secret ID")
 	cmd.Flags().StringVar(&name, "name", "", "look up the secret by name instead of ID")
 	cmd.Flags().StringVar(&value, "value", "", "secret value (reads from stdin if omitted)")
+	analytics.MarkFlagSensitive(cmd.Flags(), "value")
 	return cmd
 }
 
