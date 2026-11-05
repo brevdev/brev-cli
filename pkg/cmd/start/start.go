@@ -188,7 +188,7 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, apiKeyAuth
 		if len(userWorkspaces) > 1 {
 			userWorkspaces = store.FilterNonFailedWorkspaces(userWorkspaces)
 			if len(userWorkspaces) > 1 {
-				return false, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", options.RepoOrPathOrNameOrID))
+				return false, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with name %s", options.RepoOrPathOrNameOrID))
 			}
 			if len(userWorkspaces) == 0 {
 				return false, breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s is a failed workspace", options.RepoOrPathOrNameOrID))

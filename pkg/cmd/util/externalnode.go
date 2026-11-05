@@ -44,7 +44,7 @@ func ResolveWorkspaceOrNode(store WorkspaceOrNodeResolver, nameOrID string,
 // Brev Connect machines. The context is used for the machine service request.
 func ResolveWorkspaceOrNodeWithContext(ctx context.Context, store WorkspaceOrNodeResolver, nameOrID string,
 ) (*WorkspaceOrNode, error) {
-	workspace, workspaceFound, err := findUserWorkspaceByNameOrID(store, nameOrID)
+	workspace, workspaceFound, err := FindUserWorkspaceByNameOrID(store, nameOrID)
 	if err != nil {
 		return nil, err
 	}

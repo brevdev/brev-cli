@@ -147,6 +147,19 @@ func ResolveCLIAuth(store CurrentUserAuthStore) (CLIAuth, error) {
 	return CLIAuth{user: user}, nil
 }
 
+// IsCurrentUserSystemAdmin reports whether the current credential belongs to a
+// global admin. API keys do not qualify for system-admin behavior.
+func IsCurrentUserSystemAdmin(store CurrentUserAuthStore) (bool, error) {
+	if IsAPIKeyAuthStore(store) {
+		return false, nil
+	}
+	user, err := store.GetCurrentUser()
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	return user.GlobalUserType == entity.Admin, nil
+}
+
 func IsBrevAPIKey(token string) bool {
 	return strings.HasPrefix(strings.TrimSpace(token), BrevAPIKeyPrefix)
 }

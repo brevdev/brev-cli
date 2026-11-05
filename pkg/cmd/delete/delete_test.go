@@ -21,11 +21,14 @@ const (
 )
 
 type mockDeleteStore struct {
-	user         *entity.User
-	tokens       *entity.AuthTokens
-	workspaces   []entity.Workspace
-	environments map[string]*devplanev1.Environment
-	deletedIDs   []string
+	user           *entity.User
+	tokens         *entity.AuthTokens
+	workspaces     []entity.Workspace
+	environments   map[string]*devplanev1.Environment
+	deletedIDs     []string
+	userLookupErr  error
+	orgLookupErr   error
+	orgLookupCalls int
 }
 
 // newMockDeleteStore gives every instance a running dev-plane environment.
@@ -55,6 +58,12 @@ func (m *mockDeleteStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]
 
 // GetWorkspaces applies the same name/ID and user filters as AuthHTTPStore.GetWorkspaces.
 func (m *mockDeleteStore) GetWorkspaces(_ string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error) {
+	if options == nil || options.UserID == "" {
+		m.orgLookupCalls++
+		if m.orgLookupErr != nil {
+			return nil, m.orgLookupErr
+		}
+	}
 	var matches []entity.Workspace
 	for _, w := range m.workspaces {
 		if options != nil && options.Name != "" && w.Name != options.Name && w.ID != options.Name {
@@ -70,6 +79,9 @@ func (m *mockDeleteStore) GetWorkspaces(_ string, options *store.GetWorkspacesOp
 
 // GetWorkspaceByNameOrID keeps only the caller's own instances for logged-in users, like AuthHTTPStore.
 func (m *mockDeleteStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]entity.Workspace, error) {
+	if m.userLookupErr != nil {
+		return nil, m.userLookupErr
+	}
 	options := &store.GetWorkspacesOptions{Name: nameOrID}
 	if !auth.IsAPIKeyAuthStore(m) {
 		options.UserID = m.user.ID
@@ -135,7 +147,7 @@ func TestDeleteWorkspaceRefusesWhenTheTargetIsUnclear(t *testing.T) {
 				{ID: "ws-1", Name: "shared", CreatedByUserID: "user-a", Status: entity.Running},
 				{ID: "ws-2", Name: "shared", CreatedByUserID: "user-b", Status: entity.Running},
 			},
-			wantErr: "multiple instances found with id/name shared",
+			wantErr: "multiple instances found with name shared",
 		},
 		{
 			name: "a failed and a running instance share the name",
@@ -143,7 +155,7 @@ func TestDeleteWorkspaceRefusesWhenTheTargetIsUnclear(t *testing.T) {
 				{ID: "ws-1", Name: "shared", CreatedByUserID: "user-a", Status: entity.Failure},
 				{ID: "ws-2", Name: "shared", CreatedByUserID: "user-b", Status: entity.Running},
 			},
-			wantErr: "multiple instances found with id/name shared",
+			wantErr: "multiple instances found with name shared",
 		},
 		{
 			name:       "no instance in the org has the name",
@@ -172,6 +184,44 @@ func TestDeleteWorkspaceLetsBrevAdminsDeleteByIDOutsideTheOrg(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"ws-other-org"}, deleteStore.deletedIDs)
+}
+
+func TestDeleteWorkspacePreservesLookupErrors(t *testing.T) {
+	for _, userType := range []entity.GlobalUserType{entity.Standard, entity.Admin} {
+		for _, lookup := range []string{"user", "org"} {
+			t.Run(string(userType)+"/"+lookup, func(t *testing.T) {
+				deleteStore := newMockDeleteStore()
+				deleteStore.user.GlobalUserType = userType
+				lookupErr := errors.New("lookup dependency not found")
+				wantOrgLookups := 0
+				if lookup == "user" {
+					deleteStore.userLookupErr = lookupErr
+				} else {
+					deleteStore.orgLookupErr = lookupErr
+					wantOrgLookups = 1
+				}
+
+				err := runDelete(t, deleteStore, "gpu")
+
+				require.ErrorIs(t, err, lookupErr)
+				assert.Equal(t, wantOrgLookups, deleteStore.orgLookupCalls)
+				assert.Empty(t, deleteStore.deletedIDs)
+			})
+		}
+	}
+}
+
+func TestDeleteWorkspaceAdminCannotBypassAmbiguityWithNotFoundInName(t *testing.T) {
+	deleteStore := newMockDeleteStore(
+		entity.Workspace{ID: "ws-1", Name: "not found", CreatedByUserID: "user-a"},
+		entity.Workspace{ID: "ws-2", Name: "not found", CreatedByUserID: "user-b"},
+	)
+	deleteStore.user.GlobalUserType = entity.Admin
+
+	err := runDelete(t, deleteStore, "not found")
+
+	require.ErrorContains(t, err, "multiple instances found")
+	assert.Empty(t, deleteStore.deletedIDs)
 }
 
 func TestDeleteWorkspaceWithAPIKeyDoesNotFallBack(t *testing.T) {

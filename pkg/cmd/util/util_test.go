@@ -48,7 +48,7 @@ func TestGetUserWorkspaceByNameOrIDErr_APIKeyRejectsAmbiguousMatches(t *testing.
 
 	require.Error(t, err)
 	assert.Nil(t, workspace)
-	assert.Contains(t, err.Error(), "multiple instances found with id/name dev")
+	assert.Contains(t, err.Error(), "multiple instances found with name dev")
 }
 
 func TestGetUserWorkspaceByNameOrIDErr_APIKeyUsesOnlyNonFailedMatch(t *testing.T) {

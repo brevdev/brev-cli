@@ -17,7 +17,7 @@ type GetWorkspaceByNameOrIDErrStore interface {
 }
 
 func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
-	workspace, found, err := findUserWorkspaceByNameOrID(storeQ, workspaceNameOrID)
+	workspace, found, err := FindUserWorkspaceByNameOrID(storeQ, workspaceNameOrID)
 	if err != nil {
 		return nil, err
 	}
@@ -27,9 +27,9 @@ func GetUserWorkspaceByNameOrIDErr(storeQ GetWorkspaceByNameOrIDErrStore, worksp
 	return workspace, nil
 }
 
-// findUserWorkspaceByNameOrID distinguishes a missing workspace from lookup failures so callers
+// FindUserWorkspaceByNameOrID distinguishes a missing workspace from lookup failures so callers
 // that support other target types only fall back after a confirmed absence.
-func findUserWorkspaceByNameOrID(
+func FindUserWorkspaceByNameOrID(
 	storeQ GetWorkspaceByNameOrIDErrStore,
 	workspaceNameOrID string,
 ) (*entity.Workspace, bool, error) {
@@ -92,7 +92,7 @@ func selectWorkspaceByNameOrID(workspaces []entity.Workspace, workspaceNameOrID 
 			return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s is a failed workspace", workspaceNameOrID))
 		}
 		if len(workspaces) > 1 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", workspaceNameOrID))
+			return nil, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with name %s", workspaceNameOrID))
 		}
 	}
 	return &workspaces[0], nil

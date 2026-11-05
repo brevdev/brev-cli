@@ -132,16 +132,9 @@ func stopAllWorkspaces(t *terminal.Terminal, stopStore StopStore, piped bool) er
 }
 
 func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopStore, piped bool) error {
-	user := &entity.User{}
-	apiKeyAuth := false
-	var err error
-	if auth.IsAPIKeyAuthStore(stopStore) {
-		apiKeyAuth = true
-	} else {
-		user, err = stopStore.GetCurrentUser()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
+	isSystemAdmin, err := auth.IsCurrentUserSystemAdmin(stopStore)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	var workspaceID string
@@ -161,7 +154,7 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 			if !strings.Contains(err3.Error(), "not found") {
 				return breverrors.WrapAndTrace(err3)
 			} else {
-				if !apiKeyAuth && user.GlobalUserType == entity.Admin {
+				if isSystemAdmin {
 					if !piped {
 						fmt.Println("admin trying to stop any instance")
 					}
