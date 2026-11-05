@@ -176,48 +176,33 @@ func TestDeleteWorkspaceRefusesWhenTheTargetIsUnclear(t *testing.T) {
 	}
 }
 
-func TestDeleteWorkspaceLetsBrevAdminsDeleteByIDOutsideTheOrg(t *testing.T) {
-	deleteStore := newMockDeleteStore()
-	deleteStore.user.GlobalUserType = entity.Admin
-
-	err := runDelete(t, deleteStore, "ws-other-org")
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"ws-other-org"}, deleteStore.deletedIDs)
-}
-
 func TestDeleteWorkspacePreservesLookupErrors(t *testing.T) {
-	for _, userType := range []entity.GlobalUserType{entity.Standard, entity.Admin} {
-		for _, lookup := range []string{"user", "org"} {
-			t.Run(string(userType)+"/"+lookup, func(t *testing.T) {
-				deleteStore := newMockDeleteStore()
-				deleteStore.user.GlobalUserType = userType
-				lookupErr := errors.New("lookup dependency not found")
-				wantOrgLookups := 0
-				if lookup == "user" {
-					deleteStore.userLookupErr = lookupErr
-				} else {
-					deleteStore.orgLookupErr = lookupErr
-					wantOrgLookups = 1
-				}
+	for _, lookup := range []string{"user", "org"} {
+		t.Run(lookup, func(t *testing.T) {
+			deleteStore := newMockDeleteStore()
+			lookupErr := errors.New("lookup dependency not found")
+			wantOrgLookups := 0
+			if lookup == "user" {
+				deleteStore.userLookupErr = lookupErr
+			} else {
+				deleteStore.orgLookupErr = lookupErr
+				wantOrgLookups = 1
+			}
 
-				err := runDelete(t, deleteStore, "gpu")
+			err := runDelete(t, deleteStore, "gpu")
 
-				require.ErrorIs(t, err, lookupErr)
-				assert.Equal(t, wantOrgLookups, deleteStore.orgLookupCalls)
-				assert.Empty(t, deleteStore.deletedIDs)
-			})
-		}
+			require.ErrorIs(t, err, lookupErr)
+			assert.Equal(t, wantOrgLookups, deleteStore.orgLookupCalls)
+			assert.Empty(t, deleteStore.deletedIDs)
+		})
 	}
 }
 
-func TestDeleteWorkspaceAdminCannotBypassAmbiguityWithNotFoundInName(t *testing.T) {
+func TestDeleteWorkspaceCannotBypassAmbiguityWithNotFoundInName(t *testing.T) {
 	deleteStore := newMockDeleteStore(
 		entity.Workspace{ID: "ws-1", Name: "not found", CreatedByUserID: "user-a"},
 		entity.Workspace{ID: "ws-2", Name: "not found", CreatedByUserID: "user-b"},
 	)
-	deleteStore.user.GlobalUserType = entity.Admin
-
 	err := runDelete(t, deleteStore, "not found")
 
 	require.ErrorContains(t, err, "multiple instances found")
@@ -227,7 +212,6 @@ func TestDeleteWorkspaceAdminCannotBypassAmbiguityWithNotFoundInName(t *testing.
 func TestDeleteWorkspaceWithAPIKeyDoesNotFallBack(t *testing.T) {
 	deleteStore := newMockDeleteStore()
 	deleteStore.tokens = &entity.AuthTokens{APIKey: auth.BrevAPIKeyPrefix + "test-key"}
-	deleteStore.user.GlobalUserType = entity.Admin
 
 	err := runDelete(t, deleteStore, "ws-other-org")
 

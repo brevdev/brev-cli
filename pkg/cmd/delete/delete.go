@@ -86,16 +86,7 @@ func deleteWorkspace(ctx context.Context, workspaceNameOrID string, t *terminal.
 		}
 	}
 	if !found {
-		isSystemAdmin, err := auth.IsCurrentUserSystemAdmin(deleteStore)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if !isSystemAdmin {
-			return breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
-		}
-		if !piped {
-			fmt.Fprintln(os.Stderr, "attempting to delete an instance you don't own as admin")
-		}
+		return breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))
 	}
 
 	var workspaceID string

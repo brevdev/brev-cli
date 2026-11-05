@@ -69,19 +69,6 @@ func FindUserWorkspaceByNameOrID(
 	return &workspaces[0], true, nil
 }
 
-func GetAnyWorkspaceByIDOrNameInActiveOrgErr(storeQ GetWorkspaceByNameOrIDErrStore, workspaceNameOrID string) (*entity.Workspace, error) {
-	org, err := storeQ.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	workspaces, err := storeQ.GetWorkspaceByNameOrID(org.ID, workspaceNameOrID)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	return selectWorkspaceByNameOrID(workspaces, workspaceNameOrID)
-}
-
 func selectWorkspaceByNameOrID(workspaces []entity.Workspace, workspaceNameOrID string) (*entity.Workspace, error) {
 	if len(workspaces) == 0 {
 		return nil, breverrors.NewValidationError(fmt.Sprintf("instance with id/name %s not found", workspaceNameOrID))

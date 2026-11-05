@@ -38,8 +38,6 @@ import (
 type LsStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetCurrentUser() (*entity.User, error)
-	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	externalnode.TokenProvider
@@ -203,14 +201,6 @@ func handleLsArg(ctx context.Context, ls *Ls, cliAuth auth.CLIAuth, arg string, 
 		return wrapLsRun(ls.RunOrgs())
 	case lsArgWorkspaces:
 		return wrapLsRun(ls.RunWorkspaces(ctx, cliAuth, org, showAll))
-	case lsArgUsers:
-		return runAdminLsArg(cliAuth, "users", func() error {
-			return ls.RunUser(showAll)
-		})
-	case lsArgHosts:
-		return runAdminLsArg(cliAuth, "hosts", func() error {
-			return ls.RunHosts(org)
-		})
 	case lsArgNodes:
 		return wrapLsRun(ls.RunNodes(org))
 	case lsArgInstances:
@@ -226,8 +216,6 @@ const (
 	lsArgUnknown lsArgKind = iota
 	lsArgOrgs
 	lsArgWorkspaces
-	lsArgUsers
-	lsArgHosts
 	lsArgNodes
 	lsArgInstances
 )
@@ -238,10 +226,6 @@ func classifyLsArg(arg string) lsArgKind {
 		return lsArgOrgs
 	case util.IsSingularOrPlural(arg, "workspace"):
 		return lsArgWorkspaces
-	case util.IsSingularOrPlural(arg, "user"):
-		return lsArgUsers
-	case util.IsSingularOrPlural(arg, "host"):
-		return lsArgHosts
 	case util.IsSingularOrPlural(arg, "node"):
 		return lsArgNodes
 	case util.IsSingularOrPlural(arg, "instance"):
@@ -249,20 +233,6 @@ func classifyLsArg(arg string) lsArgKind {
 	default:
 		return lsArgUnknown
 	}
-}
-
-func runAdminLsArg(cliAuth auth.CLIAuth, resource string, run func() error) error {
-	if cliAuth.IsAPIKey() {
-		return breverrors.NewValidationError(fmt.Sprintf("api key auth cannot list %s", resource))
-	}
-	user := cliAuth.User()
-	if user == nil {
-		return breverrors.NewValidationError("user is required")
-	}
-	if !featureflag.UseSystemAdminFeatures(user.GlobalUserType) {
-		return nil
-	}
-	return wrapLsRun(run())
 }
 
 func wrapLsRun(err error) error {
@@ -360,20 +330,6 @@ func getOtherOrg(orgs []entity.Organization, org entity.Organization) *entity.Or
 			return &o
 		}
 	}
-	return nil
-}
-
-func (ls Ls) RunUser(_ bool) error {
-	params := make(map[string]string)
-	params["verificationStatus"] = "UnVerified"
-	users, err := ls.lsStore.GetUsers(params)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	for _, user := range users {
-		fmt.Printf("%s	%s	%s\n", user.ID, user.Name, user.Email)
-	}
-
 	return nil
 }
 
@@ -635,23 +591,6 @@ func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[s
 		return breverrors.WrapAndTrace(err)
 	}
 	fmt.Println(string(output))
-	return nil
-}
-
-func (ls Ls) RunHosts(org *entity.Organization) error {
-	user, err := ls.lsStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	var workspaces []entity.Workspace
-	workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	for _, workspace := range workspaces {
-		fmt.Println(workspace.GetNodeIdentifierForVPN())
-	}
 	return nil
 }
 

@@ -24,14 +24,12 @@ import (
 
 	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
-	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/names"
 	"github.com/brevdev/brev-cli/pkg/ssh"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -933,7 +931,6 @@ type createContext struct {
 	store            GPUCreateStore
 	opts             GPUCreateOptions
 	org              *entity.Organization
-	user             *entity.User
 	allInstanceTypes *gpusearch.AllInstanceTypesResponse
 	piped            bool
 	logf             func(format string, a ...interface{})
@@ -958,16 +955,6 @@ func newCreateContext(t *terminal.Terminal, store GPUCreateStore, opts GPUCreate
 			t.Vprintf(format, a...)
 		}
 	}
-
-	user := &entity.User{}
-	if !auth.IsAPIKeyAuthStore(store) {
-		var err error
-		user, err = store.GetCurrentUser()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-	ctx.user = user
 
 	// Get organization
 	org, err := store.GetActiveOrganizationOrDefault()
@@ -1277,7 +1264,7 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	cwOptions := store.NewCreateWorkspacesOptions(clusterID, name)
 	cwOptions.WithInstanceType(spec.Type)
-	cwOptions = resolveWorkspaceUserOptions(cwOptions, c.user)
+	cwOptions = resolveWorkspaceOptions(cwOptions)
 
 	if spec.DiskGB > 0 {
 		cwOptions.DiskStorage = fmt.Sprintf("%.0fGi", spec.DiskGB)
@@ -1626,20 +1613,13 @@ func normalizeDiskStorage(s string) string {
 	return s
 }
 
-// resolveWorkspaceUserOptions sets workspace template and class based on user type
-func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
-	isAdmin := featureflag.UseSystemAdminFeatures(user.GlobalUserType)
+// resolveWorkspaceOptions sets standard workspace template and class defaults.
+func resolveWorkspaceOptions(options *store.CreateWorkspacesOptions) *store.CreateWorkspacesOptions {
 	if options.WorkspaceTemplateID == "" {
 		options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
-		if isAdmin {
-			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
-		}
 	}
 	if options.WorkspaceClassID == "" {
 		options.WorkspaceClassID = store.UserWorkspaceClassID
-		if isAdmin {
-			options.WorkspaceClassID = store.DevWorkspaceClassID
-		}
 	}
 	return options
 }

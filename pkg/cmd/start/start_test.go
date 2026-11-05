@@ -61,16 +61,9 @@ func Test_DisplayBC(t *testing.T) {
 	})
 }
 
-func TestResolveWorkspaceUserOptions_APIKeyAuthUsesUserDefaultsWithoutUser(t *testing.T) {
-	got := resolveWorkspaceUserOptions(&store.CreateWorkspacesOptions{}, nil, true)
+func TestResolveWorkspaceOptionsUsesUserDefaults(t *testing.T) {
+	got := resolveWorkspaceOptions(&store.CreateWorkspacesOptions{})
 
 	assert.Equal(t, store.UserWorkspaceTemplateID, got.WorkspaceTemplateID)
 	assert.Equal(t, store.UserWorkspaceClassID, got.WorkspaceClassID)
-}
-
-func TestResolveWorkspaceUserOptions_AdminUserUsesDevDefaults(t *testing.T) {
-	got := resolveWorkspaceUserOptions(&store.CreateWorkspacesOptions{}, &entity.User{GlobalUserType: entity.Admin}, false)
-
-	assert.Equal(t, store.DevWorkspaceTemplateID, got.WorkspaceTemplateID)
-	assert.Equal(t, store.DevWorkspaceClassID, got.WorkspaceClassID)
 }
