@@ -354,7 +354,7 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 }
 
 func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User, apiKeyAuth bool) *store.CreateWorkspacesOptions {
-	isAdmin := !apiKeyAuth && user != nil && featureflag.IsAdmin(user.GlobalUserType)
+	isAdmin := !apiKeyAuth && user != nil && featureflag.UseSystemAdminFeatures(user.GlobalUserType)
 	if options.WorkspaceTemplateID == "" {
 		if isAdmin {
 			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID

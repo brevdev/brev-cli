@@ -259,7 +259,7 @@ func runAdminLsArg(cliAuth auth.CLIAuth, resource string, run func() error) erro
 	if user == nil {
 		return breverrors.NewValidationError("user is required")
 	}
-	if !featureflag.IsAdmin(user.GlobalUserType) {
+	if !featureflag.UseSystemAdminFeatures(user.GlobalUserType) {
 		return nil
 	}
 	return wrapLsRun(run())

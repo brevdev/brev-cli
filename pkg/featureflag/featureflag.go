@@ -16,11 +16,13 @@ func IsDev() bool {
 	}
 }
 
-func IsAdmin(userType entity.GlobalUserType) bool {
+// UseSystemAdminFeatures reports whether admin-specific CLI behavior is enabled
+// for the user, honoring the local feature.not_admin override.
+func UseSystemAdminFeatures(userType entity.GlobalUserType) bool {
 	if viper.IsSet("feature.not_admin") && viper.GetBool("feature.not_admin") {
 		return false
 	} else {
-		return userType == "Admin"
+		return userType == entity.Admin
 	}
 }
 

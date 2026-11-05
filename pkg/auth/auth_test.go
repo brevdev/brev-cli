@@ -8,6 +8,7 @@ import (
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -219,6 +220,39 @@ func (s *cliAuthStore) GetCurrentUser() (*entity.User, error) {
 		return nil, s.currentUserErr
 	}
 	return s.user, nil
+}
+
+func TestIsCurrentUserSystemAdmin(t *testing.T) {
+	t.Setenv(APIKeyEnvVar, "")
+	t.Cleanup(viper.Reset)
+	for _, tt := range []struct {
+		name      string
+		userType  entity.GlobalUserType
+		notAdmin  bool
+		apiKey    string
+		wantAdmin bool
+	}{
+		{name: "admin", userType: entity.Admin, wantAdmin: true},
+		{name: "admin with override", userType: entity.Admin, notAdmin: true},
+		{name: "standard user", userType: entity.Standard},
+		{name: "API key", userType: entity.Admin, apiKey: testAPIKey},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			viper.Set("feature.not_admin", tt.notAdmin)
+			s := &cliAuthStore{
+				tokens: &entity.AuthTokens{APIKey: tt.apiKey},
+				user:   &entity.User{GlobalUserType: tt.userType},
+			}
+
+			isAdmin, err := IsCurrentUserSystemAdmin(s)
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantAdmin, isAdmin)
+			if tt.apiKey != "" {
+				assert.Zero(t, s.currentUserCalls)
+			}
+		})
+	}
 }
 
 func TestResolveCLIAuth_APIKeySkipsCurrentUser(t *testing.T) {

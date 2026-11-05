@@ -160,14 +160,14 @@ func createEmptyWorkspace(user *entity.User, t *terminal.Terminal, options Creat
 
 func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
 	if options.WorkspaceTemplateID == "" {
-		if featureflag.IsAdmin(user.GlobalUserType) {
+		if featureflag.UseSystemAdminFeatures(user.GlobalUserType) {
 			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
 		} else {
 			options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
 		}
 	}
 	if options.WorkspaceClassID == "" {
-		if featureflag.IsAdmin(user.GlobalUserType) {
+		if featureflag.UseSystemAdminFeatures(user.GlobalUserType) {
 			options.WorkspaceClassID = store.DevWorkspaceClassID
 		} else {
 			options.WorkspaceClassID = store.UserWorkspaceClassID

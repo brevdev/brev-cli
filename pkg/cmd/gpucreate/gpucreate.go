@@ -1628,7 +1628,7 @@ func normalizeDiskStorage(s string) string {
 
 // resolveWorkspaceUserOptions sets workspace template and class based on user type
 func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User) *store.CreateWorkspacesOptions {
-	isAdmin := featureflag.IsAdmin(user.GlobalUserType)
+	isAdmin := featureflag.UseSystemAdminFeatures(user.GlobalUserType)
 	if options.WorkspaceTemplateID == "" {
 		options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
 		if isAdmin {

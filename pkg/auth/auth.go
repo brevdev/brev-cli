@@ -11,6 +11,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
+	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/fatih/color"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pkg/browser"
@@ -147,8 +148,8 @@ func ResolveCLIAuth(store CurrentUserAuthStore) (CLIAuth, error) {
 	return CLIAuth{user: user}, nil
 }
 
-// IsCurrentUserSystemAdmin reports whether the current credential belongs to a
-// global admin. API keys do not qualify for system-admin behavior.
+// IsCurrentUserSystemAdmin reports whether system-admin CLI behavior is enabled
+// for the current credential. API keys and feature.not_admin disable it.
 func IsCurrentUserSystemAdmin(store CurrentUserAuthStore) (bool, error) {
 	if IsAPIKeyAuthStore(store) {
 		return false, nil
@@ -157,7 +158,7 @@ func IsCurrentUserSystemAdmin(store CurrentUserAuthStore) (bool, error) {
 	if err != nil {
 		return false, breverrors.WrapAndTrace(err)
 	}
-	return user.GlobalUserType == entity.Admin, nil
+	return featureflag.UseSystemAdminFeatures(user.GlobalUserType), nil
 }
 
 func IsBrevAPIKey(token string) bool {
