@@ -13,7 +13,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
 
-	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -43,7 +42,6 @@ type LoginStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	UpdateUser(userID string, updatedUser *entity.UpdateUser) (*entity.User, error)
 	hello.HelloStore
-	importideconfig.ImportIDEConfigStore
 	UserHomeDir() (string, error)
 }
 
@@ -84,11 +82,6 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, loginAuth Auth) *c
 			}
 			err := opts.RunLogin(t, loginToken, apiKey, apiKeyOrgID, skipBrowser, emailFlag, authProviderFlag)
 			if err != nil {
-				// if err is ImportIDEConfigError, log err with sentry but continue
-				if _, ok := err.(*importideconfig.ImportIDEConfigError); !ok {
-					return err
-				}
-				// todo alert sentry
 				err2 := RunTasksForUser(t)
 				if err2 != nil {
 					err = multierror.Append(err, err2)
@@ -111,9 +104,8 @@ func NewCmdLogin(t *terminal.Terminal, loginStore LoginStore, loginAuth Auth) *c
 	cmd.Flags().StringVarP(&loginToken, "token", "", "", "token provided to auto login")
 	analytics.MarkFlagSensitive(cmd.Flags(), "token")
 	cmd.Flags().StringVar(&apiKey, "api-key", "", "api key to authenticate CLI requests")
-	cmd.Flags().StringVar(&apiKeyOrgID, "org-id", "", "deprecated")
-	_ = cmd.Flags().MarkHidden("api-key")
 	analytics.MarkFlagSensitive(cmd.Flags(), "api-key")
+	cmd.Flags().StringVar(&apiKeyOrgID, "org-id", "", "deprecated")
 	_ = cmd.Flags().MarkDeprecated("org-id", "the org is now resolved automatically from the API key")
 	cmd.Flags().BoolVar(&skipBrowser, "skip-browser", false, "print url instead of auto opening browser")
 	cmd.Flags().StringVar(&emailFlag, "email", "", "email to use for authentication")
