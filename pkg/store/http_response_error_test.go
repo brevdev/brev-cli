@@ -1,6 +1,7 @@
 package store
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,28 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestIsHTTPErrorCode(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		body   string
+		code   string
+		want   bool
+	}{
+		{"matching Brev code", http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","code":"WORKSPACE_ALREADY_EXISTS","message":"Request could not be completed"}]}`, "WORKSPACE_ALREADY_EXISTS", true},
+		{"other code", http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","code":"OTHER","message":"Request could not be completed"}]}`, "WORKSPACE_ALREADY_EXISTS", false},
+		{"wrong status", http.StatusInternalServerError, `{"errors":[{"type":"InternalServerError","code":"WORKSPACE_ALREADY_EXISTS","message":"Request could not be completed"}]}`, "WORKSPACE_ALREADY_EXISTS", false},
+		{"unstructured body", http.StatusBadRequest, `{"message":"WORKSPACE_ALREADY_EXISTS"}`, "WORKSPACE_ALREADY_EXISTS", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := fmt.Errorf("create workspace: %w", doRequestWithToken(t, tc.status, tc.body, ""))
+			assert.Equal(t, tc.want, IsHTTPErrorCode(err, http.StatusBadRequest, tc.code))
+		})
+	}
+	assert.False(t, IsHTTPErrorCode(fmt.Errorf("WORKSPACE_ALREADY_EXISTS"), http.StatusBadRequest, "WORKSPACE_ALREADY_EXISTS"))
+}
 
 const unauthorizedBody = `{"errors":[{"type":"UnauthorizedError"}]}`
 
