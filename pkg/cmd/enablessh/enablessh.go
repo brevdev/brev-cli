@@ -4,11 +4,13 @@ package enablessh
 import (
 	"context"
 	"fmt"
+	"golang.org/x/crypto/ssh"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
@@ -325,6 +327,22 @@ func installCertAuthority(osUser *user.User, caPublicKey, nodeID, linuxUser stri
 		return fmt.Errorf("certificate authority public key is required")
 	}
 
+	caPublicKey = strings.TrimSpace(caPublicKey)
+	if strings.ContainsFunc(caPublicKey, unicode.IsControl) {
+		return fmt.Errorf("certificate authority public key must be a single line without control characters")
+	}
+	key, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(caPublicKey))
+	if err != nil || len(options) != 0 || len(rest) != 0 {
+		return fmt.Errorf("certificate authority public key must be one SSH public key without options")
+	}
+	for _, principalPart := range []string{nodeID, linuxUser} {
+		if principalPart == "" || strings.ContainsFunc(principalPart, func(r rune) bool {
+			return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-' || r == '.')
+		}) {
+			return fmt.Errorf("node ID and Linux user must contain only letters, digits, underscores, hyphens, or periods")
+		}
+	}
+	caPublicKey = strings.TrimSpace(string(ssh.MarshalAuthorizedKey(key)))
 	principal := fmt.Sprintf("brev:v1:vm:%s:login:%s", nodeID, linuxUser)
 	entry := fmt.Sprintf("cert-authority,principals=\"%s\" %s", principal, strings.TrimSpace(caPublicKey))
 
