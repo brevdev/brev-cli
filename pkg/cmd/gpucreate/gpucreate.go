@@ -76,7 +76,8 @@ If type A fails for instance-2:
 
 Startup Scripts:
 You can attach a startup script that runs when the instance boots using the
---startup-script flag. The script can be provided as:
+--startup-script flag. The script is supported for vm and k8s modes only.
+It can be provided as:
   - An inline string: --startup-script 'pip install torch'
   - A file path (prefix with @): --startup-script @setup.sh
   - An absolute file path: --startup-script @/path/to/setup.sh`
@@ -200,7 +201,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			warnLaunchableFlagConflicts(cmd, t, launchableID)
 
 			if launchableID == "" {
-				if err := validateBuildMode(mode, containerImage, composeFile); err != nil {
+				if err := validateBuildMode(mode, containerImage, composeFile, startupScript); err != nil {
 					return err
 				}
 			}
@@ -298,7 +299,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, readSt
 	cmd.Flags().IntVarP(parallel, "parallel", "p", 1, "Number of parallel creation attempts")
 	cmd.Flags().BoolVarP(detached, "detached", "d", false, "Don't wait for instances to be ready")
 	cmd.Flags().IntVar(timeout, "timeout", 300, "Timeout in seconds for each instance to become ready")
-	cmd.Flags().StringVarP(startupScript, "startup-script", "s", "", "Startup script to run on instance (string or @filepath)")
+	cmd.Flags().StringVarP(startupScript, "startup-script", "s", "", "Startup script to run on the instance for vm and k8s modes (string or @filepath)")
 	cmd.Flags().BoolVar(dryRun, "dry-run", false, "Show matching instance types without creating anything")
 
 	// Build mode flags
@@ -1307,7 +1308,7 @@ func (c *createContext) createWorkspace(name string, spec InstanceSpec) (*entity
 	return workspace, nil
 }
 
-func validateBuildMode(mode, containerImage, composeFile string) error {
+func validateBuildMode(mode, containerImage, composeFile, startupScript string) error {
 	switch mode {
 	case "vm", "k8s", "container", "compose":
 		// valid
@@ -1319,6 +1320,11 @@ func validateBuildMode(mode, containerImage, composeFile string) error {
 	}
 	if mode == "compose" && composeFile == "" {
 		return breverrors.NewValidationError("--compose-file is required for compose mode")
+	}
+	// container and compose never attach the script (only vm and k8s set
+	// VMBuild.LifeCycleScriptAttr). Reject it here so the flag is not a no-op.
+	if startupScript != "" && (mode == "container" || mode == "compose") {
+		return breverrors.NewValidationError("--startup-script is only supported for vm and k8s modes")
 	}
 	return nil
 }
