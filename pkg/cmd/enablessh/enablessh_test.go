@@ -554,7 +554,7 @@ func Test_NewCmdEnableSSHExposesNonInteractiveFlags(t *testing.T) {
 
 func Test_installCertAuthority(t *testing.T) {
 	const (
-		caKey = "ssh-ed25519 AAAAC3Nz dummyCA"
+		caKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 		node  = "unode_abc"
 		luser = "ubuntu"
 	)
@@ -564,7 +564,7 @@ func Test_installCertAuthority(t *testing.T) {
 		if err := installCertAuthority(u, caKey, node, luser); err != nil {
 			t.Fatalf("installCertAuthority: %v", err)
 		}
-		want := `cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ssh-ed25519 AAAAC3Nz dummyCA`
+		want := `cert-authority,principals="brev:v1:vm:unode_abc:login:ubuntu" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA`
 		if result := readAuthorizedKeys(t, u); !strings.Contains(result, want) {
 			t.Errorf("expected cert-authority line not found:\n%s", result)
 		}
@@ -647,7 +647,7 @@ func Test_resolveLegacySSHPortNonInteractiveUsesProvidedPort(t *testing.T) {
 }
 
 func Test_enableSSHNonInteractiveUsesProvidedInputs(t *testing.T) {
-	const caKey = "ssh-ed25519 AAAAC3Nz dummyCA"
+	const caKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	svc := &fakeNodeService{
 		getNodeFn: func(_ *nodev1.GetNodeRequest) (*nodev1.GetNodeResponse, error) {
 			return &nodev1.GetNodeResponse{ExternalNode: &nodev1.ExternalNode{Ports: []*nodev1.Port{
@@ -751,5 +751,42 @@ func Test_enableSSH_LegacyNodeFallsBackToKeys(t *testing.T) {
 		if strings.Contains(string(data), "brev:v1:vm:unode_legacy") {
 			t.Errorf("legacy node must not write a cert-authority line:\n%s", string(data))
 		}
+	}
+}
+
+func Test_installCertAuthorityRejectsInjectedEntries(t *testing.T) {
+	const key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	cases := []struct{ name, key, node, user string }{
+		{"second key", key + "\n" + key, "unode_abc", "ubuntu"},
+		{"carriage return", key + "\rcomment", "unode_abc", "ubuntu"},
+		{"invalid key", "ssh-ed25519 invalid", "unode_abc", "ubuntu"},
+		{"key options", "no-pty " + key, "unode_abc", "ubuntu"},
+		{"quote in node", key, `node",command="id`, "ubuntu"},
+		{"newline in node", key, "node\nattacker", "ubuntu"},
+		{"wildcard node", key, "*", "ubuntu"},
+		{"principal list", key, "unode_abc", "ubuntu,root"},
+		{"wildcard user", key, "unode_abc", "*"},
+		{"empty node", key, "", "ubuntu"},
+		{"empty user", key, "unode_abc", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := tempUser(t)
+			sshDir := filepath.Join(u.HomeDir, ".ssh")
+			if err := os.MkdirAll(sshDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(sshDir, "authorized_keys")
+			original := "existing key\n"
+			if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := installCertAuthority(u, tc.key, tc.node, tc.user); err == nil {
+				t.Fatal("expected validation error")
+			}
+			if got := readAuthorizedKeys(t, u); got != original {
+				t.Fatalf("authorized_keys changed: %q", got)
+			}
+		})
 	}
 }
