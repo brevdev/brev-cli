@@ -1446,3 +1446,77 @@ func TestCreateInstancesWithType(t *testing.T) {
 		})
 	}
 }
+
+// TestCreateRejectsStartupScriptForContainerAndCompose covers --startup-script
+// with -m container or -m compose. Those modes never attach the script, so the
+// command must fail instead of creating (or dry-running) as if it had.
+func TestCreateRejectsStartupScriptForContainerAndCompose(t *testing.T) {
+	cases := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "container",
+			args:    []string{"my-inst", "--mode", "container", "--container-image", "nginx:latest", "--type", "g5.xlarge", "--startup-script", "echo hi", "--dry-run"},
+			wantErr: "--startup-script is only supported for vm and k8s modes",
+		},
+		{
+			name:    "compose",
+			args:    []string{"my-inst", "--mode", "compose", "--compose-file", "docker-compose.yml", "--type", "g5.xlarge", "--startup-script", "echo hi", "--dry-run"},
+			wantErr: "--startup-script is only supported for vm and k8s modes",
+		},
+		{
+			name:    "compose script path is rejected before the file is read",
+			args:    []string{"my-inst", "--mode", "compose", "--compose-file", "docker-compose.yml", "--type", "g5.xlarge", "--startup-script", "@setup.sh", "--dry-run"},
+			wantErr: "--startup-script is only supported for vm and k8s modes",
+		},
+		{
+			name: "vm still accepts a script",
+			args: []string{"my-inst", "--mode", "vm", "--type", "g5.xlarge", "--startup-script", "echo hi", "--dry-run"},
+		},
+		{
+			name: "container without a script still validates",
+			args: []string{"my-inst", "--mode", "container", "--container-image", "nginx:latest", "--type", "g5.xlarge", "--dry-run"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := NewMockGPUCreateStore()
+			cmd := NewCmdGPUCreate(terminal.New(), mock)
+			cmd.SetArgs(tc.args)
+
+			err := cmd.Execute()
+			if tc.wantErr == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorContains(t, err, tc.wantErr)
+			}
+			assert.Empty(t, mock.CreatedWorkspaces)
+		})
+	}
+}
+
+func TestValidateBuildModeStartupScript(t *testing.T) {
+	err := validateBuildMode("container", "nginx:latest", "", "echo hi")
+	assert.ErrorContains(t, err, "--startup-script is only supported for vm and k8s modes")
+
+	err = validateBuildMode("compose", "", "docker-compose.yml", "@setup.sh")
+	assert.ErrorContains(t, err, "--startup-script is only supported for vm and k8s modes")
+
+	assert.NoError(t, validateBuildMode("vm", "", "", "echo hi"))
+	assert.NoError(t, validateBuildMode("k8s", "", "", "echo hi"))
+	assert.NoError(t, validateBuildMode("container", "nginx:latest", "", ""))
+	assert.NoError(t, validateBuildMode("compose", "", "docker-compose.yml", ""))
+
+	// A missing image is still reported first, same as before this check.
+	err = validateBuildMode("container", "", "", "echo hi")
+	assert.ErrorContains(t, err, "--container-image is required for container mode")
+
+	err = validateBuildMode("compose", "", "", "echo hi")
+	assert.ErrorContains(t, err, "--compose-file is required for compose mode")
+
+	err = validateBuildMode("nope", "", "", "echo hi")
+	assert.ErrorContains(t, err, `invalid mode "nope"`)
+}
