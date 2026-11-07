@@ -1,7 +1,10 @@
 package config
 
 import (
+	"fmt"
+	"io"
 	"os"
+	"strings"
 )
 
 type EnvVarName string // should be caps with underscore
@@ -28,26 +31,26 @@ func NewConstants() *ConstantsConfig {
 }
 
 func (c ConstantsConfig) GetBrevAPIURl() string {
-	return getEnvOrDefault(brevAPIURL, "https://brevapi.us-west-2-prod.control-plane.brev.dev")
+	return getEnvOrDefault(brevAPIURL, defaultBrevAPIURL)
 }
 
 // GetBrevPublicAPIURL returns the base URL of dev-plane's public API server
 // (BREV_PUBLIC_API_URL). That server serves both the public HTTP routes (/v1/...)
 // and the ConnectRPC services the CLI calls (pkg/cmd/register, pkg/environment).
 func (c ConstantsConfig) GetBrevPublicAPIURL() string {
-	return getEnvOrDefault(brevPublicAPIURL, "https://api.brev.dev")
+	return getEnvOrDefault(brevPublicAPIURL, defaultBrevPublicAPIURL)
 }
 
 func (c ConstantsConfig) GetBrevAuthURL() string {
-	return getEnvOrDefault(brevAuthURL, "https://api.ngc.nvidia.com")
+	return getEnvOrDefault(brevAuthURL, defaultBrevAuthURL)
 }
 
 func (c ConstantsConfig) GetBrevAuthIssuerURL() string {
-	return getEnvOrDefault(brevAuthIssuerURL, "https://login.nvidia.com")
+	return getEnvOrDefault(brevAuthIssuerURL, defaultBrevAuthIssuerURL)
 }
 
 func (c ConstantsConfig) GetConsoleURL() string {
-	return getEnvOrDefault(brevConsoleURL, "https://brev.nvidia.com/cli-login")
+	return getEnvOrDefault(brevConsoleURL, defaultBrevConsoleURL)
 }
 
 func (c ConstantsConfig) GetOllamaAPIURL() string {
@@ -96,4 +99,36 @@ type AllConfig interface {
 	GetBrevAPIURl() string
 	GetVersion() string
 	GetDefaultClusterID() string
+}
+
+const (
+	defaultBrevAPIURL        = "https://brevapi.us-west-2-prod.control-plane.brev.dev"
+	defaultBrevPublicAPIURL  = "https://api.brev.dev"
+	defaultBrevAuthURL       = "https://api.ngc.nvidia.com"
+	defaultBrevAuthIssuerURL = "https://login.nvidia.com"
+	defaultBrevConsoleURL    = "https://brev.nvidia.com/cli-login"
+)
+
+// WarnEndpointOverrides reports custom authentication/API destinations without
+// printing URLs, which may contain credentials or sensitive query parameters.
+func WarnEndpointOverrides(w io.Writer) {
+	var overridden []string
+	for _, endpoint := range []struct {
+		name       EnvVarName
+		defaultURL string
+	}{
+		{brevAPIURL, defaultBrevAPIURL},
+		{brevPublicAPIURL, defaultBrevPublicAPIURL},
+		{brevAuthURL, defaultBrevAuthURL},
+		{brevAuthIssuerURL, defaultBrevAuthIssuerURL},
+		{brevConsoleURL, defaultBrevConsoleURL},
+	} {
+		value := os.Getenv(string(endpoint.name))
+		if value != "" && value != endpoint.defaultURL {
+			overridden = append(overridden, string(endpoint.name))
+		}
+	}
+	if len(overridden) > 0 {
+		_, _ = fmt.Fprintf(w, "Warning: non-default Brev endpoints configured via %s. Authentication and API traffic may be sent to custom servers.\n", strings.Join(overridden, ", "))
+	}
 }

@@ -150,6 +150,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			config.WarnEndpointOverrides(cmd.ErrOrStderr())
 			analytics.RecordCommandStart(cmd)
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
 			if strings.TrimSpace(orgFlag) != "" && !allowsOrgOverrideWithExternalAuth(cmd) && auth.IsAPIKeyAuthStore(loginCmdStore) {
