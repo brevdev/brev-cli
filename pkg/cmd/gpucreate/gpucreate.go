@@ -266,7 +266,7 @@ func NewCmdGPUCreate(t *terminal.Terminal, gpuCreateStore GPUCreateStore) *cobra
 			}
 
 			if dryRun {
-				return runDryRun(t, gpuCreateStore, opts.InstanceTypes, &filters)
+				return runDryRun(t, gpuCreateStore, opts.Name, opts.InstanceTypes, &filters)
 			}
 
 			return RunGPUCreate(cmd.Context(), t, gpuCreateStore, opts)
@@ -730,13 +730,17 @@ func getFilteredInstanceTypes(s GPUCreateStore, filters *searchFilterFlags) ([]I
 	return specs, nil
 }
 
-// runDryRun shows the instance types that would be used without creating anything
-func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, filters *searchFilterFlags) error {
-	if len(specs) > 0 {
-		t.Print(formatInstanceSpecs(specs))
-		return nil
+// runDryRun shows what would be created without provisioning.
+// Explicit types are resolved against the catalog so GPU, disk, and price are
+// visible. A type the catalog does not list keeps the previous type-name line.
+func runDryRun(t *terminal.Terminal, s GPUCreateStore, name string, specs []InstanceSpec, filters *searchFilterFlags) error {
+	if len(specs) == 0 {
+		return runDryRunSearch(t, s, filters)
 	}
+	return runDryRunExplicit(t, s, name, specs)
+}
 
+func runDryRunSearch(t *terminal.Terminal, s GPUCreateStore, filters *searchFilterFlags) error {
 	filtered, _, err := searchInstances(s, filters)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -747,6 +751,91 @@ func runDryRun(t *terminal.Terminal, s GPUCreateStore, specs []InstanceSpec, fil
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func runDryRunExplicit(t *terminal.Terminal, s GPUCreateStore, name string, specs []InstanceSpec) error {
+	matched, missing, err := lookupExplicitInstances(s, specs)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(matched) == 0 {
+		t.Print(formatInstanceSpecs(specs))
+		return nil
+	}
+
+	printDryRunPlanHeader(t, s, name)
+	piped := gpusearch.IsStdoutPiped()
+	if err := gpusearch.DisplayGPUResults(t, matched, false, piped, false); err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if len(missing) > 0 {
+		t.Print("Unknown instance types: " + strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func printDryRunPlanHeader(t *terminal.Terminal, s GPUCreateStore, name string) {
+	if name != "" {
+		t.Print("Name: " + name)
+	}
+	org, err := s.GetActiveOrganizationOrDefault()
+	if err != nil || org == nil || org.Name == "" {
+		return
+	}
+	t.Print("Org: " + org.Name)
+}
+
+// lookupExplicitInstances returns catalog rows for the requested types, in the
+// order given. A type may yield more than one row when it lists several GPUs.
+// GetInstanceTypes(false) is the GPU catalog; CPU-only types are reported missing.
+func lookupExplicitInstances(s GPUCreateStore, specs []InstanceSpec) ([]gpusearch.GPUInstanceInfo, []string, error) {
+	response, err := s.GetInstanceTypes(false)
+	if err != nil {
+		return nil, nil, breverrors.WrapAndTrace(err)
+	}
+
+	var items []gpusearch.InstanceType
+	if response != nil {
+		items = response.Items
+	}
+	byType := make(map[string][]gpusearch.GPUInstanceInfo, len(items))
+	for _, inst := range gpusearch.ProcessInstances(items) {
+		byType[inst.Type] = append(byType[inst.Type], inst)
+	}
+
+	var matched []gpusearch.GPUInstanceInfo
+	var missing []string
+	seen := make(map[string]bool, len(specs))
+	for _, spec := range specs {
+		if seen[spec.Type] {
+			continue
+		}
+		seen[spec.Type] = true
+		rows := byType[spec.Type]
+		if len(rows) == 0 {
+			missing = append(missing, spec.Type)
+			continue
+		}
+		for _, inst := range rows {
+			applyRequestedDisk(&inst, spec.DiskGB)
+			matched = append(matched, inst)
+		}
+	}
+	return matched, missing, nil
+}
+
+// applyRequestedDisk shows the disk create would request. DiskGB 0 keeps the
+// catalog size and fills TargetDisk so a piped table is not 0.
+func applyRequestedDisk(inst *gpusearch.GPUInstanceInfo, diskGB float64) {
+	if diskGB > 0 {
+		inst.TargetDisk = diskGB
+		inst.DiskMin = diskGB
+		inst.DiskMax = diskGB
+		return
+	}
+	if inst.TargetDisk == 0 {
+		inst.TargetDisk = inst.DiskMin
+	}
 }
 
 // orDefault returns val if it's non-zero, otherwise returns def
