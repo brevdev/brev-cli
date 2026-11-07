@@ -3,8 +3,10 @@ package gpucreate
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -150,7 +152,8 @@ func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesR
 	return &gpusearch.InstanceTypesResponse{
 		Items: []gpusearch.InstanceType{
 			{
-				Type: "g5.xlarge",
+				Type:     "g5.xlarge",
+				Provider: "aws",
 				SupportedGPUs: []gpusearch.GPU{
 					{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"},
 				},
@@ -859,6 +862,94 @@ func TestCreateDryRunWithExplicitTypesDoesNotProvision(t *testing.T) {
 	err := cmd.Execute()
 	assert.NoError(t, err)
 	assert.Empty(t, mock.CreatedWorkspaces)
+}
+
+// captureStdout runs fn while os.Stdout is a pipe and returns what was written.
+// terminal.New must be called inside fn so it binds the pipe.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stdout
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = orig })
+
+	fn()
+
+	require.NoError(t, w.Close())
+	os.Stdout = orig
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
+}
+
+// TestCreateDryRunWithExplicitTypePrintsCatalogDetails covers issue #431:
+// `brev create <name> --type X --dry-run` must show the catalog row (GPU, disk,
+// price, org), not only the type string the user already typed.
+func TestCreateDryRunWithExplicitTypePrintsCatalogDetails(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	var err error
+	out := captureStdout(t, func() {
+		term := terminal.New()
+		cmd := NewCmdGPUCreate(term, mock)
+		cmd.SetArgs([]string{"dry-run-test", "--type", "g5.xlarge", "--dry-run"})
+		err = cmd.Execute()
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, mock.CreatedWorkspaces)
+	assert.Contains(t, out, "Name: dry-run-test")
+	assert.Contains(t, out, "Org: test-org")
+	assert.Contains(t, out, "g5.xlarge")
+	assert.Contains(t, out, "aws")
+	assert.Contains(t, out, "A10G")
+	assert.Contains(t, out, "500GB")
+	assert.Contains(t, out, "$1.01")
+	assert.NotEqual(t, "g5.xlarge\n", out)
+}
+
+func TestCreateDryRunUnknownTypePrintsNameWithoutProvisioning(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	var err error
+	out := captureStdout(t, func() {
+		term := terminal.New()
+		cmd := NewCmdGPUCreate(term, mock)
+		cmd.SetArgs([]string{"dry-run-test", "--type", "missing-type9", "--dry-run"})
+		err = cmd.Execute()
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, mock.CreatedWorkspaces)
+	assert.Contains(t, out, "missing-type9")
+	assert.NotContains(t, out, "A10G")
+	assert.NotContains(t, out, "Name:")
+}
+
+func TestLookupExplicitInstances(t *testing.T) {
+	mock := NewMockGPUCreateStore()
+	matched, missing, err := lookupExplicitInstances(mock, []InstanceSpec{
+		{Type: "g5.xlarge", DiskGB: 200},
+		{Type: "g5.xlarge"},
+		{Type: "missing-type9"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"missing-type9"}, missing)
+	require.Len(t, matched, 1)
+	assert.Equal(t, "g5.xlarge", matched[0].Type)
+	assert.Equal(t, "aws", matched[0].Provider)
+	assert.Equal(t, "A10G", matched[0].GPUName)
+	assert.Equal(t, 1, matched[0].GPUCount)
+	assert.Equal(t, 24.0, matched[0].VRAMPerGPU)
+	assert.Equal(t, 200.0, matched[0].DiskMin)
+	assert.Equal(t, 200.0, matched[0].TargetDisk)
+	assert.InDelta(t, 1.006, matched[0].PricePerHour, 0.0001)
+
+	catalog, missing, err := lookupExplicitInstances(mock, []InstanceSpec{{Type: "g5.xlarge"}})
+	require.NoError(t, err)
+	assert.Empty(t, missing)
+	require.Len(t, catalog, 1)
+	assert.Equal(t, 500.0, catalog[0].DiskMin)
+	assert.Equal(t, 500.0, catalog[0].TargetDisk)
 }
 
 func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
