@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -311,7 +312,31 @@ type BrevDeployErrorList struct {
 
 type BrevDeployError struct {
 	Kind    string `json:"type"`
+	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+// IsHTTPErrorCode matches a Brev error envelope through ordinary error wrapping.
+// Callers supply the exact status and Brev-owned code they handle; malformed,
+// unstructured, and unrelated errors keep their normal failure path.
+func IsHTTPErrorCode(err error, status int, code string) bool {
+	if code == "" {
+		return false
+	}
+	var responseErr *HTTPResponseError
+	if !stderrors.As(err, &responseErr) || responseErr.Response == nil || responseErr.Response.StatusCode() != status {
+		return false
+	}
+	var envelope BrevDeployErrorList
+	if json.Unmarshal(responseErr.Response.Body(), &envelope) != nil {
+		return false
+	}
+	for _, item := range envelope.Errors {
+		if item.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 type HTTPResponseError struct {
