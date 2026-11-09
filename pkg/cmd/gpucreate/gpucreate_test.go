@@ -3,6 +3,7 @@ package gpucreate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	resty "github.com/go-resty/resty/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,6 +109,86 @@ func (m *MockGPUCreateStore) CreateWorkspace(organizationID string, options *sto
 	m.CreatedOptions = append(m.CreatedOptions, options)
 	m.CreatedWorkspaces = append(m.CreatedWorkspaces, ws)
 	return ws, nil
+}
+
+type retryTrackingStore struct {
+	*MockGPUCreateStore
+	attemptedTypes []string
+}
+
+func (s *retryTrackingStore) CreateWorkspace(organizationID string, options *store.CreateWorkspacesOptions) (*entity.Workspace, error) {
+	s.attemptedTypes = append(s.attemptedTypes, options.InstanceType)
+	return s.MockGPUCreateStore.CreateWorkspace(organizationID, options)
+}
+
+func TestRunGPUCreateRetryDecisions(t *testing.T) {
+	httpError := func(t *testing.T, status int, body string) error {
+		t.Helper()
+		response := (&resty.Response{
+			RawResponse: &http.Response{StatusCode: status, Status: http.StatusText(status)},
+			Request:     resty.New().R(),
+		}).SetBody([]byte(body))
+		return store.NewHTTPResponseError(response)
+	}
+
+	tests := []struct {
+		name         string
+		firstError   func(*testing.T) error
+		wantAttempts []string
+		wantError    bool
+	}{
+		{
+			name: "duplicate workspace code stops before another candidate",
+			firstError: func(t *testing.T) error {
+				return httpError(t, http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","code":"WORKSPACE_ALREADY_EXISTS","message":"Bad Request"}]}`)
+			},
+			wantAttempts: []string{"g5.xlarge"},
+			wantError:    true,
+		},
+		{
+			name: "capacity failure tries another candidate",
+			firstError: func(t *testing.T) error {
+				return httpError(t, http.StatusServiceUnavailable, `{"errors":[{"type":"ServiceUnavailableError","message":"Service Unavailable"}]}`)
+			},
+			wantAttempts: []string{"g5.xlarge", "test.fail.quota"},
+		},
+		{
+			name: "unrelated provider message with duplicate words tries another candidate",
+			firstError: func(*testing.T) error {
+				return errors.New("provider capacity pool for duplicate workspace placement is unavailable")
+			},
+			wantAttempts: []string{"g5.xlarge", "test.fail.quota"},
+		},
+		{
+			name: "unknown code tries another candidate",
+			firstError: func(t *testing.T) error {
+				return httpError(t, http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","code":"OTHER_REASON","message":"Bad Request"}]}`)
+			},
+			wantAttempts: []string{"g5.xlarge", "test.fail.quota"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := &retryTrackingStore{MockGPUCreateStore: NewMockGPUCreateStore()}
+			mock.CreateErrorTypes["g5.xlarge"] = tt.firstError(t)
+
+			err := RunGPUCreate(context.Background(), terminal.New(), mock, GPUCreateOptions{
+				Name:          "repro",
+				Count:         1,
+				Parallel:      1,
+				Detached:      true,
+				InstanceTypes: []InstanceSpec{{Type: "g5.xlarge"}, {Type: "test.fail.quota"}},
+			})
+
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Equal(t, tt.wantAttempts, mock.attemptedTypes)
+		})
+	}
 }
 
 func (m *MockGPUCreateStore) DeleteWorkspace(workspaceID string) (*entity.Workspace, error) {
