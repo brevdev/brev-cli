@@ -81,9 +81,28 @@ func TestSSHFailureAllowsReplayOnlyBeforeSession(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "handshake before the command",
-			err:  &sshAttemptError{exitCode: 255, diag: "kex_exchange_identification: Connection closed by remote host"},
+			name: "handshake closed before the banner",
+			err: &sshAttemptError{
+				exitCode: 255,
+				diag:     "kex_exchange_identification: Connection closed by remote host\n\nConnection closed by UNKNOWN port 65535\n",
+			},
 			want: true,
+		},
+		{
+			name: "handshake reset before the banner",
+			err: &sshAttemptError{
+				exitCode: 255,
+				diag:     "kex_exchange_identification: read: Connection reset by peer\nConnection reset by UNKNOWN port 65535\n",
+			},
+			want: true,
+		},
+		{
+			name: "kex line is not the one before the close",
+			err: &sshAttemptError{
+				exitCode: 255,
+				diag:     "kex_exchange_identification: Connection closed by remote host\nclient_loop: send disconnect: Broken pipe\nConnection closed by 10.0.0.8 port 22\n",
+			},
+			want: false,
 		},
 		{name: "untyped error", err: fmt.Errorf("ssh: exit status 1"), want: false},
 	}

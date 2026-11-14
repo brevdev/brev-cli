@@ -314,36 +314,51 @@ func sshFailureAllowsReplay(err error) bool {
 }
 
 // sshDiagIsPreSession reports whether ssh failed before a session existed.
-// Only the last non-empty line of the -E log counts. An earlier
-// "ssh: connect to host" line is normal when another address then opens a
-// session that later drops, and that command must not be run again.
+// Only the last non-empty line of the -E log counts, plus the OpenSSH
+// banner-exchange pair below. An earlier "ssh: connect to host" line is
+// normal when another address then opens a session that later drops, and
+// that command must not be run again.
 // The line has to start with an OpenSSH pre-session prefix. A bare errno
 // string is not enough: "Read from remote host X: Connection timed out" is
 // written after the session is up. The strerror after the prefix is not
 // matched, so a translated message still counts.
+//
+// A banner failure is two lines. kex_exchange_identification logs the
+// close, then sshpkt_fatal appends "Connection closed by <ip|UNKNOWN>
+// port <n>" or "Connection reset by <ip|UNKNOWN> port <n>" and exits.
+// That second line is also printed once a session exists, so it is
+// pre-session only when the previous non-empty line is the kex line.
 func sshDiagIsPreSession(diag string) bool {
-	line := lastNonEmptyDiagLine(diag)
+	lines := nonEmptyDiagLines(diag)
+	if len(lines) == 0 {
+		return false
+	}
+	last := lines[len(lines)-1]
 	prefixes := []string{
 		"ssh: connect to host ",
 		"ssh: Could not resolve hostname",
 		"kex_exchange_identification:",
 	}
 	for _, prefix := range prefixes {
-		if strings.HasPrefix(line, prefix) {
+		if strings.HasPrefix(last, prefix) {
 			return true
 		}
 	}
-	return false
+	if len(lines) < 2 || !strings.HasPrefix(lines[len(lines)-2], "kex_exchange_identification:") {
+		return false
+	}
+	return strings.HasPrefix(last, "Connection closed by ") ||
+		strings.HasPrefix(last, "Connection reset by ")
 }
 
-func lastNonEmptyDiagLine(diag string) string {
-	var line string
+func nonEmptyDiagLines(diag string) []string {
+	lines := make([]string, 0)
 	for _, raw := range strings.Split(diag, "\n") {
 		if trimmed := strings.TrimSpace(raw); trimmed != "" {
-			line = trimmed
+			lines = append(lines, trimmed)
 		}
 	}
-	return line
+	return lines
 }
 
 func shellSingleQuote(s string) string {
