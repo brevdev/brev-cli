@@ -156,6 +156,8 @@ func resolveWorkspaceSSH(
 	if providerHostname := providerSSHHostname(environment.GetInstance(), port.GetHostname()); providerHostname != "" {
 		workspace.HostSSHHostname = providerHostname
 		workspace.HostSSHProxyHostname = ""
+		// The legacy HostSSHPort may be the gateway port, which is not open on the instance itself.
+		workspace.HostSSHPort = providerSSHPort(environment.GetInstance())
 	}
 	return workspace, nil
 }
@@ -179,6 +181,13 @@ func findNetworkPort(networkInfo *devplanev1.EnvironmentNetworkInfo, portID stri
 		}
 	}
 	return nil
+}
+
+func providerSSHPort(instance *devplanev1.Instance) int {
+	if port := instance.GetSshPort(); port != 0 {
+		return int(port)
+	}
+	return 22
 }
 
 func providerSSHHostname(instance *devplanev1.Instance, workloadHostname string) string {
