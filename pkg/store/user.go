@@ -50,10 +50,7 @@ func (s AuthHTTPStore) GetCurrentUser() (*entity.User, error) {
 
 func (s AuthHTTPStore) GetCurrentUserID() (string, error) {
 	meta, err := s.GetCurrentWorkspaceMeta()
-	if err != nil {
-		return "", nil
-	}
-	if meta.UserID != "" {
+	if err == nil && meta.UserID != "" {
 		return meta.UserID, nil
 	}
 	user, err := s.GetCurrentUser()
@@ -122,12 +119,7 @@ func (s AuthHTTPStore) UpdateUser(userID string, updatedUser *entity.UpdateUser)
 	return &result, nil
 }
 
-// 	userIDParamName = "userID"
-// 	userIDParamStr  = fmt.Sprintf("{%s}", userIDParamName)
-
 var usersIDPathPattern = fmt.Sprintf("%s/%s", usersPath, "%s")
-
-// usersIDPath        = fmt.Sprintf(usersIDPathPattern, fmt.Sprintf("{%s}", userIDParamStr))
 
 func (s AuthHTTPStore) GetUserByID(userID string) (*entity.User, error) {
 	var result entity.User

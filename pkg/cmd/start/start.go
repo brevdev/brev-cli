@@ -15,9 +15,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
-	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/instancetypes"
-	"github.com/brevdev/brev-cli/pkg/mergeshells"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/brevdev/brev-cli/pkg/util"
@@ -50,7 +48,6 @@ type StartStore interface {
 }
 
 func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore StartStore) *cobra.Command {
-	var org string
 	var name string
 	var detached bool
 	var empty bool
@@ -82,11 +79,11 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 
 			// If stdin is piped, handle multiple instances (only start existing stopped instances)
 			if stdinPiped && len(names) > 0 {
-				return runBatchStart(t, names, org, setupScript, setupRepo, setupPath, cpu, gpu, piped, startStore)
+				return runBatchStart(t, names, setupScript, setupRepo, setupPath, cpu, gpu, piped, startStore)
 			}
 
 			// Single instance mode (original behavior)
-			return runSingleStart(t, names, name, org, setupScript, setupRepo, setupPath, cpu, gpu, detached, piped, startStore)
+			return runSingleStart(t, names, name, setupScript, setupRepo, setupPath, cpu, gpu, detached, piped, startStore)
 		},
 	}
 	cmd.Flags().BoolVarP(&detached, "detached", "d", false, "run the command in the background instead of blocking the shell")
@@ -97,21 +94,14 @@ func NewCmdStart(t *terminal.Terminal, startStore StartStore, noLoginStartStore 
 	cmd.Flags().StringVarP(&setupScript, "setup-script", "s", "", "takes a raw gist url to an env setup script")
 	cmd.Flags().StringVarP(&setupRepo, "setup-repo", "r", "", "repo that holds env setup script. you must pass in --setup-path if you use this argument")
 	cmd.Flags().StringVarP(&setupPath, "setup-path", "p", "", "path to env setup script. If you include --setup-repo we will apply this argument to that repo")
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org if creating a workspace)")
 	// GPU options
 	cmd.Flags().StringVarP(&gpu, "gpu", "g", "n1-highmem-4:nvidia-tesla-t4:1", "GPU instance type. Refer to https://docs.nvidia.com/brev/latest/quick-start.html#select-your-compute for more information")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginStartStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
-	}
 	return cmd
 }
 
 type StartOptions struct {
 	RepoOrPathOrNameOrID string // todo make invidual options
 	Name                 string
-	OrgName              string
 	SetupScript          string
 	SetupRepo            string
 	SetupPath            string
@@ -132,7 +122,7 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 		}
 	}
 
-	didStart, err := maybeStartEmpty(t, user, apiKeyAuth, options, startStore)
+	didStart, err := maybeStartEmpty(t, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -140,7 +130,7 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 		return nil
 	}
 
-	didStart, err = maybeStartFromGitURL(t, user, apiKeyAuth, options, startStore)
+	didStart, err = maybeStartFromGitURL(t, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -156,7 +146,7 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 		return nil
 	}
 
-	didStart, err = maybeStartWithLocalPath(options, user, apiKeyAuth, t, startStore)
+	didStart, err = maybeStartWithLocalPath(options, t, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -167,9 +157,9 @@ func runStartWorkspace(t *terminal.Terminal, options StartOptions, startStore St
 	return nil
 }
 
-func maybeStartWithLocalPath(options StartOptions, user *entity.User, apiKeyAuth bool, t *terminal.Terminal, startStore StartStore) (bool, error) {
+func maybeStartWithLocalPath(options StartOptions, t *terminal.Terminal, startStore StartStore) (bool, error) {
 	if util.DoesPathExist(options.RepoOrPathOrNameOrID) {
-		err := startWorkspaceFromPath(user, apiKeyAuth, t, options, startStore)
+		err := startWorkspaceFromPath(t, options, startStore)
 		if err != nil {
 			return false, breverrors.WrapAndTrace(err)
 		}
@@ -197,7 +187,7 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, apiKeyAuth
 		if len(userWorkspaces) > 1 {
 			userWorkspaces = store.FilterNonFailedWorkspaces(userWorkspaces)
 			if len(userWorkspaces) > 1 {
-				return false, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with id/name %s", options.RepoOrPathOrNameOrID))
+				return false, breverrors.NewValidationError(fmt.Sprintf("multiple instances found with name %s", options.RepoOrPathOrNameOrID))
 			}
 			if len(userWorkspaces) == 0 {
 				return false, breverrors.NewValidationError(fmt.Sprintf("workspace with id/name %s is a failed workspace", options.RepoOrPathOrNameOrID))
@@ -214,7 +204,7 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, apiKeyAuth
 	}
 
 	if len(workspaces) > 0 {
-		err = joinProjectWithNewWorkspace(t, workspaces[0], org.ID, startStore, user, apiKeyAuth, options)
+		err = joinProjectWithNewWorkspace(t, workspaces[0], org.ID, startStore, options)
 		if err != nil {
 			return false, breverrors.WrapAndTrace(err)
 		}
@@ -223,9 +213,9 @@ func maybeStartStoppedOrJoin(t *terminal.Terminal, user *entity.User, apiKeyAuth
 	return false, nil
 }
 
-func maybeStartFromGitURL(t *terminal.Terminal, user *entity.User, apiKeyAuth bool, options StartOptions, startStore StartStore) (bool, error) {
+func maybeStartFromGitURL(t *terminal.Terminal, options StartOptions, startStore StartStore) (bool, error) {
 	if util.IsGitURL(options.RepoOrPathOrNameOrID) { // todo this is function is not complete, some cloneable urls are not identified
-		err := createNewWorkspaceFromGit(user, apiKeyAuth, t, options.SetupScript, options, startStore)
+		err := createNewWorkspaceFromGit(t, options, startStore)
 		if err != nil {
 			return true, breverrors.WrapAndTrace(err)
 		}
@@ -234,9 +224,9 @@ func maybeStartFromGitURL(t *terminal.Terminal, user *entity.User, apiKeyAuth bo
 	return false, nil
 }
 
-func maybeStartEmpty(t *terminal.Terminal, user *entity.User, apiKeyAuth bool, options StartOptions, startStore StartStore) (bool, error) {
+func maybeStartEmpty(t *terminal.Terminal, options StartOptions, startStore StartStore) (bool, error) {
 	if options.RepoOrPathOrNameOrID == "" {
-		err := createEmptyWorkspace(user, apiKeyAuth, t, options, startStore)
+		err := createEmptyWorkspace(t, options, startStore)
 		if err != nil {
 			return true, breverrors.WrapAndTrace(err)
 		}
@@ -245,7 +235,7 @@ func maybeStartEmpty(t *terminal.Terminal, user *entity.User, apiKeyAuth bool, o
 	return false, nil
 }
 
-func startWorkspaceFromPath(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, options StartOptions, startStore StartStore) error {
+func startWorkspaceFromPath(t *terminal.Terminal, options StartOptions, startStore StartStore) error {
 	pathExists := util.DoesPathExist(options.RepoOrPathOrNameOrID)
 	if !pathExists {
 		return fmt.Errorf("Path: %s does not exist", options.RepoOrPathOrNameOrID)
@@ -272,21 +262,11 @@ func startWorkspaceFromPath(user *entity.User, apiKeyAuth bool, t *terminal.Term
 	}
 	gitParts := strings.Split(gitURL, "/")
 	options.Name = strings.Split(gitParts[len(gitParts)-1], ".")[0]
-	localSetupPath := filepath.Join(options.RepoOrPathOrNameOrID, ".brev", "setup.sh")
-	if options.RepoOrPathOrNameOrID == "." {
-		localSetupPath = filepath.Join(".brev", "setup.sh")
-	}
-	if !util.DoesPathExist(localSetupPath) {
-		fmt.Println(strings.Join([]string{"Generating setup script at", localSetupPath}, "\n"))
-		mergeshells.ImportPath(t, options.RepoOrPathOrNameOrID, startStore)
-		fmt.Println("setup script generated.")
-	}
-
 	// createNewWorkspaceFromGit expects this field to be a git url, but above
 	// logic wants it to be the directory path, so set it only before calling
 	// createNewWorkspaceFromGit
 	options.RepoOrPathOrNameOrID = gitURL
-	err := createNewWorkspaceFromGit(user, apiKeyAuth, t, localSetupPath, options, startStore)
+	err := createNewWorkspaceFromGit(t, options, startStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -294,7 +274,7 @@ func startWorkspaceFromPath(user *entity.User, apiKeyAuth bool, t *terminal.Term
 	return err
 }
 
-func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, options StartOptions, startStore StartStore) error { //nolint:funlen,gocyclo // TODO refactor
+func createEmptyWorkspace(t *terminal.Terminal, options StartOptions, startStore StartStore) error { //nolint:funlen,gocyclo // TODO refactor
 	// ensure name
 	if len(options.Name) == 0 {
 		return breverrors.NewValidationError("name field is required for empty workspaces")
@@ -302,30 +282,16 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 
 	// ensure org
 	var orgID string
-	if options.OrgName == "" {
-		activeorg, err := startStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if activeorg == nil {
-			return breverrors.NewValidationError("no org exist")
-		}
-		orgID = activeorg.ID
-	} else {
-		orgs, err := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: options.OrgName})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", options.OrgName))
-		} else if len(orgs) > 1 {
-			return breverrors.NewValidationError(fmt.Sprintf("more than one org with name %s", options.OrgName))
-		}
-		orgID = orgs[0].ID
+	activeorg, err := startStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
 	}
+	if activeorg == nil {
+		return breverrors.NewValidationError("no org exist")
+	}
+	orgID = activeorg.ID
 
 	var setupScriptContents string
-	var err error
 	if len(options.SetupScript) > 0 {
 		contents, err1 := startStore.GetSetupScriptContentsByURL(options.SetupScript)
 		setupScriptContents += "\n" + contents
@@ -343,7 +309,7 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 		cwOptions.WithClassID(options.WorkspaceClass)
 	}
 
-	cwOptions = resolveWorkspaceUserOptions(cwOptions, user, apiKeyAuth)
+	cwOptions = resolveWorkspaceOptions(cwOptions)
 
 	if len(setupScriptContents) > 0 {
 		cwOptions.WithStartupScript(setupScriptContents)
@@ -360,7 +326,6 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 	} else {
 		t.Vprintf("\tCPU instance %s\n", t.Green(cwOptions.WorkspaceClassID))
 	}
-	t.Vprintf("\tCloud %s\n\n", t.Green(cwOptions.WorkspaceGroupID))
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
@@ -387,28 +352,31 @@ func createEmptyWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Termin
 	}
 }
 
-func resolveWorkspaceUserOptions(options *store.CreateWorkspacesOptions, user *entity.User, apiKeyAuth bool) *store.CreateWorkspacesOptions {
-	isAdmin := !apiKeyAuth && user != nil && featureflag.IsAdmin(user.GlobalUserType)
+func resolveWorkspaceOptions(options *store.CreateWorkspacesOptions) *store.CreateWorkspacesOptions {
 	if options.WorkspaceTemplateID == "" {
-		if isAdmin {
-			options.WorkspaceTemplateID = store.DevWorkspaceTemplateID
-		} else {
-			options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
-		}
+		options.WorkspaceTemplateID = store.UserWorkspaceTemplateID
 	}
 	if options.WorkspaceClassID == "" {
-		if isAdmin {
-			options.WorkspaceClassID = store.DevWorkspaceClassID
-		} else {
-			options.WorkspaceClassID = store.UserWorkspaceClassID
-		}
+		options.WorkspaceClassID = store.UserWorkspaceClassID
 	}
 	return options
+}
+
+func validateWorkspaceStartable(workspace *entity.Workspace) error {
+	if workspace.InstanceTypeInfo != nil && workspace.InstanceTypeInfo.Stoppable {
+		return nil
+	}
+	return breverrors.NewValidationError(fmt.Sprintf(
+		"instance %q does not support start.",
+		workspace.Name))
 }
 
 func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, t *terminal.Terminal, startOptions StartOptions) error {
 	if workspace.Status != entity.Stopped {
 		return breverrors.NewValidationError(fmt.Sprintf("Instance is not stopped status=%s", workspace.Status))
+	}
+	if err := validateWorkspaceStartable(workspace); err != nil {
+		return err
 	}
 	if startOptions.WorkspaceClass != "" {
 		return breverrors.NewValidationError("Instance already exists. Can not pass instance class flag to start stopped instance")
@@ -445,7 +413,7 @@ func startStopppedWorkspace(workspace *entity.Workspace, startStore StartStore, 
 // "https://github.com/brevdev/microservices-demo.git
 // "https://github.com/brevdev/microservices-demo.git"
 // "git@github.com:brevdev/microservices-demo.git"
-func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.Workspace, orgID string, startStore StartStore, user *entity.User, apiKeyAuth bool, startOptions StartOptions) error {
+func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.Workspace, orgID string, startStore StartStore, startOptions StartOptions) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 	if startOptions.WorkspaceClass == "" {
 		startOptions.WorkspaceClass = templateWorkspace.WorkspaceClassID
@@ -458,7 +426,7 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 		t.Vprintf("Name flag omitted, using auto generated name: %s\n", t.Green(cwOptions.Name))
 	}
 
-	cwOptions = resolveWorkspaceUserOptions(cwOptions, user, apiKeyAuth)
+	cwOptions = resolveWorkspaceOptions(cwOptions)
 
 	t.Vprintf("Creating instance %s in org %s\n", t.Green(cwOptions.Name), t.Green(orgID))
 	t.Vprintf("\tname %s\n", cwOptions.Name)
@@ -467,7 +435,6 @@ func joinProjectWithNewWorkspace(t *terminal.Terminal, templateWorkspace entity.
 	} else {
 		t.Vprintf("\tCPU instance %s\n", cwOptions.WorkspaceClassID)
 	}
-	t.Vprintf("\tCloud %s\n", cwOptions.WorkspaceGroupID)
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
@@ -493,34 +460,7 @@ func IsURL(str string) bool {
 	return err == nil && u.Scheme != "" && u.Host != ""
 }
 
-func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, setupScriptURLOrPath string, startOptions StartOptions, startStore StartStore) error {
-	// https://gist.githubusercontent.com/naderkhalil/4a45d4d293dc3a9eb330adcd5440e148/raw/3ab4889803080c3be94a7d141c7f53e286e81592/setup.sh
-	// fetch contents of file
-	// todo: read contents of file
-
-	var setupScriptContents string
-	var err error
-	if len(startOptions.RepoOrPathOrNameOrID) > 0 && len(startOptions.SetupPath) > 0 {
-		// STUFF HERE
-	} else if len(setupScriptURLOrPath) > 0 {
-		if IsURL(setupScriptURLOrPath) {
-			contents, err1 := startStore.GetSetupScriptContentsByURL(setupScriptURLOrPath)
-			if err1 != nil {
-				t.Vprintf("%s", t.Red("Couldn't fetch setup script from %s\n", setupScriptURLOrPath)+t.Yellow("Continuing with default setup script 👍"))
-				return breverrors.WrapAndTrace(err1)
-			}
-			setupScriptContents += "\n" + contents
-		} else {
-			// ERROR: not sure what this use case is for
-			var err2 error
-			setupScriptContents, err2 = startStore.GetFileAsString(setupScriptURLOrPath)
-			if err2 != nil {
-				return breverrors.WrapAndTrace(err2)
-			}
-		}
-	}
-	_ = setupScriptContents
-
+func createNewWorkspaceFromGit(t *terminal.Terminal, startOptions StartOptions, startStore StartStore) error {
 	newWorkspace := MakeNewWorkspaceFromURL(startOptions.RepoOrPathOrNameOrID)
 
 	if (startOptions.Name) != "" {
@@ -530,29 +470,16 @@ func createNewWorkspaceFromGit(user *entity.User, apiKeyAuth bool, t *terminal.T
 	}
 
 	var orgID string
-	if startOptions.OrgName == "" {
-		activeorg, err2 := startStore.GetActiveOrganizationOrDefault()
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if activeorg == nil {
-			return breverrors.NewValidationError("no org exist")
-		}
-		orgID = activeorg.ID
-	} else {
-		orgs, err2 := startStore.GetOrganizations(&store.GetOrganizationsOptions{Name: startOptions.OrgName})
-		if err2 != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return breverrors.NewValidationError(fmt.Sprintf("no org with name %s", startOptions.OrgName))
-		} else if len(orgs) > 1 {
-			return breverrors.NewValidationError(fmt.Sprintf("more than one org with name %s", startOptions.OrgName))
-		}
-		orgID = orgs[0].ID
+	activeorg, err2 := startStore.GetActiveOrganizationOrDefault()
+	if err2 != nil {
+		return breverrors.WrapAndTrace(err2)
 	}
+	if activeorg == nil {
+		return breverrors.NewValidationError("no org exist")
+	}
+	orgID = activeorg.ID
 
-	err = createWorkspace(user, apiKeyAuth, t, newWorkspace, orgID, startStore, startOptions)
+	err := createWorkspace(t, newWorkspace, orgID, startStore, startOptions)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -603,7 +530,7 @@ func MakeNewWorkspaceFromURL(url string) NewWorkspace {
 	}
 }
 
-func createWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
+func createWorkspace(t *terminal.Terminal, workspace NewWorkspace, orgID string, startStore StartStore, startOptions StartOptions) error {
 	clusterID := config.GlobalConfig.GetDefaultClusterID()
 
 	options := store.NewCreateWorkspacesOptions(clusterID, workspace.Name).WithGitRepo(workspace.GitRepo)
@@ -612,7 +539,7 @@ func createWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, w
 		options = options.WithWorkspaceClassID(startOptions.WorkspaceClass)
 	}
 
-	options = resolveWorkspaceUserOptions(options, user, apiKeyAuth)
+	options = resolveWorkspaceOptions(options)
 
 	if startOptions.SetupRepo != "" {
 		options.WithCustomSetupRepo(startOptions.SetupRepo, startOptions.SetupPath)
@@ -635,7 +562,6 @@ func createWorkspace(user *entity.User, apiKeyAuth bool, t *terminal.Terminal, w
 	} else {
 		t.Vprintf("\tCPU instance %s\n", options.WorkspaceClassID)
 	}
-	t.Vprintf("\tCloud %s\n", options.WorkspaceGroupID)
 
 	s := t.NewSpinner()
 	s.Suffix = " Creating your instance. Hang tight 🤙"
@@ -691,14 +617,13 @@ func pollUntil(t *terminal.Terminal, wsid string, state string, startStore Start
 
 // runBatchStart handles starting multiple instances when stdin is piped.
 // Exit codes: 0 = all succeeded, 1 = all failed, 2 = partial failure.
-func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
+func runBatchStart(t *terminal.Terminal, names []string, setupScript, setupRepo, setupPath, cpu, gpu string, piped bool, startStore StartStore) error {
 	var startedNames []string
 	var errs error
 	for _, instanceName := range names {
 		err := runStartWorkspace(t, StartOptions{
 			RepoOrPathOrNameOrID: instanceName,
 			Name:                 "",
-			OrgName:              org,
 			SetupScript:          setupScript,
 			SetupRepo:            setupRepo,
 			SetupPath:            setupPath,
@@ -726,7 +651,7 @@ func runBatchStart(t *terminal.Terminal, names []string, org, setupScript, setup
 }
 
 // runSingleStart handles starting a single instance (original behavior)
-func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript, setupRepo, setupPath, cpu, gpu string, detached, piped bool, startStore StartStore) error {
+func runSingleStart(t *terminal.Terminal, names []string, name, setupScript, setupRepo, setupPath, cpu, gpu string, detached, piped bool, startStore StartStore) error {
 	repoOrPathOrNameOrID := ""
 	if len(names) > 0 {
 		repoOrPathOrNameOrID = names[0]
@@ -735,7 +660,6 @@ func runSingleStart(t *terminal.Terminal, names []string, name, org, setupScript
 	err := runStartWorkspace(t, StartOptions{
 		RepoOrPathOrNameOrID: repoOrPathOrNameOrID,
 		Name:                 name,
-		OrgName:              org,
 		SetupScript:          setupScript,
 		SetupRepo:            setupRepo,
 		SetupPath:            setupPath,

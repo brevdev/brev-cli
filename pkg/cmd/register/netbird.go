@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/google/shlex"
 )
 
 // InstallNetbird installs NetBird if it is not already present.
@@ -22,17 +24,42 @@ func InstallNetbird() error {
 }
 
 // runSetupCommand executes the setup command returned by the AddNode RPC.
-// It validates that the command starts with "netbird up" as a basic guard
-// against unexpected server responses.
+// Only supported registration arguments are passed to NetBird, without a shell.
 func runSetupCommand(script string) error {
-	if !strings.HasPrefix(strings.TrimSpace(script), "netbird up") {
-		return fmt.Errorf("unexpected setup command")
+	cmd, err := setupCommand(script)
+	if err != nil {
+		return err
 	}
-	cmd := exec.Command("sudo", "bash", "-c", script) // #nosec G204
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("setup command failed: %w", err)
 	}
 	return nil
+}
+
+func setupCommand(script string) (*exec.Cmd, error) {
+	args, err := shlex.Split(script)
+	if err != nil || len(args) < 2 || args[0] != "netbird" || args[1] != "up" {
+		return nil, fmt.Errorf("unexpected setup command")
+	}
+	for i := 2; i < len(args); i++ {
+		flag, value, hasValue := strings.Cut(args[i], "=")
+		switch flag {
+		case "--setup-key", "--hostname", "--management-url":
+		default:
+			return nil, fmt.Errorf("unexpected setup command")
+		}
+		if !hasValue {
+			i++
+			if i >= len(args) {
+				return nil, fmt.Errorf("unexpected setup command")
+			}
+			value = args[i]
+		}
+		if value == "" || strings.HasPrefix(value, "-") {
+			return nil, fmt.Errorf("unexpected setup command")
+		}
+	}
+	return exec.Command("sudo", append([]string{"netbird", "up"}, args[2:]...)...), nil // #nosec G204 -- fixed executable and allowlisted arguments; no shell
 }
 
 // UninstallNetbird stops, uninstalls the service, and removes the NetBird

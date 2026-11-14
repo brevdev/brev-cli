@@ -4,9 +4,8 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/config"
@@ -76,6 +75,8 @@ func NewOAuthRetriever(oauths []OAuth) *OAuthRetriever {
 	}
 }
 
+var ErrNoOAuthForToken = errors.New("no oauth found for token")
+
 func (o *OAuthRetriever) GetByProvider(provider entity.CredentialProvider) (OAuth, error) {
 	for _, oauth := range o.oauths {
 		if oauth.GetCredentialProvider() == provider {
@@ -91,7 +92,7 @@ func (o *OAuthRetriever) GetByToken(token string) (OAuth, error) {
 			return oauth, nil
 		}
 	}
-	return nil, fmt.Errorf("no oauth found for token")
+	return nil, ErrNoOAuthForToken
 }
 
 type Auth struct {
@@ -101,12 +102,20 @@ type Auth struct {
 	shouldLogin          func() (bool, error)
 }
 
-const BrevAPIKeyPrefix = "bak-"
-
-const MissingAPIKeyOrgIDMessage = "api key auth requires an org id; run brev login --api-key <api-key> --org-id <org-id>"
+const (
+	BrevAPIKeyPrefix                              = "bak-"
+	APIKeyEnvVar                                  = "BREV_API_KEY"
+	MissingAPIKeyOrgIDMessage                     = "auth malformed; run brev login --api-key <api-key>"
+	APIKeyOrganizationOverrideNotSupportedMessage = "api key auth is scoped to the org saved during login; --org is not supported"
+)
 
 type APIKeyAuthStore interface {
 	GetAuthTokens() (*entity.AuthTokens, error)
+}
+
+// OrgLister lists the organizations available to the current credential.
+type OrgLister interface {
+	ListOrganizations() ([]entity.Organization, error)
 }
 
 type CurrentUserAuthStore interface {
@@ -143,6 +152,9 @@ func IsBrevAPIKey(token string) bool {
 }
 
 func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
+	if strings.TrimSpace(os.Getenv(APIKeyEnvVar)) != "" {
+		return true
+	}
 	tokens, err := authTokensProvider.GetAuthTokens()
 	if err != nil {
 		return false
@@ -151,6 +163,24 @@ func IsAPIKeyAuthStore(authTokensProvider APIKeyAuthStore) bool {
 		return false
 	}
 	return IsBrevAPIKey(tokens.APIKey)
+}
+
+func ResolveEnvAPIKeyOrg(orgLister OrgLister) (*entity.Organization, error) {
+	if strings.TrimSpace(os.Getenv(APIKeyEnvVar)) == "" {
+		return nil, nil
+	}
+	return ResolveAPIKeyOrganization(orgLister)
+}
+
+func ResolveAPIKeyOrganization(orgLister OrgLister) (*entity.Organization, error) {
+	orgs, err := orgLister.ListOrganizations()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if len(orgs) != 1 {
+		return nil, breverrors.New("api key invalid")
+	}
+	return &orgs[0], nil
 }
 
 func GetAPIKeyOrgID(authTokensProvider APIKeyAuthStore) (string, error) {
@@ -205,6 +235,9 @@ func (t Auth) GetFreshAccessTokenOrLogin() (string, error) {
 
 // Gets fresh access token or returns nil and saves to store
 func (t Auth) GetFreshAccessTokenOrNil() (string, error) {
+	if key := strings.TrimSpace(os.Getenv(APIKeyEnvVar)); key != "" {
+		return key, nil
+	}
 	tokens, err := t.getSavedTokensOrNil()
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
@@ -247,6 +280,7 @@ func (t Auth) PromptForLogin() (*LoginTokens, error) {
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if !shouldLogin {
+		// Deliberately NOT wrapped, expected outcome
 		return nil, &breverrors.DeclineToLoginError{}
 	}
 
@@ -302,10 +336,6 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	if !IsBrevAPIKey(apiKey) {
 		return breverrors.NewValidationError(fmt.Sprintf("api key must start with %s", BrevAPIKeyPrefix))
 	}
-	orgID = strings.TrimSpace(orgID)
-	if orgID == "" {
-		return breverrors.NewValidationError(MissingAPIKeyOrgIDMessage)
-	}
 
 	tokens, err := t.getSavedTokensOrNil()
 	if err != nil {
@@ -324,10 +354,20 @@ func (t Auth) LoginWithAPIKey(apiKey string, orgID string) error {
 	return nil
 }
 
-// showLoginURL displays the login link and CLI alternative for manual navigation.
+func init() {
+	// pkg/browser pipes the launcher's stderr to ours, which leaks confusing
+	// noise like "xdg-open: no DISPLAY environment variable specified" on
+	// headless machines. We always print the login URL, so discard it.
+	browser.Stderr = io.Discard
+}
+
+// showLoginURL prints the login link, framed as a fallback for when the
+// browser doesn't open (e.g. headless machine, wrong default browser).
 func showLoginURL(url string) {
 	urlType := color.New(color.FgCyan, color.Bold).SprintFunc()
-	fmt.Println("Login here: " + urlType(url))
+	fmt.Println("Browser didn't open? Use the URL below to sign in:")
+	fmt.Println()
+	fmt.Println(urlType(url))
 }
 
 func defaultAuthFunc(url, code string) {
@@ -337,12 +377,9 @@ func defaultAuthFunc(url, code string) {
 		fmt.Print("\n")
 	}
 
-	if hasBrowser() {
-		if err := browser.OpenURL(url); err == nil {
-			fmt.Println("Waiting for login to complete in browser...")
-			return
-		}
-	}
+	// Best-effort: try to open the browser, but always show the URL below so
+	// the user is never stranded if it doesn't open.
+	_ = browser.OpenURL(url)
 	showLoginURL(url)
 	fmt.Println("\nWaiting for login to complete...")
 }
@@ -350,21 +387,6 @@ func defaultAuthFunc(url, code string) {
 func skipBrowserAuthFunc(url, _ string) {
 	showLoginURL(url)
 	fmt.Println("\nWaiting for login to complete...")
-}
-
-// hasBrowser reports whether a browser can be opened on the current platform.
-func hasBrowser() bool {
-	if runtime.GOOS == "darwin" {
-		// macOS always has "open".
-		return true
-	}
-	// Linux: check for a known browser launcher.
-	for _, name := range []string{"xdg-open", "x-www-browser", "www-browser"} {
-		if _, err := exec.LookPath(name); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 func (t Auth) Login(skipBrowser bool) (*LoginTokens, error) {
@@ -548,11 +570,14 @@ func StandardLogin(authProvider string, email string, tokens *entity.AuthTokens)
 	})
 
 	if tokens != nil && tokens.AccessToken != "" && tokens.APIKey == "" {
-		authenticatorFromToken, errr := authRetriever.GetByToken(tokens.AccessToken)
-		if errr != nil {
-			fmt.Printf("%v\n", errr)
-		} else {
+		authenticatorFromToken, err := authRetriever.GetByToken(tokens.AccessToken)
+		switch {
+		case err == nil:
 			authenticator = authenticatorFromToken
+		case errors.Is(err, ErrNoOAuthForToken):
+			// make user re-authenticate rather than printing an error.
+		default:
+			breverrors.GetDefaultErrorReporter().ReportError(err)
 		}
 	}
 

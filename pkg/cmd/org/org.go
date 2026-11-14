@@ -63,10 +63,10 @@ func NewCmdOrg(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgC
 		},
 	}
 
-	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore, noorgcmdStore))
+	cmd.AddCommand(NewCmdOrgSet(t, orgcmdStore))
 	cmd.AddCommand(NewCmdOrgLs(t, orgcmdStore))
 	cmd.AddCommand(NewCmdOrgCreate(t, orgcmdStore))
-	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore, noorgcmdStore))
+	cmd.AddCommand(invite.NewCmdInvite(t, orgcmdStore))
 
 	// Use default cobra template to show all subcommands
 	cmd.SetUsageTemplate(`Usage:{{if .Runnable}}

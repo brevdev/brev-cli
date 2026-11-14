@@ -106,6 +106,9 @@ func (c Cloudflared) DownloadBinary(ctx context.Context, binaryPath, binaryURL s
 func getCloudflaredBinaryDownloadURL() (string, error) {
 	switch runtime.GOOS {
 	case "linux":
+		if runtime.GOARCH == "arm64" {
+			return fmt.Sprintf("https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-linux-arm64", CloudflaredVersion), nil
+		}
 		return fmt.Sprintf("https://github.com/cloudflare/cloudflared/releases/download/%s/cloudflared-linux-amd64", CloudflaredVersion), nil
 	case "darwin":
 		if runtime.GOARCH == "arm64" {

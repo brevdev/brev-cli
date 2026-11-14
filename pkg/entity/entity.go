@@ -17,13 +17,6 @@ const (
 	CredientialProviderUnspecified CredentialProvider = ""
 )
 
-const WorkspaceGroupDevPlane = "devplane-brev-1"
-
-var LegacyWorkspaceGroups = map[string]bool{
-	"k8s.brevstack.com":            true,
-	"brev-test-brevtenant-cluster": true,
-}
-
 type AuthTokens struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
@@ -154,12 +147,11 @@ const (
 )
 
 type UpdateUser struct {
-	Username          string                 `json:"username,omitempty"`
-	Name              string                 `json:"name,omitempty"`
-	Email             string                 `json:"email,omitempty"`
-	BaseWorkspaceRepo string                 `json:"baseWorkspaceRepo,omitempty"`
-	OnboardingData    map[string]interface{} `json:"onboardingData,omitempty"`
-	IdeConfig         IDEConfig              `json:"ideConfig,omitempty"`
+	Username       string                 `json:"username,omitempty"`
+	Name           string                 `json:"name,omitempty"`
+	Email          string                 `json:"email,omitempty"`
+	OnboardingData map[string]interface{} `json:"onboardingData,omitempty"`
+	IdeConfig      IDEConfig              `json:"ideConfig,omitempty"`
 }
 
 type GlobalUserType string
@@ -182,7 +174,6 @@ type User struct {
 	Name               string                 `json:"name"`
 	Email              string                 `json:"email"`
 	WorkspacePassword  string                 `json:"workspacePassword"`
-	BaseWorkspaceRepo  string                 `json:"baseWorkspaceRepo"`
 	GlobalUserType     GlobalUserType         `json:"globalUserType"`
 	IdeConfig          IDEConfig              `json:"ideConfig,omitempty"`
 	OnboardingData     map[string]interface{} `json:"onboardingData"`
@@ -232,7 +223,6 @@ type Application struct {
 
 type RequestCreateWorkspace struct {
 	Name                 string        `json:"name"`
-	WorkspaceGroupID     string        `json:"workspaceGroupId"`
 	WorkspaceClassID     string        `json:"workspaceClassId"`
 	GitRepo              string        `json:"gitRepo"`
 	IsStoppable          bool          `json:"isStoppable"`
@@ -267,26 +257,18 @@ const (
 	Ready    = "READY"
 )
 
-type WorkspaceGroup struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	BaseDNS        string `json:"baseDns"`
-	Status         string `json:"status"`
-	Platform       string `json:"platform"`
-	PlatformID     string `json:"platformId"`
-	PlatformRegion string `json:"platformRegion"`
-	Version        string `json:"version"`
-	TenantType     string `json:"tenantType"`
-} // @Name WorkspaceGroup
+type InstanceTypeInfo struct {
+	Stoppable bool `json:"stoppable"`
+}
 
 type Workspace struct {
 	ID                   string            `json:"id"`
 	Name                 string            `json:"name"`
-	WorkspaceGroupID     string            `json:"workspaceGroupId"`
 	OrganizationID       string            `json:"organizationId"`
 	WorkspaceClassID     string            `json:"workspaceClassId"` // WorkspaceClassID is resources, like "2x8"
 	InstanceType         string            `json:"instanceType,omitempty"`
 	CreatedByUserID      string            `json:"createdByUserId"`
+	InstanceTypeInfo     *InstanceTypeInfo `json:"instanceTypeInfo,omitempty"`
 	DNS                  string            `json:"dns"`
 	Status               string            `json:"status"`
 	Password             string            `json:"password"`
@@ -302,22 +284,22 @@ type Workspace struct {
 	IDEConfig            IDEConfig         `json:"ideConfig"`
 	SSHPort              int               `json:"sshPort"`
 	SSHUser              string            `json:"sshUser"`
+	SSHHostname          string            `json:"sshHostname,omitempty"`
 	SSHProxyHostname     string            `json:"sshProxyHostname"`
 	HostSSHPort          int               `json:"hostSshPort"`
 	HostSSHUser          string            `json:"hostSshUser"`
+	HostSSHHostname      string            `json:"hostSshHostname,omitempty"`
 	HostSSHProxyHostname string            `json:"hostSshProxyHostname"`
 	VerbBuildStatus      VerbBuildStatus   `json:"verbBuildStatus"`
 	VerbYaml             string            `json:"verbYaml"`
-	// PrimaryApplicationId         string `json:"primaryApplicationId,omitempty"`
-	// LastOnlineAt         string `json:"lastOnlineAt,omitempty"`
-	// CreatedAt         string `json:"createdAt,omitempty"`
-	// UpdatedAt         string `json:"updatedAt,omitempty"`
-	HealthStatus    string        `json:"healthStatus"`
-	IsStoppable     bool          `json:"isStoppable"` // used for autopstop only
-	StatusMessage   string        `json:"statusMessage"`
-	StopTimeout     time.Duration `json:"stopTimeout"`
-	AdditionalUsers []string      `json:"additionalUsers"`
-	Tunnel          Tunnel        `json:"tunnel"`
+	PortID               string            `json:"portId,omitempty"`
+	SSHCertEligible      bool              `json:"sshCertEligible,omitempty"`
+	HealthStatus         string            `json:"healthStatus"`
+	IsStoppable          bool              `json:"isStoppable"` // used for autopstop only
+	StatusMessage        string            `json:"statusMessage"`
+	StopTimeout          time.Duration     `json:"stopTimeout"`
+	AdditionalUsers      []string          `json:"additionalUsers"`
+	Tunnel               Tunnel            `json:"tunnel"`
 }
 
 type APIKey struct {
@@ -386,6 +368,20 @@ func (w Workspace) GetHostname() string {
 	return hostname
 }
 
+func (w Workspace) GetSSHHostname() string {
+	if w.SSHHostname != "" {
+		return w.SSHHostname
+	}
+	return w.GetHostname()
+}
+
+func (w Workspace) GetHostSSHHostname() string {
+	if w.HostSSHHostname != "" {
+		return w.HostSSHHostname
+	}
+	return w.GetHostname()
+}
+
 func (w Workspace) GetSSHPort() int {
 	port := 22
 	if w.SSHPort != 0 {
@@ -420,17 +416,6 @@ func (w Workspace) GetHostSSHPort() int {
 	return port
 }
 
-func (w Workspace) IsLegacy() bool {
-	return MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID)
-}
-
-func (w Workspace) GetUsername() string {
-	if w.IsLegacy() {
-		return "brev"
-	}
-	return DefaultUser
-}
-
 type WorkspaceTemplate struct {
 	ID          string `json:"id"`
 	Type        string `json:"type"`
@@ -441,21 +426,11 @@ type WorkspaceTemplate struct {
 	Port        int    `json:"port"`
 }
 
-func MapContainsKey[K comparable, V any](m map[K]V, key K) bool {
-	_, ok := m[key]
-	return ok
-}
-
 func (w Workspace) GetProjectFolderPath() (string, error) {
-	var prefix string
-	if MapContainsKey(LegacyWorkspaceGroups, w.WorkspaceGroupID) {
-		prefix = "/home/brev/workspace"
-	} else {
-		if w.SSHUser == "" {
-			return "", fmt.Errorf("workspace %s has empty SSH user (workspace may not be running)", w.ID)
-		}
-		prefix = "/home/" + w.SSHUser
+	if w.SSHUser == "" {
+		return "", fmt.Errorf("workspace %s has empty SSH user (workspace may not be running)", w.ID)
 	}
+	prefix := "/home/" + w.SSHUser
 	var folderName string
 	if w.IDEConfig.DefaultWorkingDir != "" { //nolint:gocritic // i like if else
 		if path.IsAbs(w.IDEConfig.DefaultWorkingDir) {
@@ -570,17 +545,6 @@ func (u User) GetOnboardingData() (*OnboardingData, error) {
 		CliOnboardingCompleted: safeFalseBoolMap(u.OnboardingData, "cliOnboardingCompleted"),
 	}
 	return x, nil
-}
-
-type OrgRoleAttachment struct {
-	Subject string                `json:"subject"`
-	Object  string                `json:"object"`
-	Role    OrgRoleAttachmentRole `json:"role"`
-}
-
-type OrgRoleAttachmentRole struct {
-	ID      string   `json:"id"`
-	Actions []string `json:"actions"`
 }
 
 type ModifyWorkspaceRequest struct {

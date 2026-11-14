@@ -25,7 +25,6 @@ import (
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	uutil "github.com/brevdev/brev-cli/pkg/util"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
 	"github.com/briandowns/spinner"
 	"github.com/hashicorp/go-multierror"
 	"github.com/samber/mo"
@@ -90,7 +89,7 @@ You must have the editor installed in your path.`
   brev create my-cluster --count 3 | brev open
 
   # Create with specific GPU and open in Cursor
-  brev search --gpu-name A100 | brev create ml-box | brev open cursor
+  brev search --gpu-name A100 | brev create ml-box --stdin | brev open cursor
 
   # Open in a new terminal window with SSH
   brev create my-instance | brev open terminal
@@ -341,10 +340,6 @@ func runOpenCommand(t *terminal.Terminal, tstore OpenStore, wsIDOrName string, s
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors,
-	// but we don't want to block the user from using vscode
-	_ = writeconnectionevent.WriteWCEOnEnv(tstore, string(localIdentifier))
 	err = openEditorWithSSH(t, string(localIdentifier), projPath, tstore, setupDoneString, editorType)
 	if err != nil {
 		if strings.Contains(err.Error(), `"code": executable file not found in $PATH`) {

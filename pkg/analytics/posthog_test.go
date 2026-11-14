@@ -4,6 +4,9 @@ import (
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/files"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/assert"
 )
 
 func boolPtr(b bool) *bool { return &b }
@@ -108,5 +111,68 @@ func TestSetAnalyticsPreferencePreservesOtherFields(t *testing.T) {
 	}
 	if got.AnalyticsEnabled == nil || *got.AnalyticsEnabled != false {
 		t.Errorf("AnalyticsEnabled = %v, want pointer to false", got.AnalyticsEnabled)
+	}
+}
+
+func buildFlaggedCmd(t *testing.T, setFlags func(*pflag.FlagSet)) *cobra.Command {
+	t.Helper()
+	cmd := &cobra.Command{Use: "test", RunE: func(*cobra.Command, []string) error { return nil }}
+	setFlags(cmd.Flags())
+	// Analytics only serializes flags explicitly set on the command line
+	// Set marks each flag Changed AND registers it in the "actual" set that Visit iterates.
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		_ = cmd.Flags().Set(f.Name, f.Value.String())
+	})
+	return cmd
+}
+
+func TestCaptureFlagPresenceNeverIncludesValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		setFlags  func(*pflag.FlagSet)
+		flagName  string
+		wantValue interface{}
+	}{
+		{
+			name: "annotated secret flag",
+			setFlags: func(fs *pflag.FlagSet) {
+				fs.String("value", "arbitrary provider password", "")
+				MarkFlagSensitive(fs, "value")
+			},
+			flagName:  "value",
+			wantValue: "[redacted]",
+		},
+		{
+			name: "unannotated secret flag",
+			setFlags: func(fs *pflag.FlagSet) {
+				fs.String("value", "arbitrary provider password", "")
+			},
+			flagName:  "value",
+			wantValue: "[redacted]",
+		},
+		{
+			name: "empty flag value",
+			setFlags: func(fs *pflag.FlagSet) {
+				fs.String("value", "", "")
+			},
+			flagName:  "value",
+			wantValue: "[redacted]",
+		},
+		{
+			name: "ordinary flag value is also omitted",
+			setFlags: func(fs *pflag.FlagSet) {
+				fs.Bool("show-all", true, "")
+				fs.String("org", "my-org", "")
+			},
+			flagName:  "org",
+			wantValue: "[redacted]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := buildFlaggedCmd(t, tt.setFlags)
+			got := captureFlagPresence(cmd)
+			assert.Equal(t, tt.wantValue, got[tt.flagName])
+		})
 	}
 }

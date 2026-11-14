@@ -3,24 +3,54 @@ package ls
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
-	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	devplanev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
+	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/stretchr/testify/assert"
 )
 
 const testAPIKey = authpkg.BrevAPIKeyPrefix + "test-key"
+
+func TestApplyStatusesFeedsDisplayFromEnvironment(t *testing.T) {
+	workspaces := []entity.Workspace{
+		{ID: "env-failed", Name: "failed", Status: entity.Running},
+		{ID: "env-running", Name: "running", Status: entity.Deploying},
+		{ID: "env-unknown", Name: "unknown", Status: entity.Deploying},
+	}
+	failedEnv := &devplanev1.Environment{EnvironmentId: "env-failed", Status: devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_PROVISIONING_FAILED}
+	failedEnv.Instance = &devplanev1.Instance{
+		ProvisionStatus: &devplanev1.CreateAttemptStatus{Message: "out of quota"},
+	}
+	environments := []*devplanev1.Environment{
+		failedEnv,
+		{EnvironmentId: "env-running", Status: devplanev1.EnvironmentStatus_ENVIRONMENT_STATUS_RUNNING},
+	}
+
+	applyStatuses(workspaces, environments)
+
+	// The environment status wins even when the workspace row said otherwise.
+	assert.Equal(t, entity.Failure, workspaces[0].Status)
+	assert.Equal(t, "out of quota", workspaces[0].StatusMessage)
+	assert.Equal(t, entity.Running, workspaces[1].Status)
+	// Workspaces without a matching environment keep their (stale) row status.
+	assert.Equal(t, entity.Deploying, workspaces[2].Status)
+}
 
 // mockLsStore implements LsStore (including the embedded hello.HelloStore) for
 // testing the ls command routing without real API calls.
@@ -48,6 +78,14 @@ func (m *mockLsStore) GetAccessToken() (string, error) {
 	return "tok", nil
 }
 
+func (m *mockLsStore) DevPlane() *store.DevPlaneClient {
+	return store.NewDevPlaneClient(m, config.GlobalConfig.GetBrevPublicAPIURL())
+}
+
+func (m *mockLsStore) GetEnvironmentsByOrg(_ context.Context, _ string) ([]*devplanev1.Environment, error) {
+	return nil, nil
+}
+
 func (m *mockLsStore) GetWorkspace(_ string) (*entity.Workspace, error) {
 	return nil, nil
 }
@@ -71,10 +109,6 @@ func (m *mockLsStore) GetWorkspaces(orgID string, _ *store.GetWorkspacesOptions)
 func (m *mockLsStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]entity.Organization, error) {
 	m.getOrganizationsCall++
 	return m.orgs, nil
-}
-
-func (m *mockLsStore) GetUsers(_ map[string]string) ([]entity.User, error) {
-	return nil, nil
 }
 
 func (m *mockLsStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
@@ -112,7 +146,7 @@ func resolveTestCLIAuth(t *testing.T, s *mockLsStore) authpkg.CLIAuth {
 
 func runLs(t *testing.T, term *terminal.Terminal, s *mockLsStore, args []string, showAll bool) error {
 	t.Helper()
-	return RunLs(term, resolveTestCLIAuth(t, s), s, args, "", showAll, true)
+	return RunLs(context.Background(), term, resolveTestCLIAuth(t, s), s, args, showAll, true)
 }
 
 func TestRunLs_APIKeyJSONSkipsUserAndOrgList(t *testing.T) {
@@ -192,7 +226,7 @@ func TestGetOrgForRunLs_APIKeyUsesActiveOrgDisplayName(t *testing.T) {
 	s.authTokens = &entity.AuthTokens{APIKey: testAPIKey, APIKeyOrgID: "org-login"}
 	s.org = &entity.Organization{ID: "org-login", Name: "friendly-org"}
 
-	org, err := getOrgForRunLs(resolveTestCLIAuth(t, s), s, "")
+	org, err := getOrgForRunLs(s)
 	if err != nil {
 		t.Fatalf("getOrgForRunLs returned error: %v", err)
 	}
@@ -213,9 +247,6 @@ func TestRunLs_APIKeyRequiresCredentialOrg(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("expected missing API key org error, got nil")
-	}
-	if !strings.Contains(err.Error(), "api key auth requires an org id") {
-		t.Fatalf("expected API key org validation error, got %v", err)
 	}
 	if s.workspaceOrgID != "" {
 		t.Fatalf("expected no workspace call, got org %s", s.workspaceOrgID)
@@ -427,7 +458,7 @@ func TestRunLs_ShowAllTable(t *testing.T) {
 	term := terminal.New()
 
 	out := captureStdout(t, func() {
-		err := RunLs(term, resolveTestCLIAuth(t, s), s, nil, "", true, false)
+		err := RunLs(context.Background(), term, resolveTestCLIAuth(t, s), s, nil, true, false)
 		if err != nil {
 			t.Fatalf("RunLs --all returned error: %v", err)
 		}
@@ -601,7 +632,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 		"workspace", "workspaces",
 	}
 	for _, arg := range successArgs {
-		if err := handleLsArg(ls, resolveTestCLIAuth(t, s), arg, s.org, false); err != nil {
+		if err := handleLsArg(context.Background(), ls, resolveTestCLIAuth(t, s), arg, s.org, false); err != nil {
 			t.Errorf("handleLsArg(%q) returned unexpected error: %v", arg, err)
 		}
 	}
@@ -609,7 +640,7 @@ func TestHandleLsArg_Routing(t *testing.T) {
 	// "node"/"nodes" route to RunNodes which calls the gRPC client — verify
 	// it attempts the path (error expected due to no real client).
 	for _, arg := range []string{"node", "nodes"} {
-		_ = handleLsArg(ls, resolveTestCLIAuth(t, s), arg, s.org, false)
+		_ = handleLsArg(context.Background(), ls, resolveTestCLIAuth(t, s), arg, s.org, false)
 	}
 }
 
@@ -629,7 +660,7 @@ func TestOutputWorkspacesJSON_WithNodes(t *testing.T) {
 			CreatedByUserID: "u1",
 		},
 	}
-	nodes := []*nodev1.ExternalNode{
+	nodes := []*devplanev1.ExternalNode{
 		{
 			Name:           "gpu-node-1",
 			ExternalNodeId: "en-123",
@@ -714,28 +745,144 @@ func TestOutputWorkspacesJSON_NoNodes(t *testing.T) {
 }
 
 type lsFakeNodeService struct {
-	nodev1connect.UnimplementedExternalNodeServiceHandler
+	devplanev1connect.UnimplementedExternalNodeServiceHandler
+	// getNodeStatus, when set, is returned as ConnectivityInfo.Status by GetNode.
+	getNodeStatus devplanev1.NetworkMemberStatus
+	// failNodeID, when set, makes GetNode return an error for that node.
+	failNodeID string
+	// stallNodeID, when set, makes GetNode hang until its request context is done.
+	stallNodeID string
+	// getNodeCalls counts GetNode invocations.
+	getNodeCalls atomic.Int64
+	// maxInFlightGetNode tracks peak concurrent GetNode handlers.
+	maxInFlightGetNode atomic.Int64
+	inFlightGetNode    atomic.Int64
 }
 
-func (f *lsFakeNodeService) ListNodes(_ context.Context, req *connect.Request[nodev1.ListNodesRequest]) (*connect.Response[nodev1.ListNodesResponse], error) {
+func (f *lsFakeNodeService) ListNodes(_ context.Context, req *connect.Request[devplanev1.ListNodesRequest]) (*connect.Response[devplanev1.ListNodesResponse], error) {
 	if req.Msg.GetOrganizationId() != "org1" {
-		return connect.NewResponse(&nodev1.ListNodesResponse{}), nil
+		return connect.NewResponse(&devplanev1.ListNodesResponse{}), nil
 	}
-	return connect.NewResponse(&nodev1.ListNodesResponse{
-		Items: []*nodev1.ExternalNode{
+	return connect.NewResponse(&devplanev1.ListNodesResponse{
+		Items: []*devplanev1.ExternalNode{
 			{Name: "gpu-node-1", ExternalNodeId: "en-123", OrganizationId: "org1"},
 			{Name: "gpu-node-2", ExternalNodeId: "en-456", OrganizationId: "org1"},
 		},
 	}), nil
 }
 
+func (f *lsFakeNodeService) GetNode(ctx context.Context, req *connect.Request[devplanev1.GetNodeRequest]) (*connect.Response[devplanev1.GetNodeResponse], error) {
+	if req.Msg.GetExternalNodeId() == f.failNodeID {
+		return nil, connect.NewError(connect.CodeNotFound, fmt.Errorf("node %s not found", req.Msg.GetExternalNodeId()))
+	}
+	if req.Msg.GetExternalNodeId() == f.stallNodeID {
+		<-ctx.Done() // hang until the caller's deadline cancels the request
+		return nil, fmt.Errorf("stalled get node canceled: %w", ctx.Err())
+	}
+	f.getNodeCalls.Add(1)
+	inFlight := f.inFlightGetNode.Add(1)
+	defer f.inFlightGetNode.Add(-1)
+	for {
+		max := f.maxInFlightGetNode.Load()
+		if inFlight <= max || f.maxInFlightGetNode.CompareAndSwap(max, inFlight) {
+			break
+		}
+	}
+	return connect.NewResponse(&devplanev1.GetNodeResponse{
+		ExternalNode: &devplanev1.ExternalNode{
+			Name:           "enriched-" + req.Msg.GetExternalNodeId(),
+			ExternalNodeId: req.Msg.GetExternalNodeId(),
+			OrganizationId: "org1",
+			ConnectivityInfo: &devplanev1.ConnectivityInfo{
+				Status: f.getNodeStatus,
+			},
+		},
+	}), nil
+}
+
 func withFakeNodeAPI(t *testing.T, fn func()) {
 	t.Helper()
-	_, handler := nodev1connect.NewExternalNodeServiceHandler(&lsFakeNodeService{})
+	_, handler := devplanev1connect.NewExternalNodeServiceHandler(&lsFakeNodeService{})
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
 	fn()
+}
+
+func withFakeNodeAPIService(t *testing.T, svc *lsFakeNodeService, fn func()) {
+	t.Helper()
+	_, handler := devplanev1connect.NewExternalNodeServiceHandler(svc)
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
+	fn()
+}
+
+// TestRunNodes_EnrichesConnectivity verifies brev ls nodes shows the live
+// GetNode status, not the list-provided "Unknown".
+func TestRunNodes_EnrichesConnectivity(t *testing.T) {
+	term := terminal.New()
+
+	t.Run("GetNode status wins over list status", func(t *testing.T) {
+		svc := &lsFakeNodeService{getNodeStatus: devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED}
+		withFakeNodeAPIService(t, svc, func() {
+			ls := NewLs(newTestStore(), term, false)
+			if err := ls.RunNodes(&entity.Organization{ID: "org1", Name: "org1"}); err != nil {
+				t.Fatalf("RunNodes: %v", err)
+			}
+			if svc.getNodeCalls.Load() != 2 {
+				t.Fatalf("expected 2 GetNode calls, got %d", svc.getNodeCalls.Load())
+			}
+		})
+	})
+
+	t.Run("GetNode failure keeps node with Unknown status", func(t *testing.T) {
+		svc := &lsFakeNodeService{getNodeStatus: devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED, failNodeID: "en-missing"}
+		withFakeNodeAPIService(t, svc, func() {
+			ls := NewLs(newTestStore(), term, false)
+			nodes := []*devplanev1.ExternalNode{{ExternalNodeId: "en-missing"}}
+			got := ls.enrichNodesWithConnectivity(context.Background(), nodes)
+			if len(got) != 1 || got[0] != nodes[0] {
+				t.Fatalf("expected original node retained, got %+v", got)
+			}
+			if status := nodeConnectionStatus(got[0]); status != "Unknown" {
+				t.Fatalf("expected Unknown status on failed enrichment, got %q", status)
+			}
+		})
+	})
+
+	t.Run("stalled GetNode does not block past the enrichment deadline", func(t *testing.T) {
+		svc := &lsFakeNodeService{getNodeStatus: devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_CONNECTED, stallNodeID: "en-slow"}
+		withFakeNodeAPIService(t, svc, func() {
+			ls := NewLs(newTestStore(), term, false)
+			nodes := []*devplanev1.ExternalNode{
+				{ExternalNodeId: "en-slow", ConnectivityInfo: &devplanev1.ConnectivityInfo{Status: devplanev1.NetworkMemberStatus_NETWORK_MEMBER_STATUS_UNSPECIFIED}},
+				{ExternalNodeId: "en-fast"},
+			}
+			done := make(chan struct{})
+			var got []*devplanev1.ExternalNode
+			go func() {
+				defer close(done)
+				got = ls.enrichNodesWithConnectivity(context.Background(), nodes)
+			}()
+			select {
+			case <-done:
+			case <-time.After(nodeStatusFetchTimeout + 10*time.Second):
+				t.Fatalf("enrichment still blocked after %v deadline", nodeStatusFetchTimeout)
+			}
+			if len(got) != 2 {
+				t.Fatalf("expected all nodes returned, got %d", len(got))
+			}
+			// The stalled node keeps its list-provided status instead of hanging ls.
+			if status := nodeConnectionStatus(got[0]); status != "Unknown" {
+				t.Fatalf("expected stalled node to keep list status Unknown, got %q", status)
+			}
+			// Healthy nodes still get enriched before the deadline.
+			if status := nodeConnectionStatus(got[1]); status != "Connected" {
+				t.Fatalf("expected fast node enriched to Connected, got %q", status)
+			}
+		})
+	})
 }
 
 // TestRunLs_ShowAllJSON_WithNodes verifies --all includes nodes from listNodes.
@@ -760,8 +907,8 @@ func TestRunLs_ShowAllJSON_WithNodes(t *testing.T) {
 			if err := json.Unmarshal([]byte(out), &res); err != nil {
 				t.Fatalf("parse JSON: %v\n%s", err, out)
 			}
-			if len(res.Nodes) != 2 || res.Nodes[0].Name != "gpu-node-1" {
-				t.Fatalf("expected 2 nodes from listNodes, got %+v", res.Nodes)
+			if len(res.Nodes) != 2 || res.Nodes[0].Name != "enriched-en-123" {
+				t.Fatalf("expected 2 enriched nodes from listNodes, got %+v", res.Nodes)
 			}
 		})
 	})

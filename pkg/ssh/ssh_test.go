@@ -28,7 +28,6 @@ var someWorkspaces = []entity.WorkspaceWithMeta{
 		Workspace: entity.Workspace{
 			ID:               "test-id",
 			Name:             "testName",
-			WorkspaceGroupID: "wgi",
 			OrganizationID:   "oi",
 			WorkspaceClassID: "wci",
 			CreatedByUserID:  "cui",

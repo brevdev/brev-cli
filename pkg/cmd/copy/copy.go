@@ -1,7 +1,6 @@
 package copy
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -18,8 +17,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
-	"github.com/briandowns/spinner"
 
 	"github.com/spf13/cobra"
 )
@@ -34,8 +31,6 @@ type CopyStore interface {
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
-	StartWorkspace(workspaceID string) (*entity.Workspace, error)
-	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetCurrentUserKeys() (*entity.UserKeys, error)
 	GetAccessToken() (string, error)
 }
@@ -89,9 +84,9 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 		return copyExternalNode(t, cstore, target.Node, localPath, remotePath, isUpload)
 	}
 
-	workspace, err := prepareWorkspace(t, cstore, target.Workspace)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+	workspace := target.Workspace
+	if err := util.RequireRunning(workspace); err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	sshName, err := setupSSHConnection(t, cstore, workspace, host)
@@ -99,9 +94,7 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 		return breverrors.WrapAndTrace(err)
 	}
 
-	_ = writeconnectionevent.WriteWCEOnEnv(cstore, workspace.DNS)
-
-	err = runSCP(t, sshName, localPath, remotePath, isUpload)
+	err = runCopyWithFallback(t, sshName, localPath, remotePath, isUpload)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -130,32 +123,6 @@ func parseCopyArguments(source, dest string) (workspaceNameOrID, remotePath, loc
 	return destWorkspace, destPath, source, true, nil
 }
 
-func prepareWorkspace(t *terminal.Terminal, cstore CopyStore, workspace *entity.Workspace) (*entity.Workspace, error) {
-	s := t.NewSpinner()
-
-	if workspace.Status == "STOPPED" {
-		err := startWorkspaceIfStopped(t, s, cstore, workspace.Name, workspace)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-	}
-
-	err := pollUntil(s, workspace.ID, "RUNNING", cstore, " waiting for instance to be ready...")
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(cstore, workspace.Name)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if workspace.Status != "RUNNING" {
-		return nil, breverrors.New("Workspace is not running")
-	}
-
-	return workspace, nil
-}
-
 func setupSSHConnection(t *terminal.Terminal, cstore CopyStore, workspace *entity.Workspace, host bool) (string, error) {
 	refreshRes := refresh.RunRefreshAsync(cstore)
 
@@ -172,7 +139,7 @@ func setupSSHConnection(t *terminal.Terminal, cstore CopyStore, workspace *entit
 	}
 
 	s := t.NewSpinner()
-	err = waitForSSHToBeAvailable(sshName, s)
+	err = util.WaitForSSHToBeAvailable(sshName, s, func() error { return refresh.RunRefreshAsync(cstore).Await() })
 	if err != nil {
 		return "", breverrors.WrapAndTrace(err)
 	}
@@ -212,33 +179,26 @@ func parseWorkspacePath(path string) (workspace, filePath string, err error) {
 	return parts[0], parts[1], nil
 }
 
-func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
-	var scpCmd *exec.Cmd
-	var source, dest string
+type commandRunner func(name string, args ...string) ([]byte, error)
+
+func combinedOutputRunner(name string, args ...string) ([]byte, error) {
+	cmd := exec.Command(name, args...) //nolint:gosec // Command and args come from internal call sites using fixed binaries/flags (rsync/scp).
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return output, fmt.Errorf("run %s command: %w", name, err)
+	}
+	return output, nil
+}
+
+func runCopyWithFallback(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUpload bool) error {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
 
 	startTime := time.Now()
-
-	scpArgs := []string{"scp"}
-
-	if isUpload {
-		if isDirectory(localPath) {
-			scpArgs = append(scpArgs, "-r")
-		}
-		scpArgs = append(scpArgs, localPath, fmt.Sprintf("%s:%s", sshAlias, remotePath))
-		source = localPath
-		dest = fmt.Sprintf("%s:%s", sshAlias, remotePath)
-	} else {
-		scpArgs = append(scpArgs, "-r")
-		scpArgs = append(scpArgs, fmt.Sprintf("%s:%s", sshAlias, remotePath), localPath)
-		source = fmt.Sprintf("%s:%s", sshAlias, remotePath)
-		dest = localPath
-	}
-
-	scpCmd = exec.Command(scpArgs[0], scpArgs[1:]...) //nolint:gosec //sshAlias is validated workspace identifier
-
-	output, err := scpCmd.CombinedOutput()
+	err := transferWithFallback(sshAlias, localPath, remotePath, isUpload, combinedOutputRunner, rsyncInstalledLocally, func(reason string) {
+		t.Vprint(t.Yellow("%s\n", reason))
+	})
 	if err != nil {
-		return breverrors.WrapAndTrace(fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output)))
+		return breverrors.WrapAndTrace(err)
 	}
 
 	duration := time.Since(startTime)
@@ -248,53 +208,119 @@ func runSCP(t *terminal.Terminal, sshAlias, localPath, remotePath string, isUplo
 	return nil
 }
 
-func waitForSSHToBeAvailable(sshAlias string, s *spinner.Spinner) error {
-	counter := 0
-	s.Suffix = " waiting for SSH connection to be available"
-	s.Start()
-	for {
-		cmd := exec.Command("ssh", "-o", "ConnectTimeout=10", sshAlias, "echo", " ")
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-			s.Stop()
-			return nil
-		}
-
-		outputStr := string(out)
-		stdErr := strings.Split(outputStr, "\n")[1]
-
-		if counter == 40 || !store.SatisfactorySSHErrMessage(stdErr) {
-			return breverrors.WrapAndTrace(errors.New("\n" + stdErr))
-		}
-
-		counter++
-		time.Sleep(1 * time.Second)
-	}
+func rsyncInstalledLocally() bool {
+	_, err := exec.LookPath("rsync")
+	return err == nil
 }
 
-func startWorkspaceIfStopped(t *terminal.Terminal, s *spinner.Spinner, tstore CopyStore, wsIDOrName string, workspace *entity.Workspace) error {
-	activeOrg, err := tstore.GetActiveOrganizationOrDefault()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+func transferWithFallback(sshAlias, localPath, remotePath string, isUpload bool, runner commandRunner, rsyncAvailable func() bool, onFallback func(reason string)) error {
+	notifyFallback := func(reason string) {
+		if onFallback != nil {
+			onFallback(reason)
+		}
 	}
-	workspaces, err := tstore.GetWorkspaceByNameOrID(activeOrg.ID, wsIDOrName)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+
+	// Directory sources are normalized to contents-copy form so the
+	// destination always mirrors the source, whether or not it already
+	// exists, and rsync and scp produce identical layouts. Uploads can
+	// stat the local source; downloads probe the remote path type.
+	sourceIsDir := isUpload && isDirectory(localPath)
+	if !isUpload {
+		sourceIsDir = remotePathIsDir(sshAlias, remotePath, runner)
 	}
-	startedWorkspace, err := tstore.StartWorkspace(workspaces[0].ID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+
+	if !rsyncAvailable() {
+		notifyFallback("rsync not found on this machine, using scp. Install rsync for faster transfers.")
+		return runSCPCommand(sshAlias, localPath, remotePath, isUpload, sourceIsDir, runner)
 	}
-	t.Vprintf("%s", t.Yellow("Instance %s is starting. \n\n", startedWorkspace.Name))
-	err = pollUntil(s, workspace.ID, entity.Running, tstore, " hang tight 🤙")
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
+
+	err := runRsyncCommand(sshAlias, localPath, remotePath, isUpload, sourceIsDir, runner)
+	if err == nil {
+		return nil
 	}
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(tstore, wsIDOrName)
+
+	if strings.Contains(err.Error(), "command not found") {
+		notifyFallback("rsync is not installed on the instance, falling back to scp. Install rsync on the instance for faster transfers.")
+	} else {
+		notifyFallback("rsync failed, falling back to scp...")
+	}
+
+	scpErr := runSCPCommand(sshAlias, localPath, remotePath, isUpload, sourceIsDir, runner)
+	if scpErr != nil {
+		return fmt.Errorf("%v\nscp fallback failed: %w", err, scpErr)
+	}
+
+	return nil
+}
+
+func remotePathIsDir(sshAlias, remotePath string, runner commandRunner) bool {
+	quoted := "'" + strings.ReplaceAll(remotePath, "'", `'\''`) + "'"
+	_, err := runner("ssh", sshAlias, "test", "-d", quoted)
+	return err == nil
+}
+
+func runRsyncCommand(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool, runner commandRunner) error {
+	rsyncArgs := buildRsyncArgs(sshAlias, localPath, remotePath, isUpload, sourceIsDir)
+	output, err := runner("rsync", rsyncArgs...)
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		return fmt.Errorf("rsync failed: %s\nOutput: %s", err.Error(), string(output))
 	}
 	return nil
+}
+
+func runSCPCommand(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool, runner commandRunner) error {
+	scpArgs := buildSCPArgs(sshAlias, localPath, remotePath, isUpload, sourceIsDir)
+	output, err := runner("scp", scpArgs...)
+	if err != nil {
+		return fmt.Errorf("scp failed: %s\nOutput: %s", err.Error(), string(output))
+	}
+	return nil
+}
+
+func buildRsyncArgs(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool) []string {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
+
+	rsyncArgs := []string{"-z", "-e", "ssh"}
+	if !isUpload || sourceIsDir {
+		rsyncArgs = append(rsyncArgs, "-r")
+	}
+	// A trailing slash makes rsync copy the directory's contents, so the
+	// destination becomes the copy instead of having the source directory
+	// nested inside it. scp gets the same treatment via "/." below.
+	if sourceIsDir && !strings.HasSuffix(source, "/") {
+		source += "/"
+	}
+	rsyncArgs = append(rsyncArgs, source, dest)
+
+	return rsyncArgs
+}
+
+func buildSCPArgs(sshAlias, localPath, remotePath string, isUpload, sourceIsDir bool) []string {
+	source, dest := transferEndpoints(sshAlias, localPath, remotePath, isUpload)
+
+	scpArgs := []string{}
+	if !isUpload || sourceIsDir {
+		scpArgs = append(scpArgs, "-r")
+	}
+	// "dir/." makes scp copy the directory's contents, mirroring rsync's
+	// trailing-slash behavior regardless of whether the destination exists.
+	if sourceIsDir {
+		if !strings.HasSuffix(source, "/") {
+			source += "/"
+		}
+		source += "."
+	}
+	scpArgs = append(scpArgs, source, dest)
+
+	return scpArgs
+}
+
+func transferEndpoints(sshAlias, localPath, remotePath string, isUpload bool) (source, dest string) {
+	remoteTarget := fmt.Sprintf("%s:%s", sshAlias, remotePath)
+	if isUpload {
+		return localPath, remoteTarget
+	}
+	return remoteTarget, localPath
 }
 
 func copyExternalNode(t *terminal.Terminal, cstore CopyStore, node *nodev1.ExternalNode, localPath, remotePath string, isUpload bool) error {
@@ -311,30 +337,10 @@ func copyExternalNode(t *terminal.Terminal, cstore CopyStore, node *nodev1.Exter
 	}
 
 	s := t.NewSpinner()
-	err = waitForSSHToBeAvailable(alias, s)
+	err = util.WaitForSSHToBeAvailable(alias, s, func() error { return refresh.RunRefreshAsync(cstore).Await() })
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	return runSCP(t, alias, localPath, remotePath, isUpload)
-}
-
-func pollUntil(s *spinner.Spinner, wsid string, state string, copyStore CopyStore, waitMsg string) error {
-	isReady := false
-	s.Suffix = waitMsg
-	s.Start()
-	for !isReady {
-		time.Sleep(5 * time.Second)
-		ws, err := copyStore.GetWorkspace(wsid)
-		if err != nil {
-			s.Stop()
-			return breverrors.WrapAndTrace(err)
-		}
-		s.Suffix = waitMsg
-		if ws.Status == state {
-			isReady = true
-		}
-	}
-	s.Stop()
-	return nil
+	return runCopyWithFallback(t, alias, localPath, remotePath, isUpload)
 }

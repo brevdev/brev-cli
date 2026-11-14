@@ -53,10 +53,9 @@ func (t TestStore) GetWorkspaceSecretsConfig(_ string) (string, error) {
 
 func (t TestStore) GetWorkspaceMeta(id string) (*store.WorkspaceMeta, error) {
 	return &store.WorkspaceMeta{
-		WorkspaceID:      id,
-		WorkspaceGroupID: "",
-		UserID:           "",
-		OrganizationID:   "",
+		WorkspaceID:    id,
+		UserID:         "",
+		OrganizationID: "",
 	}, nil
 }
 

@@ -13,6 +13,12 @@
 
 set -e
 
+# GitHub API token: GITHUB_TOKEN env, else gh auth token.
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+if [ -z "${GITHUB_TOKEN}" ] && command -v gh >/dev/null 2>&1; then
+    GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"
+fi
+
 # Configuration
 REPO="brevdev/brev-cli"
 BRANCH="main"
@@ -116,7 +122,7 @@ done
 rm -rf "$TMPDIR"
 
 # Resolve commit SHA and write .version file
-VERSION_RESPONSE=$(curl -fsSL "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>&1) || true
+VERSION_RESPONSE=$(curl -fsSL ${GITHUB_TOKEN:+-H "Authorization: token ${GITHUB_TOKEN}"} "https://api.github.com/repos/$REPO/commits/$BRANCH" 2>&1) || true
 if echo "$VERSION_RESPONSE" | grep -q "API rate limit exceeded"; then
     echo -e "  ${YELLOW}⚠${NC} .version (skipped — GitHub API rate limit exceeded)"
     echo -e "  ${YELLOW}If you are using a VPN, try turning it off and running this script again.${NC}"

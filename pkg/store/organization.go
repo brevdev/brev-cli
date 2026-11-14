@@ -1,8 +1,12 @@
 package store
 
 import (
+	"context"
 	"fmt"
 	"strings"
+
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
 
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
@@ -65,26 +69,7 @@ func (f FileStore) GetCachedActiveOrganizationOrNil() (*entity.Organization, err
 // returns the 'set'/active organization or nil if not set
 func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error) {
 	if auth.IsAPIKeyAuthStore(&s) {
-		orgID, err := auth.GetAPIKeyOrgID(&s)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		org := &entity.Organization{ID: orgID, Name: orgID}
-		// Name hydration is best-effort; the command itself should surface backend auth errors.
-		freshOrg, err := s.GetOrganization(orgID)
-		if err != nil {
-			return org, nil
-		}
-		if freshOrg == nil {
-			return org, nil
-		}
-		if freshOrg.ID == "" {
-			freshOrg.ID = orgID
-		}
-		if freshOrg.Name == "" {
-			freshOrg.Name = freshOrg.ID
-		}
-		return freshOrg, nil
+		return s.hydrateOrgFromApiKey()
 	}
 
 	workspaceID, err := s.GetCurrentWorkspaceID()
@@ -92,17 +77,7 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		return nil, breverrors.WrapAndTrace(err)
 	}
 	if workspaceID != "" {
-		var workspace *entity.Workspace
-		workspace, err = s.GetWorkspace(workspaceID)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		var org *entity.Organization
-		org, err = s.GetOrganization(workspace.OrganizationID)
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		return org, nil
+		return s.hydrateOrgFromWorkspace(workspaceID)
 	}
 
 	activeOrg, err := s.GetCachedActiveOrganizationOrNil()
@@ -118,12 +93,94 @@ func (s AuthHTTPStore) GetActiveOrganizationOrNil() (*entity.Organization, error
 		if !IsNetwork404Or403Error(err) { // handle because can login with bad cache
 			return nil, breverrors.WrapAndTrace(err)
 		}
+		return s.fallbackToFirstOrganization()
+	}
+	return freshOrg, nil
+}
+
+// fallbackToFirstOrganization picks the first organization available to the
+// current credential and records it as active, replacing a cached active org
+// that no longer resolves. Returns (nil, nil) when the credential has no orgs.
+func (s AuthHTTPStore) fallbackToFirstOrganization() (*entity.Organization, error) {
+	orgs, err := s.GetOrganizations(nil)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	org := GetDefaultOrNilOrg(orgs)
+	if org == nil {
+		return nil, nil
+	}
+	// Best-effort cache repair: failing to persist must not fail the command,
+	// it only costs one extra lookup next time.
+	_ = s.SetDefaultOrganization(org)
+	return org, nil
+}
+
+func (s AuthHTTPStore) hydrateOrgFromWorkspace(workspaceID string) (*entity.Organization, error) {
+	var workspace *entity.Workspace
+	workspace, err := s.GetWorkspace(workspaceID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	var org *entity.Organization
+	org, err = s.GetOrganization(workspace.OrganizationID)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return org, nil
+}
+
+func (s AuthHTTPStore) hydrateOrgFromApiKey() (*entity.Organization, error) {
+	org, err := auth.ResolveEnvAPIKeyOrg(&s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if org != nil {
+		return org, nil
+	}
+	orgID, err := auth.GetAPIKeyOrgID(&s)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	org = &entity.Organization{ID: orgID, Name: orgID}
+	// Name hydration is best-effort; the command itself should surface backend auth errors.
+	freshOrg, err := s.GetOrganization(orgID)
+	if err != nil {
+		return org, nil
+	}
+	if freshOrg == nil {
+		return org, nil
+	}
+	if freshOrg.ID == "" {
+		freshOrg.ID = orgID
+	}
+	if freshOrg.Name == "" {
+		freshOrg.Name = freshOrg.ID
 	}
 	return freshOrg, nil
 }
 
 // returns the 'set'/active organization or the default one or nil if no orgs exist
 func (s AuthHTTPStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
+	if (s.organizationOverride != nil || s.organizationOverrideName != "") && auth.IsAPIKeyAuthStore(&s) {
+		return nil, breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+	}
+	if s.organizationOverride != nil {
+		return s.organizationOverride, nil
+	}
+	if s.organizationOverrideName != "" {
+		orgs, err := s.GetOrganizations(&GetOrganizationsOptions{Name: s.organizationOverrideName})
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		if len(orgs) == 0 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", s.organizationOverrideName))
+		}
+		if len(orgs) > 1 {
+			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", s.organizationOverrideName))
+		}
+		return &orgs[0], nil
+	}
 	org, err := s.GetActiveOrganizationOrNil()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
@@ -251,28 +308,36 @@ func (s AuthHTTPStore) CreateInviteLink(organizationID string) (string, error) {
 	return result, nil
 }
 
+func (s *AuthHTTPStore) ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error) {
+	client := s.DevPlane().Organizations
+
+	var members []*nodev1.OrganizationMember
+	var pageToken string
+	for {
+		resp, err := client.ListOrganizationMembers(ctx, connect.NewRequest(&nodev1.ListOrganizationMembersRequest{
+			OrganizationId: orgID,
+			PageParams: &nodev1.PageParams{
+				PageSize:  1000,
+				PageToken: pageToken,
+			},
+		}))
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		members = append(members, resp.Msg.GetItems()...)
+		pageToken = resp.Msg.GetNextPageToken()
+		if pageToken == "" {
+			return members, nil
+		}
+	}
+}
+
 func GetDefaultOrNilOrg(orgs []entity.Organization) *entity.Organization {
 	if len(orgs) > 0 {
 		return &orgs[0]
 	} else {
 		return nil
 	}
-}
-
-func (s AuthHTTPStore) GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error) {
-	var result []entity.OrgRoleAttachment
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetResult(&result).
-		Get(fmt.Sprintf("api/organizations/%s/role_attachments", orgID))
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-
-	return result, nil
 }
 
 type RedeemCouponCodeRequest struct {

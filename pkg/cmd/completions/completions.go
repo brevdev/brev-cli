@@ -1,8 +1,12 @@
 package completions
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/spf13/cobra"
@@ -20,7 +24,7 @@ type CompletionHandler func(cmd *cobra.Command, args []string, toComplete string
 
 func GetAllWorkspaceNameCompletionHandler(completionStore CompletionStore, t *terminal.Terminal) CompletionHandler {
 	return func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		org, err := completionStore.GetActiveOrganizationOrDefault()
+		org, err := getOrganizationForCompletion(cmd, completionStore)
 		if err != nil {
 			t.Errprint(err, "")
 			return nil, cobra.ShellCompDirectiveError
@@ -52,6 +56,33 @@ func GetAllWorkspaceNameCompletionHandler(completionStore CompletionStore, t *te
 
 		return workspaceNames, cobra.ShellCompDirectiveDefault
 	}
+}
+
+func getOrganizationForCompletion(cmd *cobra.Command, completionStore CompletionStore) (*entity.Organization, error) {
+	orgFlag := cmd.Flag("org")
+	if orgFlag == nil || strings.TrimSpace(orgFlag.Value.String()) == "" {
+		org, err := completionStore.GetActiveOrganizationOrDefault()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		return org, nil
+	}
+	if auth.IsAPIKeyAuthStore(completionStore) {
+		return nil, fmt.Errorf("%s", auth.APIKeyOrganizationOverrideNotSupportedMessage)
+	}
+
+	orgName := strings.TrimSpace(orgFlag.Value.String())
+	orgs, err := completionStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgName})
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	if len(orgs) == 0 {
+		return nil, fmt.Errorf("no org found with name %s", orgName)
+	}
+	if len(orgs) > 1 {
+		return nil, fmt.Errorf("more than one org found with name %s", orgName)
+	}
+	return &orgs[0], nil
 }
 
 func GetOrgsNameCompletionHandler(completionStore CompletionStore, t *terminal.Terminal) CompletionHandler {

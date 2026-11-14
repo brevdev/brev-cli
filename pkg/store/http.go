@@ -3,13 +3,21 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"runtime"
+	"slices"
 	"strings"
 
+	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
+	"github.com/brevdev/brev-cli/pkg/config"
+	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
+
 	resty "github.com/go-resty/resty/v2"
 )
 
@@ -40,17 +48,79 @@ func NewNoAuthHTTPClient(brevAPIURL string) *NoAuthHTTPClient {
 func NewRestyClient(brevAPIURL string) *resty.Client {
 	restyClient := resty.New()
 	restyClient.SetBaseURL(brevAPIURL)
-	restyClient.SetQueryParam("utm_source", "cli")
-	restyClient.SetQueryParam("cli_version", version.Version)
-	restyClient.SetQueryParam("os", runtime.GOOS)
+	for _, param := range cliAttributionParams {
+		restyClient.SetQueryParam(param[0], param[1])
+	}
 	return restyClient
+}
+
+// cliAttributionParams are the query parameters every Brev API request carries
+// so backend traffic can be attributed to a CLI build
+var cliAttributionParams = [][2]string{
+	{"utm_source", "cli"},
+	{"cli_version", version.Version},
+	{"os", runtime.GOOS},
+}
+
+// AddCLIAttributionParams adds the CLI attribution query params to an outbound
+// Brev API request, preserving whatever query string the caller already set.
+// Params already present are left alone.
+func AddCLIAttributionParams(req *http.Request) {
+	if req.URL == nil {
+		return
+	}
+	query := req.URL.RawQuery
+	for _, param := range cliAttributionParams {
+		if strings.Contains(query, param[0]+"=") {
+			continue
+		}
+		if query != "" {
+			query += "&"
+		}
+		query += param[0] + "=" + url.QueryEscape(param[1])
+	}
+	req.URL.RawQuery = query
+}
+
+// attributionTransport adds the CLI attribution params to requests that need no
+// authentication (for example the public instance-type API).
+type attributionTransport struct {
+	base http.RoundTripper
+}
+
+func (t attributionTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	AddCLIAttributionParams(req)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
+	}
+	return resp, nil
 }
 
 type AuthHTTPStore struct {
 	NoAuthHTTPStore
 	authHTTPClient           *AuthHTTPClient
 	isRefreshTokenHandlerSet bool
+	organizationOverride     *entity.Organization
+	organizationOverrideName string
+	devPlaneClient           *DevPlaneClient
 	BasicStore
+}
+
+// SetOrganizationOverride selects an organization for the lifetime of this
+// store. It deliberately does not update the user's persisted active org.
+func (s *AuthHTTPStore) SetOrganizationOverride(org *entity.Organization) {
+	s.organizationOverride = org
+	s.organizationOverrideName = ""
+}
+
+// SetOrganizationOverrideName selects an organization by name for the lifetime
+// of this store. Resolution is deferred until the organization is needed so
+// the request uses this store's authentication flow.
+func (s *AuthHTTPStore) SetOrganizationOverrideName(name string) {
+	s.organizationOverride = nil
+	s.organizationOverrideName = strings.TrimSpace(name)
 }
 
 func (n *NoAuthHTTPStore) GetWindowsDir() (string, error) {
@@ -77,7 +147,9 @@ func (f *FileStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 		c.restyClient.SetQueryParam("local", "true")
 	}
 	na := f.WithNoAuthHTTPClient(NewNoAuthHTTPClient(c.restyClient.BaseURL))
-	return &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
+	s := &AuthHTTPStore{NoAuthHTTPStore: *na, authHTTPClient: c}
+	s.devPlaneClient = NewDevPlaneClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	return s
 }
 
 func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
@@ -86,7 +158,9 @@ func (n *NoAuthHTTPStore) WithAuthHTTPClient(c *AuthHTTPClient) *AuthHTTPStore {
 	if id == "" {
 		c.restyClient.SetQueryParam("local", "true")
 	}
-	return &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
+	s := &AuthHTTPStore{NoAuthHTTPStore: *n, authHTTPClient: c}
+	s.devPlaneClient = NewDevPlaneClient(s, config.GlobalConfig.GetBrevPublicAPIURL())
+	return s
 }
 
 func (n *NoAuthHTTPStore) WithAuth(auth Auth, options ...Option) *AuthHTTPStore {
@@ -151,6 +225,64 @@ func WithDebug(debug bool) Option {
 	}
 }
 
+// quietRestyLogger swallows resty's retry WARN/ERROR chatter for expected,
+// user-driven errors (declined login). Everything else logs as before.
+type quietRestyLogger struct {
+	next resty.Logger
+}
+
+func (q quietRestyLogger) Errorf(format string, v ...interface{}) {
+	if isDeclinedLoginMsg(format, v...) {
+		return
+	}
+	q.next.Errorf(format, v...)
+}
+
+func (q quietRestyLogger) Warnf(format string, v ...interface{}) {
+	if isDeclinedLoginMsg(format, v...) {
+		return
+	}
+	q.next.Warnf(format, v...)
+}
+
+func (q quietRestyLogger) Debugf(format string, v ...interface{}) {
+	q.next.Debugf(format, v...)
+}
+
+func isDeclinedLoginMsg(format string, v ...interface{}) bool {
+	if !strings.Contains(format, "%v") { // formatted messages embed the error
+		return false
+	}
+	msg := fmt.Sprintf(format, v...)
+	return strings.Contains(msg, breverrors.DeclineToLoginMessage)
+}
+
+// stderrLogger mirrors resty's default logger (stderr, date+microseconds,
+// "WARN RESTY"/"ERROR RESTY" prefixes) so quietRestyLogger has a real sink.
+type stderrLogger struct {
+	l *log.Logger
+}
+
+func newStderrLogger() stderrLogger {
+	return stderrLogger{l: log.New(os.Stderr, "", log.Ldate|log.Lmicroseconds)}
+}
+
+func (s stderrLogger) Errorf(format string, v ...interface{}) {
+	s.outputf("ERROR RESTY "+format, v...)
+}
+
+func (s stderrLogger) Warnf(format string, v ...interface{}) {
+	s.outputf("WARN RESTY "+format, v...)
+}
+
+func (s stderrLogger) Debugf(format string, v ...interface{}) {
+	s.outputf("DEBUG RESTY "+format, v...)
+}
+
+func (s stderrLogger) outputf(format string, v ...interface{}) {
+	_ = s.l.Output(2, fmt.Sprintf(format, v...))
+}
+
 func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTTPClient {
 	opts := &Options{}
 	for _, o := range options {
@@ -158,6 +290,10 @@ func NewAuthHTTPClient(auth Auth, brevAPIURL string, options ...Option) *AuthHTT
 	}
 	restyClient := NewRestyClient(brevAPIURL)
 	restyClient.Debug = opts.Debug
+	// quietRestyLogger wraps a real stderr logger (matching resty's default
+	// format) and swallows only declined-login retry chatter. Everything else
+	// — genuine HTTP errors, debug output when Debug is on — still logs.
+	restyClient.SetLogger(quietRestyLogger{next: newStderrLogger()})
 	restyClient.OnBeforeRequest(func(c *resty.Client, r *resty.Request) error {
 		token, err := auth.GetAccessToken()
 		if err != nil {
@@ -188,7 +324,16 @@ func NewHTTPResponseError(response *resty.Response) *HTTPResponseError {
 	}
 }
 
+const expiredAPIKeyMessage = "Your API key is invalid or has expired. Generate a new API key and run 'brev login --api-key <new-api-key>' (or pass --api-key <new-api-key>)"
+
 func (e HTTPResponseError) Error() string {
+	if e.Response.StatusCode() == http.StatusUnauthorized && e.Response.Request != nil && auth.IsBrevAPIKey(e.Response.Request.Token) {
+		return expiredAPIKeyMessage + "\n" + e.baseError()
+	}
+	return e.baseError()
+}
+
+func (e HTTPResponseError) baseError() string {
 	body := e.Response.Body()
 	if featureflag.Debug() {
 		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
@@ -203,9 +348,25 @@ func (e HTTPResponseError) Error() string {
 		msg = msg + e.Message + "\n"
 	}
 	if strings.TrimSpace(msg) == "" {
+		// Match on the control plane's own typed discriminator (the "type" field)
+		// rather than the HTTP status: it only fires on the control plane's
+		// typed-but-messageless auth error, so it won't misfire on non-control-plane
+		// 401s like GitHub's {"message":"Bad credentials"} during `brev upgrade`.
+		if len(errors.Errors) > 0 && errors.Errors[0].Kind == "UnauthorizedError" {
+			if requestUsedBrevAPIKey(e.Response.Request) {
+				return "your Brev API key is invalid or expired — check BREV_API_KEY or re-run `brev login --api-key <key>`"
+			}
+			return "you're logged out — run `brev login` to authenticate"
+		}
 		return fmt.Sprintf("%s %s %s", e.Response.Request.URL, e.Response.Status(), body)
 	}
 	return msg
+}
+
+// requestUsedBrevAPIKey reports whether the failed request authenticated with a
+// Brev API key. resty stores the SetAuthToken value on Request.Token.
+func requestUsedBrevAPIKey(req *resty.Request) bool {
+	return req != nil && auth.IsBrevAPIKey(req.Token)
 }
 
 func IsNetwork404Or403Error(err error) bool {
@@ -216,12 +377,7 @@ func IsNetworkErrorWithStatus(err error, statusCodes []int) bool {
 	switch err := err.(type) {
 	case *HTTPResponseError:
 		statusCode := err.Response.StatusCode()
-		for _, c := range statusCodes {
-			if c == statusCode {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(statusCodes, statusCode)
 	default:
 		return false
 	}

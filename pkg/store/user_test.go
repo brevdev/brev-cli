@@ -105,10 +105,9 @@ func TestUpdateUser(t *testing.T) {
 	httpmock.RegisterResponder("PUT", url, res)
 
 	u, err := s.UpdateUser(expected.ID, &entity.UpdateUser{
-		Username:          "",
-		Name:              "",
-		Email:             "",
-		BaseWorkspaceRepo: "",
+		Username: "",
+		Name:     "",
+		Email:    "",
 	})
 	if !assert.Nil(t, err) {
 		return
@@ -117,6 +116,30 @@ func TestUpdateUser(t *testing.T) {
 		return
 	}
 	if !assert.Equal(t, expected, u) {
+		return
+	}
+}
+
+func TestGetCurrentUserID_FallsBackToAPIUserWhenNoWorkspaceMeta(t *testing.T) {
+	s := MakeMockAuthHTTPStore()
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+
+	// No /etc/meta/workspace.json exists on the mock FS, so
+	// GetCurrentWorkspaceMeta errors — GetCurrentUserID must fall back to the
+	// API user instead of returning an empty ID.
+	expected := &entity.User{ID: "user-abc"}
+	res, err := httpmock.NewJsonResponder(200, expected)
+	if !assert.Nil(t, err) {
+		return
+	}
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, mePath)
+	httpmock.RegisterResponder("GET", url, res)
+
+	uid, err := s.GetCurrentUserID()
+	if !assert.Nil(t, err) {
+		return
+	}
+	if !assert.Equal(t, "user-abc", uid) {
 		return
 	}
 }

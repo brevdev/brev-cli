@@ -2,12 +2,18 @@ package login
 
 import (
 	"bytes"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
+	"github.com/go-resty/resty/v2"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,12 +48,16 @@ func (m *mockLoginAuth) LoginWithAPIKey(apiKey string, orgID string) error {
 type mockLoginStore struct {
 	getCurrentUserCalls     int
 	createUserCalls         int
+	createUserErr           error
 	getOrCreateOrgCalls     int
 	createOrganizationCalls int
 	setDefaultOrgCalls      int
 	updateUserCalls         int
 	userHomeDirCalls        int
 	defaultOrg              *entity.Organization
+	listOrgs                []entity.Organization
+	listOrgsErr             error
+	listOrgsFn              func() ([]entity.Organization, error)
 }
 
 func (m *mockLoginStore) SaveAuthTokens(_ entity.AuthTokens) error   { return nil }
@@ -61,7 +71,84 @@ func (m *mockLoginStore) GetCurrentUser() (*entity.User, error) {
 
 func (m *mockLoginStore) CreateUser(_ string) (*entity.User, error) {
 	m.createUserCalls++
+	if m.createUserErr != nil {
+		return nil, m.createUserErr
+	}
 	return &entity.User{}, nil
+}
+
+func accountCreationHTTPError(t *testing.T, status int, body string) error {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	response, err := resty.New().R().Post(server.URL)
+	require.NoError(t, err)
+	return store.NewHTTPResponseError(response)
+}
+
+func TestLoginAndGetOrCreateUser_CreationOutcomes(t *testing.T) {
+	tests := []struct {
+		name        string
+		createError func(*testing.T) error
+		wantUser    bool
+	}{
+		{name: "successful account API response", wantUser: true},
+		{
+			name: "conflict without a recovery contract",
+			createError: func(t *testing.T) error {
+				return accountCreationHTTPError(t, http.StatusConflict, `{"errors":[{"type":"AlreadyExistsError","message":"Conflict"}]}`)
+			},
+		},
+		{
+			name: "unrelated bad request",
+			createError: func(t *testing.T) error {
+				return accountCreationHTTPError(t, http.StatusBadRequest, `{"errors":[{"type":"BadRequestError","message":"Bad Request"}]}`)
+			},
+		},
+		{
+			name: "uncoded collision text",
+			createError: func(_ *testing.T) error {
+				return errors.New("duplicate username")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			loginStore := &mockLoginStore{}
+			if tt.createError != nil {
+				loginStore.createUserErr = tt.createError(t)
+			}
+			auth := &mockLoginAuth{}
+			user, err := (LoginOptions{Auth: auth, LoginStore: loginStore}).loginAndGetOrCreateUser("", false)
+			if tt.wantUser {
+				require.NoError(t, err)
+				require.Equal(t, "user-1", user.ID)
+				require.Equal(t, 1, loginStore.getCurrentUserCalls)
+			} else {
+				require.Error(t, err)
+				require.Nil(t, user)
+				require.Equal(t, 0, loginStore.getCurrentUserCalls)
+			}
+			require.Equal(t, 1, auth.loginCalls)
+			require.Equal(t, 1, loginStore.createUserCalls)
+		})
+	}
+}
+
+func TestLoginAndGetOrCreateUser_WithTokenUsesExistingAccount(t *testing.T) {
+	loginStore := &mockLoginStore{}
+	auth := &mockLoginAuth{}
+	user, err := (LoginOptions{Auth: auth, LoginStore: loginStore}).loginAndGetOrCreateUser("login-token", false)
+	require.NoError(t, err)
+	require.Equal(t, "user-1", user.ID)
+	require.Equal(t, 1, auth.tokenCalls)
+	require.Equal(t, 0, auth.loginCalls)
+	require.Equal(t, 0, loginStore.createUserCalls)
+	require.Equal(t, 1, loginStore.getCurrentUserCalls)
 }
 
 func (m *mockLoginStore) SetDefaultOrganization(org *entity.Organization) error {
@@ -72,6 +159,13 @@ func (m *mockLoginStore) SetDefaultOrganization(org *entity.Organization) error 
 
 func (m *mockLoginStore) GetOrganizations(_ *store.GetOrganizationsOptions) ([]entity.Organization, error) {
 	return []entity.Organization{{ID: "org-1", Name: "org"}}, nil
+}
+
+func (m *mockLoginStore) ListOrganizations() ([]entity.Organization, error) {
+	if m.listOrgsFn != nil {
+		return m.listOrgsFn()
+	}
+	return m.listOrgs, m.listOrgsErr
 }
 
 func (m *mockLoginStore) GetActiveOrganizationOrDefault() (*entity.Organization, error) {
@@ -112,12 +206,12 @@ func (m *mockLoginStore) GetAllWorkspaces(_ *store.GetWorkspacesOptions) ([]enti
 func (m *mockLoginStore) GetCurrentWorkspaceID() (string, error) { return "", nil }
 func (m *mockLoginStore) GetWindowsDir() (string, error)         { return "", nil }
 
-func TestRunLoginWithAPIKey_SavesKeyAndOrgWithoutUserOrBackendOrgCalls(t *testing.T) {
+func TestRunLoginWithAPIKey_SavesKeyAndResolvedOrg(t *testing.T) {
 	auth := &mockLoginAuth{}
-	loginStore := &mockLoginStore{}
+	loginStore := &mockLoginStore{listOrgs: []entity.Organization{{ID: "org-test", Name: "TestOrg"}}}
 	opts := LoginOptions{Auth: auth, LoginStore: loginStore}
 
-	err := opts.RunLogin(terminal.New(), "", "  "+testAPIKey+"  ", "  org-test  ", false, "", "")
+	err := opts.RunLogin(terminal.New(), "", "  "+testAPIKey+"  ", "", false, "", "")
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, auth.apiKeyCalls)
@@ -126,7 +220,7 @@ func TestRunLoginWithAPIKey_SavesKeyAndOrgWithoutUserOrBackendOrgCalls(t *testin
 	assert.Equal(t, 1, loginStore.setDefaultOrgCalls)
 	require.NotNil(t, loginStore.defaultOrg)
 	assert.Equal(t, "org-test", loginStore.defaultOrg.ID)
-	assert.Equal(t, "org-test", loginStore.defaultOrg.Name)
+	assert.Equal(t, "TestOrg", loginStore.defaultOrg.Name)
 	assert.Equal(t, 0, auth.tokenCalls)
 	assert.Equal(t, 0, auth.loginCalls)
 	assert.Equal(t, 0, loginStore.getCurrentUserCalls)
@@ -165,7 +259,7 @@ func TestRunLoginWithAPIKey_RejectsConflictingFlags(t *testing.T) {
 
 func TestNewCmdLoginWithAPIKey_SkipsPostLoginHooks(t *testing.T) {
 	auth := &mockLoginAuth{}
-	loginStore := &mockLoginStore{}
+	loginStore := &mockLoginStore{listOrgs: []entity.Organization{{ID: "org-test", Name: "TestOrg"}}}
 	cmd := NewCmdLogin(terminal.New(), loginStore, auth)
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
@@ -181,42 +275,98 @@ func TestNewCmdLoginWithAPIKey_SkipsPostLoginHooks(t *testing.T) {
 	assert.Equal(t, 0, loginStore.userHomeDirCalls)
 }
 
-func TestNewCmdLogin_HidesAPIKeyFlagsFromHelp(t *testing.T) {
-	cmd := NewCmdLogin(terminal.New(), &mockLoginStore{}, &mockLoginAuth{})
-	var out bytes.Buffer
+func TestNewCmdLoginWithAPIKeyRejectsGlobalOrgOverride(t *testing.T) {
+	auth := &mockLoginAuth{}
+	loginStore := &mockLoginStore{}
+	loginCmd := NewCmdLogin(terminal.New(), loginStore, auth)
+	rootCmd := &cobra.Command{Use: "brev"}
+	rootCmd.PersistentFlags().String("org", "", "organization")
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.SetOut(&bytes.Buffer{})
+	rootCmd.SetErr(&bytes.Buffer{})
+	rootCmd.SetArgs([]string{"login", "--api-key", testAPIKey, "--org-id", "org-test", "--org", "other"})
+
+	err := rootCmd.Execute()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "--org is not supported")
+	assert.Equal(t, 0, auth.apiKeyCalls)
+}
+
+func TestNewCmdLogin_OrgIDFlagDeprecationWarning(t *testing.T) {
+	auth := &mockLoginAuth{}
+	loginStore := &mockLoginStore{listOrgs: []entity.Organization{{ID: "org-test", Name: "TestOrg"}}}
+	cmd := NewCmdLogin(terminal.New(), loginStore, auth)
+	var out bytes.Buffer // cobra prints deprecated-flag warnings via c.Print -> OutOrStderr (stdout)
 	cmd.SetOut(&out)
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"--help"})
+	cmd.SetArgs([]string{"--api-key", testAPIKey, "--org-id", "org-test"})
 
 	err := cmd.Execute()
 
 	require.NoError(t, err)
-	assert.NotContains(t, out.String(), "--api-key")
-	assert.NotContains(t, out.String(), "--org-id")
+	assert.Contains(t, out.String(), "--org-id has been deprecated", "passing --org-id should warn")
+	assert.Contains(t, out.String(), "resolved automatically from the API key")
 }
 
-func TestRunLoginWithAPIKey_RejectsMissingOrgID(t *testing.T) {
-	tests := []struct {
-		name   string
-		apiKey string
-		orgID  string
-	}{
-		{name: "missing org id", apiKey: testAPIKey, orgID: "  "},
+func TestRunLoginWithAPIKey_AutoResolvesOrgWhenOrgIDOmitted(t *testing.T) {
+	auth := &mockLoginAuth{}
+	loginStore := &mockLoginStore{listOrgs: []entity.Organization{{ID: "org-123", Name: "TestOrg"}}}
+	opts := LoginOptions{Auth: auth, LoginStore: loginStore}
+
+	err := opts.RunLogin(terminal.New(), "", testAPIKey, "", false, "", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, auth.apiKeyCalls)
+	assert.Equal(t, "org-123", auth.apiKeyOrgID, "resolved org ID should be saved")
+	require.NotNil(t, loginStore.defaultOrg)
+	assert.Equal(t, "org-123", loginStore.defaultOrg.ID)
+}
+
+func TestRunLoginWithAPIKey_ResolveOrgFailureRejects(t *testing.T) {
+	auth := &mockLoginAuth{}
+	loginStore := &mockLoginStore{listOrgsErr: assert.AnError}
+	opts := LoginOptions{Auth: auth, LoginStore: loginStore}
+
+	err := opts.RunLogin(terminal.New(), "", testAPIKey, "", false, "", "")
+
+	require.Error(t, err)
+	assert.Equal(t, 0, auth.apiKeyCalls, "must not save when the key can't be resolved/validated")
+	assert.Equal(t, 0, loginStore.setDefaultOrgCalls)
+}
+
+func TestRunLoginWithAPIKey_FlagKeyActivatesOverEnvKey(t *testing.T) {
+	t.Setenv(authpkg.APIKeyEnvVar, authpkg.BrevAPIKeyPrefix+"env-key")
+	auth := &mockLoginAuth{}
+	var seenEnv string
+	loginStore := &mockLoginStore{}
+	loginStore.listOrgsErr = nil
+	loginStore.listOrgs = []entity.Organization{{ID: "org-flag", Name: "FlagOrg"}}
+	// Capture the env at ListOrganizations time to prove the flag key is active.
+	loginStore.listOrgsFn = func() ([]entity.Organization, error) {
+		seenEnv = os.Getenv(authpkg.APIKeyEnvVar)
+		return loginStore.listOrgs, nil
 	}
+	opts := LoginOptions{Auth: auth, LoginStore: loginStore}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			auth := &mockLoginAuth{}
-			loginStore := &mockLoginStore{}
-			opts := LoginOptions{Auth: auth, LoginStore: loginStore}
+	err := opts.RunLogin(terminal.New(), "", testAPIKey, "", false, "", "")
 
-			err := opts.RunLogin(terminal.New(), "", tt.apiKey, tt.orgID, false, "", "")
+	require.NoError(t, err)
+	assert.Equal(t, testAPIKey, seenEnv, "flag key must be active during org resolution")
+	assert.Equal(t, testAPIKey, auth.apiKey, "flag key must be persisted")
+	assert.Equal(t, "org-flag", auth.apiKeyOrgID, "flag key's org must be saved")
+}
 
-			require.Error(t, err)
-			assert.Equal(t, 0, auth.apiKeyCalls)
-			assert.Equal(t, 0, loginStore.setDefaultOrgCalls)
-		})
-	}
+func TestRunLogin_TokenLoginSuppressesEnvAPIKey(t *testing.T) {
+	t.Setenv(authpkg.APIKeyEnvVar, authpkg.BrevAPIKeyPrefix+"env-key")
+	auth := &mockLoginAuth{}
+	opts := LoginOptions{Auth: auth, LoginStore: &mockLoginStore{}}
+
+	err := opts.RunLogin(terminal.New(), "some-login-token", "", "", false, "", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, "", os.Getenv(authpkg.APIKeyEnvVar), "browser/token login must clear BREV_API_KEY so the saved JWT is used")
+	assert.Equal(t, 0, auth.apiKeyCalls, "token login must not take the --api-key path")
 }
 
 func TestRunLoginWithOrgIDWithoutAPIKeyRejects(t *testing.T) {

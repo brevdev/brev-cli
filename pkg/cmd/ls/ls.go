@@ -7,23 +7,24 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
-	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	devplanev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 	"connectrpc.com/connect"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	cmdutil "github.com/brevdev/brev-cli/pkg/cmd/util"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
+	"github.com/brevdev/brev-cli/pkg/environment"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -37,11 +38,11 @@ import (
 type LsStore interface {
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetCurrentUser() (*entity.User, error)
-	GetUsers(queryParams map[string]string) ([]entity.User, error)
 	GetWorkspace(workspaceID string) (*entity.Workspace, error)
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	externalnode.TokenProvider
+	DevPlane() *store.DevPlaneClient
+	GetEnvironmentsByOrg(ctx context.Context, orgID string) ([]*devplanev1.Environment, error)
 	GetAuthTokens() (*entity.AuthTokens, error)
 	GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error)
 	hello.HelloStore
@@ -49,7 +50,6 @@ type LsStore interface {
 
 func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore) *cobra.Command {
 	var showAll bool
-	var org string
 	var jsonOutput bool
 
 	cmd := &cobra.Command{
@@ -61,7 +61,7 @@ func NewCmdLs(t *terminal.Terminal, loginLsStore LsStore, noLoginLsStore LsStore
 
 Subcommands:
   instances  List cloud instances
-  nodes      List external nodes only
+  nodes      List Brev Connect machines only
   orgs       List organizations
 
 When stdout is piped, outputs instance names only (one per line) for easy chaining
@@ -91,7 +91,7 @@ with other commands like stop, start, or delete.`,
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
-			err = RunLs(t, cliAuth, loginLsStore, args, org, showAll, jsonOutput)
+			err = RunLs(cmd.Context(), t, cliAuth, loginLsStore, args, showAll, jsonOutput)
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -102,14 +102,7 @@ with other commands like stop, start, or delete.`,
 		},
 	}
 
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noLoginLsStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
-	}
-
-	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and external nodes in org")
+	cmd.Flags().BoolVar(&showAll, "all", false, "show all instances and Brev Connect machines in org")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 
 	return cmd
@@ -128,53 +121,53 @@ func trackLsAnalytics(cliAuth auth.CLIAuth) {
 	_ = analytics.TrackEvent(data)
 }
 
-func getOrgForRunLs(cliAuth auth.CLIAuth, lsStore LsStore, orgflag string) (*entity.Organization, error) {
-	var org *entity.Organization
-	if cliAuth.IsAPIKey() {
-		if orgflag != "" {
-			return nil, breverrors.NewValidationError("api key auth is scoped to the org saved during login; --org is not supported")
-		}
-		org, err := lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if org == nil {
-			return nil, breverrors.NewValidationError("no orgs exist")
-		}
-		return org, nil
+func getOrgForRunLs(lsStore LsStore) (*entity.Organization, error) {
+	org, err := lsStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return nil, breverrors.WrapAndTrace(err)
 	}
-
-	if orgflag != "" {
-		var orgs []entity.Organization
-		orgs, err := lsStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgflag})
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("no org found with name %s", orgflag))
-		} else if len(orgs) > 1 {
-			return nil, breverrors.NewValidationError(fmt.Sprintf("more than one org found with name %s", orgflag))
-		}
-
-		org = &orgs[0]
-	} else {
-		var currOrg *entity.Organization
-		currOrg, err := lsStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return nil, breverrors.WrapAndTrace(err)
-		}
-		if currOrg == nil {
-			return nil, breverrors.NewValidationError("no orgs exist")
-		}
-		org = currOrg
+	if org == nil {
+		return nil, breverrors.NewValidationError("no orgs exist")
 	}
 	return org, nil
 }
 
-func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, orgflag string, showAll bool, jsonOutput bool) error {
+// overlayStatuses applies the environment lifecycle status to the workspace
+// rows, returning any status-fetch error rather than reporting a stale or
+// missing status.
+func (ls Ls) overlayStatuses(workspaces []entity.Workspace, environments []*devplanev1.Environment, fetchErr error) error {
+	if fetchErr != nil {
+		return breverrors.WrapAndTrace(fetchErr)
+	}
+	applyStatuses(workspaces, environments)
+	return nil
+}
+
+// applyStatuses sets each workspace's status and message from the matching
+// environment, keyed by workspace ID.
+func applyStatuses(workspaces []entity.Workspace, environments []*devplanev1.Environment) {
+	byID := make(map[string]*devplanev1.Environment, len(environments))
+	for _, env := range environments {
+		byID[env.GetEnvironmentId()] = env
+	}
+	for i := range workspaces {
+		env, ok := byID[workspaces[i].ID]
+		if !ok {
+			continue
+		}
+		if display := environment.Display(env); display != "" {
+			workspaces[i].Status = display
+		}
+		if message := environment.FailureMessage(env); message != "" {
+			workspaces[i].StatusMessage = message
+		}
+	}
+}
+
+func RunLs(ctx context.Context, t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []string, showAll bool, jsonOutput bool) error {
 	ls := NewLs(lsStore, t, jsonOutput)
 
-	org, err := getOrgForRunLs(cliAuth, lsStore, orgflag)
+	org, err := getOrgForRunLs(lsStore)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -183,12 +176,12 @@ func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []s
 	}
 
 	if len(args) == 1 { //nolint:gocritic // don't want to switch
-		err = handleLsArg(ls, cliAuth, args[0], org, showAll)
+		err = handleLsArg(ctx, ls, cliAuth, args[0], org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
 	} else if len(args) == 0 {
-		err = ls.RunWorkspaces(cliAuth, org, showAll)
+		err = ls.RunWorkspaces(ctx, cliAuth, org, showAll)
 		if err != nil {
 			return breverrors.WrapAndTrace(err)
 		}
@@ -199,7 +192,7 @@ func RunLs(t *terminal.Terminal, cliAuth auth.CLIAuth, lsStore LsStore, args []s
 	return nil
 }
 
-func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organization, showAll bool) error {
+func handleLsArg(ctx context.Context, ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organization, showAll bool) error {
 	switch classifyLsArg(arg) {
 	case lsArgOrgs:
 		if cliAuth.IsAPIKey() {
@@ -207,19 +200,11 @@ func handleLsArg(ls *Ls, cliAuth auth.CLIAuth, arg string, org *entity.Organizat
 		}
 		return wrapLsRun(ls.RunOrgs())
 	case lsArgWorkspaces:
-		return wrapLsRun(ls.RunWorkspaces(cliAuth, org, showAll))
-	case lsArgUsers:
-		return runAdminLsArg(cliAuth, "users", func() error {
-			return ls.RunUser(showAll)
-		})
-	case lsArgHosts:
-		return runAdminLsArg(cliAuth, "hosts", func() error {
-			return ls.RunHosts(org)
-		})
+		return wrapLsRun(ls.RunWorkspaces(ctx, cliAuth, org, showAll))
 	case lsArgNodes:
 		return wrapLsRun(ls.RunNodes(org))
 	case lsArgInstances:
-		return wrapLsRun(ls.RunInstances(cliAuth, org, showAll))
+		return wrapLsRun(ls.RunInstances(ctx, cliAuth, org, showAll))
 	default:
 		return nil
 	}
@@ -231,8 +216,6 @@ const (
 	lsArgUnknown lsArgKind = iota
 	lsArgOrgs
 	lsArgWorkspaces
-	lsArgUsers
-	lsArgHosts
 	lsArgNodes
 	lsArgInstances
 )
@@ -243,10 +226,6 @@ func classifyLsArg(arg string) lsArgKind {
 		return lsArgOrgs
 	case util.IsSingularOrPlural(arg, "workspace"):
 		return lsArgWorkspaces
-	case util.IsSingularOrPlural(arg, "user"):
-		return lsArgUsers
-	case util.IsSingularOrPlural(arg, "host"):
-		return lsArgHosts
 	case util.IsSingularOrPlural(arg, "node"):
 		return lsArgNodes
 	case util.IsSingularOrPlural(arg, "instance"):
@@ -254,20 +233,6 @@ func classifyLsArg(arg string) lsArgKind {
 	default:
 		return lsArgUnknown
 	}
-}
-
-func runAdminLsArg(cliAuth auth.CLIAuth, resource string, run func() error) error {
-	if cliAuth.IsAPIKey() {
-		return breverrors.NewValidationError(fmt.Sprintf("api key auth cannot list %s", resource))
-	}
-	user := cliAuth.User()
-	if user == nil {
-		return breverrors.NewValidationError("user is required")
-	}
-	if !featureflag.IsAdmin(user.GlobalUserType) {
-		return nil
-	}
-	return wrapLsRun(run())
 }
 
 func wrapLsRun(err error) error {
@@ -368,27 +333,12 @@ func getOtherOrg(orgs []entity.Organization, org entity.Organization) *entity.Or
 	return nil
 }
 
-func (ls Ls) RunUser(_ bool) error {
-	params := make(map[string]string)
-	params["verificationStatus"] = "UnVerified"
-	users, err := ls.lsStore.GetUsers(params)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	for _, user := range users {
-		fmt.Printf("%s	%s	%s\n", user.ID, user.Name, user.Email)
-	}
-
-	return nil
-}
-
 func (ls Ls) ShowAllWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, workspacesToShow []entity.Workspace, gpuLookup map[string]string) {
 	ls.displayWorkspacesAndHelp(org, otherOrgs, workspacesToShow, workspacesToShow, true, gpuLookup)
 }
 
 func (ls Ls) ShowUserWorkspaces(org *entity.Organization, otherOrgs []entity.Organization, user *entity.User, allWorkspaces []entity.Workspace, gpuLookup map[string]string) {
 	userWorkspaces := store.FilterForUserWorkspaces(allWorkspaces, user.ID)
-
 	ls.displayWorkspacesAndHelp(org, otherOrgs, userWorkspaces, allWorkspaces, false, gpuLookup)
 }
 
@@ -410,7 +360,7 @@ func (ls Ls) displayWorkspacesAndHelp(org *entity.Organization, otherOrgs []enti
 			ls.terminal.Vprintf("%s", ls.terminal.Green("See teammates' instances:\n"))
 			ls.terminal.Vprintf("%s", ls.terminal.Yellow("\tbrev ls --all\n"))
 		} else {
-			ls.terminal.Vprintf("%s", ls.terminal.Green("Start a new instance:\n"))
+			ls.terminal.Vprintf("%s", ls.terminal.Green("Create a new instance:\n"))
 		}
 		if len(otherOrgs) > 1 {
 			ls.terminal.Vprintf("%s", ls.terminal.Green("Switch to another org:\n"))
@@ -447,15 +397,16 @@ func buildGPULookup(s LsStore) map[string]string {
 	return lookup
 }
 
-func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+func (ls Ls) RunWorkspaces(ctx context.Context, cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
 	// Fetch workspaces and instance types concurrently
 	var allWorkspaces []entity.Workspace
 	var wsErr error
 	var gpuLookup map[string]string
-	var nodes []*nodev1.ExternalNode
-
+	var nodes []*devplanev1.ExternalNode
+	var environments []*devplanev1.Environment
+	var envErr error
 	var wg sync.WaitGroup
-	wg.Add(2)
+	wg.Add(3)
 	if showAll {
 		wg.Add(1)
 	}
@@ -467,14 +418,18 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 		defer wg.Done()
 		gpuLookup = buildGPULookup(ls.lsStore)
 	}()
+	go func() {
+		defer wg.Done()
+		environments, envErr = ls.lsStore.GetEnvironmentsByOrg(ctx, org.ID)
+	}()
 	if showAll {
 		go func() {
 			defer wg.Done()
 			var err error
-			nodes, err = ls.listNodes(org)
+			nodes, err = ls.listNodesWithConnectivity(org)
 			if err != nil {
 				if featureflag.Debug() {
-					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list external nodes: %v\n", err)
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to list Brev Connect machines: %v\n", err)
 				}
 			}
 		}()
@@ -483,6 +438,10 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 
 	if wsErr != nil {
 		return breverrors.WrapAndTrace(wsErr)
+	}
+
+	if err := ls.overlayStatuses(allWorkspaces, environments, envErr); err != nil {
+		return err
 	}
 
 	// Determine which workspaces to show
@@ -522,7 +481,7 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	if showAll {
 		ls.ShowAllWorkspaces(org, orgs, workspacesToShow, gpuLookup)
 		if len(nodes) > 0 {
-			ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+			ls.terminal.Vprintf("\nYou have %d Brev Connect machine(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 			displayNodesTable(ls.terminal, nodes, ls.piped)
 		}
 	} else {
@@ -532,8 +491,8 @@ func (ls Ls) RunWorkspaces(cliAuth auth.CLIAuth, org *entity.Organization, showA
 	return nil
 }
 
-func (ls Ls) RunInstances(cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
-	if err := ls.RunWorkspaces(cliAuth, org, showAll); err != nil {
+func (ls Ls) RunInstances(ctx context.Context, cliAuth auth.CLIAuth, org *entity.Organization, showAll bool) error {
+	if err := ls.RunWorkspaces(ctx, cliAuth, org, showAll); err != nil {
 		return err
 	}
 	return nil
@@ -581,7 +540,7 @@ func getInstanceTypeAndKind(w entity.Workspace, gpuLookup map[string]string) (st
 	return "", ""
 }
 
-func toNodeInfos(nodes []*nodev1.ExternalNode) []NodeInfo {
+func toNodeInfos(nodes []*devplanev1.ExternalNode) []NodeInfo {
 	var infos []NodeInfo
 	for _, n := range nodes {
 		infos = append(infos, NodeInfo{
@@ -593,7 +552,7 @@ func toNodeInfos(nodes []*nodev1.ExternalNode) []NodeInfo {
 	return infos
 }
 
-func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string, nodes []*nodev1.ExternalNode) error {
+func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[string]string, nodes []*devplanev1.ExternalNode) error {
 	var wsInfos []WorkspaceInfo
 	for _, w := range workspaces {
 		instanceType, instanceKind := getInstanceTypeAndKind(w, gpuLookup)
@@ -632,23 +591,6 @@ func (ls Ls) outputWorkspacesJSON(workspaces []entity.Workspace, gpuLookup map[s
 		return breverrors.WrapAndTrace(err)
 	}
 	fmt.Println(string(output))
-	return nil
-}
-
-func (ls Ls) RunHosts(org *entity.Organization) error {
-	user, err := ls.lsStore.GetCurrentUser()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	var workspaces []entity.Workspace
-	workspaces, err = ls.lsStore.GetWorkspaces(org.ID, &store.GetWorkspacesOptions{UserID: user.ID})
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	for _, workspace := range workspaces {
-		fmt.Println(workspace.GetNodeIdentifierForVPN())
-	}
 	return nil
 }
 
@@ -761,16 +703,67 @@ func getStatusColoredText(t *terminal.Terminal, status string) string {
 	}
 }
 
-// NodeInfo represents external node data for JSON output.
+// NodeInfo represents Brev Connect machine data for JSON output.
 type NodeInfo struct {
 	Name   string `json:"name"`
 	OrgID  string `json:"org_id"`
 	Status string `json:"status"`
 }
 
-func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error) {
-	client := register.NewNodeServiceClient(ls.lsStore, config.GlobalConfig.GetBrevPublicAPIURL())
-	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&nodev1.ListNodesRequest{
+const nodeStatusFetchConcurrency = 5
+
+// nodeStatusFetchTimeout bounds the whole call so the user isn't waiting forever. Nodes that miss the deadline
+// keep their list-provided status.
+const nodeStatusFetchTimeout = 10 * time.Second
+
+// enrichNodesWithConnectivity re-fetches each node via GetNode, which returns
+// live connectivity info that ListNodes cannot provide. Fetches run in parallel
+// with at most nodeStatusFetchConcurrency in flight. Nodes whose GetNode fails
+// or times out keep their list-provided connectivity info.
+func (ls Ls) enrichNodesWithConnectivity(ctx context.Context, nodes []*devplanev1.ExternalNode) []*devplanev1.ExternalNode {
+	if len(nodes) == 0 {
+		return nodes
+	}
+	client := ls.lsStore.DevPlane().ExternalNodes
+	ctx, cancel := context.WithTimeout(ctx, nodeStatusFetchTimeout)
+	defer cancel()
+
+	sem := make(chan struct{}, nodeStatusFetchConcurrency)
+	var wg sync.WaitGroup
+	for _, node := range nodes {
+		wg.Add(1)
+		go func(node *devplanev1.ExternalNode) {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				if featureflag.Debug() {
+					_, _ = fmt.Fprintf(os.Stderr, "debug: connectivity fetch canceled for node %s: %v\n", node.GetExternalNodeId(), ctx.Err())
+				}
+				return
+			}
+			defer func() { <-sem }()
+			resp, err := client.GetNode(ctx, connect.NewRequest(&devplanev1.GetNodeRequest{
+				ExternalNodeId: node.GetExternalNodeId(),
+			}))
+			if err != nil {
+				if featureflag.Debug() {
+					_, _ = fmt.Fprintf(os.Stderr, "debug: failed to fetch connectivity for node %s: %v\n", node.GetExternalNodeId(), err)
+				}
+				return
+			}
+			if enriched := resp.Msg.GetExternalNode(); enriched != nil {
+				proto.Merge(node, enriched)
+			}
+		}(node)
+	}
+	wg.Wait()
+	return nodes
+}
+
+func (ls Ls) listNodes(org *entity.Organization) ([]*devplanev1.ExternalNode, error) {
+	client := ls.lsStore.DevPlane().ExternalNodes
+	resp, err := client.ListNodes(context.Background(), connect.NewRequest(&devplanev1.ListNodesRequest{
 		OrganizationId: org.ID,
 	}))
 	if err != nil {
@@ -779,9 +772,18 @@ func (ls Ls) listNodes(org *entity.Organization) ([]*nodev1.ExternalNode, error)
 	return resp.Msg.GetItems(), nil
 }
 
-// RunNodes lists external nodes for the given org.
-func (ls Ls) RunNodes(org *entity.Organization) error {
+// TODO should this be optional?
+func (ls Ls) listNodesWithConnectivity(org *entity.Organization) ([]*devplanev1.ExternalNode, error) {
 	nodes, err := ls.listNodes(org)
+	if err != nil {
+		return nil, err
+	}
+	return ls.enrichNodesWithConnectivity(context.Background(), nodes), nil
+}
+
+// RunNodes lists Brev Connect machines for the given org.
+func (ls Ls) RunNodes(org *entity.Organization) error {
+	nodes, err := ls.listNodesWithConnectivity(org)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -794,7 +796,7 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 		if ls.piped {
 			return nil
 		}
-		ls.terminal.Vprint(ls.terminal.Yellow("No external nodes in this org."))
+		ls.terminal.Vprint(ls.terminal.Yellow("No Brev Connect machines in this org."))
 		return nil
 	}
 
@@ -802,13 +804,13 @@ func (ls Ls) RunNodes(org *entity.Organization) error {
 		return ls.outputNodesJSON(nodes)
 	}
 	if !ls.piped {
-		ls.terminal.Vprintf("\nYou have %d external node(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
+		ls.terminal.Vprintf("\nYou have %d Brev Connect machine(s) in Org %s\n", len(nodes), ls.terminal.Yellow(org.Name))
 	}
 	displayNodesTable(ls.terminal, nodes, ls.piped)
 	return nil
 }
 
-func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
+func (ls Ls) outputNodesJSON(nodes []*devplanev1.ExternalNode) error {
 	output, err := json.MarshalIndent(toNodeInfos(nodes), "", "  ")
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -817,7 +819,7 @@ func (ls Ls) outputNodesJSON(nodes []*nodev1.ExternalNode) error {
 	return nil
 }
 
-func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode, isPiped bool) {
+func displayNodesTable(t *terminal.Terminal, nodes []*devplanev1.ExternalNode, isPiped bool) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)
 	ta.Style().Options = getBrevTableOptions()
@@ -832,7 +834,7 @@ func displayNodesTable(t *terminal.Terminal, nodes []*nodev1.ExternalNode, isPip
 	ta.Render()
 }
 
-func nodeConnectionStatus(n *nodev1.ExternalNode) string {
+func nodeConnectionStatus(n *devplanev1.ExternalNode) string {
 	ci := n.GetConnectivityInfo()
 	if ci == nil {
 		return "Unknown"

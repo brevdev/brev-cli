@@ -34,7 +34,6 @@ var (
 
 	// Stored command context for error-path capture
 	storedCmd  *cobra.Command
-	storedArgs []string
 	storedUser string
 
 	// userStore is set via SetUserStore so GetOrCreateAnalyticsID can resolve the real user ID.
@@ -72,12 +71,34 @@ func IsAnalyticsFeatureEnabled() bool {
 	return ok && enabled
 }
 
+func IsSSHCertRequired() bool {
+	anonID := GetOrCreateAnalyticsID()
+	if anonID == "" {
+		return false
+	}
+
+	c, err := getClient()
+	if err != nil {
+		return false
+	}
+
+	result, err := c.IsFeatureEnabled(posthog.FeatureFlagPayload{
+		Key:        "ssh-cert-required-cli",
+		DistinctId: anonID,
+	})
+	if err != nil {
+		return false
+	}
+
+	enabled, ok := result.(bool)
+	return ok && enabled
+}
+
 // RecordCommandStart should be called from PersistentPreRunE to record the start time
 // and store the command context for potential error-path capture.
-func RecordCommandStart(cmd *cobra.Command, args []string) {
+func RecordCommandStart(cmd *cobra.Command) {
 	commandStartTime = time.Now()
 	storedCmd = cmd
-	storedArgs = args
 }
 
 // IsAnalyticsEnabled defaults to true; DO_NOT_TRACK and BREV_NO_ANALYTICS override.
@@ -180,13 +201,12 @@ func IdentifyUser(userID string) {
 }
 
 // CaptureCommand captures a CLI command invocation event (success path).
-func CaptureCommand(userID string, cmd *cobra.Command, args []string) {
+func CaptureCommand(userID string, cmd *cobra.Command) {
 	// Store for potential error-path capture
 	storedCmd = cmd
-	storedArgs = args
 	storedUser = userID
 
-	captureEvent(userID, cmd, args, true)
+	captureEvent(userID, cmd, true)
 }
 
 // CaptureCommandError captures a CLI command failure event from main.go.
@@ -195,10 +215,23 @@ func CaptureCommandError() {
 	if storedCmd == nil {
 		return
 	}
-	captureEvent(storedUser, storedCmd, storedArgs, false)
+	captureEvent(storedUser, storedCmd, false)
 }
 
-func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bool) {
+// brevFlagSensitive is the pflag annotation key marking a flag whose value
+// must never be sent to analytics in cleartext.
+const brevFlagSensitive = "brev_flag_sensitive"
+
+// MarkFlagSensitive identifies flags that contain credentials. Command
+// telemetry never records any flag values, including unmarked ones.
+func MarkFlagSensitive(flags *pflag.FlagSet, name string) {
+	if err := flags.SetAnnotation(name, brevFlagSensitive, []string{"true"}); err != nil {
+		// Flag doesn't exist in this set; nothing to annotate.
+		_ = err
+	}
+}
+
+func captureEvent(userID string, cmd *cobra.Command, succeeded bool) {
 	if !shouldCapturePostHog() {
 		return
 	}
@@ -217,17 +250,11 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		return
 	}
 
-	// Flags
-	flagMap := make(map[string]interface{})
-	cmd.Flags().Visit(func(f *pflag.Flag) {
-		flagMap[f.Name] = f.Value.String()
-	})
+	// Only record which flags were supplied; values may be arbitrary secrets.
+	flagMap := captureFlagPresence(cmd)
 
 	// Parent process
-	parentName, parentCmdline := getParentProcessInfo()
-
-	// CWD
-	cwd, _ := os.Getwd()
+	parentName, _ := getParentProcessInfo()
 
 	// Duration
 	var durationMs int64
@@ -254,7 +281,6 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 	properties := posthog.NewProperties().
 		// Command info
 		Set("command", cmd.CommandPath()).
-		Set("args", strings.Join(args, " ")).
 		Set("flags", flagMap).
 		Set("succeeded", succeeded).
 		Set("duration_ms", durationMs).
@@ -265,9 +291,7 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		Set("go_version", runtime.Version()).
 		Set("cli_version", version.Version).
 		// Context
-		Set("cwd", cwd).
 		Set("parent_process", parentName).
-		Set("parent_cmdline", parentCmdline).
 		// Terminal
 		Set("is_tty", isTTY).
 		Set("is_stdin_piped", isStdinPiped).
@@ -287,6 +311,14 @@ func captureEvent(userID string, cmd *cobra.Command, args []string, succeeded bo
 		Event:      "cli_command",
 		Properties: properties,
 	})
+}
+
+func captureFlagPresence(cmd *cobra.Command) map[string]interface{} {
+	flagMap := make(map[string]interface{})
+	cmd.Flags().Visit(func(f *pflag.Flag) {
+		flagMap[f.Name] = "[redacted]"
+	})
+	return flagMap
 }
 
 // CaptureFeedback sends a brev-cli-feedback event to PostHog.

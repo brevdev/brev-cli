@@ -28,7 +28,7 @@ type RevokeSSHStore interface {
 	GetOrganizationsByName(name string) ([]entity.Organization, error)
 	ListOrganizations() ([]entity.Organization, error)
 	GetUserByID(userID string) (*entity.User, error)
-	GetOrgRoleAttachments(orgID string) ([]entity.OrgRoleAttachment, error)
+	ListOrganizationMembers(ctx context.Context, orgID string) ([]*nodev1.OrganizationMember, error)
 }
 
 // revokeSSHDeps bundles the side-effecting dependencies of runRevokeSSH so they
@@ -48,7 +48,6 @@ func defaultRevokeSSHDeps() revokeSSHDeps {
 }
 
 func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command {
-	var orgFlag string
 	var nodeFlag string
 	var userFlag string
 	var linuxUserFlag string
@@ -56,13 +55,17 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 	var approveFlag bool
 
 	cmd := &cobra.Command{
-		Annotations:           map[string]string{"configuration": ""},
+		Annotations:           map[string]string{"configuration": "", "external-node-auth": ""},
 		Use:                   "revoke-ssh",
 		DisableFlagsInUseLine: true,
 		Short:                 "Revoke SSH access to a node for an org member",
 		Long:                  "Revoke SSH access to a node for a member of your organization. Interactive: no flags, prompts for org, node, and which access entry to revoke. Non-interactive: --org, --node, --user, --linux-user, and --port-id required.",
 		Example:               "  brev revoke-ssh\n  brev revoke-ssh --org my-org --node my-node --user user@example.com --linux-user ubuntu --port-id port_abc --approve",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			orgFlag, err := cmd.Flags().GetString("org")
+			if err != nil {
+				return breverrors.WrapAndTrace(err)
+			}
 			interactive := orgFlag == "" && nodeFlag == "" && userFlag == "" && linuxUserFlag == "" && portIDFlag == ""
 			opts := revokeSSHOpts{
 				interactive:   interactive,
@@ -77,7 +80,6 @@ func NewCmdRevokeSSH(t *terminal.Terminal, store RevokeSSHStore) *cobra.Command 
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&nodeFlag, "node", "n", "", "node name (required in non-interactive mode)")
 	cmd.Flags().StringVarP(&userFlag, "user", "u", "", "Brev user ID or email to revoke (required in non-interactive mode)")
 	cmd.Flags().StringVar(&linuxUserFlag, "linux-user", "", "Linux username on the target node (required in non-interactive mode)")
@@ -131,6 +133,9 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 	if opts.interactive {
 		resp, listErr := client.ListNodes(ctx, connect.NewRequest(&nodev1.ListNodesRequest{
 			OrganizationId: selectedOrg.ID,
+			Options: &nodev1.ListNodesOptions{
+				ExcludeConnectivityInfo: true,
+			},
 		}))
 		if listErr != nil {
 			return breverrors.WrapAndTrace(listErr)
@@ -183,7 +188,7 @@ func runRevokeSSH(ctx context.Context, t *terminal.Terminal, s RevokeSSHStore, o
 		targetPortID = selectedAccess.GetPortId()
 		portLabel = portLabelForAccess(selectedNode, selectedAccess)
 	} else {
-		resolvedUserID, err := resolveUserID(s, selectedOrg.ID, opts.userIDOrEmail)
+		resolvedUserID, err := resolveUserID(ctx, s, selectedOrg.ID, opts.userIDOrEmail)
 		if err != nil {
 			return err
 		}
@@ -268,7 +273,7 @@ func portLabelForAccess(node *nodev1.ExternalNode, sa *nodev1.SSHAccess) string 
 }
 
 // resolveUserID resolves idOrEmail to a Brev user ID using org members when it looks like an email.
-func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, error) {
+func resolveUserID(ctx context.Context, s RevokeSSHStore, orgID string, idOrEmail string) (string, error) {
 	if idOrEmail == "" {
 		return "", fmt.Errorf("user is required")
 	}
@@ -281,12 +286,15 @@ func resolveUserID(s RevokeSSHStore, orgID string, idOrEmail string) (string, er
 		return idOrEmail, nil
 	}
 
-	attachments, err := s.GetOrgRoleAttachments(orgID)
+	members, err := s.ListOrganizationMembers(ctx, orgID)
 	if err != nil {
 		return "", fmt.Errorf("failed to list org members: %w", err)
 	}
-	for _, a := range attachments {
-		u, err := s.GetUserByID(a.Subject)
+	for _, member := range members {
+		if strings.EqualFold(member.GetDefaultEmail(), idOrEmail) {
+			return member.GetUserId(), nil
+		}
+		u, err := s.GetUserByID(member.GetUserId())
 		if err != nil {
 			continue
 		}

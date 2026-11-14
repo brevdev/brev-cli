@@ -1,13 +1,13 @@
 package shell
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
-	"time"
 
 	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
 
@@ -20,8 +20,6 @@ import (
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
-	"github.com/brevdev/brev-cli/pkg/writeconnectionevent"
-
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +33,7 @@ var (
   brev shell $(brev create my-instance)
 
   # Create with specific GPU and connect
-  brev shell $(brev search --gpu-name A100 | brev create ml-box)
+  brev shell $(brev search --gpu-name A100 | brev create ml-box --stdin)
 
   # SSH into the host machine instead of the container
   brev shell my-instance --host
@@ -45,7 +43,7 @@ var (
 )
 
 type ShellStore interface {
-	util.WorkspaceStartStore
+	util.GetWorkspaceByNameOrIDErrStore
 	refresh.RefreshStore
 	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	GetWorkspaces(organizationID string, options *store.GetWorkspacesOptions) ([]entity.Workspace, error)
@@ -78,8 +76,6 @@ func NewCmdShell(t *terminal.Terminal, store ShellStore, noLoginStartStore Shell
 	return cmd
 }
 
-const pollTimeout = 10 * time.Minute
-
 func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID string, host bool) error {
 	if _, err := sstore.GetAccessToken(); err != nil {
 		return breverrors.WrapAndTrace(err)
@@ -90,54 +86,57 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		return breverrors.WrapAndTrace(err)
 	}
 	if target.Node != nil {
-		return shellIntoExternalNode(t, sstore, target.Node)
+		return shellIntoExternalNode(sstore, target.Node)
 	}
 	workspace := target.Workspace
 
-	if workspace.Status == "STOPPED" { // we start the env for the user
-		err = util.StartWorkspaceIfStopped(t, s, sstore, workspaceNameOrID, workspace, pollTimeout)
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-	}
-	err = util.PollUntil(s, workspace.ID, "RUNNING", sstore, " waiting for instance to be ready...", pollTimeout)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	refreshRes := refresh.RunRefreshAsync(sstore)
-
-	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	if workspace.Status != "RUNNING" {
-		return breverrors.New("Instance is not running")
+	if err := util.RequireRunning(workspace); err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
 
 	localIdentifier := workspace.GetLocalIdentifier()
 	if host {
 		localIdentifier = workspace.GetHostIdentifier()
 	}
-
 	sshName := string(localIdentifier)
+
+	printResolvedSSHTarget(sshName)
+	err = runSSHWithOptions(sshName, host, false)
+	if err == nil {
+		trackShellAnalytics(sstore, workspace)
+		return nil
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "\nConnection failed, refreshing SSH config and retrying...")
+
+	refreshRes := refresh.RunRefreshAsync(sstore)
+
+	workspace, err = util.GetUserWorkspaceByNameOrIDErr(sstore, workspaceNameOrID)
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if err := util.RequireRunning(workspace); err != nil {
+		return err //nolint:wrapcheck // do not present stack trace for this error
+	}
 
 	err = refreshRes.Await()
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	err = util.WaitForSSHToBeAvailable(sshName, s)
+	printResolvedSSHTarget(sshName)
+	err = util.WaitForSSHToBeAvailable(sshName, s, func() error { return refresh.RunRefreshAsync(sstore).Await() })
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// we don't care about the error here but should log with sentry
-	// legacy environments wont support this and cause errrors,
-	// but we don't want to block the user from using the shell
-	_ = writeconnectionevent.WriteWCEOnEnv(sstore, workspace.DNS)
 	err = runSSH(sshName, host)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-	// Call analytics for shell
+	trackShellAnalytics(sstore, workspace)
+
+	return nil
+}
+
+func trackShellAnalytics(sstore ShellStore, workspace *entity.Workspace) {
 	userID := ""
 	user, err := sstore.GetCurrentUser()
 	if err != nil {
@@ -146,68 +145,49 @@ func runShellCommand(t *terminal.Terminal, sstore ShellStore, workspaceNameOrID 
 		userID = user.ID
 	}
 	data := analytics.EventData{
-		EventName: "Brev Open",
+		EventName: "Brev Shell",
 		UserID:    userID,
 		Properties: map[string]string{
 			"instanceId": workspace.ID,
 		},
 	}
 	_ = analytics.TrackEvent(data)
-
-	return nil
 }
 
-func shellIntoExternalNode(t *terminal.Terminal, sstore ShellStore, node *nodev1.ExternalNode) error {
+func shellIntoExternalNode(sstore ShellStore, node *nodev1.ExternalNode) error {
 	info, err := util.ResolveExternalNodeSSH(sstore, node)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
 
-	privateKeyPath, err := sstore.GetPrivateKeyPath()
-	if err != nil {
+	alias := info.SSHAlias()
+	printResolvedSSHTarget(alias)
+	err = runSSHWithOptions(alias, true, false)
+	if err == nil {
+		return nil
+	}
+
+	_, _ = fmt.Fprintln(os.Stderr, "\nConnection failed, refreshing SSH config and retrying...")
+	refreshRes := refresh.RunRefreshAsync(sstore)
+	if err := refreshRes.Await(); err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
-
-	if _, err := os.Stat(privateKeyPath); os.IsNotExist(err) {
-		t.Vprintf("fetching keys...\n")
-		if refreshErr := refresh.RunRefreshAsync(sstore).Await(); refreshErr != nil {
-			return breverrors.WrapAndTrace(refreshErr)
-		}
-	}
-
-	t.Vprintf("Connecting to external node %q as %s on port %d (key: %s)...\n", node.GetName(), info.LinuxUser, info.Port, privateKeyPath)
-	return runSSHWithPort(info.SSHTarget(), info.Port, privateKeyPath)
-}
-
-func runSSHWithPort(target string, port int32, identityFile string) error {
-	sshAgentEval := "eval $(ssh-agent -s)"
-	cmd := fmt.Sprintf("%s && ssh -i %q -o StrictHostKeyChecking=no -p %d %s", sshAgentEval, identityFile, port, target)
-
-	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is constructed from API data
-	sshCmd.Stderr = os.Stderr
-	sshCmd.Stdout = os.Stdout
-	sshCmd.Stdin = os.Stdin
-
-	err := hello.SetHasRunShell(true)
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-
-	err = sshCmd.Run()
-	if err != nil {
-		return breverrors.WrapAndTrace(err)
-	}
-	return nil
+	printResolvedSSHTarget(alias)
+	return runSSHWithOptions(alias, true, false)
 }
 
 func runSSH(sshAlias string, host bool) error {
-	sshAgentEval := "eval $(ssh-agent -s)"
+	return runSSHWithOptions(sshAlias, host, true)
+}
+
+func runSSHWithOptions(sshAlias string, host bool, printFailureAdvice bool) error {
+	sshAgentEval := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
 	var cmd string
 	if host {
-		cmd = fmt.Sprintf("%s && ssh %s", sshAgentEval, sshAlias)
+		cmd = fmt.Sprintf("%s && ssh -o ConnectTimeout=5 %s", sshAgentEval, sshAlias)
 	} else {
 		// SSH into VM and respect container WORKDIR if containerized, otherwise use default directory
-		cmd = fmt.Sprintf("%s && ssh -t %s 'DIR=$(readlink -f /proc/1/cwd 2>/dev/null || pwd); cd \"$DIR\" || echo \"Warning: Could not access container directory\" >&2; exec -l ${SHELL:-/bin/sh}'", sshAgentEval, sshAlias)
+		cmd = fmt.Sprintf("%s && ssh -t -o ConnectTimeout=5 %s 'DIR=$(readlink -f /proc/1/cwd 2>/dev/null || pwd); cd \"$DIR\" || echo \"Warning: Could not access container directory\" >&2; exec -l ${SHELL:-/bin/sh}'", sshAgentEval, sshAlias)
 	}
 
 	var stderrBuf bytes.Buffer
@@ -223,6 +203,9 @@ func runSSH(sshAlias string, host bool) error {
 
 	err = sshCmd.Run()
 	if err != nil {
+		if !printFailureAdvice {
+			return breverrors.WrapAndTrace(err)
+		}
 		stderrStr := stderrBuf.String()
 		if strings.Contains(stderrStr, "unix_listener") || strings.Contains(stderrStr, "path too long") {
 			fmt.Fprintf(os.Stderr, "\nbrev shell failed: SSH ControlPath socket path is too long for this system.\n")
@@ -233,4 +216,48 @@ func runSSH(sshAlias string, host bool) error {
 		return breverrors.WrapAndTrace(err)
 	}
 	return nil
+}
+
+func printResolvedSSHTarget(sshAlias string) {
+	output, err := exec.Command("ssh", "-G", sshAlias).Output() //nolint:gosec // alias is the same internal SSH target passed to ssh
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target: unavailable:", err)
+		return
+	}
+
+	var user, hostname, port, proxyCommand string
+	scanner := bufio.NewScanner(bytes.NewReader(output))
+	for scanner.Scan() {
+		key, value, found := strings.Cut(scanner.Text(), " ")
+		if !found {
+			continue
+		}
+		switch key {
+		case "user":
+			user = value
+		case "hostname":
+			hostname = value
+		case "port":
+			port = value
+		case "proxycommand":
+			proxyCommand = value
+		}
+	}
+
+	if hostname == "" {
+		_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target: unavailable")
+		return
+	}
+
+	target := hostname
+	if user != "" {
+		target = user + "@" + target
+	}
+	if port != "" {
+		target += ":" + port
+	}
+	if proxyCommand != "" && proxyCommand != "none" {
+		target += " via " + proxyCommand
+	}
+	_, _ = fmt.Fprintln(os.Stderr, "Resolved SSH target:", target)
 }

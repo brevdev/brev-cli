@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -13,9 +12,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore OrgCmdStore) *cobra.Command {
+func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore) *cobra.Command {
 	var showAll bool
-	var org string
 
 	cmd := &cobra.Command{
 		Annotations: map[string]string{"orgsubcommand": ""},
@@ -42,13 +40,6 @@ func NewCmdOrgSet(t *terminal.Terminal, orgcmdStore OrgCmdStore, noorgcmdStore O
 			}
 			return nil
 		},
-	}
-
-	cmd.Flags().StringVarP(&org, "org", "o", "", "organization (will override active org)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noorgcmdStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
 	}
 
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all workspaces in org")

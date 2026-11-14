@@ -1,8 +1,15 @@
 package ssh
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
+	"text/template"
 
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/store"
@@ -15,7 +22,6 @@ var somePlainWorkspaces = []entity.Workspace{
 	{
 		ID:               "test-id-1",
 		Name:             "testName1",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -28,7 +34,6 @@ var somePlainWorkspaces = []entity.Workspace{
 	{
 		ID:               "test-id-2",
 		Name:             "testName2",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -43,6 +48,18 @@ var somePlainWorkspaces = []entity.Workspace{
 type DummyStore struct{}
 
 type DummySSHConfigurerV2Store struct{}
+
+type noHomeSSHConfigurerV2Store struct {
+	DummySSHConfigurerV2Store
+}
+
+func (noHomeSSHConfigurerV2Store) GetPrivateKeyPath() (string, error) {
+	return "/custom/brev-home/brev.pem", nil
+}
+
+func (noHomeSSHConfigurerV2Store) UserHomeDir() (string, error) {
+	return "", errors.New("UserHomeDir should not be needed to locate Brev certificate files")
+}
 
 func (d DummySSHConfigurerV2Store) GetWSLHostUserSSHConfigPath() (string, error) {
 	return "", nil
@@ -125,6 +142,10 @@ func (d DummySSHConfigurerV2Store) WriteWSLUserSSHConfig(_ string) error {
 
 func (d DummySSHConfigurerV2Store) GetBrevCloudflaredBinaryPath() (string, error) {
 	return "", nil
+}
+
+func (d DummySSHConfigurerV2Store) UserHomeDir() (string, error) {
+	return "/home/test-user", nil
 }
 
 func TestCreateNewSSHConfig(t *testing.T) {
@@ -218,6 +239,28 @@ Host %s-host
 	assert.Equal(t, correct, cStr)
 }
 
+func TestCreateNewSSHConfig_DerivesCertPathFromBrevDirectory(t *testing.T) {
+	w := entity.Workspace{
+		ID:              "env-cert",
+		Name:            "cert-env",
+		Status:          entity.Running,
+		SSHUser:         "ubuntu",
+		SSHPort:         22,
+		SSHHostname:     "10.0.0.1",
+		SSHCertEligible: true,
+		PortID:          "port-1",
+	}
+
+	c := NewSSHConfigurerV2(noHomeSSHConfigurerV2Store{})
+	got, err := c.CreateNewSSHConfig([]entity.Workspace{w}, nil)
+	if err != nil {
+		t.Fatalf("CreateNewSSHConfig should not need UserHomeDir: %v", err)
+	}
+	if !strings.Contains(got, "/custom/brev-home/ssh-certs/env-cert") {
+		t.Fatalf("certificate path should be rooted in the Brev directory: %s", got)
+	}
+}
+
 func TestEnsureConfigHasInclude(t *testing.T) {
 	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
 
@@ -227,23 +270,135 @@ func TestEnsureConfigHasInclude(t *testing.T) {
 }
 
 func TestDoesUserSSHConfigIncludeBrevConfig(t *testing.T) {
-	c := NewSSHConfigurerV2(DummySSHConfigurerV2Store{})
-	bscp, err := c.store.GetBrevSSHConfigPath()
-	if !assert.Nil(t, err) {
-		return
+	const path = "/my/brev/config"
+	const include = "Include \"/my/brev/config\""
+	tests := []struct {
+		name string
+		conf string
+		want bool
+	}{
+		{"missing", "", false},
+		{"global", include + "\nHost unrelated\n", true},
+		{"global without final newline", include, true},
+		{"global with whitespace and comments", "# Host unrelated\n\n  " + include + "\r\n", true},
+		{"commented include", "# " + include + "\n", false},
+		{"host scoped", "Host unrelated\n  " + include + "\n", false},
+		{"match scoped", "Match host unrelated\n  " + include + "\n", false},
+		{"case insensitive host", "hOsT unrelated\n" + include + "\n", false},
+		{"equals host", "Host=unrelated\n" + include + "\n", false},
+		{"equals match", "Match=host unrelated\n" + include + "\n", false},
+		{"different path", "Include \"/another/config\"\n", false},
+		{"windows path", makeIncludeBrevStr(toWindowsPath(path)), true},
+		{"scoped windows path", "Host unrelated\n" + makeIncludeBrevStr(toWindowsPath(path)), false},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, doesUserSSHConfigIncludeBrevConfig(tt.conf, path))
+		})
+	}
+}
 
-	userConf := ``
-	assert.False(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+type includeSSHConfigurerStore struct {
+	DummySSHConfigurerV2Store
+	conf   string
+	path   string
+	writes int
+}
 
-	userConf = `Include "/my/brev/config"
-`
-	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+func (s *includeSSHConfigurerStore) GetUserSSHConfig() (string, error) {
+	return s.conf, nil
+}
 
-	userConf = `# blahdlkfadlfa
-Include "/my/brev/config"
-# baldfhaldjf`
-	assert.True(t, doesUserSSHConfigIncludeBrevConfig(userConf, bscp))
+func (s *includeSSHConfigurerStore) WriteUserSSHConfig(conf string) error {
+	s.conf = conf
+	s.writes++
+	return nil
+}
+
+func (s *includeSSHConfigurerStore) GetBrevSSHConfigPath() (string, error) {
+	if s.path != "" {
+		return s.path, nil
+	}
+	return s.DummySSHConfigurerV2Store.GetBrevSSHConfigPath()
+}
+
+func (s *includeSSHConfigurerStore) GetWSLHostBrevSSHConfigPath() (string, error) {
+	return s.path, nil
+}
+
+func (s *includeSSHConfigurerStore) GetWSLUserSSHConfig() (string, error) {
+	return s.conf, nil
+}
+
+func (s *includeSSHConfigurerStore) WriteWSLUserSSHConfig(conf string) error {
+	return s.WriteUserSSHConfig(conf)
+}
+
+func TestEnsureWSLConfigHasInclude_RepairsScopedIncludeOnce(t *testing.T) {
+	const path = "/mnt/c/Users/test/.brev/ssh_config"
+	original := "Host unrelated\n  User custom\n" + makeIncludeBrevStr(toWindowsPath(path))
+	s := &includeSSHConfigurerStore{conf: original, path: path}
+	c := NewSSHConfigurerV2(s)
+	assert.NoError(t, c.EnsureWSLConfigHasInclude())
+	assert.Equal(t, makeIncludeBrevStr(toWindowsPath(path))+original, s.conf)
+	assert.Equal(t, 1, s.writes)
+	assert.NoError(t, c.EnsureWSLConfigHasInclude())
+	assert.Equal(t, 1, s.writes)
+}
+
+func TestEnsureConfigHasInclude_RestoresSSHResolution(t *testing.T) {
+	ssh, err := exec.LookPath("ssh")
+	if err != nil {
+		t.Skip("OpenSSH is required to verify Include scope")
+	}
+	dir := t.TempDir()
+	brevPath := filepath.Join(dir, "brev-config")
+	configPath := filepath.Join(dir, "user-config")
+	const alias = "brev-include-fixture"
+	brevConfig := "Host " + alias + "\n  HostName gateway.example.invalid\n  Port 24361\n  User ubuntu\n  IdentitiesOnly yes\n  PasswordAuthentication no\n"
+	if err := os.WriteFile(brevPath, []byte(brevConfig), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	original := "ServerAliveInterval 7\nHost unrelated\n  User custom\n" + makeIncludeBrevStr(brevPath)
+	s := &includeSSHConfigurerStore{conf: original, path: brevPath}
+	c := NewSSHConfigurerV2(s)
+	if err := os.WriteFile(configPath, []byte(original), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before, err := exec.Command(ssh, "-F", configPath, "-G", alias).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Contains(t, string(before), "hostname "+alias+"\n")
+	assert.NoError(t, c.EnsureConfigHasInclude())
+	if err := os.WriteFile(configPath, []byte(s.conf), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	after, err := exec.Command(ssh, "-F", configPath, "-G", alias).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"hostname gateway.example.invalid\n", "port 24361\n", "user ubuntu\n", "identitiesonly yes\n", "passwordauthentication no\n"} {
+		assert.Contains(t, string(after), want)
+	}
+	other, err := exec.Command(ssh, "-F", configPath, "-G", "unrelated").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Contains(t, string(other), "user custom\n")
+	assert.Contains(t, string(other), "serveraliveinterval 7\n")
+	assert.Equal(t, makeIncludeBrevStr(brevPath)+original, s.conf)
+}
+
+func TestEnsureConfigHasInclude_RepairsScopedIncludeOnce(t *testing.T) {
+	const original = "# Keep custom settings\nHost unrelated\n  User custom\n  Include \"/my/brev/config\"\n"
+	s := &includeSSHConfigurerStore{conf: original}
+	c := NewSSHConfigurerV2(s)
+	assert.NoError(t, c.EnsureConfigHasInclude())
+	assert.Equal(t, makeIncludeBrevStr("/my/brev/config")+original, s.conf)
+	assert.Equal(t, 1, s.writes)
+	assert.NoError(t, c.EnsureConfigHasInclude())
+	assert.Equal(t, 1, s.writes, "refresh must not repeatedly rewrite the user's config")
 }
 
 func TestAddIncludeToUserConfig(t *testing.T) {
@@ -289,12 +444,11 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 	}{
 		// TODO: Add test cases.
 		{
-			name: "test devplane uses ubuntu",
+			name: "test separate workload and host endpoints",
 			args: args{
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: entity.WorkspaceGroupDevPlane,
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -304,14 +458,16 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
 					GitRepo:          "gitrepo",
 					SSHPort:          20,
 					SSHUser:          "ubuntu-wk",
+					SSHHostname:      "skybridge.example.com",
 					HostSSHPort:      2022,
 					HostSSHUser:      "ubuntu-host",
+					HostSSHHostname:  "203.0.113.10",
 				},
 				privateKeyPath: "/my/priv/key.pem",
 				runRemoteCMD:   true,
 			},
 			want: `Host testName2
-  Hostname test2-dns-org.brev.sh
+  Hostname skybridge.example.com
   IdentityFile "/my/priv/key.pem"
   User ubuntu-wk
   ServerAliveInterval 30
@@ -328,7 +484,7 @@ func Test_makeSSHConfigEntryV2(t *testing.T) { //nolint:funlen // test
   Port 20
 
 Host testName2-host
-  Hostname test2-dns-org.brev.sh
+  Hostname 203.0.113.10
   IdentityFile "/my/priv/key.pem"
   User ubuntu-host
   ServerAliveInterval 30
@@ -352,7 +508,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: "test-id-2",
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -407,7 +562,6 @@ Host testName2-host
 				workspace: entity.Workspace{
 					ID:               "test-id-2",
 					Name:             "testName2",
-					WorkspaceGroupID: "test-id-2",
 					OrganizationID:   "oi",
 					WorkspaceClassID: "wci",
 					CreatedByUserID:  "cui",
@@ -458,84 +612,11 @@ Host testName2-host
 `,
 		},
 		{
-			name: "test legacy workspace uses brev user 1",
-			args: args{
-				workspace: entity.Workspace{
-					ID:               "test-id-2",
-					Name:             "testName2",
-					WorkspaceGroupID: "k8s.brevstack.com", // a legacy wsg
-					OrganizationID:   "oi",
-					WorkspaceClassID: "wci",
-					CreatedByUserID:  "cui",
-					DNS:              "test2-dns-org.brev.sh",
-					Status:           entity.Running,
-					Password:         "sdfal",
-					GitRepo:          "gitrepo",
-				},
-				privateKeyPath: "/my/priv/key.pem",
-				runRemoteCMD:   true,
-			},
-			want: `Host testName2
-  IdentityFile "/my/priv/key.pem"
-  User brev
-  ProxyCommand brev proxy test-id-2
-  ServerAliveInterval 30
-  UserKnownHostsFile /dev/null
-  IdentitiesOnly yes
-  StrictHostKeyChecking no
-  PasswordAuthentication no
-  AddKeysToAgent yes
-  ForwardAgent yes
-  RequestTTY yes
-  ControlMaster auto
-  ControlPath ~/.ssh/brev-control-%C
-  ControlPersist 10m
-
-`,
-		},
-		{
-			name: "test legacy workspace uses brev user 1",
-			args: args{
-				workspace: entity.Workspace{
-					ID:               "test-id-2",
-					Name:             "testName2",
-					WorkspaceGroupID: "brev-test-brevtenant-cluster", // a legacy wsg
-					OrganizationID:   "oi",
-					WorkspaceClassID: "wci",
-					CreatedByUserID:  "cui",
-					DNS:              "test2-dns-org.brev.sh",
-					Status:           entity.Running,
-					Password:         "sdfal",
-					GitRepo:          "gitrepo",
-				},
-				privateKeyPath: "/my/priv/key.pem",
-				runRemoteCMD:   true,
-			},
-			want: `Host testName2
-  IdentityFile "/my/priv/key.pem"
-  User brev
-  ProxyCommand brev proxy test-id-2
-  ServerAliveInterval 30
-  UserKnownHostsFile /dev/null
-  IdentitiesOnly yes
-  StrictHostKeyChecking no
-  PasswordAuthentication no
-  AddKeysToAgent yes
-  ForwardAgent yes
-  RequestTTY yes
-  ControlMaster auto
-  ControlPath ~/.ssh/brev-control-%C
-  ControlPersist 10m
-
-`,
-		},
-		{
 			name: "test default ssh proxy",
 			args: args{
 				workspace: entity.Workspace{
 					ID:                   "test-id-2",
 					Name:                 "testName2",
-					WorkspaceGroupID:     "test-id-2",
 					OrganizationID:       "oi",
 					WorkspaceClassID:     "wci",
 					CreatedByUserID:      "cui",
@@ -588,7 +669,7 @@ Host testName2-host
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath)
+			got, err := makeSSHConfigEntryV2(tt.args.workspace, tt.args.privateKeyPath, tt.args.cloudflaredBinaryPath, true, false)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("makeSSHConfigEntryV2() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -598,6 +679,19 @@ Host testName2-host
 				t.Fatalf("%s", diff)
 			}
 		})
+	}
+}
+
+func TestMakeJetbrainsConfigEntryUsesSSHHostname(t *testing.T) {
+	entry := makeJetbrainsConfigEntry(entity.Workspace{
+		DNS:         "legacy.example.com",
+		SSHHostname: "skybridge.example.com",
+		SSHUser:     "root",
+		SSHPort:     41234,
+	}, "/tmp/brev.pem")
+
+	if entry.Host != "skybridge.example.com" {
+		t.Fatalf("host = %q, want skybridge.example.com", entry.Host)
 	}
 }
 
@@ -636,7 +730,7 @@ func TestMakeSSHConfigEntryForNode(t *testing.T) {
 		User:     "ec2-user",
 	}
 
-	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem")
+	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem", false, "/home/test/.brev")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -654,6 +748,45 @@ func TestMakeSSHConfigEntryForNode(t *testing.T) {
 `
 	if got != want {
 		t.Errorf("makeSSHConfigEntryForNode() mismatch:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestMakeSSHConfigEntryForNode_CertRequired(t *testing.T) {
+	entry := ExternalNodeSSHEntry{
+		Alias:    "my-gpu-box",
+		NodeID:   "node-abc",
+		PortID:   "port-xyz",
+		Hostname: "10.0.0.5",
+		Port:     41920,
+		User:     "ec2-user",
+	}
+
+	got, err := makeSSHConfigEntryForNode(entry, "/home/test/.brev/brev.pem", true, "/home/test/.brev")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(got, "Match host my-gpu-box exec ") {
+		t.Fatalf("expected Match block, got:\n%s", got)
+	}
+	if !strings.Contains(got, "--node node-abc") {
+		t.Errorf("Match exec must use --node flag: %s", got)
+	}
+	if !strings.Contains(got, "/home/test/.brev/ssh-certs/node-abc-ec2-user") {
+		t.Errorf("cert key path must scope to node ID and Linux user: %s", got)
+	}
+	// The Match block must be followed by a Host block carrying the static key
+	// as the fallback, so a failed Match exec still lets ssh connect with the key.
+	if !strings.Contains(got, "Host my-gpu-box\n") {
+		t.Errorf("cert-required mode must keep a Host fallback block: %s", got)
+	}
+	matchIdx := strings.Index(got, "Match host my-gpu-box exec ")
+	hostIdx := strings.Index(got, "Host my-gpu-box\n")
+	if matchIdx < 0 || hostIdx < 0 || matchIdx >= hostIdx {
+		t.Errorf("Match block must precede Host fallback (match=%d host=%d): %s", matchIdx, hostIdx, got)
+	}
+	if !strings.Contains(got, "IdentityFile \"/home/test/.brev/brev.pem\"") {
+		t.Errorf("Host fallback must carry the static key: %s", got)
 	}
 }
 
@@ -749,6 +882,10 @@ func makeMockWSLFS() SSHConfigurerV2Store {
 }
 
 func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
+	orig := isSSHCertRequired
+	isSSHCertRequired = func() bool { return false }
+	t.Cleanup(func() { isSSHCertRequired = orig })
+
 	type fields struct {
 		store        SSHConfigurerV2Store
 		runRemoteCMD bool
@@ -780,7 +917,6 @@ func TestSSHConfigurerV2_Update(t *testing.T) { //nolint  // this is a test
 					{
 						ID:               "test-id-1",
 						Name:             "testName1",
-						WorkspaceGroupID: "test-id-1",
 						OrganizationID:   "oi",
 						WorkspaceClassID: "wci",
 						CreatedByUserID:  "cui",
@@ -846,7 +982,6 @@ Host testName1-host
 					{
 						ID:               "test-id-1",
 						Name:             "testName1",
-						WorkspaceGroupID: "test-id-1",
 						OrganizationID:   "oi",
 						WorkspaceClassID: "wci",
 						CreatedByUserID:  "cui",
@@ -987,5 +1122,163 @@ Host testName1-host
 				}
 			}
 		})
+	}
+}
+
+func TestMakeCertMatchEntry_IneligibleWorkspace(t *testing.T) {
+	// No SSHCertEligible flag -> no Match block.
+	w := entity.Workspace{ID: "env-1", Name: "n", SSHUser: "u", PortID: "p"}
+	if got := makeCertMatchEntry(w, "/home/u/.brev", true); got != "" {
+		t.Errorf("ineligible workspace should produce no Match block, got: %s", got)
+	}
+	// Eligible but no PortID -> no Match block (can't mint without port_id).
+	w2 := entity.Workspace{ID: "env-1", Name: "n", SSHUser: "u", SSHCertEligible: true}
+	if got := makeCertMatchEntry(w2, "/home/u/.brev", true); got != "" {
+		t.Errorf("eligible without PortID should produce no Match block, got: %s", got)
+	}
+	// supportsCertHook=false (WSL/Windows config) -> no Match block even when eligible.
+	// The Windows config is consumed by Windows ssh, but the Match exec would
+	// invoke the WSL-Linux brev binary that Windows can't run; certs are deferred
+	// there and work via the POSIX config path inside WSL instead.
+	w3 := entity.Workspace{ID: "env-1", Name: "n", SSHUser: "u", SSHCertEligible: true, PortID: "p"}
+	if got := makeCertMatchEntry(w3, "/home/u/.brev", false); got != "" {
+		t.Errorf("WSL/Windows config should produce no Match block, got: %s", got)
+	}
+}
+
+func TestMakeSSHConfigEntryV2_EligibleWorkspaceIncludesCertMatch(t *testing.T) {
+	w := entity.Workspace{
+		ID:              "env-cert",
+		Name:            "cert-env",
+		Status:          entity.Running,
+		SSHUser:         "ubuntu",
+		SSHPort:         22,
+		SSHHostname:     "10.0.0.1",
+		SSHCertEligible: true,
+		PortID:          "port-1",
+	}
+	got, err := makeSSHConfigEntryV2(w, "/home/u/.brev/brev.pem", "/tmp/cf", true, false)
+	if err != nil {
+		t.Fatalf("makeSSHConfigEntryV2: %v", err)
+	}
+	// The Match block must precede the Host block.
+	matchIdx := strings.Index(got, "Match host cert-env exec")
+	hostIdx := strings.Index(got, "Host cert-env")
+	if matchIdx < 0 {
+		t.Fatal("expected Match block for cert-eligible workspace")
+	}
+	if hostIdx < 0 {
+		t.Fatal("expected Host block")
+	}
+	if matchIdx >= hostIdx {
+		t.Errorf("Match block must precede Host block (match=%d host=%d)", matchIdx, hostIdx)
+	}
+	if !strings.Contains(got, "/home/u/.brev/ssh-certs/env-cert") {
+		t.Error("missing cert key path in Match block")
+	}
+	if !strings.Contains(got, "/home/u/.brev/brev.pem") {
+		t.Error("missing static key path in Host block")
+	}
+}
+
+func TestMakeCertMatchEntry_UsesAbsoluteBrevPath(t *testing.T) {
+	// The Match exec must invoke the absolute path to the running brev binary,
+	// not a bare `brev` that could resolve to a stale PATH binary.
+	w := entity.Workspace{
+		ID: "env-abc", Name: "n", SSHUser: "ubuntu",
+		SSHCertEligible: true, PortID: "port-1",
+	}
+	got := makeCertMatchEntry(w, "/home/u/.brev", true)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip("os.Executable unavailable; cannot assert path")
+	}
+	want := fmt.Sprintf("%s mint-cert --env env-abc", exe)
+	if !strings.Contains(got, want) {
+		t.Errorf("expected Match exec to use absolute brev path %q; got: %s", want, got)
+	}
+	if strings.Contains(got, " exec \"brev mint-cert") {
+		t.Errorf("Match exec must not use bare `brev`: %s", got)
+	}
+}
+
+func TestSSHCertRequiredTemplateV3_MergesCertIntoMatchBlock(t *testing.T) {
+	rawExec := `'/path/to/brev' mint-cert --env env-1 --port p --linux-user ubuntu --out-key /home/u/.brev/ssh-certs/env-1`
+	entry := SSHConfigEntryV2{
+		Alias:        "my-env",
+		IdentityFile: `"/home/u/.brev/ssh-certs/env-1"`,
+		User:         "ubuntu",
+		HostName:     "10.0.0.5",
+		Port:         34828,
+		ExecCommand:  strconv.Quote(rawExec),
+	}
+	tmpl, err := template.New("m").Parse(SSHCertRequiredTemplateV3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := tmplAndValToString(tmpl, entry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(got, "Match host my-env exec ") {
+		t.Errorf("expected Match block, got: %s", got)
+	}
+	// The exec value must be a single quoted token; OpenSSH rejects bare
+	// whitespace-separated commands in Match exec.
+	execLine := "Match host my-env exec " + strconv.Quote(rawExec)
+	if !strings.Contains(got, execLine) {
+		t.Errorf("Match exec must quote the full command:\nwant: %s\ngot:  %s", execLine, got)
+	}
+	if strings.Contains(got, "Host my-env\n") {
+		t.Errorf("cert-required mode must not emit a Host block: %s", got)
+	}
+	if !strings.Contains(got, "10.0.0.5") || !strings.Contains(got, "34828") {
+		t.Errorf("host settings must be in the Match block: %s", got)
+	}
+	if !strings.Contains(got, "/home/u/.brev/ssh-certs/env-1") {
+		t.Errorf("cert IdentityFile must be present: %s", got)
+	}
+	if strings.Contains(got, "brev.pem") {
+		t.Errorf("static key must be absent in cert-required mode: %s", got)
+	}
+}
+
+type recordingWSLStore struct {
+	DummySSHConfigurerV2Store
+	wslWritten bool
+}
+
+func (r *recordingWSLStore) WriteBrevSSHConfigWSL(_ string) error {
+	r.wslWritten = true
+	return nil
+}
+
+func TestUpdate_SkipsWSLConfigWhenCertRequired(t *testing.T) {
+	orig := isSSHCertRequired
+	isSSHCertRequired = func() bool { return true }
+	t.Cleanup(func() { isSSHCertRequired = orig })
+
+	store := &recordingWSLStore{}
+	s := SSHConfigurerV2{store: store}
+	if err := s.Update(nil, nil); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if store.wslWritten {
+		t.Error("WriteBrevSSHConfigWSL must not be called when certs are required")
+	}
+}
+
+func TestUpdate_WritesWSLConfigWhenCertNotRequired(t *testing.T) {
+	orig := isSSHCertRequired
+	isSSHCertRequired = func() bool { return false }
+	t.Cleanup(func() { isSSHCertRequired = orig })
+
+	store := &recordingWSLStore{}
+	s := SSHConfigurerV2{store: store}
+	if err := s.Update(nil, nil); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !store.wslWritten {
+		t.Error("WriteBrevSSHConfigWSL should be called when certs are not required")
 	}
 }

@@ -3,64 +3,52 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/brevdev/brev-cli/pkg/analytics"
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
 	analyticscmd "github.com/brevdev/brev-cli/pkg/cmd/analytics"
-	"github.com/brevdev/brev-cli/pkg/cmd/background"
-	"github.com/brevdev/brev-cli/pkg/cmd/clipboard"
+	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
-	"github.com/brevdev/brev-cli/pkg/cmd/connect"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
 	"github.com/brevdev/brev-cli/pkg/cmd/credit"
 	"github.com/brevdev/brev-cli/pkg/cmd/delete"
 	"github.com/brevdev/brev-cli/pkg/cmd/deregister"
+	"github.com/brevdev/brev-cli/pkg/cmd/disablessh"
 	"github.com/brevdev/brev-cli/pkg/cmd/enablessh"
-	"github.com/brevdev/brev-cli/pkg/cmd/envvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/exec"
 	"github.com/brevdev/brev-cli/pkg/cmd/feedback"
-	"github.com/brevdev/brev-cli/pkg/cmd/fu"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpucreate"
 	"github.com/brevdev/brev-cli/pkg/cmd/gpusearch"
 	"github.com/brevdev/brev-cli/pkg/cmd/grantssh"
 	"github.com/brevdev/brev-cli/pkg/cmd/healthcheck"
 	"github.com/brevdev/brev-cli/pkg/cmd/hello"
-	"github.com/brevdev/brev-cli/pkg/cmd/importideconfig"
-	"github.com/brevdev/brev-cli/pkg/cmd/initfile"
 	"github.com/brevdev/brev-cli/pkg/cmd/invite"
+	"github.com/brevdev/brev-cli/pkg/cmd/launch"
 	"github.com/brevdev/brev-cli/pkg/cmd/login"
 	"github.com/brevdev/brev-cli/pkg/cmd/logout"
 	"github.com/brevdev/brev-cli/pkg/cmd/ls"
+	"github.com/brevdev/brev-cli/pkg/cmd/mintcert"
 	"github.com/brevdev/brev-cli/pkg/cmd/notebook"
-	"github.com/brevdev/brev-cli/pkg/cmd/ollama"
 	"github.com/brevdev/brev-cli/pkg/cmd/open"
 	"github.com/brevdev/brev-cli/pkg/cmd/org"
 	"github.com/brevdev/brev-cli/pkg/cmd/portforward"
-	"github.com/brevdev/brev-cli/pkg/cmd/profile"
-	"github.com/brevdev/brev-cli/pkg/cmd/proxy"
-	"github.com/brevdev/brev-cli/pkg/cmd/recreate"
+	"github.com/brevdev/brev-cli/pkg/cmd/ports"
 	"github.com/brevdev/brev-cli/pkg/cmd/redeem"
 	"github.com/brevdev/brev-cli/pkg/cmd/refresh"
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
-	"github.com/brevdev/brev-cli/pkg/cmd/reset"
 	"github.com/brevdev/brev-cli/pkg/cmd/revokessh"
-	"github.com/brevdev/brev-cli/pkg/cmd/runtasks"
-	"github.com/brevdev/brev-cli/pkg/cmd/scale"
+	"github.com/brevdev/brev-cli/pkg/cmd/secrets"
 	"github.com/brevdev/brev-cli/pkg/cmd/set"
 	"github.com/brevdev/brev-cli/pkg/cmd/setupworkspace"
 	"github.com/brevdev/brev-cli/pkg/cmd/shell"
 	"github.com/brevdev/brev-cli/pkg/cmd/sshkeys"
 	"github.com/brevdev/brev-cli/pkg/cmd/start"
-	"github.com/brevdev/brev-cli/pkg/cmd/status"
 	"github.com/brevdev/brev-cli/pkg/cmd/stop"
-	"github.com/brevdev/brev-cli/pkg/cmd/tasks"
-	"github.com/brevdev/brev-cli/pkg/cmd/test"
-	"github.com/brevdev/brev-cli/pkg/cmd/updatemodel"
 	"github.com/brevdev/brev-cli/pkg/cmd/upgrade"
 	"github.com/brevdev/brev-cli/pkg/cmd/version"
-	"github.com/brevdev/brev-cli/pkg/cmd/workspacegroups"
-	"github.com/brevdev/brev-cli/pkg/cmd/writeconnectionevent"
 	"github.com/brevdev/brev-cli/pkg/config"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/featureflag"
@@ -76,9 +64,18 @@ import (
 
 var (
 	userFlag      string
+	orgFlag       string
+	apiKeyFlag    string
 	printVersion  bool
 	noCheckLatest bool
 )
+
+const externalNodeAuthAnnotation = "external-node-auth"
+
+func allowsOrgOverrideWithExternalAuth(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations[externalNodeAuthAnnotation]
+	return ok
+}
 
 func NewDefaultBrevCommand() *cobra.Command {
 	cmd := NewBrevCommand()
@@ -87,6 +84,8 @@ func NewDefaultBrevCommand() *cobra.Command {
 	cmd.PersistentFlags().BoolP("help", "h", false, "Help for Brev")
 
 	cmd.PersistentFlags().StringVar(&userFlag, "user", "", "Non root user to use for per user configuration of commands run as root")
+	cmd.PersistentFlags().StringVar(&apiKeyFlag, "api-key", "", "api key to authenticate CLI requests")
+	analytics.MarkFlagSensitive(cmd.PersistentFlags(), "api-key")
 	cmd.PersistentFlags().BoolVar(&printVersion, "version", false, "Print version output")
 	cmd.PersistentFlags().BoolVar(&noCheckLatest, "no-check-latest", false, "Do not check for the latest version when printing version")
 
@@ -136,15 +135,7 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 
 	analytics.SetUserStore(noLoginCmdStore)
 
-	workspaceGroupID, err := fsStore.GetCurrentWorkspaceGroupID()
-	if err != nil {
-		fmt.Printf("%v\n", err)
-	}
-	if workspaceGroupID != "" {
-		loginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
-		noLoginCmdStore.WithStaticHeader("X-Workspace-Group-ID", workspaceGroupID)
-	}
-
+	var externalNodeCmdStore *store.AuthHTTPStore
 	cmds := &cobra.Command{
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -156,12 +147,15 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
       Find more information at:
             https://brev.nvidia.com`,
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
-			analytics.CaptureCommand("", cmd, args)
+			analytics.CaptureCommand("", cmd)
 			return nil
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			analytics.RecordCommandStart(cmd, args)
+			analytics.RecordCommandStart(cmd)
 			breverrors.GetDefaultErrorReporter().AddTag("command", cmd.Name())
+			if strings.TrimSpace(orgFlag) != "" && !allowsOrgOverrideWithExternalAuth(cmd) && auth.IsAPIKeyAuthStore(loginCmdStore) {
+				return breverrors.NewValidationError(auth.APIKeyOrganizationOverrideNotSupportedMessage)
+			}
 			// version info gets in the way of the output for
 			// configure-env-vars, since shells are going to eval it
 			if featureflag.ShowVersionOnRun() && !printVersion && cmd.Name() != "configure-env-vars" {
@@ -174,6 +168,9 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 				if v != "" {
 					fmt.Println(v)
 				}
+			}
+			if apiKeyFlag != "" {
+				_ = os.Setenv(auth.APIKeyEnvVar, apiKeyFlag)
 			}
 			if userFlag != "" {
 				_, err := noLoginCmdStore.WithUserID(userFlag)
@@ -189,6 +186,21 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 					return breverrors.WrapAndTrace(err)
 				}
 
+			}
+			loginCmdStore.SetOrganizationOverride(nil)
+			noLoginCmdStore.SetOrganizationOverride(nil)
+			if externalNodeCmdStore != nil {
+				externalNodeCmdStore.SetOrganizationOverride(nil)
+			}
+			if strings.TrimSpace(orgFlag) != "" {
+				// Resolve the override lazily so commands using an in-memory
+				// authenticator (such as register) do not authenticate through
+				// loginCmdStore before their command handler runs.
+				loginCmdStore.SetOrganizationOverrideName(orgFlag)
+				noLoginCmdStore.SetOrganizationOverrideName(orgFlag)
+				if externalNodeCmdStore != nil {
+					externalNodeCmdStore.SetOrganizationOverrideName(orgFlag)
+				}
 			}
 			home, err := fsStore.GetBrevHomePath()
 			if err != nil {
@@ -234,6 +246,8 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 	cobra.AddTemplateFunc("providerDependentCommands", providerDependentCommands)
 	cobra.AddTemplateFunc("hasAccessCommands", hasAccessCommands)
 	cobra.AddTemplateFunc("accessCommands", accessCommands)
+	cobra.AddTemplateFunc("hasNetworkingCommands", hasNetworkingCommands)
+	cobra.AddTemplateFunc("networkingCommands", networkingCommands)
 	cobra.AddTemplateFunc("hasOrganizationCommands", hasOrganizationCommands)
 	cobra.AddTemplateFunc("organizationCommands", organizationCommands)
 	cobra.AddTemplateFunc("hasConfigurationCommands", hasConfigurationCommands)
@@ -256,19 +270,21 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 			memAuthenticator = kas
 		}
 	}
-	memAuthStore := &emailCachingAuthStore{
+	memLoginAuth := auth.NewLoginAuth(&emailCachingAuthStore{
 		MemoryAuthStore: store.NewMemoryAuthStore(),
 		fileStore:       fsStore,
-	}
-	memLoginAuth := auth.NewLoginAuth(memAuthStore, memAuthenticator)
+	}, memAuthenticator)
 	memLoginAuth.WithShouldLogin(func() (bool, error) { return true, nil })
+	nodeAuth := externalNodeAuth{
+		memLoginAuth: memLoginAuth,
+	}
 
-	externalNodeCmdStore := fsStore.WithNoAuthHTTPClient(
+	externalNodeCmdStore = fsStore.WithNoAuthHTTPClient(
 		store.NewNoAuthHTTPClient(conf.GetBrevAPIURl()),
-	).WithAuth(memLoginAuth, store.WithDebug(conf.GetDebugHTTP()))
+	).WithAuth(nodeAuth, store.WithDebug(conf.GetDebugHTTP()))
 
 	err = externalNodeCmdStore.SetForbiddenStatusRetryHandler(func() error {
-		_, err1 := memLoginAuth.GetAccessToken()
+		_, err1 := nodeAuth.GetAccessToken()
 		if err1 != nil {
 			return breverrors.WrapAndTrace(err1)
 		}
@@ -278,76 +294,67 @@ func NewBrevCommand() *cobra.Command { //nolint:funlen,gocognit,gocyclo // defin
 		fmt.Printf("%v\n", err)
 	}
 
+	cmds.PersistentFlags().StringVarP(&orgFlag, "org", "o", "", "Organization to use for this command (does not change the active organization)")
+	err = cmds.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(loginCmdStore, t))
+	if err != nil {
+		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
+		fmt.Print(breverrors.WrapAndTrace(err))
+	}
+
 	createCmdTree(cmds, t, loginCmdStore, noLoginCmdStore, loginAuth, externalNodeCmdStore)
 
 	return cmds
 }
 
 func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *store.AuthHTTPStore, noLoginCmdStore *store.AuthHTTPStore, loginAuth *auth.LoginAuth, externalNodeCmdStore *store.AuthHTTPStore) { //nolint:funlen // define brev command
+	// user
+	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
+	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))
+	cmd.AddCommand(hello.NewCmdHello(t, noLoginCmdStore))
+	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
+	cmd.AddCommand(analyticscmd.NewCmdAnalytics(t))
+
+	// organization
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(credit.NewCmdCredit(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore))
+	cmd.AddCommand(secrets.NewCmdSecrets(t, loginCmdStore))
+
+	// instances
+	cmd.AddCommand(redeem.NewCmdRedeem(t, loginCmdStore))
 	cmd.AddCommand(portforward.NewCmdPortForwardSSH(loginCmdStore, t))
-	cmd.AddCommand(login.NewCmdLogin(t, noLoginCmdStore, loginAuth))
-	cmd.AddCommand(logout.NewCmdLogout(loginAuth, noLoginCmdStore))
-	cmd.AddCommand(tasks.NewCmdTasks(t, noLoginCmdStore))
-	cmd.AddCommand(tasks.NewCmdConfigure(t, noLoginCmdStore))
-	cmd.AddCommand(initfile.NewCmdInitFile(t, noLoginCmdStore))
-	cmd.AddCommand(hello.NewCmdHello(t, noLoginCmdStore))
-	cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
-	// dev feature toggle
-	if featureflag.IsDev() {
-		_ = 0 // noop
-		cmd.AddCommand(test.NewCmdTest(t, noLoginCmdStore))
-		cmd.AddCommand(clipboard.EstablishConnection(t, loginCmdStore))
-		cmd.AddCommand(clipboard.SendToClipboard(t, loginCmdStore))
-		cmd.AddCommand(clipboard.ForwardPort(t, loginCmdStore))
-		cmd.AddCommand(envvars.NewCmdEnvVars(t, loginCmdStore))
-		cmd.AddCommand(connect.NewCmdConnect(t, noLoginCmdStore))
-		cmd.AddCommand(fu.NewCmdFu(t, loginCmdStore, noLoginCmdStore))
-	} else {
-		_ = 0 // noop
-	}
-	cmd.AddCommand(workspacegroups.NewCmdWorkspaceGroups(t, loginCmdStore))
-	cmd.AddCommand(scale.NewCmdScale(t, noLoginCmdStore))
-	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
-	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
-	cmd.AddCommand(configureenvvars.NewCmdConfigureEnvVars(t, loginCmdStore))
-	cmd.AddCommand(importideconfig.NewCmdImportIDEConfig(t, noLoginCmdStore))
+	cmd.AddCommand(ports.NewCmdPorts(loginCmdStore))
 	cmd.AddCommand(shell.NewCmdShell(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(mintcert.NewCmdMintCert(noLoginCmdStore))
 	cmd.AddCommand(exec.NewCmdExec(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(copy.NewCmdCopy(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(open.NewCmdOpen(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(ollama.NewCmdOllama(t, loginCmdStore))
-	cmd.AddCommand(agentskill.NewCmdAgentSkill(t, noLoginCmdStore))
-	cmd.AddCommand(analyticscmd.NewCmdAnalytics(t))
-	cmd.AddCommand(background.NewCmdBackground(t, loginCmdStore))
-	cmd.AddCommand(status.NewCmdStatus(t, loginCmdStore))
-	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
+	cmd.AddCommand(notebook.NewCmdNotebook(noLoginCmdStore, t))
+	cmd.AddCommand(gpusearch.NewCmdGPUSearch(t, noLoginCmdStore))
+	cmd.AddCommand(gpucreate.NewCmdGPUCreate(t, loginCmdStore))
+	cmd.AddCommand(launch.NewCmdLaunch(t, loginCmdStore))
 	cmd.AddCommand(start.NewCmdStart(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(stop.NewCmdStop(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(sshkeys.NewCmdSSHKeys(t, loginCmdStore))
 	cmd.AddCommand(delete.NewCmdDelete(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(reset.NewCmdReset(t, loginCmdStore, noLoginCmdStore))
-	cmd.AddCommand(profile.NewCmdProfile(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(refresh.NewCmdRefresh(t, loginCmdStore))
+
+	// brev connect
 	cmd.AddCommand(register.NewCmdRegister(t, externalNodeCmdStore))
 	cmd.AddCommand(deregister.NewCmdDeregister(t, externalNodeCmdStore))
-	cmd.AddCommand(upgrade.NewCmdUpgrade(t, noLoginCmdStore))
 	cmd.AddCommand(enablessh.NewCmdEnableSSH(t, externalNodeCmdStore))
+	cmd.AddCommand(disablessh.NewCmdDisableSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(grantssh.NewCmdGrantSSH(t, externalNodeCmdStore))
 	cmd.AddCommand(revokessh.NewCmdRevokeSSH(t, externalNodeCmdStore))
-	cmd.AddCommand(runtasks.NewCmdRunTasks(t, noLoginCmdStore))
-	cmd.AddCommand(proxy.NewCmdProxy(t, noLoginCmdStore))
-	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 
-	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
-	cmd.AddCommand(recreate.NewCmdRecreate(t, loginCmdStore))
-	cmd.AddCommand(writeconnectionevent.NewCmdwriteConnectionEvent(t, loginCmdStore))
-	cmd.AddCommand(updatemodel.NewCmdupdatemodel(t, loginCmdStore))
+	// misc and tests
+	cmd.AddCommand(agentskill.NewCmdAgentSkill(t, noLoginCmdStore))
+	cmd.AddCommand(upgrade.NewCmdUpgrade(t, noLoginCmdStore))
+	cmd.AddCommand(healthcheck.NewCmdHealthcheck(t, noLoginCmdStore))
 	cmd.AddCommand(feedback.NewCmdFeedback(t, noLoginCmdStore))
+	cmd.AddCommand(setupworkspace.NewCmdSetupWorkspace(noLoginCmdStore))
 }
 
 func hasWorkspaceCommands(cmd *cobra.Command) bool {
@@ -356,6 +363,10 @@ func hasWorkspaceCommands(cmd *cobra.Command) bool {
 
 func hasAccessCommands(cmd *cobra.Command) bool {
 	return len(accessCommands(cmd)) > 0
+}
+
+func hasNetworkingCommands(cmd *cobra.Command) bool {
+	return len(networkingCommands(cmd)) > 0
 }
 
 func hasOrganizationCommands(cmd *cobra.Command) bool {
@@ -391,7 +402,17 @@ func workspaceCommands(cmd *cobra.Command) []*cobra.Command {
 func accessCommands(cmd *cobra.Command) []*cobra.Command {
 	cmds := []*cobra.Command{}
 	for _, sub := range cmd.Commands() {
-		if isAccessCommand(sub) {
+		if sub.IsAvailableCommand() && isAccessCommand(sub) {
+			cmds = append(cmds, sub)
+		}
+	}
+	return cmds
+}
+
+func networkingCommands(cmd *cobra.Command) []*cobra.Command {
+	cmds := []*cobra.Command{}
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() && isNetworkingCommand(sub) {
 			cmds = append(cmds, sub)
 		}
 	}
@@ -458,6 +479,11 @@ func isAccessCommand(cmd *cobra.Command) bool {
 	return ok
 }
 
+func isNetworkingCommand(cmd *cobra.Command) bool {
+	_, ok := cmd.Annotations["networking"]
+	return ok
+}
+
 func isOrganizationCommand(cmd *cobra.Command) bool {
 	_, ok := cmd.Annotations["organization"]
 	return ok
@@ -520,6 +546,13 @@ Instance Access:
   {{rpad .Name .NamePadding }} {{.Short}}
 {{- end}}{{- end}}
 
+{{- if hasNetworkingCommands . }}
+
+Networking:
+{{- range networkingCommands . }}
+  {{rpad .Name .NamePadding }} {{.Short}}
+{{- end}}{{- end}}
+
 {{- if hasOrganizationCommands . }}
 
 Organization Management:
@@ -555,9 +588,19 @@ Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
 
+type externalNodeAuth struct {
+	memLoginAuth *auth.LoginAuth
+}
+
+func (a externalNodeAuth) GetAccessToken() (string, error) {
+	token, err := a.memLoginAuth.GetFreshAccessTokenOrLogin()
+	return token, breverrors.WrapAndTrace(err)
+}
+
 var (
 	_ store.Auth     = auth.LoginAuth{}
 	_ store.Auth     = auth.NoLoginAuth{}
+	_ store.Auth     = externalNodeAuth{}
 	_ auth.AuthStore = store.FileStore{}
 	_ auth.AuthStore = &store.MemoryAuthStore{}
 	_ auth.AuthStore = &emailCachingAuthStore{}

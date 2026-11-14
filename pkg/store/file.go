@@ -168,10 +168,9 @@ func (f FileStore) GetDependenciesForImport(path string) (*Dependencies, error) 
 }
 
 type WorkspaceMeta struct {
-	WorkspaceID      string `json:"workspaceId"`
-	WorkspaceGroupID string `json:"workspaceGroupId"`
-	UserID           string `json:"userId"`
-	OrganizationID   string `json:"organizationId"`
+	WorkspaceID    string `json:"workspaceId"`
+	UserID         string `json:"userId"`
+	OrganizationID string `json:"organizationId"`
 }
 
 // GetCurrentWorkspaceID will return an empty string when
@@ -190,14 +189,6 @@ func (f FileStore) IsWorkspace() (bool, error) {
 		return false, breverrors.WrapAndTrace(err)
 	}
 	return id != "", nil
-}
-
-func (f FileStore) GetCurrentWorkspaceGroupID() (string, error) {
-	meta, err := f.GetCurrentWorkspaceMeta()
-	if err != nil {
-		return "", nil
-	}
-	return meta.WorkspaceGroupID, nil
 }
 
 func (f FileStore) GetCurrentWorkspaceMeta() (*WorkspaceMeta, error) {
@@ -224,7 +215,6 @@ func (f FileStore) GetCurrentWorkspaceMeta() (*WorkspaceMeta, error) {
 	if wm.WorkspaceID != "" {
 		breverrors.GetDefaultErrorReporter().AddTag("workspaceId", wm.WorkspaceID)
 		breverrors.GetDefaultErrorReporter().AddTag("organizationId", wm.OrganizationID)
-		breverrors.GetDefaultErrorReporter().AddTag("workspaceGroupId", wm.WorkspaceGroupID)
 	}
 
 	return &wm, nil

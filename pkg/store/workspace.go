@@ -80,7 +80,7 @@ type Registry struct {
 
 type CreateWorkspacesOptions struct {
 	Name                 string               `json:"name"`
-	WorkspaceGroupID     string               `json:"workspaceGroupId"`
+	CloudCredID          string               `json:"cloudCredId,omitempty"`
 	WorkspaceClassID     string               `json:"workspaceClassId"`
 	WorkspaceTemplateID  string               `json:"workspaceTemplateId"`
 	Description          string               `json:"description"`
@@ -99,6 +99,7 @@ type CreateWorkspacesOptions struct {
 	ExecsV1              *entity.ExecsV1      `json:"execsV1"`
 	InstanceType         string               `json:"instanceType"`
 	Location             string               `json:"location,omitempty"`
+	SubLocation          string               `json:"subLocation,omitempty"`
 	DiskStorage          string               `json:"diskStorage"`
 	BaseImage            string               `json:"baseImage"`
 	VMOnlyMode           bool                 `json:"vmOnlyMode"`
@@ -107,6 +108,7 @@ type CreateWorkspacesOptions struct {
 	DockerCompose        *DockerCompose       `json:"dockerCompose,omitempty"`
 	OnContainer          bool                 `json:"onContainer,omitempty"`
 	PortMappings         map[string]string    `json:"portMappings"`
+	FirewallRules        []CreateFirewallRule `json:"firewallRules,omitempty"`
 	Files                interface{}          `json:"files"`
 	Labels               interface{}          `json:"labels"`
 	WorkspaceVersion     string               `json:"workspaceVersion"`
@@ -114,8 +116,30 @@ type CreateWorkspacesOptions struct {
 	LaunchableConfig     *LaunchableConfig    `json:"launchableConfig,omitempty"`
 }
 
+// CreateFirewallRule mirrors brev-deploy's CreateFirewallRule. AllowedIPs is
+// either "all" (open to 0.0.0.0/0) or "user-ip" (open to ClientIPs).
+type CreateFirewallRule struct {
+	Port       string   `json:"port"`
+	AllowedIPs string   `json:"allowedIPs"`
+	ClientIPs  []string `json:"clientIPs,omitempty"`
+}
+
 type LaunchableConfig struct {
-	ID string `json:"id"`
+	ID                string             `json:"id"`
+	ParameterBindings []ParameterBinding `json:"parameterBindings,omitempty"`
+}
+
+type ParameterBinding struct {
+	Name          string                  `json:"name"`
+	Value         string                  `json:"value,omitempty"`
+	BrevSecretID  string                  `json:"brevSecretId,omitempty"` // Deprecated: retained for API compatibility.
+	ManagedSecret *ManagedSecretReference `json:"managedSecret,omitempty"`
+}
+
+// ManagedSecretReference selects an immutable DevPlane managed-secret version.
+type ManagedSecretReference struct {
+	SecretID  string `json:"secretId"`
+	VersionID string `json:"versionId,omitempty"`
 }
 
 type LaunchableResponse struct {
@@ -131,18 +155,43 @@ type LaunchableResponse struct {
 }
 
 type LaunchableWorkspaceRequest struct {
-	WorkspaceGroupID string `json:"workspaceGroupId,omitempty"`
-	InstanceType     string `json:"instanceType"`
-	Storage          string `json:"storage,omitempty"`
-	Location         string `json:"location,omitempty"`
-	ImageID          string `json:"imageId,omitempty"`
+	CloudCredID   string               `json:"cloudCredId,omitempty"`
+	InstanceType  string               `json:"instanceType"`
+	Storage       string               `json:"storage,omitempty"`
+	Location      string               `json:"location,omitempty"`
+	SubLocation   string               `json:"subLocation,omitempty"`
+	ImageID       string               `json:"imageId,omitempty"`
+	FirewallRules []CreateFirewallRule `json:"firewallRules,omitempty"`
 }
 
 type LaunchableBuildRequest struct {
+	VerbBuild       *VerbBuild       `json:"verbBuild,omitempty"`
 	VMBuild         *VMBuild         `json:"vmBuild,omitempty"`
 	CustomContainer *CustomContainer `json:"containerBuild,omitempty"`
 	DockerCompose   *DockerCompose   `json:"dockerCompose,omitempty"`
 	Ports           []LaunchablePort `json:"ports"`
+	Parameters      []Parameter      `json:"parameters,omitempty"`
+}
+
+type VerbBuild struct {
+	VerbYAML string `json:"verbYaml"`
+}
+
+type Parameter struct {
+	Name        string           `json:"name"`
+	Description string           `json:"description,omitempty"`
+	Required    bool             `json:"required"`
+	Text        *TextParameter   `json:"text,omitempty"`
+	Choice      *ChoiceParameter `json:"choice,omitempty"`
+}
+
+type TextParameter struct {
+	DefaultValue string `json:"defaultValue,omitempty"`
+}
+
+type ChoiceParameter struct {
+	Choices      []string `json:"choices"`
+	DefaultValue string   `json:"defaultValue,omitempty"`
 }
 
 type LaunchablePort struct {
@@ -157,27 +206,14 @@ type LaunchableFile struct {
 }
 
 var (
-	DefaultWorkspaceClassID = config.GlobalConfig.GetDefaultWorkspaceClass()
-	UserWorkspaceClassID    = "2x8"
-	DevWorkspaceClassID     = "4x16"
+	UserWorkspaceClassID = "2x8"
+	DevWorkspaceClassID  = "4x16"
 
 	DefaultWorkspaceTemplateID = config.GlobalConfig.GetDefaultWorkspaceTemplate()
 	UserWorkspaceTemplateID    = "4nbb4lg2s"
 	DevWorkspaceTemplateID     = "v7nd45zsc"
 	DefaultDiskStorage         = "120Gi"
 )
-
-var (
-	DefaultApplicationID = "92f59a4yf"
-	DefaultApplication   = entity.Application{
-		ID:           DefaultApplicationID,
-		Name:         "VSCode",
-		Port:         22778,
-		StartCommand: "",
-		Version:      "1.57.1",
-	}
-)
-var DefaultApplicationList = []entity.Application{DefaultApplication}
 
 func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions {
 	isStoppable := false
@@ -195,7 +231,6 @@ func NewCreateWorkspacesOptions(clusterID, name string) *CreateWorkspacesOptions
 		PortMappings:         map[string]string{},
 		ReposV1:              &entity.ReposV1{},
 		VMBuild:              &VMBuild{ForceJupyterInstall: true},
-		WorkspaceGroupID:     "", // resolved dynamically from instance type
 		WorkspaceTemplateID:  DefaultWorkspaceTemplateID,
 		WorkspaceVersion:     "v1",
 	}
@@ -241,8 +276,8 @@ func (c *CreateWorkspacesOptions) WithVMBuild(vmBuild *VMBuild) *CreateWorkspace
 	return c
 }
 
-func (c *CreateWorkspacesOptions) WithWorkspaceGroupID(workspaceGroupID string) *CreateWorkspacesOptions {
-	c.WorkspaceGroupID = workspaceGroupID
+func (c *CreateWorkspacesOptions) WithCloudCredID(cloudCredID string) *CreateWorkspacesOptions {
+	c.CloudCredID = cloudCredID
 	return c
 }
 
@@ -387,21 +422,34 @@ func (s AuthHTTPStore) GetWorkspaceByNameOrID(orgID string, nameOrID string) ([]
 	return workspaces, nil
 }
 
-// get user workspaces in org, like brev ls
 func (s AuthHTTPStore) GetContextWorkspaces() ([]entity.Workspace, error) {
 	org, err := s.GetActiveOrganizationOrDefault()
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
-	if auth.IsAPIKeyAuthStore(&s) {
-		return s.GetWorkspaces(org.ID, nil)
+
+	userID := ""
+	if !auth.IsAPIKeyAuthStore(&s) {
+		user, err := s.GetCurrentUser()
+		if err != nil {
+			return nil, breverrors.WrapAndTrace(err)
+		}
+		userID = user.ID
 	}
 
-	user, err := s.GetCurrentUser()
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
+	return s.GetContextWorkspacesFor(org.ID, userID)
+}
+
+// GetContextWorkspacesFor lists the workspaces the given user can see in the
+// given organization without resolving either again, to prevent repeat lookups. An empty
+// userID lists the whole org
+func (s AuthHTTPStore) GetContextWorkspacesFor(orgID string, userID string) ([]entity.Workspace, error) {
+	var options *GetWorkspacesOptions
+	if userID != "" && !auth.IsAPIKeyAuthStore(&s) {
+		options = &GetWorkspacesOptions{UserID: userID}
 	}
-	workspaces, err := s.GetWorkspaces(org.ID, &GetWorkspacesOptions{UserID: user.ID})
+
+	workspaces, err := s.GetWorkspaces(orgID, options)
 	if err != nil {
 		return nil, breverrors.WrapAndTrace(err)
 	}
@@ -461,32 +509,6 @@ func (s AuthHTTPStore) GetWorkspace(workspaceID string) (*entity.Workspace, erro
 	if res.IsError() {
 		return nil, NewHTTPResponseError(res)
 	}
-	return &result, nil
-}
-
-func (s AuthHTTPStore) ModifyWorkspace(workspaceID string, options *ModifyWorkspaceRequest) (*entity.Workspace, error) {
-	if options == nil {
-		return nil, fmt.Errorf("options can not be nil")
-	}
-
-	var result entity.Workspace
-	res, err := s.authHTTPClient.restyClient.R().
-		SetHeader("Content-Type", "application/json").
-		SetPathParam(workspaceIDParamName, workspaceID).
-		SetResult(&result).
-		SetBody(options).
-		Put(workspacePath)
-	if err != nil {
-		return nil, breverrors.WrapAndTrace(err)
-	}
-	if res.IsError() {
-		return nil, NewHTTPResponseError(res)
-	}
-	// fmt.Printf("name %s\n", result.Name)
-	// fmt.Printf("template %s %s\n", result.WorkspaceTemplate.ID, result.WorkspaceTemplate.Name)
-	// fmt.Printf("resource class %s\n", result.WorkspaceClassID)
-	// fmt.Printf("instance %s\n", result.InstanceType)
-	// fmt.Printf("workspace group %s\n", result.WorkspaceGroupID)
 	return &result, nil
 }
 

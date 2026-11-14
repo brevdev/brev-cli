@@ -118,7 +118,7 @@ func Test_WrapAndTraceError(t *testing.T) {
 	wrap2 := WrapAndTrace(Errorf("wrap 2: %w", wrap1))
 
 	assert.True(t, Is(wrap2, err))
-	// assert.Equal(t, "wrap 2: wrap 1: my error", wrap2.Error()) // includes line nums
+	assert.Equal(t, "wrap 2: wrap 1: my error", wrap2.Error())
 	fmt.Println("verbose err:")
 	fmt.Printf("%+v\n", wrap2) // print stacktrace
 
@@ -233,4 +233,29 @@ func Test_combine(t *testing.T) {
 	cerr := CombineByString(errs)
 
 	assert.Equal(t, "my error 1", cerr.Error())
+}
+
+// Errors surfaced to users must never carry the stack frames that
+// WrapAndTrace attaches; verbose %+v output still exposes them for debugging.
+func Test_WrapAndTrace_KeepsStackOutOfUserMessage(t *testing.T) {
+	err := WrapAndTrace(Errorf("wrap: %w", New("my error")))
+
+	assert.Equal(t, "wrap: my error", err.Error())
+	assert.NotContains(t, err.Error(), "[error]")
+	assert.NotContains(t, err.Error(), ".go:")
+
+	verbose := fmt.Sprintf("%+v", err)
+	assert.Contains(t, verbose, "errors_test.go")
+	assert.Contains(t, verbose, "Test_WrapAndTrace_KeepsStackOutOfUserMessage")
+}
+
+// The CLI wraps traced errors in fmt.Errorf chains; Cause() can surface those
+// outer messages, so they must stay free of stack frames too.
+func Test_WrapAndTrace_KeepsStackOutOfWrappedUserMessage(t *testing.T) {
+	inner := WrapAndTrace(New("boom"))
+	err := WrapAndTrace(Errorf("context: %w", inner))
+
+	assert.Equal(t, "context: boom", err.Error())
+	assert.NotContains(t, err.Error(), "[error]")
+	assert.NotContains(t, err.Error(), ".go:")
 }

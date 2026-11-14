@@ -3,6 +3,7 @@ package gpusearch
 import (
 	"testing"
 
+	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -590,33 +591,28 @@ func TestAllInstanceTypesResponseLookup(t *testing.T) {
 	resp := &AllInstanceTypesResponse{
 		AllInstanceTypes: []InstanceType{
 			{
-				Type: "hyperstack_H100_sxm5x8",
-				WorkspaceGroups: []WorkspaceGroup{
-					{ID: "wg-shadeform", Name: "Shadeform", PlatformType: "shadeform"},
-				},
+				Type:        "hyperstack_H100_sxm5x8",
+				CloudCredID: "cc-shadeform",
 			},
 			{
-				Type:            "hyperstack_H100x8_NVLINK",
-				WorkspaceGroups: nil,
+				Type: "hyperstack_H100x8_NVLINK",
 			},
 			{
-				Type:            "verda-b300-8x",
-				WorkspaceGroups: []WorkspaceGroup{},
+				Type: "verda-b300-8x",
 			},
 		},
 	}
 
-	t.Run("GetWorkspaceGroupID returns id when type has groups", func(t *testing.T) {
-		assert.Equal(t, "wg-shadeform", resp.GetWorkspaceGroupID("hyperstack_H100_sxm5x8"))
+	t.Run("GetCloudCredID returns the cloud credential instead of the workspace group", func(t *testing.T) {
+		assert.Equal(t, "cc-shadeform", resp.GetCloudCredID("hyperstack_H100_sxm5x8"))
 	})
 
-	t.Run("GetWorkspaceGroupID returns empty for type without groups", func(t *testing.T) {
-		assert.Equal(t, "", resp.GetWorkspaceGroupID("hyperstack_H100x8_NVLINK"))
-		assert.Equal(t, "", resp.GetWorkspaceGroupID("verda-b300-8x"))
+	t.Run("GetCloudCredID returns empty when no cloud credential is available", func(t *testing.T) {
+		assert.Equal(t, "", resp.GetCloudCredID("verda-b300-8x"))
 	})
 
-	t.Run("GetWorkspaceGroupID returns empty for unknown type", func(t *testing.T) {
-		assert.Equal(t, "", resp.GetWorkspaceGroupID("hyperstack_H100x8_one"))
+	t.Run("GetCloudCredID returns empty for unknown type", func(t *testing.T) {
+		assert.Equal(t, "", resp.GetCloudCredID("hyperstack_H100x8_one"))
 	})
 
 	t.Run("HasInstanceType is true even when groups are empty", func(t *testing.T) {
@@ -629,4 +625,83 @@ func TestAllInstanceTypesResponseLookup(t *testing.T) {
 		assert.False(t, resp.HasInstanceType("hyperstack_H100x8_one"))
 		assert.False(t, resp.HasInstanceType(""))
 	})
+}
+
+// trackingStore is a GPUSearchStore mock that records the includeCPU flag passed to
+// GetInstanceTypes so command dispatch tests can assert which search path executed.
+// It returns an empty (but non-nil) response by default so RunGPUSearch/RunCPUSearch
+// hit the empty-results path and return nil without rendering a table.
+type trackingStore struct {
+	Response *InstanceTypesResponse
+	Err      error
+	calls    []bool
+}
+
+func (m *trackingStore) GetInstanceTypes(includeCPU bool) (*InstanceTypesResponse, error) {
+	m.calls = append(m.calls, includeCPU)
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	if m.Response != nil {
+		return m.Response, nil
+	}
+	return &InstanceTypesResponse{Items: []InstanceType{}}, nil
+}
+
+func TestSearchCommandDefaultsToGPUSearchWhenNoArgs(t *testing.T) {
+	store := &trackingStore{}
+	cmd := NewCmdGPUSearch(terminal.New(), store)
+	cmd.SetArgs([]string{})
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+	assert.Len(t, store.calls, 1, "default search should call the store once")
+	assert.False(t, store.calls[0], "default search should request GPU instances (includeCPU=false)")
+}
+
+func TestSearchCommandGPUSubcommandDispatchesToGPUSearch(t *testing.T) {
+	store := &trackingStore{}
+	cmd := NewCmdGPUSearch(terminal.New(), store)
+	cmd.SetArgs([]string{"gpu"})
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+	assert.Len(t, store.calls, 1, "gpu subcommand should call the store once")
+	assert.False(t, store.calls[0], "gpu subcommand should request GPU instances (includeCPU=false)")
+}
+
+func TestSearchCommandCPUSubcommandDispatchesToCPUSearch(t *testing.T) {
+	store := &trackingStore{}
+	cmd := NewCmdGPUSearch(terminal.New(), store)
+	cmd.SetArgs([]string{"cpu"})
+
+	err := cmd.Execute()
+	assert.NoError(t, err)
+	assert.Len(t, store.calls, 1, "cpu subcommand should call the store once")
+	assert.True(t, store.calls[0], "cpu subcommand should request CPU instances (includeCPU=true)")
+}
+
+func TestSearchCommandRejectsUnknownPositionalTokens(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"plural cpus", []string{"cpus"}},
+		{"uppercase CPU", []string{"CPU"}},
+		{"uppercase GPU", []string{"GPU"}},
+		{"arbitrary badcmd", []string{"badcmd"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &trackingStore{}
+			cmd := NewCmdGPUSearch(terminal.New(), store)
+			cmd.SetArgs(tt.args)
+
+			err := cmd.Execute()
+			assert.Error(t, err)
+			assert.ErrorContains(t, err, "unknown subcommand")
+			assert.ErrorContains(t, err, "Available subcommands: cpu, gpu")
+			assert.Empty(t, store.calls, "unknown subcommand should not call the store")
+		})
+	}
 }

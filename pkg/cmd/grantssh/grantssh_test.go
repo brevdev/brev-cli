@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http/httptest"
+	"os/user"
+	"strings"
 	"testing"
 
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
@@ -13,17 +15,32 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
 // mock types for grantSSHDeps interfaces
 
 type mockSelector struct {
-	fn func(label string, items []string) string
+	fn            func(label string, items []string) string
+	inputLineFunc func(*terminal.Terminal, string) (string, error)
 }
 
 func (m mockSelector) Select(label string, items []string) string {
-	return m.fn(label, items)
+	if m.fn != nil {
+		return m.fn(label, items)
+	}
+	if len(items) > 0 {
+		return items[0]
+	}
+	return ""
+}
+
+func (m mockSelector) InputLine(t *terminal.Terminal, label string) (string, error) {
+	if m.inputLineFunc != nil {
+		return m.inputLineFunc(t, label)
+	}
+	return "", nil
 }
 
 type mockNodeClientFactory struct {
@@ -31,7 +48,7 @@ type mockNodeClientFactory struct {
 }
 
 func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
-	return register.NewNodeServiceClient(provider, m.serverURL)
+	return store.NewDevPlaneClient(provider, m.serverURL).ExternalNodes
 }
 
 // mockRegistrationStore satisfies register.RegistrationStore.
@@ -45,10 +62,14 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 }
 
 func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
-	if m.reg == nil {
-		return nil, fmt.Errorf("no registration")
+	if m.reg == nil || m.reg.ExternalNodeID == "" || m.reg.OrgID == "" {
+		return nil, fmt.Errorf("no completed registration")
 	}
 	return m.reg, nil
+}
+
+func (m *mockRegistrationStore) LoadAll() (*register.DeviceRegistration, error) {
+	return nil, fmt.Errorf("unexpected call to LoadAll")
 }
 
 func (m *mockRegistrationStore) Delete() error {
@@ -62,13 +83,16 @@ func (m *mockRegistrationStore) Exists() (bool, error) {
 
 // mockGrantSSHStore satisfies GrantSSHStore.
 type mockGrantSSHStore struct {
-	user        *entity.User
-	org         *entity.Organization
-	token       string
-	attachments []entity.OrgRoleAttachment
-	users       map[string]*entity.User
-	err         error
+	user    *entity.User
+	org     *entity.Organization
+	token   string
+	members []*nodev1.OrganizationMember
+	users   map[string]*entity.User
+	tokens  *entity.AuthTokens
+	err     error
 }
+
+func (m *mockGrantSSHStore) GetAuthTokens() (*entity.AuthTokens, error) { return m.tokens, nil }
 
 func (m *mockGrantSSHStore) GetCurrentUser() (*entity.User, error) {
 	if m.err != nil {
@@ -83,8 +107,8 @@ func (m *mockGrantSSHStore) GetActiveOrganizationOrDefault() (*entity.Organizati
 
 func (m *mockGrantSSHStore) GetAccessToken() (string, error) { return m.token, nil }
 
-func (m *mockGrantSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAttachment, error) {
-	return m.attachments, nil
+func (m *mockGrantSSHStore) ListOrganizationMembers(_ context.Context, _ string) ([]*nodev1.OrganizationMember, error) {
+	return m.members, nil
 }
 
 func (m *mockGrantSSHStore) GetUserByID(userID string) (*entity.User, error) {
@@ -177,6 +201,7 @@ func testGrantSSHDeps(t *testing.T, svc *fakeNodeService, regStore register.Regi
 		}},
 		nodeClients:       mockNodeClientFactory{serverURL: server.URL},
 		registrationStore: regStore,
+		currentUser:       func() (*user.User, error) { return &user.User{Username: "ubuntu"}, nil },
 	}, server
 }
 
@@ -226,9 +251,9 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 		user:  &entity.User{ID: "user_1", PublicKey: "ssh-ed25519 testkey"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_1"}, // current user, should be filtered
-			{Subject: "user_2"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_1"}, // current user, should be filtered
+			{UserId: "user_2"},
 		},
 		users: map[string]*entity.User{
 			"user_2": targetUser,
@@ -265,6 +290,13 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
+	var linuxUserPromptLabel string
+	deps.prompter = mockSelector{
+		inputLineFunc: func(_ *terminal.Terminal, label string) (string, error) {
+			linuxUserPromptLabel = label
+			return "dmalin", nil
+		},
+	}
 
 	term := terminal.New()
 	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "ubuntu"}
@@ -282,8 +314,11 @@ func Test_runGrantSSH_HappyPath(t *testing.T) {
 	if gotReq.GetUserId() != "user_2" {
 		t.Errorf("expected user ID user_2, got %s", gotReq.GetUserId())
 	}
-	if gotReq.GetLinuxUser() != "ubuntu" {
-		t.Errorf("expected linux user ubuntu, got %s", gotReq.GetLinuxUser())
+	if gotReq.GetLinuxUser() != "dmalin" {
+		t.Errorf("expected selected Linux user dmalin, got %s", gotReq.GetLinuxUser())
+	}
+	if linuxUserPromptLabel != "Linux username (default ubuntu):" {
+		t.Errorf("Linux username prompt label = %q", linuxUserPromptLabel)
 	}
 	if gotReq.GetPortId() != "port_ssh" {
 		t.Errorf("expected port ID port_ssh, got %s", gotReq.GetPortId())
@@ -305,9 +340,9 @@ func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_1"},
-			{Subject: "user_2"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_1"},
+			{UserId: "user_2"},
 		},
 		users: map[string]*entity.User{"user_2": targetUser},
 	}
@@ -342,7 +377,6 @@ func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
 		orgName:       "TestOrg",
 		nodeName:      "My Spark",
 		userIDOrEmail: "alice@example.com",
-		linuxUser:     "ubuntu",
 		portID:        "port_ssh",
 		skipConfirm:   true,
 	}
@@ -352,6 +386,87 @@ func Test_runGrantSSH_NonInteractiveWithPortID(t *testing.T) {
 	}
 	if gotReq == nil || gotReq.GetPortId() != "port_ssh" {
 		t.Fatalf("expected port_ssh in request, got %+v", gotReq)
+	}
+	if gotReq.GetLinuxUser() != "ubuntu" {
+		t.Fatalf("expected current Linux user ubuntu, got %q", gotReq.GetLinuxUser())
+	}
+}
+
+func Test_runGrantSSH_APIKeyDerivesOrganization(t *testing.T) {
+	targetUser := &entity.User{ID: "user_2", Name: "Alice", Email: "alice@example.com"}
+	store := &mockGrantSSHStore{
+		org:    &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		tokens: &entity.AuthTokens{APIKey: "bak-test", APIKeyOrgID: "org_123"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_2"},
+		},
+		users: map[string]*entity.User{"user_2": targetUser},
+	}
+
+	var gotListReq *nodev1.ListNodesRequest
+	var gotGrantReq *nodev1.GrantNodeSSHAccessRequest
+	svc := &fakeNodeService{
+		listNodesFn: func(req *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			gotListReq = req
+			return &nodev1.ListNodesResponse{Items: []*nodev1.ExternalNode{{
+				ExternalNodeId: "unode_abc",
+				Name:           "My Spark",
+				Ports:          []*nodev1.Port{{PortId: "port_ssh", PortNumber: 11640, ServerPort: 22}},
+			}}}, nil
+		},
+		grantSSHFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			gotGrantReq = req
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
+	deps, server := testGrantSSHDeps(t, svc, &mockRegistrationStore{})
+	defer server.Close()
+
+	err := runGrantSSH(context.Background(), terminal.New(), store, grantSSHOpts{
+		interactive:   false,
+		nodeName:      "My Spark",
+		userIDOrEmail: "alice@example.com",
+		portID:        "port_ssh",
+		skipConfirm:   true,
+	}, deps)
+	if err != nil {
+		t.Fatalf("runGrantSSH: %v", err)
+	}
+	if gotListReq == nil || gotListReq.GetOrganizationId() != "org_123" {
+		t.Fatalf("ListNodes organization = %+v, want org_123", gotListReq)
+	}
+	if gotGrantReq == nil || gotGrantReq.GetLinuxUser() != "ubuntu" {
+		t.Fatalf("GrantNodeSSHAccess request = %+v, want Linux user ubuntu", gotGrantReq)
+	}
+}
+
+func Test_runGrantSSH_APIKeyRejectsDifferentOrganization(t *testing.T) {
+	store := &mockGrantSSHStore{
+		org:    &entity.Organization{ID: "org_123", Name: "TestOrg"},
+		tokens: &entity.AuthTokens{APIKey: "bak-test", APIKeyOrgID: "org_123"},
+	}
+	err := runGrantSSH(context.Background(), terminal.New(), store, grantSSHOpts{
+		interactive:   false,
+		orgName:       "OtherOrg",
+		nodeName:      "My Spark",
+		userIDOrEmail: "alice@example.com",
+		portID:        "port_ssh",
+	}, grantSSHDeps{})
+	if err == nil || !strings.Contains(err.Error(), "api key does not belong to organization") {
+		t.Fatalf("expected API-key org mismatch error, got %v", err)
+	}
+}
+
+func Test_resolveLinuxUsername(t *testing.T) {
+	currentUser := func() (*user.User, error) { return &user.User{Username: "dmalin"}, nil }
+
+	got, err := resolveLinuxUsername("", currentUser)
+	if err != nil || got != "dmalin" {
+		t.Fatalf("default username = %q, err = %v", got, err)
+	}
+	got, err = resolveLinuxUsername(" ubuntu ", currentUser)
+	if err != nil || got != "ubuntu" {
+		t.Fatalf("explicit username = %q, err = %v", got, err)
 	}
 }
 
@@ -368,8 +483,8 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 		user:  &entity.User{ID: "user_1"},
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_2"},
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_2"},
 		},
 		users: map[string]*entity.User{
 			"user_2": {ID: "user_2", Name: "Alice", Email: "alice@example.com"},
@@ -393,7 +508,7 @@ func Test_runGrantSSH_RPCFailure(t *testing.T) {
 	}
 }
 
-func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
+func Test_runGrantSSH_SelfGrantAllowed(t *testing.T) {
 	regStore := &mockRegistrationStore{
 		reg: &register.DeviceRegistration{
 			ExternalNodeID: "unode_abc",
@@ -402,24 +517,50 @@ func Test_runGrantSSH_NoOtherMembers(t *testing.T) {
 		},
 	}
 
+	self := &entity.User{ID: "user_1", Name: "Prat", Email: "prat@example.com"}
 	store := &mockGrantSSHStore{
-		user:  &entity.User{ID: "user_1"},
+		user:  self,
 		org:   &entity.Organization{ID: "org_123", Name: "TestOrg"},
 		token: "tok",
-		attachments: []entity.OrgRoleAttachment{
-			{Subject: "user_1"}, // only current user, no others
+		members: []*nodev1.OrganizationMember{
+			{UserId: "user_1"}, // only the current user
 		},
-		users: map[string]*entity.User{},
+		users: map[string]*entity.User{"user_1": self},
 	}
 
-	svc := &fakeNodeService{}
+	var gotGrantReq *nodev1.GrantNodeSSHAccessRequest
+	svc := &fakeNodeService{
+		listNodesFn: func(_ *nodev1.ListNodesRequest) (*nodev1.ListNodesResponse, error) {
+			return &nodev1.ListNodesResponse{
+				Items: []*nodev1.ExternalNode{{
+					ExternalNodeId: "unode_abc",
+					Name:           "My Spark",
+					Ports: []*nodev1.Port{{
+						PortId:     "port_ssh",
+						PortNumber: 22,
+					}},
+				}},
+			}, nil
+		},
+		grantSSHFn: func(req *nodev1.GrantNodeSSHAccessRequest) (*nodev1.GrantNodeSSHAccessResponse, error) {
+			gotGrantReq = req
+			return &nodev1.GrantNodeSSHAccessResponse{}, nil
+		},
+	}
 	deps, server := testGrantSSHDeps(t, svc, regStore)
 	defer server.Close()
 
 	term := terminal.New()
-	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser"}
+	opts := grantSSHOpts{interactive: true, skipConfirm: true, linuxUser: "testuser", portID: "port_ssh"}
 	err := runGrantSSH(context.Background(), term, store, opts, deps)
-	if err == nil {
-		t.Fatal("expected error when no other members exist")
+	if err != nil {
+		t.Fatalf("runGrantSSH failed: %v", err)
+	}
+
+	if gotGrantReq == nil {
+		t.Fatal("expected GrantNodeSSHAccess to be called for self-grant")
+	}
+	if gotGrantReq.GetUserId() != "user_1" {
+		t.Errorf("expected grant for current user, got %s", gotGrantReq.GetUserId())
 	}
 }

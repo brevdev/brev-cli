@@ -48,32 +48,34 @@ type Storage struct {
 	PricePerGBHr BasePrice   `json:"price_per_gb_hr"` // Uses BasePrice since API returns {currency, amount}
 }
 
-// WorkspaceGroup represents a workspace group that can run an instance type
-type WorkspaceGroup struct {
+// CloudCred represents a cloud credential that can run an instance type.
+type CloudCred struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
 	PlatformType string `json:"platformType"`
+	TenantType   string `json:"tenantType"`
 }
 
 // InstanceType represents an instance type from the API
 type InstanceType struct {
-	Type                   string           `json:"type"`
-	SupportedGPUs          []GPU            `json:"supported_gpus"`
-	SupportedStorage       []Storage        `json:"supported_storage"`
-	SupportedArchitectures []string         `json:"supported_architectures"`
-	Memory                 string           `json:"memory"`
-	InstanceMemoryBytes    MemoryBytes      `json:"memory_bytes"`
-	VCPU                   int              `json:"vcpu"`
-	BasePrice              BasePrice        `json:"base_price"`
-	Location               string           `json:"location"`
-	SubLocation            string           `json:"sub_location"`
-	AvailableLocations     []string         `json:"available_locations"`
-	Provider               string           `json:"provider"`
-	WorkspaceGroups        []WorkspaceGroup `json:"workspace_groups"`
-	EstimatedDeployTime    string           `json:"estimated_deploy_time"`
-	Stoppable              bool             `json:"stoppable"`
-	Rebootable             bool             `json:"rebootable"`
-	CanModifyFirewallRules bool             `json:"can_modify_firewall_rules"`
+	Type                   string      `json:"type"`
+	SupportedGPUs          []GPU       `json:"supported_gpus"`
+	SupportedStorage       []Storage   `json:"supported_storage"`
+	SupportedArchitectures []string    `json:"supported_architectures"`
+	Memory                 string      `json:"memory"`
+	InstanceMemoryBytes    MemoryBytes `json:"memory_bytes"`
+	VCPU                   int         `json:"vcpu"`
+	BasePrice              BasePrice   `json:"base_price"`
+	Location               string      `json:"location"`
+	SubLocation            string      `json:"sub_location"`
+	AvailableLocations     []string    `json:"available_locations"`
+	Provider               string      `json:"provider"`
+	CloudCredID            string      `json:"cloud_cred_id"`
+	CloudCreds             []CloudCred `json:"cloud_creds"`
+	EstimatedDeployTime    string      `json:"estimated_deploy_time"`
+	Stoppable              bool        `json:"stoppable"`
+	Rebootable             bool        `json:"rebootable"`
+	CanModifyFirewallRules bool        `json:"can_modify_firewall_rules"`
 }
 
 // InstanceTypesResponse represents the API response
@@ -81,17 +83,20 @@ type InstanceTypesResponse struct {
 	Items []InstanceType `json:"items"`
 }
 
-// AllInstanceTypesResponse represents the authenticated API response with workspace groups
+// AllInstanceTypesResponse represents the authenticated API response with cloud credentials.
 type AllInstanceTypesResponse struct {
 	AllInstanceTypes []InstanceType `json:"allInstanceTypes"`
 }
 
-// GetWorkspaceGroupID returns the workspace group ID for an instance type, or empty string if not found
-func (r *AllInstanceTypesResponse) GetWorkspaceGroupID(instanceType string) string {
+// GetCloudCredID returns the cloud credential ID for an instance type, or empty string if not found.
+func (r *AllInstanceTypesResponse) GetCloudCredID(instanceType string) string {
 	for _, it := range r.AllInstanceTypes {
 		if it.Type == instanceType {
-			if len(it.WorkspaceGroups) > 0 {
-				return it.WorkspaceGroups[0].ID
+			if it.CloudCredID != "" {
+				return it.CloudCredID
+			}
+			if len(it.CloudCreds) > 0 {
+				return it.CloudCreds[0].ID
 			}
 		}
 	}
@@ -116,7 +121,11 @@ type GPUSearchStore interface {
 var (
 	searchLong = `Search instance types available on Brev.
 
-Use 'brev search gpu' (default) to find GPU instances.
+The search command has two subcommands:
+  gpu   Search GPU instance types (default when no subcommand is given)
+  cpu   Search CPU-only instance types
+
+Use 'brev search' or 'brev search gpu' to find GPU instances.
 Use 'brev search cpu' to find CPU-only instances.
 
 Features column shows instance capabilities:
@@ -208,9 +217,28 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 		Use:                   "search",
 		Aliases:               []string{},
 		DisableFlagsInUseLine: true,
-		Short:                 "Search and filter instance types",
+		Short:                 "Search GPU and CPU instance types",
 		Long:                  searchLong,
 		Example:               gpuExample,
+		ValidArgs:             []string{"cpu", "gpu"},
+		Args: func(cmd *cobra.Command, args []string) error {
+			// The parent runs GPU search by default when no positional args are
+			// given. Unknown positional tokens (e.g. "cpus", "CPU", "badcmd")
+			// do not match the cpu/gpu subcommands, so cobra falls back to the
+			// parent; reject them with a helpful error instead of silently
+			// running GPU search.
+			if len(args) == 0 {
+				return nil
+			}
+			path := cmd.CommandPath()
+			return breverrors.NewValidationError(fmt.Sprintf(
+				"unknown subcommand %q for %q.\n"+
+					"Available subcommands: cpu, gpu.\n"+
+					"Use %q (default) or %q gpu for GPU instances; use %q cpu for CPU-only instances.\n"+
+					"Run %q --help for more details.",
+				args[0], path, path, path, path, path,
+			))
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Default behavior: GPU search
 			return RunGPUSearch(t, store, gpuName, shared.provider, shared.arch, minVRAM, minTotalVRAM, minCapability, shared.minRAM, shared.minDisk, shared.minVCPU, shared.maxBootTime, shared.stoppable, shared.rebootable, shared.flexPorts, shared.sortBy, shared.descending, shared.jsonOutput, wide)
@@ -1141,7 +1169,7 @@ func displayGPUTable(t *terminal.Terminal, instances []GPUInstanceInfo) {
 
 // displayGPUTablePlain renders the GPU instances as a plain table without colors for piping
 // Includes TARGET_DISK column for passing disk size to brev create
-// Enables: brev search --min-disk 500 | grep H100 | brev create
+// Enables: brev search --min-disk 500 | grep H100 | brev create <name> --stdin
 func displayGPUTablePlain(instances []GPUInstanceInfo) {
 	ta := table.NewWriter()
 	ta.SetOutputMirror(os.Stdout)

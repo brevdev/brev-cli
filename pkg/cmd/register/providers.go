@@ -1,7 +1,9 @@
 package register
 
 import (
+	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
 
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -33,6 +36,20 @@ func (TerminalPrompter) Select(label string, items []string) string {
 		Label: label,
 		Items: items,
 	})
+}
+
+func (TerminalPrompter) InputLine(t *terminal.Terminal, label string) (string, error) {
+	t.Vprintf("  %s ", t.Green(label))
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("reading input: %w", err)
+	}
+	return line, nil
+}
+
+// Input prompts for free-form text input.
+func (TerminalPrompter) Input(pc terminal.PromptContent) string {
+	return terminal.PromptGetInput(pc)
 }
 
 // Netbird handles NetBird installation and uninstallation.
@@ -77,5 +94,5 @@ func (ShellSetupRunner) RunSetup(script string) error { return runSetupCommand(s
 type DefaultNodeClientFactory struct{}
 
 func (DefaultNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, baseURL string) nodev1connect.ExternalNodeServiceClient {
-	return NewNodeServiceClient(provider, baseURL)
+	return store.NewDevPlaneClient(provider, baseURL).ExternalNodes
 }

@@ -1,16 +1,40 @@
 package store
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"runtime"
+	"strings"
 	"testing"
 
+	nodev1connect "buf.build/gen/go/brevdev/devplane/connectrpc/go/devplaneapi/v1/devplaneapiv1connect"
+	nodev1 "buf.build/gen/go/brevdev/devplane/protocolbuffers/go/devplaneapi/v1"
+	"connectrpc.com/connect"
+
 	authpkg "github.com/brevdev/brev-cli/pkg/auth"
+	"github.com/brevdev/brev-cli/pkg/cmd/version"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/jarcoal/httpmock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type fakeOrganizationService struct {
+	nodev1connect.UnimplementedOrganizationServiceHandler
+	listMembersFn func(http.Header, *nodev1.ListOrganizationMembersRequest) (*nodev1.ListOrganizationMembersResponse, error)
+}
+
+func (f *fakeOrganizationService) ListOrganizationMembers(_ context.Context, req *connect.Request[nodev1.ListOrganizationMembersRequest]) (*connect.Response[nodev1.ListOrganizationMembersResponse], error) {
+	resp, err := f.listMembersFn(req.Header(), req.Msg)
+	if err != nil {
+		return nil, err
+	}
+	return connect.NewResponse(resp), nil
+}
 
 func TestGetActiveOrganization(t *testing.T) {
 	fs := MakeMockAuthHTTPStore()
@@ -20,6 +44,65 @@ func TestGetActiveOrganization(t *testing.T) {
 	}
 	if !assert.Nil(t, org) {
 		return
+	}
+}
+
+func TestGetActiveOrganizationOrDefault_UsesInvocationOverride(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	override := &entity.Organization{ID: "org-other", Name: "other"}
+	fs.SetOrganizationOverride(override)
+
+	org, err := fs.GetActiveOrganizationOrDefault()
+	require.NoError(t, err)
+	assert.Same(t, override, org)
+}
+
+func TestGetActiveOrganizationOrDefault_ResolvesNamedInvocationOverride(t *testing.T) {
+	fs := MakeMockAuthHTTPStore()
+	fs.SetOrganizationOverrideName("other")
+	httpmock.ActivateNonDefault(fs.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	expected := entity.Organization{ID: "org-other", Name: "other"}
+	url := fmt.Sprintf("%s/%s", fs.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, httpmock.NewJsonResponderOrPanic(http.StatusOK, []entity.Organization{expected}))
+
+	org, err := fs.GetActiveOrganizationOrDefault()
+	require.NoError(t, err)
+	assert.Equal(t, &expected, org)
+}
+
+// A cached active org that no longer resolves must not fail the command: the
+// first org in the list wins and the stale cache is repaired.
+func TestGetActiveOrganizationOrNil_StaleCachedOrgFallsBackToFirstOrg(t *testing.T) {
+	t.Setenv(authpkg.APIKeyEnvVar, "")
+	for _, status := range []int{404, 403} {
+		t.Run(fmt.Sprintf("cached org returns %d", status), func(t *testing.T) {
+			fileStore, _, _ := newAuthTokenTestStore(t)
+			s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{}, "https://api.test"))
+			httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+			defer httpmock.DeactivateAndReset()
+
+			require.NoError(t, s.SetDefaultOrganization(&entity.Organization{ID: "org-gone", Name: "gone"}))
+			base := s.authHTTPClient.restyClient.BaseURL
+			httpmock.RegisterResponder("GET", base+"/api/organizations/org-gone",
+				httpmock.NewStringResponder(status, `{"errors":[{"type":"NotFoundError","message":"organization not found"}]}`))
+			httpmock.RegisterResponder("GET", base+"/api/organizations",
+				httpmock.NewJsonResponderOrPanic(200, []entity.Organization{
+					{ID: "org-1", Name: "one"},
+					{ID: "org-2", Name: "two"},
+				}))
+
+			org, err := s.GetActiveOrganizationOrDefault()
+			require.NoError(t, err)
+			require.NotNil(t, org)
+			assert.Equal(t, "org-1", org.ID)
+
+			cached, err := s.GetCachedActiveOrganizationOrNil()
+			require.NoError(t, err)
+			require.NotNil(t, cached, "the stale cache should be replaced, not left behind")
+			assert.Equal(t, "org-1", cached.ID)
+		})
 	}
 }
 
@@ -52,6 +135,52 @@ func TestGetOrganizations(t *testing.T) {
 	}
 }
 
+func TestListOrganizationMembersUsesDevPlaneRPC(t *testing.T) {
+	var gotAuth string
+	var gotOrgID string
+	svc := &fakeOrganizationService{
+		listMembersFn: func(header http.Header, msg *nodev1.ListOrganizationMembersRequest) (*nodev1.ListOrganizationMembersResponse, error) {
+			gotAuth = header.Get("Authorization")
+			gotOrgID = msg.GetOrganizationId()
+			return &nodev1.ListOrganizationMembersResponse{
+				Items: []*nodev1.OrganizationMember{
+					{UserId: "user_1", DisplayName: "Alice", DefaultEmail: "alice@example.com"},
+					{UserId: "user_2", DisplayName: "Bob", DefaultEmail: "bob@example.com"},
+				},
+			}, nil
+		},
+	}
+	_, handler := nodev1connect.NewOrganizationServiceHandler(svc)
+	var gotQuery url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.Query()
+		handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	t.Setenv("BREV_PUBLIC_API_URL", server.URL)
+
+	legacyRESTServer := httptest.NewServer(http.NotFoundHandler())
+	defer legacyRESTServer.Close()
+
+	token := "tok"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &token}, legacyRESTServer.URL))
+
+	members, err := s.ListOrganizationMembers(context.Background(), "org_123")
+
+	require.NoError(t, err)
+	require.Len(t, members, 2)
+	assert.Equal(t, "Bearer tok", gotAuth)
+	assert.Equal(t, "org_123", gotOrgID)
+	assert.Equal(t, "user_1", members[0].GetUserId())
+	assert.True(t, strings.Contains(members[1].GetDefaultEmail(), "@"))
+
+	// dev-plane requests carry the same CLI attribution as the REST client.
+	assert.Equal(t, "cli", gotQuery.Get("utm_source"))
+	assert.Equal(t, version.Version, gotQuery.Get("cli_version"))
+	assert.Equal(t, runtime.GOOS, gotQuery.Get("os"))
+}
+
 func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {
 	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
 	fileStore, _, _ := newAuthTokenTestStore(t)
@@ -74,6 +203,23 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrg(t *testing.T) {
 	require.NotNil(t, org)
 	assert.Equal(t, "org-api-key", org.ID)
 	assert.Equal(t, "org-api-key", org.Name)
+}
+
+func TestGetActiveOrganization_APIKeyRejectsInvocationOverride(t *testing.T) {
+	apiKey := authpkg.BrevAPIKeyPrefix + "test-key"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
+	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
+		APIKey:      apiKey,
+		APIKeyOrgID: "org-api-key",
+	}))
+	s.SetOrganizationOverrideName("other")
+
+	org, err := s.GetActiveOrganizationOrDefault()
+
+	assert.Nil(t, org)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "api key auth is scoped")
 }
 
 func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testing.T) {
@@ -102,6 +248,33 @@ func TestGetActiveOrganization_APIKeyUsesCredentialOrgNameWhenAvailable(t *testi
 	require.NotNil(t, org)
 	assert.Equal(t, expected.ID, org.ID)
 	assert.Equal(t, expected.Name, org.Name)
+}
+
+func TestGetActiveOrganization_APIKeyEnvResolvesOrgInRealTime(t *testing.T) {
+	apiKey := authpkg.BrevAPIKeyPrefix + "env-key"
+	fileStore, _, _ := newAuthTokenTestStore(t)
+	s := fileStore.WithAuthHTTPClient(NewAuthHTTPClient(MockAuth{token: &apiKey}, "https://api.test"))
+	httpmock.ActivateNonDefault(s.authHTTPClient.restyClient.GetClient())
+	defer httpmock.DeactivateAndReset()
+
+	require.NoError(t, s.SaveAuthTokens(entity.AuthTokens{
+		APIKey:      authpkg.BrevAPIKeyPrefix + "other-key",
+		APIKeyOrgID: "org-stale",
+	}))
+	t.Setenv(authpkg.APIKeyEnvVar, apiKey)
+
+	expected := []entity.Organization{{ID: "org-real", Name: "Real Org"}}
+	res, err := httpmock.NewJsonResponder(200, expected)
+	require.NoError(t, err)
+	url := fmt.Sprintf("%s/%s", s.authHTTPClient.restyClient.BaseURL, orgPath)
+	httpmock.RegisterResponder("GET", url, res)
+
+	org, err := s.GetActiveOrganizationOrDefault()
+
+	require.NoError(t, err)
+	require.NotNil(t, org)
+	assert.Equal(t, "org-real", org.ID)
+	assert.Equal(t, "Real Org", org.Name)
 }
 
 func TestGetOrganizationsFiltersNameCaseInsensitive(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/cmd/register"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	"github.com/brevdev/brev-cli/pkg/externalnode"
+	"github.com/brevdev/brev-cli/pkg/store"
 	"github.com/brevdev/brev-cli/pkg/terminal"
 )
 
@@ -31,7 +32,7 @@ type mockNodeClientFactory struct {
 }
 
 func (m mockNodeClientFactory) NewNodeClient(provider externalnode.TokenProvider, _ string) nodev1connect.ExternalNodeServiceClient {
-	return register.NewNodeServiceClient(provider, m.serverURL)
+	return store.NewDevPlaneClient(provider, m.serverURL).ExternalNodes
 }
 
 type mockRegistrationStore struct {
@@ -44,10 +45,14 @@ func (m *mockRegistrationStore) Save(reg *register.DeviceRegistration) error {
 }
 
 func (m *mockRegistrationStore) Load() (*register.DeviceRegistration, error) {
-	if m.reg == nil {
-		return nil, fmt.Errorf("no registration")
+	if m.reg == nil || m.reg.ExternalNodeID == "" || m.reg.OrgID == "" {
+		return nil, fmt.Errorf("no completed registration")
 	}
 	return m.reg, nil
+}
+
+func (m *mockRegistrationStore) LoadAll() (*register.DeviceRegistration, error) {
+	return nil, fmt.Errorf("unexpected call to LoadAll")
 }
 
 func (m *mockRegistrationStore) Delete() error {
@@ -60,9 +65,10 @@ func (m *mockRegistrationStore) Exists() (bool, error) {
 }
 
 type mockRevokeSSHStore struct {
-	token string
-	org   *entity.Organization
-	users map[string]*entity.User
+	token   string
+	org     *entity.Organization
+	members []*nodev1.OrganizationMember
+	users   map[string]*entity.User
 }
 
 func (m *mockRevokeSSHStore) GetAccessToken() (string, error) { return m.token, nil }
@@ -94,8 +100,8 @@ func (m *mockRevokeSSHStore) GetOrganizationsByName(name string) ([]entity.Organ
 	return nil, nil
 }
 
-func (m *mockRevokeSSHStore) GetOrgRoleAttachments(_ string) ([]entity.OrgRoleAttachment, error) {
-	return nil, nil
+func (m *mockRevokeSSHStore) ListOrganizationMembers(_ context.Context, _ string) ([]*nodev1.OrganizationMember, error) {
+	return m.members, nil
 }
 
 // fakeNodeService implements the server side of ExternalNodeService for testing.

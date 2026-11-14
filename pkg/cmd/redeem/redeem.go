@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/brevdev/brev-cli/pkg/cmd/cmderrors"
-	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmdcontext"
 	"github.com/brevdev/brev-cli/pkg/entity"
 	breverrors "github.com/brevdev/brev-cli/pkg/errors"
@@ -17,14 +16,10 @@ import (
 
 type RedeemStore interface {
 	GetActiveOrganizationOrDefault() (*entity.Organization, error)
-	GetOrganizations(options *store.GetOrganizationsOptions) ([]entity.Organization, error)
 	RedeemCouponCode(organizationID string, code string) (*store.RedeemCouponCodeResponse, error)
-	completions.CompletionStore
 }
 
-func NewCmdRedeem(t *terminal.Terminal, redeemStore RedeemStore, noRedeemStore RedeemStore) *cobra.Command {
-	var orgFlag string
-
+func NewCmdRedeem(t *terminal.Terminal, redeemStore RedeemStore) *cobra.Command {
 	cmd := &cobra.Command{
 		Annotations:           map[string]string{"organization": ""},
 		Use:                   "redeem <code>",
@@ -45,7 +40,7 @@ func NewCmdRedeem(t *terminal.Terminal, redeemStore RedeemStore, noRedeemStore R
 		},
 		Args: cmderrors.TransformToValidationError(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := RunRedeem(t, redeemStore, args[0], orgFlag)
+			err := RunRedeem(t, redeemStore, args[0])
 			if err != nil {
 				return breverrors.WrapAndTrace(err)
 			}
@@ -53,41 +48,18 @@ func NewCmdRedeem(t *terminal.Terminal, redeemStore RedeemStore, noRedeemStore R
 		},
 	}
 
-	cmd.Flags().StringVarP(&orgFlag, "org", "o", "", "organization (will override active org)")
-	err := cmd.RegisterFlagCompletionFunc("org", completions.GetOrgsNameCompletionHandler(noRedeemStore, t))
-	if err != nil {
-		breverrors.GetDefaultErrorReporter().ReportError(breverrors.WrapAndTrace(err))
-		fmt.Print(breverrors.WrapAndTrace(err))
-	}
-
 	return cmd
 }
 
-func RunRedeem(t *terminal.Terminal, redeemStore RedeemStore, code string, orgFlag string) error {
+func RunRedeem(t *terminal.Terminal, redeemStore RedeemStore, code string) error {
 	startTime := time.Now()
 
-	var org *entity.Organization
-	if orgFlag != "" {
-		orgs, err := redeemStore.GetOrganizations(&store.GetOrganizationsOptions{Name: orgFlag})
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if len(orgs) == 0 {
-			return fmt.Errorf("no org found with name %s", orgFlag)
-		} else if len(orgs) > 1 {
-			return fmt.Errorf("more than one org found with name %s", orgFlag)
-		}
-
-		org = &orgs[0]
-	} else {
-		currOrg, err := redeemStore.GetActiveOrganizationOrDefault()
-		if err != nil {
-			return breverrors.WrapAndTrace(err)
-		}
-		if currOrg == nil {
-			return fmt.Errorf("no orgs exist")
-		}
-		org = currOrg
+	org, err := redeemStore.GetActiveOrganizationOrDefault()
+	if err != nil {
+		return breverrors.WrapAndTrace(err)
+	}
+	if org == nil {
+		return breverrors.NewValidationError("no orgs exist")
 	}
 
 	result, err := redeemStore.RedeemCouponCode(org.ID, code)

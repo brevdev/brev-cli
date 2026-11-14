@@ -25,7 +25,7 @@ endif
 fast-build: ## go build -o brev
 	$(call print-target)
 	echo ${VERSION}
-	CGO_ENABLED=1 go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
+	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 
 .PHONY: local
 local: ## build with env wrapper (use: make local env=dev0|dev1|dev2|stg arch=linux/amd64, or make local for defaults)
@@ -36,18 +36,26 @@ ifdef env
 	$(_BUILD_PREFIX) go build -o brev-local -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 	@echo '#!/bin/sh' > brev
 	@echo '# Auto-generated wrapper with environment overrides' >> brev
-	@echo 'export BREV_CONSOLE_URL="https://localhost.nvidia.com:3000"' >> brev
+	@echo 'export BREV_CONSOLE_URL="https://dev.brev.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_URL="https://api.stg.ngc.nvidia.com"' >> brev
 	@echo 'export BREV_AUTH_ISSUER_URL="https://stg.login.nvidia.com"' >> brev
+ifeq ($(env),local-stack)
+	@echo 'export BREV_API_URL="http://localhost:8080"' >> brev
+	@echo 'export BREV_PUBLIC_API_URL="http://localhost:8081"' >> brev
+else
 	@echo 'export BREV_API_URL="https://bd.$(env).brev.nvidia.com"' >> brev
 	@echo 'export BREV_PUBLIC_API_URL="https://api.$(env).brev.nvidia.com"' >> brev
-	@echo 'export BREV_GRPC_URL="api.$(env).brev.nvidia.com:443"' >> brev
+endif
 	@echo 'exec "$$(cd "$$(dirname "$$0")" && pwd)/brev-local" "$$@"' >> brev
 	@chmod +x brev
 else
 	@echo "Building without environment overrides (using config.go defaults)..."
 	$(_BUILD_PREFIX) go build -o brev -ldflags "-X github.com/brevdev/brev-cli/pkg/cmd/version.Version=${VERSION}"
 endif
+
+.PHONY: local-stack
+local-stack: ## build a CLI wrapper configured for a running local Brev stack
+	$(MAKE) local env=local-stack
 
 .PHONY: install-dev
 install-dev: fast-build ## go install

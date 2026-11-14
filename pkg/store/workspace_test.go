@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -8,6 +9,19 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCreateWorkspaceOptionsUsesOnlyCloudCredID(t *testing.T) {
+	options := NewCreateWorkspacesOptions("cluster-1", "workspace-1").WithCloudCredID("cloud-cred-1")
+
+	payload, err := json.Marshal(options)
+	assert.NoError(t, err)
+
+	var request map[string]any
+	err = json.Unmarshal(payload, &request)
+	assert.NoError(t, err)
+	assert.Equal(t, "cloud-cred-1", request["cloudCredId"])
+	assert.NotContains(t, request, "workspaceGroupId")
+}
 
 func TestGetWorkspaces(t *testing.T) {
 	s := MakeMockAuthHTTPStore()
@@ -17,7 +31,6 @@ func TestGetWorkspaces(t *testing.T) {
 	expected := []entity.Workspace{{
 		ID:               "1",
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   orgID,
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cbuid",
@@ -68,7 +81,6 @@ func TestCreateWorkspace(t *testing.T) {
 	expected := &entity.Workspace{
 		ID:               "1",
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   orgID,
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cbuid",
@@ -105,7 +117,6 @@ func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor late
 	expected := []entity.Workspace{{
 		ID:               "1",
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   orgID,
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "blas",
@@ -119,7 +130,6 @@ func TestGetWorkspacesWithName(t *testing.T) { //nolint:dupl // To refactor late
 		{
 			ID:               "2",
 			Name:             "n2",
-			WorkspaceGroupID: "wgi",
 			OrganizationID:   orgID,
 			WorkspaceClassID: "wci",
 			CreatedByUserID:  "other",
@@ -161,7 +171,6 @@ func TestGetWorkspacesWithUser(t *testing.T) { //nolint:dupl // To refactor late
 	expected := []entity.Workspace{{
 		ID:               "1",
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   orgID,
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "me",
@@ -175,7 +184,6 @@ func TestGetWorkspacesWithUser(t *testing.T) { //nolint:dupl // To refactor late
 		{
 			ID:               "2",
 			Name:             "n2",
-			WorkspaceGroupID: "wgi",
 			OrganizationID:   orgID,
 			WorkspaceClassID: "wci",
 			CreatedByUserID:  "other",
@@ -246,7 +254,6 @@ func TestStopWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupli
 	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -283,7 +290,6 @@ func TestStartWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupl
 	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -320,7 +326,6 @@ func TestResetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dupl
 	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -357,7 +362,6 @@ func TestGetWorkspace(t *testing.T) { //nolint:dupl // ok to have this be duplic
 	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
@@ -394,7 +398,6 @@ func TestDeleteWorkspace(t *testing.T) { //nolint:dupl // ok to have this be dup
 	expected := &entity.Workspace{
 		ID:               workspaceID,
 		Name:             "name",
-		WorkspaceGroupID: "wgi",
 		OrganizationID:   "oi",
 		WorkspaceClassID: "wci",
 		CreatedByUserID:  "cui",
