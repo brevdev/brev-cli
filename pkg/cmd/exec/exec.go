@@ -2,6 +2,7 @@ package exec
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -186,11 +187,20 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 	// SSH multiplexing (ControlMaster) in the config means subsequent
 	// calls reuse an existing connection and are near-instant.
 	// Use a 5-second connect timeout so we fail fast if the instance is down.
-	err := runSSHWithTimeout(sshName, command, 5)
+	err := runExecSSH(sshName, command, 5)
 	if err == nil {
 		// Success — fire analytics in background and return
 		go trackExecAnalytics(sstore, workspaceNameOrID)
 		return nil
+	}
+
+	// The first attempt already is the execution. A non-zero remote status, or
+	// an SSH session that died after the command may have started, must not be
+	// run again: the instance can still be RUNNING with the original process
+	// (or its output) in place. Only a failure from before the session exists
+	// may fall through to the refresh-and-retry path below.
+	if !sshFailureAllowsReplay(err) {
+		return breverrors.WrapAndTrace(err)
 	}
 
 	// SSH failed — now check what's going on with the instance
@@ -228,7 +238,7 @@ func runExecCommand(t *terminal.Terminal, sstore ExecStore, workspaceNameOrID st
 		// instance and what to check.
 		return err //nolint:wrapcheck // do not present stack trace for this error
 	}
-	err = runSSH(sshName, command)
+	err = runExecSSH(sshName, command, 10)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -256,27 +266,124 @@ func trackExecAnalytics(sstore ExecStore, workspaceNameOrID string) {
 	_ = analytics.TrackEvent(data)
 }
 
+// runExecSSH is the SSH invocation used by brev exec. Tests replace it.
+var runExecSSH = runSSHWithTimeout
+
+// sshAttemptError is a failed SSH invocation of the remote command.
+// exitCode 255 is ssh's own failure; any other code is the remote command's.
+// diag is ssh's private log (ssh -E), not the remote command's stderr.
+type sshAttemptError struct {
+	err      error
+	exitCode int
+	diag     string
+}
+
+func (e *sshAttemptError) Error() string {
+	if e == nil || e.err == nil {
+		return "ssh failed"
+	}
+	return e.err.Error()
+}
+
+func (e *sshAttemptError) Unwrap() error { return e.err }
+
+func newSSHAttemptError(err error, diag string) error {
+	code := -1
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		code = exitErr.ExitCode()
+	}
+	return &sshAttemptError{err: err, exitCode: code, diag: diag}
+}
+
+// sshFailureAllowsReplay reports whether the remote command is known not to
+// have started, so the caller may wait for SSH and run it once. A non-zero
+// remote status, a session that dropped, or an unrecognized ssh failure is
+// not replayed: the command may already be running.
+func sshFailureAllowsReplay(err error) bool {
+	var attempt *sshAttemptError
+	if !errors.As(err, &attempt) {
+		return false
+	}
+	// OpenSSH uses 255 for its own failures and passes every other status
+	// through from the remote command.
+	if attempt.exitCode != 255 {
+		return false
+	}
+	return sshDiagIsPreSession(attempt.diag)
+}
+
+// sshDiagIsPreSession matches ssh messages from before a session exists.
+// "ssh: connect to host" is OpenSSH's own connect-path prefix (not localized;
+// the strerror after it is). "Connection reset" and "Connection closed" alone
+// are intentionally absent: those phrases also show up after the remote
+// command has started.
+func sshDiagIsPreSession(diag string) bool {
+	markers := []string{
+		"ssh: connect to host",
+		"Connection refused",
+		"Connection timed out",
+		"Operation timed out",
+		"No route to host",
+		"Could not resolve hostname",
+		"Name or service not known",
+		"nodename nor servname provided",
+		"Temporary failure in name resolution",
+		"kex_exchange_identification",
+		"Network is unreachable",
+		"Host is down",
+	}
+	for _, marker := range markers {
+		if strings.Contains(diag, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func shellSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
 func runSSHWithTimeout(sshAlias string, command string, connectTimeoutSecs int) error {
 	// Non-interactive: run command and pipe stdout/stderr
 	// Escape the command for passing to SSH
 	escapedCmd := strings.ReplaceAll(command, "'", "'\\''")
 	// -T disables pseudo-terminal allocation (no "Pseudo-terminal will not be allocated" warning)
 	// Only start ssh-agent if one isn't already running (avoids orphaned agent processes)
+	// -E keeps ssh's own errors out of the remote command's stderr so a dropped
+	// session is not mistaken for "never connected".
 	agentCmd := `if [ -z "$SSH_AUTH_SOCK" ]; then eval $(ssh-agent -s) > /dev/null; fi`
-	cmd := fmt.Sprintf("%s && ssh -T -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'", agentCmd, connectTimeoutSecs, sshAlias, escapedCmd)
+	diagFile, diagErr := os.CreateTemp("", "brev-exec-ssh-")
+	if diagErr != nil {
+		return breverrors.WrapAndTrace(diagErr)
+	}
+	diagPath := diagFile.Name()
+	_ = diagFile.Close()
+	defer os.Remove(diagPath)
 
-	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec //cmd is user input
+	cmd := fmt.Sprintf("%s && ssh -T -E %s -o ConnectTimeout=%d -o LogLevel=ERROR %s '%s'",
+		agentCmd, shellSingleQuote(diagPath), connectTimeoutSecs, sshAlias, escapedCmd)
+
+	sshCmd := exec.Command("bash", "-c", cmd) //nolint:gosec // cmd is user input
 	sshCmd.Stderr = os.Stderr
 	sshCmd.Stdout = os.Stdout
 	// Don't attach stdin - exec is non-interactive
 
 	err := sshCmd.Run()
+	diagBytes, readErr := os.ReadFile(diagPath)
+	diag := ""
+	if readErr == nil {
+		diag = string(diagBytes)
+	}
 	if err != nil {
-		return breverrors.WrapAndTrace(err)
+		if diag != "" {
+			_, _ = os.Stderr.WriteString(diag)
+			if !strings.HasSuffix(diag, "\n") {
+				_, _ = fmt.Fprintln(os.Stderr)
+			}
+		}
+		return newSSHAttemptError(err, diag)
 	}
 	return nil
-}
-
-func runSSH(sshAlias string, command string) error {
-	return runSSHWithTimeout(sshAlias, command, 10)
 }
