@@ -102,6 +102,51 @@ func TestEnrichWorkspacesWithSSHAccess_UsesCurrentUsersPort(t *testing.T) {
 	}
 }
 
+func TestEnrichWorkspacesWithSSHAccess_HostPortIsNeverTheGatewayPort(t *testing.T) {
+	tests := []struct {
+		name         string
+		instancePort int32
+		want         int
+	}{
+		{name: "unset instance port defaults to 22", instancePort: 0, want: 22},
+		{name: "uses the instance's own port", instancePort: 2222, want: 2222},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			workspace := entity.Workspace{
+				ID:          "env-1",
+				Status:      entity.Running,
+				SSHPort:     23126,
+				HostSSHPort: 23126, // legacy value: the gateway port
+			}
+			client := &stubEnvironmentSSHClient{
+				environment: &devplanev1.Environment{
+					Instance: &devplanev1.Instance{PublicIp: "203.0.113.10", SshPort: tt.instancePort},
+					SshAccess: []*devplanev1.SSHAccess{
+						{UserId: "user-1", LinuxUser: "ubuntu", PortId: "ssh-port"},
+					},
+				},
+				networkInfo: &devplanev1.EnvironmentNetworkInfo{
+					Ports: []*devplanev1.Port{
+						{PortId: "ssh-port", Hostname: strPtr("gateway.example.com"), PortNumber: 23126},
+					},
+				},
+			}
+
+			got := enrichWorkspacesWithSSHAccess(context.Background(), client, "user-1", []entity.Workspace{workspace})
+			if got[0].HostSSHHostname != "203.0.113.10" {
+				t.Fatalf("HostSSHHostname = %q, want the instance IP", got[0].HostSSHHostname)
+			}
+			if got[0].HostSSHPort != tt.want {
+				t.Errorf("HostSSHPort = %d, want %d", got[0].HostSSHPort, tt.want)
+			}
+			if got[0].SSHPort != 23126 {
+				t.Errorf("SSHPort = %d, want gateway port 23126", got[0].SSHPort)
+			}
+		})
+	}
+}
+
 func TestEnrichWorkspacesWithSSHAccess_FallsBackOnError(t *testing.T) {
 	workspace := entity.Workspace{
 		ID:      "env-1",
