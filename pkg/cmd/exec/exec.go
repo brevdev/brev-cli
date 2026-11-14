@@ -313,32 +313,37 @@ func sshFailureAllowsReplay(err error) bool {
 	return sshDiagIsPreSession(attempt.diag)
 }
 
-// sshDiagIsPreSession matches ssh messages from before a session exists.
-// "ssh: connect to host" is OpenSSH's own connect-path prefix (not localized;
-// the strerror after it is). "Connection reset" and "Connection closed" alone
-// are intentionally absent: those phrases also show up after the remote
-// command has started.
+// sshDiagIsPreSession reports whether ssh failed before a session existed.
+// Only the last non-empty line of the -E log counts. An earlier
+// "ssh: connect to host" line is normal when another address then opens a
+// session that later drops, and that command must not be run again.
+// The line has to start with an OpenSSH pre-session prefix. A bare errno
+// string is not enough: "Read from remote host X: Connection timed out" is
+// written after the session is up. The strerror after the prefix is not
+// matched, so a translated message still counts.
 func sshDiagIsPreSession(diag string) bool {
-	markers := []string{
-		"ssh: connect to host",
-		"Connection refused",
-		"Connection timed out",
-		"Operation timed out",
-		"No route to host",
-		"Could not resolve hostname",
-		"Name or service not known",
-		"nodename nor servname provided",
-		"Temporary failure in name resolution",
-		"kex_exchange_identification",
-		"Network is unreachable",
-		"Host is down",
+	line := lastNonEmptyDiagLine(diag)
+	prefixes := []string{
+		"ssh: connect to host ",
+		"ssh: Could not resolve hostname",
+		"kex_exchange_identification:",
 	}
-	for _, marker := range markers {
-		if strings.Contains(diag, marker) {
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(line, prefix) {
 			return true
 		}
 	}
 	return false
+}
+
+func lastNonEmptyDiagLine(diag string) string {
+	var line string
+	for _, raw := range strings.Split(diag, "\n") {
+		if trimmed := strings.TrimSpace(raw); trimmed != "" {
+			line = trimmed
+		}
+	}
+	return line
 }
 
 func shellSingleQuote(s string) string {

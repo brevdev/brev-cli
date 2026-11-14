@@ -35,6 +35,27 @@ func TestSSHFailureAllowsReplayOnlyBeforeSession(t *testing.T) {
 			want: false,
 		},
 		{
+			name: "read timeout after the session",
+			err:  &sshAttemptError{exitCode: 255, diag: "Read from remote host brev: Connection timed out\n"},
+			want: false,
+		},
+		{
+			name: "earlier refusal then a dropped session",
+			err: &sshAttemptError{
+				exitCode: 255,
+				diag:     "ssh: connect to host 10.0.0.1 port 22: Connection refused\nclient_loop: send disconnect: Broken pipe\n",
+			},
+			want: false,
+		},
+		{
+			name: "every address failed before a session",
+			err: &sshAttemptError{
+				exitCode: 255,
+				diag:     "ssh: connect to host 10.0.0.1 port 22: Connection refused\nssh: connect to host 10.0.0.2 port 22: Connection timed out\n",
+			},
+			want: true,
+		},
+		{
 			name: "connection refused",
 			err:  &sshAttemptError{exitCode: 255, diag: "ssh: connect to host gpu port 22: Connection refused"},
 			want: true,
@@ -103,6 +124,40 @@ func TestExecDoesNotReplaySessionDrop(t *testing.T) {
 	}
 	if strings.Contains(output, "Connection failed") {
 		t.Fatalf("dropped session was replayed via SSH recovery:\n%s", output)
+	}
+	if err == nil && panicked == nil {
+		t.Fatal("expected the ssh failure to be returned")
+	}
+}
+
+func TestExecDoesNotReplayReadTimeoutAfterSession(t *testing.T) {
+	calls, output, err, panicked := execWithSSHResult(t, &sshAttemptError{
+		err:      fmt.Errorf("exit status 255"),
+		exitCode: 255,
+		diag:     "Read from remote host brev: Connection timed out\n",
+	})
+	if calls != 1 {
+		t.Fatalf("remote command ran %d times, want 1", calls)
+	}
+	if strings.Contains(output, "Connection failed") {
+		t.Fatalf("read timeout after the session was replayed via SSH recovery:\n%s", output)
+	}
+	if err == nil && panicked == nil {
+		t.Fatal("expected the ssh failure to be returned")
+	}
+}
+
+func TestExecDoesNotReplayAfterEarlierConnectRefusal(t *testing.T) {
+	calls, output, err, panicked := execWithSSHResult(t, &sshAttemptError{
+		err:      fmt.Errorf("exit status 255"),
+		exitCode: 255,
+		diag:     "ssh: connect to host 10.0.0.1 port 22: Connection refused\nclient_loop: send disconnect: Broken pipe\n",
+	})
+	if calls != 1 {
+		t.Fatalf("remote command ran %d times, want 1", calls)
+	}
+	if strings.Contains(output, "Connection failed") {
+		t.Fatalf("session drop after an earlier refusal was replayed:\n%s", output)
 	}
 	if err == nil && panicked == nil {
 		t.Fatal("expected the ssh failure to be returned")
