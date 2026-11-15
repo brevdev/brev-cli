@@ -150,6 +150,14 @@ func stopWorkspace(workspaceName string, t *terminal.Terminal, stopStore StopSto
 		if err = validateWorkspaceStoppable(workspace); err != nil {
 			return err
 		}
+		// The status comes from the VM, so a stopped instance needs no stop request.
+		// Sending one anyway fails on providers like Crusoe after a failed start.
+		if workspace.Status == entity.Stopped {
+			if !piped {
+				t.Vprintf("%s", t.Yellow("Instance "+workspaceName+" is already stopped.\n"))
+			}
+			return nil
+		}
 		workspaceID = workspace.ID
 	}
 
