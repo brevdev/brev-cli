@@ -103,15 +103,8 @@ func runCopyCommand(t *terminal.Terminal, cstore CopyStore, source, dest string,
 }
 
 func parseCopyArguments(source, dest string) (workspaceNameOrID, remotePath, localPath string, isUpload bool, err error) {
-	sourceWorkspace, sourcePath, err := parseWorkspacePath(source)
-	if err != nil {
-		return "", "", "", false, err
-	}
-
-	destWorkspace, destPath, err := parseWorkspacePath(dest)
-	if err != nil {
-		return "", "", "", false, err
-	}
+	sourceWorkspace, sourcePath := parseWorkspacePath(source)
+	destWorkspace, destPath := parseWorkspacePath(dest)
 
 	if (sourceWorkspace == "" && destWorkspace == "") || (sourceWorkspace != "" && destWorkspace != "") {
 		return "", "", "", false, breverrors.NewValidationError("exactly one of source or destination must be an instance path (format: instance_name:/path)")
@@ -166,17 +159,15 @@ func isDirectory(path string) bool {
 	return info.IsDir()
 }
 
-func parseWorkspacePath(path string) (workspace, filePath string, err error) {
-	if !strings.Contains(path, ":") {
-		return "", path, nil
+// parseWorkspacePath splits "instance:/path" at the first colon, like scp and
+// rsync, so the remote path may itself contain colons. As with scp, a colon
+// that comes after a "/" is part of a local path (e.g. ./out/12:30:00.log).
+func parseWorkspacePath(path string) (workspace, filePath string) {
+	workspace, filePath, found := strings.Cut(path, ":")
+	if !found || strings.Contains(workspace, "/") {
+		return "", path
 	}
-
-	parts := strings.Split(path, ":")
-	if len(parts) != 2 {
-		return "", "", breverrors.NewValidationError("invalid instance path format, use instance_name:/path")
-	}
-
-	return parts[0], parts[1], nil
+	return workspace, filePath
 }
 
 type commandRunner func(name string, args ...string) ([]byte, error)
