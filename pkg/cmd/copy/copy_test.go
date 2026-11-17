@@ -114,10 +114,7 @@ func TestParseCopyArguments_BothRemote(t *testing.T) {
 }
 
 func TestParseWorkspacePath_Local(t *testing.T) {
-	ws, fp, err := parseWorkspacePath("/tmp/local/file")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	ws, fp := parseWorkspacePath("/tmp/local/file")
 	if ws != "" {
 		t.Errorf("expected empty workspace, got %s", ws)
 	}
@@ -127,10 +124,7 @@ func TestParseWorkspacePath_Local(t *testing.T) {
 }
 
 func TestParseWorkspacePath_Remote(t *testing.T) {
-	ws, fp, err := parseWorkspacePath("my-instance:/remote/path")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	ws, fp := parseWorkspacePath("my-instance:/remote/path")
 	if ws != "my-instance" {
 		t.Errorf("expected my-instance, got %s", ws)
 	}
@@ -139,10 +133,42 @@ func TestParseWorkspacePath_Remote(t *testing.T) {
 	}
 }
 
-func TestParseWorkspacePath_InvalidMultipleColons(t *testing.T) {
-	_, _, err := parseWorkspacePath("ws:path:extra")
-	if err == nil {
-		t.Fatal("expected error for multiple colons")
+func TestParseCopyArguments_ColonInRemotePath(t *testing.T) {
+	ws, remotePath, localPath, isUpload, err := parseCopyArguments("my-node:/logs/run-12:30:00.log", ".")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws != "my-node" {
+		t.Errorf("expected workspace my-node, got %s", ws)
+	}
+	if remotePath != "/logs/run-12:30:00.log" {
+		t.Errorf("expected remotePath /logs/run-12:30:00.log, got %s", remotePath)
+	}
+	if localPath != "." {
+		t.Errorf("expected localPath ., got %s", localPath)
+	}
+	if isUpload {
+		t.Error("expected isUpload=false")
+	}
+}
+
+func TestParseCopyArguments_ColonInLocalPath(t *testing.T) {
+	// As with scp, a colon after a "/" belongs to a local path.
+	ws, remotePath, localPath, isUpload, err := parseCopyArguments("./out/run-12:30.log", "my-node:/tmp/dest")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws != "my-node" {
+		t.Errorf("expected workspace my-node, got %s", ws)
+	}
+	if remotePath != "/tmp/dest" {
+		t.Errorf("expected remotePath /tmp/dest, got %s", remotePath)
+	}
+	if localPath != "./out/run-12:30.log" {
+		t.Errorf("expected localPath ./out/run-12:30.log, got %s", localPath)
+	}
+	if !isUpload {
+		t.Error("expected isUpload=true")
 	}
 }
 
