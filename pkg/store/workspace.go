@@ -22,19 +22,6 @@ var (
 	workspaceOrgPath        = fmt.Sprintf(workspaceOrgPathPattern, fmt.Sprintf("{%s}", orgIDParamName))
 )
 
-type ModifyWorkspaceRequest struct {
-	WorkspaceClassID  string            `json:"workspaceClassId,omitempty"`
-	IsStoppable       *bool             `json:"isStoppable,omitempty"`
-	StartupScriptPath string            `json:"startupScriptPath,omitempty"`
-	Name              string            `json:"name,omitempty"`
-	IDEConfig         *entity.IDEConfig `json:"ideConfig,omitempty"`
-	Repos             entity.ReposV0    `json:"repos,omitempty"`
-	Execs             entity.ExecsV0    `json:"execs,omitempty"`
-	ReposV1           *entity.ReposV1   `json:"reposV1,omitempty"`
-	ExecsV1           *entity.ExecsV1   `json:"execsV1,omitempty"`
-	InstanceType      string            `json:"instanceType,omitempty"`
-}
-
 // LifeCycleScriptAttr holds the lifecycle script configuration
 type LifeCycleScriptAttr struct {
 	Script string `json:"script,omitempty"`
