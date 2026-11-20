@@ -75,12 +75,13 @@ func (a KasAuthenticator) GetNewAuthTokensWithRefresh(refreshToken string) (*ent
 }
 
 type LoginCallResponse struct {
-	LoginURL   string `json:"loginUrl"`
-	SessionKey string `json:"sessionKey"`
+	UserCode        string `json:"user_code"`
+	SessionKey      string `json:"session_key"`
+	VerificationURL string `json:"verification_url"`
 }
 
 func (a KasAuthenticator) MakeLoginCall(id, email string) (LoginCallResponse, error) {
-	url := fmt.Sprintf("%s/device/login", a.BaseURL)
+	url := fmt.Sprintf("%s/v2/device/login", a.BaseURL)
 	payload := map[string]string{
 		"email":       email,
 		"deviceId":    id,
@@ -137,9 +138,9 @@ func (a KasAuthenticator) DoDeviceAuthFlow(userLoginFlow func(url string, code s
 		return nil, breverrors.WrapAndTrace(err)
 	}
 
-	userLoginFlow(loginResp.LoginURL, "")
+	userLoginFlow(loginResp.VerificationURL, loginResp.UserCode)
 
-	return a.pollForTokens(loginResp.SessionKey, id)
+	return a.pollForAuthentication(loginResp.SessionKey)
 }
 
 func (a KasAuthenticator) maybePromptForEmail() (string, error) {
@@ -169,8 +170,11 @@ func (a KasAuthenticator) maybePromptForEmail() (string, error) {
 	return email, nil
 }
 
-func (a KasAuthenticator) pollForTokens(sessionKey, id string) (*LoginTokens, error) {
-	// Try to retrieve tokens for up to 5 minutes
+// pollForAuthentication waits until the user completes login in the browser.
+// While the session is pending, HEAD /v2/ping returns 401; once the user
+// authenticates, it returns 200 and the session_key becomes the bearer token.
+func (a KasAuthenticator) pollForAuthentication(sessionKey string) (*LoginTokens, error) {
+	// Try to authenticate for up to PollTimeout
 	timeout := time.After(a.PollTimeout)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -179,18 +183,48 @@ func (a KasAuthenticator) pollForTokens(sessionKey, id string) (*LoginTokens, er
 		case <-timeout:
 			return nil, breverrors.WrapAndTrace(fmt.Errorf("timed out waiting for login"))
 		case <-ticker.C:
-			idToken, err := a.retrieveIDToken(sessionKey, id)
-			if err == nil {
+			authenticated, err := a.isSessionAuthenticated(sessionKey)
+			if err != nil {
+				// Transient errors (network blips, 5xx) are retried until timeout.
+				continue
+			}
+			if authenticated {
 				return &LoginTokens{
 					AuthTokens: entity.AuthTokens{
-						AccessToken:  idToken,
-						RefreshToken: fmt.Sprintf("%s:%s", sessionKey, id),
+						AccessToken: sessionKey,
 					},
-					IDToken: idToken,
+					IDToken: sessionKey,
 				}, nil
 			}
-			// Continue polling on error
 		}
+	}
+}
+
+// isSessionAuthenticated reports whether the session_key is now a valid bearer
+// token by calling HEAD /v2/ping. 200 means authenticated; 401 means the user
+// has not completed login yet.
+func (a KasAuthenticator) isSessionAuthenticated(sessionKey string) (bool, error) {
+	pingURL := fmt.Sprintf("%s/v2/ping", a.BaseURL)
+	req, err := http.NewRequest(http.MethodHead, pingURL, nil) //nolint:noctx // fine
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+sessionKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, breverrors.WrapAndTrace(err)
+	}
+	defer resp.Body.Close() //nolint:errcheck // fine
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return true, nil
+	case http.StatusUnauthorized:
+		return false, nil
+	default:
+		return false, fmt.Errorf("unexpected ping status code: %d", resp.StatusCode)
 	}
 }
 
