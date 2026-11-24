@@ -10,6 +10,7 @@ import (
 	"github.com/brevdev/brev-cli/pkg/auth"
 	"github.com/brevdev/brev-cli/pkg/cmd/agentskill"
 	analyticscmd "github.com/brevdev/brev-cli/pkg/cmd/analytics"
+	"github.com/brevdev/brev-cli/pkg/cmd/balance"
 	"github.com/brevdev/brev-cli/pkg/cmd/completions"
 	"github.com/brevdev/brev-cli/pkg/cmd/configureenvvars"
 	"github.com/brevdev/brev-cli/pkg/cmd/copy"
@@ -317,6 +318,7 @@ func createCmdTree(cmd *cobra.Command, t *terminal.Terminal, loginCmdStore *stor
 	cmd.AddCommand(set.NewCmdSet(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(ls.NewCmdLs(t, loginCmdStore, noLoginCmdStore))
 	cmd.AddCommand(org.NewCmdOrg(t, loginCmdStore, noLoginCmdStore))
+	cmd.AddCommand(balance.NewCmdBalance(t, loginCmdStore))
 	cmd.AddCommand(invite.NewCmdInvite(t, loginCmdStore))
 	cmd.AddCommand(secrets.NewCmdSecrets(t, loginCmdStore))
 
