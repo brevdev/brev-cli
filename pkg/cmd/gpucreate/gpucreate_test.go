@@ -53,7 +53,8 @@ type MockGPUCreateStore struct {
 	FetchedLifeCycleScriptIDs []string
 	OrgInstanceTypes          []gpusearch.InstanceType // overrides the GetAllInstanceTypesWithCloudCreds default
 	PublicInstanceTypes       []gpusearch.InstanceType // overrides the GetInstanceTypes default
-	IncludeCPUCalls           []bool                   // includeCPU argument of each GetInstanceTypes call
+	Launchable                *store.LaunchableResponse
+	IncludeCPUCalls           []bool // includeCPU argument of each GetInstanceTypes call
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -137,6 +138,9 @@ func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*g
 }
 
 func (m *MockGPUCreateStore) GetLaunchable(launchableID string) (*store.LaunchableResponse, error) {
+	if m.Launchable != nil {
+		return m.Launchable, nil
+	}
 	return &store.LaunchableResponse{
 		ID:   launchableID,
 		Name: "test-launchable",
@@ -369,9 +373,6 @@ func TestApplyLaunchableConfig(t *testing.T) { //nolint:funlen // test
 
 		// Cloud credential from launchable input.
 		assert.Equal(t, "GCP", cwOptions.CloudCredID)
-		// Location / sub-location
-		assert.Equal(t, "us-west1", cwOptions.Location)
-		assert.Equal(t, "us-west1-b", cwOptions.SubLocation)
 		assert.Equal(t, "projects/example/global/images/custom-image", cwOptions.BaseImage)
 		// Storage with Gi suffix
 		assert.Equal(t, "256Gi", cwOptions.DiskStorage)
@@ -637,11 +638,11 @@ func TestToHostCIDR(t *testing.T) {
 // body. Asserting on the marshaled bytes catches typos like "firewall_rules"
 // or a dropped tag that struct-field assertions can't.
 func TestLaunchableJSONWireFormat(t *testing.T) {
-	cwOptions := &store.CreateWorkspacesOptions{}
 	info := &store.LaunchableResponse{
 		ID: "env-abc",
 		CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
 			InstanceType: "n2-standard-4",
+			CloudCredID:  "cc-gcp",
 			Location:     "us-west1",
 			SubLocation:  "us-west1-b",
 			ImageID:      "projects/example/global/images/custom-image",
@@ -652,9 +653,18 @@ func TestLaunchableJSONWireFormat(t *testing.T) {
 		},
 	}
 
-	applyLaunchableConfig(cwOptions, "env-abc", info, []store.ParameterBinding{
-		{Name: "MODEL", Value: "llama"},
-	})
+	mock := NewMockGPUCreateStore()
+	ctx := &createContext{
+		store: mock, org: mock.Org,
+		opts: GPUCreateOptions{
+			LaunchableID: "env-abc", LaunchableInfo: info,
+			ParameterBindings: []store.ParameterBinding{{Name: "MODEL", Value: "llama"}},
+		},
+	}
+	_, err := ctx.createWorkspace("wire-test", InstanceSpec{Type: "n2-standard-4"})
+	require.NoError(t, err)
+	require.Len(t, mock.CreatedOptions, 1)
+	cwOptions := mock.CreatedOptions[0]
 
 	body, err := json.Marshal(cwOptions)
 	assert.NoError(t, err)
@@ -884,7 +894,7 @@ func TestGetFilteredInstanceTypesDefaults(t *testing.T) {
 	// - 500GB disk (>= 500GB requirement)
 	// - A10G GPU = 8.6 capability (>= 8.0 requirement)
 	// - 5m boot time (< 7m requirement)
-	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{})
+	specs, _, err := getFilteredInstanceTypes(mock, &searchFilterFlags{})
 	assert.NoError(t, err)
 	assert.Len(t, specs, 1)
 	assert.Equal(t, "g5.xlarge", specs[0].Type)
@@ -895,7 +905,7 @@ func TestGetFilteredInstanceTypesWithGPUName(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
 	// Filter by GPU name that matches the mock data
-	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "A10G"})
+	specs, _, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "A10G"})
 	assert.NoError(t, err)
 	assert.Len(t, specs, 1)
 	assert.Equal(t, "g5.xlarge", specs[0].Type)
@@ -905,7 +915,7 @@ func TestGetFilteredInstanceTypesNoMatch(t *testing.T) {
 	mock := NewMockGPUCreateStore()
 
 	// Filter by GPU name that doesn't match
-	specs, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "H100"})
+	specs, _, err := getFilteredInstanceTypes(mock, &searchFilterFlags{gpuName: "H100"})
 	assert.NoError(t, err)
 	assert.Len(t, specs, 0)
 }
@@ -1006,7 +1016,7 @@ func TestFormatInstanceSpecs(t *testing.T) {
 
 	t.Run("without a catalog or location output is unchanged", func(t *testing.T) {
 		assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)",
-			formatInstanceSpecs(specs, nil, "", ""))
+			formatInstanceSpecs(specs, nil, GPUCreateOptions{}))
 	})
 
 	catalog := locationCatalog()
@@ -1014,12 +1024,12 @@ func TestFormatInstanceSpecs(t *testing.T) {
 
 	t.Run("shows the catalog default location", func(t *testing.T) {
 		assert.Equal(t, "n2d-standard-2 (120GB disk, location: asia-south1/asia-south1-a), m5.large (location: us-east-1)",
-			formatInstanceSpecs(cpu, catalog, "", ""))
+			formatInstanceSpecs(cpu, catalog, GPUCreateOptions{}))
 	})
 
 	t.Run("shows the requested location, or that a type is not available there", func(t *testing.T) {
 		assert.Equal(t, "n2d-standard-2 (120GB disk, location: us-west2/us-west2-a), m5.large (not available in us-west2)",
-			formatInstanceSpecs(cpu, catalog, "us-west2", "us-west2-a"))
+			formatInstanceSpecs(cpu, catalog, GPUCreateOptions{Location: "us-west2", SubLocation: "us-west2-a"}))
 	})
 }
 
@@ -1757,7 +1767,7 @@ func TestCreateCommandLocation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, out, "g5.xlarge")
 		assert.Contains(t, out, "us-east-1")
-		assert.Equal(t, []bool{true, true}, mock.IncludeCPUCalls, "auto-selection and dry-run use the catalog 'brev create' validates against")
+		assert.Equal(t, []bool{true}, mock.IncludeCPUCalls, "dry-run reuses the catalog fetched for auto-selection")
 
 		_, err = run(mock, "mybox", "--location", "us-west2", "--dry-run")
 		require.Error(t, err)
@@ -1789,4 +1799,61 @@ func TestSearchOutputPipesIntoCreate(t *testing.T) {
 	specs, err := parseJSONInput(jsonOut)
 	require.NoError(t, err)
 	assert.Equal(t, []InstanceSpec{{Type: "n2d-standard-2", DiskGB: 120}}, specs)
+}
+
+// The preview and pre-create log must describe the placement sent to the API,
+// including a launchable's saved placement when no override was supplied.
+func TestLaunchablePlacementPreviewMatchesCreate(t *testing.T) {
+	for _, tc := range []struct {
+		name, instanceType, location, subLocation, wantPlacement string
+	}{
+		{"saved placement", "n2d-standard-2", "", "", "us-west2/us-west2-a"},
+		{"private launchable type", "private-type", "", "", "us-west2/us-west2-a"},
+		{"override clears saved zone", "n2d-standard-2", "us-west3", "", "us-west3"},
+		{"override includes zone", "n2d-standard-2", "us-west3", "us-west3-b", "us-west3/us-west3-b"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, dryRun := range []bool{true, false} {
+				t.Run(fmt.Sprintf("dry-run=%t", dryRun), func(t *testing.T) {
+					mock := NewMockGPUCreateStore()
+					mock.PublicInstanceTypes, mock.OrgInstanceTypes = locationCatalog(), locationCatalog()
+					mock.Launchable = &store.LaunchableResponse{
+						ID: "env-abc", Name: "saved-placement",
+						CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+							InstanceType: tc.instanceType, CloudCredID: "cc-gcp",
+							Location: "us-west2", SubLocation: "us-west2-a",
+						},
+					}
+					args := []string{"mybox", "--launchable", "env-abc", "--detached"}
+					if dryRun {
+						args = append(args, "--dry-run")
+					}
+					if tc.location != "" {
+						args = append(args, "--location", tc.location)
+					}
+					if tc.subLocation != "" {
+						args = append(args, "--sub-location", tc.subLocation)
+					}
+					out := captureStdout(t, func() {
+						// Creation logs go to stderr when stdout is piped.
+						originalStderr := os.Stderr
+						os.Stderr = os.Stdout
+						defer func() { os.Stderr = originalStderr }()
+						cmd := NewCmdGPUCreate(terminal.New(), mock)
+						cmd.SetArgs(args)
+						require.NoError(t, cmd.Execute())
+					})
+					assert.Contains(t, out, tc.instanceType+" (location: "+tc.wantPlacement+")")
+					if dryRun {
+						assert.Empty(t, mock.CreatedOptions)
+						return
+					}
+					require.Len(t, mock.CreatedOptions, 1)
+					location, zone, _ := strings.Cut(tc.wantPlacement, "/")
+					assert.Equal(t, location, mock.CreatedOptions[0].Location)
+					assert.Equal(t, zone, mock.CreatedOptions[0].SubLocation)
+				})
+			}
+		})
+	}
 }
