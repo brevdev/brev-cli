@@ -1,10 +1,16 @@
 package gpusearch
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/brevdev/brev-cli/pkg/terminal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockGPUSearchStore is a mock implementation of GPUSearchStore for testing
@@ -702,6 +708,196 @@ func TestSearchCommandRejectsUnknownPositionalTokens(t *testing.T) {
 			assert.ErrorContains(t, err, "unknown subcommand")
 			assert.ErrorContains(t, err, "Available subcommands: cpu, gpu")
 			assert.Empty(t, store.calls, "unknown subcommand should not call the store")
+		})
+	}
+}
+
+// captureStdout returns what fn writes to os.Stdout. Tables and JSON are
+// written there directly, and a pipe makes IsStdoutPiped report true.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+	fn()
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
+}
+
+// locationCatalog mirrors the live catalog shape from issue #454: n2d-standard-2
+// defaults to asia-south1 but is also available in us-west2.
+func locationCatalog() *InstanceTypesResponse {
+	return &InstanceTypesResponse{Items: []InstanceType{
+		{
+			Type: "n2d-standard-2", Provider: "gcp", VCPU: 2, Memory: "8GiB",
+			BasePrice:          BasePrice{Currency: "USD", Amount: "0.07"},
+			Location:           "asia-south1",
+			SubLocation:        "asia-south1-a",
+			AvailableLocations: []string{"asia-south1", "us-west2"},
+		},
+		{
+			Type: "m5.large", Provider: "aws", VCPU: 2, Memory: "8GiB",
+			BasePrice:          BasePrice{Currency: "USD", Amount: "0.10"},
+			Location:           "us-east-1",
+			AvailableLocations: []string{"us-east-1"},
+		},
+		{
+			Type: "g5.xlarge", Provider: "aws", VCPU: 4, Memory: "16GiB",
+			SupportedGPUs:      []GPU{{Count: 1, Name: "A10G", Manufacturer: "NVIDIA", Memory: "24GiB"}},
+			BasePrice:          BasePrice{Currency: "USD", Amount: "1.006"},
+			Location:           "us-east-1",
+			AvailableLocations: []string{"us-east-1", "us-west-2"},
+		},
+		{Type: "cpu-no-location", Provider: "aws", VCPU: 2, Memory: "8GiB"},
+	}}
+}
+
+func TestProcessInstancesCopiesLocations(t *testing.T) {
+	byType := map[string]GPUInstanceInfo{}
+	for _, inst := range ProcessInstances(locationCatalog().Items) {
+		byType[inst.Type] = inst
+	}
+
+	cpu := byType["n2d-standard-2"]
+	assert.Equal(t, "asia-south1", cpu.Location)
+	assert.Equal(t, "asia-south1-a", cpu.SubLocation)
+	assert.Equal(t, []string{"asia-south1", "us-west2"}, cpu.AvailableLocations)
+
+	gpu := byType["g5.xlarge"]
+	assert.Equal(t, "us-east-1", gpu.Location)
+	assert.Equal(t, []string{"us-east-1", "us-west-2"}, gpu.AvailableLocations)
+}
+
+func TestFilterByLocation(t *testing.T) {
+	instances := ProcessInstances(locationCatalog().Items)
+
+	t.Run("empty location is a no-op", func(t *testing.T) {
+		assert.Equal(t, instances, FilterByLocation(instances, ""))
+	})
+
+	t.Run("keeps types available in the location and reports it as their location", func(t *testing.T) {
+		got := FilterByLocation(instances, "us-west2")
+		require.Len(t, got, 1)
+		assert.Equal(t, "n2d-standard-2", got[0].Type)
+		assert.Equal(t, "us-west2", got[0].Location)
+		assert.Empty(t, got[0].SubLocation, "the default sub-location belongs to the default location")
+	})
+
+	t.Run("match is exact", func(t *testing.T) {
+		assert.Empty(t, FilterByLocation(instances, "us-west"))
+		assert.Empty(t, FilterByLocation(instances, "US-WEST2"))
+	})
+
+	t.Run("does not modify the input", func(t *testing.T) {
+		FilterByLocation(instances, "us-west2")
+		for _, inst := range instances {
+			if inst.Type == "n2d-standard-2" {
+				assert.Equal(t, "asia-south1", inst.Location)
+			}
+		}
+	})
+}
+
+func TestSearchCommandLocation(t *testing.T) {
+	run := func(args ...string) string {
+		store := &trackingStore{Response: locationCatalog()}
+		cmd := NewCmdGPUSearch(terminal.New(), store)
+		cmd.SetArgs(args)
+		return captureStdout(t, func() { require.NoError(t, cmd.Execute()) })
+	}
+	types := func(out string) []string {
+		var got []GPUInstanceInfo
+		require.NoError(t, json.Unmarshal([]byte(out), &got))
+		var names []string
+		for _, inst := range got {
+			names = append(names, inst.Type)
+		}
+		return names
+	}
+
+	t.Run("cpu JSON includes default location fields", func(t *testing.T) {
+		var got []map[string]any
+		require.NoError(t, json.Unmarshal([]byte(run("cpu", "--json")), &got))
+		byType := map[string]map[string]any{}
+		for _, inst := range got {
+			byType[fmt.Sprint(inst["type"])] = inst
+		}
+		assert.Equal(t, "asia-south1", byType["n2d-standard-2"]["location"])
+		assert.Equal(t, "asia-south1-a", byType["n2d-standard-2"]["sub_location"])
+		assert.Equal(t, []any{"asia-south1", "us-west2"}, byType["n2d-standard-2"]["available_locations"])
+		assert.NotContains(t, byType["cpu-no-location"], "location", "location fields are omitted when unknown")
+		assert.NotContains(t, byType["cpu-no-location"], "available_locations")
+	})
+
+	t.Run("cpu --location filters", func(t *testing.T) {
+		assert.Equal(t, []string{"n2d-standard-2"}, types(run("cpu", "--location", "us-west2", "--json")))
+	})
+
+	t.Run("gpu --location filters on the parent and the gpu subcommand", func(t *testing.T) {
+		assert.Equal(t, []string{"g5.xlarge"}, types(run("--location", "us-west-2", "--json")))
+		assert.Equal(t, []string{"g5.xlarge"}, types(run("gpu", "--location", "us-west-2", "--json")))
+	})
+
+	t.Run("no match reports empty results", func(t *testing.T) {
+		assert.Equal(t, "[]\n", run("cpu", "--location", "mars-1", "--json"))
+	})
+
+	t.Run("piped cpu table keeps TYPE and TARGET_DISK first and adds LOCATION", func(t *testing.T) {
+		lines := strings.Split(strings.TrimSpace(run("cpu", "--location", "us-west2")), "\n")
+		require.Len(t, lines, 2)
+		assert.Equal(t, []string{"TYPE", "TARGET_DISK", "PROVIDER", "LOCATION"}, strings.Fields(lines[0])[:4])
+		row := strings.Fields(lines[1])
+		assert.Equal(t, "n2d-standard-2", row[0])
+		assert.Equal(t, "us-west2", row[3])
+	})
+
+	t.Run("piped table shows the default location, or - when unknown", func(t *testing.T) {
+		lines := strings.Split(strings.TrimSpace(run("gpu")), "\n")
+		assert.Equal(t, []string{"TYPE", "TARGET_DISK", "PROVIDER", "LOCATION"}, strings.Fields(lines[0])[:4])
+		locations := map[string]string{}
+		for _, line := range lines[1:] {
+			fields := strings.Fields(line)
+			locations[fields[0]] = fields[3]
+		}
+		assert.Equal(t, "us-east-1", locations["g5.xlarge"])
+		assert.Equal(t, "asia-south1", locations["n2d-standard-2"])
+		assert.Equal(t, "-", locations["cpu-no-location"])
+	})
+}
+
+func TestLocationColumnInEveryTable(t *testing.T) {
+	instances := ProcessInstances(locationCatalog().Items)
+	var gpus, cpus []GPUInstanceInfo
+	for _, inst := range instances {
+		if inst.Manufacturer == "cpu" {
+			cpus = append(cpus, inst)
+		} else {
+			gpus = append(gpus, inst)
+		}
+	}
+	term := terminal.New()
+	tables := map[string]func(){
+		"gpu":             func() { displayGPUTable(term, gpus) },
+		"gpu plain":       func() { displayGPUTablePlain(gpus) },
+		"gpu wide":        func() { displayGPUTableWide(term, gpus) },
+		"gpu plain wide":  func() { displayGPUTablePlainWide(gpus) },
+		"cpu":             func() { displayCPUTable(cpus) },
+		"cpu plain":       func() { displayCPUTablePlain(cpus) },
+		"cpu no location": func() { displayCPUTablePlain(cpus[len(cpus)-1:]) },
+	}
+	for name, render := range tables {
+		t.Run(name, func(t *testing.T) {
+			out := captureStdout(t, render)
+			assert.Contains(t, out, "LOCATION")
+			if name == "cpu no location" {
+				assert.Equal(t, "-", strings.Fields(strings.Split(strings.TrimSpace(out), "\n")[1])[3])
+			} else {
+				assert.Contains(t, out, "us-east-1")
+			}
 		})
 	}
 }

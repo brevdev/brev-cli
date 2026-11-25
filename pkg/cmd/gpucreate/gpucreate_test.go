@@ -3,8 +3,11 @@ package gpucreate
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -48,6 +51,8 @@ type MockGPUCreateStore struct {
 	CreatedWorkspaces         []*entity.Workspace
 	DeletedWorkspaceIDs       []string
 	FetchedLifeCycleScriptIDs []string
+	OrgInstanceTypes          []gpusearch.InstanceType // overrides the GetAllInstanceTypesWithCloudCreds default
+	PublicInstanceTypes       []gpusearch.InstanceType // overrides the GetInstanceTypes default
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -119,6 +124,9 @@ func (m *MockGPUCreateStore) GetWorkspaceByNameOrID(orgID string, nameOrID strin
 }
 
 func (m *MockGPUCreateStore) GetAllInstanceTypesWithCloudCreds(orgID string) (*gpusearch.AllInstanceTypesResponse, error) {
+	if m.OrgInstanceTypes != nil {
+		return &gpusearch.AllInstanceTypesResponse{AllInstanceTypes: m.OrgInstanceTypes}, nil
+	}
 	return &gpusearch.AllInstanceTypesResponse{
 		AllInstanceTypes: []gpusearch.InstanceType{
 			{Type: "test.fail.quota", CloudCredID: "testkube-brev-test"},
@@ -146,6 +154,9 @@ func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string
 }
 
 func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
+	if m.PublicInstanceTypes != nil {
+		return &gpusearch.InstanceTypesResponse{Items: m.PublicInstanceTypes}, nil
+	}
 	// Return a default set of instance types for testing
 	return &gpusearch.InstanceTypesResponse{
 		Items: []gpusearch.InstanceType{
@@ -161,6 +172,8 @@ func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesR
 				VCPU:                4,
 				BasePrice:           gpusearch.BasePrice{Currency: "USD", Amount: "1.006"},
 				EstimatedDeployTime: "5m0s",
+				Location:            "us-east-1",
+				AvailableLocations:  []string{"us-east-1"},
 			},
 		},
 	}, nil
@@ -989,8 +1002,102 @@ func TestFormatInstanceSpecs(t *testing.T) {
 		{Type: "g6.xlarge", DiskGB: 500},
 	}
 
-	result := formatInstanceSpecs(specs)
-	assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)", result)
+	t.Run("without a catalog or location output is unchanged", func(t *testing.T) {
+		assert.Equal(t, "g5.xlarge (1000GB disk), p4d.24xlarge, g6.xlarge (500GB disk)",
+			formatInstanceSpecs(specs, nil, "", ""))
+	})
+
+	catalog := locationCatalog()
+	cpu := []InstanceSpec{{Type: "n2d-standard-2", DiskGB: 120}, {Type: "m5.large"}}
+
+	t.Run("shows the catalog default location", func(t *testing.T) {
+		assert.Equal(t, "n2d-standard-2 (120GB disk, location: asia-south1/asia-south1-a), m5.large (location: us-east-1)",
+			formatInstanceSpecs(cpu, catalog, "", ""))
+	})
+
+	t.Run("shows the requested location, or that a type is not available there", func(t *testing.T) {
+		assert.Equal(t, "n2d-standard-2 (120GB disk, location: us-west2/us-west2-a), m5.large (not available in us-west2)",
+			formatInstanceSpecs(cpu, catalog, "us-west2", "us-west2-a"))
+	})
+}
+
+// locationCatalog mirrors the live catalog shape from issue #454: n2d-standard-2
+// defaults to asia-south1 but is also available in us-west2.
+func locationCatalog() []gpusearch.InstanceType {
+	return []gpusearch.InstanceType{
+		{
+			Type:               "n2d-standard-2",
+			CloudCredID:        "cc-gcp",
+			Location:           "asia-south1",
+			SubLocation:        "asia-south1-a",
+			AvailableLocations: []string{"asia-south1", "us-west2", "us-west3"},
+		},
+		{
+			Type:               "m5.large",
+			CloudCredID:        "cc-aws",
+			Location:           "us-east-1",
+			AvailableLocations: []string{"us-east-1", "us-east-2"},
+		},
+		{Type: "no-locations", CloudCredID: "cc-x"},
+	}
+}
+
+func TestResolvePlacement(t *testing.T) {
+	catalog := locationCatalog()
+	cases := []struct {
+		name, instanceType, location, subLocation string
+		catalog                                   []gpusearch.InstanceType
+		want                                      string
+		wantErr                                   string
+	}{
+		{name: "default location and sub-location", instanceType: "n2d-standard-2", want: "asia-south1/asia-south1-a"},
+		{name: "default location without sub-location", instanceType: "m5.large", want: "us-east-1"},
+		{name: "requested location", instanceType: "n2d-standard-2", location: "us-west2", want: "us-west2"},
+		{name: "requested location and sub-location", instanceType: "n2d-standard-2", location: "us-west2", subLocation: "us-west2-a", want: "us-west2/us-west2-a"},
+		{
+			name: "unavailable location lists sorted alternatives", instanceType: "n2d-standard-2", location: "us-east-1",
+			wantErr: `instance type "n2d-standard-2" is not available in location "us-east-1"; available locations: asia-south1, us-west2, us-west3`,
+		},
+		{name: "match is exact", instanceType: "n2d-standard-2", location: "US-WEST2", wantErr: "not available"},
+		{name: "type absent from the catalog is left to the server", instanceType: "private-type", location: "us-west2", want: "us-west2"},
+		{name: "type absent from the catalog has no default", instanceType: "private-type", want: ""},
+		{name: "type without listed locations is left to the server", instanceType: "no-locations", location: "us-west2", want: "us-west2"},
+		{name: "no catalog", instanceType: "n2d-standard-2", location: "us-west2", catalog: []gpusearch.InstanceType{}, want: "us-west2"},
+		{
+			name: "any catalog row for the type may offer the location", instanceType: "dup", location: "b",
+			catalog: []gpusearch.InstanceType{
+				{Type: "dup", AvailableLocations: []string{"a"}},
+				{Type: "dup", AvailableLocations: []string{"b"}},
+			},
+			want: "b",
+		},
+		{
+			name: "alternatives from duplicate rows are de-duplicated", instanceType: "dup", location: "z",
+			catalog: []gpusearch.InstanceType{
+				{Type: "dup", AvailableLocations: []string{"b", "a"}},
+				{Type: "dup", AvailableLocations: []string{"a"}},
+			},
+			wantErr: "available locations: a, b",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := catalog
+			if tc.catalog != nil {
+				c = tc.catalog
+			}
+			got, err := resolvePlacement(c, tc.instanceType, tc.location, tc.subLocation)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				var ve breverrors.ValidationError
+				assert.ErrorAs(t, err, &ve)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
 }
 
 // TestPollUntilReady covers the readiness-wait behavior across ctx states and
@@ -1445,4 +1552,238 @@ func TestCreateInstancesWithType(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreateWorkspaceLocation covers what reaches the create request.
+func TestCreateWorkspaceLocation(t *testing.T) { //nolint:funlen // table-driven test
+	launchable := &store.LaunchableResponse{
+		ID: "env-abc", Name: "test-launchable",
+		CreateWorkspaceRequest: store.LaunchableWorkspaceRequest{
+			CloudCredID: "cc-from-launchable", InstanceType: "private-type",
+			Location: "europe-west4", SubLocation: "europe-west4-a",
+		},
+	}
+	cases := []struct {
+		name            string
+		spec            string
+		opts            GPUCreateOptions
+		wantCreated     bool
+		wantLocation    string
+		wantSubLocation string
+	}{
+		{
+			name:        "no location leaves placement to the server",
+			spec:        "n2d-standard-2",
+			wantCreated: true,
+		},
+		{
+			name:         "issue #454: n2d-standard-2 in us-west2/us-west2-a",
+			spec:         "n2d-standard-2",
+			opts:         GPUCreateOptions{Location: "us-west2", SubLocation: "us-west2-a"},
+			wantCreated:  true,
+			wantLocation: "us-west2", wantSubLocation: "us-west2-a",
+		},
+		{
+			name:         "location without sub-location",
+			spec:         "n2d-standard-2",
+			opts:         GPUCreateOptions{Location: "us-west2"},
+			wantCreated:  true,
+			wantLocation: "us-west2",
+		},
+		{
+			name: "unavailable location skips the type without creating",
+			spec: "n2d-standard-2",
+			opts: GPUCreateOptions{Location: "us-east-1"},
+		},
+		{
+			name:         "launchable keeps its own placement",
+			spec:         "private-type",
+			opts:         GPUCreateOptions{LaunchableID: "env-abc", LaunchableInfo: launchable},
+			wantCreated:  true,
+			wantLocation: "europe-west4", wantSubLocation: "europe-west4-a",
+		},
+		{
+			name:         "--location replaces launchable placement and drops its sub-location",
+			spec:         "private-type",
+			opts:         GPUCreateOptions{LaunchableID: "env-abc", LaunchableInfo: launchable, Location: "us-west2"},
+			wantCreated:  true,
+			wantLocation: "us-west2",
+		},
+		{
+			name:         "--location and --sub-location replace launchable placement",
+			spec:         "private-type",
+			opts:         GPUCreateOptions{LaunchableID: "env-abc", LaunchableInfo: launchable, Location: "us-west2", SubLocation: "us-west2-b"},
+			wantCreated:  true,
+			wantLocation: "us-west2", wantSubLocation: "us-west2-b",
+		},
+		{
+			name: "launchable with a catalog type is validated too",
+			spec: "n2d-standard-2",
+			opts: GPUCreateOptions{LaunchableID: "env-abc", LaunchableInfo: launchable, Location: "us-east-1"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mock := NewMockGPUCreateStore()
+			opts := tc.opts
+			opts.Count, opts.Parallel, opts.Name = 1, 1, "loc-test"
+			var logs strings.Builder
+			ctx := &createContext{
+				t: terminal.New(), store: mock, opts: opts, org: mock.Org, piped: true,
+				allInstanceTypes: &gpusearch.AllInstanceTypesResponse{AllInstanceTypes: locationCatalog()},
+				logf:             func(format string, a ...interface{}) { fmt.Fprintf(&logs, format, a...) },
+			}
+
+			result := ctx.createInstancesWithType(InstanceSpec{Type: tc.spec}, 0, 1)
+
+			if !tc.wantCreated {
+				assert.True(t, result.hadFailure)
+				assert.NoError(t, result.fatalError, "a type unavailable in the location should fall through to the next type")
+				assert.Empty(t, mock.CreatedOptions)
+				assert.Contains(t, logs.String(), "available locations: asia-south1, us-west2, us-west3")
+				return
+			}
+			require.Len(t, mock.CreatedOptions, 1)
+			assert.Equal(t, tc.wantLocation, mock.CreatedOptions[0].Location)
+			assert.Equal(t, tc.wantSubLocation, mock.CreatedOptions[0].SubLocation)
+
+			body, err := json.Marshal(mock.CreatedOptions[0])
+			require.NoError(t, err)
+			if tc.wantLocation == "" {
+				assert.NotContains(t, string(body), `"location"`, "omitted so the server picks the default")
+			} else {
+				assert.Contains(t, string(body), `"location":"`+tc.wantLocation+`"`)
+			}
+			if tc.wantSubLocation == "" {
+				assert.NotContains(t, string(body), `"subLocation"`)
+			} else {
+				assert.Contains(t, string(body), `"subLocation":"`+tc.wantSubLocation+`"`)
+			}
+		})
+	}
+}
+
+// captureStdout returns what fn writes to os.Stdout. Build terminals inside fn:
+// terminal.New binds os.Stdout when it is created.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	orig := os.Stdout
+	os.Stdout = w
+	defer func() { os.Stdout = orig }()
+	fn()
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
+	return string(out)
+}
+
+// TestCreateCommandLocation drives the cobra command end to end with a mock store.
+func TestCreateCommandLocation(t *testing.T) {
+	run := func(mock *MockGPUCreateStore, args ...string) (string, error) {
+		var err error
+		out := captureStdout(t, func() {
+			cmd := NewCmdGPUCreate(terminal.New(), mock)
+			cmd.SetArgs(args)
+			err = cmd.Execute()
+		})
+		return out, err //nolint:wrapcheck // test helper returns the command error as-is
+	}
+	newMock := func() *MockGPUCreateStore {
+		mock := NewMockGPUCreateStore()
+		mock.OrgInstanceTypes = locationCatalog()
+		mock.PublicInstanceTypes = locationCatalog()
+		return mock
+	}
+
+	t.Run("--sub-location requires --location", func(t *testing.T) {
+		mock := newMock()
+		_, err := run(mock, "mybox", "--type", "n2d-standard-2", "--sub-location", "us-west2-a", "--detached")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--sub-location requires --location")
+		assert.Empty(t, mock.CreatedOptions)
+	})
+
+	t.Run("issue #454 repro creates in the requested location", func(t *testing.T) {
+		mock := newMock()
+		_, err := run(mock, "mybox", "--type", "n2d-standard-2", "--location", "us-west2", "--sub-location", "us-west2-a", "--detached")
+		require.NoError(t, err)
+		require.Len(t, mock.CreatedOptions, 1)
+		assert.Equal(t, "n2d-standard-2", mock.CreatedOptions[0].InstanceType)
+		assert.Equal(t, "us-west2", mock.CreatedOptions[0].Location)
+		assert.Equal(t, "us-west2-a", mock.CreatedOptions[0].SubLocation)
+		assert.Equal(t, "cc-gcp", mock.CreatedOptions[0].CloudCredID)
+	})
+
+	t.Run("unavailable location fails without creating", func(t *testing.T) {
+		mock := newMock()
+		_, err := run(mock, "mybox", "--type", "n2d-standard-2", "--location", "us-east-1", "--detached")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "could only create 0/1")
+		assert.Empty(t, mock.CreatedOptions)
+	})
+
+	t.Run("fallback chain skips types unavailable in the location", func(t *testing.T) {
+		mock := newMock()
+		_, err := run(mock, "mybox", "--type", "m5.large,n2d-standard-2", "--location", "us-west2", "--detached")
+		require.NoError(t, err)
+		require.Len(t, mock.CreatedOptions, 1)
+		assert.Equal(t, "n2d-standard-2", mock.CreatedOptions[0].InstanceType)
+		assert.Equal(t, "us-west2", mock.CreatedOptions[0].Location)
+	})
+
+	t.Run("dry run shows the default location without creating", func(t *testing.T) {
+		mock := newMock()
+		out, err := run(mock, "mybox", "--type", "n2d-standard-2", "--dry-run")
+		require.NoError(t, err)
+		assert.Equal(t, "n2d-standard-2 (location: asia-south1/asia-south1-a)\n", out)
+		assert.Empty(t, mock.CreatedOptions)
+	})
+
+	t.Run("dry run shows the requested location", func(t *testing.T) {
+		mock := newMock()
+		out, err := run(mock, "mybox", "--type", "n2d-standard-2,m5.large", "--location", "us-west2", "--sub-location", "us-west2-a", "--dry-run")
+		require.NoError(t, err)
+		assert.Equal(t, "n2d-standard-2 (location: us-west2/us-west2-a), m5.large (not available in us-west2)\n", out)
+		assert.Empty(t, mock.CreatedOptions)
+	})
+
+	t.Run("auto-selection only considers types available in the location", func(t *testing.T) {
+		mock := NewMockGPUCreateStore() // default GPU catalog: g5.xlarge in us-east-1 only
+		out, err := run(mock, "mybox", "--location", "us-east-1", "--dry-run")
+		require.NoError(t, err)
+		assert.Contains(t, out, "g5.xlarge")
+		assert.Contains(t, out, "us-east-1")
+
+		_, err = run(mock, "mybox", "--location", "us-west2", "--dry-run")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no GPU instances match")
+	})
+}
+
+// TestSearchOutputPipesIntoCreate checks that 'brev search | brev create --stdin'
+// still parses the type and target disk now that search prints locations.
+func TestSearchOutputPipesIntoCreate(t *testing.T) {
+	instances := gpusearch.ProcessInstances([]gpusearch.InstanceType{{
+		Type: "n2d-standard-2", Provider: "gcp", VCPU: 2, Memory: "8GiB",
+		SupportedStorage:   []gpusearch.Storage{{MinSize: "10GiB", MaxSize: "16TiB"}},
+		Location:           "asia-south1",
+		SubLocation:        "asia-south1-a",
+		AvailableLocations: []string{"asia-south1", "us-west2"},
+	}})
+	instances[0].TargetDisk = 120
+
+	table := captureStdout(t, func() {
+		require.NoError(t, gpusearch.DisplayCPUResults(terminal.New(), instances, false, true))
+	})
+	assert.Equal(t, []InstanceSpec{{Type: "n2d-standard-2", DiskGB: 120}}, parseTableInput(table))
+
+	jsonOut := captureStdout(t, func() {
+		require.NoError(t, gpusearch.DisplayCPUResults(terminal.New(), instances, true, true))
+	})
+	assert.Contains(t, jsonOut, `"available_locations"`)
+	specs, err := parseJSONInput(jsonOut)
+	require.NoError(t, err)
+	assert.Equal(t, []InstanceSpec{{Type: "n2d-standard-2", DiskGB: 120}}, specs)
 }
