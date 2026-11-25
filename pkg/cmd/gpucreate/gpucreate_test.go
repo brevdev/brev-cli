@@ -53,6 +53,7 @@ type MockGPUCreateStore struct {
 	FetchedLifeCycleScriptIDs []string
 	OrgInstanceTypes          []gpusearch.InstanceType // overrides the GetAllInstanceTypesWithCloudCreds default
 	PublicInstanceTypes       []gpusearch.InstanceType // overrides the GetInstanceTypes default
+	IncludeCPUCalls           []bool                   // includeCPU argument of each GetInstanceTypes call
 }
 
 func NewMockGPUCreateStore() *MockGPUCreateStore {
@@ -153,7 +154,8 @@ func (m *MockGPUCreateStore) RedeemCouponCode(organizationID string, code string
 	return &store.RedeemCouponCodeResponse{}, nil
 }
 
-func (m *MockGPUCreateStore) GetInstanceTypes(_ bool) (*gpusearch.InstanceTypesResponse, error) {
+func (m *MockGPUCreateStore) GetInstanceTypes(includeCPU bool) (*gpusearch.InstanceTypesResponse, error) {
+	m.IncludeCPUCalls = append(m.IncludeCPUCalls, includeCPU)
 	if m.PublicInstanceTypes != nil {
 		return &gpusearch.InstanceTypesResponse{Items: m.PublicInstanceTypes}, nil
 	}
@@ -1755,6 +1757,7 @@ func TestCreateCommandLocation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, out, "g5.xlarge")
 		assert.Contains(t, out, "us-east-1")
+		assert.Equal(t, []bool{true, true}, mock.IncludeCPUCalls, "auto-selection and dry-run use the catalog 'brev create' validates against")
 
 		_, err = run(mock, "mybox", "--location", "us-west2", "--dry-run")
 		require.Error(t, err)

@@ -654,37 +654,40 @@ func (m *trackingStore) GetInstanceTypes(includeCPU bool) (*InstanceTypesRespons
 	return &InstanceTypesResponse{Items: []InstanceType{}}, nil
 }
 
-func TestSearchCommandDefaultsToGPUSearchWhenNoArgs(t *testing.T) {
-	store := &trackingStore{}
+// searchTypes runs the search command with --json and returns the listed types.
+func searchTypes(t *testing.T, args ...string) ([]string, *trackingStore) {
+	t.Helper()
+	store := &trackingStore{Response: locationCatalog()}
 	cmd := NewCmdGPUSearch(terminal.New(), store)
-	cmd.SetArgs([]string{})
-
-	err := cmd.Execute()
-	assert.NoError(t, err)
-	assert.Len(t, store.calls, 1, "default search should call the store once")
-	assert.False(t, store.calls[0], "default search should request GPU instances (includeCPU=false)")
+	cmd.SetArgs(append(args, "--json"))
+	out := captureStdout(t, func() { require.NoError(t, cmd.Execute()) })
+	var found []GPUInstanceInfo
+	require.NoError(t, json.Unmarshal([]byte(out), &found))
+	var types []string
+	for _, inst := range found {
+		types = append(types, inst.Type)
+	}
+	return types, store
 }
 
-func TestSearchCommandGPUSubcommandDispatchesToGPUSearch(t *testing.T) {
-	store := &trackingStore{}
-	cmd := NewCmdGPUSearch(terminal.New(), store)
-	cmd.SetArgs([]string{"gpu"})
-
-	err := cmd.Execute()
-	assert.NoError(t, err)
-	assert.Len(t, store.calls, 1, "gpu subcommand should call the store once")
-	assert.False(t, store.calls[0], "gpu subcommand should request GPU instances (includeCPU=false)")
-}
-
-func TestSearchCommandCPUSubcommandDispatchesToCPUSearch(t *testing.T) {
-	store := &trackingStore{}
-	cmd := NewCmdGPUSearch(terminal.New(), store)
-	cmd.SetArgs([]string{"cpu"})
-
-	err := cmd.Execute()
-	assert.NoError(t, err)
-	assert.Len(t, store.calls, 1, "cpu subcommand should call the store once")
-	assert.True(t, store.calls[0], "cpu subcommand should request CPU instances (includeCPU=true)")
+func TestSearchCommandDispatch(t *testing.T) {
+	cpuTypes := []string{"cpu-no-location", "n2d-standard-2", "m5.large"} // sorted by price
+	for _, tc := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"default search lists GPU types", nil, []string{"g5.xlarge"}},
+		{"gpu subcommand lists GPU types", []string{"gpu"}, []string{"g5.xlarge"}},
+		{"cpu subcommand lists CPU types", []string{"cpu"}, cpuTypes},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			types, store := searchTypes(t, tc.args...)
+			assert.Equal(t, tc.want, types)
+			// One catalog for every command, the same one 'brev create' validates against.
+			assert.Equal(t, []bool{true}, store.calls)
+		})
+	}
 }
 
 func TestSearchCommandRejectsUnknownPositionalTokens(t *testing.T) {
@@ -706,7 +709,7 @@ func TestSearchCommandRejectsUnknownPositionalTokens(t *testing.T) {
 			err := cmd.Execute()
 			assert.Error(t, err)
 			assert.ErrorContains(t, err, "unknown subcommand")
-			assert.ErrorContains(t, err, "Available subcommands: cpu, gpu")
+			assert.ErrorContains(t, err, "Available subcommands: cpu, gpu, locations")
 			assert.Empty(t, store.calls, "unknown subcommand should not call the store")
 		})
 	}
@@ -855,13 +858,15 @@ func TestSearchCommandLocation(t *testing.T) {
 		assert.Equal(t, "us-west2", row[3])
 	})
 
-	t.Run("piped table shows the default location, or - when unknown", func(t *testing.T) {
-		lines := strings.Split(strings.TrimSpace(run("gpu")), "\n")
-		assert.Equal(t, []string{"TYPE", "TARGET_DISK", "PROVIDER", "LOCATION"}, strings.Fields(lines[0])[:4])
+	t.Run("piped tables show the default location, or - when unknown", func(t *testing.T) {
 		locations := map[string]string{}
-		for _, line := range lines[1:] {
-			fields := strings.Fields(line)
-			locations[fields[0]] = fields[3]
+		for _, kind := range []string{"gpu", "cpu"} {
+			lines := strings.Split(strings.TrimSpace(run(kind)), "\n")
+			assert.Equal(t, []string{"TYPE", "TARGET_DISK", "PROVIDER", "LOCATION"}, strings.Fields(lines[0])[:4])
+			for _, line := range lines[1:] {
+				fields := strings.Fields(line)
+				locations[fields[0]] = fields[3]
+			}
 		}
 		assert.Equal(t, "us-east-1", locations["g5.xlarge"])
 		assert.Equal(t, "asia-south1", locations["n2d-standard-2"])

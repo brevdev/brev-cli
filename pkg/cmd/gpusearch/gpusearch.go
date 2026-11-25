@@ -122,16 +122,17 @@ type GPUSearchStore interface {
 var (
 	searchLong = `Search instance types available on Brev.
 
-The search command has two subcommands:
-  gpu   Search GPU instance types (default when no subcommand is given)
-  cpu   Search CPU-only instance types
+The search command has three subcommands:
+  gpu        Search GPU instance types (default when no subcommand is given)
+  cpu        Search CPU-only instance types
+  locations  List locations that instance types can be created in
 
 Use 'brev search' or 'brev search gpu' to find GPU instances.
 Use 'brev search cpu' to find CPU-only instances.
 
-The LOCATION column shows where each type is created by default. Use --location
-to list only types available in a location; 'brev create --location' accepts the
-same values. JSON output includes every available location.
+The LOCATION column shows where each type is created by default. Use
+'brev search locations' to list locations, and --location to list only the types
+available in one ('brev create --location' accepts the same values).
 
 Features column shows instance capabilities:
   S = Stoppable (can stop and restart without losing data)
@@ -233,7 +234,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 		Short:                 "Search GPU and CPU instance types",
 		Long:                  searchLong,
 		Example:               gpuExample,
-		ValidArgs:             []string{"cpu", "gpu"},
+		ValidArgs:             []string{"cpu", "gpu", "locations"},
 		Args: func(cmd *cobra.Command, args []string) error {
 			// The parent runs GPU search by default when no positional args are
 			// given. Unknown positional tokens (e.g. "cpus", "CPU", "badcmd")
@@ -246,7 +247,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 			path := cmd.CommandPath()
 			return breverrors.NewValidationError(fmt.Sprintf(
 				"unknown subcommand %q for %q.\n"+
-					"Available subcommands: cpu, gpu.\n"+
+					"Available subcommands: cpu, gpu, locations.\n"+
 					"Use %q (default) or %q gpu for GPU instances; use %q cpu for CPU-only instances.\n"+
 					"Run %q --help for more details.",
 				args[0], path, path, path, path, path,
@@ -269,6 +270,7 @@ func NewCmdGPUSearch(t *terminal.Terminal, store GPUSearchStore) *cobra.Command 
 	// Add subcommands
 	cmd.AddCommand(newCmdGPUSubcommand(t, store))
 	cmd.AddCommand(newCmdCPUSubcommand(t, store))
+	cmd.AddCommand(newCmdLocationsSubcommand(t, store))
 
 	return cmd
 }
@@ -367,7 +369,10 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, location,
 
 	piped := IsStdoutPiped()
 
-	response, err := store.GetInstanceTypes(false)
+	// The CPU-inclusive catalog matches what 'brev create' uses (default
+	// location, price, available locations); the GPU-only listing can return a
+	// different region variant of a type. GPU types are filtered below.
+	response, err := store.GetInstanceTypes(true)
 	if err != nil {
 		return breverrors.WrapAndTrace(err)
 	}
@@ -379,7 +384,7 @@ func RunGPUSearch(t *terminal.Terminal, store GPUSearchStore, gpuName, location,
 	instances := ProcessInstances(response.Items)
 
 	// Filter to GPU-only instances
-	filtered := FilterInstances(instances, gpuName, provider, arch, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts, false)
+	filtered := FilterInstances(instances, gpuName, provider, arch, minVRAM, minTotalVRAM, minCapability, minRAM, minDisk, minVCPU, maxBootTime, stoppable, rebootable, flexPorts, true)
 	filtered = FilterByLocation(filtered, location)
 
 	if len(filtered) == 0 {

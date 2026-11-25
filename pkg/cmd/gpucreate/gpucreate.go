@@ -85,7 +85,8 @@ Location:
 By default each type is created in its catalog default location, shown in the
 LOCATION column of 'brev search' and in --dry-run output. Use --location (and
 optionally --sub-location) to choose one; types that are not available there
-are skipped. 'brev search --location' lists the types available in a location.`
+are skipped. 'brev search locations' lists locations, and
+'brev search --location' lists the types available in one.`
 
 	example = `
   # Create an instance using smart defaults (sorted by price)
@@ -329,7 +330,7 @@ func registerCreateFlags(cmd *cobra.Command, name, instanceTypes *string, readSt
 	cmd.Flags().StringVarP(launchable, "launchable", "l", "", "Launchable ID or URL to deploy (e.g., env-XXX or console URL)")
 	cmd.Flags().StringArrayVar(launchableParams, "param", nil, "Launchable setup value NAME=VALUE (repeatable)")
 
-	cmd.Flags().StringVar(&filters.location, "location", "", "Location to create the instance in (e.g., us-west2; see 'brev search --location')")
+	cmd.Flags().StringVar(&filters.location, "location", "", "Location to create the instance in (e.g., us-west2; see 'brev search locations')")
 	cmd.Flags().StringVar(&filters.subLocation, "sub-location", "", "Zone within --location (e.g., us-west2-a)")
 	cmd.Flags().StringVarP(&filters.gpuName, "gpu-name", "g", "", "Filter by GPU name (e.g., A100, H100)")
 	cmd.Flags().StringVar(&filters.provider, "provider", "", "Filter by provider/cloud (e.g., aws, gcp)")
@@ -705,7 +706,8 @@ func parseStartupScript(value string) (string, error) {
 
 // searchInstances fetches and filters GPU instances using user-provided filters merged with defaults
 func searchInstances(s GPUCreateStore, filters *searchFilterFlags) ([]gpusearch.GPUInstanceInfo, float64, error) {
-	response, err := s.GetInstanceTypes(false)
+	// Same catalog as 'brev search gpu'; CPU types are filtered out below.
+	response, err := s.GetInstanceTypes(true)
 	if err != nil {
 		return nil, 0, breverrors.WrapAndTrace(err)
 	}
